@@ -12,6 +12,7 @@ import { getTicketCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { expectBothReservedAtTwoAndOne } from "./_shared-multi.ts";
 
 // jscpd:ignore-end
 
@@ -142,13 +143,8 @@ describeWithEnv(
             [`quantity_${listing2.id}`]: "1",
           },
         );
-        expectReservedRedirectWithTokens(response);
-
         // Verify attendees were created
-        await expectAttendeeCounts([
-          { count: 1, listingId: listing1.id, quantity: 2 },
-          { count: 1, listingId: listing2.id, quantity: 1 },
-        ]);
+        await expectBothReservedAtTwoAndOne(response, listing1, listing2);
       });
 
       test("only registers for listings with quantity > 0", async () => {

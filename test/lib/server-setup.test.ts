@@ -60,6 +60,36 @@ describeWithEnv("server (setup)", { db: true }, () => {
     });
   }
 
+  /** Simulate a real browser completing setup through the given URL: GET the
+   *  page, read its CSRF token, then POST the standard valid credentials.
+   *  Asserts the GET returns 200, a token is present, and the POST redirects to
+   *  /setup/complete. */
+  async function completeSetupViaBrowser(setupUrl: string): Promise<void> {
+    const getResponse = await handleRequest(
+      new Request(setupUrl, {
+        headers: { host: "localhost" },
+        method: "GET",
+      }),
+    );
+    expect(getResponse.status).toBe(200);
+
+    const csrfToken = getSetupCsrfToken(await getResponse.text());
+    expect(csrfToken).not.toBeNull();
+
+    const postResponse = await handleRequest(
+      mockSetupFormRequest(
+        {
+          admin_password: "mypassword123",
+          admin_password_confirm: "mypassword123",
+          admin_username: "testadmin",
+          country: "GB",
+        },
+        csrfToken as string,
+      ),
+    );
+    expectRedirect(postResponse, /^\/setup\/complete$/);
+  }
+
   async function resetToBrandNewDatabase(): Promise<void> {
     await resetDatabase();
     invalidateTestDbCache();
@@ -465,64 +495,12 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // 1. GET /setup/ - browser receives the page with CSRF token
         // 2. User fills form and submits
         // 3. Browser sends POST with signed CSRF token
-
-        // Step 1: GET the setup page
-        const getResponse = await handleRequest(
-          new Request("http://localhost/setup/", {
-            headers: { host: "localhost" },
-            method: "GET",
-          }),
-        );
-        expect(getResponse.status).toBe(200);
-
-        // Extract CSRF token from the HTML body
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-        expect(csrfToken).not.toBeNull();
-
-        // Step 2: Simulate browser POST with signed CSRF token
-        const postResponse = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              admin_username: "testadmin",
-              country: "GB",
-            },
-            csrfToken as string,
-          ),
-        );
-
-        // This should succeed - the full flow should work
-        expectRedirect(postResponse, /^\/setup\/complete$/);
+        await completeSetupViaBrowser("http://localhost/setup/");
       });
 
       test("setup form works when accessed via /setup (no trailing slash)", async () => {
-        // GET /setup (no trailing slash)
-        const getResponse = await handleRequest(
-          new Request("http://localhost/setup", {
-            headers: { host: "localhost" },
-            method: "GET",
-          }),
-        );
-        expect(getResponse.status).toBe(200);
-
-        const csrfToken = getSetupCsrfToken(await getResponse.text());
-        expect(csrfToken).not.toBeNull();
-
-        // POST to /setup (no trailing slash) with signed CSRF token
-        const postResponse = await handleRequest(
-          mockSetupFormRequest(
-            {
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              admin_username: "testadmin",
-              country: "GB",
-            },
-            csrfToken as string,
-          ),
-        );
-
-        expectRedirect(postResponse, /^\/setup\/complete$/);
+        // Same full flow, but reached at /setup with no trailing slash.
+        await completeSetupViaBrowser("http://localhost/setup");
       });
 
       test("GET /setup/complete redirects to setup when not yet complete", async () => {

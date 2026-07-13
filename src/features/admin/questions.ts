@@ -1,4 +1,5 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
@@ -16,13 +17,13 @@ import {
 } from "#routes/admin/confirmation.ts";
 import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
 import { ownerFormById, ownerGetById } from "#routes/entity.ts";
+/* jscpd:ignore-start */
 import {
   errorRedirect,
   htmlResponse,
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-/* jscpd:ignore-start */
 import {
   type AuthedHandlerArgs,
   createAuthedFormRoute,
@@ -68,6 +69,7 @@ import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import type { MaybePromise } from "#shared/maybe-promise.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
@@ -144,7 +146,7 @@ const handleQuestionsGet = ownerPage(async (session) => {
   // Resolve listing ids to their decrypted names for the Listings column,
   // dropping any ids whose listing has since been deleted (listing_questions
   // rows are not pruned on listing deletion, so orphans can linger).
-  const nameById = new Map(allListings.map((l) => [l.id, l.name]));
+  const nameById = idNameMap(allListings);
   const listingNames = new Map(
     [...questionListingIds].map(([questionId, ids]) => [
       questionId,
@@ -323,7 +325,7 @@ const answerRoute =
       question: QuestionWithAnswers,
       answer: Answer,
       session: AdminSession,
-    ) => Response | Promise<Response>,
+    ) => MaybePromise<Response>,
   ) =>
   (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
     requireOwnerOr(request, async (session) => {
@@ -525,12 +527,7 @@ const moveAnswerHandler = (direction: -1 | 1) =>
     const idx = question.answers.findIndex((a) => a.id === answer.id);
     const neighbor = question.answers[idx + direction];
     if (neighbor) {
-      await swapAnswerOrder(
-        answer.id,
-        answer.sort_order,
-        neighbor.id,
-        neighbor.sort_order,
-      );
+      await swapAnswerOrder(answer.id, neighbor.id);
     }
     return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
   });

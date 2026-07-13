@@ -270,13 +270,20 @@ const crudConfig = {
  * with {@link validateGroupWithPackage} so a new group's name uniqueness is
  * enforced on create too; the package checks it runs are no-ops on create (the
  * group has no members yet) and the auto-generated slug is already unique. */
-const groupsCreateResource = defineNamedResource({
-  fields: getGroupCreateFields(),
+/** Config shared by both group resources: the same table, name field, delete
+ * hook and package validation — the create/edit variants differ only in which
+ * fields they accept and how they read the form. */
+const groupResourceBase = {
   nameField: "name",
   onDelete: deleteGroup,
   table: groups.table,
-  toInput: extractGroupCreateInput,
   validate: validateGroupWithPackage,
+} as const;
+
+const groupsCreateResource = defineNamedResource({
+  ...groupResourceBase,
+  fields: getGroupCreateFields(),
+  toInput: extractGroupCreateInput,
 });
 
 /** Persist the group's per-listing package overrides (price + quantity) after
@@ -299,13 +306,10 @@ const writeGroupPackageMembers = (
  * the package invariant and writes the dynamic overrides via afterWrite, so the
  * generic CRUD edit route handles packages without a bespoke handler. */
 const groupsResource = defineNamedResource({
+  ...groupResourceBase,
   afterWrite: writeGroupPackageMembers,
   fields: getGroupFields(),
-  nameField: "name",
-  onDelete: deleteGroup,
-  table: groups.table,
   toInput: extractGroupEditInput,
-  validate: validateGroupWithPackage,
 });
 
 // Editors may create/edit groups, so list/new/create/edit use content-gated

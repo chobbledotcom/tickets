@@ -22,6 +22,7 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
+import { queryColumnSet } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
@@ -91,12 +92,11 @@ export const resubscribeHash = (hash: string): Promise<void> =>
     [nowMs(), hash],
   );
 
-export const getUnsubscribedHashSet = async (): Promise<Set<string>> => {
-  const rows = await queryAll<{ contact_hash: string }>(
+export const getUnsubscribedHashSet = (): Promise<Set<string>> =>
+  queryColumnSet(
     "SELECT contact_hash FROM contact_preferences WHERE unsubscribed = 1",
+    "contact_hash",
   );
-  return new Set(rows.map((r) => r.contact_hash));
-};
 
 /** Record one visit against a contact, creating the row on first activity. */
 export const recordVisit = (hash: string): Promise<void> =>
@@ -150,6 +150,13 @@ export type ContactRecord = ContactStats & {
   publicBookingCount: number;
   adminBookingCount: number;
 };
+
+/** Load a contact's full record (counts + decrypted note) by its one-way
+ * contact hash, using the request's private key to open the encrypted note. */
+export type ContactRecordLoader = (
+  hash: string,
+  privateKey: CryptoKey,
+) => Promise<ContactRecord>;
 
 type StatsBlob = {
   c?: number;
@@ -216,10 +223,10 @@ const countFieldsFromRow = (
   visits: row?.visits ?? 0,
 });
 
-export const getContactRecord = async (
-  hash: string,
-  privateKey: CryptoKey,
-): Promise<ContactRecord> => {
+export const getContactRecord: ContactRecordLoader = async (
+  hash,
+  privateKey,
+) => {
   const row = await queryOne<
     CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" }
   >(

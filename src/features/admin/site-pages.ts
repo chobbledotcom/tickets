@@ -17,7 +17,7 @@ import {
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
 import { SITE_FORM, SITE_MULTIPART, withAuth } from "#routes/auth.ts";
-import type { IdParam } from "#routes/entity.ts";
+import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupExists } from "#shared/db/groups.ts";
@@ -59,6 +59,7 @@ import {
   adminSitePageNewPage,
   adminSitePagesListPage,
 } from "#templates/admin/site-pages.tsx";
+import { checkContentForm } from "./check-content-form.ts";
 import { seoContentInput } from "./content-form-fields.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import {
@@ -67,7 +68,6 @@ import {
   siteContentGet,
   siteContentPaths,
   siteEntityPost,
-  validateContentFormOr,
 } from "./site-content.ts";
 import { siteCreatePost } from "./site-content-create.ts";
 import { buildListModel, offerableListing } from "./site-pages-data.ts";
@@ -99,19 +99,20 @@ const validateFields = async (
 ): Promise<
   { ok: true; name: string; slug: string } | { ok: false; response: Response }
 > => {
-  const result = validateContentFormOr(sitePageForm.validate(form), errorPath);
+  const result = checkContentForm(sitePageForm, form, errorPath);
   if (!result.ok) return result;
+  // Bounce back to the form with the named error flash.
+  const fail = (key: string): { ok: false; response: Response } => ({
+    ok: false,
+    response: errorRedirect(errorPath, t(key)),
+  });
   // The slug field's own validator already ran `validateSlug(normalizeSlug())`
   // (so the format is known-good here); re-normalise for the reserved/uniqueness
   // checks and storage.
   const slug = normalizeSlug(result.values.slug);
-  if (isReservedSlug(slug)) {
-    const msg = t("site.pages.error.reserved");
-    return { ok: false, response: errorRedirect(errorPath, msg) };
-  }
+  if (isReservedSlug(slug)) return fail("site.pages.error.reserved");
   if (await isSitePageSlugTaken(slug, excludeId)) {
-    const msg = t("site.pages.error.slug_taken");
-    return { ok: false, response: errorRedirect(errorPath, msg) };
+    return fail("site.pages.error.slug_taken");
   }
   return { name: result.values.name, ok: true, slug };
 };
@@ -127,17 +128,11 @@ const loadPageOr404 = async (
   return page ? hit(page) : notFoundResponse();
 };
 
-/** Curry a `:id` route: unpack the id param and pass it to `run`. */
-const idHandler =
-  (run: (request: Request, id: number) => Promise<Response>) =>
-  (request: Request, params: IdParam): Promise<Response> =>
-    run(request, params.id);
-
 /** SITE_FORM POST handler keyed on `:id`. */
 const idPost = (
   handler: (id: number, form: FormParams) => Promise<Response>,
-): ReturnType<typeof idHandler> =>
-  idHandler((request, id) =>
+): IdRouteHandler =>
+  idRouteFor((request, id) =>
     withAuth(request, SITE_FORM, (_session, form) => handler(id, form)),
   );
 
@@ -164,7 +159,7 @@ const renderList = siteContentGet(async (session) =>
   adminSitePagesListPage(await buildListModel(), session),
 );
 
-const renderNew = siteContentGet((session) => adminSitePageNewPage(session));
+const renderNew = siteContentGet(adminSitePageNewPage);
 
 const handleCreate = siteCreatePost(
   paths.newPage,

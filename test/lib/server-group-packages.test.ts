@@ -59,6 +59,13 @@ const sellPackageTicket = async (
   return result.attendees[0]!.ticket_token;
 };
 
+/** Load a listing by id (used to assert a member survives its deleted
+ * package). */
+const loadListing = async (id: number) => {
+  const m = await import("#shared/db/listings/records.ts");
+  return m.getListingWithCount(id);
+};
+
 /** A HIDDEN package, its sole member, and one sold ticket stamped with the
  * group id — the state whose deletion must un-group rather than destroy. */
 const hiddenPackageWithBooking = async (name: string, slug: string) => {
@@ -903,10 +910,7 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
 
     // The member listing survives, un-grouped, and the sold ticket renders as
     // the member's own card now that the package no longer resolves.
-    const { getListingWithCount } = await import(
-      "#shared/db/listings/records.ts"
-    );
-    expect(await getListingWithCount(memberListing.id)).not.toBeNull();
+    expect(await loadListing(memberListing.id)).not.toBeNull();
     const body = await (await handleRequest(mockRequest(`/t/${token}`))).text();
     expect(body).toContain("Sold Kit Member");
   });
@@ -987,9 +991,6 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       },
     );
     expect(await groups.table.findById(group.id)).toBeNull();
-    const { getListingWithCount } = await import(
-      "#shared/db/listings/records.ts"
-    );
-    expect(await getListingWithCount(memberListing.id)).not.toBeNull();
+    expect(await loadListing(memberListing.id)).not.toBeNull();
   });
 });

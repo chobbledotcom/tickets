@@ -76,24 +76,22 @@ const DesktopLevels = ({
     </ul>
   );
 
-/** One mobile nav bar (the top-level row, or a submenu level beneath it), with
- * an accessible name so screen-reader users can tell the stacked bars apart. */
-const mobileNavBar = (label: string, lis: JSX.Element[]): JSX.Element => (
-  <nav aria-label={label} class="admin-nav admin-nav--mobile">
-    <ul>{lis}</ul>
-  </nav>
-);
+/** A named nav bar built for one `admin-nav--{variant}` layout: give it the
+ * accessible name and the `<li>`s (and an optional id) and it renders the bar.
+ * The accessible name lets screen-reader users tell the stacked bars apart. */
+const navBar =
+  (variant: "mobile" | "desktop") =>
+  (label: string, lis: JSX.Element[], id?: string): JSX.Element => (
+    <nav aria-label={label} class={`admin-nav admin-nav--${variant}`} id={id}>
+      <ul>{lis}</ul>
+    </nav>
+  );
+
+/** One mobile nav bar (the top-level row, or a submenu level beneath it). */
+const mobileNavBar = navBar("mobile");
 
 /** The desktop sidebar shell around the top-level `<li>`s. */
-const desktopNavShell = (
-  label: string,
-  lis: JSX.Element[],
-  id?: string,
-): JSX.Element => (
-  <nav aria-label={label} class="admin-nav admin-nav--desktop" id={id}>
-    <ul>{lis}</ul>
-  </nav>
-);
+const desktopNavShell = navBar("desktop");
 
 /** Render one whole leveled navigation. `rootLis` builds the top-level row for
  * each viewport; its `nested` argument is the desktop nesting to hang beneath

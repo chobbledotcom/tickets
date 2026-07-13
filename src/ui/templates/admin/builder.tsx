@@ -2,17 +2,17 @@
  * Admin builder page template — create new Tickets instances
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { builderForm } from "#routes/admin/builder.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
+/* jscpd:ignore-start */
+import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 /* jscpd:ignore-end */
 
@@ -63,21 +63,16 @@ const BuiltSitesTable = ({
       columns={namedColumns("builder.table_url", "builder.table_built")}
       rows={sites.map((site) => [
         site.name,
-        <a href={site.siteUrl} rel="noopener" target="_blank">
-          {site.siteUrl}
-        </a>,
+        <NewTabUrl url={site.siteUrl} />,
         site.created,
       ])}
     />
   );
 
-export const adminBuilderPage = (
-  session: AdminSession,
-  sites: BuiltSiteDisplay[],
-  error?: string,
-  success?: string,
-): string =>
-  flashAdminPage(t("builder.site_builder_title"))(session, error, success)(
+export const adminBuilderPage = flashDataPage<BuiltSiteDisplay[]>(
+  t("builder.site_builder_title"),
+  undefined,
+  (sites) => (
     <>
       <h2>{t("builder.site_builder_title")}</h2>
 
@@ -89,5 +84,6 @@ export const adminBuilderPage = (
       />
 
       <BuiltSitesGuideFooter />
-    </>,
-  );
+    </>
+  ),
+);

@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import {
+  CollectionTable,
   type Column,
   type DataColumn,
   DataTable,
@@ -123,5 +125,38 @@ describe("DataTable row shapes", () => {
     expect(
       String(DataTable({ columns: cols, rows: "<tr><td>raw</td></tr>" })),
     ).toBe(table("<tr><td>raw</td></tr>"));
+  });
+});
+
+describe("CollectionTable", () => {
+  const cols: Column[] = [{ header: "H" }];
+
+  test("renders the empty message when there are no items", () => {
+    expect(
+      String(
+        CollectionTable({
+          columns: cols,
+          emptyKey: "modifiers.no_modifiers",
+          items: [],
+          rows: [],
+        }),
+      ),
+    ).toBe(`<p>${t("modifiers.no_modifiers")}</p>`);
+  });
+
+  test("renders the table with its rows when there are items", () => {
+    expect(
+      String(
+        CollectionTable({
+          columns: cols,
+          emptyKey: "modifiers.no_modifiers",
+          items: [{ id: 1 }],
+          rows: [["cell-a"]],
+        }),
+      ),
+    ).toBe(
+      `<div class="table-scroll"><table><thead><tr><th>H</th></tr></thead>` +
+        "<tbody><tr><td>cell-a</td></tr></tbody></table></div>",
+    );
   });
 });

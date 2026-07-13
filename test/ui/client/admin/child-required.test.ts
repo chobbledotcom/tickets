@@ -27,6 +27,13 @@ const twoChoiceSetup = () =>
     priceInput("101", "303"),
   ]);
 
+/** After init, only the chosen child (202) has a required price input; its
+ *  sibling (303) does not — the initial state the redistribution tests check. */
+const expectOnly202PriceRequired = (roots: FakeElement[]): void => {
+  expect(byName(roots, "child_price_101_202").required).toBe(true);
+  expect(byName(roots, "child_price_101_303").required).toBe(false);
+};
+
 describe("child required toggling", () => {
   afterEach(restoreDocument);
 
@@ -42,8 +49,7 @@ describe("child required toggling", () => {
     initChildRequired();
 
     // The chosen child's (202) price is required; the unselected sibling's is not.
-    expect(byName(roots, "child_price_101_202").required).toBe(true);
-    expect(byName(roots, "child_price_101_303").required).toBe(false);
+    expectOnly202PriceRequired(roots);
   });
 
   test("relaxes all child price controls when the parent is at zero quantity", () => {
@@ -63,8 +69,7 @@ describe("child required toggling", () => {
     const roots = twoChoiceSetup();
 
     initChildRequired();
-    expect(byName(roots, "child_price_101_202").required).toBe(true);
-    expect(byName(roots, "child_price_101_303").required).toBe(false);
+    expectOnly202PriceRequired(roots);
 
     // Move one unit from 202 to 303 (still totalling 2).
     const first = byName(roots, "child_qty_101_202");

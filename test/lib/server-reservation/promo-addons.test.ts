@@ -10,12 +10,12 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { bookPaidReservation } from "./_shared-setup.ts";
 import {
   createOptionalAddOn,
   createProgrammeCharge,
   createSave10Promo,
   expectRefundedPlaceholder,
-  latestAttendee,
   modifierRefs,
   setupReservationListing,
   stubPaidSession,
@@ -30,7 +30,7 @@ describeWithEnv(
     test("full-payment promo discount stores the discounted price paid", async () => {
       const listing = await setupReservationListing({ bookingFee: "0" });
       const promo = await createSave10Promo();
-      const session = stubPaidSession(
+      const attendee = await bookPaidReservation(
         "cs_full_discount",
         {
           _origin: "localhost",
@@ -41,23 +41,13 @@ describeWithEnv(
         },
         900,
       );
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_full_discount"),
-        );
-        expect([200, 302, 303]).toContain(response.status);
-
-        const attendee = await latestAttendee();
-        // price_paid projects the gross sale leg (£10 list), not the £9
-        // discounted total — the £1 discount is a separate ledger leg. Paid in
-        // full, so nothing owed. (Modifiers are unused in production.)
-        expect(attendee.pricePaid).toBe(1000);
-        expect(attendee.remainingBalance).toBe(0);
-        expect(await modifierUsageCount(promo.id)).toBe(1);
-        expect(await modifierUsageAmount(promo.id)).toBe(100);
-      } finally {
-        session.restore();
-      }
+      // price_paid projects the gross sale leg (£10 list), not the £9
+      // discounted total — the £1 discount is a separate ledger leg. Paid in
+      // full, so nothing owed. (Modifiers are unused in production.)
+      expect(attendee.pricePaid).toBe(1000);
+      expect(attendee.remainingBalance).toBe(0);
+      expect(await modifierUsageCount(promo.id)).toBe(1);
+      expect(await modifierUsageAmount(promo.id)).toBe(100);
     });
 
     test("carries resolved modifiers into a reservation checkout", async () => {
@@ -93,7 +83,7 @@ describeWithEnv(
       });
       const addOn = await createProgrammeCharge();
       // Full modified subtotal £20.00, deposit 10% = £2.00.
-      const session = stubPaidSession(
+      const attendee = await bookPaidReservation(
         "cs_addon_dep",
         {
           _origin: "localhost",
@@ -105,22 +95,12 @@ describeWithEnv(
         },
         200,
       );
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_addon_dep"),
-        );
-        expect([200, 302, 303]).toContain(response.status);
-
-        const attendee = await latestAttendee();
-        // Gross sale leg (£10 list); the add-on uplift and the £2 deposit are
-        // separate legs. The £18 owed stays accurate.
-        expect(attendee.pricePaid).toBe(1000);
-        expect(attendee.remainingBalance).toBe(1800);
-        expect(await modifierUsageCount(addOn.id)).toBe(2);
-        expect(await modifierUsageAmount(addOn.id)).toBe(1000);
-      } finally {
-        session.restore();
-      }
+      // Gross sale leg (£10 list); the add-on uplift and the £2 deposit are
+      // separate legs. The £18 owed stays accurate.
+      expect(attendee.pricePaid).toBe(1000);
+      expect(attendee.remainingBalance).toBe(1800);
+      expect(await modifierUsageCount(addOn.id)).toBe(2);
+      expect(await modifierUsageAmount(addOn.id)).toBe(1000);
     });
 
     test("keeps and refunds a zero-price reservation add-on when the total mismatches", async () => {

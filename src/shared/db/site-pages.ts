@@ -21,10 +21,9 @@ import {
 } from "#shared/db/client.ts";
 import {
   defineIdTable,
-  encryptedNameSchema,
-  encryptedSeoContentSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
@@ -43,8 +42,7 @@ export const computeSitePageSlugIndex = (slug: string): Promise<BlindIndex> =>
 
 /** Raw table with CRUD — all free text encrypted, `slug_index` is the HMAC. */
 const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
-  ...encryptedNameSchema(encrypt, decrypt),
-  ...encryptedSeoContentSchema(encrypt, decrypt),
+  ...encryptedNameAndSeoSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   sort_order: col.simple<number>(),
 });

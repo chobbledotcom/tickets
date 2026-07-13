@@ -20,6 +20,7 @@ import { singleItem } from "#test-utils/factories.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { attendeeLegsOfKind } from "./_shared.ts";
 import {
   completePaidOrder,
   describeAccounting,
@@ -73,10 +74,7 @@ describeAccounting(() => {
     expect(await owedBy(attendeeId)).toBe(0);
 
     // A single full refund_cash leg of the whole payment, returned to the world.
-    const refundCash = legsOfKind(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-      "refund_cash",
-    );
+    const refundCash = await attendeeLegsOfKind(attendeeId, "refund_cash");
     expect(refundCash.length).toBe(1);
     expect(refundCash[0]!.amount).toBe(4500);
     expect(refundCash[0]!.destination).toEqual(WORLD);
@@ -163,10 +161,7 @@ describeAccounting(() => {
     await assertEditPageIncome(listing.id, 10000);
 
     // The refund leg group is distinct from the booking group it reverses.
-    const refundCash = legsOfKind(
-      await transfersByAccount(attendeeAccount(refundedId)),
-      "refund_cash",
-    );
+    const refundCash = await attendeeLegsOfKind(refundedId, "refund_cash");
     expect(refundCash.length).toBe(1);
     const bookingGroups = new Set(
       (await transfersByEventGroup(refundCash[0]!.eventGroup)).map(
@@ -221,10 +216,7 @@ describeAccounting(() => {
     expect(await owedBy(attendeeId)).toBe(0);
     expect(await worldBalance()).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
-    const refundFee = legsOfKind(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-      "refund_fee",
-    );
+    const refundFee = await attendeeLegsOfKind(attendeeId, "refund_fee");
     expect(refundFee.length).toBe(1);
     expect(refundFee[0]!.amount).toBe(500);
   });
@@ -277,10 +269,7 @@ describeAccounting(() => {
     });
     expect(await modifierRevenueOf(modifier.id)).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
-    const refundMod = legsOfKind(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-      "refund_modifier",
-    );
+    const refundMod = await attendeeLegsOfKind(attendeeId, "refund_modifier");
     expect(refundMod.length).toBe(1);
     expect(refundMod[0]!.amount).toBe(500);
   });

@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
@@ -22,6 +23,7 @@ import type {
   TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { quantityHeader } from "#templates/components/header-row.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { TableScroll } from "#templates/components/table-scroll.tsx";
@@ -94,7 +96,7 @@ const FailedPaymentsTable = ({
       <thead>
         <tr>
           <th>{t("common.name")}</th>
-          <th class={colClass("quantity")}>{t("common.qty")}</th>
+          {quantityHeader("common.qty")}
           <th>{t("common.registered")}</th>
           <th class={colClass("actions")}></th>
         </tr>

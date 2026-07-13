@@ -12,6 +12,7 @@
  * by site configuration are `custom(...)` entries with a bespoke body.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -34,6 +35,7 @@ import {
 import { operationsSections } from "#templates/admin/guide/operations.tsx";
 import { paymentsSections } from "#templates/admin/guide/payments.tsx";
 import { ticketsSections } from "#templates/admin/guide/tickets.tsx";
+/* jscpd:ignore-end */
 
 /** The whole guide as one ordered list of sections. */
 export const guideSections = (hostConfig?: GuideHostConfig): GuideSection[] => [

@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -81,9 +82,6 @@ describeWithEnv(
         expect(response.status).toBe(400);
 
         // Verify attendee was created with quantity 0, not silently converted to 1
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
         const attendees = await getAttendeesRaw(listing.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(0);

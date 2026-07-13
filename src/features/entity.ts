@@ -24,8 +24,19 @@ export const orNotFound = async <T>(
     : (await import("#routes/response.ts")).notFoundResponse();
 };
 
+/** Loads a record by its id, or null when there is none. The one loader shape
+ *  every gated `:id` route (and the Site-tab editors) is built on. */
+export type EntityLoader<T> = (id: number) => Promise<T | null>;
+
 /** Handler that receives a loaded entity */
 export type EntityHandler<T> = (entity: T) => Response | Promise<Response>;
+
+/** Handler given the auth session plus a loaded value — the owner-guarded,
+ *  data-preloaded shape the API-keys pages use. */
+export type SessionEntityHandler<S, T> = (
+  session: S,
+  entity: T,
+) => Response | Promise<Response>;
 
 /** Handler for a POST that carries a record id, the session, and the form. */
 export type IdFormHandler = (
@@ -52,6 +63,13 @@ export type IdRouteHandler = (
   params: IdParam,
 ) => Promise<Response>;
 
+/** Wrap a plain `(request, id)` action as an `:id` route handler — unpacking
+ * the id from the route params so the action never sees the params shape. */
+export const idRouteFor =
+  (run: (request: Request, id: number) => Promise<Response>): IdRouteHandler =>
+  (request, params) =>
+    run(request, params.id);
+
 /** Route params for attendee-scoped routes */
 export type AttendeeRouteParams = { attendeeId: number };
 
@@ -76,7 +94,7 @@ type EntityGate<C> = (
 export const gatedEntityRoute =
   <C>(gate: EntityGate<C>) =>
   <T>(
-    load: (id: number) => Promise<T | null>,
+    load: EntityLoader<T>,
     use: (entity: T, ctx: C) => Response | Promise<Response>,
   ): IdRouteHandler =>
   (request, params) => {
@@ -92,7 +110,7 @@ export const gatedEntityRoute =
  * and requires the owner role.
  */
 export const ownerGetById = <T>(
-  load: (id: number) => Promise<T | null>,
+  load: EntityLoader<T>,
   render: (entity: T, session: AuthSession) => Response | Promise<Response>,
 ): IdRouteHandler =>
   gatedEntityRoute<AuthSession>((request, handler) =>

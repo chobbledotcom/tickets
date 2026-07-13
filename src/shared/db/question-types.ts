@@ -53,6 +53,15 @@ export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
   assign_all?: boolean;
 };
 
+/** A set of custom questions plus which answers the attendee has picked: the
+ *  chosen option ids, and any free-text answers keyed by question id. Produced
+ *  by the attendee page loader and consumed by the admin edit form. */
+export type SelectedQuestionAnswers = {
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
+  selectedTextAnswers: Map<number, string>;
+};
+
 /** A free-text answer submitted for a question (plaintext, pre-string-interning). */
 export type TextAnswer = { questionId: number; text: string };
 

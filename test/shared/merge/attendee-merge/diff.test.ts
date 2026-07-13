@@ -33,6 +33,21 @@ const diffForQuestion = (
 ) =>
   buildMergeDiff({ questions: oneQuestion(question, answers), source, target });
 
+/** Have the source attendee pick the second answer, then build the diff —
+ *  the shared arrange behind the answer-conflict cases. */
+const diffAfterSourceChoice = async (
+  ...[source, target, question, answers]: Parameters<typeof diffForQuestion>
+) => {
+  await saveChoice(source.id, answers[1]!.id);
+  return diffForQuestion(source, target, question, answers);
+};
+
+/** Assert the diff produced exactly one answer item and return it. */
+const soleAnswerItem = (diff: Awaited<ReturnType<typeof diffForQuestion>>) => {
+  expect(diff.answerItems.length).toBe(1);
+  return diff.answerItems[0]!;
+};
+
 describeWithEnv("attendee merge service", { db: true }, () => {
   describe("buildAttendeeMergeDiff", () => {
     test("detects PII diffs", async () => {
@@ -92,15 +107,19 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       );
 
       await saveChoice(target.id, answers[0]!.id); // Red
-      await saveChoice(source.id, answers[1]!.id); // Blue
 
-      const diff = await diffForQuestion(source, target, question, answers);
+      const diff = await diffAfterSourceChoice(
+        source,
+        target,
+        question,
+        answers,
+      ); // source: Blue
 
-      expect(diff.answerItems.length).toBe(1);
-      expect(diff.answerItems[0]!.conflict).toBe(true);
-      expect(diff.answerItems[0]!.questionText).toBe("Favourite colour?");
-      expect(diff.answerItems[0]!.targetAnswerId).toBe(answers[0]!.id);
-      expect(diff.answerItems[0]!.sourceAnswerId).toBe(answers[1]!.id);
+      const item = soleAnswerItem(diff);
+      expect(item.conflict).toBe(true);
+      expect(item.questionText).toBe("Favourite colour?");
+      expect(item.targetAnswerId).toBe(answers[0]!.id);
+      expect(item.sourceAnswerId).toBe(answers[1]!.id);
     });
 
     test("marks non-conflicting answers when only one has answer", async () => {
@@ -114,14 +133,17 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       );
 
       // Only source has an answer
-      await saveChoice(source.id, answers[1]!.id);
+      const diff = await diffAfterSourceChoice(
+        source,
+        target,
+        question,
+        answers,
+      );
 
-      const diff = await diffForQuestion(source, target, question, answers);
-
-      expect(diff.answerItems.length).toBe(1);
-      expect(diff.answerItems[0]!.conflict).toBe(false);
-      expect(diff.answerItems[0]!.targetAnswerId).toBeNull();
-      expect(diff.answerItems[0]!.sourceAnswerId).toBe(answers[1]!.id);
+      const item = soleAnswerItem(diff);
+      expect(item.conflict).toBe(false);
+      expect(item.targetAnswerId).toBeNull();
+      expect(item.sourceAnswerId).toBe(answers[1]!.id);
     });
 
     test("classifies bookings as moveable, duplicate, or conflicting", async () => {

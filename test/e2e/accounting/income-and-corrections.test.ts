@@ -23,6 +23,7 @@ import { postListingSale, postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { attendeeLegsOfKind } from "./_shared.ts";
 import {
   completePaidOrder,
   describeAccounting,
@@ -186,10 +187,7 @@ describeAccounting(() => {
     expect(await owedBy(attendeeId)).toBe(0);
     expect(await incomeOf(listing.id)).toBe(-3000);
     expect(await sumOfAllBalances()).toBe(0);
-    const refundCash = legsOfKind(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-      "refund_cash",
-    );
+    const refundCash = await attendeeLegsOfKind(attendeeId, "refund_cash");
     expect(refundCash.length).toBe(1);
     expect(refundCash[0]!.amount).toBe(5000);
     // Both rendered income surfaces, each against its own (divergent) contract.

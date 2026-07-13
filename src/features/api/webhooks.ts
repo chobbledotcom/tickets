@@ -17,7 +17,7 @@
 import { unique } from "#fp";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import {
-  classifySession,
+  classifySessionIntent,
   paymentSessionErrorLogger,
   validatePaidSession,
 } from "#routes/api/payment-processing/classify.ts";
@@ -25,7 +25,6 @@ import {
   formatPaymentError,
   processPaymentSession,
 } from "#routes/api/payment-processing/index.ts";
-import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { getPaymentProviderOrLog } from "#routes/api/payment-processing/refunds.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
@@ -69,11 +68,21 @@ const renderPaidSuccessPage = async (
   );
 };
 
+/** The `session_id` query param of a payment callback, or "" when absent.
+ * Shared by every callback handler that reads it. */
+const paymentSessionId = (request: Request): string =>
+  getSearchParam(request, "session_id");
+
+/** The payment session id from a success redirect: Stripe's `session_id`, or
+ * Square's `orderId` when `session_id` is absent. "" when neither is present. */
+const redirectSessionId = (request: Request): string =>
+  paymentSessionId(request) || getSearchParam(request, "orderId");
+
 /** Wrap handler with session ID extraction */
 const withSessionId =
   (handler: (sessionId: string) => Promise<Response>) =>
   (request: Request): Promise<Response> => {
-    const sessionId = getSearchParam(request, "session_id");
+    const sessionId = paymentSessionId(request);
     if (!sessionId) {
       logError({
         code: ErrorCode.PAYMENT_SESSION,
@@ -208,9 +217,8 @@ const renderSuccessFromTokens = async (
  */
 const handlePaymentSuccess = (request: Request): Promise<Response> => {
   // Stripe uses session_id via {CHECKOUT_SESSION_ID} template variable;
-  // Square appends orderId as a query parameter to the redirect URL
-  const sessionId =
-    getSearchParam(request, "session_id") || getSearchParam(request, "orderId");
+  // Square appends orderId as a query parameter to the redirect URL.
+  const sessionId = redirectSessionId(request);
   if (sessionId) return processSessionAndRedirect(sessionId);
 
   const tokensParam = getSearchParam(request, "tokens");
@@ -424,8 +432,8 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // account, or replayed/corrupt data), so we acknowledge without processing or
   // refunding — refunding an unverifiable session could refund another
   // instance's payment.
-  const verdict = await classifySession(session);
-  if (verdict.verdict === "ignore") {
+  const classified = await classifySessionIntent(session);
+  if (classified === null) {
     logDebug(
       "Webhook",
       `Ignoring webhook for unverifiable session (origin=${session.metadata._origin}): ${payload}`,
@@ -433,10 +441,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse();
   }
 
-  // A valid proof means the metadata is byte-for-byte what we signed, so the
-  // intent always parses — extractIntent only returns null on metadata we never
-  // produced.
-  const intent = extractIntent(session)!;
+  const { intent, verdict } = classified;
   const listingIdForLog = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {
     intent,

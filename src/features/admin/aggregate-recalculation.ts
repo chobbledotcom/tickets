@@ -3,6 +3,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
 import { type ValidationResult, validateForm } from "#shared/forms.tsx";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
+import { failure } from "#shared/result.ts";
 
 type AggregateParseResult<T> =
   | { input: T | null; ok: true }
@@ -19,7 +20,7 @@ export const parseEditableAggregateForm = <TValues, TInput>(
   const result: ValidationResult<TValues> = validateForm<TValues>(form, fields);
   return result.valid
     ? { input: toInput(result.values), ok: true }
-    : { error: result.error, ok: false };
+    : failure(result.error);
 };
 
 export const selectedRecalculationFields = <T extends string>(

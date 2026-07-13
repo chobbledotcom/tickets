@@ -38,6 +38,132 @@
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
+/* Shared declaration groups, pulled out where the same run appears in more
+   than one rule. Each @include expands inline, so the compiled CSS is
+   unchanged. */
+@mixin surface-colors {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+@mixin tick-mark {
+  content: "\2713";
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+@mixin status-error-colors {
+  background: rgba(248, 215, 218, 0.95);
+  color: #721c24;
+  border: 2px solid #f5c6cb;
+}
+
+@mixin status-warning-colors {
+  background: rgba(255, 243, 205, 0.95);
+  color: #856404;
+  border: 2px solid #ffeeba;
+}
+
+@mixin status-success-colors {
+  background: rgba(212, 237, 218, 0.95);
+  color: #155724;
+  border: 2px solid #c3e6cb;
+}
+
+@mixin pinned-top-right {
+  position: absolute;
+  top: var(--space-s);
+  right: var(--space-s);
+}
+
+@mixin wrap-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+}
+
+@mixin banner-bar {
+  background: #f59e0b;
+  color: #000;
+  text-align: center;
+  padding: 8px;
+  font-weight: bold;
+}
+
+@mixin fill-parent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@mixin inline-control-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+@mixin focus-ring {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+@mixin link-colors {
+  background: var(--color-link);
+  color: var(--color-bg);
+}
+
+@mixin panel-raised {
+  @include panel-border;
+  box-shadow: var(--box-shadow) var(--color-shadow);
+}
+
+@mixin section-divider {
+  margin-bottom: var(--space-m);
+  padding-bottom: var(--space-s);
+  border-bottom: 1px solid var(--color-bg-secondary);
+}
+
+@mixin wrap-row-tight {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+}
+
+@mixin square-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+@mixin stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
+@mixin stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-m);
+}
+
+@mixin nav-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s) var(--space-m);
+}
+
+@mixin panel-border {
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
 /* Public-facing pages (no admin nav) get a narrower reading width */
 body:not(:has(#main-nav)) {
   --width-content: 1080px;
@@ -171,8 +297,7 @@ article aside {
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include surface-colors;
   font-family: var(--font-family);
   line-height: var(--line-height);
   margin: 0;
@@ -319,9 +444,7 @@ section pre {
 }
 
 section aside {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow) var(--color-shadow);
+  @include panel-raised;
   padding: var(--space-m);
   width: var(--width-card);
 }
@@ -368,9 +491,7 @@ nav {
 }
 
 nav ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s) var(--space-m);
+  @include nav-row;
   list-style: none;
   padding: 0;
 }
@@ -461,18 +582,14 @@ nav ul li {
      is a simple column; nesting a sub-nav indents it one step, so the site
      editor's third level indents twice, all without boxes or borders. */
   .admin-nav--desktop ul {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-s);
+    @include stack-tight;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
   .admin-nav--desktop li {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-s);
+    @include stack-tight;
     padding: 0;
     text-align: left;
   }
@@ -686,9 +803,7 @@ input[type="submit"],
 /* Horizontal toolbar for page-level actions + guide links */
 .actions {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-m);
+  @include wrap-row;
 }
 
 /* A page's guide link, pinned to the bottom of the body. Its page-region parent
@@ -745,12 +860,8 @@ input[type="submit"][disabled]:hover {
 }
 
 form {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow) var(--color-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include panel-raised;
+  @include stack;
   max-width: var(--width-card-wide);
   min-width: var(--width-card);
   padding: var(--space-m);
@@ -780,9 +891,7 @@ form header {
 }
 
 form footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include wrap-row-tight;
   justify-content: flex-start;
 }
 
@@ -824,8 +933,7 @@ input[type="range"] {
 input,
 select,
 textarea {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   padding: 0.4rem 0.8rem;
 }
 
@@ -904,8 +1012,7 @@ textarea[readonly] {
   width: 100%;
   max-width: var(--width-card-wide);
   box-sizing: border-box;
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   /* The field sits inside a <label>, which is bold with a tall line-height;
      reset both so only genuinely bold text is bold and the prose isn't
      double-spaced. */
@@ -950,9 +1057,7 @@ textarea[readonly] {
 
 /* Formatting toolbar above the editing surface. */
 .md-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include wrap-row-tight;
   padding: var(--space-s);
   border-bottom: 1px solid var(--color-bg-secondary);
   background: var(--color-bg-secondary);
@@ -964,8 +1069,7 @@ textarea[readonly] {
   padding: 0.2rem 0.5rem;
   border: 1px solid transparent;
   border-radius: var(--border-radius);
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include surface-colors;
   font: inherit;
   font-size: 0.85rem;
   line-height: 1.3;
@@ -975,8 +1079,7 @@ textarea[readonly] {
   border-color: var(--color-link);
 }
 .md-toolbar-button-active {
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include link-colors;
   border-color: var(--color-link);
 }
 .md-toolbar-bold {
@@ -1011,17 +1114,14 @@ textarea[readonly] {
   margin: 0;
   padding: 0;
   border: none;
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include surface-colors;
   overflow: hidden;
 }
 .md-preview-dialog::backdrop {
   background: rgba(0, 0, 0, 0.5);
 }
 .md-preview-close {
-  position: absolute;
-  top: var(--space-s);
-  right: var(--space-s);
+  @include pinned-top-right;
   z-index: 1;
   display: flex;
   width: auto;
@@ -1048,9 +1148,7 @@ textarea[readonly] {
 }
 
 label {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include wrap-row-tight;
   align-items: baseline;
   font-weight: bold;
   font-size: inherit;
@@ -1192,8 +1290,7 @@ dialog::backdrop {
    No `max-width` cap: a table wider than its container is meant to grow past it
    and scroll, which the `.table-scroll` wrapper (overflow-x: auto) handles. */
 table {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   border-spacing: 0;
   padding: 0;
   white-space: nowrap;
@@ -1336,9 +1433,7 @@ blockquote footer {
 
 /* Articles are vertical stacks */
 article {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include stack;
 }
 
 /* App-specific additions */
@@ -1685,17 +1780,14 @@ body.iframe form {
    deliberately low-contrast border. Row-based groups (.checkboxes/.radios) and
    grids (.card-grid) set their own display and so opt out of the column. */
 fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include stack;
   border: 0;
   padding: 0;
   min-width: 0;
 }
 
 fieldset.inset {
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   padding: var(--space-m);
 }
 
@@ -1717,9 +1809,7 @@ fieldset.inset {
 }
 
 .ticket-listings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 /* The "Number of packages" selector only ever holds small counts, so keep it
@@ -1731,9 +1821,7 @@ select[data-package-members] {
 /* Booking-form running total: the "show total" button and the live summary the
    running-total script renders into the adjacent <output>. */
 .running-total {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 .order-summary-output {
@@ -1776,9 +1864,7 @@ select[data-package-members] {
 /* Linked-items list: one .checkboxes row per item type, the type name leading
    each row. The rows carry their own flex layout, so the list chrome goes. */
 .linked-items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1832,9 +1918,7 @@ label.terms-agree {
   display: block;
   width: 100%;
   margin-top: var(--space-lg);
-  margin-bottom: var(--space-m);
-  padding-bottom: var(--space-s);
-  border-bottom: 1px solid var(--color-bg-secondary);
+  @include section-divider;
   font-weight: bold;
   font-size: 1.05rem;
 }
@@ -1845,9 +1929,7 @@ label.terms-agree {
 
 /* When expanded, the summary reads as a section heading like the legends. */
 .listing-advanced[open] > summary {
-  margin-bottom: var(--space-m);
-  padding-bottom: var(--space-s);
-  border-bottom: 1px solid var(--color-bg-secondary);
+  @include section-divider;
 }
 
 // ---------------------------------------------------------------------------
@@ -2093,9 +2175,7 @@ form.listing-form--templated.listing-form--no-daily:not(
 }
 
 .listing-type-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   padding: var(--space-m);
   border: 1px solid var(--color-bg-secondary);
   border-radius: 4px;
@@ -2161,9 +2241,7 @@ button.secondary:hover,
   scroll-snap-align: start;
   background: var(--color-bg);
   border: 1px solid var(--color-bg-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 .ticket-card-name {
@@ -2210,9 +2288,7 @@ button.secondary:hover,
    inline utility links, then an optional debug menu below. */
 .admin-footer {
   margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   font-size: smaller;
 }
 
@@ -2288,9 +2364,7 @@ button.secondary:hover,
   padding: 0;
   list-style: none;
   background: var(--color-bg);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow) var(--color-shadow);
+  @include panel-raised;
 }
 
 .combobox-list [role="option"] {
@@ -2312,21 +2386,15 @@ button.secondary:hover,
 }
 
 .checkin-status-success {
-  background: rgba(212, 237, 218, 0.95);
-  color: #155724;
-  border: 2px solid #c3e6cb;
+  @include status-success-colors;
 }
 
 .checkin-status-warning {
-  background: rgba(255, 243, 205, 0.95);
-  color: #856404;
-  border: 2px solid #ffeeba;
+  @include status-warning-colors;
 }
 
 .checkin-status-error {
-  background: rgba(248, 215, 218, 0.95);
-  color: #721c24;
-  border: 2px solid #f5c6cb;
+  @include status-error-colors;
 }
 
 /* Inactive dashboard row */
@@ -2357,21 +2425,15 @@ button.secondary:hover,
 }
 
 .scanner-status-success {
-  background: rgba(212, 237, 218, 0.95);
-  color: #155724;
-  border: 2px solid #c3e6cb;
+  @include status-success-colors;
 }
 
 .scanner-status-warning {
-  background: rgba(255, 243, 205, 0.95);
-  color: #856404;
-  border: 2px solid #ffeeba;
+  @include status-warning-colors;
 }
 
 .scanner-status-error {
-  background: rgba(248, 215, 218, 0.95);
-  color: #721c24;
-  border: 2px solid #f5c6cb;
+  @include status-error-colors;
 }
 
 @media (max-width: 480px) {
@@ -2383,11 +2445,7 @@ button.secondary:hover,
 
 /* Scanner confirm overlay - centered on video like scanner-status */
 #scanner-confirm {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @include fill-parent;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -2399,11 +2457,7 @@ button.secondary:hover,
 }
 
 #scanner-confirm-backdrop {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  @include fill-parent;
   background: rgba(0, 0, 0, 0.5);
   border-radius: 4px;
 }
@@ -2417,11 +2471,8 @@ button.secondary:hover,
   width: 320px;
   text-align: center;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  background: var(--color-bg);
-  color: var(--color-text);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-m);
+  @include surface-colors;
+  @include stack;
 }
 
 #scanner-confirm-close {
@@ -2463,17 +2514,12 @@ button.secondary:hover,
 }
 
 #scanner-confirm-no {
-  background: var(--color-bg);
-  color: var(--color-text);
+  @include surface-colors;
 }
 
 /* Demo mode banner */
 .demo-banner {
-  background: #f59e0b;
-  color: #000;
-  text-align: center;
-  padding: 8px;
-  font-weight: bold;
+  @include banner-bar;
 }
 
 /* Read-only mode banner */
@@ -2492,11 +2538,7 @@ button.secondary:hover,
 
 /* Pre-expiry warning banner */
 .read-only-banner-warning {
-  background: #f59e0b;
-  color: #000;
-  text-align: center;
-  padding: 8px;
-  font-weight: bold;
+  @include banner-bar;
 }
 
 .read-only-banner-warning a {
@@ -2654,8 +2696,7 @@ button.secondary:hover,
   top: 0;
   left: 0;
   padding: 0.5rem 1rem;
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include link-colors;
   font-size: 1rem;
   text-decoration: none;
   z-index: 9999;
@@ -2681,22 +2722,17 @@ button.secondary:hover,
   max-width: 22rem;
   margin-bottom: var(--space-m);
   padding: var(--space-s);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
 }
 
 /* The ledger's two range pickers ("From" / "To") laid out side by side, wrapping
    to a column on narrow screens. */
 .ledger-date-range {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-m);
+  @include wrap-row;
 }
 
 .ledger-date-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
 }
 
 .date-picker > select {
@@ -2795,8 +2831,7 @@ span.cal-day {
 .cal-day-selected,
 a.cal-day-selected:hover,
 a.cal-day-selected:active {
-  background: var(--color-link);
-  color: var(--color-bg);
+  @include link-colors;
 }
 
 /* Guide page */
@@ -2838,9 +2873,7 @@ a.cal-day-selected:active {
    No margin or padding; the surrounding flex container supplies vertical gap. */
 .table-action-btns {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include wrap-row-tight;
   margin: 0;
   padding: 0;
 }
@@ -2864,7 +2897,7 @@ a.cal-day-selected:active {
   margin: 1rem 0;
 }
 
-/* ── News ──────────────────────────────────────────────────────────────────
+/* News.
    The /news list reuses the shared cards; a post page's images render as a
    pure-CSS gallery. Each image contributes three adjacent siblings — a
    visually-hidden radio, its full-size image, and its thumbnail label — so
@@ -2923,10 +2956,7 @@ a.cal-day-selected:active {
 
 .news-gallery-thumb img {
   display: block;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 4px;
+  @include square-thumb;
   border: 2px solid transparent;
 }
 
@@ -2940,11 +2970,10 @@ a.cal-day-selected:active {
   + .news-gallery-full
   + .news-gallery-thumb
   img {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @include focus-ring;
 }
 
-/* ── Order gallery ──────────────────────────────────────────────────────
+/* Order gallery.
    The whole gallery is one form: each product card is a <label> wrapping a
    hidden checkbox, and the floating cart is the submit button. Selection
    highlighting and the live count are pure CSS (:checked, a counter, and
@@ -2967,7 +2996,7 @@ a.cal-day-selected:active {
   counter-reset: cart;
 }
 
-/* ── Cards ──────────────────────────────────────────────────────────────
+/* Cards.
    The shared media-card layout: a grid of cards, each an image on top of a
    body column with the item's name and detail lines. The order gallery wraps
    a card in a selectable <label class="card order-card">; the news list in a
@@ -2981,9 +3010,7 @@ a.cal-day-selected:active {
 
 .card {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
+  @include stack-tight;
   max-width: none;
   margin: 0;
   padding: var(--space-m);
@@ -3002,10 +3029,7 @@ a.cal-day-selected:active {
 }
 
 .card-image {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 4px;
+  @include square-thumb;
 }
 
 .card-body {
@@ -3046,9 +3070,7 @@ a.cal-day-selected:active {
 
 /* Tick badge — revealed only when the card's checkbox is checked */
 .order-card-tick {
-  position: absolute;
-  top: var(--space-s);
-  right: var(--space-s);
+  @include pinned-top-right;
   display: none;
   align-items: center;
   justify-content: center;
@@ -3060,9 +3082,7 @@ a.cal-day-selected:active {
 }
 
 .order-card-tick::after {
-  content: "\2713";
-  font-size: 0.9rem;
-  line-height: 1;
+  @include tick-mark;
 }
 
 .order-select:checked ~ .order-card-tick {
@@ -3076,8 +3096,7 @@ a.cal-day-selected:active {
 
 .order-select:focus-visible ~ .order-card-tick,
 .order-card:has(.order-select:focus-visible) {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @include focus-ring;
 }
 
 /* Each checked product increments the cart counter read by .order-cart-count */
@@ -3247,14 +3266,11 @@ a.cal-day-selected:active {
 }
 
 .order-select:checked + .row-select-tick::after {
-  content: "\2713";
-  font-size: 0.9rem;
-  line-height: 1;
+  @include tick-mark;
 }
 
 .order-select:focus-visible + .row-select-tick {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @include focus-ring;
 }
 
 .availability-table tr:has(.order-select:checked) {
@@ -3264,12 +3280,7 @@ a.cal-day-selected:active {
 /* Attendee form: fixed listing editor with quantity boxes + a "Show all
    listings" toggle that reveals the not-booked rows (pure CSS). */
 .listing-editor .show-all {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
-  font-weight: normal;
-  cursor: pointer;
+  @include inline-control-row;
 }
 
 .listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
@@ -3287,12 +3298,7 @@ a.cal-day-selected:active {
 /* Attendee form: logistics agent selectors. The "different agents per item"
    toggle switches (pure CSS) between one shared pair and a pair per listing. */
 .logistics-agents .split-agents {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-s);
-  margin-bottom: var(--space-s);
-  font-weight: normal;
-  cursor: pointer;
+  @include inline-control-row;
 }
 
 .logistics-agents:has(.split-agents-toggle:checked) .logistics-single {
@@ -3333,9 +3339,7 @@ a.cal-day-selected:active {
 
 /* Logistics tab: the latitude/longitude pair sits side by side. */
 .location-inputs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include wrap-row-tight;
 
   label {
     flex: 1;
@@ -3348,8 +3352,7 @@ a.cal-day-selected:active {
 .logistics-map {
   height: 20rem;
   margin-bottom: var(--space-s);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
 }
 
 /* The map pin: a vector teardrop, so no image assets ship with the bundle. */
@@ -3382,8 +3385,7 @@ a.cal-day-selected:active {
   display: inline-block;
   margin-left: 0.35rem;
   padding: 0.05rem 0.35rem;
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
+  @include panel-border;
   color: var(--color-text-secondary);
   cursor: pointer;
   font-size: 0.75em;
@@ -3398,7 +3400,7 @@ label:hover .embed-toggle-badge,
   color: var(--color-link);
 }
 
-/* ── Entity pages: the tabbed admin "edit X" framework ── */
+/* Entity pages: the tabbed admin "edit X" framework. */
 
 /* The page header above the tab strip — the entity's `<h1>` title and any
    prose extra (e.g. the attendee page's "Add a note" link). Its content is the

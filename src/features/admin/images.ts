@@ -12,6 +12,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import type { IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -180,6 +181,19 @@ const withStorageImageForm = (
     ),
   );
 
+/** A `:id` image POST route that loads the image behind the storage/form gate
+ * and hands it to `action`. Shared by the edit and delete handlers. */
+const storageImageFormRoute =
+  (
+    action: (
+      image: Image,
+      form: FormParams,
+      adminLevel: AdminLevel,
+    ) => Promise<Response>,
+  ): IdRouteHandler =>
+  (request, { id }) =>
+    withStorageImageForm(request, id, action);
+
 /** The image-use item types that are public Site content (owner + editor):
  * news posts and pages. An image on either surfaces publicly, so a manager may
  * not manage it. */
@@ -220,11 +234,8 @@ const allowedImageTargets = (
     ? submitted
     : submitted.filter((target) => !isSiteContentImageType(target.itemType));
 
-const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> = (
-  request,
-  { id },
-) =>
-  withStorageImageForm(request, id, async (image, form, adminLevel) => {
+const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
+  storageImageFormRoute(async (image, form, adminLevel) => {
     const blocked = await siteContentImageGate(
       adminLevel,
       image.id,
@@ -261,10 +272,8 @@ const confirmDelete = (form: FormParams, image: Image): string | null =>
     ? null
     : t("images.delete.mismatch");
 
-const handleImageDeletePost: TypedRouteHandler<
-  "POST /admin/images/:id/delete"
-> = (request, { id }) =>
-  withStorageImageForm(request, id, async (image, form, adminLevel) => {
+const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> =
+  storageImageFormRoute(async (image, form, adminLevel) => {
     const deletePath = `/admin/images/${image.id}/delete`;
     // deleteImageRecord prunes every use, including a news one, so a non-Site
     // role may not delete an image a news post uses (public Site content).

@@ -11,10 +11,7 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import {
-  createTestListing,
-  deactivateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
@@ -22,6 +19,7 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
+import { createDailyListing } from "./_shared-setup.ts";
 
 // jscpd:ignore-end
 
@@ -66,20 +64,7 @@ describeWithEnv(
       test("keeps the email action enabled when the date filter hides emailable attendees", async () => {
         const visibleDate = addDays(todayInTz("UTC"), 1);
         const hiddenDate = addDays(todayInTz("UTC"), 2);
-        const listing = await createTestListing({
-          bookableDays: [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-          ],
-          listingType: "daily",
-          maximumDaysAfter: 14,
-          minimumDaysBefore: 0,
-        });
+        const listing = await createDailyListing();
         await submitTicketForm(listing.slug, {
           date: visibleDate,
           email: "ada@example.com",

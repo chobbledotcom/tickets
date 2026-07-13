@@ -11,10 +11,11 @@ import type {
   LogisticsAgent,
 } from "#shared/types.ts";
 import {
+  type AssignmentEditPage,
   errorAdminPage,
-  flashAdminPage,
+  flashOptsPage,
 } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   ActionButton,
@@ -28,6 +29,7 @@ import {
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getInviteUserFields } from "#templates/fields/admin.ts";
 /* jscpd:ignore-end */
@@ -102,11 +104,7 @@ export const adminUsersPage = (
   session: AdminSession,
   opts: UsersPageOpts,
 ): string =>
-  flashAdminPage(t("terms.users"), "/admin/users")(
-    session,
-    opts.error,
-    opts.success,
-  )(
+  flashOptsPage(t("terms.users"), "/admin/users")(session, opts)(
     <>
       {opts.inviteLink && (
         <div class="success" role="alert">
@@ -159,28 +157,20 @@ export const adminUserManagePage = (
     success?: string | undefined;
   },
 ): string =>
-  flashAdminPage(`${t("terms.users")}: ${user.username}`, "/admin/users")(
+  flashOptsPage(`${t("terms.users")}: ${user.username}`, "/admin/users")(
     session,
-    opts.error,
-    opts.success,
+    opts,
   )(
     <>
       <h1>{user.username}</h1>
 
       <DetailTable>
-        <tr>
-          <th>{t("users.col.role")}</th>
-          <td>{user.adminLevel}</td>
-        </tr>
-        <tr>
-          <th>{t("common.status")}</th>
-          <td>{userStatus(user)}</td>
-        </tr>
+        <LabelledRow label={t("users.col.role")}>{user.adminLevel}</LabelledRow>
+        <LabelledRow label={t("common.status")}>{userStatus(user)}</LabelledRow>
         {user.adminLevel === "agent" && (
-          <tr>
-            <th>{t("users.agents.legend")}</th>
-            <td>{agentNamesDisplay(user)}</td>
-          </tr>
+          <LabelledRow label={t("users.agents.legend")}>
+            {agentNamesDisplay(user)}
+          </LabelledRow>
         )}
       </DetailTable>
 
@@ -213,35 +203,28 @@ export const adminUserManagePage = (
 /**
  * Admin delete user confirmation page
  */
-export const adminUserDeletePage = (
-  user: DisplayUser,
-  session: AdminSession,
-  error?: string,
-): string =>
-  ConfirmPage({
-    action: `/admin/users/${user.id}/delete`,
-    active: "/admin/users",
-    buttonText: t("users.delete_user.submit"),
-    children: (
-      <>
-        <h1>{t("users.delete_user.heading")}</h1>
-        <p>
-          {t("users.delete_user.warning", {
-            level: user.adminLevel,
-            username: user.username,
-          })}
-        </p>
-        <p>
-          {t("users.delete_user.confirm_prompt", { username: user.username })}
-        </p>
-      </>
-    ),
-    error,
-    label: t("common.username"),
-    name: user.username,
-    session,
-    title: `${t("users.delete_user.heading")}: ${user.username}`,
-  });
+export const adminUserDeletePage = entityDeletePage((user: DisplayUser) => ({
+  action: `/admin/users/${user.id}/delete`,
+  active: "/admin/users",
+  buttonText: t("users.delete_user.submit"),
+  children: (
+    <>
+      <h1>{t("users.delete_user.heading")}</h1>
+      <p>
+        {t("users.delete_user.warning", {
+          level: user.adminLevel,
+          username: user.username,
+        })}
+      </p>
+      <p>
+        {t("users.delete_user.confirm_prompt", { username: user.username })}
+      </p>
+    </>
+  ),
+  label: t("common.username"),
+  name: user.username,
+  title: `${t("users.delete_user.heading")}: ${user.username}`,
+}));
 
 /**
  * Admin invite user page
@@ -268,13 +251,10 @@ export const adminUserNewPage = (
 /**
  * Admin page for editing which logistics agents an agent user drives.
  */
-export const adminUserAgentsPage = (
-  user: DisplayUser,
-  agents: LogisticsAgent[],
-  selectedIds: ReadonlySet<number>,
-  session: AdminSession,
-  error?: string,
-): string =>
+export const adminUserAgentsPage: AssignmentEditPage<
+  DisplayUser,
+  LogisticsAgent
+> = (user, agents, selectedIds, session, error) =>
   errorAdminPage(
     `${t("users.agents.title")}: ${user.username}`,
     "/admin/users",

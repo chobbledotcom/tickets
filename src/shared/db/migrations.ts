@@ -24,6 +24,7 @@ import { stringColumnSet } from "#shared/db/query.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
+import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
@@ -83,12 +84,9 @@ export class MissingSettingsTableError extends Error {
  * dedicated "migration in progress" page that auto-refreshes rather than the
  * generic temporary-error page.
  */
-export class MigrationInProgressError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "MigrationInProgressError";
-  }
-}
+export class MigrationInProgressError extends namedError(
+  "MigrationInProgressError",
+) {}
 
 /** Build a checker for "this exact table is missing" database errors. */
 const missingTableError =

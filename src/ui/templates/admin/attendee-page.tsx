@@ -59,6 +59,14 @@ const Multiline = ({ text }: { text: string }): JSX.Element => (
   <span style="white-space:pre-wrap">{text}</span>
 );
 
+/** The owner's private note for a contact, rendered from markdown. Shared by
+ * the attendee page's outreach panel and the contact-history editor's preview. */
+export const ContactNotes = ({ notes }: { notes: string }): JSX.Element => (
+  <div class="contact-notes">
+    <Raw html={renderMarkdown(notes)} />
+  </div>
+);
+
 /**
  * The Overview summary rows — the single-attendee key/value table. Optional
  * contact fields are omitted when blank so the table only spells out what's
@@ -147,11 +155,7 @@ const ContactRecordSection = ({
     <ProseSection
       footer={
         <>
-          {record.adminNotes && (
-            <div class="contact-notes">
-              <Raw html={renderMarkdown(record.adminNotes)} />
-            </div>
-          )}
+          {record.adminNotes && <ContactNotes notes={record.adminNotes} />}
           <p>
             <a href={`/admin/history/${hashParam}`}>
               {t("attendee_form.edit_contact_record")}

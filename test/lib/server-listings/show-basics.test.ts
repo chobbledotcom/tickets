@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
+import type { Attendee, Listing } from "#shared/types.ts";
 import {
   assertAdminHtml,
   expectHtmlResponse,
@@ -35,6 +36,31 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       return response.text();
     };
 
+    /** Sets up a logged-in listing with a single £50 ticket sale from buyer
+     *  "Ada", returning the listing, admin cookie, and buyer for the income &
+     *  ledger checks below. */
+    const setupListingWithFiftyPoundSale = async (
+      name: string,
+    ): Promise<{ listing: Listing; cookie: string; buyer: Attendee }> => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name,
+        thankYouUrl: "https://example.com",
+      });
+      const buyer = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada",
+        "ada@example.com",
+      );
+      await postListingSale({
+        attendeeId: buyer.id,
+        gross: 5000,
+        listingId: listing.id,
+      });
+      return { buyer, cookie, listing };
+    };
+
     test("returns 404 for non-existent listing", async () => {
       const response = await adminGet("/admin/listing/999");
       expect(response.status).toBe(404);
@@ -51,27 +77,13 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
     });
 
     test("renders the income & ledger breakdown reconciling income with the balance", async () => {
-      const { listing, cookie } = await setupListingAndLogin({
-        maxAttendees: 100,
-        name: "Ledger Listing",
-        thankYouUrl: "https://example.com",
-      });
-      const buyer = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Ada",
-        "ada@example.com",
-      );
+      const { listing, cookie, buyer } =
+        await setupListingWithFiftyPoundSale("Ledger Listing");
       // A £50 sale, then a refunded £20 booking (postAttendeeRefund posts a
       // self-contained net-zero order — a sale plus its full reversal). So gross
       // credits total £70 and recognised income is £70 (refund-agnostic), while
       // the net ledger balance is £50 once the £20 refund_sale debit is netted —
       // a legitimate divergence the page must show reconciled.
-      await postListingSale({
-        attendeeId: buyer.id,
-        gross: 5000,
-        listingId: listing.id,
-      });
       await postAttendeeRefund({
         attendeeId: buyer.id,
         gross: 2000,
@@ -92,22 +104,8 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
     });
 
     test("does not eagerly render the full revenue statement on listing detail pages", async () => {
-      const { listing, cookie } = await setupListingAndLogin({
-        maxAttendees: 100,
-        name: "Busy Listing",
-        thankYouUrl: "https://example.com",
-      });
-      const buyer = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Ada",
-        "ada@example.com",
-      );
-      await postListingSale({
-        attendeeId: buyer.id,
-        gross: 5000,
-        listingId: listing.id,
-      });
+      const { listing, cookie } =
+        await setupListingWithFiftyPoundSale("Busy Listing");
 
       const html = await getListingDetailHtml(listing.id, cookie);
       expect(html).toContain("Money in and out");

@@ -43,7 +43,10 @@ import {
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type {
+  QuestionWithAnswers,
+  SelectedQuestionAnswers,
+} from "#shared/db/question-types.ts";
 import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
@@ -551,13 +554,13 @@ export const buildTemplateData = async (
  * attendee's booked listings. The request's private key is only derived when
  * there are questions whose free-text answers need decrypting, so an attendee
  * with no questions never forces a key unwrap. */
-/** A set of custom questions plus which answers the attendee has picked: the
- * chosen option ids, and any free-text answers keyed by question id. */
-export type SelectedQuestionAnswers = {
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  selectedTextAnswers: Map<number, string>;
-};
+/** The empty question/answer set: no questions and nothing picked. A fresh
+ * object each call, so callers can safely hold their own copy. */
+export const emptySelectedQuestionAnswers = (): SelectedQuestionAnswers => ({
+  questions: [],
+  selectedAnswerIds: [],
+  selectedTextAnswers: new Map(),
+});
 
 export const loadQuestionsForExisting = async (
   attendeeId: number,
@@ -566,11 +569,7 @@ export const loadQuestionsForExisting = async (
   const listingIds = unique(existing.map((e) => e.booking.listing_id));
   const data = await loadAttendeeQuestionData(listingIds, [attendeeId]);
   if (!data) {
-    return {
-      questions: [],
-      selectedAnswerIds: [],
-      selectedTextAnswers: new Map(),
-    };
+    return emptySelectedQuestionAnswers();
   }
   return {
     questions: data.questions,

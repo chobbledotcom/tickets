@@ -3,6 +3,8 @@
  * No React required - just compiles JSX to string concatenation
  */
 
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
+
 /**
  * Wrapper for HTML that should not be escaped.
  * Has toString() so it works seamlessly in string contexts.
@@ -78,12 +80,7 @@ declare global {
   }
 }
 
-export const escapeHtml = (str: string): string =>
-  str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+export { escapeHtml };
 
 /** Void elements that should not have closing tags.
  * Frozen so the renderer's global void-element rules can't be mutated by an

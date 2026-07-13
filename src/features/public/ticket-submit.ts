@@ -49,6 +49,7 @@ import {
   applyBookingPageParentSoldOut,
   childCapacityInfo,
 } from "./discovery.ts";
+/* jscpd:ignore-start */
 import {
   extractContact,
   ticketFormErrorResponse,
@@ -63,6 +64,7 @@ import {
   getTicketContext,
   withActiveListings,
 } from "./ticket-payment.ts";
+/* jscpd:ignore-end */
 import { validateTicketFields } from "./ticket-submit/parse.ts";
 import {
   handleFreePath,
@@ -70,6 +72,7 @@ import {
   TICKETS_UNAVAILABLE_MESSAGE,
 } from "./ticket-submit/paths.ts";
 import {
+  type PrepareResult,
   prepareOrder,
   singleListingThankYouUrl,
 } from "./ticket-submit/prepare.ts";
@@ -85,6 +88,21 @@ import {
   type TicketSharedContext,
 } from "./types.ts";
 
+/** A parsed-and-priced order (the ok branch of {@link prepareOrder}). */
+type PreparedOrder = Extract<PrepareResult, { ok: true }>;
+
+/** Parse-and-price the submitted form, or map its failure message to a response
+ *  via `onError` (a flash redirect for submit, an HTML fragment for the quote).
+ *  Returns the priced order on success, or the already-formed error Response. */
+const preparedOrderOr = async (
+  ctx: TicketCtx,
+  form: FormParams,
+  onError: (message: string) => Response,
+): Promise<PreparedOrder | Response> => {
+  const prepared = await prepareOrder(ctx, form);
+  return prepared.ok ? prepared : onError(prepared.error);
+};
+
 /** Process submitted form after CSRF and demo overrides. */
 const processSubmission = async (
   request: Request,
@@ -93,10 +111,9 @@ const processSubmission = async (
 ): Promise<Response> => {
   const errorResponse = ticketFormErrorResponse(ctx);
 
-  const prepared = await prepareOrder(ctx, form);
-  if (!prepared.ok) return errorResponse(prepared.error);
-  const { pricingParams, pricedOrder } = prepared;
-  const { allocations } = prepared;
+  const prepared = await preparedOrderOr(ctx, form, errorResponse);
+  if (prepared instanceof Response) return prepared;
+  const { allocations, pricingParams, pricedOrder } = prepared;
   const { date, dayCount, hasCustomisable, info, quantities } = pricingParams;
   // The folded ctx carries the page listings plus the selected children, so it
   // drives contact-field requirements, availability, and reservation creation.
@@ -257,8 +274,10 @@ const renderQuote = async (
   ctx: TicketCtx,
   form: FormParams,
 ): Promise<Response> => {
-  const prepared = await prepareOrder(ctx, form);
-  if (!prepared.ok) return htmlResponse(orderSummaryMessage(prepared.error));
+  const prepared = await preparedOrderOr(ctx, form, (message) =>
+    htmlResponse(orderSummaryMessage(message)),
+  );
+  if (prepared instanceof Response) return prepared;
   const { pricingParams, pricedOrder } = prepared;
   const soldOut = await checkSoldOutTiers(pricingParams, 0);
   if (soldOut) return htmlResponse(orderSummaryMessage(soldOut));

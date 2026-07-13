@@ -15,6 +15,7 @@ import {
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
+import { twoListingsAttendees } from "../attendee-read-helpers.ts";
 
 // jscpd:ignore-end
 
@@ -64,11 +65,10 @@ describeWithEnv(
       );
 
       // Verify both attendees were created with correct per-item prices
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
+      const [attendees1, attendees2] = await twoListingsAttendees(
+        listing1.id,
+        listing2.id,
       );
-      const attendees1 = await getAttendeesRaw(listing1.id);
-      const attendees2 = await getAttendeesRaw(listing2.id);
       expect(attendees1.length).toBe(1);
       expect(
         (attendees1[0] as unknown as Record<string, unknown>).price_paid,

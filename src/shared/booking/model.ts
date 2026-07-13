@@ -1,6 +1,7 @@
 import { hasDateLessCap } from "#shared/capacity-rules.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
+  ascending,
   availableDayCounts,
   dayPriceFor,
   type Holiday,
@@ -241,7 +242,7 @@ const dayCountsEveryListingSupports = (listings: TicketListing[]): number[] => {
   const [first, ...rest] = sets;
   return [...first!]
     .filter((n) => rest.every((set) => set.has(n)))
-    .sort((a, b) => a - b);
+    .sort(ascending);
 };
 
 /** Day counts a required child supports, or null when any count is fine. */

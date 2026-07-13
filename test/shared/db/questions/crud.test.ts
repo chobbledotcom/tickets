@@ -187,7 +187,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await createQuestion("Q");
       const a1 = await addAnswer(q.id, 0, "First");
       const a2 = await addAnswer(q.id, 1, "Second");
-      await swapAnswerOrder(a1.id, 0, a2.id, 1);
+      await swapAnswerOrder(a1.id, a2.id);
       const updated = await getQuestionWithAnswers(q.id);
       // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
       expect(updated!.answers[0]!.text).toBe("Second");

@@ -10,8 +10,8 @@ import {
   adminLandingPath,
   anyUserPage,
   generateSecureToken,
-  getAuthenticatedSession,
   withAuth,
+  withOptionalSession,
 } from "#routes/auth.ts";
 import { parseFormData } from "#routes/csrf.ts";
 import { redirect } from "#routes/response.ts";
@@ -188,13 +188,12 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
   });
 
 /** Handle GET /admin/login - redirect to dashboard if already authenticated */
-const handleLoginGet = async (request: Request): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (session) {
-    return ok(adminLandingPath(session.adminLevel), "Already logged in");
-  }
-  return loginResponse(request);
-};
+const handleLoginGet = (request: Request): Promise<Response> =>
+  withOptionalSession(request, (session) =>
+    session
+      ? ok(adminLandingPath(session.adminLevel), "Already logged in")
+      : loginResponse(request),
+  );
 
 const handleLogoutGet = anyUserPage((session) => adminLogoutPage(session));
 

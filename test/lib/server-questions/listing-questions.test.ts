@@ -231,6 +231,34 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/questions", () => {
+    /** Assign `questionIds` to the listing through the router, building the form
+     * by hand so more than one id can be sent. */
+    const postListingQuestions = async (
+      listingId: number,
+      questionIds: string,
+    ): Promise<Response> => {
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+      return handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listingId}/questions`,
+          { csrf_token: csrfToken, question_ids: questionIds },
+          cookie,
+        ),
+      );
+    };
+
+    /** Assert exactly these question ids are assigned to the listing. */
+    const expectAssignedQuestionIds = async (
+      listingId: number,
+      expected: number[],
+    ): Promise<void> => {
+      const { getListingQuestionIds } = await import(
+        "#shared/db/questions/queries.ts"
+      );
+      expect(await getListingQuestionIds(listingId)).toEqual(expected);
+    };
+
     testRequiresAuth("/admin/listing/1/questions", {
       body: {
         question_ids: "1",
@@ -253,31 +281,14 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const q1 = await createQuestion("Question A?");
       await createQuestion("Question B?");
 
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/questions`,
-          {
-            csrf_token: csrfToken,
-            question_ids: String(q1),
-            // For multiple values, we need to build the form manually
-          },
-          cookie,
-        ),
-      );
+      const response = await postListingQuestions(listing.id, String(q1));
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/questions`,
         "Questions updated",
       )(response);
 
       // Verify the questions are assigned
-      const { getListingQuestionIds } = await import(
-        "#shared/db/questions/queries.ts"
-      );
-      const assigned = await getListingQuestionIds(listing.id);
-      expect(assigned.length).toBe(1);
-      expect(assigned[0]).toBe(q1);
+      await expectAssignedQuestionIds(listing.id, [q1]);
     });
 
     test("assigns no questions when none selected", async () => {
@@ -291,11 +302,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Questions updated",
       )(response);
 
-      const { getListingQuestionIds } = await import(
-        "#shared/db/questions/queries.ts"
-      );
-      const assigned = await getListingQuestionIds(listing.id);
-      expect(assigned.length).toBe(0);
+      await expectAssignedQuestionIds(listing.id, []);
     });
 
     test("replaces existing question assignments", async () => {
@@ -304,47 +311,23 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const q2 = await createQuestion("New question?");
 
       // Assign q1 first
-      const { getListingQuestionIds, listingQuestions } = await import(
+      const { listingQuestions } = await import(
         "#shared/db/questions/queries.ts"
       );
       await listingQuestions.setIds(listing.id, [q1]);
 
       // Now assign q2 via the route
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/questions`,
-          {
-            csrf_token: csrfToken,
-            question_ids: String(q2),
-          },
-          cookie,
-        ),
-      );
+      const response = await postListingQuestions(listing.id, String(q2));
       expect(response.status).toBe(302);
 
-      const assigned = await getListingQuestionIds(listing.id);
-      expect(assigned.length).toBe(1);
-      expect(assigned[0]).toBe(q2);
+      await expectAssignedQuestionIds(listing.id, [q2]);
     });
 
     test("logs activity with singular when 1 question assigned", async () => {
       const listing = await createTestListing({ name: "Singular Log" });
       const q1 = await createQuestion("Solo question?");
 
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-      await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/questions`,
-          {
-            csrf_token: csrfToken,
-            question_ids: String(q1),
-          },
-          cookie,
-        ),
-      );
+      await postListingQuestions(listing.id, String(q1));
 
       const response = await adminGet("/admin/log");
       const body = await response.text();

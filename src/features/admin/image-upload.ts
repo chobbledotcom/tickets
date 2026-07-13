@@ -12,6 +12,7 @@ import {
   THUMB_IMAGE_TARGET,
 } from "#shared/images/targets.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import type { ResponseFn } from "#shared/response-fn.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   IMAGE_ERROR_MESSAGES,
@@ -113,7 +114,7 @@ export const createImageFromUpload = async (
 export const withUploadedImage = async (
   formData: FormData,
   failurePath: string,
-  useImage: (image: Image) => Promise<Response>,
+  useImage: ResponseFn<Image>,
 ): Promise<Response> => {
   const result = await createImageFromUpload(formData);
   return result.ok

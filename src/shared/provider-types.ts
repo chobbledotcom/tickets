@@ -19,8 +19,13 @@ export interface HostingProviderApi {
   ): Promise<ApiResult<Record<never, never>>>;
 }
 
+/** Create a database named `name` on a database provider, returning the new
+ * database's id, URL, and a full-access token. Declared once so every provider
+ * implementation shares the exact same signature. */
+export type CreateDatabaseFn = (
+  name: string,
+) => Promise<ApiResult<{ dbId: string; dbUrl: string; dbToken: string }>>;
+
 export interface DatabaseProviderApi {
-  createDatabase(
-    name: string,
-  ): Promise<ApiResult<{ dbId: string; dbUrl: string; dbToken: string }>>;
+  createDatabase: CreateDatabaseFn;
 }

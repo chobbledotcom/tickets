@@ -17,13 +17,12 @@ import {
   type PreviewableListing,
 } from "#shared/bulk-replace.ts";
 import { settings } from "#shared/db/settings.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { SubmitForm } from "#templates/components/submit-form.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { TextFields } from "#templates/components/text-fields.tsx";
 
@@ -71,6 +70,29 @@ const CountThenGroup = ({
   <>
     {t(messageKey, { count })} <strong>{group.name}</strong>.
   </>
+);
+
+/** The opening "<count> in <group>" impact paragraph a confirm page leads with.
+ *  `lead` and `trail` frame the count sentence (deactivate wraps it with a
+ *  warning and the consequences intro; reactivate shows it bare). */
+const ImpactParagraph = ({
+  count,
+  group,
+  messageKey,
+  lead,
+  trail,
+}: {
+  count: number;
+  group: Group;
+  messageKey: string;
+  lead?: JSX.Element | undefined;
+  trail?: JSX.Element | undefined;
+}): JSX.Element => (
+  <p>
+    {lead}
+    <CountThenGroup count={count} group={group} messageKey={messageKey} />
+    {trail}
+  </p>
 );
 
 /** A back-link paragraph to the group's bulk-actions landing or its parent. */
@@ -206,11 +228,13 @@ export const adminDuplicateGroupPage: BulkActionPage = (
         </p>
       </div>
 
-      <CsrfForm
+      <SubmitForm
         action={`/admin/groups/${group.id}/bulk-actions/duplicate`}
         data-duplicate-preview
         data-timezone={tz}
+        icon="plus"
         id="duplicate-group-form"
+        submitLabel={t("bulk_actions.submit_duplicate")}
       >
         <TextField
           autofocus
@@ -277,11 +301,7 @@ export const adminDuplicateGroupPage: BulkActionPage = (
         <script id="duplicate-preview-listings" type="application/json">
           <Raw html={listingsJson} />
         </script>
-
-        <SubmitButton icon="plus">
-          {t("bulk_actions.submit_duplicate")}
-        </SubmitButton>
-      </CsrfForm>
+      </SubmitForm>
     </>,
   );
 };
@@ -326,65 +346,84 @@ const bulkConfirmPage = (
   });
 };
 
-/** Common signature for the activate-flipping confirm pages (both the
- *  deactivate and reactivate group pages are built from one config). The
- *  shared `({ group, listings, session, error }) => bulkConfirmPage(...)` wrapper
- *  appeared duplicated across both pages; this curry keeps it in one place. */
+/** The pieces an activate-flipping confirm page supplies as data: the impact
+ *  line's message + optional lead/trail, the body between the impact line and
+ *  the confirm prompt, and the confirm-prompt message key. */
+type ActivateConfig = Omit<BulkConfirmConfig, "action" | "children"> & {
+  impactKey: string;
+  impactLead?: JSX.Element;
+  impactTrail?: JSX.Element;
+  body: JSX.Element;
+  confirmPromptKey: string;
+};
+
+/** Both the deactivate and reactivate group pages are built from one config:
+ *  the shared `({ group, listings, session, error }) => bulkConfirmPage(...)`
+ *  wrapper AND the shared "impact paragraph → body → confirm prompt" layout
+ *  live here once, so each page only declares the words that differ. */
 const activateConfirmPage =
   (
     actionSegment: string,
-    config: Omit<BulkConfirmConfig, "action">,
+    {
+      impactKey,
+      impactLead,
+      impactTrail,
+      body,
+      confirmPromptKey,
+      ...confirmConfig
+    }: ActivateConfig,
   ): BulkActionPage =>
   (group, listings, session, error) =>
     bulkConfirmPage(group, listings, session, error, {
-      ...config,
+      ...confirmConfig,
       action: `/admin/groups/${group.id}/bulk-actions/${actionSegment}`,
+      children: (count, g) => (
+        <>
+          <ImpactParagraph
+            count={count}
+            group={g}
+            lead={impactLead}
+            messageKey={impactKey}
+            trail={impactTrail}
+          />
+          {body}
+          {ConfirmPromptParagraph(confirmPromptKey, g)}
+        </>
+      ),
     });
 
 /** Admin deactivate-group confirmation page */
 export const adminDeactivateGroupPage = activateConfirmPage("deactivate", {
-  buttonText: t("bulk_actions.deactivate_confirm_button"),
-  children: (count, group) => (
+  body: (
     <>
-      <p>
-        <strong>{t("bulk_actions.deactivate_warning")}</strong>{" "}
-        <CountThenGroup
-          count={count}
-          group={group}
-          messageKey="bulk_actions.deactivate_impact"
-        />{" "}
-        {t("bulk_actions.deactivate_consequences_intro")}
-      </p>
       <ul>
         <li>{t("bulk_actions.deactivate_consequence_404")}</li>
         <li>{t("bulk_actions.deactivate_consequence_registrations")}</li>
         <li>{t("bulk_actions.deactivate_consequence_payments")}</li>
       </ul>
       <p>{t("bulk_actions.deactivate_existing_attendees")}</p>
-      {ConfirmPromptParagraph("bulk_actions.deactivate_confirm_prompt", group)}
     </>
   ),
+  buttonText: t("bulk_actions.deactivate_confirm_button"),
+  confirmPromptKey: "bulk_actions.deactivate_confirm_prompt",
   countPredicate: (e) => e.active,
+  impactKey: "bulk_actions.deactivate_impact",
+  impactLead: (
+    <>
+      <strong>{t("bulk_actions.deactivate_warning")}</strong>{" "}
+    </>
+  ),
+  impactTrail: <> {t("bulk_actions.deactivate_consequences_intro")}</>,
   titleKey: "bulk_actions.title_deactivate",
 });
 
 /** Admin reactivate-group confirmation page */
 export const adminReactivateGroupPage = activateConfirmPage("reactivate", {
+  body: <p>{t("bulk_actions.reactivate_benefits")}</p>,
   buttonText: t("bulk_actions.reactivate_confirm_button"),
-  children: (count, group) => (
-    <>
-      <p>
-        <CountThenGroup
-          count={count}
-          group={group}
-          messageKey="bulk_actions.reactivate_impact"
-        />
-      </p>
-      <p>{t("bulk_actions.reactivate_benefits")}</p>
-      {ConfirmPromptParagraph("bulk_actions.reactivate_confirm_prompt", group)}
-    </>
-  ),
+  confirmPromptKey: "bulk_actions.reactivate_confirm_prompt",
   countPredicate: (e) => !e.active,
   danger: false,
+  impactKey: "bulk_actions.reactivate_impact",
   titleKey: "bulk_actions.title_reactivate",
 });

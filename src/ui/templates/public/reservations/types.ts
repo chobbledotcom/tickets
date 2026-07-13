@@ -10,7 +10,11 @@ import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
-import type { Image, ItemImageProjection } from "#shared/types.ts";
+import type {
+  GroupIdsByListingId,
+  Image,
+  ItemImageProjection,
+} from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** Quantity values parsed from ticket form */
@@ -37,7 +41,7 @@ export type ChildRenderCtx = {
   /** Remaining spots for limited groups. */
   groupRemainingByGroupId: ReadonlyMap<number, number>;
   /** Groups each listing belongs to. */
-  groupIdsByListingId: ReadonlyMap<number, number[]>;
+  groupIdsByListingId: GroupIdsByListingId;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap | undefined;
   rendered: Set<number>;
@@ -67,8 +71,18 @@ export type BookingPrefill = {
   token?: string;
 };
 
+/** The render-path group-availability inputs shared by the ticket page options
+ * and the render context: each capped group's remaining spots, and the group
+ * ids each listing belongs to. Both are set only on the render path (so a parent
+ * sharing a capped group with its child can clamp by the combined demand against
+ * the specific shared group) and omitted on submit/quote. */
+export type GroupAvailability = {
+  groupRemainingByGroupId?: ReadonlyMap<number, number>;
+  groupIdsByListingId?: GroupIdsByListingId;
+};
+
 /** Options for the ticket page */
-export type TicketPageOptions = {
+export type TicketPageOptions = GroupAvailability & {
   listings: TicketListing[];
   slugs: string[];
   error?: string;
@@ -97,10 +111,6 @@ export type TicketPageOptions = {
   childrenByParentId?: Map<number, TicketListing[]>;
   /** Daily-child start dates for each parent day count. */
   childDatesById?: ReadonlyMap<string, ChildDatesByDayCount>;
-  /** Remaining spots for limited groups. */
-  groupRemainingByGroupId?: ReadonlyMap<number, number>;
-  /** Groups each listing belongs to. */
-  groupIdsByListingId?: ReadonlyMap<number, number[]>;
   /** The package bundles sold on this page, in page order. Each package's
    * members render under its own count selector instead of per-member
    * quantities; listings outside every package keep their own controls. */

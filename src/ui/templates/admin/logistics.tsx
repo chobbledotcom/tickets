@@ -13,16 +13,16 @@
  * `TEditCtx`.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm, entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
-import type {
-  AdminLevel,
-  AdminSession,
-  LogisticsAgent,
-} from "#shared/types.ts";
-import { successListPage } from "#templates/admin/admin-page.tsx";
+import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
+import {
+  type AssignmentEditPage,
+  successListPage,
+} from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
@@ -37,6 +37,8 @@ import {
   dataTable,
 } from "#templates/components/data-table.tsx";
 import { logisticsAgentFields } from "#templates/fields/listing.ts";
+
+/* jscpd:ignore-end */
 
 /** The has-logistics enable/disable toggle. */
 const HasLogisticsForm = booleanSettingsSection<boolean>({
@@ -207,13 +209,10 @@ export const logisticsAgentPages = defineAdminResourcePages<
 
 /** Admin logistics-agent edit page. Grouped into fieldsets: the agent's details
  *  and the users assigned to drive it. */
-export const adminLogisticsAgentEditPage = (
-  agent: LogisticsAgent,
-  users: AgentUserOption[],
-  selectedUserIds: ReadonlySet<number>,
-  session: AdminSession,
-  error?: string,
-): string =>
+export const adminLogisticsAgentEditPage: AssignmentEditPage<
+  LogisticsAgent,
+  AgentUserOption
+> = (agent, users, selectedUserIds, session, error) =>
   logisticsAgentPages.editPage(agent, session, error, {
     selected: selectedUserIds,
     users,

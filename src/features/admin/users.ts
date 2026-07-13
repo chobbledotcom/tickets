@@ -1,5 +1,7 @@
 /* jscpd:ignore-start */
+
 import { handlersFor } from "#routes/admin/handlers.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 /**
  * Admin user management routes - owner only
  */
@@ -39,7 +41,9 @@ import {
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
+import type { MaybePromise } from "#shared/maybe-promise.ts";
 import { nowMs } from "#shared/now.ts";
+import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import type { LogisticsAgent, User } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 
@@ -89,7 +93,7 @@ const wrapInviteDataKey = async (
  * assignments to display names. */
 const loadAgentNameById = async (): Promise<Map<number, string>> => {
   const agents = await loadAssignableAgents();
-  return new Map(agents.map((a) => [a.id, a.name]));
+  return idNameMap(agents);
 };
 
 /** Resolve the chosen `agent_ids` from a form down to the ids that are real
@@ -97,10 +101,7 @@ const loadAgentNameById = async (): Promise<Map<number, string>> => {
 const parseAssignedAgentIds = (
   form: FormParams,
   agents: LogisticsAgent[],
-): number[] => {
-  const valid = new Set(agents.map((a) => a.id));
-  return form.getNumberArray("agent_ids").filter((id) => valid.has(id));
-};
+): number[] => selectedIdsFromForm(form, "agent_ids", agents);
 
 /** Persist a user's logistics-agent links from a submitted form, keeping only
  * ids that are real assignable agents. */
@@ -212,7 +213,7 @@ const ownerUserPage =
       user: User,
       session: AuthSession,
       errorPage: UserErrorPageFn,
-    ) => Response | Promise<Response>,
+    ) => MaybePromise<Response>,
   ) =>
   (request: Request, { id }: { id: number }): Promise<Response> =>
     requireOwnerOr(request, (session) =>

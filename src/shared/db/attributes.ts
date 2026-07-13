@@ -10,6 +10,7 @@ import { filter, map, mapParallel, reduce, sort, unique, uniqueBy } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
+  deleteByFieldBatch,
   executeBatch,
   inPlaceholders,
   nextSortOrder,
@@ -19,7 +20,7 @@ import {
 import { idAndEncryptedName } from "#shared/db/id-and-name-columns.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { ListingOption } from "#shared/db/listings/records.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
+import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 /* jscpd:ignore-end */
 
@@ -307,20 +308,9 @@ export const getAttributeListingUse = async (
   };
 };
 
-export const assignNextAttributeSortOrder = async (
+export const assignNextAttributeSortOrder = (
   attributeId: number,
-): Promise<void> => {
-  await executeBatch([
-    {
-      args: [attributeId, attributeId],
-      sql: `UPDATE attributes
-            SET sort_order = COALESCE(
-              (SELECT MAX(sort_order) FROM attributes WHERE id != ?), 0
-            ) + 1
-            WHERE id = ?`,
-    },
-  ]);
-};
+): Promise<void> => assignNextSortOrder("attributes", attributeId);
 
 export const getNextAttributeOptionSortOrder = (
   attributeId: number,
@@ -335,17 +325,11 @@ export const swapAttributeOptionOrder = (
   id2: number,
 ): Promise<void> => swapSortOrder("attribute_options", id1, id2);
 
-export const deleteAttributeOption = async (
-  optionId: number,
-): Promise<void> => {
-  await executeBatch([
-    {
-      args: [optionId],
-      sql: "DELETE FROM listing_attribute_options WHERE option_id = ?",
-    },
-    { args: [optionId], sql: "DELETE FROM attribute_options WHERE id = ?" },
+export const deleteAttributeOption = (optionId: number): Promise<void> =>
+  deleteByFieldBatch([
+    { field: "option_id", table: "listing_attribute_options", value: optionId },
+    { field: "id", table: "attribute_options", value: optionId },
   ]);
-};
 
 export const deleteAttribute = async (attributeId: number): Promise<void> => {
   await executeBatch([

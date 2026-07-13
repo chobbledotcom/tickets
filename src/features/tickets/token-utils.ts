@@ -22,6 +22,7 @@ import {
   isTokenRateLimited,
   recordTokenFailure,
 } from "#shared/db/token-attempts.ts";
+import { listingDetails } from "#shared/listing-details.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import type { MakeResponse } from "#shared/response-steps.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
@@ -50,12 +51,10 @@ export const buildWalletPassData = (
   const { listing, attendee } = entry;
   const domain = getEffectiveDomain();
   return {
+    ...listingDetails(listing),
     attendeeDate: attendee.date,
     checkinUrl: buildCheckinUrl(token),
     currencyCode: settings.currency,
-    listingDate: listing.date,
-    listingLocation: listing.location,
-    listingName: listing.name,
     organizationName: domain,
     pricePaid: Number(attendee.price_paid),
     quantity: attendee.quantity,
@@ -103,7 +102,7 @@ export const lookupSingleTokenPassData = async (
 export type TokenRouteFn = PathMethodRoute;
 
 /** Handler type for token-based route methods */
-type TokenMethodHandler = (
+export type TokenMethodHandler = (
   request: Request,
   tokens: string[],
 ) => Response | Promise<Response>;

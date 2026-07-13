@@ -10,11 +10,7 @@ import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
-import {
-  computeHmacSha256,
-  hmacToHex,
-  secureCompare,
-} from "#shared/payment-crypto.ts";
+import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -480,13 +476,6 @@ const parseSignatureHeader = (header: string): SignatureParseResult => {
   return { ok: true, signatures, timestamp };
 };
 
-/** Compute HMAC-SHA256 and return hex-encoded result (Stripe format) */
-const computeSignature = async (
-  payload: string,
-  secret: string,
-): Promise<string> =>
-  hmacToHex(await computeHmacSha256(new TextEncoder().encode(payload), secret));
-
 /** Stripe webhook event - alias for the provider-agnostic WebhookEvent */
 export type StripeWebhookEvent = WebhookEvent;
 export type { WebhookSetupResult, WebhookVerifyResult };
@@ -551,7 +540,7 @@ export const verifyWebhookSignature = async (
 
   // Compute expected signature
   const signedPayload = `${timestamp}.${payload}`;
-  const expectedSignature = await computeSignature(signedPayload, secret);
+  const expectedSignature = await hmacSha256Hex(signedPayload, secret);
 
   // Check if any signature matches (constant-time)
   const isValid = signatures.some((sig) =>
@@ -579,6 +568,6 @@ export const constructTestWebhookEvent = (
 ): Promise<SignedTestWebhook> =>
   signedTestWebhook(listing, async (payload) => {
     const timestamp = Math.floor(nowMs() / 1000);
-    const sig = await computeSignature(`${timestamp}.${payload}`, secret);
+    const sig = await hmacSha256Hex(`${timestamp}.${payload}`, secret);
     return `t=${timestamp},v1=${sig}`;
   });

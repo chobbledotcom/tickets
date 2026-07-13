@@ -6,7 +6,6 @@ import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
-  expectAttendeeCounts,
   expectCheckoutRedirect,
   expectFlash,
   expectReservedRedirectWithTokens,
@@ -28,6 +27,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { expectBothReservedAtTwoAndOne } from "./_shared-multi.ts";
 
 // jscpd:ignore-end
 
@@ -280,13 +280,8 @@ describeWithEnv(
           },
         );
 
-        expectReservedRedirectWithTokens(response);
-
         // Verify attendees created for both listings
-        await expectAttendeeCounts([
-          { count: 1, listingId: listing1.id, quantity: 2 },
-          { count: 1, listingId: listing2.id, quantity: 1 },
-        ]);
+        await expectBothReservedAtTwoAndOne(response, listing1, listing2);
       });
     });
 

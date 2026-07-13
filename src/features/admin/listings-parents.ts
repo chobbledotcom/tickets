@@ -41,6 +41,12 @@ import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
+/** Error shown when a child (named `name`) would hide an opt-in add-on that is
+ * only reachable through it — named after the add-on. Shared by the edge editor
+ * and the catalog import's would-be check. */
+export const childAddOnError = (addOn: string, name: string): string =>
+  t("listings_table.children_err_child_addon", { addon: addOn, name });
+
 /** Error shown when the parent is itself offered as a child: single-level
  * nesting means it can't also gate children. */
 const parentIsChildError = (parent: EdgeListing): string =>
@@ -143,12 +149,7 @@ const childEdgeError = async (
     // save reachability, which count a flagged child among the live pages).
     if (listing.bookable_alone) continue;
     const addOn = await resolveChildOnlyAddOn(listing.id, pageIds);
-    if (addOn) {
-      return t("listings_table.children_err_child_addon", {
-        addon: addOn,
-        name: listing.name,
-      });
-    }
+    if (addOn) return childAddOnError(addOn, listing.name);
   }
   return null;
 };

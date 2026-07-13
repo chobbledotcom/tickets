@@ -1,7 +1,10 @@
 /** Content, communications, ledger, and page tables. */
 
+/* jscpd:ignore-start */
 import { itemLinkColumns, slugNamedEntityColumns } from "./columns.ts";
+import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+/* jscpd:ignore-end */
 
 export const contentTables: [name: string, table: Table][] = [
   [
@@ -62,7 +65,7 @@ export const contentTables: [name: string, table: Table][] = [
         ["attendee_id", "INTEGER NOT NULL"],
         ["listing_id", "INTEGER NOT NULL"],
         ["provider_id", "TEXT NOT NULL"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
       ],
       indexes: [
         { columns: ["provider_id"], name: "idx_sms_messages_provider_id" },
@@ -76,10 +79,7 @@ export const contentTables: [name: string, table: Table][] = [
     // inbound id. Contains no SMS content or sender number.
     "processed_sms_inbound",
     {
-      columns: [
-        ["webhook_id", "TEXT PRIMARY KEY"],
-        ["created", "TEXT NOT NULL"],
-      ],
+      columns: [["webhook_id", "TEXT PRIMARY KEY"], createdColumn],
       indexes: [
         { columns: ["created"], name: "idx_processed_sms_inbound_created" },
       ],
@@ -159,7 +159,7 @@ export const contentTables: [name: string, table: Table][] = [
         ["transfer_id", "INTEGER NOT NULL"],
         ["occurred_at", "TEXT NOT NULL"],
         ["memo", "TEXT NOT NULL DEFAULT ''"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
       ],
       indexes: [
         {
@@ -186,7 +186,7 @@ export const contentTables: [name: string, table: Table][] = [
         ["meta_title", "TEXT NOT NULL DEFAULT ''"],
         ["meta_description", "TEXT NOT NULL DEFAULT ''"],
         ["content", "TEXT NOT NULL DEFAULT ''"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        sortOrderColumn,
       ],
       indexes: [
         {
@@ -208,7 +208,7 @@ export const contentTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
         ["slug", "TEXT NOT NULL DEFAULT ''"],
         ["slug_index", "TEXT NOT NULL DEFAULT ''"],
         ["name", "TEXT NOT NULL"],
@@ -268,7 +268,7 @@ export const contentTables: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["search_index", "TEXT NOT NULL"],
         ["results", "TEXT NOT NULL"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
       ],
       indexes: [
         {

@@ -72,16 +72,18 @@ export const isValidGooglePrivateKey = async (
   }
 };
 
+/** A Google Wallet localized string holding a single en-US value. */
+const localizedString = (
+  value: string,
+): { defaultValue: { language: string; value: string } } => ({
+  defaultValue: { language: "en-US", value },
+});
+
 /** Build the ListingTicketClass for inline JWT creation */
 export const buildListingTicketClass: WalletPartBuilder = (data, creds) => ({
   id: `${creds.issuerId}.${data.serialNumber}-class`,
   issuerName: data.organizationName,
-  listingName: {
-    defaultValue: {
-      language: "en-US",
-      value: data.listingName,
-    },
-  },
+  listingName: localizedString(data.listingName),
   reviewStatus: "UNDER_REVIEW",
   ...(data.listingDate
     ? {
@@ -93,18 +95,8 @@ export const buildListingTicketClass: WalletPartBuilder = (data, creds) => ({
   ...(data.listingLocation
     ? {
         venue: {
-          address: {
-            defaultValue: {
-              language: "en-US",
-              value: data.listingLocation,
-            },
-          },
-          name: {
-            defaultValue: {
-              language: "en-US",
-              value: data.listingLocation,
-            },
-          },
+          address: localizedString(data.listingLocation),
+          name: localizedString(data.listingLocation),
         },
       }
     : {}),

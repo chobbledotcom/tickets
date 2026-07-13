@@ -11,6 +11,7 @@ import {
   makeParentWithDeactivatedChild,
 } from "#test-utils/parents.ts";
 import { enablePublicApi } from "#test-utils/settings.ts";
+import { publicDailyParentWithMondayChild } from "./_shared-setup.ts";
 
 describeWithEnv(
   "server > parents booking — JSON API availability",
@@ -97,16 +98,12 @@ describeWithEnv(
     });
 
     test("a daily parent's availability is false for a date no child can serve", async () => {
-      await enablePublicApi();
       // The parent is bookable every weekday, but its only (daily) child is
       // bookable only on Mondays. A date the child cannot serve must report
       // `available: false` even though the parent's OWN row has capacity — the
       // availability endpoint must honour the child-date union, matching the
       // detail endpoint and the booking fold.
-      const { parent, child } = await makeParent({
-        children: [{ bookableDays: ["Monday"], daily: true }],
-        parent: { daily: true },
-      });
+      const { parent, child } = await publicDailyParentWithMondayChild();
 
       const parentDates = await bookableStartDates(parent.id);
       const childDates = new Set(await bookableStartDates(child.id));

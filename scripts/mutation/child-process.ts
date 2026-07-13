@@ -1,23 +1,17 @@
+import { withEntries } from "#fp";
+import { commandExitCode } from "../deno-command.ts";
+
 /** Run `deno <args>` to completion and return its exit code. */
-export const denoExitCode = async (
+export const denoExitCode = (
   args: string[],
   options: Omit<Deno.CommandOptions, "args"> = {},
-): Promise<number> => {
-  const { code } = await new Deno.Command(Deno.execPath(), {
-    args,
-    ...options,
-  }).output();
-  return code;
-};
+): Promise<number> => commandExitCode(Deno.execPath(), { args, ...options });
 
 /** The current process env plus the given extra variables — the env handed to
  * a spawned child process. */
 export const envWith = (
   extras: Record<string, string>,
-): Record<string, string> => ({
-  ...Deno.env.toObject(),
-  ...extras,
-});
+): Record<string, string> => withEntries(Deno.env.toObject())(extras);
 
 // Signal handling is platform-dependent (e.g. SIGTERM on Windows), so every
 // add/remove is best-effort — callers must still clean up via finally/exit.

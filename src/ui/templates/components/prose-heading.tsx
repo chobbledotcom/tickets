@@ -13,6 +13,13 @@ import { divWithClass } from "#templates/components/div-with-class.tsx";
 const Prose: (props: { children: Child }) => JSX.Element =
   divWithClass("prose");
 
+/** A top-level `<h1>` page heading. Shared by the page {@link HeadingLayout}
+ *  and the prose {@link ProseHeading} so the heading itself is authored once
+ *  rather than re-written (and re-detected as a clone) in each wrapper. */
+export const PageHeading = ({ heading }: { heading: Child }): JSX.Element => (
+  <h1>{heading}</h1>
+);
+
 export const ProseHeading = ({
   heading,
   children,
@@ -21,15 +28,18 @@ export const ProseHeading = ({
   children?: Child;
 }): JSX.Element => (
   <Prose>
-    <h1>{heading}</h1>
+    <PageHeading heading={heading} />
     {children}
   </Prose>
 );
 
+/** Props carrying a single trusted HTML string. */
+type HtmlProps = { html: string };
+
 /** One paragraph of trusted HTML — `<p><Raw html=.../></p>`. Owned here so the
  *  same `<p>`-wrapped `<Raw>` isn't re-authored (and re-detected as a clone)
  *  wherever a page drops a rich-text paragraph into a prose block. */
-export const RawParagraph = ({ html }: { html: string }): JSX.Element => (
+export const RawParagraph = ({ html }: HtmlProps): JSX.Element => (
   <p>
     <Raw html={html} />
   </p>
@@ -39,7 +49,7 @@ export const RawParagraph = ({ html }: { html: string }): JSX.Element => (
  *  `<div class="prose"><p><Raw html=.../></p></div>` intro block several admin
  *  pages open with. Owning it here keeps that shape from being re-authored (and
  *  re-detected as a clone) per page. */
-export const ProseIntro = ({ html }: { html: string }): JSX.Element => (
+export const ProseIntro = ({ html }: HtmlProps): JSX.Element => (
   <Prose>
     <RawParagraph html={html} />
   </Prose>

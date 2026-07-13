@@ -9,8 +9,8 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
+import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
 import { col, defineCachedListTable } from "#shared/db/table.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
@@ -69,13 +69,17 @@ const findStatus = async (
 export const getAttendeeStatus = (id: number): Promise<AttendeeStatus | null> =>
   findStatus((s) => s.id === id);
 
+/** The first status whose given default flag is set (decrypted), or null. */
+const findFlaggedStatus =
+  (flag: "is_public_default" | "is_paid_default") =>
+  (): Promise<AttendeeStatus | null> =>
+    findStatus((s) => s[flag]);
+
 /** The status new public bookings start in, or null if none is flagged. */
-export const getPublicDefaultStatus = (): Promise<AttendeeStatus | null> =>
-  findStatus((s) => s.is_public_default);
+export const getPublicDefaultStatus = findFlaggedStatus("is_public_default");
 
 /** The status an attendee moves to once a reservation balance is paid. */
-export const getPaidDefaultStatus = (): Promise<AttendeeStatus | null> =>
-  findStatus((s) => s.is_paid_default);
+export const getPaidDefaultStatus = findFlaggedStatus("is_paid_default");
 
 /** The id of the public-default status, or null if none is configured. */
 export const getPublicStatusId = async (): Promise<number | null> =>
@@ -97,16 +101,7 @@ export const swapAttendeeStatusOrder = async (
 export const assignNextAttendeeStatusSortOrder = async (
   id: number,
 ): Promise<void> => {
-  await executeBatch([
-    {
-      args: [id, id],
-      sql: `UPDATE attendee_statuses
-            SET sort_order = COALESCE(
-              (SELECT MAX(sort_order) FROM attendee_statuses WHERE id != ?), 0
-            ) + 1
-            WHERE id = ?`,
-    },
-  ]);
+  await assignNextSortOrder("attendee_statuses", id);
   attendeeStatuses.invalidate();
 };
 

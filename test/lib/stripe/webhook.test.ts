@@ -20,6 +20,47 @@ import {
 import { signedHeader } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
+// Sets the given mock-server env, makes a Stripe client with a test secret key,
+// hands it to `check`, then restores the env and resets the client.
+const withStripeClient = async (
+  env: Record<string, string | undefined>,
+  check: (client: Awaited<ReturnType<typeof getStripeClient>>) => void,
+) => {
+  const restore = setTestEnv(env);
+  try {
+    resetStripeClient();
+    await settings.update.stripe.secretKey("sk_test_123");
+    check(await getStripeClient());
+  } finally {
+    restore();
+    resetStripeClient();
+  }
+};
+
+// Runs setupWebhookEndpoint while every fetch throws the given value, and
+// returns the endpoint result so the caller can assert on the failure.
+const setupWhileFetchThrows = (thrown: unknown, url: string) =>
+  withFetchMock(async () => {
+    globalThis.fetch = () => {
+      throw thrown;
+    };
+    return await setupWebhookEndpoint("sk_test_mock", url);
+  });
+
+// When every fetch throws, endpoint setup fails with a non-empty string error
+// (the Stripe SDK wraps whatever was thrown, Error or not).
+const expectFetchThrowGivesStringError = async (
+  thrown: unknown,
+  url: string,
+): Promise<void> => {
+  const result = await setupWhileFetchThrows(thrown, url);
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(typeof result.error).toBe("string");
+    expect(result.error!.length > 0).toBe(true);
+  }
+};
+
 describeStripe("stripe", () => {
   describe("setupWebhookEndpointImpl", () => {
     // setupWebhookEndpointImpl creates its own client via createStripeClient(secretKey),
@@ -101,40 +142,21 @@ describeStripe("stripe", () => {
 
   describe("getMockConfig", () => {
     test("returns undefined when STRIPE_MOCK_HOST not set", async () => {
-      const restore = setTestEnv({
-        STRIPE_MOCK_HOST: undefined,
-        STRIPE_MOCK_PORT: undefined,
-      });
-      try {
-        resetStripeClient();
-
-        // Without mock config, a real Stripe client is created (no mock server)
-        await settings.update.stripe.secretKey("sk_test_123");
-        const client = await getStripeClient();
-        expect(client).not.toBeNull();
-      } finally {
-        restore();
-        resetStripeClient();
-      }
+      // Without mock config, a real Stripe client is created (no mock server)
+      await withStripeClient(
+        { STRIPE_MOCK_HOST: undefined, STRIPE_MOCK_PORT: undefined },
+        (client) => expect(client).not.toBeNull(),
+      );
     });
   });
 
   describe("getMockConfig with default port", () => {
     test("uses default port 12111 when STRIPE_MOCK_PORT not set", async () => {
-      const restore = setTestEnv({
-        STRIPE_MOCK_HOST: "localhost",
-        STRIPE_MOCK_PORT: undefined,
-      });
-      try {
-        resetStripeClient();
-        await settings.update.stripe.secretKey("sk_test_123");
-        // With STRIPE_MOCK_HOST set but no PORT, should use default 12111
-        const client = await getStripeClient();
-        expect(client).not.toBeNull();
-      } finally {
-        restore();
-        resetStripeClient();
-      }
+      // With STRIPE_MOCK_HOST set but no PORT, should use default 12111
+      await withStripeClient(
+        { STRIPE_MOCK_HOST: "localhost", STRIPE_MOCK_PORT: undefined },
+        (client) => expect(client).not.toBeNull(),
+      );
     });
   });
 
@@ -191,24 +213,11 @@ describeStripe("stripe", () => {
     });
 
     test("returns error when createStripeClient or API call throws", async () => {
-      // Mock fetch to throw on all requests, exercising the outer catch block
-      await withFetchMock(async () => {
-        globalThis.fetch = () => {
-          throw new Error("Network unavailable");
-        };
-
-        const result = await setupWebhookEndpoint(
-          "sk_test_mock",
-          "https://example.com/webhook/error-test",
-        );
-
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          // Stripe SDK wraps connection errors with retry info
-          expect(typeof result.error).toBe("string");
-          expect(result.error!.length > 0).toBe(true);
-        }
-      });
+      // An Error thrown on every request exercises the outer catch block.
+      await expectFetchThrowGivesStringError(
+        new Error("Network unavailable"),
+        "https://example.com/webhook/error-test",
+      );
     });
 
     test("catches error when deleting existing endpoint ID fails", async () => {
@@ -237,24 +246,11 @@ describeStripe("stripe", () => {
     });
 
     test("returns stringified error when non-Error is thrown", async () => {
-      // Mock fetch to throw a string (not an Error) to hit the String(err) path
-      await withFetchMock(async () => {
-        globalThis.fetch = () => {
-          throw "string_error";
-        }; // non-Error value
-
-        const result = await setupWebhookEndpoint(
-          "sk_test_mock",
-          "https://example.com/webhook/non-error-throw",
-        );
-
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          // Stripe SDK wraps thrown values, so error message comes from SDK wrapper
-          expect(typeof result.error).toBe("string");
-          expect(result.error!.length > 0).toBe(true);
-        }
-      });
+      // A thrown string (not an Error) hits the String(err) path.
+      await expectFetchThrowGivesStringError(
+        "string_error",
+        "https://example.com/webhook/non-error-throw",
+      );
     });
   });
 

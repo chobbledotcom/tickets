@@ -18,6 +18,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { twoListingsAttendees } from "../attendee-read-helpers.ts";
 
 // jscpd:ignore-end
 
@@ -198,11 +199,10 @@ describeWithEnv(
         expectReservedRedirectWithTokens(response);
 
         // Verify only listing2 got an attendee
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
+        const [attendees1, attendees2] = await twoListingsAttendees(
+          listing1.id,
+          listing2.id,
         );
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(0);
         expect(attendees2.length).toBe(1);
       });

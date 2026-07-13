@@ -7,6 +7,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 /* jscpd:ignore-start */
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { ownerFoundOr404 } from "#routes/admin/owner-route.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash, requireCsrfForm } from "#routes/csrf.ts";
 import {
@@ -171,12 +172,14 @@ const withOwnerAndSite = (
   request: Request,
   params: RouteParams,
   handler: OwnerSiteHandler,
-): Promise<Response> =>
-  requireOwnerOr(request, async (session) => {
-    const id = Number(params.id);
-    const site = await builtSitesCrudTable.findById(id);
-    return site ? handler({ id, site }, session) : notFoundResponse();
-  });
+): Promise<Response> => {
+  const id = Number(params.id);
+  return ownerFoundOr404(
+    request,
+    () => builtSitesCrudTable.findById(id),
+    (site, session) => handler({ id, site }, session),
+  );
+};
 
 /** Owner-gated POST handler wrapper: authenticates, parses CSRF. */
 const ownerPost =

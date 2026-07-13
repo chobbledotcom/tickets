@@ -1,11 +1,11 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
+import { forEachAnchor } from "../dom.ts";
+
 /** Fill default template: clicking "Edit default template" fills the textarea
  * from its data-default-tpl attribute when the textarea is empty. */
-export const initFillDefaultTemplate = (): void => {
-  for (const link of document.querySelectorAll<HTMLAnchorElement>(
-    "[data-fill-default]",
-  )) {
+export const initFillDefaultTemplate = (): void =>
+  forEachAnchor("[data-fill-default]", (link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
       const ta = document.getElementById(
@@ -16,5 +16,4 @@ export const initFillDefaultTemplate = (): void => {
         ta.focus();
       }
     });
-  }
-};
+  });

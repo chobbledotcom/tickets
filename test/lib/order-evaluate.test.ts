@@ -32,6 +32,24 @@ const pools = (over: Partial<OrderPools> = {}): OrderPools => ({
 const kindsOf = (states: Map<string, { kind: string }>) =>
   Object.fromEntries([...states].map(([key, state]) => [key, state.kind]));
 
+/** Evaluate the two-listing order (listings 1 and 2) with the given remaining
+ *  stock for each listing and the given already-selected keys (no date). */
+const judgeTwoListings = (
+  remaining: [number, number],
+  selectedKeys: string[],
+) =>
+  evaluateOrder(
+    [option("listing:1", [[1, 1]]), option("listing:2", [[2, 1]])],
+    pools({
+      remainingByListingId: new Map([
+        [1, remaining[0]],
+        [2, remaining[1]],
+      ]),
+    }),
+    selectedKeys,
+    false,
+  );
+
 describe("listingOption", () => {
   test("books one unit of the listing under its own key", () => {
     const built = listingOption(
@@ -91,17 +109,7 @@ describe("packageOption", () => {
 
 describe("evaluateOrder — plain availability", () => {
   test("options fit when pools cover them, including an exact fit", () => {
-    const states = evaluateOrder(
-      [option("listing:1", [[1, 1]]), option("listing:2", [[2, 1]])],
-      pools({
-        remainingByListingId: new Map([
-          [1, 1],
-          [2, 5],
-        ]),
-      }),
-      [],
-      false,
-    );
+    const states = judgeTwoListings([1, 5], []);
     expect(kindsOf(states)).toEqual({
       "listing:1": "available",
       "listing:2": "available",
@@ -263,17 +271,7 @@ describe("evaluateOrder — selections and cart order", () => {
   test("a selection leaves unrelated pools exactly as they were", () => {
     // Listing 2's pool is empty from the start; committing listing 1's demand
     // must not disturb it — it stays plainly unavailable, never "available".
-    const states = evaluateOrder(
-      [option("listing:1", [[1, 1]]), option("listing:2", [[2, 1]])],
-      pools({
-        remainingByListingId: new Map([
-          [1, 5],
-          [2, 0],
-        ]),
-      }),
-      ["listing:1"],
-      false,
-    );
+    const states = judgeTwoListings([5, 0], ["listing:1"]);
     expect(states.get("listing:2")).toEqual({ kind: "unavailable" });
   });
 

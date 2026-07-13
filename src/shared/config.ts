@@ -9,15 +9,31 @@ import { getEnv, requireEnv } from "#shared/env.ts";
 import { slugify } from "#shared/slug.ts";
 
 /**
+ * Pick the value for the active payment provider from a per-provider set, or
+ * `null` when no known provider is active. The one place the stripe/square/sumup
+ * dispatch lives, so every per-provider flag is read the same way.
+ */
+export const providerValue = <T>(
+  provider: string | null,
+  values: { stripe: T; square: T; sumup: T },
+): T | null =>
+  provider === "stripe"
+    ? values.stripe
+    : provider === "square"
+      ? values.square
+      : provider === "sumup"
+        ? values.sumup
+        : null;
+
+/**
  * Check if payments are enabled (any provider configured with valid keys)
  */
-export const isPaymentsEnabled = (): boolean => {
-  const provider = settings.paymentProvider;
-  if (provider === "stripe") return settings.stripe.hasKey;
-  if (provider === "square") return settings.square.hasToken;
-  if (provider === "sumup") return settings.sumup.hasKey;
-  return false;
-};
+export const isPaymentsEnabled = (): boolean =>
+  providerValue(settings.paymentProvider, {
+    square: settings.square.hasToken,
+    stripe: settings.stripe.hasKey,
+    sumup: settings.sumup.hasKey,
+  }) ?? false;
 
 /**
  * Get booking fee percentage from database.

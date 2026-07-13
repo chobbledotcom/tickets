@@ -7,6 +7,7 @@
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type {
+  BookingIntent,
   SessionValidation,
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
@@ -93,6 +94,22 @@ export const classifySession = async (
     : { agreed: evaluation.total, verdict: "mismatch" };
 };
 
+/**
+ * Classify a paid session and, when it is provably ours, pull out its booking
+ * intent in one step. Returns `null` for an "ignore" verdict — a session with
+ * no valid price proof (a foreign, replayed, or corrupt session) that we must
+ * not process or refund. Otherwise returns the signed verdict and the booking
+ * intent: a valid proof means the metadata is byte-for-byte what we signed, so
+ * `extractIntent` always parses.
+ */
+export const classifySessionIntent = async (
+  session: ValidatedPaymentSession,
+): Promise<{ verdict: SignedVerdict; intent: BookingIntent } | null> => {
+  const verdict = await classifySession(session);
+  if (verdict.verdict === "ignore") return null;
+  return { intent: extractIntent(session)!, verdict };
+};
+
 export const validatePaidSession = async (
   sessionId: string,
 ): Promise<SessionValidation> => {
@@ -140,17 +157,13 @@ export const validatePaidSession = async (
   // cannot prove ownership (foreign instance sharing the provider, replayed or
   // corrupt data), so we neither process nor refund it — refunding an
   // unverifiable session could refund another instance's payment.
-  const verdict = await classifySession(session);
-  if (verdict.verdict === "ignore") {
+  const classified = await classifySessionIntent(session);
+  if (classified === null) {
     logRedirectError(`Unrecognized payment session (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not recognized"),
     };
   }
-  // A valid proof means the metadata is byte-for-byte what we signed, so the
-  // intent always parses — extractIntent only returns null on metadata we never
-  // produced.
-  const intent = extractIntent(session)!;
-  return { data: { intent, session, verdict }, ok: true };
+  return { data: { session, ...classified }, ok: true };
 };

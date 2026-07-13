@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   expectHtmlResponse,
@@ -182,6 +183,15 @@ describeWithEnv(
     });
 
     describe("over-duration warnings", () => {
+      /** Render the edit page for a create/book result, asserting it loaded. */
+      const editPageHtml = async (
+        result: CreateAttendeeResult,
+      ): Promise<string> => {
+        const attendeeId = result.success ? result.attendees[0]!.id : 0;
+        const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
+        return expectHtmlResponse(response, 200);
+      };
+
       test("warns when the range is longer than a daily listing allows", async () => {
         const oneDay = await createDailyTestListing({
           durationDays: 1,
@@ -199,9 +209,7 @@ describeWithEnv(
           email: "",
           name: "Over",
         });
-        const attendeeId = result.success ? result.attendees[0]!.id : 0;
-        const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
-        const html = await expectHtmlResponse(response, 200);
+        const html = await editPageHtml(result);
         // Per-listing warnings (singular + plural) and a top-of-page summary.
         expect(html).toContain(
           "One Day is designed for up to 1 day, but the booking spans 3.",
@@ -221,9 +229,7 @@ describeWithEnv(
           date: "2026-05-01",
           durationDays: 3,
         });
-        const attendeeId = result.success ? result.attendees[0]!.id : 0;
-        const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
-        const html = await expectHtmlResponse(response, 200);
+        const html = await editPageHtml(result);
         expect(html).not.toContain("Please double-check");
       });
     });

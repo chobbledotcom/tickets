@@ -28,6 +28,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { ApiResult } from "#shared/fetch.ts";
+import type { ResponseFn } from "#shared/response-fn.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -202,25 +203,37 @@ export interface CrudSideEffect<Input, FullRow, Prepared> {
   ) => Promise<{ error: string } | { value: Prepared }>;
 }
 
+/** The post-commit hook shared by every write-config: it runs after a
+ * create/update has committed and the row has been re-read, keyed on the row
+ * id. Unlike `afterWrite` (which shares the write transaction), this fires
+ * post-commit — for reconciling a derived table (e.g. listing_prices) that the
+ * transactional `insertStatement`/`updateStatement` path would otherwise
+ * bypass. */
+export interface AfterCommitConfig {
+  afterCommit?: (id: number) => Promise<void>;
+}
+
+/** A join-table write run inside the row's write transaction, given the open
+ * transaction scope, the written row's id, and the parsed input. */
+export type AfterWriteHook<Input> = (
+  tx: TxScope,
+  id: number,
+  input: Input,
+) => Promise<void>;
+
 /** Configuration for defineCrudApi */
 export interface CrudApiConfig<
   Row,
   Input,
   FullRow extends Row = Row,
   Prepared = void,
-> {
-  /** Run after a create/update has committed and the row has been re-read, keyed
-   * on the row id. Unlike `sideEffect`/`afterWrite` (which run inside the write
-   * transaction), this fires post-commit — for reconciling a derived table that
-   * the form paths keep in sync elsewhere but the transactional `insertStatement`/
-   * `updateStatement` path would otherwise bypass (e.g. listing_prices). */
-  afterCommit?: (id: number) => Promise<void>;
+> extends AfterCommitConfig {
   /** Side-effect run with the written row's id and the parsed input to persist
    * join-table rows (a listing's groups, a group's package members) that live
    * outside the main table. Runs inside the SAME transaction as the row write
    * (it receives the transaction scope), so a failure rolls the row write back
    * rather than leaving partial state. */
-  afterWrite?: (tx: TxScope, id: number, input: Input) => Promise<void>;
+  afterWrite?: AfterWriteHook<Input>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
@@ -484,7 +497,7 @@ export const defineCrudApi = <
   const withValidated = async (
     raw: ParseResult<Input> | Promise<ParseResult<Input>>,
     id: number | undefined,
-    fn: (input: Input) => Promise<Response>,
+    fn: ResponseFn<Input>,
   ): Promise<Response> => {
     const result = await parseAndValidate(raw, config.validate, id);
     if (!result.ok) return result.response;

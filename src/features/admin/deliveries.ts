@@ -32,10 +32,11 @@ import {
   getAgentRunSheetDates,
   setLegDone,
 } from "#shared/db/logistics.ts";
-import { agentNameMap, logisticsAgents } from "#shared/db/logistics-agents.ts";
+import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { type Attendee, isStaffRole } from "#shared/types.ts";
@@ -152,9 +153,9 @@ const loadLegLookups = async (
     if (!attendeeById.has(attendee.id)) attendeeById.set(attendee.id, attendee);
   }
   return {
-    agentNameById: agentNameMap(agents),
+    agentNameById: idNameMap(agents),
     attendeeById,
-    listingNameById: new Map(listings.map((l) => [l.id, l.name])),
+    listingNameById: idNameMap(listings),
   };
 };
 

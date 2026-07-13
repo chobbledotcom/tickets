@@ -8,6 +8,7 @@ import { inferTemplate, LISTING_TEMPLATES } from "#shared/listing-templates.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import type { ChildProps } from "#templates/components/child-props.ts";
 import {
   advancedSectionHasValues,
   listingFormPageState,
@@ -21,11 +22,7 @@ import {
 
 /* jscpd:ignore-end */
 
-const CreateListingFormBody = ({
-  children,
-}: {
-  children: Child;
-}): JSX.Element => (
+const CreateListingFormBody = ({ children }: ChildProps): JSX.Element => (
   <>
     {children}
     <SubmitButton icon="plus">
@@ -33,6 +30,19 @@ const CreateListingFormBody = ({
     </SubmitButton>
   </>
 );
+
+/** The admin shell every "new listing" screen shares: the type picker and the
+ * create form both sit on the `/admin/listing/new` tab under one title. */
+const listingNewAdminPage = (
+  session: AdminSession,
+  title: string,
+  body: Child,
+): string =>
+  String(
+    <AdminPage active="/admin/listing/new" session={session} title={title}>
+      {body}
+    </AdminPage>,
+  );
 
 const createListingFormPage = ({
   beforeForm,
@@ -49,8 +59,10 @@ const createListingFormPage = ({
   template: ReturnType<typeof inferTemplate>;
   title: string;
 }): string =>
-  String(
-    <AdminPage active="/admin/listing/new" session={session} title={title}>
+  listingNewAdminPage(
+    session,
+    title,
+    <>
       {beforeForm}
       <CsrfForm
         action="/admin/listing"
@@ -59,7 +71,7 @@ const createListingFormPage = ({
       >
         {children}
       </CsrfForm>
-    </AdminPage>,
+    </>,
   );
 
 const createListingPageFromForm = (
@@ -80,12 +92,10 @@ const createListingPageFromForm = (
   });
 
 export const adminListingPickerPage = (session: AdminSession): string =>
-  String(
-    <AdminPage
-      active="/admin/listing/new"
-      session={session}
-      title={t("listings_table.add_listing")}
-    >
+  listingNewAdminPage(
+    session,
+    t("listings_table.add_listing"),
+    <>
       <h1>{t("listings_table.listing_type_picker_heading")}</h1>
       <p>{t("listings_table.listing_type_picker_subheading")}</p>
       <div class="listing-type-picker">
@@ -121,7 +131,7 @@ export const adminListingPickerPage = (session: AdminSession): string =>
           </span>
         </a>
       </div>
-    </AdminPage>,
+    </>,
   );
 
 export const adminListingNewPage = (

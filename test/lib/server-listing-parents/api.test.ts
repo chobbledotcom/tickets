@@ -13,6 +13,16 @@ import {
   parentAndChild,
 } from "./helpers.ts";
 
+/** A standard "Base unit" parent and a daily "Daily add-on" child — a daily
+ * child under a standard parent is an invalid edge. */
+const standardParentDailyChild = async () => ({
+  child: await createTestListing({
+    listingType: "daily",
+    name: "Daily add-on",
+  }),
+  parent: await createTestListing({ name: "Base unit" }),
+});
+
 describeWithEnv("server > listing parents > admin API", { db: true }, () => {
   test("admin API create writes child edges", async () => {
     const child = await createTestListing({ name: "Add-on" });
@@ -127,11 +137,7 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
   });
 
   test("admin API rejects an invalid edge with no write", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({
-      listingType: "daily",
-      name: "Daily add-on",
-    });
+    const { parent, child } = await standardParentDailyChild();
     await assertJson(
       apiRequest(`/api/admin/listings/${parent.id}`, {
         body: { child_listing_ids: [child.id] },
@@ -148,12 +154,8 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
   test("admin API PUT rejecting an invalid child does NOT persist the rename", async () => {
     // The child-edge validation runs BEFORE the row write, so a rejected edge
     // leaves no partial change: the rename in the same PUT must not stick.
-    const parent = await createTestListing({ name: "Base unit" });
     // A daily child under a standard parent is an invalid edge.
-    const child = await createTestListing({
-      listingType: "daily",
-      name: "Daily add-on",
-    });
+    const { parent, child } = await standardParentDailyChild();
     await assertJson(
       apiRequest(`/api/admin/listings/${parent.id}`, {
         body: { child_listing_ids: [child.id], name: "Renamed base" },

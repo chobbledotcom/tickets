@@ -10,7 +10,7 @@ import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { queryAll } from "#shared/db/client.ts";
-import { rowsByIds } from "#shared/db/query.ts";
+import { type ListsByIds, rowsByIds } from "#shared/db/query.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import { answersTable } from "#shared/db/questions/tables.ts";
@@ -41,9 +41,7 @@ const selectAttendeeAnswerRows = <R>(
         AND attendee_answer.attendee_id IN (${placeholders})`,
   );
 
-const choiceAnswerIdsBatch = async (
-  attendeeIds: number[],
-): Promise<Map<number, number[]>> =>
+const choiceAnswerIdsBatch: ListsByIds = async (attendeeIds) =>
   choiceAnswerMapFromRows(
     await selectAttendeeAnswerRows<{ attendee_id: number; answer_id: number }>(
       attendeeIds,

@@ -3,7 +3,10 @@ import { entityReturnPath } from "#shared/admin-pages.ts";
 import type { Group } from "#shared/types.ts";
 import { successListPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import {
+  CollectionTable,
+  namedColumns,
+} from "#templates/components/data-table.tsx";
 
 /** Admin groups list page. */
 export const adminGroupsPage = successListPage<Group[]>(
@@ -11,27 +14,25 @@ export const adminGroupsPage = successListPage<Group[]>(
   "/admin/groups",
   (groups, session) => (
     <>
-      {groups.length === 0 ? (
-        <p>{t("groups.no_groups")}</p>
-      ) : (
-        // Staff open the detail page; editors can't (it decrypts attendee PII),
-        // so they link straight to the edit form.
-        <DataTable
-          columns={[{ header: t("common.name") }, { header: t("common.slug") }]}
-          rows={groups.map((group) => [
-            <a
-              href={entityReturnPath(
-                "/admin/groups",
-                session.adminLevel,
-                group.id,
-              )}
-            >
-              {group.name}
-            </a>,
-            group.slug,
-          ])}
-        />
-      )}
+      <CollectionTable
+        columns={namedColumns("common.slug")}
+        emptyKey="groups.no_groups"
+        items={groups}
+        rows={groups.map((group) => [
+          // Staff open the detail page; editors can't (it decrypts attendee
+          // PII), so they link straight to the edit form.
+          <a
+            href={entityReturnPath(
+              "/admin/groups",
+              session.adminLevel,
+              group.id,
+            )}
+          >
+            {group.name}
+          </a>,
+          group.slug,
+        ])}
+      />
 
       <GuideFooter adminLevel={session.adminLevel} href="/admin/guide#packages">
         {t("groups.guide_link")}

@@ -3,11 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
-import {
-  expectHtmlResponse,
-  expectRedirect,
-  followRedirect,
-} from "#test-utils/assertions.ts";
+import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -15,6 +11,7 @@ import { setTestEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { renderPaymentSuccess } from "./payment-success-helpers.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("payment success token verification", () => {
@@ -75,16 +72,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
-        // Process payment to get redirect with token
-        const redirectResponse = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_token_verify"),
-        );
+        // Process payment to get redirect with token, then render the page
+        const { redirectResponse, response, html } =
+          await renderPaymentSuccess("cs_token_verify");
         const location = expectRedirect(redirectResponse);
-
-        // Follow redirect to verify tokens and render page
-        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
-        const html = await response.text();
 
         // Should have ticket link with verified token
         expect(html).toContain("View your ticket");

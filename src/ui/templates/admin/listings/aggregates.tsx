@@ -6,7 +6,7 @@ import type {
 } from "#shared/db/listings/aggregates.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { FieldValues } from "#shared/forms.tsx";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import {
   buildAnswerSummaryRows as buildAnswerSummaryDetailRows,
   renderDetailRows,
@@ -19,7 +19,10 @@ import {
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
-import { recalculatePageRenderer } from "#templates/components/aggregate-sections.tsx";
+import {
+  bindRecalculatePage,
+  recalculatePageRenderer,
+} from "#templates/components/aggregate-sections.tsx";
 import { capacityLevel } from "#templates/components/capacity.tsx";
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 
@@ -135,11 +138,6 @@ const listingRecalculateRenderer = (
     }),
   });
 
-export const adminListingRecalculatePage = (
-  listing: ListingWithCount,
-  snapshot: ListingAggregateRecalculation,
-  session: AdminSession,
-  error?: string,
-  success?: string,
-): string =>
-  listingRecalculateRenderer(listing, snapshot)(session, error, success);
+export const adminListingRecalculatePage = bindRecalculatePage(
+  listingRecalculateRenderer,
+);

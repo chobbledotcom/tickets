@@ -42,6 +42,12 @@ const warningText = (children: Child): JSX.Element => (
 const listingTitle = (key: string, listing: ListingWithCount): string =>
   t(key, { name: listing.name });
 
+/** The "type the name to confirm" line, naming the listing being acted on. */
+const confirmParagraph = (
+  key: string,
+  listing: ListingWithCount,
+): JSX.Element => <p>{t(key, { name: listing.name })}</p>;
+
 export const adminDeleteListingPage = listingConfirmPageFrom((listing) => ({
   action: `/admin/listing/${listing.id}/delete`,
   buttonText: t("listings_table.delete_listing"),
@@ -68,11 +74,7 @@ export const adminDeactivateListingPage = listingConfirmPageFrom((listing) => ({
         <li>{t("listings_table.deactivate_effect_reject_payments")}</li>
       </ul>
       <p>{t("listings_table.existing_attendees_not_affected")}</p>
-      <p>
-        {t("listings_table.deactivate_confirmation_text", {
-          name: listing.name,
-        })}
-      </p>
+      {confirmParagraph("listings_table.deactivate_confirmation_text", listing)}
     </>
   ),
   title: listingTitle("listings_table.deactivate_listing_title", listing),
@@ -88,11 +90,7 @@ export const adminReactivateListingPage = listingConfirmPageFrom((listing) => ({
       <p>
         {t("listings_table.public_page_accessible_new_attendees_can_register")}
       </p>
-      <p>
-        {t("listings_table.reactivate_confirmation_text", {
-          name: listing.name,
-        })}
-      </p>
+      {confirmParagraph("listings_table.reactivate_confirmation_text", listing)}
     </>
   ),
   danger: false,

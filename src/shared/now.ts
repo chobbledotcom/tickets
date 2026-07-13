@@ -15,6 +15,9 @@ export const nowIso = (): string => new Date().toISOString();
 /** Epoch milliseconds for numeric comparisons */
 export const nowMs = (): number => Date.now();
 
+/** Current time in whole epoch seconds — the unit signed-token expiry uses. */
+export const nowSeconds = (): number => Math.floor(nowMs() / 1000);
+
 /** Resolve after `ms` milliseconds — for retry backoff and similar waits. */
 export const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));

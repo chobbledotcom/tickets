@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { parseOrNull } from "./parse.ts";
 
 /**
  * Plain decimal integer strings. The schemas accept digits only, so no signs,
@@ -27,13 +28,8 @@ type IntSchema = ReturnType<typeof createIntSchema>;
 const NonNegativeIntSchema = createIntSchema(0);
 const PositiveIntSchema = createIntSchema(1);
 
-const parseIntWithSchema = (
-  schema: IntSchema,
-  value: string,
-): number | null => {
-  const result = v.safeParse(schema, value.trim());
-  return result.success ? result.output : null;
-};
+const parseIntWithSchema = (schema: IntSchema, value: string): number | null =>
+  parseOrNull(schema, value.trim());
 
 /** Parse a strict positive-integer id from a string, or null when it isn't one. */
 export const parsePositiveIntId = (value: string): number | null =>

@@ -375,19 +375,11 @@ export const adminLedgerPage = (
         <LedgerDateRange data={data} />
         <ScopeFilter data={data} />
         <LedgerViewToggle data={data} />
-        {data.filters.view === "dual" ? (
-          <LedgerTable
-            names={data.names}
-            returnUrl={data.returnUrl}
-            transfers={data.transfers}
-          />
-        ) : (
-          <HumanLedgerTable
-            names={data.names}
-            returnUrl={data.returnUrl}
-            transfers={data.transfers}
-          />
-        )}
+        {(data.filters.view === "dual" ? LedgerTable : HumanLedgerTable)({
+          names: data.names,
+          returnUrl: data.returnUrl,
+          transfers: data.transfers,
+        })}
         {data.truncated && <p>{t("admin.ledger.recent")}</p>}
       </PageBlock>
       <GuideFooter href="/admin/guide#ledger">

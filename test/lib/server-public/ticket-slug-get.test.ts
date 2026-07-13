@@ -220,19 +220,20 @@ describeWithEnv(
 
       /** POSTs a listing's iframe ticket form with a deliberately wrong CSRF
        * token — the shared setup behind both CSRF-error checks below. */
-      const postWrongCsrfToken = async (listing: {
-        slug: string;
-      }): Promise<Response> =>
-        handleRequest(
+      /** Makes a fresh listing and POSTs its iframe form with a wrong CSRF
+       * token, the shared arrange for both CSRF-error checks. */
+      const postWrongCsrfToNewListing = async (): Promise<Response> => {
+        const listing = await createTestListing({ maxAttendees: 50 });
+        return handleRequest(
           mockFormRequest(`/ticket/${listing.slug}?iframe=true`, {
             csrf_token: "wrong-token",
             name: "Test",
           }),
         );
+      };
 
       test("CSRF error response does not set cookies in iframe mode", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const response = await postWrongCsrfToken(listing);
+        const response = await postWrongCsrfToNewListing();
         expect(response.status).toBe(302);
         expectFlash(
           response,
@@ -273,8 +274,7 @@ describeWithEnv(
       });
 
       test("CSRF error regenerates a signed token", async () => {
-        const listing = await createTestListing({ maxAttendees: 50 });
-        const response = await postWrongCsrfToken(listing);
+        const response = await postWrongCsrfToNewListing();
         // Now redirects with flash error instead of rendering a 403 page
         expect(response.status).toBe(302);
         expectFlash(

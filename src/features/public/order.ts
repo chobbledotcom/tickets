@@ -177,14 +177,17 @@ const bookingSpanDays = (listing: ListingWithCount): number =>
     ? Math.max(1, listing.duration_days)
     : 1;
 
+/** Remaining bookable units keyed by listing or group id. */
+type RemainingById = Map<number, number>;
+
 /** Bucket values by their booking span and run one pool query per distinct
  * span, merging the maps — the shared shell of the listing and group pool
  * loaders below. */
 const poolBySpan = async <T>(
   values: T[],
   spanOf: (value: T) => number,
-  query: (bucket: T[], span: number) => Promise<Map<number, number>>,
-): Promise<Map<number, number>> => {
+  query: (bucket: T[], span: number) => Promise<RemainingById>,
+): Promise<RemainingById> => {
   const bySpan = new Map<number, T[]>();
   for (const value of values) {
     const span = spanOf(value);
@@ -201,7 +204,7 @@ const poolBySpan = async <T>(
 const remainingBySpan = (
   involved: ListingWithCount[],
   date: string | null,
-): Promise<Map<number, number>> =>
+): Promise<RemainingById> =>
   poolBySpan(
     involved,
     (listing) => (date === null ? 1 : bookingSpanDays(listing)),
@@ -216,7 +219,7 @@ const groupRemainingBySpan = (
   involved: ListingWithCount[],
   groupIdsByListingId: Map<number, number[]>,
   date: string | null,
-): Promise<Map<number, number>> => {
+): Promise<RemainingById> => {
   const spanByGroupId = new Map<number, number>();
   for (const listing of involved) {
     const span = date === null ? 1 : bookingSpanDays(listing);

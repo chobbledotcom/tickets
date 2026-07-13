@@ -14,13 +14,15 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { type IdRouteHandler, withEntity } from "#routes/entity.ts";
+/* jscpd:ignore-start */
+import { type IdRouteHandler, idRouteFor, withEntity } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+/* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -188,10 +190,8 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     return {
       createPost,
-      deleteGet: (request: Request, { id }: { id: number }) =>
-        confirmedDelete.get(request, id),
-      deletePost: (request: Request, { id }: { id: number }) =>
-        confirmedDelete.post(request, id),
+      deleteGet: idRouteFor(confirmedDelete.get),
+      deletePost: idRouteFor(confirmedDelete.post),
       editGet,
       editPost,
       listGet,

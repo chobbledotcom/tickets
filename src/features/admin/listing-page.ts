@@ -68,6 +68,12 @@ const staffAnd =
 const actionUrl = ({ listing }: LoadedListing, action: string): string =>
   `/admin/listing/${listing.id}/${action}`;
 
+/** An action entry's href builder for a named sub-action on this listing. */
+const subAction =
+  (action: string) =>
+  (entity: LoadedListing): string =>
+    actionUrl(entity, action);
+
 /** The Actions tab entries. Each `visible` mirrors the gate its old
  * {@link ListingActionNav} entry used, so no dead or forbidden link renders.
  * The tab itself is open to content roles (staff + editor), so every
@@ -75,7 +81,7 @@ const actionUrl = ({ listing }: LoadedListing, action: string): string =>
  * only Duplicate and Export are safe for an editor to use unrestricted. */
 const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
-    href: (entity) => actionUrl(entity, "duplicate"),
+    href: subAction("duplicate"),
     icon: "plus",
     intent: "write-form",
     labelKey: "listings_table.duplicate",
@@ -83,7 +89,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   {
     // A JSON export download (see catalog-transfer). Content-gated like the tab,
     // and a read, so — unlike duplicate — it stays available in read-only mode.
-    href: (entity) => actionUrl(entity, "export.json"),
+    href: subAction("export.json"),
     icon: "save",
     labelKey: "catalog_transfer.export_link",
   },
@@ -101,7 +107,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   },
   {
     danger: true,
-    href: (entity) => actionUrl(entity, "refund-all"),
+    href: subAction("refund-all"),
     icon: "credit-card",
     intent: "write-form",
     labelKey: "listings_table.refund_all",
@@ -111,14 +117,14 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   },
   {
     danger: true,
-    href: (entity) => actionUrl(entity, "deactivate"),
+    href: subAction("deactivate"),
     icon: "x",
     intent: "write-form",
     labelKey: "listings_table.deactivate",
     visible: staffAnd((entity) => entity.listing.active),
   },
   {
-    href: (entity) => actionUrl(entity, "reactivate"),
+    href: subAction("reactivate"),
     icon: "rotate-ccw",
     intent: "write-form",
     labelKey: "listings_table.reactivate",
@@ -126,7 +132,7 @@ const LISTING_ACTIONS: readonly ActionDef<LoadedListing>[] = [
   },
   {
     danger: true,
-    href: (entity) => actionUrl(entity, "delete"),
+    href: subAction("delete"),
     icon: "trash-2",
     intent: "write-form",
     labelKey: "common.delete",

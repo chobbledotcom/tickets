@@ -34,6 +34,16 @@ const stubSuccessfulBuild = () => ({
   dbTestStub: stubDbOk(),
 });
 
+/** Assert a build redirected to /admin/builder with the "created successfully"
+ *  flash, then return the single recorded built site for per-test checks. */
+const expectSiteCreated = async (response: Response) => {
+  expectRedirect(response, "/admin/builder");
+  expectFlash(response, expect.stringContaining("created successfully"));
+  const sites = await builtSites.getAll();
+  expect(sites).toHaveLength(1);
+  return sites[0]!;
+};
+
 /** Stub `buildSite` to capture its input and return a success result. */
 const stubBuildAndCapture = () => {
   const capture: {
@@ -281,18 +291,14 @@ describeWithEnv(
           site_name: "My Test Site",
         });
 
-        expectRedirect(response, "/admin/builder");
-        expectFlash(response, expect.stringContaining("created successfully"));
-
         // Verify site was recorded with db credentials from buildResult
-        const sites = await builtSites.getAll();
-        expect(sites).toHaveLength(1);
-        expect(sites[0]!.name).toBe("My Test Site");
-        expect(sites[0]!.siteUrl).toBe("https://test-42.b-cdn.net");
-        expect(sites[0]!.dbUrl).toBe("libsql://test.turso.io");
-        expect(sites[0]!.dbToken).toBe("token123");
-        expect(sites[0]!.hostingId).toBe("42");
-        expect(sites[0]!.assignable).toBe(false);
+        const site = await expectSiteCreated(response);
+        expect(site.name).toBe("My Test Site");
+        expect(site.siteUrl).toBe("https://test-42.b-cdn.net");
+        expect(site.dbUrl).toBe("libsql://test.turso.io");
+        expect(site.dbToken).toBe("token123");
+        expect(site.hostingId).toBe("42");
+        expect(site.assignable).toBe(false);
       });
     });
 
@@ -303,14 +309,10 @@ describeWithEnv(
           site_name: "Auto DB Site",
         });
 
-        expectRedirect(response, "/admin/builder");
-        expectFlash(response, expect.stringContaining("created successfully"));
-
-        const sites = await builtSites.getAll();
-        expect(sites).toHaveLength(1);
-        expect(sites[0]!.name).toBe("Auto DB Site");
-        expect(sites[0]!.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
-        expect(sites[0]!.dbToken).toBe(MOCK_DB_RESULT.dbToken);
+        const site = await expectSiteCreated(response);
+        expect(site.name).toBe("Auto DB Site");
+        expect(site.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
+        expect(site.dbToken).toBe(MOCK_DB_RESULT.dbToken);
       });
     });
 

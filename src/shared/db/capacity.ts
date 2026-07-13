@@ -228,11 +228,14 @@ const buildGroupCountSql = (
  * booked_quantity running total. Dated daily checks still count overlapping rows.
  */
 const buildDayCapacitySql = (
-  listingId: number,
+  count: {
+    dayRange: DayRange | null;
+    excludeAttendeeId?: number | undefined;
+    listingId: number;
+  },
   qty: number,
-  dayRange: DayRange | null,
-  excludeAttendeeId?: number,
 ): SqlStatement => {
+  const { dayRange, excludeAttendeeId, listingId } = count;
   const listingCount = buildListingCountSql(
     listingId,
     dayRange,
@@ -285,15 +288,20 @@ export const buildCapacityCondition = (
   durationDays = 1,
 ): SqlStatement => {
   if (!date) {
-    return buildDayCapacitySql(listingId, qty, null, excludeAttendeeId);
+    return buildDayCapacitySql(
+      { dayRange: null, excludeAttendeeId, listingId },
+      qty,
+    );
   }
   const duration = normalizeDurationDays(durationDays);
   const dayClauses = Array.from({ length: duration }, (_, i) => {
     const daily = buildDayCapacitySql(
-      listingId,
+      {
+        dayRange: dateToRange(addDays(date, i), 1),
+        excludeAttendeeId,
+        listingId,
+      },
       qty,
-      dateToRange(addDays(date, i), 1),
-      excludeAttendeeId,
     );
     return { args: daily.args, sql: `(${daily.sql})` };
   });

@@ -7,6 +7,8 @@
  * left open for the Deno runtime to complain about.
  */
 
+import { extendedBy } from "#fp";
+
 /** A fetch result whose body has already been read to a string. */
 export type FetchResult = {
   status: number;
@@ -17,6 +19,17 @@ export type FetchResult = {
 
 /** Discriminated result type for external API calls. */
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
+
+/**
+ * Headers for a JSON API request: the given auth header(s) plus a JSON
+ * content type. Each API client supplies its own auth scheme (a bearer token,
+ * an access key, …); this keeps the JSON content-type in one place.
+ */
+export const jsonHeaders: (
+  auth: Record<string, string>,
+) => Record<string, string> = extendedBy({
+  "Content-Type": "application/json",
+});
 
 /**
  * Parse a JSON error response into a structured error.

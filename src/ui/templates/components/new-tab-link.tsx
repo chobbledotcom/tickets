@@ -16,3 +16,9 @@ export const NewTabLink = ({
     {children}
   </a>
 );
+
+/** A new-tab link whose visible text is the URL itself — the site-URL cell
+ *  shared by the builder and built-sites tables. */
+export const NewTabUrl = ({ url }: { url: string }): JSX.Element => (
+  <NewTabLink href={url}>{url}</NewTabLink>
+);

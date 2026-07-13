@@ -1,6 +1,10 @@
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
+import { parseOrNull } from "./parse.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * Currency-aware money validation — the single source of truth for parsing a
@@ -65,17 +69,6 @@ const PositiveMoneySchema = v.pipe(baseMoneySchema(false), v.minValue(1));
 const NonNegativeMoneySchema = v.pipe(baseMoneySchema(false), v.minValue(0));
 const SignedMoneySchema = baseMoneySchema(true);
 
-const parseWith = (
-  schema:
-    | typeof PositiveMoneySchema
-    | typeof NonNegativeMoneySchema
-    | typeof SignedMoneySchema,
-  raw: string,
-): number | null => {
-  const result = v.safeParse(schema, raw);
-  return result.success ? result.output : null;
-};
-
 /**
  * Parse a strictly positive money amount into positive minor units, or `null`
  * when `raw` is empty, non-numeric, carries more decimal places than the
@@ -83,7 +76,18 @@ const parseWith = (
  * Use for amounts that must be non-zero (service costs, ledger entries).
  */
 export const parsePositiveMinorUnits = (raw: string): number | null =>
-  parseWith(PositiveMoneySchema, raw);
+  parseOrNull(PositiveMoneySchema, raw);
+
+/**
+ * Non-negative money parser whose result for a blank input is chosen by the
+ * caller: a required field treats blank as a real `0`, an optional field treats
+ * blank as unset (`null`). A present value is validated as non-negative either
+ * way, and any invalid input is `null`.
+ */
+const nonNegativeMinorUnitsOr =
+  (whenBlank: number | null) =>
+  (raw: string): number | null =>
+    raw.trim() === "" ? whenBlank : parseOrNull(NonNegativeMoneySchema, raw);
 
 /**
  * Parse a **required** non-negative money amount into minor units. Blank ⇒ `0`
@@ -91,8 +95,7 @@ export const parsePositiveMinorUnits = (raw: string): number | null =>
  * invalid input ⇒ `null`. Use where an explicit zero is meaningful and a blank
  * means zero.
  */
-export const parseNonNegativeMinorUnits = (raw: string): number | null =>
-  raw.trim() === "" ? 0 : parseWith(NonNegativeMoneySchema, raw);
+export const parseNonNegativeMinorUnits = nonNegativeMinorUnitsOr(0);
 
 /**
  * Parse an **optional** non-negative money amount into minor units. Blank ⇒
@@ -100,8 +103,7 @@ export const parseNonNegativeMinorUnits = (raw: string): number | null =>
  * and any invalid input ⇒ `null`. Use for override fields that distinguish "no
  * value" from "£0" (QR price override, custom day prices).
  */
-export const parseOptionalMinorUnits = (raw: string): number | null =>
-  raw.trim() === "" ? null : parseWith(NonNegativeMoneySchema, raw);
+export const parseOptionalMinorUnits = nonNegativeMinorUnitsOr(null);
 
 /**
  * Parse a **signed** money amount into minor units (negatives and zero allowed),
@@ -109,7 +111,7 @@ export const parseOptionalMinorUnits = (raw: string): number | null =>
  * figure can legitimately be negative (a modifier's net revenue).
  */
 export const parseSignedMinorUnits = (raw: string): number | null =>
-  parseWith(SignedMoneySchema, raw);
+  parseOrNull(SignedMoneySchema, raw);
 
 /**
  * True when a numeric amount in MAJOR units carries more decimal places than the

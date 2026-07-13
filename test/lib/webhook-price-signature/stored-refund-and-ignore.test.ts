@@ -36,6 +36,18 @@ describeWithEnv(
       resetStripeClient();
     });
 
+    // Delivers the webhook, then delivers it again, asserting both return the
+    // same `processed` result. A redelivery must replay the first outcome —
+    // never finalize a refunded booking or re-refund on the second pass.
+    const expectDeliveryReplays = async (processed: boolean) => {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(processed);
+      });
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(processed);
+      });
+    };
+
     test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
       const listing = await setupWithListing();
       // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
@@ -115,16 +127,11 @@ describeWithEnv(
           metadata: signedMeta(999, { items: singleItem(listing.id, 1, 1000) }),
         },
         async (refund) => {
-          await assertJson(webhookRequest(), 200, (json) => {
-            expect(json.processed).toBe(false);
-          });
           // The redelivery must replay the SAME refund outcome (processed:false), not
           // a finalized success (processed:true / a ticket) — and must not duplicate
           // the booking or re-refund. This is the exact failure an over-eager finalize
           // would cause, which the type system can't see.
-          await assertJson(webhookRequest(), 200, (json) => {
-            expect(json.processed).toBe(false);
-          });
+          await expectDeliveryReplays(false);
           expect((await getAttendeesRaw(listing.id)).length).toBe(1);
           expect(refund.calls.length).toBe(1);
         },
@@ -336,14 +343,9 @@ describeWithEnv(
         false,
         listing.id,
         async (refund) => {
-          await assertJson(webhookRequest(), 200, (json) => {
-            expect(json.processed).toBe(false);
-          });
           // A second delivery replays the recorded outcome — it does not re-create the
           // attendee or re-attempt the (now operator-owned) refund.
-          await assertJson(webhookRequest(), 200, (json) => {
-            expect(json.processed).toBe(false);
-          });
+          await expectDeliveryReplays(false);
           expect(refund.calls.length).toBe(1);
           const [attendee] = await getAttendeesRaw(listing.id);
           expect(attendee?.quantity).toBe(0);

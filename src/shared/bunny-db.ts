@@ -9,8 +9,11 @@
 import * as v from "valibot";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
-import { type ApiResult, fetchText } from "#shared/fetch.ts";
-import type { DatabaseProviderApi } from "#shared/provider-types.ts";
+import { type ApiResult, fetchText, jsonHeaders } from "#shared/fetch.ts";
+import type {
+  CreateDatabaseFn,
+  DatabaseProviderApi,
+} from "#shared/provider-types.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
 
@@ -55,10 +58,8 @@ export interface CreateDatabaseResult {
 }
 
 /** Headers for all Bunny Database API requests. */
-const dbApiHeaders = (): Record<string, string> => ({
-  AccessKey: getBunnyApiKey(),
-  "Content-Type": "application/json",
-});
+const dbApiHeaders = (): Record<string, string> =>
+  jsonHeaders({ AccessKey: getBunnyApiKey() });
 
 /** Just the node IDs from a list of regions Bunny reported. */
 const regionIds = (regions: RegionConfig[]): string[] =>
@@ -93,9 +94,7 @@ const getAllRegions = async (): Promise<
  * Create a new Bunny database with the given name.
  * Returns the database URL and a full-access token.
  */
-const createDatabaseImpl = async (
-  name: string,
-): Promise<ApiResult<CreateDatabaseResult>> => {
+const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   // 1. Find every region Bunny will accept, so the database runs everywhere
   const regions = await getAllRegions();
   if (!regions.ok) {

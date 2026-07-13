@@ -60,25 +60,40 @@ const bookingRowWithoutAttendee = (
   start_at: row.start_at,
 });
 
-const bookingRowsByAttendeeIds = async (
+/** Load the booking lines for a set of attendees, grouped by attendee id.
+ * Callers vary only in which columns they read, any extra WHERE clause, and how
+ * each row is mapped once the `attendee_id` grouping key is stripped. */
+const bookingLinesByAttendeeIds = async <
+  Row extends { attendee_id: number },
+  Result,
+>(
   attendeeIds: number[],
-): Promise<Map<number, ListingAttendeeRow[]>> => {
-  const attendeePlaceholders = inPlaceholders(attendeeIds);
-  const rows = await queryAll<BookingRowWithAttendee>(
-    `SELECT ${listingAttendeeColumn("attendee_id")}, ${listingAttendeeRowColumnsFrom(
-      LISTING_ATTENDEE_ALIAS,
-    )}
+  columns: string,
+  extraWhere: string,
+  toResult: (row: Row) => Result,
+): Promise<Map<number, Result[]>> => {
+  const rows = await queryAll<Row>(
+    `SELECT ${listingAttendeeColumn("attendee_id")}, ${columns}
      FROM listing_attendees AS ${LISTING_ATTENDEE_ALIAS}
-     WHERE ${listingAttendeeColumn("attendee_id")} IN (${attendeePlaceholders})
+     WHERE ${listingAttendeeColumn("attendee_id")} IN (${inPlaceholders(
+       attendeeIds,
+     )})${extraWhere}
      ORDER BY ${BOOKING_ROWS_ORDER}`,
     attendeeIds,
   );
 
-  return groupToMap(
-    (row: BookingRowWithAttendee) => row.attendee_id,
-    bookingRowWithoutAttendee,
-  )(rows);
+  return groupToMap((row: Row) => row.attendee_id, toResult)(rows);
 };
+
+const bookingRowsByAttendeeIds = (
+  attendeeIds: number[],
+): Promise<Map<number, ListingAttendeeRow[]>> =>
+  bookingLinesByAttendeeIds<BookingRowWithAttendee, ListingAttendeeRow>(
+    attendeeIds,
+    listingAttendeeRowColumnsFrom(LISTING_ATTENDEE_ALIAS),
+    "",
+    bookingRowWithoutAttendee,
+  );
 
 const PREVIOUS_BOOKING_LINE_COLS = `${listingAttendeeColumn("listing_id")}, ${listingAttendeeColumn("quantity")}, ${pricePaidFromLedger(
   listingAttendeeColumn("attendee_id"),
@@ -95,24 +110,18 @@ const previousBookingLineWithoutAttendee = (
   quantity: row.quantity,
 });
 
-const previousBookingLinesByAttendeeIds = async (
+const previousBookingLinesByAttendeeIds = (
   attendeeIds: number[],
-): Promise<Map<number, PreviousBookingLine[]>> => {
-  const attendeePlaceholders = inPlaceholders(attendeeIds);
-  const rows = await queryAll<RowWithAttendee<PreviousBookingLine>>(
-    `SELECT ${listingAttendeeColumn("attendee_id")}, ${PREVIOUS_BOOKING_LINE_COLS}
-     FROM listing_attendees AS ${LISTING_ATTENDEE_ALIAS}
-     WHERE ${listingAttendeeColumn("attendee_id")} IN (${attendeePlaceholders})
-       AND ${listingAttendeeColumn("quantity")} > 0
-     ORDER BY ${BOOKING_ROWS_ORDER}`,
+): Promise<Map<number, PreviousBookingLine[]>> =>
+  bookingLinesByAttendeeIds<
+    RowWithAttendee<PreviousBookingLine>,
+    PreviousBookingLine
+  >(
     attendeeIds,
-  );
-
-  return groupToMap(
-    (row: RowWithAttendee<PreviousBookingLine>) => row.attendee_id,
+    PREVIOUS_BOOKING_LINE_COLS,
+    `\n       AND ${listingAttendeeColumn("quantity")} > 0`,
     previousBookingLineWithoutAttendee,
-  )(rows);
-};
+  );
 
 type TokenIndexedRow = { ticket_token_index: BlindIndex };
 
@@ -159,10 +168,16 @@ const resultsInTokenOrder = <Result>(
 
 type TokenResultRow = { id: number } & TokenIndexedRow;
 
+/** Turns one attendee row plus its booking lines into a caller's result shape. */
+type BuildTokenResult<Row, Booking, Result> = (
+  row: Row,
+  bookings: Booking[],
+) => Result;
+
 const tokenResultMap = <Row extends TokenResultRow, Booking, Result>(
   rows: Row[],
   bookingsByAttendee: Map<number, Booking[]>,
-  build: (row: Row, bookings: Booking[]) => Result,
+  build: BuildTokenResult<Row, Booking, Result>,
 ): Map<string, Result> =>
   new Map(
     rows.map((row) => [
@@ -175,7 +190,7 @@ const resultsForTokens = async <Row extends TokenResultRow, Booking, Result>(
   tokens: string[],
   columns: string,
   bookingsFor: (attendeeIds: number[]) => Promise<Map<number, Booking[]>>,
-  build: (row: Row, bookings: Booking[]) => Result,
+  build: BuildTokenResult<Row, Booking, Result>,
 ): Promise<(Result | null)[]> => {
   if (tokens.length === 0) return [];
   const {

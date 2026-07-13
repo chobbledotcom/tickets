@@ -83,3 +83,11 @@ export const commandValue = async (
 /** True when `run` executes inside a git work tree. */
 export const isInsideWorkTree = async (run: RunCommand): Promise<boolean> =>
   (await runGit(run, ["rev-parse", "--is-inside-work-tree"])).success;
+
+/** Run `body` only when inside a git work tree; outside one, resolve to
+ * undefined so a caller that gates its work on being in a repo bails cleanly. */
+export const withinWorkTree = async <T>(
+  run: RunCommand,
+  body: () => Promise<T | undefined>,
+): Promise<T | undefined> =>
+  (await isInsideWorkTree(run)) ? body() : undefined;

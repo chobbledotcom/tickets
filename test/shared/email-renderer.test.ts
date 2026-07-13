@@ -18,10 +18,18 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
+/** The first argument of every `console.error` call the spy captured — the
+ *  render-error tests read the logged messages this same way. */
+const errorLogMessages = (errorSpy: {
+  calls: { args: unknown[] }[];
+}): string[] =>
+  map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+
 /** Reload settings + build template data from one entry and render the
  *  confirmation email. Collapses the shared `invalidateCache` + `loadKeys` +
  *  `buildTemplateData` + `renderEmailContent` sequence repeated across the
  *  custom-template tests. */
+
 const renderConfirmation = async (): Promise<{
   data: TemplateData;
   result: Awaited<ReturnType<typeof renderEmailContent>>;
@@ -632,9 +640,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         // Should fall back to default subject
         expect(result.subject).toContain("Test Listing");
         // Should have logged the error
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
+        const logs = errorLogMessages(errorSpy);
         expect(
           logs.some(
             (l) =>
@@ -824,9 +830,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         );
         await renderEmailContent("confirmation", data);
 
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
-          errorSpy.calls,
-        );
+        const logs = errorLogMessages(errorSpy);
         expect(logs.some((l) => l.includes("string error value"))).toBe(true);
       } finally {
         parseAndRenderStub.restore();

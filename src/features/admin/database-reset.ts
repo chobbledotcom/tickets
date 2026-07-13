@@ -48,9 +48,16 @@ export const demoResetForm = defineForm({
       : null,
 });
 
+/** Wrap a demo-reset handler behind the demo-mode gate (else 404). */
+const demoResetRoute =
+  (handle: (request: Request) => Response | Promise<Response>) =>
+  (request: Request): Response | Promise<Response> =>
+    withDemoResetAccess(() => handle(request));
+
 /** Handle GET /demo/reset - show reset confirmation page */
-const handleDemoResetGet = (request: Request): Response | Promise<Response> =>
-  withDemoResetAccess(() => publicFormPage(request, () => demoResetPage()));
+const handleDemoResetGet = demoResetRoute((request) =>
+  publicFormPage(request, () => demoResetPage()),
+);
 
 export const deleteStorageAndResetDatabase = async (): Promise<void> => {
   if (isStorageEnabled()) {
@@ -72,8 +79,9 @@ const resetRoute = createFormRoute({
 });
 
 /** Handle POST /demo/reset - reset the database */
-const handleDemoResetPost = (request: Request): Response | Promise<Response> =>
-  withDemoResetAccess(() => resetRoute(request, {}));
+const handleDemoResetPost = demoResetRoute((request) =>
+  resetRoute(request, {}),
+);
 
 /** Demo reset routes */
 export const demoResetRoutes = defineRoutes({

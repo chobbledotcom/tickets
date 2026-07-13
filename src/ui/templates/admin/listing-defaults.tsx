@@ -49,46 +49,46 @@ const LabeledInput = ({
   </label>
 );
 
-/** Tri-state select: no default / yes / no. */
-const BoolControl = ({
+/** Number input; blank means no default. */
+/** A single `<input>` control wrapped in a {@link LabeledInput}: the shared
+ *  shape of the number and URL default fields. */
+const InputControl = ({
   field,
+  type,
   value,
+  min,
+  placeholder,
 }: {
   field: ListingDefaultField;
-  value: boolean | undefined;
+  type: string;
+  value: string;
+  min?: number;
+  placeholder?: string;
 }): JSX.Element => (
-  <label>
-    {labelFor(field)}
-    <SelectField
+  <LabeledInput field={field}>
+    <input
       name={inputName(field)}
-      options={[
-        { label: t("listing_defaults.no_default"), value: "" },
-        { label: t("listing_defaults.bool_yes"), value: "1" },
-        { label: t("listing_defaults.bool_no"), value: "0" },
-      ]}
-      value={value === undefined ? "" : value === true ? "1" : "0"}
+      type={type}
+      value={value}
+      {...(min !== undefined ? { min } : {})}
+      {...(placeholder !== undefined ? { placeholder } : {})}
     />
-    <small>{hintFor(field)}</small>
-  </label>
+  </LabeledInput>
 );
 
-/** Number input; blank means no default. */
 const NumberControl = ({
   field,
   value,
 }: {
   field: ListingDefaultField;
   value: number | undefined;
-}): JSX.Element => (
-  <LabeledInput field={field}>
-    <input
-      min={0}
-      name={inputName(field)}
-      type="number"
-      value={value === undefined ? "" : String(value)}
-    />
-  </LabeledInput>
-);
+}): JSX.Element =>
+  InputControl({
+    field,
+    min: 0,
+    type: "number",
+    value: value === undefined ? "" : String(value),
+  });
 
 /** URL input; blank means no default. */
 const UrlControl = ({
@@ -97,16 +97,13 @@ const UrlControl = ({
 }: {
   field: ListingDefaultField;
   value: string | undefined;
-}): JSX.Element => (
-  <LabeledInput field={field}>
-    <input
-      name={inputName(field)}
-      placeholder={t("listing_defaults.url_placeholder")}
-      type="url"
-      value={value ?? ""}
-    />
-  </LabeledInput>
-);
+}): JSX.Element =>
+  InputControl({
+    field,
+    placeholder: t("listing_defaults.url_placeholder"),
+    type: "url",
+    value: value ?? "",
+  });
 
 /** Enable toggle plus the day checkboxes. */
 const DaysControl = ({
@@ -147,8 +144,19 @@ const KIND_CONTROLS: Record<
     value: ListingDefaults[keyof ListingDefaults],
   ) => JSX.Element
 > = {
+  // Tri-state select: no default / yes / no.
   bool: (field, value) => (
-    <BoolControl field={field} value={value as boolean | undefined} />
+    <LabeledInput field={field}>
+      <SelectField
+        name={inputName(field)}
+        options={[
+          { label: t("listing_defaults.no_default"), value: "" },
+          { label: t("listing_defaults.bool_yes"), value: "1" },
+          { label: t("listing_defaults.bool_no"), value: "0" },
+        ]}
+        value={value === true ? "1" : value === false ? "0" : ""}
+      />
+    </LabeledInput>
   ),
   days: (field, value) => (
     <DaysControl field={field} value={value as string[] | undefined} />

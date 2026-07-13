@@ -1,10 +1,12 @@
 import { isReadOnly } from "#shared/env.ts";
-import { CsrfForm, type Field, renderFields } from "#shared/forms.tsx";
+import { type Field, renderFields } from "#shared/forms.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
+import type { FlashPageRenderer } from "#templates/admin/admin-page.tsx";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
-import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
+import type { IconName } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { saveFormComponent } from "#templates/components/save-form.tsx";
 
 type StackBaseProps = {
   children: Child;
@@ -47,7 +49,9 @@ export type FormSection = {
  *  function: each section is rendered in order and the results are joined
  *  into one fragment. Shared by the form-section and guide-section folds. */
 export const sectionsRenderer =
-  <Section,>(renderSection: (section: Section) => JSX.Element) =>
+  <Section,>(
+    renderSection: (section: Section) => JSX.Element,
+  ): ((sections: readonly Section[]) => JSX.Element) =>
   (sections: readonly Section[]): JSX.Element => (
     <>{sections.map(renderSection)}</>
   );
@@ -180,24 +184,17 @@ export const CheckboxesFieldset = <T extends { id: number; name: string }>({
     </fieldset>
   );
 
-export const CheckboxForm = ({
-  action,
-  children,
-  id,
-  submitIcon = "save",
-  submitLabel,
-}: {
+export const CheckboxForm = saveFormComponent<{
   action: string;
   children: Child;
   id?: string;
   submitIcon?: IconName;
   submitLabel: string;
-}): JSX.Element => (
-  <CsrfForm action={action} id={id}>
-    <fieldset class="checkboxes">{children}</fieldset>
-    <SubmitButton icon={submitIcon}>{submitLabel}</SubmitButton>
-  </CsrfForm>
-);
+}>(({ children, submitIcon = "save", submitLabel }) => ({
+  children: <fieldset class="checkboxes">{children}</fieldset>,
+  submitIcon,
+  submitLabel,
+}));
 
 export type RunningTotalsConfig = {
   className?: string;
@@ -240,6 +237,22 @@ export const recalculatePageRenderer =
       Parameters<typeof adminRecalculatePage>[0],
       "error" | "session" | "success"
     >,
-  ): ((session: AdminSession, error?: string, success?: string) => string) =>
+  ): FlashPageRenderer =>
   (session, error, success) =>
     adminRecalculatePage({ ...config, error, session, success });
+
+/** Binds a two-argument recalculate renderer (which captures the record and its
+ *  recounted snapshot) to the per-request `(session, error?, success?)` tail the
+ *  listing and modifier recalculate page routes call with. */
+export const bindRecalculatePage =
+  <Record, Snapshot>(
+    renderer: (record: Record, snapshot: Snapshot) => FlashPageRenderer,
+  ): ((
+    record: Record,
+    snapshot: Snapshot,
+    session: AdminSession,
+    error?: string,
+    success?: string,
+  ) => string) =>
+  (record, snapshot, session, error, success) =>
+    renderer(record, snapshot)(session, error, success);

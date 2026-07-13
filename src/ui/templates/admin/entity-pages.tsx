@@ -11,12 +11,14 @@
  * Layout backstop above the page content.
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { TabLink } from "#shared/entity-pages/core.ts";
 import { getFlashFormId } from "#shared/flash-context.ts";
 import { requestFlash } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
@@ -27,6 +29,7 @@ import {
   PageBlock,
   PageRegions,
 } from "#templates/components/page-structure.tsx";
+/* jscpd:ignore-end */
 
 /** One row of a read-only summary table. `href` renders the value as a link
  * (`external` adds target=_blank); neither ⇒ plain content. Omit a row
@@ -128,6 +131,35 @@ const ActionRow = ({ action }: { action: ResolvedAction }): JSX.Element => (
   </div>
 );
 
+/** A run of action buttons, one per action. */
+const ActionRows = ({
+  actions,
+}: {
+  actions: ResolvedAction[];
+}): JSX.Element => (
+  <>
+    {actions.map((action) => (
+      <ActionRow action={action} />
+    ))}
+  </>
+);
+
+/** An `<article>` led by a translated `<h3>` heading, then its content. The
+ * actions section here and the logistics "other attendees" list share this
+ * shell (it disappears via its caller's own guard when there's nothing to show). */
+export const TitledSection = ({
+  titleKey,
+  children,
+}: {
+  titleKey: string;
+  children: Child;
+}): JSX.Element => (
+  <article>
+    <h3>{t(titleKey)}</h3>
+    {children}
+  </article>
+);
+
 /** The action list: plain actions first, then the visually separated danger
  * zone. Either half disappears entirely when empty. */
 const ActionsSection = ({
@@ -137,20 +169,15 @@ const ActionsSection = ({
 }): JSX.Element | null => {
   if (section.plain.length === 0 && section.danger.length === 0) return null;
   return (
-    <article>
-      <h3>{t(section.titleKey)}</h3>
-      {section.plain.map((action) => (
-        <ActionRow action={action} />
-      ))}
+    <TitledSection titleKey={section.titleKey}>
+      <ActionRows actions={section.plain} />
       {section.danger.length > 0 && (
         <div class="entity-danger-zone">
           <h4>{t("entity.danger_zone")}</h4>
-          {section.danger.map((action) => (
-            <ActionRow action={action} />
-          ))}
+          <ActionRows actions={section.danger} />
         </div>
       )}
-    </article>
+    </TitledSection>
   );
 };
 

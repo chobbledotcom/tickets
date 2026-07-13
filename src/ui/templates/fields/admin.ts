@@ -7,6 +7,7 @@
 import { t } from "#i18n";
 import type { Field } from "#shared/forms.tsx";
 import { AdminLevelSchema } from "#shared/types.ts";
+import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
 import {
   getUsernameFieldBase,
@@ -113,13 +114,11 @@ export const getBuiltSiteFields = (): Field[] => [
     ],
     type: "select",
   },
-  {
+  checkboxField("assignable", {
     hint: t("fields.built_site.assignable_hint"),
     label: t("fields.built_site.assignable"),
-    name: "assignable",
-    options: [{ label: t("fields.built_site.assignable_label"), value: "1" }],
-    type: "checkbox-group",
-  },
+    optionLabel: t("fields.built_site.assignable_label"),
+  }),
   {
     hint: t("fields.built_site.updates_hint"),
     label: t("fields.built_site.updates"),

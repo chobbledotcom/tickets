@@ -11,7 +11,6 @@
 import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   executeUpdate,
@@ -29,7 +28,12 @@ import {
   idAndEncryptedNameSchema,
 } from "#shared/db/common-schema.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
-import { columnMapByIds, nameSource, queryAndMap } from "#shared/db/query.ts";
+import {
+  columnMapByIds,
+  envNameSource,
+  type ListsByIds,
+  queryAndMap,
+} from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import type {
   CalcKind,
@@ -129,11 +133,9 @@ export const getAllModifiers = (): Promise<Modifier[]> =>
   queryModifiers(`${modifierSelect()} ORDER BY id ASC`);
 
 /** Read and decrypt names only for the requested modifier ids. */
-export const getModifierNamesByIds = nameSource(
+export const getModifierNamesByIds = envNameSource(
   "modifiers",
   "modifier",
-  "name",
-  (raw: EnvKeyEncrypted) => decrypt(raw),
 ).byIds;
 
 /** Get the active modifiers, decrypted, ordered by id. */
@@ -297,9 +299,7 @@ export const setModifierAnswers = (
  * single-element list, absent when the answer has no modifier), keyed for
  * resolve so a modifier's quantity totals across every chosen answer that
  * points at it. */
-export const modifierIdsByAnswerId = async (
-  answerIds: number[],
-): Promise<Map<number, number[]>> =>
+export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
   new Map(
     [
       ...(await columnMapByIds(

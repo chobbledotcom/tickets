@@ -8,7 +8,6 @@ import { getNoteRows } from "#shared/db/system-notes.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -20,6 +19,7 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
+import { fillSoldOutListing } from "./_shared-setup.ts";
 
 // jscpd:ignore-end
 
@@ -116,18 +116,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("sold-out-after-payment refunds once and replays on retry", async () => {
-      await setupStripe();
-      const listing = await createTestListing({
-        maxAttendees: 1,
-        thankYouUrl: "https://example.com",
-        unitPrice: 1000,
-      });
-      // Fill the only spot so post-payment attendee creation fails as sold out.
-      await bookAttendee(listing, {
-        email: "first@example.com",
-        name: "First",
-        paymentId: "pi_first",
-      });
+      // A sold-out listing: post-payment attendee creation must fail as sold out.
+      const listing = await fillSoldOutListing();
 
       await withMocks(
         () =>

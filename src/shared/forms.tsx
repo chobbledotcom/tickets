@@ -19,8 +19,6 @@ import { appendIframeParam } from "#shared/iframe.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
-import { ReturnUrlField } from "#shared/return-url-field.tsx";
-import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
 /* jscpd:ignore-end */
@@ -723,50 +721,3 @@ export const hiddenInputs = (
   entries.map(([name, value]) => (
     <input name={name} type="hidden" value={value} />
   ));
-
-export const ConfirmForm = ({
-  action,
-  name,
-  label,
-  buttonText,
-  danger = true,
-  returnUrl,
-  id,
-  hiddenFields,
-  confirmName = true,
-  children,
-}: {
-  action: string;
-  name?: string;
-  label?: string;
-  buttonText: string;
-  danger?: boolean;
-  returnUrl?: string | undefined;
-  id?: string;
-  hiddenFields?: Record<string, string>;
-  /** When false, omit the type-the-name input — a plain are-you-sure page. */
-  confirmName?: boolean;
-  children?: Child;
-}): JSX.Element => (
-  <CsrfForm action={action} id={id}>
-    {children && <div class="prose">{children}</div>}
-    <ReturnUrlField returnUrl={returnUrl} />
-    {hiddenFields && hiddenInputs(Object.entries(hiddenFields))}
-    {confirmName && (
-      <label>
-        {label}
-        <input
-          autocomplete="off"
-          name="confirm_identifier"
-          placeholder={name}
-          required
-          type="text"
-        />
-      </label>
-    )}
-    <button class={danger ? "danger" : undefined} type="submit">
-      <Icon name={danger ? "trash-2" : "check"} />
-      <span>{buttonText}</span>
-    </button>
-  </CsrfForm>
-);

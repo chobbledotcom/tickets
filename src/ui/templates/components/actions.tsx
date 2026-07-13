@@ -136,6 +136,36 @@ export const DeleteSection = ({
 );
 
 /**
+ * Render `children` as an inert `<span>` or as an `<a>` link — one markup shape
+ * for the "swap a link for plain text" affordances (a disabled button, a
+ * read-only page). `asSpan` picks the span; `spanClass` and `title` decorate it.
+ */
+export const SpanOrLink = ({
+  asSpan,
+  class: className,
+  href,
+  spanClass,
+  title,
+  children,
+}: {
+  asSpan: boolean;
+  class?: string | undefined;
+  href: string;
+  spanClass?: string | undefined;
+  title?: string | undefined;
+  children?: Child;
+}): SafeHtml =>
+  asSpan ? (
+    <span class={spanClass} title={title}>
+      {children}
+    </span>
+  ) : (
+    <a class={className} href={href} title={title}>
+      {children}
+    </a>
+  );
+
+/**
  * A link that can be disabled. When enabled, renders an `<a>` pointing at
  * `href`. When `disabled`, renders a non-interactive `<span>` carrying
  * `.btn--disabled` (greyed out, not clickable) so the affordance stays visible
@@ -154,19 +184,17 @@ export const MaybeButtonLink = ({
   class?: string;
   title?: string;
   children?: Child;
-}): SafeHtml =>
-  disabled ? (
-    <span
-      class={[className, "btn--disabled"].filter(Boolean).join(" ")}
-      title={title}
-    >
-      {children}
-    </span>
-  ) : (
-    <a class={className} href={href} title={title}>
-      {children}
-    </a>
-  );
+}): SafeHtml => (
+  <SpanOrLink
+    asSpan={disabled}
+    class={className}
+    href={href}
+    spanClass={[className, "btn--disabled"].filter(Boolean).join(" ")}
+    title={title}
+  >
+    {children}
+  </SpanOrLink>
+);
 
 /**
  * Shared prop shape for an icon-prefixed link: an `href` plus an optional label

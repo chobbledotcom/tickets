@@ -16,6 +16,8 @@
  * Usage: deno run -A scripts/biome.ts <biome args...>
  */
 
+import { denoNpmArgs } from "./deno-command.ts";
+
 /** Check if a command is available in PATH */
 const hasCommand = async (name: string): Promise<boolean> => {
   try {
@@ -27,16 +29,12 @@ const hasCommand = async (name: string): Promise<boolean> => {
 };
 
 const hasLocalBiome = await hasCommand("biome");
+const piped = { stderr: "piped", stdout: "piped" } as const;
 const cmd = hasLocalBiome
-  ? new Deno.Command("biome", {
-      args: Deno.args,
-      stderr: "piped",
-      stdout: "piped",
-    })
+  ? new Deno.Command("biome", { args: Deno.args, ...piped })
   : new Deno.Command(Deno.execPath(), {
-      args: ["run", "-A", "npm:@biomejs/biome", ...Deno.args],
-      stderr: "piped",
-      stdout: "piped",
+      args: denoNpmArgs("@biomejs/biome", Deno.args),
+      ...piped,
     });
 
 const { code, stdout, stderr } = await cmd.output();

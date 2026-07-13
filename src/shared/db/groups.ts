@@ -6,7 +6,7 @@
 import { byId, groupBy, groupToMap, mapNotNullish } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import {
   execute,
   executeBatch,
@@ -36,7 +36,12 @@ import {
   getListingsWithCountsByIds,
   queryListingsWithCounts,
 } from "#shared/db/listings/records.ts";
-import { nameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
+import {
+  envNameSource,
+  type ListsByIds,
+  queryAndMap,
+  rowsByIds,
+} from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import {
@@ -140,9 +145,7 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
-  nameSource("groups", "groupRecord", "name", (raw: EnvKeyEncrypted) =>
-    decrypt(raw),
-  ).all();
+  envNameSource("groups", "groupRecord").all();
 
 /**
  * Get a single group by slug_index (from cache)
@@ -180,12 +183,17 @@ const queryGroupListings = (
     [groupId],
   );
 
+/** One group's members with attendee counts; `activeOnly` gates the public
+ * liveness view (active members only) from the full list (active + inactive). */
+const listingsInGroup =
+  (activeOnly: boolean) =>
+  (groupId: number): Promise<ListingWithCount[]> =>
+    queryGroupListings(groupId, activeOnly);
+
 /**
  * Get active listings in a group with attendee counts.
  */
-export const getActiveListingsByGroupId = (
-  groupId: number,
-): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
+export const getActiveListingsByGroupId = listingsInGroup(true);
 
 /**
  * Members of SEVERAL groups at once, keyed by group id — the batched form of the
@@ -249,9 +257,7 @@ export const groupExists = async (id: number): Promise<boolean> =>
 /**
  * Get all listings in a group with attendee counts (including inactive).
  */
-export const getListingsByGroupId = (
-  groupId: number,
-): Promise<ListingWithCount[]> => queryGroupListings(groupId, false);
+export const getListingsByGroupId = listingsInGroup(false);
 
 /**
  * Validate that a listing is compatible with a group's existing listings.
@@ -526,9 +532,7 @@ export const getGroupListingIds = (groupId: number): Promise<number[]> =>
 
 /** Map each listing id to the ids of the groups it belongs to, in one query.
  * Listings that belong to no group are absent from the map. */
-export const getGroupIdsByListingIds = async (
-  listingIds: number[],
-): Promise<Map<number, number[]>> =>
+export const getGroupIdsByListingIds: ListsByIds = async (listingIds) =>
   groupToMap(
     (row: { group_id: number; listing_id: number }) => row.listing_id,
     (row) => row.group_id,

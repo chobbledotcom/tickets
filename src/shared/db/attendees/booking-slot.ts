@@ -21,6 +21,8 @@
  * carry 0.
  */
 
+import { seenBefore } from "#shared/seen-before.ts";
+
 /** Identity of a booking slot:
  * `${listingId}|${date}|${parentListingId}|${packageGroupId}`. Two rows with
  * the same slot would collide on the `listing_attendees` unique index. */
@@ -42,7 +44,7 @@ export const hasDuplicateBookingSlot = (
     packageGroupId?: number | undefined;
   }[],
 ): boolean => {
-  const seen = new Set<string>();
+  const alreadySeen = seenBefore();
   for (const line of lines) {
     const key = bookingSlotKey(
       line.listingId,
@@ -50,8 +52,7 @@ export const hasDuplicateBookingSlot = (
       line.parentListingId ?? 0,
       line.packageGroupId ?? 0,
     );
-    if (seen.has(key)) return true;
-    seen.add(key);
+    if (alreadySeen(key)) return true;
   }
   return false;
 };

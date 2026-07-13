@@ -27,8 +27,3 @@ export const logisticsAgents = defineCachedListTable<
   primaryKey: "id",
   schema: idAndEncryptedNameSchema(encrypt, decrypt),
 });
-
-/** A lookup from logistics-agent id to name, for run sheets and CSV exports. */
-export const agentNameMap = (
-  agents: readonly LogisticsAgent[],
-): Map<number, string> => new Map(agents.map((a) => [a.id, a.name]));

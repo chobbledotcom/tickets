@@ -134,6 +134,28 @@ const assertOneEachPersisted = async (childA: Listing, childB: Listing) => {
   return { rowsA, rowsB };
 };
 
+/** Asserts child Alpha folded to a single qty-2 row and child Beta got no line
+ * at all — the persistence shape of a two-of-one order. */
+const assertTwoOfOnePersisted = async (childA: Listing, childB: Listing) => {
+  const rowsA = await getAttendeesRaw(childA.id);
+  expect(rowsA.length).toBe(1);
+  expect(rowsA[0]?.quantity).toBe(2);
+  expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+};
+
+/** Load the admin attendee-detail page for a listing's first attendee row;
+ * asserts a 200 and returns the rendered HTML for content checks. */
+const attendeeDetailHtml = async (listingId: number): Promise<string> => {
+  const { adminGet } = await import("#test-utils/session.ts");
+  const { getAttendeesRaw: rawFor } = await import(
+    "#shared/db/attendees/queries.ts"
+  );
+  const attendeeId = (await rawFor(listingId))[0]!.id;
+  const page = await adminGet(`/admin/attendees/${attendeeId}`);
+  expect(page.status).toBe(200);
+  return page.text();
+};
+
 /** Book 2 parents with 1 of each child (Ada Lovelace, asserts reserved). */
 const bookOneOfEach = (
   parent: Listing,
@@ -254,11 +276,8 @@ describeWithEnv(
         await setupTwoChildrenBase();
       const res = await bookParent(parent.slug, { date, ...baseFields });
       expectReserved(res);
-      const rowsA = await getAttendeesRaw(childA.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(2);
-      // The unchosen sibling gets no line at all.
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+      // Both units fold onto one child Alpha line; the unchosen sibling gets none.
+      await assertTwoOfOnePersisted(childA, childB);
     });
 
     test("parent qty 2 with one of each child is accepted and folds two lines", async () => {
@@ -351,10 +370,7 @@ describeWithEnv(
     test("a two-of-one booking persists child Alpha qty 2 and no child Beta line", async () => {
       const { childA, childB } = await setupAndBookTwoOfOne();
 
-      const rowsA = await getAttendeesRaw(childA.id);
-      expect(rowsA.length).toBe(1);
-      expect(rowsA[0]?.quantity).toBe(2);
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+      await assertTwoOfOnePersisted(childA, childB);
     });
 
     test("admin attendee pages show the booking and each chosen child quantity", async () => {
@@ -433,14 +449,7 @@ describeWithEnv(
     test("the admin attendee detail page labels each child under its parent", async () => {
       const { parent } = await setupAndBookOneOfEach();
 
-      const { adminGet } = await import("#test-utils/session.ts");
-      const { getAttendeesRaw: rawFor } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendeeId = (await rawFor(parent.id))[0]!.id;
-      const page = await adminGet(`/admin/attendees/${attendeeId}`);
-      expect(page.status).toBe(200);
-      const html = await page.text();
+      const html = await attendeeDetailHtml(parent.id);
 
       // Both children are annotated as add-ons chosen under the parent; the
       // parent's own row carries no such annotation.
@@ -452,14 +461,7 @@ describeWithEnv(
     test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
       const { standalone } = await setupStandalone();
 
-      const { adminGet } = await import("#test-utils/session.ts");
-      const { getAttendeesRaw: rawFor } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendeeId = (await rawFor(standalone.id))[0]!.id;
-      const page = await adminGet(`/admin/attendees/${attendeeId}`);
-      expect(page.status).toBe(200);
-      const html = await page.text();
+      const html = await attendeeDetailHtml(standalone.id);
       expect(html).not.toContain("Add-on chosen under");
     });
 

@@ -20,6 +20,10 @@ export type LegacyRenamePlan = {
   columnRenames: readonly LegacyColumnRename[];
 };
 
+/** One column rename: the table and its legacy → target column names. The
+ *  shared shape the column-value counter and the column-rename repair pass on. */
+type ColumnRename = { table: string; legacy: string; target: string };
+
 type RenameState = "neither" | "target_only" | "legacy_only" | "both";
 
 const renameState = (
@@ -91,11 +95,11 @@ type ColumnValueStats = {
   targetCount: number;
 };
 
-const countColumnValueStats = async (
-  table: string,
-  legacy: string,
-  target: string,
-): Promise<ColumnValueStats> => {
+const countColumnValueStats = async ({
+  table,
+  legacy,
+  target,
+}: ColumnRename): Promise<ColumnValueStats> => {
   const result = await getDb().execute(
     `SELECT
        COALESCE(SUM(CASE WHEN ${legacy} IS NOT NULL THEN 1 ELSE 0 END), 0) AS legacy_count,
@@ -146,11 +150,11 @@ const columnHasForeignKey = async (
   return result.rows.some((row) => String(row.from) === column);
 };
 
-const repairLegacyColumnRename = async (
-  table: string,
-  legacy: string,
-  target: string,
-): Promise<void> => {
+const repairLegacyColumnRename = async ({
+  table,
+  legacy,
+  target,
+}: ColumnRename): Promise<void> => {
   const existingColumns = await getExistingColumns(table);
   if (existingColumns.size === 0) return;
 
@@ -165,7 +169,7 @@ const repairLegacyColumnRename = async (
   }
 
   const { conflictCount, legacyCount, targetCount } =
-    await countColumnValueStats(table, legacy, target);
+    await countColumnValueStats({ legacy, table, target });
   if (conflictCount > 0) {
     throw new Error(
       `Cannot migrate "${table}.${legacy}" -> "${table}.${target}": both ` +
@@ -206,6 +210,6 @@ export const repairLegacyRenames = async (
     await repairLegacyTableRename(legacy, target);
   }
   for (const [table, legacy, target] of plan.columnRenames) {
-    await repairLegacyColumnRename(table, legacy, target);
+    await repairLegacyColumnRename({ legacy, table, target });
   }
 };

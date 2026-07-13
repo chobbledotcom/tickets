@@ -15,6 +15,7 @@
  * converging over successive requests.
  */
 
+/* jscpd:ignore-start */
 import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -27,6 +28,8 @@ import {
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
+
+/* jscpd:ignore-end */
 
 /** Legacy env-key row awaiting re-encryption. */
 // The batch query filters on the env-key prefix, so every fetched message is

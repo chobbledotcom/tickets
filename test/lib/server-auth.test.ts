@@ -28,6 +28,45 @@ import {
 } from "#test-utils/mocks.ts";
 import { createTestAgentSession, loginAsAdmin } from "#test-utils/session.ts";
 
+/** POST a wrong-password login through the given server context, then assert it
+ *  is rejected with a 302 and the standard wrong-credentials flash. */
+const expectWrongPasswordLoginVia = async (
+  server: Parameters<typeof handleRequest>[1],
+): Promise<void> => {
+  const request = await mockAdminLoginRequest({
+    password: "wrong",
+    username: "testadmin",
+  });
+  const response = await handleRequest(request, server);
+  expect(response.status).toBe(302);
+  expectFlash(
+    response,
+    expect.stringContaining("Username or password was wrong"),
+    false,
+  );
+};
+
+/** Overwrite the owner's wrapped data key, attempt an admin login with the real
+ *  password, and assert a 302 redirect whose flash contains `message`. */
+const expectLoginRejectedWithWrappedKey = async (
+  wrappedDataKey: string | null,
+  message: string,
+): Promise<void> => {
+  const { getDb } = await import("#shared/db/client.ts");
+  await getDb().execute({
+    args: [wrappedDataKey],
+    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = 1",
+  });
+  const response = await handleRequest(
+    await mockAdminLoginRequest({
+      password: TEST_ADMIN_PASSWORD,
+      username: "testadmin",
+    }),
+  );
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(message), false);
+};
+
 describeWithEnv("server (admin auth)", { db: true }, () => {
   describe("GET /admin/", () => {
     test("shows login page when not authenticated", async () => {
@@ -155,47 +194,15 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     });
 
     test("uses server.requestIP when available", async () => {
-      // Mock server object with requestIP function
-      const mockServer = {
+      // IP is extracted from server.requestIP.
+      await expectWrongPasswordLoginVia({
         requestIP: () => ({ address: "192.168.1.100" }),
-      };
-
-      const request = await mockAdminLoginRequest({
-        password: "wrong",
-        username: "testadmin",
       });
-
-      // Make request with server context
-      const response = await handleRequest(request, mockServer);
-      // Should work (IP is extracted from server.requestIP)
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Username or password was wrong"),
-        false,
-      );
     });
 
     test("falls back to direct when server.requestIP returns null", async () => {
-      // Mock server object where requestIP returns null
-      const mockServer = {
-        requestIP: () => null,
-      };
-
-      const request = await mockAdminLoginRequest({
-        password: "wrong",
-        username: "testadmin",
-      });
-
-      // Make request with server context
-      const response = await handleRequest(request, mockServer);
-      // Should still work (falls back to "direct")
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Username or password was wrong"),
-        false,
-      );
+      // requestIP returns null, so the handler falls back to "direct".
+      await expectWrongPasswordLoginVia({ requestIP: () => null });
     });
   });
 
@@ -446,50 +453,17 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("POST /admin/login (user without wrapped data key)", () => {
     test("returns 302 with error when user has no wrapped data key (not activated)", async () => {
-      // Null out the user's wrapped_data_key to simulate an unactivated user
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute({
-        args: [],
-        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
-      });
-
-      const response = await handleRequest(
-        await mockAdminLoginRequest({
-          password: TEST_ADMIN_PASSWORD,
-          username: "testadmin",
-        }),
-      );
-      // Should redirect with error - user exists but is not activated
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not been activated"),
-        false,
-      );
+      // A null wrapped_data_key means the user exists but is not activated.
+      await expectLoginRejectedWithWrappedKey(null, "not been activated");
     });
   });
 
   describe("routes/admin/auth.ts (wrappedDataKey corrupted path)", () => {
     test("login fails when wrapped data key cannot be unwrapped", async () => {
-      // Corrupt the user's wrapped_data_key so unwrapKey throws
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute({
-        args: [],
-        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
-      });
-
-      const response = await handleRequest(
-        await mockAdminLoginRequest({
-          password: TEST_ADMIN_PASSWORD,
-          username: "testadmin",
-        }),
-      );
-      // Should fail - KEK can't unwrap corrupted key
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Username or password was wrong"),
-        false,
+      // A corrupted wrapped_data_key can't be unwrapped by the KEK.
+      await expectLoginRejectedWithWrappedKey(
+        "corrupted_key",
+        "Username or password was wrong",
       );
     });
   });
@@ -516,26 +490,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
     test("login returns error redirect when user has null wrappedDataKey", async () => {
-      // Null out user's wrapped_data_key
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute({
-        args: [],
-        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
-      });
-
-      // Login should redirect with error since user is not activated
-      const response = await handleRequest(
-        await mockAdminLoginRequest({
-          password: TEST_ADMIN_PASSWORD,
-          username: "testadmin",
-        }),
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not been activated"),
-        false,
-      );
+      // A null wrapped_data_key means the user is not activated.
+      await expectLoginRejectedWithWrappedKey(null, "not been activated");
     });
   });
 

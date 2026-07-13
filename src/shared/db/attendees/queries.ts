@@ -2,6 +2,7 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
+import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
@@ -14,6 +15,7 @@ import {
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
+  type GetAttendeesQuery,
   getAttendees,
   pricePaidFromLedger,
   refundedFromLedger,
@@ -67,9 +69,15 @@ export type BrowsingAttendee = AttendeeRowFor<"refunded">;
  * Get attendees for an listing without decrypting PII
  * Used for tests and operations that don't need decrypted data
  */
+/** Load attendee rows carrying the standard {@link ATTENDEE_FIELDS} set (PII
+ * still encrypted — decrypt before display). Callers vary only in join, order,
+ * and where, so the field set is declared in exactly one place. */
+export const loadAttendeeRows = (
+  query: Omit<GetAttendeesQuery<(typeof ATTENDEE_FIELDS)[number]>, "fields">,
+): Promise<Attendee[]> => getAttendees({ ...query, fields: ATTENDEE_FIELDS });
+
 export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
-  getAttendees({
-    fields: ATTENDEE_FIELDS,
+  loadAttendeeRows({
     order: "created_desc",
     where: { listingIds: [listingId] },
   });
@@ -84,8 +92,7 @@ export const getAttendeePackageRowsRaw = (
   attendeeId: number,
   packageGroupId: number,
 ): Promise<Attendee[]> =>
-  getAttendees({
-    fields: ATTENDEE_FIELDS,
+  loadAttendeeRows({
     // No kind filter (as the original query): the attendee id already pins one
     // attendee, and its rows are returned whatever its kind. `attendee-or-
     // servicing` matches every kind the CHECK constraint allows.
@@ -207,8 +214,7 @@ export const getAttendeesPage = async ({
   // attendees not lines); getAttendees then returns every booking line for
   // those attendees. The listing filter and LIMIT/OFFSET are bound args.
   const idsArgs = listingIds ? [...listingIds, limit, offset] : [limit, offset];
-  const rows = await getAttendees({
-    fields: ATTENDEE_FIELDS,
+  const rows = await loadAttendeeRows({
     order: dir === "ASC" ? "id_asc" : "id_desc",
     where: {
       attendeeIdsSubquery: {
@@ -226,50 +232,57 @@ export const getAttendeesPage = async ({
   return trimAttendeePage(rows);
 };
 
+/** Keeps only attendees who have at least one real (quantity > 0) booking line —
+ * a no-quantity-only placeholder (interested/cancelled) has no valid ticket URL,
+ * so it is never part of an email audience. Shared by every pii_blob read. */
+const HAS_REAL_LINE = `EXISTS (
+       SELECT 1 FROM listing_attendees
+       WHERE attendee_id = attendees.id AND quantity > 0
+     )`;
+
+/** Select the encrypted pii_blob of each real-audience attendee (an
+ * ATTENDEE_KIND row with a real line) matching one extra narrowing clause, then
+ * return just the blobs. The bulk-email audience reads all read and unwrap the
+ * blob the same way; they differ only in how they pick which attendees match. */
+const selectAudiencePiiBlobs = async (
+  extraWhere: string,
+  args?: InValue[],
+): Promise<OwnerKeyEncrypted[]> => {
+  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
+    `SELECT pii_blob FROM attendees
+     WHERE kind = '${ATTENDEE_KIND}' AND ${extraWhere}`,
+    args,
+  );
+  return rows.map((r) => r.pii_blob);
+};
+
 /**
  * Get every attendee's encrypted PII blob (one row per attendee).
  * Used to resolve bulk-email recipient lists, where only the email inside each
  * blob is needed. De-duplication of addresses happens after decryption.
  */
-export const getAllAttendeePiiBlobs = async (): Promise<
-  OwnerKeyEncrypted[]
-> => {
-  // Restrict the "all attendees" bulk-email audience to attendees with ≥1 real
-  // (quantity > 0) line, so a no-quantity-only attendee (an interested/cancelled
-  // placeholder) isn't emailed — its ticket URL would 404.
-  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
-    `SELECT pii_blob FROM attendees
-     WHERE kind = '${ATTENDEE_KIND}'
-       AND EXISTS (
-       SELECT 1 FROM listing_attendees
-       WHERE attendee_id = attendees.id AND quantity > 0
-     )`,
-  );
-  return rows.map((r) => r.pii_blob);
-};
+export const getAllAttendeePiiBlobs = (): Promise<OwnerKeyEncrypted[]> =>
+  selectAudiencePiiBlobs(HAS_REAL_LINE);
 
 /**
  * Get the encrypted PII blobs for attendees booked onto any of the given
  * listings (one row per attendee, even if booked onto several of them).
  * Returns an empty array when no listing IDs are supplied.
  */
-export const getAttendeePiiBlobsForListings = async (
+export const getAttendeePiiBlobsForListings = (
   listingIds: number[],
-): Promise<OwnerKeyEncrypted[]> => {
-  if (listingIds.length === 0) return [];
-  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
-    // quantity > 0: only attendees with a real line on these listings — a
-    // no-quantity sentinel line doesn't make someone an "attendee of X".
-    `SELECT pii_blob FROM attendees
-     WHERE kind = '${ATTENDEE_KIND}'
-       AND id IN (
+): Promise<OwnerKeyEncrypted[]> =>
+  listingIds.length === 0
+    ? Promise.resolve([])
+    : // quantity > 0: only attendees with a real line on these listings — a
+      // no-quantity sentinel line doesn't make someone an "attendee of X".
+      selectAudiencePiiBlobs(
+        `id IN (
        SELECT DISTINCT attendee_id FROM listing_attendees
        WHERE listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0
      )`,
-    listingIds,
-  );
-  return rows.map((r) => r.pii_blob);
-};
+        listingIds,
+      );
 
 /**
  * Get the encrypted PII blob for the attendee identified by a plaintext ticket
@@ -366,14 +379,9 @@ export const attendeeIdByLedgerEventGroup = async (
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
-export const getAttendeeRaw = async (id: number): Promise<Attendee | null> => {
-  const rows = await getAttendees({
-    fields: ATTENDEE_FIELDS,
-    join: "left",
-    where: { attendeeIds: [id] },
-  });
-  return rows[0] ?? null;
-};
+export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
+  (await loadAttendeeRows({ join: "left", where: { attendeeIds: [id] } }))[0] ??
+  null;
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).
@@ -384,11 +392,7 @@ export const getAttendeeRaw = async (id: number): Promise<Attendee | null> => {
 export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
   ids.length === 0
     ? Promise.resolve([])
-    : getAttendees({
-        fields: ATTENDEE_FIELDS,
-        join: "left",
-        where: { attendeeIds: ids },
-      });
+    : loadAttendeeRows({ join: "left", where: { attendeeIds: ids } });
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name

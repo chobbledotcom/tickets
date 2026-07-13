@@ -39,12 +39,12 @@ import { attendeePage } from "#routes/admin/attendee-page.ts";
 import {
   buildCreateForm,
   buildTemplateData,
+  emptySelectedQuestionAnswers,
   getRenderListings,
   loadAttendeeForEdit,
   loadPackagePaths,
   loadQuestionsForExisting,
   packagesByListingIdFrom,
-  type SelectedQuestionAnswers,
 } from "#routes/admin/attendee-page-data.ts";
 import {
   AUTH_FORM,
@@ -79,7 +79,10 @@ import {
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type {
+  QuestionWithAnswers,
+  SelectedQuestionAnswers,
+} from "#shared/db/question-types.ts";
 import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
@@ -88,7 +91,7 @@ import { parseQuestionAnswers } from "#shared/db/questions/parsing.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
-  applyDemoOverrides,
+  loadAfterDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -142,9 +145,7 @@ type EditContext = SelectedQuestionAnswers & {
 const EMPTY_EDIT_CONTEXT: EditContext = {
   attendee: null,
   existingByKey: new Map(),
-  questions: [],
-  selectedAnswerIds: [],
-  selectedTextAnswers: new Map(),
+  ...emptySelectedQuestionAnswers(),
 };
 
 /** Edit mode: load the attendee, its existing lines (indexed by key), and its
@@ -199,12 +200,11 @@ const handleSubmitInner = async (
   session: AuthSession,
   form: FormParams,
 ): Promise<Response> => {
-  applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-
-  const edit =
+  const edit = await loadAfterDemoOverrides(form, ATTENDEE_DEMO_FIELDS, () =>
     mode === "edit" && attendeeId !== null
-      ? await loadEditContext(attendeeId)
-      : EMPTY_EDIT_CONTEXT;
+      ? loadEditContext(attendeeId)
+      : Promise.resolve(EMPTY_EDIT_CONTEXT),
+  );
   if (edit === null) return notFoundResponse();
   const {
     attendee,

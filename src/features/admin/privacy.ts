@@ -9,9 +9,9 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 import { t } from "#i18n";
-import { OWNER_FORM, ownerPage } from "#routes/auth.ts";
+import { ownerPage } from "#routes/auth.ts";
 import { errorRedirect, infoRedirect, redirect } from "#routes/response.ts";
-import { createAuthedHandler } from "#shared/app-forms.ts";
+import { ownerFormHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   contactHash,
@@ -52,53 +52,47 @@ const handlePrivacyGet = ownerPage(async (session) => {
  * The "Delete now" button additionally purges matching records immediately;
  * the "Save" button only stores the settings.
  */
-const handleOrphansPost = createAuthedHandler({
-  auth: OWNER_FORM,
-  handle: async ({ form }) => {
-    const retention = form.getString("retention");
-    if (!isOrphanRetentionValue(retention)) {
-      return errorRedirect(PRIVACY_PATH, t("privacy.orphans.error_retention"));
-    }
-    await settings.update.orphanPurgeRetention(retention);
-    await settings.update.autoPurgeOrphans(form.has("auto_purge"));
+const handleOrphansPost = ownerFormHandler(async ({ form }) => {
+  const retention = form.getString("retention");
+  if (!isOrphanRetentionValue(retention)) {
+    return errorRedirect(PRIVACY_PATH, t("privacy.orphans.error_retention"));
+  }
+  await settings.update.orphanPurgeRetention(retention);
+  await settings.update.autoPurgeOrphans(form.has("auto_purge"));
 
-    if (form.getString("action") === "purge") {
-      const deleted = await purgeOrphanedAttendees(
-        orphanRetentionCutoffIso(retention, nowMs()),
-      );
-      await logActivity(t("privacy.orphans.log_purged", { count: deleted }));
-      return redirect(
-        PRIVACY_PATH,
-        t("privacy.orphans.flash_purged", { count: deleted }),
-        true,
-      );
-    }
-    return redirect(PRIVACY_PATH, t("privacy.orphans.flash_saved"), true);
-  },
+  if (form.getString("action") === "purge") {
+    const deleted = await purgeOrphanedAttendees(
+      orphanRetentionCutoffIso(retention, nowMs()),
+    );
+    await logActivity(t("privacy.orphans.log_purged", { count: deleted }));
+    return redirect(
+      PRIVACY_PATH,
+      t("privacy.orphans.flash_purged", { count: deleted }),
+      true,
+    );
+  }
+  return redirect(PRIVACY_PATH, t("privacy.orphans.flash_saved"), true);
 });
 
 /**
  * POST /admin/privacy/erase — delete one contact's recognition record, found
  * by hashing the entered email or phone the same way bookings record it.
  */
-const handleErasePost = createAuthedHandler({
-  auth: OWNER_FORM,
-  handle: async ({ form }) => {
-    const channel = form.getString("contact_type");
-    const identifier = form.getString("identifier").trim();
-    if (!identifier) {
-      return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_identifier"));
-    }
-    if (!isContactChannel(channel)) {
-      return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_type"));
-    }
-    const deleted = await forgetContact(await contactHash(channel, identifier));
-    if (deleted === 0) {
-      return infoRedirect(PRIVACY_PATH, t("privacy.erase.flash_none"));
-    }
-    await logActivity(t("privacy.erase.log_done"));
-    return redirect(PRIVACY_PATH, t("privacy.erase.flash_done"), true);
-  },
+const handleErasePost = ownerFormHandler(async ({ form }) => {
+  const channel = form.getString("contact_type");
+  const identifier = form.getString("identifier").trim();
+  if (!identifier) {
+    return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_identifier"));
+  }
+  if (!isContactChannel(channel)) {
+    return errorRedirect(PRIVACY_PATH, t("privacy.erase.error_type"));
+  }
+  const deleted = await forgetContact(await contactHash(channel, identifier));
+  if (deleted === 0) {
+    return infoRedirect(PRIVACY_PATH, t("privacy.erase.flash_none"));
+  }
+  await logActivity(t("privacy.erase.log_done"));
+  return redirect(PRIVACY_PATH, t("privacy.erase.flash_done"), true);
 });
 
 /** Privacy routes */

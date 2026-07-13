@@ -9,12 +9,13 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { ConfirmForm, Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import type { NavActive } from "#templates/admin/nav.tsx";
+import { ConfirmForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -66,6 +67,18 @@ export type ConfirmPageProps = {
   children?: Child;
 };
 
+/** Curried builder for the many admin "delete this X" confirmation pages that
+ *  all share the `(entity, session, error?) => ConfirmPage({...})` shape. Pass a
+ *  function that turns the entity into the page-specific ConfirmPage props (its
+ *  action URL, labels, confirm copy); the returned function binds the viewer's
+ *  session and error notice. Keeps the one shared wrapper in one place. */
+export const entityDeletePage =
+  <Entity,>(
+    build: (entity: Entity) => Omit<ConfirmPageProps, "session" | "error">,
+  ): ((entity: Entity, session: AdminSession, error?: string) => string) =>
+  (entity, session, error) =>
+    ConfirmPage({ ...build(entity), error, session });
+
 export const ConfirmPage = ({
   title,
   active,
@@ -88,8 +101,11 @@ export const ConfirmPage = ({
   prompt,
   children,
 }: ConfirmPageProps): string =>
-  String(
-    <AdminPage active={active} session={session} title={title}>
+  renderAdminPage(
+    active,
+    session,
+    title,
+    <>
       {prefix}
       <Flash error={error} />
       <ConfirmForm
@@ -114,5 +130,5 @@ export const ConfirmPage = ({
         {prompt && <p>{t(prompt.key, prompt.args)}</p>}
         {children}
       </ConfirmForm>
-    </AdminPage>,
+    </>,
   );

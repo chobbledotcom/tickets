@@ -22,6 +22,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { twoListingsAttendees } from "../attendee-read-helpers.ts";
 import { expectBasicTicketBookingRedirectsToThanks } from "./basic-ticket-booking.ts";
 
 // jscpd:ignore-end
@@ -80,11 +81,10 @@ describeWithEnv(
         );
         expectReservedRedirectWithTokens(response);
 
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
+        const [attendees1, attendees2] = await twoListingsAttendees(
+          listing1.id,
+          listing2.id,
         );
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        const attendees2 = await getAttendeesRaw(listing2.id);
         expect(attendees1.length).toBe(1);
         expect(attendees1[0]?.quantity).toBe(1);
         expect(attendees2.length).toBe(1);

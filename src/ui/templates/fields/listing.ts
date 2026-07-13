@@ -16,6 +16,7 @@ import {
 } from "#shared/types.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
+import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
 import {
   buildDescriptionField,
@@ -208,20 +209,16 @@ export const getListingFields = (): Field[] => [
     type: "select",
   },
   buildHiddenField("Listing"),
-  {
+  checkboxField("purchase_only", {
     hint: t("fields.listing.purchase_only_hint"),
     label: t("fields.listing.purchase_only"),
-    name: "purchase_only",
-    options: [{ label: t("fields.listing.purchase_only_label"), value: "1" }],
-    type: "checkbox-group",
-  },
-  {
+    optionLabel: t("fields.listing.purchase_only_label"),
+  }),
+  checkboxField("bookable_alone", {
     hint: t("fields.listing.bookable_alone_hint"),
     label: t("fields.listing.bookable_alone"),
-    name: "bookable_alone",
-    options: [{ label: t("fields.listing.bookable_alone_label"), value: "1" }],
-    type: "checkbox-group",
-  },
+    optionLabel: t("fields.listing.bookable_alone_label"),
+  }),
 ];
 
 /**

@@ -155,6 +155,28 @@ const proseTableSection =
     </article>
   );
 
+/** The thead/tbody scaffolding shared by the debug tables that carry their own
+ *  column headers (limits and prune): a header row of the given column titles,
+ *  then the body rows passed as children. */
+const HeadedTable = ({
+  headers,
+  children,
+}: {
+  headers: readonly Child[];
+  children: Child;
+}): JSX.Element => (
+  <>
+    <thead>
+      <tr>
+        {headers.map((header) => (
+          <th>{header}</th>
+        ))}
+      </tr>
+    </thead>
+    <tbody>{children}</tbody>
+  </>
+);
+
 /** The three config-source rows shared by both wallet sections. */
 const walletConfigRows = (w: {
   dbConfigured: boolean;
@@ -169,41 +191,40 @@ const walletConfigRows = (w: {
   },
 ];
 
+/** A pre-set badge: the text to show and which colour it shows in. */
+type BadgeSpec = { label: string; variant: "missing" | "ok" };
+
+/** Picks a fixed badge from a lookup table by key and renders it. Shared by the
+ *  debug sections that report a state as a coloured badge: give it the table of
+ *  possible badges, and it returns a function that renders the one for a key. */
+const badgeFromTable =
+  <Key extends string>(table: Record<Key, BadgeSpec>) =>
+  (key: Key): JSX.Element => {
+    const { label, variant } = table[key];
+    return <Badge variant={variant}>{label}</Badge>;
+  };
+
 const AVAILABILITY_BADGES: Record<
   DebugPageState["availability"]["state"],
-  { label: string; variant: "missing" | "ok" }
+  BadgeSpec
 > = {
   active: { label: "Active", variant: "ok" },
   readonly: { label: "Read-only", variant: "missing" },
   warning: { label: "Expiring soon", variant: "missing" },
 };
 
-const AvailabilityStateBadge = ({
-  state,
-}: {
-  state: DebugPageState["availability"]["state"];
-}): JSX.Element => {
-  const { label, variant } = AVAILABILITY_BADGES[state];
-  return <Badge variant={variant}>{label}</Badge>;
-};
+const availabilityStateBadge = badgeFromTable(AVAILABILITY_BADGES);
 
 const STORAGE_BACKEND_BADGES: Record<
   DebugPageState["bunny"]["storageBackend"],
-  { label: string; variant: "missing" | "ok" }
+  BadgeSpec
 > = {
   bunny: { label: "Bunny CDN", variant: "ok" },
   local: { label: "Local filesystem", variant: "ok" },
   none: { label: "Not configured", variant: "missing" },
 };
 
-const StorageBackendBadge = ({
-  backend,
-}: {
-  backend: DebugPageState["bunny"]["storageBackend"];
-}): JSX.Element => {
-  const { label, variant } = STORAGE_BACKEND_BADGES[backend];
-  return <Badge variant={variant}>{label}</Badge>;
-};
+const storageBackendBadge = badgeFromTable(STORAGE_BACKEND_BADGES);
 
 /** One simple debug section, declared as data: the heading's message key plus
  *  the rows to show for the current page state. */
@@ -274,7 +295,7 @@ const DEBUG_SECTIONS: readonly DebugSectionSpec[] = [
     rows: ({ availability }) => [
       {
         label: t("debug.field.write_access"),
-        value: <AvailabilityStateBadge state={availability.state} />,
+        value: availabilityStateBadge(availability.state),
       },
       {
         label: t("debug.field.read_only_from"),
@@ -359,7 +380,7 @@ const DEBUG_SECTIONS: readonly DebugSectionSpec[] = [
     rows: ({ bunny }) => [
       {
         label: t("debug.field.file_storage_images"),
-        value: <StorageBackendBadge backend={bunny.storageBackend} />,
+        value: storageBackendBadge(bunny.storageBackend),
       },
       statusRow(t("debug.field.cdn_management"), bunny.cdnEnabled),
       { label: t("debug.field.cdn_hostname"), value: bunny.cdnHostname || "—" },
@@ -418,30 +439,27 @@ const LimitsSection = ({
     t("debug.section.limits"),
     t("debug.limits_hint"),
   )(
-    <>
-      <thead>
+    <HeadedTable
+      headers={[
+        t("debug.col.setting"),
+        t("debug.col.env_var"),
+        t("debug.col.default"),
+        t("debug.col.current"),
+      ]}
+    >
+      {limits.map((l) => (
         <tr>
-          <th>{t("debug.col.setting")}</th>
-          <th>{t("debug.col.env_var")}</th>
-          <th>{t("debug.col.default")}</th>
-          <th>{t("debug.col.current")}</th>
+          <td>{l.label}</td>
+          <td>
+            <code>{l.envKey}</code>
+          </td>
+          <td>{formatLimitValue(l.defaultValue, l.unit)}</td>
+          <td>
+            <LimitValueCell limit={l} />
+          </td>
         </tr>
-      </thead>
-      <tbody>
-        {limits.map((l) => (
-          <tr>
-            <td>{l.label}</td>
-            <td>
-              <code>{l.envKey}</code>
-            </td>
-            <td>{formatLimitValue(l.defaultValue, l.unit)}</td>
-            <td>
-              <LimitValueCell limit={l} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </>,
+      ))}
+    </HeadedTable>,
   );
 
 const PruneSection = ({
@@ -456,36 +474,30 @@ const PruneSection = ({
       requests; frequency controlled by <code>PRUNE_INTERVAL_HOURS</code>.
     </>,
   )(
-    <>
-      <thead>
-        <tr>
-          <th>{t("debug.field.table")}</th>
-          <th>{t("debug.field.last_pruned_utc")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>processed_payments</td>
-          <td>{prune.payments}</td>
-        </tr>
-        <tr>
-          <td>sessions</td>
-          <td>{prune.sessions}</td>
-        </tr>
-        <tr>
-          <td>strings</td>
-          <td>{prune.strings}</td>
-        </tr>
-        <tr>
-          <td>login_attempts</td>
-          <td>{prune.logins}</td>
-        </tr>
-        <tr>
-          <td>address_cache</td>
-          <td>{prune.addresses}</td>
-        </tr>
-      </tbody>
-    </>,
+    <HeadedTable
+      headers={[t("debug.field.table"), t("debug.field.last_pruned_utc")]}
+    >
+      <tr>
+        <td>processed_payments</td>
+        <td>{prune.payments}</td>
+      </tr>
+      <tr>
+        <td>sessions</td>
+        <td>{prune.sessions}</td>
+      </tr>
+      <tr>
+        <td>strings</td>
+        <td>{prune.strings}</td>
+      </tr>
+      <tr>
+        <td>login_attempts</td>
+        <td>{prune.logins}</td>
+      </tr>
+      <tr>
+        <td>address_cache</td>
+        <td>{prune.addresses}</td>
+      </tr>
+    </HeadedTable>,
   );
 
 /**

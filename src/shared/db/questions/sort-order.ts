@@ -2,27 +2,17 @@
  * Sort-order swaps and next-order assignment for questions and answers.
  */
 
-import { executeBatch, nextSortOrder } from "#shared/db/client.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
+import { nextSortOrder } from "#shared/db/client.ts";
+import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
 
-/** Swap the sort_order of two answers by their IDs */
-export const swapAnswerOrder = async (
+/** Swap the sort_order of two answers by their ids, reading the current values
+ * so callers only need the ids (like {@link swapQuestionOrder}). Serialises on
+ * the write lock, so two concurrent reorders can't leave answers sharing a
+ * sort_order. */
+export const swapAnswerOrder = (
   answerId1: number,
-  sortOrder1: number,
   answerId2: number,
-  sortOrder2: number,
-): Promise<void> => {
-  await executeBatch([
-    {
-      args: [sortOrder2, answerId1],
-      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
-    },
-    {
-      args: [sortOrder1, answerId2],
-      sql: "UPDATE answers SET sort_order = ? WHERE id = ?",
-    },
-  ]);
-};
+): Promise<void> => swapSortOrder("answers", answerId1, answerId2);
 
 /** Get the next sort_order for a new answer in a question */
 export const getNextAnswerSortOrder = (questionId: number): Promise<number> =>
@@ -40,17 +30,6 @@ export const swapQuestionOrder = (
 /** Assign a freshly-created question the next global sort_order (max + 1).
  * Always >= 1 so new questions never collide with the one-time id-backfill of
  * legacy rows, which only seeds rows still at sort_order 0. */
-export const assignNextQuestionSortOrder = async (
+export const assignNextQuestionSortOrder = (
   questionId: number,
-): Promise<void> => {
-  await executeBatch([
-    {
-      args: [questionId, questionId],
-      sql: `UPDATE questions
-            SET sort_order = COALESCE(
-              (SELECT MAX(sort_order) FROM questions WHERE id != ?), 0
-            ) + 1
-            WHERE id = ?`,
-    },
-  ]);
-};
+): Promise<void> => assignNextSortOrder("questions", questionId);

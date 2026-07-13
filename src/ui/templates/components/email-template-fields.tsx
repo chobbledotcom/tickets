@@ -10,27 +10,8 @@
 
 import { t } from "#i18n";
 import type { EmailTemplateType } from "#shared/types.ts";
+import { TextField } from "#templates/components/text-field.tsx";
 import type { EmailContent } from "#templates/email/shared.ts";
-
-/** The subject input. */
-const SubjectField = ({
-  defaultValue,
-  value,
-}: {
-  defaultValue: string;
-  value: string;
-}): JSX.Element => (
-  <label>
-    {t("settings.advanced.subject")}
-    <input
-      autocomplete="off"
-      name="subject"
-      placeholder={defaultValue}
-      type="text"
-      value={value}
-    />
-  </label>
-);
 
 /** A textarea body field (html or text), with its "edit default" link. */
 const BodyField = ({
@@ -75,7 +56,13 @@ export const emailTemplateFields =
   (kind: EmailTemplateType) =>
   (templates: EmailContent, defaults: EmailContent): JSX.Element => (
     <>
-      <SubjectField defaultValue={defaults.subject} value={templates.subject} />
+      <TextField
+        label={t("settings.advanced.subject")}
+        name="subject"
+        placeholder={defaults.subject}
+        type="text"
+        value={templates.subject}
+      />
       <BodyField
         bodyKind="html"
         defaultValue={defaults.html}

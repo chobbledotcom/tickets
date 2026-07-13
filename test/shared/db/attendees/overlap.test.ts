@@ -11,7 +11,6 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getOverlappingBookings } from "#shared/db/attendees/overlap.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
@@ -21,6 +20,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeAttendee } from "#test-utils/logistics-tab.ts";
 
 /**
  * The query window, with each bound made byte-for-byte equal to the stored
@@ -48,20 +48,13 @@ type BookingLine = {
   quantity?: number;
 };
 
-/** Book one attendee with the given booking line(s) and return their id. */
-const book = async (name: string, bookings: BookingLine[]): Promise<number> => {
-  const result = await createAttendeeAtomic({ bookings, email: "", name });
-  // The fixtures always have capacity, so the create always succeeds.
-  return (result as Extract<typeof result, { success: true }>).attendees[0]!.id;
-};
-
 /** Book one attendee onto a single listing. Omit `date` for a date-less
  *  booking. */
 const bookOne = (
   name: string,
   listingId: number,
   booking: Omit<BookingLine, "listingId"> = {},
-): Promise<number> => book(name, [{ listingId, ...booking }]);
+): Promise<number> => makeAttendee(name, [{ listingId, ...booking }]);
 
 const overlappingIds = async (excludeId: number): Promise<number[]> =>
   (await getOverlappingBookings(excludeId, WINDOW.startAt, WINDOW.endAt)).map(
@@ -194,7 +187,7 @@ describeWithEnv("db > attendees > overlap", { db: true }, () => {
   test("returns every overlapping row of an attendee with several bookings", async () => {
     const listingA = await createDailyTestListing({ maxAttendees: 50 });
     const listingB = await createDailyTestListing({ maxAttendees: 50 });
-    const multi = await book("Two Bookings", [
+    const multi = await makeAttendee("Two Bookings", [
       { date: "2030-03-10", durationDays: 1, listingId: listingA.id },
       { date: "2030-03-11", durationDays: 1, listingId: listingB.id },
     ]);

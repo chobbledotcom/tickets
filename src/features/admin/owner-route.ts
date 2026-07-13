@@ -1,0 +1,19 @@
+import type { AuthSession } from "#routes/auth.ts";
+import { requireOwnerOr } from "#routes/auth.ts";
+import { notFoundResponse } from "#routes/response.ts";
+
+/**
+ * Owner-gate a request, look a value up, and 404 when it is absent — otherwise
+ * hand the found value (and the session) to `whenFound`. Both the built-sites
+ * (`:id` → site) and ledger (session → HTML) owner routes share this
+ * "authenticate → look up or 404 → respond" shape.
+ */
+export const ownerFoundOr404 = <T>(
+  request: Request,
+  find: (session: AuthSession) => Promise<T | null>,
+  whenFound: (found: T, session: AuthSession) => Response | Promise<Response>,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const found = await find(session);
+    return found === null ? notFoundResponse() : whenFound(found, session);
+  });

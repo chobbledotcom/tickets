@@ -14,6 +14,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
 import { logDebug, logError } from "#shared/logger.ts";
+import { namedError } from "#shared/named-error.ts";
 import {
   PAYMENT_PROVIDERS,
   type PaymentProviderMeta,
@@ -62,12 +63,7 @@ export type CredentialCheck = {
 
 /** Error subclass for user-facing payment validation errors (e.g. invalid phone number).
  * These propagate through safeAsync so the message can be shown to the user. */
-export class PaymentUserError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "PaymentUserError";
-  }
-}
+export class PaymentUserError extends namedError("PaymentUserError") {}
 
 /** Run an async operation under an error code, returning its result or null. */
 type GuardedAsync = <T>(

@@ -15,7 +15,7 @@
 
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { SettingsSection } from "#templates/components/settings-section.tsx";
+import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 export type BooleanSettingsSectionConfig<TState> = {
@@ -30,13 +30,8 @@ export type BooleanSettingsSectionConfig<TState> = {
 /** Build a config-driven boolean settings section renderer. */
 export const booleanSettingsSection =
   <TState,>(config: BooleanSettingsSectionConfig<TState>) =>
-  (state: TState): JSX.Element => (
-    <SettingsSection
-      action={config.action}
-      description={config.description}
-      submitLabel={config.submitLabel ?? t("common.save")}
-      title={config.title}
-    >
-      <YesNoRadios name={config.fieldName} on={config.value(state)} />
-    </SettingsSection>
-  );
+  (state: TState): JSX.Element =>
+    settingsSectionWith(
+      { ...config, submitLabel: config.submitLabel ?? t("common.save") },
+      <YesNoRadios name={config.fieldName} on={config.value(state)} />,
+    );

@@ -24,11 +24,10 @@ import {
 // jscpd:ignore-end
 import {
   defineIdTable,
-  encryptedNameSchema,
-  encryptedSeoContentSchema,
   encryptedSlugSchema,
   idAndCreatedSchema,
 } from "#shared/db/common-schema.ts";
+import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import {
   clearImageUsesForItemStatement,
@@ -62,8 +61,7 @@ export type NewsPostInput = SluggedContentInput & {
 export const newsPostsTable = defineIdTable<NewsPost, NewsPostInput>(
   "news_posts",
   {
-    ...encryptedNameSchema(encrypt, decrypt),
-    ...encryptedSeoContentSchema(encrypt, decrypt),
+    ...encryptedNameAndSeoSchema(encrypt, decrypt),
     ...encryptedSlugSchema(encrypt, decrypt),
     ...idAndCreatedSchema(nowIso),
     snippet: col.encryptedText(encrypt, decrypt),

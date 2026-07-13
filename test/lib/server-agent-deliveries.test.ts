@@ -126,6 +126,23 @@ const markRequest = async (
     ),
   );
 
+/** Set up a van, an agent who sees it, and a today booking lasting `days`
+ * days, then return that agent's rendered deliveries page HTML. */
+const agentHireDeliveriesHtml = async (
+  days: number,
+  token: string,
+  username: string,
+): Promise<string> => {
+  const van = await makeVan("Van 1");
+  const { cookie } = await createTestAgentSession({
+    agentIds: [van],
+    token,
+    username,
+  });
+  await makeTodayBooking(van, van, days);
+  return (await awaitTestRequest("/admin/deliveries", { cookie })).text();
+};
+
 /** Fetch the staff run sheet as HTML, asserting the request succeeds. */
 const fetchDeliveriesHtml = async (): Promise<string> => {
   const response = await handleRequest(
@@ -162,17 +179,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
   });
 
   test("a one-day hire is collected the same day it is dropped off", async () => {
-    const van = await makeVan("Van 1");
-    const { cookie } = await createTestAgentSession({
-      agentIds: [van],
-      token: "a13",
-      username: "agent13",
-    });
-    await makeTodayBooking(van, van, 1);
-
-    const html = await (
-      await awaitTestRequest("/admin/deliveries", { cookie })
-    ).text();
+    const html = await agentHireDeliveriesHtml(1, "a13", "agent13");
     // Both legs fall in the Today section, before the Tomorrow heading.
     const tomorrowIdx = html.indexOf("Tomorrow");
     expect(html.indexOf("Drop-off")).toBeLessThan(tomorrowIdx);
@@ -182,17 +189,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
   });
 
   test("a two-day hire is collected the day after it is dropped off", async () => {
-    const van = await makeVan("Van 1");
-    const { cookie } = await createTestAgentSession({
-      agentIds: [van],
-      token: "a14",
-      username: "agent14",
-    });
-    await makeTodayBooking(van, van, 2);
-
-    const html = await (
-      await awaitTestRequest("/admin/deliveries", { cookie })
-    ).text();
+    const html = await agentHireDeliveriesHtml(2, "a14", "agent14");
     // Drop-off is in the Today section; collection moves to the Tomorrow one.
     const tomorrowIdx = html.indexOf("Tomorrow");
     expect(html.indexOf("Drop-off")).toBeLessThan(tomorrowIdx);

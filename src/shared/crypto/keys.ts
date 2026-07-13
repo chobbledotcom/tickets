@@ -241,6 +241,19 @@ export const unwrapKeyWithToken = async (
 };
 
 /**
+ * Unwrap a session's DATA_KEY from its token. An authenticated session that
+ * reaches a data-key operation always carries a wrapped data key, so a missing
+ * one is a broken invariant — throw rather than invent a key.
+ */
+export const unwrapSessionDataKey = (session: {
+  token: string;
+  wrappedDataKey: WrappedKey | null;
+}): Promise<CryptoKey> => {
+  if (!session.wrappedDataKey) throw new Error("Session key unavailable");
+  return unwrapKeyWithToken(session.wrappedDataKey, session.token);
+};
+
+/**
  * =============================================================================
  * RSA Key Pair Generation and Hybrid Encryption
  * =============================================================================

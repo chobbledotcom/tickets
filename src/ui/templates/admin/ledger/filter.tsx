@@ -9,6 +9,7 @@ import {
   ledgerScopeSelected,
   setLedgerScopeParam,
 } from "#shared/ledger-scope.ts";
+import { TableActionRow } from "#templates/components/table-action-row.tsx";
 import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 
 /** The whole filter state the ledger page round-trips through the query string. */
@@ -32,6 +33,9 @@ export type LedgerFilterData = {
   listings: LedgerScopeOption[];
   today: string;
 };
+
+/** Props for the ledger filter components that render from the full data. */
+type LedgerFilterProps = { data: LedgerFilterData };
 
 /** Build a ledger URL from the current filters plus an override. */
 const ledgerHref = (
@@ -111,11 +115,7 @@ const RangeField = ({
   );
 };
 
-export const LedgerDateRange = ({
-  data,
-}: {
-  data: LedgerFilterData;
-}): SafeHtml => (
+export const LedgerDateRange = ({ data }: LedgerFilterProps): SafeHtml => (
   <div class="ledger-date-range">
     {map((side: RangeSide): SafeHtml => <RangeField data={data} side={side} />)(
       RANGE_SIDES,
@@ -151,8 +151,8 @@ const scopeOptions = (
   })(options);
 
 /** The scope filter: everything, one listing, or one group's current listings. */
-export const ScopeFilter = ({ data }: { data: LedgerFilterData }): SafeHtml => (
-  <p class="table-action-btns">
+export const ScopeFilter = ({ data }: LedgerFilterProps): SafeHtml => (
+  <TableActionRow>
     {t("admin.ledger.filter.scope")}{" "}
     <select aria-label={t("admin.ledger.filter.scope")} data-nav-select>
       <option
@@ -168,16 +168,12 @@ export const ScopeFilter = ({ data }: { data: LedgerFilterData }): SafeHtml => (
         {scopeOptions("group", data.groups, data.filters)}
       </optgroup>
     </select>
-  </p>
+  </TableActionRow>
 );
 
 /** Render the active view as text and the other view as a link. */
-export const LedgerViewToggle = ({
-  data,
-}: {
-  data: LedgerFilterData;
-}): SafeHtml => (
-  <p class="table-action-btns">
+export const LedgerViewToggle = ({ data }: LedgerFilterProps): SafeHtml => (
+  <TableActionRow>
     {map((mode: LedgerViewMode): SafeHtml => {
       const label = t(`admin.ledger.view.${mode}`);
       return data.filters.view === mode ? (
@@ -186,5 +182,5 @@ export const LedgerViewToggle = ({
         <a href={ledgerHref(data.filters, { view: mode })}>{label}</a>
       );
     })(LedgerViewModeSchema.options)}
-  </p>
+  </TableActionRow>
 );

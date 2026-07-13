@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
@@ -22,6 +23,7 @@ import {
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { quantityHeader } from "#templates/components/header-row.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
   itemsOrEmptyNote,
@@ -29,7 +31,6 @@ import {
   reorderableListPage,
   reorderCountTable,
 } from "#templates/components/reorder-list.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -57,7 +58,7 @@ export const adminAttributesPage = (
     columns: (
       <>
         <th>{t("attributes.attribute_column")}</th>
-        <th class={colClass("quantity")}>{t("attributes.options_column")}</th>
+        {quantityHeader("attributes.options_column")}
       </>
     ),
     emptyText: t("attributes.none"),

@@ -15,34 +15,39 @@ describe("db > accounting > postWriteoffAdjustment", () => {
 
   const revenue = revenueAccount(7);
 
+  /** Post one write-off adjustment to `revenue` and return its sole transfer
+   *  leg, first asserting nothing else was posted. */
+  const postSoleAdjustment = async (delta: number) => {
+    await postWriteoffAdjustment(revenue, delta, ["income-adjust", 7]);
+    const [leg, ...rest] = await allTransfers();
+    expect(rest).toEqual([]);
+    return leg!;
+  };
+
   test("a zero delta posts nothing", async () => {
     await postWriteoffAdjustment(revenue, 0, ["income-adjust", 7]);
     expect(await allTransfers()).toEqual([]);
   });
 
   test("a positive delta credits the account (writeoff → account)", async () => {
-    await postWriteoffAdjustment(revenue, 1500, ["income-adjust", 7]);
-    const [leg, ...rest] = await allTransfers();
-    expect(rest).toEqual([]);
-    expect(leg!.kind).toBe("adjustment");
-    expect(leg!.amount).toBe(1500);
+    const leg = await postSoleAdjustment(1500);
+    expect(leg.kind).toBe("adjustment");
+    expect(leg.amount).toBe(1500);
     // Crediting the account: money flows from writeoff into the account.
-    expect(accountKey(leg!.source)).toBe(accountKey(WRITEOFF));
-    expect(accountKey(leg!.destination)).toBe(accountKey(revenue));
+    expect(accountKey(leg.source)).toBe(accountKey(WRITEOFF));
+    expect(accountKey(leg.destination)).toBe(accountKey(revenue));
     // balanceOf(account) rises by the delta.
     expect(await accountBalance(revenue)).toBe(1500);
   });
 
   test("a negative delta debits the account (account → writeoff)", async () => {
-    await postWriteoffAdjustment(revenue, -1200, ["income-adjust", 7]);
-    const [leg, ...rest] = await allTransfers();
-    expect(rest).toEqual([]);
-    expect(leg!.kind).toBe("adjustment");
+    const leg = await postSoleAdjustment(-1200);
+    expect(leg.kind).toBe("adjustment");
     // amount is the magnitude of the delta.
-    expect(leg!.amount).toBe(1200);
+    expect(leg.amount).toBe(1200);
     // Debiting the account: money flows from the account out to writeoff.
-    expect(accountKey(leg!.source)).toBe(accountKey(revenue));
-    expect(accountKey(leg!.destination)).toBe(accountKey(WRITEOFF));
+    expect(accountKey(leg.source)).toBe(accountKey(revenue));
+    expect(accountKey(leg.destination)).toBe(accountKey(WRITEOFF));
     // balanceOf(account) falls by the delta.
     expect(await accountBalance(revenue)).toBe(-1200);
   });

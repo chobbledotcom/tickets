@@ -16,6 +16,7 @@ import {
   RunningTotalsFieldset,
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   ListingAggregateMismatchNotice,
@@ -109,20 +110,6 @@ const ListingChildrenSection = ({
       </CheckboxForm>
     )}
   </StackDetails>
-);
-
-const ListingAssetDeleteForm = ({
-  action,
-  label,
-}: {
-  action: string;
-  label: string;
-}): JSX.Element => (
-  <CsrfForm action={action}>
-    <SubmitButton class="secondary" icon="trash-2">
-      {label}
-    </SubmitButton>
-  </CsrfForm>
 );
 
 export const ListingEditPanel = ({
@@ -219,9 +206,11 @@ export const ListingEditPanel = ({
               name: listing.attachment_name,
             })}
           </p>
-          <ListingAssetDeleteForm
+          <SaveForm
             action={`/admin/listing/${listing.id}/attachment/delete`}
-            label={t("listings_table.remove_attachment")}
+            submitClass="secondary"
+            submitIcon="trash-2"
+            submitLabel={t("listings_table.remove_attachment")}
           />
         </div>
       )}

@@ -1,5 +1,6 @@
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
+import { readJsonBody } from "#routes/read-json-body.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getClientIp } from "#routes/url.ts";
 import { bookingError, parseCustomPrice } from "#shared/booking/form.ts";
@@ -97,12 +98,9 @@ export const findActiveListing = async (
 
 /** Parse a JSON request body, returning a 400 API response on failure */
 export const parseApiJsonBody: JsonBodyReader = async (request) => {
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch {
-    return apiError("Invalid JSON body");
-  }
+  const body = await readJsonBody(request);
+  if (!body.ok) return apiError("Invalid JSON body");
+  const parsed = body.value;
   // JsonBodyReader promises a plain record. A body like `null` or `[...]` parses
   // fine but is not a record, so reject it here rather than letting it reach the
   // route's field parsing and throw further in.
@@ -110,6 +108,17 @@ export const parseApiJsonBody: JsonBodyReader = async (request) => {
     return apiError("Invalid JSON body");
   }
   return parsed;
+};
+
+/** Parse the request's JSON body and, unless it fails with a 400 response, hand
+ * the parsed record to `use`. Lets a book route skip the parse-then-guard
+ * boilerplate that every JSON endpoint would otherwise repeat. */
+export const withApiBody = async (
+  request: Request,
+  use: (body: Record<string, unknown>) => Promise<Response>,
+): Promise<Response> => {
+  const body = await parseApiJsonBody(request);
+  return body instanceof Response ? body : use(body);
 };
 
 /** A route handler keyed by a single `:slug` path param — the shape every

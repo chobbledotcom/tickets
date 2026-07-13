@@ -21,6 +21,7 @@ import {
   UnavailablePublicUrlRow,
 } from "#templates/admin/share-rows.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { ListingAggregateMismatchRow } from "./aggregates.tsx";
 import {
   ListingCapacityRows,
@@ -89,26 +90,19 @@ const ListingPriceRow = ({ listing }: ListingRowProps): JSX.Element => {
 
 const DailyScheduleRows = ({ listing }: ListingRowProps): JSX.Element => (
   <>
-    <tr>
-      <th>{t("listings_table.bookable_days")}</th>
-      <td>{formatBookableDays(listing.bookable_days)}</td>
-    </tr>
-    <tr>
-      <th>{t("listings_table.booking_window")}</th>
-      <td>
-        {listing.minimum_days_before} {t("listings_table.to")}{" "}
-        {listing.maximum_days_after === 0
-          ? t("listings_table.unlimited")
-          : listing.maximum_days_after}{" "}
-        {t("listings_table.days_from_today")}
-      </td>
-    </tr>
-    <tr>
-      <th>{t("listings_table.booking_duration")}</th>
-      <td>
-        {listing.duration_days} {t("listings_table.day_count_with_parens")}
-      </td>
-    </tr>
+    <LabelledRow label={t("listings_table.bookable_days")}>
+      {formatBookableDays(listing.bookable_days)}
+    </LabelledRow>
+    <LabelledRow label={t("listings_table.booking_window")}>
+      {listing.minimum_days_before} {t("listings_table.to")}{" "}
+      {listing.maximum_days_after === 0
+        ? t("listings_table.unlimited")
+        : listing.maximum_days_after}{" "}
+      {t("listings_table.days_from_today")}
+    </LabelledRow>
+    <LabelledRow label={t("listings_table.booking_duration")}>
+      {listing.duration_days} {t("listings_table.day_count_with_parens")}
+    </LabelledRow>
   </>
 );
 

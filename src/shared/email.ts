@@ -125,16 +125,21 @@ export const getActiveEmailConfig = (): EmailConfig | null => {
 };
 
 type Headers = Record<string, string>;
-type ProviderRequest = (
+/** A function that turns the email config and a message into a provider-specific
+ *  value — the request tuple for a whole provider, or just its request body. */
+type EmailProviderFn<Result> = (
   config: EmailConfig,
   msg: EmailMessage,
-) => [url: string, headers: Headers, body: unknown];
+) => Result;
+type ProviderRequest = EmailProviderFn<
+  [url: string, headers: Headers, body: unknown]
+>;
 
 const provider =
   (
     url: string | ((config: EmailConfig) => string),
     headers: (apiKey: string) => Headers,
-    body: (config: EmailConfig, msg: EmailMessage) => unknown,
+    body: EmailProviderFn<unknown>,
   ): ProviderRequest =>
   (config, msg) => [
     typeof url === "string" ? url : url(config),
@@ -149,7 +154,7 @@ const bearerAuth = (apiKey: string): Headers => ({
 /** Provider using bearer-token auth (Resend, SendGrid, etc). */
 const bearerProvider = (
   url: string,
-  body: (config: EmailConfig, msg: EmailMessage) => unknown,
+  body: EmailProviderFn<unknown>,
 ): ProviderRequest => provider(url, bearerAuth, body);
 
 /** Map EmailMessage attachments into a provider-specific shape, or undefined. */

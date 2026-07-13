@@ -176,6 +176,14 @@ export const selectedListingIds = (): Set<string> => {
  * running total) must be told to recompute against the now-removed selection. The
  * event fires only when a quantity was actually cleared (a re-enable, or disabling
  * an already-zero control, doesn't alter the selection). */
+/** Fire a bubbling `change` event so dependent enhancement scripts recompute
+ * after a programmatic edit to a control's value. */
+export const fireChange = (
+  control: HTMLSelectElement | HTMLInputElement,
+): void => {
+  control.dispatchEvent(new Event("change", { bubbles: true }));
+};
+
 export const setControlDisabled = (
   control: HTMLSelectElement | HTMLInputElement,
   disabled: boolean,
@@ -188,7 +196,7 @@ export const setControlDisabled = (
   control.disabled = true;
   control.value = "0";
   if (hadQuantity) {
-    control.dispatchEvent(new Event("change", { bubbles: true }));
+    fireChange(control);
   }
 };
 

@@ -75,15 +75,20 @@ export type SlotLoader<E> = (
 
 /** An operator action. `visible` must gate on the SAME condition the target
  * route enforces — a forbidden or dead action link is never rendered. */
-export interface ActionDef<E> {
+/** Fields shared by any admin item that shows a label and may be hidden by
+ * role: its `intent`, its `labelKey`, and its server-side `visible` guard. */
+export interface AdminGatedItem<E> {
+  intent?: AdminRouteIntent;
+  labelKey: string;
+  visible?: (entity: E, session: AuthSession) => boolean;
+}
+
+export interface ActionDef<E> extends AdminGatedItem<E> {
   /** Renders in the visually separated danger zone (delete, deactivate…). */
   danger?: boolean;
   descriptionKey?: string;
   href: (entity: E, ctx: PageCtx) => string;
   icon?: IconName;
-  intent?: AdminRouteIntent;
-  labelKey: string;
-  visible?: (entity: E, session: AuthSession) => boolean;
 }
 
 /**
@@ -120,12 +125,9 @@ export type Section<E> =
 /** One tab: a URL segment, a strip label, and its ordered sections.
  * `visible` is evaluated server-side and IS authorization: a hidden tab is
  * absent from the strip and 404s when named directly. */
-export interface TabDef<E> {
-  intent?: AdminRouteIntent;
-  labelKey: string;
+export interface TabDef<E> extends AdminGatedItem<E> {
   sections: readonly Section<E>[];
   slug: string;
-  visible?: (entity: E, session: AuthSession) => boolean;
 }
 
 /** One entity's whole page, as data. */

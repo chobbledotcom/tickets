@@ -9,13 +9,14 @@ import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import type { SessionEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   ADMIN_API_ENDPOINTS,
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import {
   createApiKey,
@@ -54,7 +55,7 @@ const withOwnerData =
   <T>(load: (session: AuthSession) => Promise<T>) =>
   (
     request: Request,
-    handle: (session: AdminSession, data: T) => Response | Promise<Response>,
+    handle: SessionEntityHandler<AdminSession, T>,
   ): Promise<Response> =>
     requireOwnerOr(request, async (session) =>
       handle(session, await load(session)),
@@ -101,15 +102,8 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
         throw new Error("Name must be under 100 characters");
       }
 
-      if (!session.wrappedDataKey) {
-        throw new Error("Session key unavailable");
-      }
-
       // Unwrap the DATA_KEY from the current session
-      const dataKey = await unwrapKeyWithToken(
-        session.wrappedDataKey,
-        session.token,
-      );
+      const dataKey = await unwrapSessionDataKey(session);
 
       const { apiKey } = await createApiKey(
         session.userId,

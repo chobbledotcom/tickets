@@ -2,6 +2,7 @@
  * Action handlers and data loading utilities for admin routes
  */
 
+/* jscpd:ignore-start */
 import type { AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
@@ -28,6 +29,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
+/* jscpd:ignore-end */
 
 /** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
 export const getDateFilter = (request: Request): string | null => {
@@ -126,9 +128,23 @@ export type ErrorMapper = (error: Error) => Response;
 
 /** A string given directly, or computed from the session and the submitted form
  * (and allowed to be async). Used for the flash/log message. */
-type SessionFormString<TSession> =
+/** A value that is either a ready `string`, or a `(session, form)` function
+ * that computes one. `Result` is what the function returns — a bare/awaitable
+ * string for a required value, or `string | undefined` when it may supply
+ * nothing. The ready form is always a plain `string`. */
+type SessionFormValue<TSession, Result> =
   | string
-  | ((session: TSession, form: FormParams) => string | Promise<string>);
+  | ((session: TSession, form: FormParams) => Result);
+
+type SessionFormString<TSession> = SessionFormValue<
+  TSession,
+  string | Promise<string>
+>;
+
+type SessionFormOptionalString<TSession> = SessionFormValue<
+  TSession,
+  string | undefined
+>;
 
 /** Configuration for createActionHandler */
 export type ActionHandlerConfig<TSession = AuthSession> = {
@@ -149,9 +165,7 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   /** Thunk returning a Set-Cookie header for the success redirect, evaluated per request (e.g. clearSessionCookie) */
   cookie?: () => string;
   /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
-  redactedSecret?:
-    | string
-    | ((session: TSession, form: FormParams) => string | undefined);
+  redactedSecret?: SessionFormOptionalString<TSession>;
 };
 
 /**
@@ -177,26 +191,39 @@ export const createActionHandler = <TSession = AuthSession>(
       : config.listingId;
   };
 
-  const resolveString = async (
+  // A field on the config is either a ready value or a function of the session
+  // and form (possibly async). Resolving one means: call it when it's a
+  // function, otherwise use it as-is.
+  type Resolvable<T> =
+    | T
+    | ((session: TSession, form: FormParams) => T | Promise<T>);
+
+  const resolveValue = async <T>(
+    value: Resolvable<T>,
+    session: TSession,
+    form: FormParams,
+  ): Promise<T> =>
+    typeof value === "function"
+      ? await (
+          value as (session: TSession, form: FormParams) => T | Promise<T>
+        )(session, form)
+      : value;
+
+  const resolveString = (
     value: SessionFormString<TSession>,
     session: TSession,
     form: FormParams,
-  ): Promise<string> =>
-    typeof value === "function" ? await value(session, form) : value;
+  ): Promise<string> => resolveValue<string>(value, session, form);
 
-  const resolveOptionalString = async (
-    value:
-      | string
-      | ((session: TSession, form: FormParams) => string | undefined)
-      | undefined,
+  const resolveOptionalString = (
+    value: SessionFormOptionalString<TSession> | undefined,
     session: TSession,
     form: FormParams,
   ): Promise<string | undefined> =>
-    !value
-      ? undefined
-      : typeof value === "function"
-        ? await value(session, form)
-        : value;
+    // A blank string or an absent value both mean "no secret to redact".
+    value
+      ? resolveValue<string | undefined>(value, session, form)
+      : Promise.resolve(undefined);
 
   return (request: Request) => {
     // Evaluate the cookie thunk per request so domain-dependent state (e.g.
@@ -204,19 +231,21 @@ export const createActionHandler = <TSession = AuthSession>(
     const successOpts = config.cookie ? { cookie: config.cookie() } : undefined;
     return withAuth(request, policy, async (session, body) => {
       const form = body as FormParams;
+      // The success redirect depends only on the session and form (never on
+      // what execute did), so resolve it once and reuse it on both the error
+      // and success paths.
+      const redirectUrl = await resolveString(
+        config.successRedirect,
+        session as TSession,
+        form,
+      );
       try {
         await config.execute(session as TSession, form);
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
-        if (config.onError) {
-          return config.onError(error);
-        }
-        const redirectUrl = await resolveString(
-          config.successRedirect,
-          session as TSession,
-          form,
-        );
-        return errorRedirect(redirectUrl, error.message);
+        return config.onError
+          ? config.onError(error)
+          : errorRedirect(redirectUrl, error.message);
       }
 
       const msg = await resolveString(
@@ -232,11 +261,6 @@ export const createActionHandler = <TSession = AuthSession>(
       const logMsg = secret ? msg.replaceAll(secret, "***") : msg;
       await logActivity(logMsg, resolveListingId(form));
 
-      const redirectUrl = await resolveString(
-        config.successRedirect,
-        session as TSession,
-        form,
-      );
       return redirect(redirectUrl, msg, true, successOpts);
     });
   };

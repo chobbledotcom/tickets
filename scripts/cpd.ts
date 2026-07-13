@@ -11,10 +11,11 @@
  * Usage: deno run -A scripts/cpd.ts <jscpd args...>
  */
 
+import { denoNpmArgs } from "./deno-command.ts";
 import { bold, red, yellow } from "./precommit/colors.ts";
 
 const { code } = await new Deno.Command(Deno.execPath(), {
-  args: ["run", "-A", "npm:jscpd", ...Deno.args],
+  args: denoNpmArgs("jscpd@5.0.12", Deno.args),
 }).spawn().status;
 
 if (code !== 0) {

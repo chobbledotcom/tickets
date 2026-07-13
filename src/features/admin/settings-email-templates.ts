@@ -3,8 +3,8 @@
  * Owner-only access enforced via settingsHandler / withAuth
  */
 
+import { withOwnerForm } from "#routes/admin/owner-form-handler.ts";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
-import { OWNER_FORM, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { MAX_EMAIL_TEMPLATE_LENGTH } from "#shared/db/settings/constants.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -190,7 +190,4 @@ const renderEmailTemplatePreview = async (
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
 export const handleEmailTemplatePreviewPost = (
   request: Request,
-): Promise<Response> =>
-  withAuth(request, OWNER_FORM, (_session, form) =>
-    renderEmailTemplatePreview(form),
-  );
+): Promise<Response> => withOwnerForm(request, renderEmailTemplatePreview);

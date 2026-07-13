@@ -9,7 +9,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
-import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
+import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
   type IdRouteHandler,
@@ -23,7 +23,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 /* jscpd:ignore-end */
-import { createAuthedHandler } from "#shared/app-forms.ts";
+import { ownerFormHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   type AttendeeStatus,
@@ -152,17 +152,14 @@ const editGet = ownerStatusPage((status, session) =>
   adminAttendeeStatusFormPage(session, { error: getFlash().error, status }),
 );
 
-const createPost = createAuthedHandler({
-  auth: OWNER_FORM,
-  handle: async ({ form }) => {
-    const parsed = parseStatusFormOr(form, `${LIST_PATH}/new`);
-    if (parsed instanceof Response) return parsed;
-    const status = await attendeeStatuses.table.insert(parsed);
-    await assignNextAttendeeStatusSortOrder(status.id);
-    await clearOtherDefaults(status.id, parsed);
-    await logActivity(`Attendee status '${parsed.name}' created`);
-    return redirect(LIST_PATH, "Status created", true);
-  },
+const createPost = ownerFormHandler(async ({ form }) => {
+  const parsed = parseStatusFormOr(form, `${LIST_PATH}/new`);
+  if (parsed instanceof Response) return parsed;
+  const status = await attendeeStatuses.table.insert(parsed);
+  await assignNextAttendeeStatusSortOrder(status.id);
+  await clearOtherDefaults(status.id, parsed);
+  await logActivity(`Attendee status '${parsed.name}' created`);
+  return redirect(LIST_PATH, "Status created", true);
 });
 
 const editPost = ownerFormById(async (id, _session, form) => {

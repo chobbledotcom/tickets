@@ -15,25 +15,9 @@ type SharedAttendeeTableOptions = Pick<
     >
   >;
 
-export const attendeeTableOptions = ({
-  activeFilter,
-  allowedDomain,
-  phonePrefix,
-  questionData,
-  returnUrl,
-  rows,
-  showDate,
-  showListing,
-}: SharedAttendeeTableOptions): AttendeeTableOptions => ({
-  activeFilter,
-  allowedDomain,
-  phonePrefix,
-  questionData,
-  returnUrl,
-  rows,
-  showDate,
-  showListing,
-});
+export const attendeeTableOptions = (
+  options: SharedAttendeeTableOptions,
+): AttendeeTableOptions => options;
 
 export const AttendeeTableBlock = ({
   actions,

@@ -25,7 +25,10 @@ import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import {
+  type FlashPageRenderer,
+  flashAdminPage,
+} from "#templates/admin/admin-page.tsx";
 import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
@@ -126,13 +129,12 @@ export const writableNameColumn = <TEntity,>(
   header: t("common.name"),
 });
 
-/** The shape every resource list page shares: the rows to show, the operator's
- *  session, and optional error/success flashes to display above the table. */
+/** The shape every resource list page shares: the rows to show, then the same
+ *  session + optional error/success flashes every flash-carrying admin page
+ *  takes ({@link FlashPageRenderer}). */
 export type AdminListPage<TEntity> = (
   entities: TEntity[],
-  session: AdminSession,
-  error?: string,
-  success?: string,
+  ...args: Parameters<FlashPageRenderer>
 ) => string;
 
 /** Build the four standard admin pages (list/new/edit/delete) for a resource

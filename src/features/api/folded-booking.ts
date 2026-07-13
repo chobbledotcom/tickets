@@ -44,11 +44,13 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+/* jscpd:ignore-start */
 import {
   type ContactInfo,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+/* jscpd:ignore-end */
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   extractContact,
@@ -177,19 +179,31 @@ const foldedIntent = (input: FoldedBookingInput): CheckoutIntent => {
   };
 };
 
-/** Fold the chosen children for an API booking, or return the 400 response the
- * fold raises (a child the buyer can't pick, an over-capacity selection, a
- * conflicting child price). Shared by the parent and package API booking flows,
- * which both fold then validate against the merged parent+child fields — so the
- * fold-then-respond block lives once. */
-export const foldChildrenOrError = async (
+/** Fold the selected children (bailing with the fold's own 400 response — a
+ * child the buyer can't pick, an over-capacity selection, a conflicting child
+ * price), then build the per-path order lines from the tree with the given node
+ * quantities. The standalone parent and package book flows share this
+ * fold-then-build seam. */
+export const foldAndBuildOrderLines = async (
   ctx: TicketCtx,
   form: FormParams,
   base: FoldBase,
   tree: BookingTree,
-): Promise<Extract<FoldChildrenResult, { ok: true }> | Response> => {
+  nodeQuantities: Map<string, number>,
+): Promise<
+  | { fold: Extract<FoldChildrenResult, { ok: true }>; items: CheckoutItem[] }
+  | Response
+> => {
   const fold = await foldSelectedChildren(ctx, form, base, tree);
-  return fold.ok ? fold : apiError(fold.error);
+  if (!fold.ok) return apiError(fold.error);
+  const items = buildOrderLines(
+    tree,
+    nodeQuantities,
+    fold.quantities,
+    fold.customPrices,
+    fold.dayCount,
+  );
+  return { fold, items };
 };
 
 /** Validate a folded order's contact fields against the merged parent+child
@@ -358,7 +372,7 @@ export const processParentApiBooking = async (
   }
 
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  const fold = await foldChildrenOrError(
+  const built = await foldAndBuildOrderLines(
     ctx,
     form,
     {
@@ -369,16 +383,10 @@ export const processParentApiBooking = async (
       quantities: new Map([[listing.id, quantity]]),
     },
     tree,
-  );
-  if (fold instanceof Response) return fold;
-
-  const items = buildOrderLines(
-    tree,
     nodeQuantitiesFor(tree, new Map([[listing.id, quantity]]), new Map()),
-    fold.quantities,
-    fold.customPrices,
-    fold.dayCount,
   );
+  if (built instanceof Response) return built;
+  const { fold, items } = built;
   // Contact fields validate against the MERGED parent+child requirements and the
   // folded paid-ness (a free parent with a paid child still needs Square's email).
   return finishFoldedBooking(

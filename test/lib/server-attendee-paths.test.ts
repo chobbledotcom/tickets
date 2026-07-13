@@ -65,6 +65,15 @@ const dualPathAttendee = async (
   return (made as Extract<typeof made, { success: true }>).attendees[0]!.id;
 };
 
+/** The admin edit-page HTML for the first attendee of a booking result. */
+const firstAttendeeEditHtml = async (
+  made: Awaited<ReturnType<typeof createAttendeeAtomic>>,
+): Promise<string> => {
+  const attendeeId = (made as Extract<typeof made, { success: true }>)
+    .attendees[0]!.id;
+  return (await adminGet(`/admin/attendees/${attendeeId}/edit`)).text();
+};
+
 /** The attendee's stored [package_group_id, quantity] pairs for a listing. */
 const pathRows = (
   attendeeId: number,
@@ -302,12 +311,7 @@ describeWithEnv(
         name: "Addon Booker",
       });
       expect(made.success).toBe(true);
-      const attendeeId = (made as Extract<typeof made, { success: true }>)
-        .attendees[0]!.id;
-
-      const html = await (
-        await adminGet(`/admin/attendees/${attendeeId}/edit`)
-      ).text();
+      const html = await firstAttendeeEditHtml(made);
       expect(html).toContain("add-on under Addon Parent");
     });
 
@@ -328,16 +332,12 @@ describeWithEnv(
         name: "Orphan Booker",
       });
       expect(made.success).toBe(true);
-      const attendeeId = (made as Extract<typeof made, { success: true }>)
-        .attendees[0]!.id;
       // Deleting the parent removes only ITS rows; the child row keeps the
       // stale parent id, so the label falls back to the id.
       const { deleteListing } = await import("#shared/db/listings/delete.ts");
       await deleteListing(parent.id);
 
-      const html = await (
-        await adminGet(`/admin/attendees/${attendeeId}/edit`)
-      ).text();
+      const html = await firstAttendeeEditHtml(made);
       expect(html).toContain(`add-on under ${parent.id}`);
     });
 
@@ -359,13 +359,8 @@ describeWithEnv(
         email: "idle@example.com",
         name: "Idle Booker",
       });
-      const attendeeId = (made as Extract<typeof made, { success: true }>)
-        .attendees[0]!.id;
-
       // The dead member's path renders no blank line; the live member's does.
-      const html = await (
-        await adminGet(`/admin/attendees/${attendeeId}/edit`)
-      ).text();
+      const html = await firstAttendeeEditHtml(made);
       expect(attendeeLineIndex(html, spare.id, group.id)).toBeNull();
       expect(attendeeLineIndex(html, listing.id, group.id)).not.toBeNull();
     });

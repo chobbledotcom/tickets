@@ -18,6 +18,7 @@ import {
   defineAdminResourcePages,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
+import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
@@ -79,9 +80,12 @@ const checkbox = (
   label: string,
   checked: boolean,
 ): JSX.Element => (
-  <label class="checkbox">
-    <input checked={checked} name={name} type="checkbox" value="1" /> {label}
-  </label>
+  <SettingsCheckbox
+    checked={checked}
+    label={label}
+    labelClass="checkbox"
+    name={name}
+  />
 );
 
 /** The shared status form fields (name + flag checkboxes + reservation

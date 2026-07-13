@@ -1,6 +1,5 @@
 import { t } from "#i18n";
 import { isContactFormActive } from "#shared/contact-form.ts";
-import { formatCurrency } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -9,10 +8,15 @@ import type { NavModel } from "#shared/site-pages/types.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Group, Image, ItemImageProjection } from "#shared/types.ts";
 import {
+  LabelledAmount,
+  type LabelledAmountProps,
+} from "#templates/components/labelled-amount.tsx";
+import {
   type LeveledNavNode,
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the
@@ -30,6 +34,23 @@ export type PublicNavProps = {
  * the Order/News/Terms/Contact group ("between listings and contact"). Each
  * page `<li>` may carry extra children (the desktop nesting), supplied per
  * node. */
+/** A root nav `<li>` link, included only when `show` is true — folded into a
+ *  one-element array so it splices cleanly into the root list, or nothing when
+ *  the page is disabled. `label` is the link body (plain text, or `<Raw>` for
+ *  the terms link that carries markup). */
+const optionalNavItem = (
+  show: boolean,
+  href: string,
+  label: Child,
+): JSX.Element[] =>
+  show
+    ? [
+        <li>
+          <a href={href}>{label}</a>
+        </li>,
+      ]
+    : [];
+
 const rootItems = (
   { hasTerms, hasContact, hasNews, hasOrder, pages }: PublicNavProps,
   nested: (node: LeveledNavNode) => JSX.Element | null,
@@ -41,36 +62,10 @@ const rootItems = (
     <a href="/listings">{t("terms.listings")}</a>
   </li>,
   ...nodeLis(pages.rootPageNodes, nested),
-  ...(hasOrder
-    ? [
-        <li>
-          <a href="/order">{t("nav.public.order")}</a>
-        </li>,
-      ]
-    : []),
-  ...(hasNews
-    ? [
-        <li>
-          <a href="/news">{t("nav.public.news")}</a>
-        </li>,
-      ]
-    : []),
-  ...(hasTerms
-    ? [
-        <li>
-          <a href="/terms">
-            <Raw html={t("nav.public.terms")} />
-          </a>
-        </li>,
-      ]
-    : []),
-  ...(hasContact
-    ? [
-        <li>
-          <a href="/contact">{t("nav.public.contact")}</a>
-        </li>,
-      ]
-    : []),
+  ...optionalNavItem(hasOrder, "/order", t("nav.public.order")),
+  ...optionalNavItem(hasNews, "/news", t("nav.public.news")),
+  ...optionalNavItem(hasTerms, "/terms", <Raw html={t("nav.public.terms")} />),
+  ...optionalNavItem(hasContact, "/contact", t("nav.public.contact")),
 ];
 
 /**
@@ -242,6 +237,31 @@ const seoPageHead = (
  * false — the page's own name as the `<h1>`. A caller that renders its own
  * heading inside the body (the news post page, which folds the heading into its
  * `.prose` block) passes `showHeading: false`. */
+/** The `<Layout>` shell every public page shares: the `public-page` content
+ *  class, the head extras, the page title, and a `beforeContent` slot for the
+ *  nav (and any homepage heading). Both public-page helpers render through it so
+ *  the Layout prop block lives in one place. */
+const PublicLayout = ({
+  title,
+  headExtra,
+  beforeContent,
+  children,
+}: {
+  title: string;
+  headExtra: string;
+  beforeContent: Child;
+  children: Child;
+}): JSX.Element => (
+  <Layout
+    beforeContent={beforeContent}
+    contentClassName="public-page"
+    headExtra={headExtra}
+    title={title}
+  >
+    {children}
+  </Layout>
+);
+
 export const publicSeoPage =
   (
     page: { name: string; meta_title: string; meta_description: string },
@@ -252,33 +272,26 @@ export const publicSeoPage =
   (body: Child): string => {
     const { title, headExtra } = seoPageHead(page, websiteTitle);
     return String(
-      <Layout
+      <PublicLayout
         beforeContent={<PublicNav {...nav} />}
-        contentClassName="public-page"
         headExtra={headExtra}
         title={title}
       >
         {showHeading && <h1>{page.name}</h1>}
         {body}
-      </Layout>,
+      </PublicLayout>,
     );
   };
 
 export const compareGroupsByName = (a: Group, b: Group): number =>
   a.name.localeCompare(b.name);
 
-/** A `<p><strong>{label}</strong> {formatCurrency(amount)}</p>` money line —
- *  the order-total rows shared by the public balance page and the admin
- *  attendee-balance panel. `label` carries its own trailing punctuation. */
-export const AmountLine = ({
-  label,
-  amount,
-}: {
-  label: Child;
-  amount: number;
-}): JSX.Element => (
+/** A `<p>`-wrapped money line — the order-total rows shared by the public
+ *  balance page and the admin attendee-balance panel. `label` carries its own
+ *  trailing punctuation. */
+export const AmountLine = (props: LabelledAmountProps): JSX.Element => (
   <p>
-    <strong>{label}</strong> {formatCurrency(amount)}
+    <LabelledAmount {...props} />
   </p>
 );
 
@@ -318,20 +331,19 @@ export const publicPage =
   ) =>
   (body: Child): string =>
     String(
-      <Layout
+      <PublicLayout
         beforeContent={
           <>
             {websiteTitle && <h1>{websiteTitle}</h1>}
             <PublicNav {...nav} />
           </>
         }
-        contentClassName="public-page"
         headExtra={headExtra}
         title={title}
       >
         {body}
         {showLoginFooter && <LoginFooter />}
-      </Layout>,
+      </PublicLayout>,
     );
 
 /** The `<Layout title><div class="prose"><h1>{heading}</h1>{prose}</div>
@@ -343,10 +355,7 @@ export const prosePage =
   (prose: Child, afterProse?: Child): string =>
     String(
       <Layout contentClassName="public-page" title={title}>
-        <div class="prose">
-          <h1>{heading}</h1>
-          {prose}
-        </div>
+        <ProseHeading heading={heading}>{prose}</ProseHeading>
         {afterProse}
       </Layout>,
     );

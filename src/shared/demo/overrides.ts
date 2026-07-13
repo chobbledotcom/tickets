@@ -105,6 +105,18 @@ export const applyDemoOverrides = (
   return form;
 };
 
+/** Apply demo-mode overrides to the form, then run the loader — the shared
+ * prelude of the attendee submit handlers, which 404 when the loader finds
+ * nothing (a stale id racing a delete). */
+export const loadAfterDemoOverrides = async <T>(
+  form: FormParams,
+  mapping: DemoFieldMap,
+  load: () => Promise<T | null>,
+): Promise<T | null> => {
+  applyDemoOverrides(form, mapping);
+  return load();
+};
+
 /** Wrap a named resource so create/update apply demo overrides to the form */
 export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
   resource: NamedResource<R, I, V>,

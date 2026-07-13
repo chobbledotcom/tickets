@@ -177,10 +177,11 @@ const retryOnDatabaseLock = <T>(run: () => Promise<T>): Promise<T> =>
     if (!willRetry) throw new DatabaseBusyError();
   });
 
-const executeTrackedStatement = (
-  sql: string,
-  args?: InValue[],
-): Promise<ResultSet> =>
+/** A single-statement runner: takes the SQL and its optional bound args and
+ * resolves to `T`. Shared by the tracked-execute and public execute helpers. */
+type StatementRunner<T> = (sql: string, args?: InValue[]) => Promise<T>;
+
+const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
   trackQuery(sql, () =>
     retryOnDatabaseLock(() =>
       args ? getDb().execute({ args, sql }) : getDb().execute(sql),
@@ -197,10 +198,7 @@ type SqlArgs = [sql: string, args?: InValue[]];
  * through here (queryOne/queryAll wrap it), so cache invalidation is driven by
  * the write itself rather than by each call site remembering to invalidate.
  */
-export const execute = async (
-  sql: string,
-  args?: InValue[],
-): Promise<ResultSet> => {
+export const execute: StatementRunner<ResultSet> = async (sql, args) => {
   const result = await executeTrackedStatement(sql, args);
   invalidateForSql(sql);
   return result;

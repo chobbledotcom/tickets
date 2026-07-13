@@ -18,6 +18,8 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 
+type DailyListing = Awaited<ReturnType<typeof createDailyTestListing>>;
+
 describeWithEnv(
   "e2e: multi-day bookings — capacity & availability",
   { db: true },
@@ -45,18 +47,23 @@ describeWithEnv(
     });
 
     describe("per-day capacity", () => {
-      test("filling a middle day blocks a multi-day booking that spans it", async () => {
+      // A 3-day listing (cap 2) whose middle day (the 13th) is already filled by
+      // a 1-day booking at capacity.
+      const threeDayListingWithFullMiddleDay = async () => {
         const listing = await createDailyTestListing({
           durationDays: 3,
           maxAttendees: 2,
         });
-
-        // Fill day 2 with a 1-day booking at capacity.
         await bookAttendee(listing, {
           date: "2026-06-13",
           durationDays: 1,
           quantity: 2,
         });
+        return listing;
+      };
+
+      test("filling a middle day blocks a multi-day booking that spans it", async () => {
+        const listing = await threeDayListingWithFullMiddleDay();
 
         // 3-day booking starting day 1 covers 12–14 → day 13 is full.
         expect(await hasAvailableSpots(listing.id, 1, "2026-06-12", 3)).toBe(
@@ -65,15 +72,7 @@ describeWithEnv(
       });
 
       test("single day within a blocked multi-day range is still bookable alone", async () => {
-        const listing = await createDailyTestListing({
-          durationDays: 3,
-          maxAttendees: 2,
-        });
-        await bookAttendee(listing, {
-          date: "2026-06-13",
-          durationDays: 1,
-          quantity: 2,
-        });
+        const listing = await threeDayListingWithFullMiddleDay();
 
         // Day 1 alone (before the full day) is still available.
         expect(await hasAvailableSpots(listing.id, 1, "2026-06-12", 1)).toBe(
@@ -118,16 +117,24 @@ describeWithEnv(
         return { combo, group, sat };
       };
 
-      test("combo booking fills Saturday group cap across listings", async () => {
-        const { combo, sat } = await groupWithSatAndCombo();
-
-        // Fill Saturday: 5 via sat-only + 5 via combo (covers Sat+Sun).
+      // Fill Saturday's group cap: 5 on the sat-only listing + 5 on the 2-day
+      // combo (which covers Sat+Sun).
+      const fillSaturday = async (
+        sat: DailyListing,
+        combo: DailyListing,
+      ): Promise<void> => {
         await bookAttendee(sat, { date: "2026-05-02", quantity: 5 });
         await bookAttendee(combo, {
           date: "2026-05-02",
           durationDays: 2,
           quantity: 5,
         });
+      };
+
+      test("combo booking fills Saturday group cap across listings", async () => {
+        const { combo, sat } = await groupWithSatAndCombo();
+
+        await fillSaturday(sat, combo);
 
         // Saturday group-full → 1 more on sat-only must reject.
         expect(
@@ -145,12 +152,7 @@ describeWithEnv(
           maxAttendees: 100,
         });
 
-        await bookAttendee(sat, { date: "2026-05-02", quantity: 5 });
-        await bookAttendee(combo, {
-          date: "2026-05-02",
-          durationDays: 2,
-          quantity: 5,
-        });
+        await fillSaturday(sat, combo);
 
         // Sunday has 5 from combo only → 5 more fits.
         expect(

@@ -17,7 +17,7 @@ import type { Group, ListingWithCount } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
-import { renderListingAttributes } from "./listing-attributes.ts";
+import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,
   MarkdownProse,
@@ -124,8 +124,9 @@ const renderOrderCard =
             listing.can_pay_more ? t("availability.from_prefix") : ""
           }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
         : "";
-    const attributesHtml = renderListingAttributes(
-      attributesByListing.get(listing.id),
+    const attributesHtml = listingAttributesHtml(
+      attributesByListing,
+      listing.id,
     );
 
     if (isSoldOut || isClosed || isReadOnly()) {

@@ -11,8 +11,8 @@ import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
-import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { AdminPage, flashFormPage } from "#templates/admin/admin-page.tsx";
+import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
   type AccountLedgerData,
   EmbeddedAccountStatementSection,
@@ -24,9 +24,12 @@ import {
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { CollectionTable } from "#templates/components/data-table.tsx";
 import { getModifierFields } from "#templates/fields/modifier.ts";
-import { ModifierRunningTotalsSection } from "./aggregates.tsx";
+import {
+  ModifierRunningTotalsSection,
+  type ModifierSectionProps,
+} from "./aggregates.tsx";
 import {
   type AnswerLinks,
   AnswerLinksForm,
@@ -52,9 +55,7 @@ const ModifiersGuideFooter = (): JSX.Element => (
 
 const ModifierRevenueAdjustSection = ({
   modifier,
-}: {
-  modifier: Modifier;
-}): JSX.Element => (
+}: ModifierSectionProps): JSX.Element => (
   <MoneyAdjustSection
     action={`/admin/modifiers/${modifier.id}/revenue`}
     currentLabel={t("modifiers.adjust_revenue_current")}
@@ -88,34 +89,32 @@ export const adminModifiersPage = (
     active: "/admin/modifiers",
     children: (
       <>
-        {modifiers.length === 0 ? (
-          <p>{t("modifiers.no_modifiers")}</p>
-        ) : (
-          <DataTable
-            columns={[
-              { header: t("common.name") },
-              { header: t("modifiers.rule_column") },
-              { class: "quantity", header: t("modifiers.uses_column") },
-              { class: "quantity", header: t("modifiers.orders_column") },
-              { class: "amount", header: t("modifiers.revenue_column") },
-            ]}
-            rows={modifiers.map((m) => [
-              adminDestinationAllowed(
-                "modifierEdit",
-                session.adminLevel,
-                isReadOnly(),
-              ) ? (
-                <a href={adminPath("modifierEdit", { id: m.id })}>{m.name}</a>
-              ) : (
-                m.name
-              ),
-              ruleSummary(m),
-              m.total_uses,
-              m.usage_count,
-              formatCurrency(m.total_revenue),
-            ])}
-          />
-        )}
+        <CollectionTable
+          columns={[
+            { header: t("common.name") },
+            { header: t("modifiers.rule_column") },
+            { class: "quantity", header: t("modifiers.uses_column") },
+            { class: "quantity", header: t("modifiers.orders_column") },
+            { class: "amount", header: t("modifiers.revenue_column") },
+          ]}
+          emptyKey="modifiers.no_modifiers"
+          items={modifiers}
+          rows={modifiers.map((m) => [
+            adminDestinationAllowed(
+              "modifierEdit",
+              session.adminLevel,
+              isReadOnly(),
+            ) ? (
+              <a href={adminPath("modifierEdit", { id: m.id })}>{m.name}</a>
+            ) : (
+              m.name
+            ),
+            ruleSummary(m),
+            m.total_uses,
+            m.usage_count,
+            formatCurrency(m.total_revenue),
+          ])}
+        />
         <ModifiersGuideFooter />
       </>
     ),
@@ -125,14 +124,10 @@ export const adminModifiersPage = (
   });
 
 /** Admin modifier create page */
-export const adminModifierNewPage = (
-  session: AdminSession,
-  error?: string,
-): string =>
-  errorAdminPage(t("modifiers.add.heading"), "/admin/modifiers/new")(
-    session,
-    error,
-  )(
+export const adminModifierNewPage = flashFormPage(
+  "modifiers.add.heading",
+  "/admin/modifiers/new",
+  () => (
     <>
       <CsrfForm action="/admin/modifiers">
         <h1>{t("modifiers.add.heading")}</h1>
@@ -140,8 +135,9 @@ export const adminModifierNewPage = (
         <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
       </CsrfForm>
       <ModifiersGuideFooter />
-    </>,
-  );
+    </>
+  ),
+);
 
 /** Admin modifier edit page. `links` carries the scope editor for a
  * listing/group-scoped modifier (null for a whole-order modifier);
@@ -188,12 +184,8 @@ export const adminModifierEditPage = (
 /** Admin modifier delete confirmation page. Takes the stored {@link ModifierRow}
  * (the projected total_revenue isn't shown here), so it pairs with the CRUD
  * delete loader's `table.findById`. */
-export const adminModifierDeletePage = (
-  modifier: ModifierRow,
-  session: AdminSession,
-  error?: string,
-): string =>
-  ConfirmPage({
+export const adminModifierDeletePage = entityDeletePage(
+  (modifier: ModifierRow) => ({
     action: `/admin/modifiers/${modifier.id}/delete`,
     active: { section: "/admin/modifiers" },
     buttonText: t("modifiers.delete.submit"),
@@ -205,9 +197,8 @@ export const adminModifierDeletePage = (
       </>
     ),
     danger: false,
-    error,
     label: t("modifiers.name_label"),
     name: modifier.name,
-    session,
     title: t("modifiers.delete.heading"),
-  });
+  }),
+);

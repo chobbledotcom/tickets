@@ -7,6 +7,7 @@ import { t } from "#i18n";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { getSetupFields } from "#templates/fields/admin.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -90,10 +91,9 @@ export const AuthFormPage = ({
   String(
     <Layout title={title}>
       <CsrfForm action={action}>
-        <div class="prose">
-          <h1>{heading}</h1>
+        <ProseHeading heading={heading}>
           <p>{intro}</p>
-        </div>
+        </ProseHeading>
         <Flash error={error} />
         <Raw html={formHtml} />
         {children}

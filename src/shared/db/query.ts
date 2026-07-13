@@ -1,13 +1,19 @@
+/* jscpd:ignore-start */
 import type { InValue, Row } from "@libsql/client";
 import { mapParallel } from "#fp";
+import { decrypt } from "#shared/crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
+  executeBatch,
   inPlaceholders,
   queryAll,
   resultRows,
+  type TxScope,
   update,
   withTransaction,
 } from "#shared/db/client.ts";
+/* jscpd:ignore-end */
 
 /**
  * Execute a SQL query and map result rows through an async transformer.
@@ -20,6 +26,33 @@ export const queryAndMap =
     mapParallel(toOut)(resultRows<Row>(await execute(sql)));
 
 /**
+ * Swap the `sort_order` of two rows in one write transaction, so concurrent
+ * reorders serialise on the write lock instead of applying the same stale
+ * snapshot and leaving two rows sharing a sort_order (there is no
+ * (…, sort_order) uniqueness constraint to repair such drift). `readOrders`
+ * loads the two current orders (keyed however the table identifies its rows);
+ * `writeSwap` writes them crossed over. No-op when either order is missing (a
+ * stale click racing a delete): binding an undefined sort_order would fail the
+ * NOT NULL constraint with a 500.
+ */
+export const swapSortOrders = <Row>(
+  select: { sql: string; args: InValue[] },
+  ordersFrom: (rows: Row[]) => [number | undefined, number | undefined],
+  writeSwap: (
+    tx: TxScope,
+    firstOrder: number,
+    secondOrder: number,
+  ) => Promise<void>,
+): Promise<void> =>
+  withTransaction(async (tx) => {
+    const [first, second] = ordersFrom(
+      resultRows<Row>(await tx.execute(select)),
+    );
+    if (first === undefined || second === undefined) return;
+    await writeSwap(tx, first, second);
+  });
+
+/**
  * Swap the `sort_order` of two rows (by id) in a table that has `id` and
  * `sort_order` columns. The current values are read first so callers only need
  * the two ids. `table` is always an internal constant, never user input.
@@ -29,32 +62,57 @@ export const swapSortOrder = (
   id1: number,
   id2: number,
 ): Promise<void> =>
-  // Read the two orders and write the swap in one transaction, so concurrent
-  // reorders serialise on the write lock instead of applying the same stale
-  // snapshot and leaving two rows with the same sort_order (there is no
-  // (table, sort_order) uniqueness constraint to repair such drift).
-  withTransaction(async (tx) => {
-    const rows = resultRows<{ id: number; sort_order: number }>(
-      await tx.execute({
-        args: [id1, id2],
-        sql: `SELECT id, sort_order FROM ${table} WHERE id IN (?, ?)`,
-      }),
-    );
-    const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
-    const order1 = orderById.get(id1);
-    const order2 = orderById.get(id2);
-    // No-op when either row is gone (a stale click racing a delete): binding
-    // an undefined sort_order would fail the NOT NULL constraint with a 500.
-    if (order1 === undefined || order2 === undefined) return;
-    await tx.execute(update(table, { sort_order: order2 }, { id: id1 }));
-    await tx.execute(update(table, { sort_order: order1 }, { id: id2 }));
-  });
+  swapSortOrders<{ id: number; sort_order: number }>(
+    {
+      args: [id1, id2],
+      sql: `SELECT id, sort_order FROM ${table} WHERE id IN (?, ?)`,
+    },
+    (rows) => {
+      const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
+      return [orderById.get(id1), orderById.get(id2)];
+    },
+    async (tx, order1, order2) => {
+      await tx.execute(update(table, { sort_order: order2 }, { id: id1 }));
+      await tx.execute(update(table, { sort_order: order1 }, { id: id2 }));
+    },
+  );
+
+/**
+ * Give a freshly-created row the next `sort_order`: one more than the largest
+ * among its siblings (always >= 1, so a new row never collides with legacy rows
+ * still sat at 0). `table` is always an internal constant, never user input.
+ */
+export const assignNextSortOrder = async (
+  table: string,
+  id: number,
+): Promise<void> => {
+  await executeBatch([
+    {
+      args: [id, id],
+      sql: `UPDATE ${table}
+            SET sort_order = COALESCE(
+              (SELECT MAX(sort_order) FROM ${table} WHERE id != ?), 0
+            ) + 1
+            WHERE id = ?`,
+    },
+  ]);
+};
 
 /** Collapse a result's rows to the set of one column's values, as strings —
  * the shared tail of the "which names/ids already exist" reads (applied
  * migrations, live table columns, index and trigger names). */
 export const stringColumnSet = (rows: Row[], column: string): Set<string> =>
   new Set(rows.map((row) => String(row[column])));
+
+/** Run a single-column SELECT and collect that column's values into a Set of
+ * strings — the shared shape of the "which hashes/names already exist" reads
+ * (e.g. the live table names, the unsubscribed contact hashes). */
+export const queryColumnSet = async (
+  sql: string,
+  column: string,
+  args: InValue[] = [],
+): Promise<Set<string>> =>
+  stringColumnSet(await queryAll<Row>(sql, args), column);
 
 /**
  * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is
@@ -141,6 +199,13 @@ export const nameSource = <Raw>(
     ),
 });
 
+/** A table's env-key-encrypted `name` column as an `id → name` source. The env
+ * decrypt and the `name` column are the common case, so per-table wrappers bind
+ * just the table and its singular-word alias, then take `.byIds` (narrow id
+ * lookups) or `.all()` (every name, for pickers/labels). */
+export const envNameSource = (table: string, alias: string) =>
+  nameSource(table, alias, "name", (raw: EnvKeyEncrypted) => decrypt(raw));
+
 /** Decrypt a row's `name` and `slug` — the pair the news-summary and listing
  * catalog projections both need before display. `decryptValue` keeps this
  * decryption-agnostic, like the name-map helpers above. */
@@ -161,6 +226,10 @@ export const decryptNameSlug = async <Raw>(
  * alias and qualifies the selected columns. `table`, `alias`, `column` and
  * `where` are always internal constants, never user input.
  */
+/** A batch loader: takes a list of ids and returns, for each id, the list of
+ * related numbers found for it. Ids with no matches are absent from the map. */
+export type ListsByIds = (ids: number[]) => Promise<Map<number, number[]>>;
+
 export const columnMapByIds = <Value extends InValue = number>(
   table: string,
   alias: string,

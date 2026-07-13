@@ -15,6 +15,15 @@ import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("answer edit page", () => {
+    /** Look up one answer on a question by its id. */
+    const findAnswer = async (qId: number, aId: number) => {
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions/queries.ts"
+      );
+      const question = await getQuestionWithAnswers(qId);
+      return question!.answers.find((a) => a.id === aId)!;
+    };
+
     /** Insert an "answer"-trigger modifier directly and return its id. */
     const createAnswerModifier = async (name: string): Promise<number> => {
       const { modifiersTable } = await import("#shared/db/modifiers.ts");
@@ -98,30 +107,21 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Answer updated",
       )(response);
 
-      const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
-      );
-      const question = await getQuestionWithAnswers(qId);
-      expect(question!.answers.find((a) => a.id === aId)!.text).toBe("After");
+      expect((await findAnswer(qId, aId)).text).toBe("After");
     });
 
     test("deactivates an answer when the active box is unchecked", async () => {
       const qId = await createQuestion("Deactivate question");
       const aId = await addAnswer(qId, "Retired option");
-      const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
-      );
       // New answers start active.
-      const before = await getQuestionWithAnswers(qId);
-      expect(before!.answers.find((a) => a.id === aId)!.active).toBe(true);
+      expect((await findAnswer(qId, aId)).active).toBe(true);
 
       // An unchecked checkbox is simply absent from the POST body.
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
         modifier_id: "",
         text: "Retired option",
       });
-      const after = await getQuestionWithAnswers(qId);
-      expect(after!.answers.find((a) => a.id === aId)!.active).toBe(false);
+      expect((await findAnswer(qId, aId)).active).toBe(false);
 
       // Re-checking it reactivates the answer.
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
@@ -129,8 +129,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         modifier_id: "",
         text: "Retired option",
       });
-      const reactivated = await getQuestionWithAnswers(qId);
-      expect(reactivated!.answers.find((a) => a.id === aId)!.active).toBe(true);
+      expect((await findAnswer(qId, aId)).active).toBe(true);
     });
 
     test("links the chosen modifier to the answer", async () => {
@@ -258,12 +257,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions/queries.ts"
-      );
-      const question = await getQuestionWithAnswers(qId);
       // The invalid aggregate aborts the whole edit, so the text is unchanged.
-      expect(question!.answers.find((a) => a.id === aId)!.text).toBe("Before");
+      expect((await findAnswer(qId, aId)).text).toBe("Before");
     });
   });
 

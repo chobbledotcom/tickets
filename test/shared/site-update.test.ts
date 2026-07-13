@@ -41,22 +41,34 @@ const setLatestRelease = async (tag: string): Promise<void> => {
   await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
+/** Per-test scaffolding shared by the loadBuiltSiteUpdateState describes: a
+ *  restorable createClient stub, its afterEach cleanup, and stubbers that
+ *  point the site-db factory at a seeded client (or a throwing factory). Call
+ *  inside a describe so the hook registers on that suite. */
+const useStubbedSiteDb = (): {
+  stubSiteDb: (client: Client) => void;
+  stubSiteDbFactory: (factory: () => Client) => void;
+} => {
+  let createStub: Stub | null = null;
+  afterEach(() => {
+    createStub?.restore();
+    createStub = null;
+    settings.clearTestOverrides();
+  });
+  const stubSiteDbFactory = (factory: () => Client): void => {
+    createStub = stub(siteDbApi, "createClient", factory);
+  };
+  return {
+    stubSiteDb: (client) => stubSiteDbFactory(() => client),
+    stubSiteDbFactory,
+  };
+};
+
 describeWithEnv(
   "loadBuiltSiteUpdateState",
   { db: true, env: { BUNNY_API_KEY: "host-key" } },
   () => {
-    let createStub: Stub | null;
-
-    afterEach(() => {
-      createStub?.restore();
-      createStub = null;
-      settings.clearTestOverrides();
-    });
-
-    /** Point the site-db factory at a seeded in-memory client. */
-    const stubSiteDb = (client: Client): void => {
-      createStub = stub(siteDbApi, "createClient", () => client);
-    };
+    const { stubSiteDb, stubSiteDbFactory } = useStubbedSiteDb();
 
     test("reports an update when the latest release is newer than the site", async () => {
       await setLatestRelease(LATEST_TAG);
@@ -109,7 +121,7 @@ describeWithEnv(
 
     test("surfaces a read error when the site's database is unreachable", async () => {
       await setLatestRelease(LATEST_TAG);
-      createStub = stub(siteDbApi, "createClient", () => {
+      stubSiteDbFactory(() => {
         throw new Error("connection refused");
       });
       const site = await createTestBuiltSite({
@@ -146,17 +158,7 @@ describeWithEnv(
   "loadBuiltSiteUpdateState (Deno site)",
   { db: true, env: { DENO_DEPLOY_TOKEN: "tok123" } },
   () => {
-    let createStub: Stub | null;
-
-    afterEach(() => {
-      createStub?.restore();
-      createStub = null;
-      settings.clearTestOverrides();
-    });
-
-    const stubSiteDb = (client: Client): void => {
-      createStub = stub(siteDbApi, "createClient", () => client);
-    };
+    const { stubSiteDb } = useStubbedSiteDb();
 
     test("reports providerConfigured true for a Deno site when DENO_DEPLOY_TOKEN is set", async () => {
       await setLatestRelease(LATEST_TAG);
