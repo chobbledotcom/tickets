@@ -986,3 +986,23 @@ Follow-up: split the shell/scaffold components into their own module (e.g.
 importer, then delete the `biome.json` override entry for `forms.tsx`. Out of
 scope for the dedup PR (a pure structural move, no behaviour change), but worth
 doing next time this file is touched.
+
+---
+
+## Localise the confirmation-email template-variable reference table
+
+*Origin: CodeRabbit review on PR #1800.*
+
+`src/ui/templates/admin/settings/email-tpl-confirmation.tsx` builds
+`TEMPLATE_VARIABLES` — the operator-facing reference table of Liquid variables
+(`{{ ticket_url }}` → "Link to view tickets", etc.). The `meaning` column is
+hard-coded English, and `{{ attendee.name }}` borrows
+`t("admin.attendees.delete_label")` (which happens to render "Attendee name",
+so no visible bug, but it's a fragile cross-context key reuse).
+
+Follow-up: give each variable's description its own locale key under a new
+`settings.advanced.email_variables.*` namespace and reference them, replacing the
+`delete_label` reuse with a dedicated key. Out of scope for the jscpd-dedup PR
+(these are developer/operator reference docs for a technical feature, and the
+i18n-coverage gate doesn't flag them), but worth doing when this settings surface
+is next touched. Keep the copy plain per the Simple-Language rules.
