@@ -46,6 +46,24 @@ describe("generateAttendeesCsv", () => {
     expect(lines[2]!.endsWith("ghost-tok,")).toBe(true);
   });
 
+  test("adds a Checkout pending column only when some row is mid-payment", () => {
+    const paid = testAttendee({ quantity: 1 });
+    const pending = testAttendee({
+      id: 2,
+      pending_checkout: 1,
+      quantity: 0,
+      ticket_token: "pending-tok",
+    });
+    const lines = generateAttendeesCsv([paid, pending]).split("\n");
+    // The extra column appears, blank for the paid row and Yes for the
+    // mid-payment one — so a pending row never reads as a plain zero booking.
+    expect(lines[0]!.endsWith(",Checkout pending")).toBe(true);
+    expect(lines[1]!.endsWith(",")).toBe(true);
+    expect(lines[2]!.endsWith(",Yes")).toBe(true);
+    // An export with no pending row keeps the standard columns untouched.
+    expect(generateAttendeesCsv([paid])).not.toContain("Checkout pending");
+  });
+
   test("escapes values with commas", () => {
     const attendees = [testAttendee({ name: "Doe, John" })];
     const csv = generateAttendeesCsv(attendees);

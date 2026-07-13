@@ -175,12 +175,18 @@ const ticket: AttendeeCol = {
   // A no-quantity sentinel row has no live customer ticket: /t renders the
   // attendee's OTHER real bookings (or 404s for an all-ghost attendee), so a
   // link here would let staff copy a customer-facing URL that doesn't match this
-  // row's cancelled/interested listing. Show the indicator instead.
+  // row's cancelled/interested listing. Show the indicator instead — and for a
+  // mid-payment staged row, say the payment is in flight rather than the
+  // "No quantity" wording that invites an operator edit.
   cell: (row, opts) =>
     isServicing(row.attendee.kind)
       ? `<span class="muted small">${t("admin.attendee_table.servicing")}</span>`
       : !hasTicketQuantity(row.attendee)
-        ? `<span class="muted small">${t("admin.attendee_table.no_quantity")}</span>`
+        ? `<span class="muted small">${t(
+            row.attendee.pending_checkout
+              ? "admin.attendee_table.payment_in_progress"
+              : "admin.attendee_table.no_quantity",
+          )}</span>`
         : `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
   description: "Clickable ticket token link",
   isHtml: true,

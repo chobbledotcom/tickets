@@ -168,6 +168,16 @@ const listingIntColumn = (join: AttendeeJoin, name: string): string =>
     ? `COALESCE(listingAttendee.${name}, 0) as ${name}`
     : `listingAttendee.${name}`;
 
+/** 0/1: does this attendee's checkout still have a pending stage? Correlated on
+ * `attendee.id` (always present, even under a LEFT join), and cheap — the
+ * checkout_stages table only ever holds in-flight and recently-resolved
+ * checkouts. Every table and export reads it, so a mid-payment record can say
+ * "payment in progress" instead of the "No quantity" sentinel wording. */
+const PENDING_CHECKOUT_SQL =
+  "(SELECT EXISTS(SELECT 1 FROM checkout_stages AS stage" +
+  ` WHERE stage.attendee_id = attendee.id AND stage.state = 'pending'))` +
+  " AS pending_checkout";
+
 /** Identity columns plus the cheap per-listing columns every caller reads. */
 const coreColumns = (join: AttendeeJoin): string =>
   [
@@ -178,6 +188,7 @@ const coreColumns = (join: AttendeeJoin): string =>
     "attendee.pii_blob",
     "attendee.status_id",
     "attendee.split_logistics_agents",
+    PENDING_CHECKOUT_SQL,
     listingIntColumn(join, "listing_id"),
     "SUBSTR(listingAttendee.start_at, 1, 10) as date",
     listingIntColumn(join, "quantity"),

@@ -128,9 +128,18 @@ describeWithEnv(
         const response = await submitAttendeeEdit(stage.attendeeId, {
           name: "Edited Anyway",
         });
-        // The guard re-renders the form with the block message; nothing saves.
-        expect(response.status).toBe(200);
-        expect(await response.text()).toContain("This booking is mid-payment");
+        // The Edit tab is hidden while pending (it would 404 as a re-render
+        // target), so the refusal redirects to the always-visible overview
+        // with the block message as the flash; nothing saves.
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toContain(
+          `/admin/attendees/${stage.attendeeId}`,
+        );
+        expectFlash(
+          response,
+          expect.stringContaining("This booking is mid-payment"),
+          false,
+        );
         // The staged rows the payment will claim are untouched.
         expect(await getAttendeeQuantities(stage.attendeeId)).toEqual([
           { quantity: 0 },

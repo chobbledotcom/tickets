@@ -45,7 +45,6 @@ import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { attendeeIdsWithPendingStage } from "#shared/db/checkout-stages.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -66,6 +65,11 @@ import { PaymentDetails } from "#templates/admin/attendees.tsx";
 /** The attendee-scoped action routes live under the entity's own base. */
 const actionBase = ({ attendee }: LoadedAttendee): string =>
   `/admin/attendees/${attendee.id}`;
+
+/** The visibility gate for everything that changes a record: shown only while
+ * no checkout is pending. Mirrors the server-side pending guards exactly. */
+const notMidPayment = ({ pendingCheckout }: LoadedAttendee): boolean =>
+  !pendingCheckout;
 
 /** Thread the current tab back through a sub-action's confirm page. */
 const withReturn = (href: string, ctx: PageCtx): string =>
@@ -129,16 +133,16 @@ const overviewTab: TabDef<LoadedAttendee> = {
   sections: [
     {
       kind: "summary",
-      rows: async ({ attendee, existing }) =>
-        attendeeSummaryRows({
-          allowedDomain: getEffectiveDomain(),
-          attendee,
-          hasRealLine: existing.some((line) => line.booking.quantity > 0),
-          pendingCheckout: (
-            await attendeeIdsWithPendingStage([attendee.id])
-          ).has(attendee.id),
-          phonePrefix: settings.phonePrefix,
-        }),
+      rows: ({ attendee, existing, pendingCheckout }) =>
+        Promise.resolve(
+          attendeeSummaryRows({
+            allowedDomain: getEffectiveDomain(),
+            attendee,
+            hasRealLine: existing.some((line) => line.booking.quantity > 0),
+            pendingCheckout,
+            phonePrefix: settings.phonePrefix,
+          }),
+        ),
     },
     customSection(async ({ attendee, existing }) => {
       const renderListings = await getRenderListings(existing);
@@ -179,7 +183,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
     },
     {
       kind: "custom",
-      load: async ({ attendee }, ctx) => {
+      load: async ({ attendee, pendingCheckout }, ctx) => {
         const [contactRecords, previousBookings] = await Promise.all([
           loadContactRecords(attendee),
           loadPreviousBookings(attendee),
@@ -188,6 +192,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
           attendee,
           contactRecords,
           isOwner: ctx.session.adminLevel === "owner",
+          pendingCheckout,
           previousBookings,
         });
       },
@@ -198,13 +203,14 @@ const overviewTab: TabDef<LoadedAttendee> = {
 
 /** The tabbed attendee page. */
 export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
-  banner: async ({ attendee }) =>
+  banner: async ({ attendee, pendingCheckout }) =>
     attendeeBanner({
       attendee,
       notes: await getNotesForAttendee(
         attendee.id,
         await requireRequestPrivateKey(),
       ),
+      pendingCheckout,
       statuses: await attendeeStatuses.getAll(),
     }),
   basePath: (id) => `/admin/attendees/${id}`,
@@ -219,8 +225,17 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     ),
   tabs: [
     overviewTab,
-    writeFormTab("edit", "entity.tab.edit", loadEditPanel),
-    writeFormTab("logistics", "entity.tab.logistics", loadLogisticsPanel),
+    // The write tabs and the actions tab hide while a checkout is pending: the
+    // payment claims the exact staged rows when it lands, so every mutation is
+    // blocked server-side — the page must not offer tabs that only fail. The
+    // banner explains the state; a hidden tab's URL 404s (visible IS the gate).
+    writeFormTab("edit", "entity.tab.edit", loadEditPanel, notMidPayment),
+    writeFormTab(
+      "logistics",
+      "entity.tab.logistics",
+      loadLogisticsPanel,
+      notMidPayment,
+    ),
     {
       labelKey: "entity.tab.ledger",
       sections: [
@@ -266,6 +281,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         },
       ],
       slug: "actions",
+      visible: notMidPayment,
     },
   ],
   titleOf: ({ attendee }) =>

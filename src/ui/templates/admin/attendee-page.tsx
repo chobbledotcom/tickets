@@ -258,11 +258,15 @@ export const ContactHistory = ({
   contactRecords,
   previousBookings,
   isOwner,
+  pendingCheckout,
 }: {
   attendee: Attendee;
   contactRecords: ContactRecordsByChannel;
   previousBookings: PreviousBooking[];
   isOwner: boolean;
+  /** Hide the send-email button while a checkout is pending — the record is
+   * mid-payment, so nothing should reach out for a booking that may not land. */
+  pendingCheckout: boolean;
 }): JSX.Element => {
   const hasEmail = Boolean(attendee.email);
   return (
@@ -297,7 +301,7 @@ export const ContactHistory = ({
           label={t("attendee_form.stats_for", { value: attendee.phone })}
         />
       )}
-      {isOwner && (
+      {isOwner && !pendingCheckout && (
         <p>
           <MaybeButtonLink
             class="btn"
@@ -320,20 +324,24 @@ export const ContactHistory = ({
 
 /**
  * The always-visible banner above the tab strip: the attendee's status (only
- * when more than one status exists) and the notes block — system alerts must
- * not hide behind a tab, and the add/delete note links work from any tab.
+ * when more than one status exists), a checkout-pending alert (the write tabs
+ * hide while a payment is in flight, so the banner says why), and the notes
+ * block — system alerts must not hide behind a tab, and the add/delete note
+ * links work from any tab.
  */
 export const attendeeBanner = ({
   attendee,
   statuses,
   notes,
+  pendingCheckout,
 }: {
   attendee: Attendee;
   statuses: AttendeeStatus[];
   notes: SystemNote[];
+  pendingCheckout: boolean;
 }): JSX.Element | null => {
   const showStatus = statuses.length > 1;
-  if (!showStatus && notes.length === 0) return null;
+  if (!showStatus && notes.length === 0 && !pendingCheckout) return null;
   const status = statuses.find((s) => s.id === attendee.status_id);
   return (
     <PageBlock className="attendee-banner">
@@ -344,6 +352,11 @@ export const attendeeBanner = ({
               value: status ? status.name : t("attendee_form.status_none"),
             })}
           </h2>
+        </div>
+      )}
+      {pendingCheckout && (
+        <div class="system-note system-note-alert" role="alert">
+          {t("attendee_form.pending_checkout_banner")}
         </div>
       )}
       <AttendeeNotesSection notes={notes} />

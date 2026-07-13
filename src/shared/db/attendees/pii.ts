@@ -186,6 +186,9 @@ export const ATTENDEE_ECHO_DEFAULTS = {
   checked_in: false,
   lat: "",
   lng: "",
+  // Staging inserts its stage row after the attendee, and no echo consumer
+  // reads the flag — the projected value comes from the read path.
+  pending_checkout: 0,
   pii_blob: "",
   refunded: false,
   split_logistics_agents: false,

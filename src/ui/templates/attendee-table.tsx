@@ -226,11 +226,15 @@ const createStatusRenderer =
       );
     }
     // A no-quantity sentinel row stays visible but isn't checkable — show the
-    // indicator instead of a check-in button (updateCheckedIn refuses it).
+    // indicator instead of a check-in button (updateCheckedIn refuses it). A
+    // mid-payment staged row says so instead: "No quantity" invites an operator
+    // edit, and edits are blocked while the customer may still be paying.
     if (!hasTicketQuantity(row.attendee)) {
       return String(
         <span class="muted small">
-          {t("admin.attendee_table.no_quantity")}
+          {row.attendee.pending_checkout
+            ? t("admin.attendee_table.payment_in_progress")
+            : t("admin.attendee_table.no_quantity")}
         </span>,
       );
     }

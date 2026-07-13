@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import {
   csvDateRange,
   listingInfoColumns,
+  pendingCheckoutColumns,
   standardAttendeeColumns,
 } from "#routes/admin/attendees-csv.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -151,6 +152,7 @@ const calendarColumns = ({
       value: (a) => csvDateRange(a.date, a.end_date),
     },
     ...standardAttendeeColumns(domain),
+    ...pendingCheckoutColumns(attendees),
     ...(showLogistics ? logisticsColumns(logistics!) : []),
   ];
 };

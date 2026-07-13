@@ -34,10 +34,12 @@ const OWNER_NOTE: SystemNote = {
 const renderBanner = (
   statuses: AttendeeStatus[],
   notes: SystemNote[] = [],
+  pendingCheckout = false,
 ): JSX.Element | null =>
   attendeeBanner({
     attendee: testAttendee({ status_id: 1 }),
     notes,
+    pendingCheckout,
     statuses,
   });
 
@@ -64,6 +66,7 @@ describe("attendee page blocks", () => {
           phone: null,
         },
         isOwner: false,
+        pendingCheckout: false,
         previousBookings: [],
       }),
     );
@@ -106,6 +109,13 @@ describe("attendee page blocks", () => {
       /^<div class="page-block attendee-banner"><section class="attendee-notes">[\s\S]*<p>Bring identification<\/p>[\s\S]*<\/section><\/div>$/,
     );
     expect(html).not.toContain("attendee-status");
+  });
+
+  test("shows the checkout-pending alert even with one status and no notes", () => {
+    const html = String(renderBanner([attendeeStatus()], [], true));
+
+    expect(html).toContain("Checkout pending");
+    expect(html).toContain('role="alert"');
   });
 
   test("omits the payment block when the attendee has no payment", () => {

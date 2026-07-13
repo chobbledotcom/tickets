@@ -63,6 +63,33 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       expect(html).not.toContain("<h1>Attendees</h1>");
     });
 
+    test("shows a mid-payment staged row as payment in progress", async () => {
+      const listing = await makeListing("Staged Gala");
+      const { stageCheckout } = await import("#shared/db/checkout-stages.ts");
+      const { checkoutIntent, checkoutItem } = await import(
+        "#test-utils/checkout.ts"
+      );
+      await stageCheckout(
+        "cs_attendees_list_pending",
+        "stripe",
+        checkoutIntent({
+          items: [
+            checkoutItem({
+              listingId: listing.id,
+              name: listing.name,
+              slug: listing.slug,
+            }),
+          ],
+        }),
+      );
+
+      // The SQL projection reaches the browsing table end-to-end: the staged
+      // quantity-0 row reads as mid-payment, never as an editable "No quantity".
+      const html = await (await adminGet("/admin/attendees")).text();
+      expect(html).toContain("Payment in progress");
+      expect(html).not.toContain("No quantity");
+    });
+
     test("lists the newest registration first by default", async () => {
       const listing = await makeListing("Gala Night");
       await createTestAttendeeDirect(listing.id, "Alice", "alice@example.com");

@@ -81,6 +81,22 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
   },
 ];
 
+/** A "Checkout pending" column, emitted only when some exported row is
+ * mid-payment — an ordinary export carries no extra column. Without it a
+ * pending staged row reads as a plain zero-quantity booking, hiding that the
+ * customer may still be paying. Shared by the attendee and calendar exports. */
+export const pendingCheckoutColumns = (
+  attendees: readonly Attendee[],
+): Column<Attendee>[] =>
+  attendees.some((a) => a.pending_checkout)
+    ? [
+        {
+          header: t("csv.col.checkout_pending"),
+          value: (a) => (a.pending_checkout ? t("csv.yes") : ""),
+        },
+      ]
+    : [];
+
 /** Optional Listing Date / Listing Location columns, shared by the attendee and
  * calendar exports. Each column is emitted only when its `show` flag is set; its
  * `value` reads the cell from the row (a per-row listing for the calendar, a
@@ -180,13 +196,13 @@ export const generateAttendeesCsv = (
   questionData?: AttendeeQuestionData,
   tz: string = DEFAULT_TIMEZONE,
 ): string =>
-  CSV.generate(
-    attendees,
-    attendeeColumns({
+  CSV.generate(attendees, [
+    ...attendeeColumns({
       domain: getEffectiveDomain(),
       includeDate,
       listingInfo,
       questionData,
       tz,
     }),
-  );
+    ...pendingCheckoutColumns(attendees),
+  ]);

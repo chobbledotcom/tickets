@@ -508,6 +508,11 @@ export interface Attendee extends ContactInfo {
    * package by this persisted id. */
   package_group_id: number;
   payment_id: string;
+  /** 0/1 SQL flag: 1 while this record's checkout is staged and the customer
+   * may still be paying. Projected per row from `checkout_stages` (a core
+   * column in `select.ts`), so every table and export can say "payment in
+   * progress" instead of the "No quantity" sentinel wording. */
+  pending_checkout: number;
   /** Owner-key-encrypted PII blob as stored; "" only on a just-created
    * in-memory echo (see buildAttendeeResult), never in the database. */
   pii_blob: OwnerKeyEncrypted | "";
@@ -866,6 +871,7 @@ export type DisplayAttendee = Pick<
   | "kind"
   | "listing_id"
   | "name"
+  | "pending_checkout"
   | "phone"
   | "quantity"
   | "refunded"

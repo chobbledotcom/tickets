@@ -484,6 +484,28 @@ describe("AttendeeTable", () => {
       // The ticket column shows the indicator, not a live /t link.
       expect(html).not.toContain("/t/ghost-token");
     });
+
+    test("a mid-payment staged row says the payment is in progress", () => {
+      const html = AttendeeTable(
+        makeOpts({
+          rows: [
+            makeRow({
+              attendee: testAttendee({
+                pending_checkout: 1,
+                quantity: 0,
+                ticket_token: "staged-token",
+              }),
+            }),
+          ],
+        }),
+      );
+      // Both indicator cells (status + ticket) explain the payment is in
+      // flight — never the "No quantity" wording, which invites an edit.
+      expect(html).toContain("Payment in progress");
+      expect(html).not.toContain("No quantity");
+      expect(html).not.toContain("/t/staged-token");
+      expect(html).not.toContain("/attendee/1/checkin");
+    });
   });
 
   describe("presorted option", () => {

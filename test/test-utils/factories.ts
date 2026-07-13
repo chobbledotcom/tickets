@@ -102,6 +102,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   name: "John Doe",
   package_group_id: 0,
   payment_id: "",
+  pending_checkout: 0,
   phone: "",
   pii_blob: "",
   price_paid: "0",

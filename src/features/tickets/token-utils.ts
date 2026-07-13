@@ -144,6 +144,9 @@ const buildAttendeeView = (
   name: "",
   package_group_id: booking.package_group_id,
   payment_id: "",
+  // The public ticket view never shows the admin mid-payment indicator, so the
+  // flag is not looked up here (like the blanked PII fields above and below).
+  pending_checkout: 0,
   phone: "",
   pii_blob: base.pii_blob,
   price_paid: String(booking.price_paid),

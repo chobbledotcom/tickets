@@ -27,6 +27,7 @@ import {
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { checkLinesCapacity } from "#shared/db/attendees/capacity.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
+import { hasPendingCheckout } from "#shared/db/checkout-stages.ts";
 import {
   getContactRecord,
   getRepairFallbackRecord,
@@ -68,6 +69,10 @@ export type LoadedAttendee = {
   attendee: Attendee;
   canRefund: boolean;
   existing: ExistingLine[];
+  /** True while this record's checkout is staged and the customer may still be
+   * paying. The write tabs and actions hide behind it — every mutation is also
+   * blocked server-side, so the page must not offer controls that only fail. */
+  pendingCheckout: boolean;
 };
 
 const canRefundAttendee = async (attendee: Attendee): Promise<boolean> => {
@@ -83,11 +88,12 @@ export const loadAttendeeForEdit: (
   attendeeId: number,
 ) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
   async (attendee) => {
-    const [canRefund, existing] = await Promise.all([
+    const [canRefund, existing, pendingCheckout] = await Promise.all([
       canRefundAttendee(attendee),
       loadExistingLines(attendee.id),
+      hasPendingCheckout(attendee.id),
     ]);
-    return { attendee, canRefund, existing };
+    return { attendee, canRefund, existing, pendingCheckout };
   },
 );
 

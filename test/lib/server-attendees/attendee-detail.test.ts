@@ -41,6 +41,44 @@ describeWithEnv(
         // "No quantity" sentinel wording, which invites an operator edit.
         expect(html).toContain("Payment in progress");
         expect(html).not.toContain("No quantity");
+        // The banner says why the write controls are gone.
+        expect(html).toContain("Checkout pending");
+      });
+
+      test("hides the write tabs and actions while a checkout is pending", async () => {
+        const listing = await createTestListing({ unitPrice: 1000 });
+        const stage = await stageMidPaymentAttendee(listing, "cs_detail_tabs");
+        const base = `/admin/attendees/${stage.attendeeId}`;
+
+        const response = await adminGet(base);
+        const html = await expectHtmlResponse(response, 200);
+        // No tab link may render for a page the operator can't use: every
+        // mutation is blocked server-side while the payment is in flight.
+        expect(html).not.toContain(`href="${base}/edit"`);
+        expect(html).not.toContain(`href="${base}/logistics"`);
+        expect(html).not.toContain(`href="${base}/actions"`);
+
+        // A hidden tab's URL is a 404, so `visible` IS the authorization.
+        expect((await adminGet(`${base}/edit`)).status).toBe(404);
+        expect((await adminGet(`${base}/actions`)).status).toBe(404);
+      });
+
+      test("shows the write tabs again once the checkout resolves", async () => {
+        const listing = await createTestListing({ unitPrice: 1000 });
+        const stage = await stageMidPaymentAttendee(
+          listing,
+          "cs_detail_tabs_resolved",
+        );
+        const { markCheckoutStage } = await import(
+          "#shared/db/checkout-stages.ts"
+        );
+        await markCheckoutStage("cs_detail_tabs_resolved", "failed");
+        const base = `/admin/attendees/${stage.attendeeId}`;
+
+        const html = await expectHtmlResponse(await adminGet(base), 200);
+        expect(html).toContain(`href="${base}/edit"`);
+        expect(html).toContain(`href="${base}/actions"`);
+        expect(html).not.toContain("Checkout pending");
       });
 
       // Regression: looking at one attendee wrongly rendered the Attendees

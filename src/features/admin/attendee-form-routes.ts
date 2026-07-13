@@ -214,6 +214,20 @@ const handleSubmitInner = async (
     selectedTextAnswers,
   } = edit;
 
+  // A staged checkout's rows are claimed by the payment when it lands; editing
+  // them mid-payment would strand the paid order. Fail closed until the payment
+  // finishes. The Edit tab is hidden while pending (so it can't re-render the
+  // refusal in place, and would 404 as the failure target) — a submission that
+  // raced the checkout redirects to the always-visible overview instead, where
+  // the banner explains the locked state.
+  if (attendee !== null && (await hasPendingCheckout(attendee.id))) {
+    return redirect(
+      attendeePage.path(attendee.id, ""),
+      t("attendee_form.error_pending_checkout"),
+      false,
+    );
+  }
+
   const listingsById = byId(await getAllListings());
   // Coerce a missing/blank status back to the public default (the form offers
   // no "no status" choice) — the same resolver the template pre-selects with.
@@ -398,15 +412,6 @@ const applyEdit = async (
   logisticsPlan: LogisticsPlan,
   existingByKey: Map<string, ListingAttendeeRow>,
 ): Promise<SaveOutcome> => {
-  // A staged checkout's rows are claimed by the payment when it lands; editing
-  // them mid-payment would strand the paid order. Fail closed until the payment
-  // finishes (deleting the record instead is fine — the cascade covers it).
-  if (await hasPendingCheckout(attendeeId)) {
-    return {
-      ok: false,
-      saveError: t("attendee_form.error_pending_checkout"),
-    };
-  }
   // Block marking an assigned built-site line no-quantity (no release path here).
   if (
     await anyNoQuantityLineMatches(

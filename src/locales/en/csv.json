@@ -7,6 +7,7 @@
   "csv.col.transaction_id": "Transaction ID",
   "csv.col.ticket_token": "Ticket Token",
   "csv.col.ticket_url": "Ticket URL",
+  "csv.col.checkout_pending": "Checkout pending",
   "csv.col.type": "Type",
   "csv.col.attendees": "Attendees",
   "csv.col.capacity": "Capacity",
