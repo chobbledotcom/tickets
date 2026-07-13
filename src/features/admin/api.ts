@@ -35,8 +35,8 @@ import {
 } from "#shared/db/listings/records.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
-  deleteOrphanedAddOnError,
   generateUniqueListingSlug,
+  listingDeleteError,
   listingInputToEdge,
   parseUpdatedListingSlug,
   performListingDelete,
@@ -374,11 +374,11 @@ const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
       "Listing name",
     );
     if (error) return apiErrorResponse(error);
-    // Same orphaned-add-on guard the HTML delete uses: reject
-    // a delete that would leave a child-scoped add-on reachable only through a
-    // suppressed child, with the same 400 + error as the deactivate API.
-    const orphanError = await deleteOrphanedAddOnError(listing.id);
-    if (orphanError) return apiErrorResponse(orphanError);
+    // Same guard the HTML delete uses: reject a delete that would leave a
+    // child-scoped add-on reachable only through a suppressed child, or strand a
+    // booking still mid-payment, with the same 400 + error.
+    const guardError = await listingDeleteError(listing.id);
+    if (guardError) return apiErrorResponse(guardError);
     await performListingDelete(listing);
     return jsonResponse({ status: "ok" });
   });

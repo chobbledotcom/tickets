@@ -25,6 +25,7 @@ import {
 } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
+import { stageMidPaymentAttendee } from "../server-attendees/helpers.ts";
 
 describeWithEnv("server listings > delete", { db: true }, () => {
   describe("GET /admin/listing/:id/delete", () => {
@@ -111,6 +112,26 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("does not match"), false);
+    });
+
+    test("refuses to delete a listing with a booking mid-payment", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Test Listing",
+        unitPrice: 1000,
+      });
+      // A staged quantity-0 checkout for this listing: its payment can still
+      // land and claim the rows, so deleting the listing (which removes those
+      // rows) is blocked until the checkout finishes or expires.
+      await stageMidPaymentAttendee(listing, "cs_listing_delete_guard");
+
+      const { response } = await adminFormPost("/admin/listing/1/delete", {
+        confirm_identifier: listing.name,
+      });
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("mid-payment"), false);
+      // The listing survives the refused delete.
+      expect(await getListingWithCount(listing.id)).not.toBeNull();
     });
 
     test("displays error on confirmation page after failed attempt", async () => {

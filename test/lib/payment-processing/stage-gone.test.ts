@@ -1,10 +1,11 @@
 /**
- * The stage-read race: an operator deletes a staged record after the payment
- * machine has read its stage but before activation claims the rows. Deleting
- * mid-payment is the one sanctioned mid-payment mutation, and its contract is
- * that a late payment books FRESH from the signed order — never a refund of a
- * bookable payment. This drives createAttendeeForSession directly with a stale
- * stage snapshot, composing its inputs with the same production functions the
+ * A staged attendee losing its booking rows before activation claims them is an
+ * IMPOSSIBLE state: a pending stage's rows are only removed with the stage
+ * itself, and admin/listing deletes are blocked while pending. If it is ever
+ * observed it is a missed cascade, so activation throws loudly rather than
+ * silently re-running the create with the customer already gone. This drives
+ * createAttendeeForSession directly with a stale stage snapshot whose attendee
+ * was removed, composing its inputs with the same production functions the
  * route uses.
  */
 
@@ -17,10 +18,7 @@ import { checkoutIntentForSession } from "#routes/api/payment-processing/pricing
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { stageCheckout } from "#shared/db/checkout-stages.ts";
-import {
-  isSessionProcessed,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import {
   assembleCheckoutMetadata,
   extractSessionMetadata,
@@ -31,14 +29,13 @@ import type {
 } from "#shared/payments.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { getAttendeeQuantities } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
-  "paid checkout > stage deleted mid-payment",
+  "paid checkout > staged rows gone at claim",
   { db: true },
   () => {
-    test("books fresh from the signed order instead of refunding", async () => {
+    test("throws on the impossible gone-stage state instead of booking fresh", async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
       const captured = checkoutIntent({
         items: [
@@ -85,26 +82,20 @@ describeWithEnv(
       );
       await reserveSession("cs_stage_gone");
 
-      const honoured = await createAttendeeForSession(
-        session,
-        intent,
-        validated.items,
-        pricingIntent,
-        priceCheckout(pricingIntent),
-        staleStage.ticketToken,
-        staleStage,
-      );
-
-      if (!honoured.ok) {
-        throw new Error(`Expected a fresh booking, got ${honoured.reason}`);
-      }
-      const freshId = honoured.entries[0]!.attendee.id;
-      expect(freshId).not.toBe(staleStage.attendeeId);
-      expect(await getAttendeeQuantities(freshId)).toEqual([{ quantity: 1 }]);
-      // The payment finalized against the fresh record, not the deleted one.
-      expect((await isSessionProcessed("cs_stage_gone"))?.attendee_id).toBe(
-        freshId,
-      );
+      // The staged rows vanished out from under the claim — an impossible state
+      // in production (admin/listing deletes are blocked while pending), so the
+      // activation surfaces it loudly instead of quietly re-running the create.
+      await expect(
+        createAttendeeForSession(
+          session,
+          intent,
+          validated.items,
+          pricingIntent,
+          priceCheckout(pricingIntent),
+          staleStage.ticketToken,
+          staleStage,
+        ),
+      ).rejects.toThrow("has no booking rows at activation");
     });
   },
 );

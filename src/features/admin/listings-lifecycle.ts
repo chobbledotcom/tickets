@@ -20,7 +20,7 @@ import {
 } from "#shared/db/listings/records.ts";
 import {
   deactivationOrphanedAddOnError,
-  deleteOrphanedAddOnError,
+  listingDeleteError,
   performListingDelete,
 } from "#shared/listings-actions.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
@@ -97,7 +97,7 @@ export const listingReactivate = listingToggleHandlers({
  * the error (200), the POST blocks before deleting. */
 export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   ...listingConfirmBase,
-  guardError: (_listing, id) => deleteOrphanedAddOnError(id),
+  guardError: (_listing, id) => listingDeleteError(id),
   onConfirm: async (listing) => {
     await performListingDelete(listing);
   },
@@ -116,9 +116,9 @@ export const handleAdminListingDelete: TypedRouteHandler<
     ? listingDelete.post(request, id)
     : withAuth(request, AUTH_FORM, () =>
         withEntityFromParam(id, getListingWithCount, async (listing) => {
-          // Same orphaned-add-on guard as the confirmed path: block a
-          // delete that would leave a child-scoped add-on unreachable.
-          const error = await deleteOrphanedAddOnError(listing.id);
+          // Same guard as the confirmed path: block a delete that would leave a
+          // child-scoped add-on unreachable, or strand a mid-payment booking.
+          const error = await listingDeleteError(listing.id);
           if (error) return redirect(`/admin/listing/${id}`, error, false);
           await performListingDelete(listing);
           return redirect("/admin", t("success.listing_deleted"), true);

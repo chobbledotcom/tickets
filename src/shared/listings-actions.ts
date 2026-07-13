@@ -8,6 +8,7 @@
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { listingHasPendingCheckout } from "#shared/db/checkout-stages.ts";
 import {
   getGroupIdsByListingIds,
   getGroupsById,
@@ -474,6 +475,19 @@ export const deleteOrphanedAddOnError = (
   listingId: number,
 ): Promise<string | null> =>
   deactivationOrphanedAddOnError(new Set([listingId]));
+
+/** Why a listing can't be deleted right now, or null when it's safe. Blocks a
+ * delete that would orphan a child-scoped add-on (the shared reachability
+ * guard), or one that would strand a booking still mid-payment: deleting a
+ * listing removes its booking rows but leaves the attendee, so a pending
+ * checkout's claim would find nothing and its payment could never land. The
+ * checkout clears itself when it finishes or expires, so the block is brief. */
+export const listingDeleteError = async (
+  listingId: number,
+): Promise<string | null> =>
+  (await listingHasPendingCheckout(listingId))
+    ? t("admin.listing.pending_checkout_delete")
+    : deleteOrphanedAddOnError(listingId);
 
 /**
  * Delete a listing: clean up its attachment, remove DB links, log activity.

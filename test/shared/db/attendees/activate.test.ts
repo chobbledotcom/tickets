@@ -395,15 +395,17 @@ describeWithEnv("db > staged booking activation", { db: true }, () => {
     ).toBe("capacity_exceeded");
   });
 
-  test("refusalReason reports the stage gone when nothing is staged any more", async () => {
+  test("refusalReason throws when the staged rows are gone (impossible state)", async () => {
     const setup = await setupStage("cs_refusal_gone");
-    // The operator deleted the record mid-payment: nothing is staged, so the
-    // payment must book fresh from its signed order rather than refund.
+    // A staged attendee with zero booking rows can never happen in production:
+    // a pending stage's rows are only ever removed with the stage itself, and
+    // admin deletes / listing deletes are blocked while pending. If it is ever
+    // observed it is a missed cascade, so it must throw, not book fresh around.
     await execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
       setup.stage.attendeeId,
     ]);
-    expect(
-      await refusalReason(setup.stage.attendeeId, setup.input.bookings, []),
-    ).toBe("stage_gone");
+    await expect(
+      refusalReason(setup.stage.attendeeId, setup.input.bookings, []),
+    ).rejects.toThrow("has no booking rows at activation");
   });
 });

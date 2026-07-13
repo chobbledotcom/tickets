@@ -37,9 +37,12 @@ const ORPHAN_IDS = `SELECT attendee.id
 
 /** Dependent tables keyed by attendee_id, cleared before the attendees rows.
  * Mirrors the canonical deleteAttendee purge set (listing_attendees is empty
- * for a true orphan, but is included for exact parity and race safety). */
+ * for a true orphan, but is included for exact parity and race safety).
+ * `checkout_stages` is included so an orphan carrying a stale stage row never
+ * leaves a dangling stage — the same cascade parity deleteAttendee gives. */
 const ORPHAN_DEPENDENT_TABLES = [
   "processed_payments",
+  "checkout_stages",
   "attendee_answers",
   "listing_attendees",
   "system_notes",

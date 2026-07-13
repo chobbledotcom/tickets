@@ -131,10 +131,12 @@ const expectStage = async (
 };
 
 describeWithEnv("paid checkout staging", { db: true }, () => {
-  const errors = setupErrorSpy();
+  // Spy console.error for the block's other tests; the dangling-stage test now
+  // throws (asserted directly) rather than logging, so its return is unused.
+  setupErrorSpy();
   afterEach(() => resetStripeClient());
 
-  test("books fresh when a stage points at a deleted attendee", async () => {
+  test("throws when a stage points at a deleted attendee", async () => {
     await setupStripe();
     const listing = await createTestListing({ unitPrice: 1000 });
     const { checkout, getCaptured } = stubCheckout("cs_staged_dangling");
@@ -145,8 +147,8 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
         email: "dangling@example.com",
         name: "Dangling Buyer",
       });
-      // Bypass the delete cascade (which removes the stage) to simulate a
-      // deletion path that missed it. The stage now points at a dead id.
+      // Bypass the delete cascade (which removes the stage) to manufacture the
+      // impossible dangling stage: it now points at a dead id.
       await getDb().execute(
         `DELETE FROM attendees WHERE id =
            (SELECT attendee_id FROM checkout_stages WHERE payment_session_id = ?)`,
@@ -155,18 +157,12 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
       const intent = getCaptured();
       if (!intent) throw new Error("Expected captured checkout intent");
 
-      // The dead stage is reported loudly and ignored: the paid session books
-      // fresh from its signed details and the customer still gets a ticket.
-      const paid = await paidReturn("cs_staged_dangling", intent, 1000);
-      expectRedirect(paid, /^\/payment\/success\?tokens=.+$/);
-      expect(errors.contains("points at deleted attendee")).toBe(true);
-      const booked = await getDb().execute(
-        `SELECT booking.quantity FROM listing_attendees AS booking
-          JOIN attendees AS attendee ON attendee.id = booking.attendee_id
-         WHERE booking.listing_id = ?`,
-        [listing.id],
-      );
-      expect(booked.rows.map((row) => row.quantity)).toEqual([1]);
+      // A pending stage must never outlive its attendee, so the paid session
+      // surfaces the impossible state loudly instead of booking fresh around a
+      // missed cascade.
+      await expect(
+        paidReturn("cs_staged_dangling", intent, 1000),
+      ).rejects.toThrow("must never outlive its attendee");
     } finally {
       checkout.restore();
     }

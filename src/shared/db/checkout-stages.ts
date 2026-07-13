@@ -23,7 +23,6 @@ import {
   decryptSessionTokens,
   encryptTicketTokens,
 } from "#shared/db/processed-payments.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { toBookingItems } from "#shared/payment-helpers.ts";
 import type {
@@ -158,18 +157,18 @@ export const getCheckoutStageOrNull = async (
   );
   if (!row) return null;
   const parsedState = v.parse(CheckoutStageStateSchema, row.state);
-  // A PENDING stage whose attendee is gone can never activate (every deletion
-  // path is meant to remove the stage too, so this is a missed cascade).
-  // Report it loudly and treat the session as unstaged: the payment then books
-  // fresh from its signed intent — the correct outcome for the customer. A
-  // RESOLVED (booked/failed) dangling stage is returned as-is instead, so the
-  // resolved-stage guard still refuses to re-process money already handled.
+  // A PENDING stage whose attendee is gone is an IMPOSSIBLE state: every
+  // deletion path removes the stage with the attendee (deleteAttendee cascades
+  // it; the prune deletes both), admin edits/merges/deletes are blocked while
+  // pending, and a listing can't be deleted while it has a pending checkout. So
+  // a dangling pending stage means a delete skipped the stage cascade — surface
+  // the bug, don't silently book fresh around it. (A RESOLVED (booked/failed)
+  // dangling stage is returned as-is, so the resolved-stage guard still refuses
+  // to re-process money already handled.)
   if (row.attendee_exists === null && parsedState === "pending") {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Checkout stage for session ${sessionId} points at deleted attendee ${row.attendee_id}; booking fresh`,
-    });
-    return null;
+    throw new Error(
+      `Checkout stage for session ${sessionId} points at deleted attendee ${row.attendee_id} while still pending — a pending stage must never outlive its attendee`,
+    );
   }
   const ticketToken = await decryptSessionTokens(row.ticket_tokens);
   if (!ticketToken) throw new Error(`Checkout stage ${sessionId} has no token`);
@@ -182,11 +181,10 @@ export const getCheckoutStageOrNull = async (
 
 /**
  * Which of these attendees are mid-payment: their checkout is staged and the
- * customer may still be paying. Admin mutations (edits, merges) must leave
- * such records alone — the payment claims the exact staged rows when it lands,
- * so changing them strands the paid order. Deleting the record is still fine:
- * the delete cascade removes the stage, and a later payment books fresh.
- * Array in, set out — call with one id for the single case.
+ * customer may still be paying. Admin mutations (edits, merges, deletes) must
+ * leave such records alone — the payment claims the exact staged rows when it
+ * lands, so changing OR removing them strands the paid order. Array in, set out
+ * — call with one id for the single case.
  */
 export const attendeeIdsWithPendingStage = (
   attendeeIds: readonly number[],
@@ -200,6 +198,23 @@ export const attendeeIdsWithPendingStage = (
         WHERE state = 'pending' AND attendee_id IN (${placeholders})`,
     { primary: true },
   );
+
+/** Does this listing have any attendee mid-payment (a pending staged checkout)?
+ * Gates listing deletion: deleting a listing removes its booking rows but leaves
+ * the attendee behind, which would strand a pending stage's payment (its rows
+ * vanish, so the claim can never land). Primary-pinned, like the mutation guard
+ * above — a replica lagging a just-staged insert must not let the delete slip. */
+export const listingHasPendingCheckout = async (
+  listingId: number,
+): Promise<boolean> =>
+  (await queryOnePrimary<{ one: number }>(
+    `SELECT 1 AS one
+       FROM checkout_stages AS stage
+       JOIN listing_attendees AS booking ON booking.attendee_id = stage.attendee_id
+      WHERE stage.state = 'pending' AND booking.listing_id = ?
+      LIMIT 1`,
+    [listingId],
+  )) !== null;
 
 /** Whether this one attendee is mid-payment — a pending staged checkout the
  * payment may still claim. Single-id form of {@link attendeeIdsWithPendingStage}

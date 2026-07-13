@@ -125,7 +125,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       expect(remaining?.c).toBe(0);
     });
 
-    test("removes the orphan's dependent answer and payment rows", async () => {
+    test("removes the orphan's dependent answer, payment, and stage rows", async () => {
       const id = await insertOrphan(daysAgoIso(365));
       await getDb().execute(
         insert("attendee_answers", {
@@ -141,11 +141,24 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
           processed_at: nowIso(),
         }),
       );
+      // A stage left behind when the orphan's listing was deleted mid-checkout:
+      // the purge must cascade it too, so no dangling stage row survives.
+      await getDb().execute(
+        insert("checkout_stages", {
+          attendee_id: id,
+          created_at: nowIso(),
+          payment_session_id: `cs-orphan-${id}`,
+          provider: "stripe",
+          state: "pending",
+          ticket_tokens: "",
+        }),
+      );
 
       await purgeOrphanedAttendees(nowIso());
 
       expect(await childCount("attendee_answers", id)).toBe(0);
       expect(await childCount("processed_payments", id)).toBe(0);
+      expect(await childCount("checkout_stages", id)).toBe(0);
     });
   });
 });

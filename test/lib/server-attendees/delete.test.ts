@@ -25,7 +25,7 @@ import {
 } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
-import { setupListingAndAttendee } from "./helpers.ts";
+import { setupListingAndAttendee, stageMidPaymentAttendee } from "./helpers.ts";
 
 /** A listing plus "John Doe" attendee, with the thank-you URL set — the
  *  shared setup for the delete GET/POST/DELETE auth and 404 tests. */
@@ -209,6 +209,32 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         "/admin/attendees",
         "Attendee deleted",
       )(response);
+    });
+
+    test("refuses to delete a mid-payment staged attendee", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
+      // A staged quantity-0 attendee whose payment can still land and claim its
+      // exact rows: confirming by name gets past the confirmation step, but the
+      // pending guard blocks the delete until the checkout finishes or expires.
+      const stage = await stageMidPaymentAttendee(
+        listing,
+        "cs_attendee_delete_guard",
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${stage.attendeeId}/delete`,
+        { confirm_identifier: "Buyer" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("mid-payment"), false);
+      // The staged rows survive the refused delete.
+      const { getAttendeeRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
+      expect(await getAttendeeRaw(stage.attendeeId)).not.toBeNull();
     });
 
     test("can delete attendee without releasing bookings", async () => {

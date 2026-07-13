@@ -16,6 +16,7 @@ import {
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
+import { hasPendingCheckout } from "#shared/db/checkout-stages.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import {
@@ -76,6 +77,18 @@ const deleteAttendeeAndRedirect = async (
   opts?: Parameters<typeof redirect>[3],
   releaseBookings = true,
 ): Promise<Response> => {
+  // A pending staged checkout claims the exact rows when the payment lands, so
+  // deleting the record mid-payment would strand the paid order (its rows would
+  // vanish out from under the claim). Fail closed — the checkout clears itself
+  // when it finishes or expires.
+  if (await hasPendingCheckout(attendeeId)) {
+    return redirect(
+      redirectTo,
+      t("attendee_form.error_pending_checkout"),
+      false,
+      opts,
+    );
+  }
   await deleteAttendee(attendeeId, { releaseBookings });
   await logActivity(activityMessage, listingId, attendeeId);
   return redirect(redirectTo, flashMessage, true, opts);

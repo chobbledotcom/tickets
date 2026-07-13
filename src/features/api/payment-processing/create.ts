@@ -132,10 +132,10 @@ const formatPostPaymentError = capacityErrorFormatter({
  * two stage problems name the session (the operator's reconciliation key); the
  * two stock problems reuse the shared sold-out wording. An exhaustive record,
  * so a new activation failure cannot silently fall through to the wrong story.
- * "stage_gone" is excluded by type: a deleted stage books fresh instead of
- * failing, so it can never be routed into a failure detail. */
+ * A gone stage is never a reason here — it is an impossible state that throws
+ * (findStageProblem), because a pending stage is never deleted mid-payment. */
 const STAGED_FAILURE_DETAILS: Record<
-  Exclude<ActivationFailure, "stage_gone">,
+  ActivationFailure,
   (sessionId: string, listingName: string) => string
 > = {
   capacity_exceeded: (_sessionId, listingName) =>
@@ -378,12 +378,6 @@ export const createAttendeeForSession = async (
       { ...plan, finalize },
     );
     if (!activated.success) {
-      // The stage vanished between the caller's read and the claim: the
-      // operator deleted the record mid-payment — the one sanctioned
-      // mid-payment mutation, whose contract is that a late payment books
-      // fresh from its signed order. Fall through to the fresh create rather
-      // than refunding a bookable payment.
-      if (activated.reason === "stage_gone") return createFresh();
       return honourFailure(
         activated.reason,
         STAGED_FAILURE_DETAILS[activated.reason](

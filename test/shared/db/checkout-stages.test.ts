@@ -7,6 +7,7 @@ import {
   createStagedCheckout,
   discardPendingCheckoutSessions,
   getCheckoutStageOrNull,
+  listingHasPendingCheckout,
   markCheckoutStage,
   prunePendingCheckoutStages,
   stageCheckout,
@@ -227,7 +228,7 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     expect(await discardPendingCheckoutSessions([])).toBe(0);
   });
 
-  test("treats a pending stage with a deleted attendee as no stage", async () => {
+  test("throws on a pending stage whose attendee was deleted", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     const stage = await stageCheckout(
       "cs_stage_orphan_pending",
@@ -240,9 +241,13 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
       stage.attendeeId,
     ]);
 
-    // A pending orphan can never activate — the lookup reports it loudly and
-    // answers "no stage", so the payment books fresh from its signed details.
-    expect(await getCheckoutStageOrNull("cs_stage_orphan_pending")).toBeNull();
+    // A pending orphan is an impossible state — a pending stage is never deleted
+    // without its stage row (the cascade removes both; admin/listing deletes are
+    // blocked while pending) — so the lookup throws instead of quietly booking
+    // fresh around a missed cascade.
+    await expect(
+      getCheckoutStageOrNull("cs_stage_orphan_pending"),
+    ).rejects.toThrow("must never outlive its attendee");
   });
 
   test("keeps returning a resolved stage whose attendee was deleted", async () => {
@@ -288,5 +293,23 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
       ]),
     ).toEqual(new Set([pending.attendeeId]));
     expect(await attendeeIdsWithPendingStage([])).toEqual(new Set());
+  });
+
+  test("reports a listing with a pending checkout, and clears once resolved", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const other = await createTestListing({ unitPrice: 1000 });
+    await stageCheckout(
+      "cs_stage_listing_pending",
+      "stripe",
+      intentFor(listing),
+    );
+
+    // The staged listing has a mid-payment booking; an unrelated listing does not.
+    expect(await listingHasPendingCheckout(listing.id)).toBe(true);
+    expect(await listingHasPendingCheckout(other.id)).toBe(false);
+
+    // Resolving the stage clears the listing, so it can be deleted again.
+    await markCheckoutStage("cs_stage_listing_pending", "failed");
+    expect(await listingHasPendingCheckout(listing.id)).toBe(false);
   });
 });
