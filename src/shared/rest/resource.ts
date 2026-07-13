@@ -18,13 +18,14 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
 import { validateForm } from "#shared/forms.tsx";
 import { mapValidationError } from "#shared/optional-validate.ts";
 import type { AfterCommitConfig, ParseResult } from "#shared/rest/crud-api.ts";
+import { writeEntity } from "#shared/rest/write-entity.ts";
 
 /* jscpd:ignore-end */
 
@@ -190,38 +191,6 @@ export const defineResource = <
       async (v) => (await toInput(v)) as Partial<Input>,
     );
 
-  /** Write the row and its `afterWrite` join writes in ONE transaction, so a
-   * failed join write rolls the row write back rather than leaving the row saved
-   * without its memberships/overrides. `existingId` is null on create (the id
-   * comes from the INSERT) and the existing id on update. Only used when
-   * `config.afterWrite` is set; the committed row is read back afterwards. */
-  const writeInTransaction = async (
-    existingId: number | null,
-    input: Input,
-    form: FormParams,
-  ): Promise<Row | null> => {
-    const statement =
-      existingId === null
-        ? await table.insertStatement!(input)
-        : await table.updateStatement!(existingId, input);
-    const id = await writeRowInTransaction(statement, existingId, (tx, rowId) =>
-      config.afterWrite!(tx, rowId, input, form),
-    );
-    // Read the just-committed row back on the primary: a "read"-mode findById can
-    // hit a replica that still lags the commit and return null, which the create
-    // path would then dereference (`row.id`) and crash on. See findByIdPrimary.
-    // Present on every table that reaches this transactional path (it is set
-    // alongside insertStatement/updateStatement, asserted just above).
-    return table.findByIdPrimary!(id);
-  };
-
-  /** Run the post-commit hook for a written row, when both exist. */
-  const runAfterCommit = async (row: Row | null): Promise<void> => {
-    if (row && config.afterCommit) {
-      await config.afterCommit(row.id);
-    }
-  };
-
   /** Run `fn` only when the row exists; otherwise report not found. */
   const withExistingRow = async <Outcome>(
     id: InValue,
@@ -246,10 +215,19 @@ export const defineResource = <
       id,
     );
     if (!result.ok) return result;
-    const row = config.afterWrite
-      ? await writeInTransaction(existingId, result.input, form)
-      : await fallback(result.input);
-    await runAfterCommit(row);
+    const row = await writeEntity<Row>({
+      afterCommit: config.afterCommit,
+      buildStatement: () =>
+        existingId === null
+          ? table.insertStatement!(result.input)
+          : table.updateStatement!(existingId, result.input),
+      existingId,
+      joinWrite: (tx, rowId) =>
+        config.afterWrite!(tx, rowId, result.input, form),
+      plainWrite: () => fallback(result.input),
+      readBack: (rowId) => table.findByIdPrimary!(rowId),
+      transactional: Boolean(config.afterWrite),
+    });
     return { ok: true, row };
   };
 
