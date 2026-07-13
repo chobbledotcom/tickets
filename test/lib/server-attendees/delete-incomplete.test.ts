@@ -26,36 +26,47 @@ describeWithEnv(
   { db: true },
   () => {
     describe("POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete", () => {
+      /** Log in and make a paid listing — 100 places at £10.00 unless the caller
+       * overrides the listing options. */
+      const loginToPaidListing = (
+        options: Parameters<typeof setupListingAndLogin>[0] = {
+          maxAttendees: 100,
+          unitPrice: 1000,
+        },
+      ): ReturnType<typeof setupListingAndLogin> =>
+        setupListingAndLogin(options);
+
+      /** Log in, make a paid listing, and add one paid attendee to it. Returns
+       * the session together with the created attendee. */
+      const setupPaidAttendee = async (
+        name: string,
+        email: string,
+        paymentId: string,
+        pricePaid: number,
+        options?: Parameters<typeof setupListingAndLogin>[0],
+      ) => {
+        const session = await loginToPaidListing(options);
+        const attendee = await createPaidTestAttendee(
+          session.listing.id,
+          name,
+          email,
+          paymentId,
+          pricePaid,
+        );
+        return { ...session, attendee };
+      };
+
       testRequiresAuth("/admin/listing/1/attendee/1/delete-incomplete", {
         body: {},
         method: "POST",
         setup: async () => {
-          const { listing } = await setupListingAndLogin({
-            maxAttendees: 100,
-            unitPrice: 1000,
-          });
-          await createPaidTestAttendee(
-            listing.id,
-            "John Doe",
-            "john@example.com",
-            "",
-            1000,
-          );
+          await setupPaidAttendee("John Doe", "john@example.com", "", 1000);
         },
       });
 
       test("deletes incomplete attendee without name confirmation", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin({
-          maxAttendees: 100,
-          unitPrice: 1000,
-        });
-        const attendee = await createPaidTestAttendee(
-          listing.id,
-          "Jane Stuck",
-          "jane@example.com",
-          "",
-          1000,
-        );
+        const { listing, cookie, csrfToken, attendee } =
+          await setupPaidAttendee("Jane Stuck", "jane@example.com", "", 1000);
 
         const response = await submitDeleteIncomplete(
           listing.id,
@@ -91,17 +102,13 @@ describeWithEnv(
       });
 
       test("refuses to delete complete attendee via delete-incomplete", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin({
-          maxAttendees: 100,
-          unitPrice: 1000,
-        });
-        const attendee = await createPaidTestAttendee(
-          listing.id,
-          "John Paid",
-          "john@example.com",
-          "pi_test_123",
-          1000,
-        );
+        const { listing, cookie, csrfToken, attendee } =
+          await setupPaidAttendee(
+            "John Paid",
+            "john@example.com",
+            "pi_test_123",
+            1000,
+          );
 
         const response = await submitDeleteIncomplete(
           listing.id,

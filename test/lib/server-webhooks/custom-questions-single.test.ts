@@ -30,6 +30,17 @@ describeWithEnv(
       resetStripeClient();
     });
 
+    // Fetches a listing's attendees and returns the sole one's id, confirming
+    // exactly one booking was made before a test reads its saved answers.
+    const soleAttendeeId = async (listingId: number): Promise<number> => {
+      const { getAttendeesRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
+      const attendees = await getAttendeesRaw(listingId);
+      expect(attendees.length).toBe(1);
+      return attendees[0]!.id;
+    };
+
     test("saves custom question answers for paid single-ticket checkout", async () => {
       await setupStripe();
 
@@ -70,17 +81,13 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
+      const attendeeId = await soleAttendeeId(listing.id);
 
       // Verify custom question answers were saved
-      const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
+      const batch = await getAttendeeAnswersBatch([attendeeId], {
         texts: false,
       });
-      expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
+      expect(batch.get(attendeeId)).toEqual([a1.id]);
     });
 
     test("a submitted free-text answer keeps its string id through checkout and the webhook", async () => {
@@ -149,13 +156,8 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
       const textAnswers = await getAttendeeTextAnswers(
-        attendees[0]!.id,
+        await soleAttendeeId(listing.id),
         await getTestPrivateKey(),
       );
       expect(textAnswers.get(question.id)).toBe("Step-free entrance");
@@ -208,15 +210,9 @@ describeWithEnv(
         }),
       );
 
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-
       // The intact answer is saved; the ref with no id is dropped, not guessed.
       const textAnswers = await getAttendeeTextAnswers(
-        attendees[0]!.id,
+        await soleAttendeeId(listing.id),
         await getTestPrivateKey(),
       );
       expect(textAnswers.get(goodQ.id)).toBe("Step-free entrance");

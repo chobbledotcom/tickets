@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { oneLineAttendeeForm } from "#test/lib/server-attendee-form/_shared-setup.ts";
 import { attendeeWithNoBookings } from "#test/lib/server-attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -93,11 +94,14 @@ describeWithEnv(
           maxAttendees: 100,
           maxQuantity: 5,
         });
-        const { response } = await adminFormPost("/admin/attendees/new", {
-          email: "not-an-email",
-          name: "Valid Name",
-          ...attendeeLineFields([{ eventId: event.id, quantity: Number("1") }]),
-        });
+        const { response } = await adminFormPost(
+          "/admin/attendees/new",
+          oneLineAttendeeForm({
+            email: "not-an-email",
+            eventId: event.id,
+            name: "Valid Name",
+          }),
+        );
         // Re-renders in place (200) with the field error; the browser's
         // type=email guard is bypassed by a no-JS / crafted POST, so the server
         // is the only thing standing between bad data and the PII blob.

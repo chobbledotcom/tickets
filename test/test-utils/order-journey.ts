@@ -38,6 +38,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { openAttendeeEditor } from "#test-utils/e2e.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -366,14 +367,7 @@ export const openEditorFromRoster = async (
   // The buyer is on the roster, so their attendee link (and the editor tab
   // behind it) always exists.
   expect(browser.containsText(buyer)).toBe(true);
-  const link = browser.links.find((l) =>
-    /\/admin\/attendees\/\d+$/.test(l.href),
-  )!;
-  await browser.visit(link.href);
-  const editTab = browser.links.find((l) =>
-    /\/admin\/attendees\/\d+\/edit$/.test(l.href),
-  )!;
-  await browser.visit(editTab.href);
+  await openAttendeeEditor(browser);
 };
 
 /** The value of the editor line's quantity box at `index` — callers pass an

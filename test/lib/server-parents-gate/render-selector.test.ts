@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import type { Listing } from "#shared/types.ts";
 import { followRedirectWithFlash } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,6 +22,44 @@ import {
 import { selectOptionsFromHtml, selectOptionsHtml } from "./helpers.ts";
 
 // jscpd:ignore-end
+
+/** A parent whose sole child is a hidden pay-more add-on (£15, up to £50). The
+ * operator has chosen not to surface it publicly, so the page must keep the
+ * child's data markers and price input but show nothing that identifies it. */
+const makeHiddenSoleChild = () =>
+  makeParent({
+    children: [
+      {
+        canPayMore: true,
+        hidden: true,
+        maxPrice: 5000,
+        name: "Hidden add-on",
+        unitPrice: 1500,
+      },
+    ],
+  });
+
+/** Give a child an "Audience: Adults" attribute so a test can check whether the
+ * page surfaces (or, for a hidden child, hides) its selected attributes. */
+const giveAdultsAudience = async (childId: number): Promise<void> => {
+  const audience = await createTestAttributeWithOptions("Audience", ["Adults"]);
+  await assignTestAttributeOptions(childId, audience.options);
+};
+
+/** Render a hidden sole-child parent page and assert the shared contract every
+ * hidden-child test relies on: the child's data marker and pay-more price input
+ * stay in the DOM (so the fold/compat scripts still drive off them) while
+ * nothing names it. Returns the HTML so each test adds its own further checks. */
+const renderHidingChildName = async (
+  parent: Listing,
+  child: Listing,
+): Promise<string> => {
+  const html = await bookingPageHtml(parent.slug);
+  expect(html).toContain(`data-sole-child="${child.id}"`);
+  expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
+  expect(html).not.toContain("Hidden add-on");
+  return html;
+};
 
 describeWithEnv(
   "server > parents gate > render: selector & price visibility",
@@ -223,25 +262,10 @@ describeWithEnv(
       // auto-selected sole child still folds in, so its data
       // marker and pay-more price input stay in the DOM for the fold/compat
       // scripts — but nothing identifying (name or price label) is shown.
-      const { parent, child } = await makeParent({
-        children: [
-          {
-            canPayMore: true,
-            hidden: true,
-            maxPrice: 5000,
-            name: "Hidden add-on",
-            unitPrice: 1500,
-          },
-        ],
-      });
+      const { parent, child } = await makeHiddenSoleChild();
 
-      const html = await bookingPageHtml(parent.slug);
-      // Functional markers + price input remain so the fold and client scripts
-      // still drive off them.
-      expect(html).toContain(`data-sole-child="${child.id}"`);
-      expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
-      // Nothing visible identifies the hidden child.
-      expect(html).not.toContain("Hidden add-on");
+      const html = await renderHidingChildName(parent, child);
+      // Nor any of the visible add-on framing.
       expect(html).not.toContain("Includes");
       expect(html).not.toContain("Choose an option for");
     });
@@ -256,10 +280,7 @@ describeWithEnv(
       const { parent, child } = await makeParent({
         children: [{ name: "Visible add-on", unitPrice: 1000 }],
       });
-      const audience = await createTestAttributeWithOptions("Audience", [
-        "Adults",
-      ]);
-      await assignTestAttributeOptions(child.id, audience.options);
+      await giveAdultsAudience(child.id);
 
       const html = await bookingPageHtml(parent.slug);
       expect(html).toContain(`data-sole-child="${child.id}"`);
@@ -275,30 +296,11 @@ describeWithEnv(
       // attributes block was appended unconditionally after the suppressed
       // label, leaking the hidden child's attribute names and option text to
       // the public page.
-      const { parent, child } = await makeParent({
-        children: [
-          {
-            canPayMore: true,
-            hidden: true,
-            maxPrice: 5000,
-            name: "Hidden add-on",
-            unitPrice: 1500,
-          },
-        ],
-      });
-      const audience = await createTestAttributeWithOptions("Audience", [
-        "Adults",
-      ]);
-      await assignTestAttributeOptions(child.id, audience.options);
+      const { parent, child } = await makeHiddenSoleChild();
+      await giveAdultsAudience(child.id);
 
-      const html = await bookingPageHtml(parent.slug);
-      // Functional markers + price input remain so the fold and client
-      // scripts still drive off them.
-      expect(html).toContain(`data-sole-child="${child.id}"`);
-      expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
-      // Nothing visible identifies the hidden child — including its
-      // attributes.
-      expect(html).not.toContain("Hidden add-on");
+      const html = await renderHidingChildName(parent, child);
+      // Nothing visible identifies the hidden child — including its attributes.
       expect(html).not.toContain("Audience");
       expect(html).not.toContain("Adults");
     });

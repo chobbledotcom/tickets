@@ -42,6 +42,17 @@ const answerInfo = (over: Partial<AnswerInfo>): AnswerInfo => ({
   ...over,
 });
 
+/** Text map for a "Window seat" assign-all question (empty question→listing
+ * map) applied across selected listings 101 and 202. */
+const windowSeatAssignAllTextMap = () =>
+  listingAnswerMaps(
+    answerInfo({
+      selectedListingIds: new Set([101, 202]),
+      textAnswers: [{ questionId: 1, text: "Window seat" }],
+    }),
+    new Map(),
+  ).textAnswers;
+
 describe("ticket form answer grouping", () => {
   test("saves free-text-only submissions for the matching listing attendee", () => {
     const selectedListingIds = new Set([101]);
@@ -145,17 +156,9 @@ describe("ticket form answer grouping", () => {
   });
 
   test("applies an assign-all question (absent from the map) to every selected listing", () => {
-    const selectedListingIds = new Set([101, 202]);
-
     // An empty map means the question is assigned to no listing in particular,
     // so it applies to every selected listing.
-    const textMap = listingAnswerMaps(
-      answerInfo({
-        selectedListingIds,
-        textAnswers: [{ questionId: 1, text: "Window seat" }],
-      }),
-      new Map(),
-    ).textAnswers;
+    const textMap = windowSeatAssignAllTextMap();
 
     expect(textMap).toEqual({
       "101": [{ questionId: 1, text: "Window seat" }],
@@ -164,14 +167,7 @@ describe("ticket form answer grouping", () => {
   });
 
   test("deduplicates assign-all text answers by question for one attendee", () => {
-    const selectedListingIds = new Set([101, 202]);
-    const textMap = listingAnswerMaps(
-      answerInfo({
-        selectedListingIds,
-        textAnswers: [{ questionId: 1, text: "Window seat" }],
-      }),
-      new Map(),
-    ).textAnswers;
+    const textMap = windowSeatAssignAllTextMap();
 
     const grouped = groupListingAnswerSets(
       [

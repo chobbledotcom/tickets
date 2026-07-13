@@ -63,11 +63,13 @@ const refs = (id: string, count: number): RefundCandidate =>
     Array.from({ length: count }, (_, i) => ({ reference: `${id}${i}` })),
   );
 
+/** Three candidates named a, b, c with the given reference counts. */
+const threeCandidates = (na: number, nb: number, nc: number) =>
+  [refs("a", na), refs("b", nb), refs("c", nc)] as const;
+
 describe("packByReferenceCount", () => {
   test("packs candidates into waves that stay within the budget", () => {
-    const a = refs("a", 2);
-    const b = refs("b", 1);
-    const c = refs("c", 2);
+    const [a, b, c] = threeCandidates(2, 1, 2);
 
     // budget 3: a(2)+b(1)=3 fits, c(2) would overflow → new wave.
     expect(packByReferenceCount(3)([a, b, c])).toEqual([[a, b], [c]]);
@@ -83,9 +85,7 @@ describe("packByReferenceCount", () => {
   });
 
   test("resets the running count when a new wave starts", () => {
-    const a = refs("a", 2);
-    const b = refs("b", 2);
-    const c = refs("c", 1);
+    const [a, b, c] = threeCandidates(2, 2, 1);
 
     // budget 3: a→[a] (cc=2); b overflows→[b] (cc reset to 2); c 2+1=3 fits.
     // An accumulating mutant would carry cc past the reset and split c off.
@@ -93,9 +93,7 @@ describe("packByReferenceCount", () => {
   });
 
   test("increases the running count when appending to a wave", () => {
-    const a = refs("a", 1);
-    const b = refs("b", 1);
-    const c = refs("c", 2);
+    const [a, b, c] = threeCandidates(1, 1, 2);
 
     // budget 3: a,b append (cc=2); c 2+2=4 > 3 → new wave. A mutant that
     // fails to grow cc on append would keep c in the first wave.
@@ -103,9 +101,7 @@ describe("packByReferenceCount", () => {
   });
 
   test("keeps candidates together while the count stays at the budget", () => {
-    const a = refs("a", 1);
-    const b = refs("b", 1);
-    const c = refs("c", 1);
+    const [a, b, c] = threeCandidates(1, 1, 1);
 
     // budget 3: 1+1+1=3, never exceeds → single wave.
     expect(packByReferenceCount(3)([a, b, c])).toEqual([[a, b, c]]);

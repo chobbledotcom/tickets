@@ -19,6 +19,17 @@ import { setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
+// Enables Stripe and creates a standard paid listing: 50 spots that redirect
+// to the thank-you page on success, priced at the given amount.
+const setupPaidListing = async (unitPrice: number, stripeKey?: string) => {
+  await setupStripe(stripeKey);
+  return await createTestListing({
+    maxAttendees: 50,
+    thankYouUrl: "https://example.com/thanks",
+    unitPrice,
+  });
+};
+
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("payment routes", () => {
     test("returns 404 for unsupported method on payment routes", async () => {
@@ -39,15 +50,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("handles payment flow error when Stripe fails", async () => {
-      // Set a fake Stripe key to enable payments (in database)
-      await setupStripe("sk_test_fake_key");
-
-      // Create a paid listing
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-        unitPrice: 1000, // 10.00 price
-      });
+      // Set a fake Stripe key to enable payments, and make a paid listing
+      const listing = await setupPaidListing(1000, "sk_test_fake_key");
 
       // Try to reserve a ticket - should fail because Stripe key is invalid
       const response = await submitTicketForm(listing.slug, {
@@ -65,13 +69,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("shows specific error when payment provider returns validation error", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-        unitPrice: 1000,
-      });
+      const listing = await setupPaidListing(1000);
 
       // Mock createCheckoutSession to return a validation error result
       const mockCreate = stub(
@@ -104,14 +102,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      await setupStripe("sk_test_fake_key");
-
       // Create a free listing (no price)
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-        unitPrice: 0, // free
-      });
+      const listing = await setupPaidListing(0, "sk_test_fake_key");
 
       const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",
@@ -195,13 +187,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("carries a selected add-on and entered promo code into the checkout intent", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-        unitPrice: 1000,
-      });
+      const listing = await setupPaidListing(1000);
 
       // An opt-in add-on and a promo-code discount, both whole-order. A second
       // add-on is offered but left unselected (its quantity field stays 0).
@@ -262,14 +248,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      await setupStripe("sk_test_fake_key");
-
       // Create listing with 0 price
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-        unitPrice: 0, // zero price
-      });
+      const listing = await setupPaidListing(0, "sk_test_fake_key");
 
       const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",
@@ -281,13 +261,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-        unitPrice: 1000, // 10.00 price
-      });
+      const listing = await setupPaidListing(1000);
 
       const response = await submitTicketForm(listing.slug, {
         email: "john@example.com",

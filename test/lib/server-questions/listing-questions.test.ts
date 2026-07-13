@@ -231,6 +231,23 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/questions", () => {
+    /** Assign `questionIds` to the listing through the router, building the form
+     * by hand so more than one id can be sent. */
+    const postListingQuestions = async (
+      listingId: number,
+      questionIds: string,
+    ): Promise<Response> => {
+      const cookie = await testCookie();
+      const csrfToken = await testCsrfToken();
+      return handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listingId}/questions`,
+          { csrf_token: csrfToken, question_ids: questionIds },
+          cookie,
+        ),
+      );
+    };
+
     testRequiresAuth("/admin/listing/1/questions", {
       body: {
         question_ids: "1",
@@ -253,19 +270,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const q1 = await createQuestion("Question A?");
       await createQuestion("Question B?");
 
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/questions`,
-          {
-            csrf_token: csrfToken,
-            question_ids: String(q1),
-            // For multiple values, we need to build the form manually
-          },
-          cookie,
-        ),
-      );
+      const response = await postListingQuestions(listing.id, String(q1));
       await expectFlashRedirect(
         `/admin/listing/${listing.id}/questions`,
         "Questions updated",
@@ -310,18 +315,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await listingQuestions.setIds(listing.id, [q1]);
 
       // Now assign q2 via the route
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/questions`,
-          {
-            csrf_token: csrfToken,
-            question_ids: String(q2),
-          },
-          cookie,
-        ),
-      );
+      const response = await postListingQuestions(listing.id, String(q2));
       expect(response.status).toBe(302);
 
       const assigned = await getListingQuestionIds(listing.id);
@@ -333,18 +327,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const listing = await createTestListing({ name: "Singular Log" });
       const q1 = await createQuestion("Solo question?");
 
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-      await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/questions`,
-          {
-            csrf_token: csrfToken,
-            question_ids: String(q1),
-          },
-          cookie,
-        ),
-      );
+      await postListingQuestions(listing.id, String(q1));
 
       const response = await adminGet("/admin/log");
       const body = await response.text();

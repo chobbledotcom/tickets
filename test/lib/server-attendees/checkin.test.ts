@@ -39,6 +39,21 @@ const setupCheckinListingAndAttendee = (): ReturnType<
 describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
   const checkinAction = adminAttendeeAction("checkin", "listing");
 
+  /** Check "John Doe" in via the curried helper, then POST the checkin route
+   * again (a second POST toggles them back out) with any extra body fields.
+   * Returns that second response and the listing it happened on. */
+  const checkInThenPost = async (body: Record<string, string> = {}) => {
+    const { listing, attendee, cookie, csrfToken } = await checkinAction({})();
+    const response = await handleRequest(
+      mockFormRequest(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
+        { csrf_token: csrfToken, ...body },
+        cookie,
+      ),
+    );
+    return { listing, response };
+  };
+
   describe("POST /admin/listing/:listingId/attendee/:attendeeId/checkin", () => {
     testRequiresAuth("/admin/listing/1/attendee/1/checkin", {
       body: {},
@@ -95,17 +110,9 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
     test("redirects to the out-filtered roster when return_filter is out", async () => {
       // Check in first, then check out with return_filter=out
-      const { listing, attendee, cookie, csrfToken } = await checkinAction(
-        {},
-      )();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken, return_filter: "out" },
-          cookie,
-        ),
-      );
+      const { response, listing } = await checkInThenPost({
+        return_filter: "out",
+      });
       expectRedirect(
         response,
         `/admin/listing/${listing.id}/attendees?filter=out`,
@@ -137,19 +144,8 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
     });
 
     test("checks out an already checked-in attendee", async () => {
-      // First check in via the curried helper
-      const { listing, attendee, cookie, csrfToken } = await checkinAction(
-        {},
-      )();
-
-      // Then check out
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      // First check in via the curried helper, then a second POST checks out.
+      const { response } = await checkInThenPost();
       expectFlash(response, expect.stringContaining("Checked John Doe out"));
     });
 

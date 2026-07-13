@@ -18,6 +18,7 @@ import {
   makeParentWithDeactivatedChild,
 } from "#test-utils/parents.ts";
 import { enablePublicApi } from "#test-utils/settings.ts";
+import { publicDailyParentWithMondayChild } from "./_shared-setup.ts";
 
 describeWithEnv(
   "server > parents booking — JSON API detail & collection",
@@ -126,15 +127,11 @@ describeWithEnv(
     });
 
     test("API detail availableDates of a daily parent equal the child-constrained intersection", async () => {
-      await enablePublicApi();
       // The parent is bookable every weekday, but its only (daily) child is
       // bookable only on Mondays. The API detail must advertise only the dates a
       // child can serve — the intersection — so it never offers a date the web
       // selector removes and the fold rejects.
-      const { parent, child } = await makeParent({
-        children: [{ bookableDays: ["Monday"], daily: true }],
-        parent: { daily: true },
-      });
+      const { parent, child } = await publicDailyParentWithMondayChild();
 
       const holidays = await getActiveHolidays();
       const parentDates = getAvailableDates(

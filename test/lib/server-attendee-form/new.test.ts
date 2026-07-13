@@ -19,6 +19,14 @@ describeWithEnv(
   { db: true },
   () => {
     describe("GET /admin/attendees/new", () => {
+      /** Seed one standard "Pick Me" listing and return the rendered bare create
+       *  form (asserting it loaded with a 200). */
+      const bareCreateForm = async (): Promise<string> => {
+        await createTestListing({ maxAttendees: 100, name: "Pick Me" });
+        const response = await adminGet("/admin/attendees/new");
+        return expectHtmlResponse(response, 200);
+      };
+
       testRequiresAuth("/admin/attendees/new");
 
       test("renders the create form with a quantity box per listing", async () => {
@@ -67,9 +75,7 @@ describeWithEnv(
 
       test("omits the 'Back without saving' link", async () => {
         // The browser back button is enough; the explicit link was removed.
-        await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-        const response = await adminGet("/admin/attendees/new");
-        const html = await expectHtmlResponse(response, 200);
+        const html = await bareCreateForm();
         expect(html).not.toContain("Back without saving");
       });
 
@@ -117,9 +123,7 @@ describeWithEnv(
       test("omits the 'Show all listings' toggle on a bare create form", async () => {
         // Nothing is booked yet, so an un-ticked toggle would hide every row.
         // Instead the form drops the toggle and shows every listing.
-        await createTestListing({ maxAttendees: 100, name: "Pick Me" });
-        const response = await adminGet("/admin/attendees/new");
-        const html = await expectHtmlResponse(response, 200);
+        const html = await bareCreateForm();
         expect(html).not.toContain("Show all listings");
         expect(html).not.toContain('name="show_all"');
         // The editor carries the show-all modifier so the not-booked rows stay

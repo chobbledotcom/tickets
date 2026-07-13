@@ -33,6 +33,20 @@ const calculate = async (
   );
 };
 
+/** POST a quote for a single-slug page (page and post slug are the same) and
+ * return just its HTML. */
+const quote = async (
+  slug: string,
+  data: Record<string, string>,
+): Promise<string> => (await calculate(slug, slug, data)).text();
+
+/** Quote a package by its package count and return the summary HTML. */
+const quotePackage = (
+  group: { id: number; slug: string },
+  count: string,
+): Promise<string> =>
+  quote(group.slug, { [`package_quantity_${group.id}`]: count });
+
 describeWithEnv("server (/calculate running total)", { db: true }, () => {
   test("returns a priced summary for a valid selection", async () => {
     await setupStripe();
@@ -105,11 +119,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ]);
 
     // A package is booked by package count, not per-member quantities.
-    const html = await (
-      await calculate(group.slug, group.slug, {
-        [`package_quantity_${group.id}`]: "1",
-      })
-    ).text();
+    const html = await quotePackage(group, "1");
     // The package override (1500) prices the line — not the 5000 base.
     expect(html).toContain(formatCurrency(1500));
     expect(html).not.toContain(formatCurrency(5000));
@@ -134,11 +144,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       { listingId: member.id, price: 0 },
     ]);
 
-    const html = await (
-      await calculate(group.slug, group.slug, {
-        [`package_quantity_${group.id}`]: "1",
-      })
-    ).text();
+    const html = await quotePackage(group, "1");
     expect(html).toContain(formatCurrency(0));
     expect(html).not.toContain(formatCurrency(5000));
   });
@@ -185,11 +191,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     ]);
 
     // 2 packages → 6 units × 1000 = 6000.
-    const html = await (
-      await calculate(group.slug, group.slug, {
-        [`package_quantity_${group.id}`]: "2",
-      })
-    ).text();
+    const html = await quotePackage(group, "2");
     expect(html).toContain(formatCurrency(6000));
   });
 
@@ -213,11 +215,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // The member caps the package at 2 (max_quantity); a crafted count of 5
     // clamps to 2 → 2 × 1000 = 2000, never 5 × 1000.
-    const html = await (
-      await calculate(group.slug, group.slug, {
-        [`package_quantity_${group.id}`]: "5",
-      })
-    ).text();
+    const html = await quotePackage(group, "5");
     expect(html).toContain(formatCurrency(2000));
     expect(html).not.toContain(formatCurrency(5000));
   });
@@ -251,11 +249,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // The group holds 2; one package consumes 1 A + 1 B = 2 spots, so only one
     // package fits. Posting 2 clamps to 1 → 1×1000 + 1×1000 = 2000, not 4000.
-    const html = await (
-      await calculate(group.slug, group.slug, {
-        [`package_quantity_${group.id}`]: "2",
-      })
-    ).text();
+    const html = await quotePackage(group, "2");
     expect(html).toContain(formatCurrency(2000));
     expect(html).not.toContain(formatCurrency(4000));
   });
@@ -475,15 +469,20 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     return listing;
   };
 
-  const quoteSave10Promo = async (): Promise<string> => {
+  /** Quote one ticket on the promo listing, optionally sending a promo code,
+   * and return the summary HTML. */
+  const quotePromoListing = async (
+    extra: Record<string, string> = {},
+  ): Promise<string> => {
     const listing = await setupPromoListing();
-    return (
-      await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-        promo_code: "SAVE10",
-      })
-    ).text();
+    return quote(listing.slug, {
+      [`quantity_${listing.id}`]: "1",
+      ...extra,
+    });
   };
+
+  const quoteSave10Promo = (): Promise<string> =>
+    quotePromoListing({ promo_code: "SAVE10" });
 
   test("applies a promo code discount when the correct code is submitted", async () => {
     const html = await quoteSave10Promo();
@@ -509,13 +508,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("does not apply a promo code discount when no code is submitted", async () => {
-    const listing = await setupPromoListing();
-
-    const html = await (
-      await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-      })
-    ).text();
+    const html = await quotePromoListing();
 
     // Full price — no promo code entered, no discount line.
     expect(html).toContain(formatCurrency(1000));
@@ -524,14 +517,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("does not apply a promo code discount when a wrong code is submitted", async () => {
-    const listing = await setupPromoListing();
-
-    const html = await (
-      await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-        promo_code: "WRONGCODE",
-      })
-    ).text();
+    const html = await quotePromoListing({ promo_code: "WRONGCODE" });
 
     // Full price — wrong promo code, no discount line.
     expect(html).toContain(formatCurrency(1000));
@@ -573,14 +559,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("applies a promo code discount case-insensitively", async () => {
-    const listing = await setupPromoListing();
-
-    const html = await (
-      await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-        promo_code: "save10",
-      })
-    ).text();
+    const html = await quotePromoListing({ promo_code: "save10" });
 
     // Lowercase variant of the code should still match.
     expect(html).toContain("10% off");

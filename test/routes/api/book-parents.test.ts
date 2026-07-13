@@ -23,6 +23,13 @@ describePublicApi(() => {
       return { slug: parent.slug };
     };
 
+    /** A free parent (£0) with a single free child (£0), both capacity 10. */
+    const freeParentWithChild = () =>
+      makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
+      });
+
     /** Book `slug` through the shared checkout stub (asserting the order is
      *  taken) and return the intent the route handed the provider so a folded
      *  field can be asserted. */
@@ -79,10 +86,7 @@ describePublicApi(() => {
       // Payments enabled but the whole order is free, so it takes the no-charge
       // path and owes nothing (the provider is never invoked).
       await setupStripe();
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 10, unitPrice: 0 }],
-        parent: { maxAttendees: 10, unitPrice: 0 },
-      });
+      const { parent } = await freeParentWithChild();
       const body = await bookForToken(parent.slug);
       expect(body.booking?.checkoutUrl).toBeUndefined();
       expect(body.booking?.amountOwed).toBe(0);
@@ -91,10 +95,7 @@ describePublicApi(() => {
     test("a free parent+child booking records the child under its parent", async () => {
       // The free path threads the fold's allocations into createFreeReservation,
       // so the auto-folded child is stored as its own row under the parent.
-      const { parent, child } = await makeParent({
-        children: [{ maxAttendees: 10, unitPrice: 0 }],
-        parent: { maxAttendees: 10, unitPrice: 0 },
-      });
+      const { parent, child } = await freeParentWithChild();
       const { body } = await bookListing(parent.slug);
       const { getAttendeesByTokens } = await import(
         "#shared/db/attendees/tokens.ts"

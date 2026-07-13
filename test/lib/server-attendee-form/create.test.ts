@@ -10,6 +10,7 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import { oneLineAttendeeForm } from "./_shared-setup.ts";
 import { expectAttendeeLineCount, submitNewAttendeeForm } from "./helpers.ts";
 
 describeWithEnv(
@@ -93,11 +94,13 @@ describeWithEnv(
           maxAttendees: 100,
           maxQuantity: 5,
         });
-        const response = await submitNewAttendeeForm({
-          email: "preserve@example.com",
-          name: "",
-          ...attendeeLineFields([{ eventId: event.id, quantity: Number("1") }]),
-        });
+        const response = await submitNewAttendeeForm(
+          oneLineAttendeeForm({
+            email: "preserve@example.com",
+            eventId: event.id,
+            name: "",
+          }),
+        );
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Name is required");

@@ -9,6 +9,7 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { bookFreeOrder } from "./_shared-setup.ts";
 import {
   createOptionalAddOn,
   latestAttendee,
@@ -36,14 +37,10 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const response = await submitBuyerOrder(listing, {
+      // The order comes through just like a normal free reservation.
+      const attendee = await bookFreeOrder(listing, {
         [`quantity_${listing.id}`]: "2",
       });
-
-      // The order comes through just like a normal free reservation.
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("https://example.com");
-      const attendee = await latestAttendee();
       // Nothing collected up front; the full £20.00 (2 × £10.00) is owed, with
       // no booking fee added (no payment was processed). price_paid projects the
       // gross sale leg (£20 billed), not cash collected — the accepted gross-sale

@@ -15,6 +15,7 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+import { bookFreeOrder, bookPaidReservation } from "./_shared-setup.ts";
 import {
   createProgrammeCharge,
   createSave10Promo,
@@ -24,7 +25,6 @@ import {
   setPublicReservation,
   setupReservationListing,
   stubPaidSession,
-  submitBuyerOrder,
 } from "./helpers.ts";
 
 describeWithEnv(
@@ -151,7 +151,7 @@ describeWithEnv(
         reservationAmount: "0",
       });
       // Deposit £0.00, fee 10% of the full £10.00 = £1.00 → total 100.
-      const session = stubPaidSession(
+      const attendee = await bookPaidReservation(
         "cs_zero",
         {
           _origin: "localhost",
@@ -162,30 +162,17 @@ describeWithEnv(
         },
         100,
       );
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_zero"),
-        );
-        expect([200, 302, 303]).toContain(response.status);
-        const attendee = await latestAttendee();
-        // Gross sale leg is the full £10 even though £0 was collected up front;
-        // the whole £10 is owed. (price_paid no longer tracks cash — concern 5.)
-        expect(attendee.pricePaid).toBe(1000);
-        expect(attendee.remainingBalance).toBe(1000);
-      } finally {
-        session.restore();
-      }
+      // Gross sale leg is the full £10 even though £0 was collected up front;
+      // the whole £10 is owed. (price_paid no longer tracks cash — concern 5.)
+      expect(attendee.pricePaid).toBe(1000);
+      expect(attendee.remainingBalance).toBe(1000);
     });
 
     test("zero-deposit reservations without a fee skip the provider but keep the full balance", async () => {
       const listing = await setupReservationListing({ bookingFee: "0" });
       const statusId = await setPublicReservation("0");
 
-      const response = await submitBuyerOrder(listing);
-
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("https://example.com");
-      const attendee = await latestAttendee();
+      const attendee = await bookFreeOrder(listing);
       // Gross sale leg is the full £10 (provider skipped, £0 collected); the
       // whole £10 is owed. price_paid no longer tracks cash collected.
       expect(attendee.pricePaid).toBe(1000);
@@ -202,7 +189,7 @@ describeWithEnv(
         direction: "discount",
         name: "Discount",
       });
-      const session = stubPaidSession(
+      const attendee = await bookPaidReservation(
         "cs_discounted_reservation",
         {
           _origin: "localhost",
@@ -214,20 +201,11 @@ describeWithEnv(
         },
         50,
       );
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_discounted_reservation"),
-        );
-        expect([200, 302, 303]).toContain(response.status);
-        const attendee = await latestAttendee();
-        // Gross sale leg (£10 list); the £5 discount and £0.50 deposit are
-        // separate legs. The £4.50 owed stays accurate.
-        expect(attendee.pricePaid).toBe(1000);
-        expect(attendee.remainingBalance).toBe(450);
-        expect(attendee.statusId).toBe(statusId);
-      } finally {
-        session.restore();
-      }
+      // Gross sale leg (£10 list); the £5 discount and £0.50 deposit are
+      // separate legs. The £4.50 owed stays accurate.
+      expect(attendee.pricePaid).toBe(1000);
+      expect(attendee.remainingBalance).toBe(450);
+      expect(attendee.statusId).toBe(statusId);
     });
   },
 );
