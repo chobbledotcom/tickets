@@ -5,6 +5,7 @@
 import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   PAYMENT_PROVIDER_IDS,
@@ -153,17 +154,38 @@ const ProviderKeyBlock = ({
   </>
 );
 
+/** The heading and "configured / not configured" hint that opens each payment
+ *  provider's settings form. `keyPrefix` is the provider's i18n namespace
+ *  ("settings.stripe", "settings.square", "settings.sumup"); `configured` picks
+ *  which hint to show. `children` holds anything extra the provider tucks inside
+ *  the prose block (Square's guide link). */
+const ProviderIntro = ({
+  keyPrefix,
+  configured,
+  children,
+}: {
+  keyPrefix: string;
+  configured: boolean;
+  children?: Child;
+}): JSX.Element => (
+  <div class="prose">
+    <h2>{t(`${keyPrefix}.heading`)}</h2>
+    <p>
+      {configured
+        ? t(`${keyPrefix}.configured_hint`)
+        : t(`${keyPrefix}.not_configured_hint`)}
+    </p>
+    {children}
+  </div>
+);
+
 export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "stripe" ? (
     <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
-      <div class="prose">
-        <h2>{t("settings.stripe.heading")}</h2>
-        <p>
-          {s.stripeKeyConfigured
-            ? t("settings.stripe.configured_hint")
-            : t("settings.stripe.not_configured_hint")}
-        </p>
-      </div>
+      <ProviderIntro
+        configured={s.stripeKeyConfigured}
+        keyPrefix="settings.stripe"
+      />
       <ProviderKeyBlock
         configured={s.stripeKeyConfigured}
         fields={getStripeKeyFields()}
@@ -181,15 +203,12 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
 export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "square" ? (
     <CsrfForm action="/admin/settings/square" id="settings-square">
-      <div class="prose">
-        <h2>{t("settings.square.heading")}</h2>
-        <p>
-          {s.squareTokenConfigured
-            ? t("settings.square.configured_hint")
-            : t("settings.square.not_configured_hint")}
-        </p>
+      <ProviderIntro
+        configured={s.squareTokenConfigured}
+        keyPrefix="settings.square"
+      >
         <PaymentGuideLink label={t("settings.square.where_to_find")} />
-      </div>
+      </ProviderIntro>
       <Raw
         html={renderFields(
           getSquareAccessTokenFields(),
@@ -283,14 +302,10 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
 export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "sumup" ? (
     <CsrfForm action="/admin/settings/sumup" id="settings-sumup">
-      <div class="prose">
-        <h2>{t("settings.sumup.heading")}</h2>
-        <p>
-          {s.sumupKeyConfigured
-            ? "A SumUp API key is currently configured. Enter new credentials below to replace them."
-            : "No SumUp API key is configured. Enter your SumUp credentials to enable SumUp payments."}
-        </p>
-      </div>
+      <ProviderIntro
+        configured={s.sumupKeyConfigured}
+        keyPrefix="settings.sumup"
+      />
       <ProviderKeyBlock
         configured={s.sumupKeyConfigured}
         fields={getSumupFields()}
@@ -299,8 +314,8 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
         mode={s.sumupKeyMode}
         provider="SumUp"
         providerId="sumup"
-        testLabel="Test Connection"
-        updateLabel="Update SumUp Credentials"
+        testLabel={t("settings.sumup.test_connection")}
+        updateLabel={t("settings.sumup.update_key")}
       />
     </CsrfForm>
   ) : null;

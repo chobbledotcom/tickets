@@ -328,6 +328,8 @@ const sharedChildGroupLimits = (
 ): number[] =>
   limitsFromPooledNeeds<GroupNeed>(
     (need) => need.groupId,
+    // Every groupId here came from `groupNeedsFor(ctx)`, which only emits ids it
+    // already found in `ctx.groupRemainingByGroupId`, so the lookup always hits.
     (groupId) => ctx.groupRemainingByGroupId.get(groupId)!,
   )(needs);
 

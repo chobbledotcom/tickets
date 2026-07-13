@@ -924,3 +924,43 @@ they were left out of that PR's scope.
   should return success even if the log line can't be written — with a
   regression test that stubs `logActivity` to reject. Introduced by folding the
   two update routes onto the shared helper.
+
+- **Update success/log copy is hardcoded, not in the catalog**
+  (`src/shared/site-update.ts` `deployAndReport`, fed by
+  `src/features/admin/update.ts` and `built-sites.ts`). The success flash
+  (`"${successPrefix} to ${name} — the new version will be active shortly"`) and
+  the activity-log line (`"${logPrefix} to ${name} (${tag})"`) are built from
+  hardcoded `successPrefix`/`logPrefix`/tail strings rather than `t()` keys. This
+  copy is byte-identical to what lived in `update.ts` on `main` before the dedup
+  (the flash string `"Updated to … — the new version will be active shortly"` was
+  already there); the dedup only moved it into the shared helper. Fix: add ICU
+  keys with `{name}`/`{version}` placeholders and pass the two call sites' prefix
+  choices as keyed variants, so the flash and log line read from the catalog.
+  Out of scope for a dedup PR (pre-existing copy, not a new string).
+
+- **Admin API docs prose is hardcoded, not in the catalog**
+  (`src/ui/templates/admin/api-keys.tsx` — the authentication intro
+  `"Admin API endpoints require authentication…"`, the `"Public API endpoints
+  require no authentication. All responses are JSON."` line, the admin-group
+  intro `"Requires <code>Authorization: Bearer YOUR_API_KEY</code> header."`, and
+  the `"Use it with: <code>…</code>"` copy-notice line). These are all present
+  unchanged on `main` — the dedup restructured the page onto `DocsSection`/
+  `sectionsRenderer` but did not touch the wording. Developer-facing API-doc copy
+  may keep literal technical terms, but the surrounding prose still belongs in
+  `src/locales/en/*.json` (the sibling `api_keys.public_api_note` already is a
+  catalog key). Fix: add `api_keys.*` keys for the four strings, rendering the
+  `<code>`-bearing ones via `Raw`. Out of scope for a dedup PR (pre-existing
+  copy).
+
+- **The `/api/*/book` docs show a free response for a priced sample**
+  (`src/shared/admin-api-example.ts`). Both `POST /api/listings/:slug/book` and
+  `POST /api/packages/:slug/book` document their response as
+  `API_BOOK_FREE_EXAMPLE_JSON` (`amountOwed: 0`, a ticket token), even though the
+  package sample request is a priced bundle whose real response would carry a
+  `checkoutUrl` (`API_BOOK_PAID_EXAMPLE_JSON` already exists). Pre-existing: on
+  `main` both endpoints used a local `API_EXAMPLE_BOOKING_RESPONSE` const that is
+  byte-identical to `API_BOOK_FREE_EXAMPLE_JSON`, and this dedup only merged that
+  duplicate into the shared constant — it did not change which example shows. Fix
+  (a doc-accuracy pass, not a dedup): pick the example per endpoint — a paid
+  response for the priced package bundle, or document both free and paid shapes —
+  so the sample response matches the sample request.

@@ -33,7 +33,7 @@ const upcomingServicingRow = (event: ServicingEventSummary): JSX.Element => {
   const listingCount = event.bookings.length;
   const details = [
     servicingEventDateLabel(event.date),
-    `${listingCount} listing${listingCount === 1 ? "" : "s"}`,
+    t("admin.dashboard.service_event_listing_count", { count: listingCount }),
     `${event.totalQuantity}`,
   ].filter(Boolean);
   return (

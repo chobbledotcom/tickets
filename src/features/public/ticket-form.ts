@@ -101,12 +101,18 @@ export const listingAnswerMaps = (
   };
 };
 
+/** The outcome of resolving a page's booking date: the chosen date (null when
+ * the page offers no dates), or an error when the submitted date isn't offered. */
+export type PageDateResolution =
+  | { ok: true; date: string | null }
+  | { ok: false; error: string };
+
 /** The booking date for a page: null when the page has no dates to choose, the
  * submitted date when it is one the page offers, or an error for anything else. */
 export const resolvePageDate = (
   dates: string[],
   submitted: string | null,
-): { ok: true; date: string | null } | { ok: false; error: string } => {
+): PageDateResolution => {
   if (dates.length === 0) return { date: null, ok: true };
   return submitted && dates.includes(submitted)
     ? { date: submitted, ok: true }
