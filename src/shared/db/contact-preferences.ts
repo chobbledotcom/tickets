@@ -151,6 +151,13 @@ export type ContactRecord = ContactStats & {
   adminBookingCount: number;
 };
 
+/** Load a contact's full record (counts + decrypted note) by its one-way
+ * contact hash, using the request's private key to open the encrypted note. */
+export type ContactRecordLoader = (
+  hash: string,
+  privateKey: CryptoKey,
+) => Promise<ContactRecord>;
+
 type StatsBlob = {
   c?: number;
   t?: string;
@@ -216,10 +223,10 @@ const countFieldsFromRow = (
   visits: row?.visits ?? 0,
 });
 
-export const getContactRecord = async (
-  hash: string,
-  privateKey: CryptoKey,
-): Promise<ContactRecord> => {
+export const getContactRecord: ContactRecordLoader = async (
+  hash,
+  privateKey,
+) => {
   const row = await queryOne<
     CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" }
   >(

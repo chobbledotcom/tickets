@@ -128,9 +128,23 @@ export type ErrorMapper = (error: Error) => Response;
 
 /** A string given directly, or computed from the session and the submitted form
  * (and allowed to be async). Used for the flash/log message. */
-type SessionFormString<TSession> =
+/** A value that is either a ready `string`, or a `(session, form)` function
+ * that computes one. `Result` is what the function returns — a bare/awaitable
+ * string for a required value, or `string | undefined` when it may supply
+ * nothing. The ready form is always a plain `string`. */
+type SessionFormValue<TSession, Result> =
   | string
-  | ((session: TSession, form: FormParams) => string | Promise<string>);
+  | ((session: TSession, form: FormParams) => Result);
+
+type SessionFormString<TSession> = SessionFormValue<
+  TSession,
+  string | Promise<string>
+>;
+
+type SessionFormOptionalString<TSession> = SessionFormValue<
+  TSession,
+  string | undefined
+>;
 
 /** Configuration for createActionHandler */
 export type ActionHandlerConfig<TSession = AuthSession> = {
@@ -151,9 +165,7 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   /** Thunk returning a Set-Cookie header for the success redirect, evaluated per request (e.g. clearSessionCookie) */
   cookie?: () => string;
   /** Secret to redact from the activity log (e.g. API key shown in flash but not logged) */
-  redactedSecret?:
-    | string
-    | ((session: TSession, form: FormParams) => string | undefined);
+  redactedSecret?: SessionFormOptionalString<TSession>;
 };
 
 /**
@@ -204,10 +216,7 @@ export const createActionHandler = <TSession = AuthSession>(
   ): Promise<string> => resolveValue<string>(value, session, form);
 
   const resolveOptionalString = (
-    value:
-      | string
-      | ((session: TSession, form: FormParams) => string | undefined)
-      | undefined,
+    value: SessionFormOptionalString<TSession> | undefined,
     session: TSession,
     form: FormParams,
   ): Promise<string | undefined> =>

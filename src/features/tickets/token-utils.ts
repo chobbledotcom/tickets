@@ -102,7 +102,7 @@ export const lookupSingleTokenPassData = async (
 export type TokenRouteFn = PathMethodRoute;
 
 /** Handler type for token-based route methods */
-type TokenMethodHandler = (
+export type TokenMethodHandler = (
   request: Request,
   tokens: string[],
 ) => Response | Promise<Response>;

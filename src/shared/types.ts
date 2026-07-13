@@ -357,6 +357,10 @@ export type SharedGroupCapacity = {
   remaining: number | undefined;
 };
 
+/** The group ids each listing belongs to (listing id → group ids). A listing
+ * absent from the map belongs to no group. */
+export type GroupIdsByListingId = ReadonlyMap<number, number[]>;
+
 /**
  * Build the {@link SharedGroupCapacity} for a parent/child pair from the PER-GROUP
  * capacity maps (groupId → spots; uncapped groups omitted). They are co-grouped

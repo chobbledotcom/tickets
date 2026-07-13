@@ -35,6 +35,13 @@ export const computeHmacSha256 = async (
 export const hmacToHex = (buf: ArrayBuffer): string =>
   new Uint8Array(buf).toHex();
 
+/** Hex-encoded HMAC-SHA256 of a UTF-8 message under the given secret. */
+export const hmacSha256Hex = async (
+  message: string,
+  secret: string,
+): Promise<string> =>
+  hmacToHex(await computeHmacSha256(new TextEncoder().encode(message), secret));
+
 /** Convert ArrayBuffer to base64 string */
 export const hmacToBase64 = (buf: ArrayBuffer): string =>
   new Uint8Array(buf).toBase64();

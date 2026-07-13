@@ -1,8 +1,10 @@
 /** Content, communications, ledger, and page tables. */
 
+/* jscpd:ignore-start */
 import { itemLinkColumns, slugNamedEntityColumns } from "./columns.ts";
 import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+/* jscpd:ignore-end */
 
 export const contentTables: [name: string, table: Table][] = [
   [

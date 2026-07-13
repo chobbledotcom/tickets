@@ -1,7 +1,10 @@
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import { getDecimalPlaces, toMinorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { parseOrNull } from "./parse.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * Currency-aware money validation — the single source of truth for parsing a

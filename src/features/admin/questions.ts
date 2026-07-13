@@ -527,12 +527,7 @@ const moveAnswerHandler = (direction: -1 | 1) =>
     const idx = question.answers.findIndex((a) => a.id === answer.id);
     const neighbor = question.answers[idx + direction];
     if (neighbor) {
-      await swapAnswerOrder(
-        answer.id,
-        answer.sort_order,
-        neighbor.id,
-        neighbor.sort_order,
-      );
+      await swapAnswerOrder(answer.id, neighbor.id);
     }
     return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
   });

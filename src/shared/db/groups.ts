@@ -36,7 +36,12 @@ import {
   getListingsWithCountsByIds,
   queryListingsWithCounts,
 } from "#shared/db/listings/records.ts";
-import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
+import {
+  envNameSource,
+  type ListsByIds,
+  queryAndMap,
+  rowsByIds,
+} from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import {
@@ -527,9 +532,7 @@ export const getGroupListingIds = (groupId: number): Promise<number[]> =>
 
 /** Map each listing id to the ids of the groups it belongs to, in one query.
  * Listings that belong to no group are absent from the map. */
-export const getGroupIdsByListingIds = async (
-  listingIds: number[],
-): Promise<Map<number, number[]>> =>
+export const getGroupIdsByListingIds: ListsByIds = async (listingIds) =>
   groupToMap(
     (row: { group_id: number; listing_id: number }) => row.listing_id,
     (row) => row.group_id,

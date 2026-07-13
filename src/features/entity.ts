@@ -63,6 +63,13 @@ export type IdRouteHandler = (
   params: IdParam,
 ) => Promise<Response>;
 
+/** Wrap a plain `(request, id)` action as an `:id` route handler — unpacking
+ * the id from the route params so the action never sees the params shape. */
+export const idRouteFor =
+  (run: (request: Request, id: number) => Promise<Response>): IdRouteHandler =>
+  (request, params) =>
+    run(request, params.id);
+
 /** Route params for attendee-scoped routes */
 export type AttendeeRouteParams = { attendeeId: number };
 

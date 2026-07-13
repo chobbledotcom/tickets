@@ -17,6 +17,7 @@ import { htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   type ContactRecord,
+  type ContactRecordLoader,
   fromContactHashParam,
   getContactRecord,
   getRepairFallbackRecord,
@@ -36,10 +37,7 @@ import { contactHistoryPage } from "#templates/admin/contact-history.tsx";
  * keep the plaintext counts (read separately) and blank the unreadable note, so
  * the rendered form lets a save overwrite the bad ciphertext without losing the
  * real booking history. */
-const loadForRepair = async (
-  hash: string,
-  privateKey: CryptoKey,
-): Promise<ContactRecord> => {
+const loadForRepair: ContactRecordLoader = async (hash, privateKey) => {
   try {
     return await getContactRecord(hash, privateKey);
   } catch (error) {

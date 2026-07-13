@@ -15,7 +15,7 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 /* jscpd:ignore-start */
-import { type IdRouteHandler, withEntity } from "#routes/entity.ts";
+import { type IdRouteHandler, idRouteFor, withEntity } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -28,13 +28,6 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { NamedResource } from "#shared/rest/resource.ts";
 import type { AdminSession } from "#shared/types.ts";
-
-/** Wrap a `(request, id)` action as an `:id` route handler — the shape the
- *  confirmed-delete GET and POST entries share. */
-const idRoute =
-  (run: (request: Request, id: number) => Promise<Response>): IdRouteHandler =>
-  (request, { id }) =>
-    run(request, id);
 
 /**
  * `Row` is the stored row the resource writes and the edit/delete pages load via
@@ -197,8 +190,8 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     return {
       createPost,
-      deleteGet: idRoute(confirmedDelete.get),
-      deletePost: idRoute(confirmedDelete.post),
+      deleteGet: idRouteFor(confirmedDelete.get),
+      deletePost: idRouteFor(confirmedDelete.post),
       editGet,
       editPost,
       listGet,

@@ -44,11 +44,13 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+/* jscpd:ignore-start */
 import {
   type ContactInfo,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+/* jscpd:ignore-end */
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   extractContact,
@@ -177,24 +179,11 @@ const foldedIntent = (input: FoldedBookingInput): CheckoutIntent => {
   };
 };
 
-/** Fold the chosen children for an API booking, or return the 400 response the
- * fold raises (a child the buyer can't pick, an over-capacity selection, a
- * conflicting child price). Shared by the parent and package API booking flows,
- * which both fold then validate against the merged parent+child fields — so the
- * fold-then-respond block lives once. */
-export const foldChildrenOrError = async (
-  ctx: TicketCtx,
-  form: FormParams,
-  base: FoldBase,
-  tree: BookingTree,
-): Promise<Extract<FoldChildrenResult, { ok: true }> | Response> => {
-  const fold = await foldSelectedChildren(ctx, form, base, tree);
-  return fold.ok ? fold : apiError(fold.error);
-};
-
-/** Fold the selected children (bailing with the fold's own error Response), then
- * build the per-path order lines from the tree with the given node quantities.
- * The standalone parent and package book flows share this fold-then-build seam. */
+/** Fold the selected children (bailing with the fold's own 400 response — a
+ * child the buyer can't pick, an over-capacity selection, a conflicting child
+ * price), then build the per-path order lines from the tree with the given node
+ * quantities. The standalone parent and package book flows share this
+ * fold-then-build seam. */
 export const foldAndBuildOrderLines = async (
   ctx: TicketCtx,
   form: FormParams,
@@ -205,8 +194,8 @@ export const foldAndBuildOrderLines = async (
   | { fold: Extract<FoldChildrenResult, { ok: true }>; items: CheckoutItem[] }
   | Response
 > => {
-  const fold = await foldChildrenOrError(ctx, form, base, tree);
-  if (fold instanceof Response) return fold;
+  const fold = await foldSelectedChildren(ctx, form, base, tree);
+  if (!fold.ok) return apiError(fold.error);
   const items = buildOrderLines(
     tree,
     nodeQuantities,

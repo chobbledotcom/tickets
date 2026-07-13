@@ -31,6 +31,9 @@ export type TestImports = {
   imports: string[];
 };
 
+/** The `deno.json` import map: each `#`-alias to the path it maps to. */
+export type ImportMap = Record<string, string>;
+
 /**
  * A test that imports exactly one source but does not live at that source's
  * mirror location — a candidate to move so `test/` lines up with `src/`.
@@ -98,7 +101,7 @@ const aliasOwns = (alias: string, spec: string): boolean =>
  */
 export const resolveImportToSourceOrNull = (
   spec: string,
-  importMap: Record<string, string>,
+  importMap: ImportMap,
   srcRoot: string,
 ): string | null => {
   let best: { alias: string; target: string } | null = null;
@@ -118,7 +121,7 @@ export const resolveImportToSourceOrNull = (
 /** Every distinct `src/` path a test file imports, resolved from its text. */
 export const resolveTestImports = (
   text: string,
-  importMap: Record<string, string>,
+  importMap: ImportMap,
   srcRoot: string,
 ): string[] => [
   ...new Set(

@@ -269,6 +269,9 @@ const pushAndPersist =
     return pushResult;
   };
 
+/** The new renewal token and whether pushing it to the site succeeded. */
+type RenewalPushResult = { token: string; pushOk: boolean };
+
 /**
  * Provision a site for renewals: generate a token, push initial secrets,
  * persist the full renewal state. On push failure, leaves renewal state
@@ -278,7 +281,7 @@ export const provisionSiteRenewal = async (
   site: BuiltSite,
   months: number,
   errorContext: string,
-): Promise<{ token: string; cutoff: string; pushOk: boolean }> => {
+): Promise<RenewalPushResult & { cutoff: string }> => {
   const tokenData = await generateRenewalToken();
   const cutoff = addMonthsIso(nowIso(), months);
   const renewalState = {
@@ -302,7 +305,7 @@ export const provisionSiteRenewal = async (
 export const rotateRenewalToken = async (
   site: BuiltSite,
   errorContext: string,
-): Promise<{ token: string; pushOk: boolean }> => {
+): Promise<RenewalPushResult> => {
   const tokenData = await generateRenewalToken();
   const pushResult = await pushAndPersist(site, errorContext)(
     { renewalUrl: renewalUrlFor(tokenData.token) },

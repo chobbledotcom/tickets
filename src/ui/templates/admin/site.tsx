@@ -10,7 +10,7 @@ import {
 } from "#routes/admin/site.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashOptsPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -36,7 +36,7 @@ const siteEditorPage =
   (title: string, active: string) =>
   (session: AdminSession, error?: string, success?: string) =>
   (body: Child): string =>
-    flashAdminPage(title, active)(session, error, success)(
+    flashOptsPage(title, active)(session, { error, success })(
       <>
         {body}
         <SiteGuideFooter adminLevel={session.adminLevel} />

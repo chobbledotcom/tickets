@@ -10,7 +10,11 @@ import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
-import type { Image, ItemImageProjection } from "#shared/types.ts";
+import type {
+  GroupIdsByListingId,
+  Image,
+  ItemImageProjection,
+} from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** Quantity values parsed from ticket form */
@@ -37,7 +41,7 @@ export type ChildRenderCtx = {
   /** Remaining spots for limited groups. */
   groupRemainingByGroupId: ReadonlyMap<number, number>;
   /** Groups each listing belongs to. */
-  groupIdsByListingId: ReadonlyMap<number, number[]>;
+  groupIdsByListingId: GroupIdsByListingId;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap | undefined;
   rendered: Set<number>;
@@ -74,7 +78,7 @@ export type BookingPrefill = {
  * the specific shared group) and omitted on submit/quote. */
 export type GroupAvailability = {
   groupRemainingByGroupId?: ReadonlyMap<number, number>;
-  groupIdsByListingId?: ReadonlyMap<number, number[]>;
+  groupIdsByListingId?: GroupIdsByListingId;
 };
 
 /** Options for the ticket page */

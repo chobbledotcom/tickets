@@ -31,6 +31,7 @@ import { linkTableSide } from "#shared/db/link-table.ts";
 import {
   columnMapByIds,
   envNameSource,
+  type ListsByIds,
   queryAndMap,
 } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
@@ -298,9 +299,7 @@ export const setModifierAnswers = (
  * single-element list, absent when the answer has no modifier), keyed for
  * resolve so a modifier's quantity totals across every chosen answer that
  * points at it. */
-export const modifierIdsByAnswerId = async (
-  answerIds: number[],
-): Promise<Map<number, number[]>> =>
+export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
   new Map(
     [
       ...(await columnMapByIds(

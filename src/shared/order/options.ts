@@ -1,3 +1,5 @@
+import type { GroupIdsByListingId } from "#shared/types.ts";
+
 /**
  * The **order selection model** — the pure core behind ordering surfaces (the
  * public order gallery today; an admin "start a booking on this day" surface
@@ -35,7 +37,7 @@ export type OrderPools = {
   /** Remaining units per capped group. */
   remainingByGroupId: ReadonlyMap<number, number>;
   /** Group ids each listing belongs to. */
-  groupIdsByListingId: ReadonlyMap<number, number[]>;
+  groupIdsByListingId: GroupIdsByListingId;
 };
 
 /** How one option currently stands, given the cart so far. */

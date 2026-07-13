@@ -17,6 +17,7 @@ import {
   lookupAttendees,
   resolveEntries,
   type TokenEntry,
+  type TokenMethodHandler,
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -60,10 +61,7 @@ const withLookup = async (
 };
 
 /** Handle GET /checkin/:tokens - show current status */
-const handleCheckinGet = (
-  request: Request,
-  tokens: string[],
-): Promise<Response> =>
+const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
   withLookup(tokens, async (entries) => {
     const session = await getAuthenticatedSession(request);
     if (!session) return htmlResponse(checkinPublicPage());
@@ -82,10 +80,7 @@ const handleCheckinGet = (
   });
 
 /** Handle POST /checkin/:tokens - set check-in status from form field */
-const handleCheckinPost = (
-  request: Request,
-  tokens: string[],
-): Promise<Response> =>
+const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
   withAuth(request, AUTH_FORM, (_session, form) =>
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";

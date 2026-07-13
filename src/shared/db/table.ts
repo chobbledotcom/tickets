@@ -502,8 +502,10 @@ export const defineCachedListTable = <Row, Input>(
   });
 };
 
-/** Transform function type for column read/write */
-type ColumnTransform<T> = (v: T) => Promise<T> | T;
+/** Transform function type for a column's read/write. `In` is the value handed
+ * in; `Out` defaults to `In` for same-type transforms, but an encrypt/decrypt
+ * pair sets it to the other side (app type in, stored type out, and back). */
+type ColumnTransform<In, Out = In> = (v: In) => Promise<Out> | Out;
 
 /** Wrap encrypt/decrypt functions to handle null values */
 const wrapNullable =
@@ -541,8 +543,8 @@ export const col = {
    * asserted to be the sealed kind the column's declared `encrypt` produces
    * (see src/shared/crypto/sealed.ts). */
   encrypted: <T extends string, Stored extends string>(
-    encrypt: (v: T) => Promise<Stored> | Stored,
-    decrypt: (v: Stored) => Promise<T> | T,
+    encrypt: ColumnTransform<T, Stored>,
+    decrypt: ColumnTransform<Stored, T>,
   ): ColumnDef<T> =>
     ({
       read: (raw: string) => decrypt(raw as Stored),
@@ -558,8 +560,8 @@ export const col = {
   /** Encrypted text column with empty-string default. Same sanctioned read
    * boundary as {@link col.encrypted}; "" passes through unsealed. */
   encryptedText: <Stored extends string>(
-    encrypt: (v: string) => Promise<Stored> | Stored,
-    decrypt: (v: Stored) => Promise<string> | string,
+    encrypt: ColumnTransform<string, Stored>,
+    decrypt: ColumnTransform<Stored, string>,
   ): ColumnDef<string> => ({
     default: () => "",
     read: (v: string) => (v === "" ? v : decrypt(v as Stored)),
@@ -588,8 +590,8 @@ export const col = {
 
   /** Column with custom transforms */
   transform: <T>(
-    write: (v: T) => Promise<T> | T,
-    read: (v: T) => Promise<T> | T,
+    write: ColumnTransform<T>,
+    read: ColumnTransform<T>,
   ): ColumnDef<T> => ({ read, write }),
 
   /** Column with default value */

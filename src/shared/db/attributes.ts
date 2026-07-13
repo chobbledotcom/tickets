@@ -10,6 +10,7 @@ import { filter, map, mapParallel, reduce, sort, unique, uniqueBy } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
+  deleteByFieldBatch,
   executeBatch,
   inPlaceholders,
   nextSortOrder,
@@ -324,17 +325,11 @@ export const swapAttributeOptionOrder = (
   id2: number,
 ): Promise<void> => swapSortOrder("attribute_options", id1, id2);
 
-export const deleteAttributeOption = async (
-  optionId: number,
-): Promise<void> => {
-  await executeBatch([
-    {
-      args: [optionId],
-      sql: "DELETE FROM listing_attribute_options WHERE option_id = ?",
-    },
-    { args: [optionId], sql: "DELETE FROM attribute_options WHERE id = ?" },
+export const deleteAttributeOption = (optionId: number): Promise<void> =>
+  deleteByFieldBatch([
+    { field: "option_id", table: "listing_attribute_options", value: optionId },
+    { field: "id", table: "attribute_options", value: optionId },
   ]);
-};
 
 export const deleteAttribute = async (attributeId: number): Promise<void> => {
   await executeBatch([
