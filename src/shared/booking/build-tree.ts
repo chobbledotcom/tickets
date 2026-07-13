@@ -130,6 +130,42 @@ const buildChildren = (
     ...(input.childrenByParentId?.get(parentId) ?? []),
   ]);
 
+/** The facets that differ between the two top-level node kinds (a standalone
+ * listing and a package member); everything else about the node is shared. */
+type TopLevelNodeFacets = {
+  readonly nodeKey: string;
+  readonly edgeRef: BookingNode["edgeRef"];
+  readonly priceRule: PriceRule;
+  readonly quantityRule: QuantityRule;
+  readonly visibility: Visibility;
+};
+
+/** Assemble a top-level (date-less) booking node from its listing and the few
+ * facets that vary, so a standalone listing and a package member build the SAME
+ * node shape from one place. Its required children are built here and inherit the
+ * node's own visibility: a hidden package member hides its whole subtree, while a
+ * shown node lets its children hide only themselves. */
+const buildTopLevelNode = (
+  input: BuildTreeInput,
+  listing: ListingWithCount,
+  facets: TopLevelNodeFacets,
+): BookingNode => ({
+  children: buildChildren(
+    input,
+    facets.nodeKey,
+    listing.id,
+    facets.visibility === "HIDDEN",
+  ),
+  dateSpan: { kind: "NONE" },
+  edgeRef: facets.edgeRef,
+  listing,
+  listingId: listing.id,
+  nodeKey: facets.nodeKey,
+  priceRule: facets.priceRule,
+  quantityRule: facets.quantityRule,
+  visibility: facets.visibility,
+});
+
 /** Build one top-level node for a standalone/cart/regular-group member, wiring in
  * any required children so a parent is just a node with `children`. */
 const buildListingNode = (
@@ -145,18 +181,13 @@ const buildListingNode = (
     input.root === undefined
       ? listingNodeKey(listing.id)
       : groupMemberNodeKey(input.root.groupId, listing.id);
-  return {
-    // A top-level node is always SHOWN, so its children only hide themselves.
-    children: buildChildren(input, nodeKey, listing.id, false),
-    dateSpan: { kind: "NONE" },
+  return buildTopLevelNode(input, listing, {
     edgeRef,
-    listing,
-    listingId: listing.id,
     nodeKey,
     priceRule: derivePriceRule(listing, undefined),
     quantityRule: { kind: "BUYER_CHOICE" },
     visibility: "SHOWN",
-  };
+  });
 };
 
 /** Build one package member node: a `FIXED(memberQty)` node priced by any
@@ -172,19 +203,8 @@ const buildPackageMemberNode =
     const visibility: Visibility = pkg.hideListings ? "HIDDEN" : "SHOWN";
     const quantityRule: QuantityRule = { kind: "FIXED", qty: fixedQty };
     const nodeKey = packageMemberNodeKey(pkg.groupId, listing.id);
-    return {
-      // A hidden package member hides its whole subtree: pass HIDDEN down so an
-      // auto-included child of a hidden member is never named (privacy).
-      children: buildChildren(
-        input,
-        nodeKey,
-        listing.id,
-        visibility === "HIDDEN",
-      ),
-      dateSpan: { kind: "NONE" },
+    return buildTopLevelNode(input, listing, {
       edgeRef: { groupId: pkg.groupId, kind: "group_member" },
-      listing,
-      listingId: listing.id,
       nodeKey,
       priceRule: derivePriceRule(
         listing,
@@ -193,7 +213,7 @@ const buildPackageMemberNode =
       ),
       quantityRule,
       visibility,
-    };
+    });
   };
 
 /** The page identity a built tree records: a regular group keeps its explicit

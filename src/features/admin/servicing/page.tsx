@@ -19,8 +19,9 @@ import {
 } from "#templates/admin/servicing-events.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { buildServicingFieldSchema } from "./form-model.ts";
 
 const SERVICING_FORM_ID = "servicing-form";
@@ -208,8 +209,8 @@ export const renderServicingPage = ({
         />
         <DataTable
           columns={[
-            { header: t("servicing.column.listing") },
-            { header: t("servicing.column.quantity") },
+            textCol("servicing.column.listing"),
+            textCol("servicing.column.quantity"),
           ]}
           rows={listingRows(listings, event, prefill)}
         />
@@ -223,16 +224,17 @@ export const renderServicingPage = ({
       </CsrfForm>
       {event && (
         <>
-          <CsrfForm action={`/admin/servicing/${event.id}/duplicate`}>
-            <SubmitButton icon="rotate-ccw">
-              {t("servicing.action.duplicate")}
-            </SubmitButton>
-          </CsrfForm>
-          <CsrfForm action={`/admin/servicing/${event.id}/delete`}>
-            <SubmitButton class="danger" icon="trash-2">
-              {t("servicing.action.delete_event")}
-            </SubmitButton>
-          </CsrfForm>
+          <SaveForm
+            action={`/admin/servicing/${event.id}/duplicate`}
+            submitIcon="rotate-ccw"
+            submitLabel={t("servicing.action.duplicate")}
+          />
+          <SaveForm
+            action={`/admin/servicing/${event.id}/delete`}
+            submitClass="danger"
+            submitIcon="trash-2"
+            submitLabel={t("servicing.action.delete_event")}
+          />
           <CsrfForm action={`/admin/servicing/${event.id}`}>
             <SectionFieldset
               className="listing-section"
@@ -259,11 +261,11 @@ export const renderServicingPage = ({
               <h2>{t("servicing.recorded_costs")}</h2>
               <DataTable
                 columns={[
-                  { header: t("servicing.column.listing") },
-                  { header: t("servicing.column.date") },
+                  textCol("servicing.column.listing"),
+                  textCol("servicing.column.date"),
                   { class: "amount", header: t("servicing.column.amount") },
-                  { header: t("servicing.column.note") },
-                  { header: t("servicing.column.actions") },
+                  textCol("servicing.column.note"),
+                  textCol("servicing.column.actions"),
                 ]}
                 rows={costRows(costs, costListingNames, event.id, session)}
               />
@@ -312,10 +314,10 @@ export const renderServicingList = (
     >
       <DataTable
         columns={[
-          { header: t("servicing.column.name") },
-          { header: t("servicing.column.date") },
-          { header: t("servicing.column.listings") },
-          { header: t("servicing.column.quantity") },
+          textCol("servicing.column.name"),
+          textCol("servicing.column.date"),
+          textCol("servicing.column.listings"),
+          textCol("servicing.column.quantity"),
         ]}
         rows={
           rows.length > 0

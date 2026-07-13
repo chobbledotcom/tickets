@@ -111,6 +111,17 @@ const reorderableTable = <T,>(opts: {
   />
 );
 
+/** A page-list row's cells: the name link, one middle cell (public slug or
+ * parent name), then the delete link. Shared by the root and nested lists. */
+const pageRowCells = (
+  page: SitePageNavRow,
+  middle: JSX.Element | string,
+): (JSX.Element | string)[] => [
+  <PageNameLink id={page.id} name={page.name} />,
+  middle,
+  <DeleteLink id={page.id} />,
+];
+
 export const adminSitePagesListPage = (
   model: ListModel,
   session: AdminSession,
@@ -130,11 +141,7 @@ export const adminSitePagesListPage = (
         <h2>{t("site.pages.roots_heading")}</h2>
         {reorderableTable({
           base: (page) => `${LIST}/${page.id}`,
-          cells: (page) => [
-            <PageNameLink id={page.id} name={page.name} />,
-            <code>/page/{page.slug}</code>,
-            <DeleteLink id={page.id} />,
-          ],
+          cells: (page) => pageRowCells(page, <code>/page/{page.slug}</code>),
           headers: [t("site.pages.name_column"), t("common.slug")],
           rows: model.roots,
         })}
@@ -147,11 +154,9 @@ export const adminSitePagesListPage = (
                 { header: t("site.pages.parent_column") },
                 { header: "" },
               ]}
-              rows={model.nested.map(({ page, parentName }) => [
-                <PageNameLink id={page.id} name={page.name} />,
-                parentName,
-                <DeleteLink id={page.id} />,
-              ])}
+              rows={model.nested.map(({ page, parentName }) =>
+                pageRowCells(page, parentName),
+              )}
             />
           </>
         )}

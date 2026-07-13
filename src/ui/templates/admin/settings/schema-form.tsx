@@ -68,6 +68,15 @@ const labelHint = (
     </p>
   ) : undefined;
 
+/** The field name and placeholder both the text input and the textarea take,
+ *  read from the same definition so the two inputs can never drift apart. */
+const nameAndPlaceholder = (
+  definition: Extract<SettingsFormDefinition, { kind: "text" | "textarea" }>,
+): { name: string; placeholder: string } => ({
+  name: definition.fieldName,
+  placeholder: t(definition.copy.placeholderKey),
+});
+
 const textForm = (
   definition: Extract<SettingsFormDefinition, { kind: "text" }>,
   state: object,
@@ -75,8 +84,7 @@ const textForm = (
   formSection(definition, [
     <TextField
       label={t(definition.copy.labelKey)}
-      name={definition.fieldName}
-      placeholder={t(definition.copy.placeholderKey)}
+      {...nameAndPlaceholder(definition)}
       type={definition.inputType}
       value={stringState(state, definition.stateField)}
     />,
@@ -97,8 +105,7 @@ const textareaForm = (
           ? { "data-markdown-preview": true }
           : {})}
         maxlength={MAX_TEXTAREA_LENGTH}
-        name={definition.fieldName}
-        placeholder={t(definition.copy.placeholderKey)}
+        {...nameAndPlaceholder(definition)}
       >
         {stringState(state, definition.stateField)}
       </textarea>

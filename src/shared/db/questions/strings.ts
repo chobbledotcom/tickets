@@ -30,6 +30,10 @@ export type PreparedStringRow = {
   textIndex: BlindIndex;
 };
 
+/** The interned id of each free-text answer, keyed by its plaintext — what the
+ * interning functions all return so a caller can swap each answer for its id. */
+export type StringIdByText = Map<string, number>;
+
 /**
  * Pair each just-written string (`text` + its `textIndex`) with the id the
  * post-insert SELECT returned, keyed by text.
@@ -46,7 +50,7 @@ export type PreparedStringRow = {
 export const pairStringIds = (
   rows: readonly { text: string; textIndex: string }[],
   found: readonly { id: number; text_index: string }[],
-): Map<string, number> => {
+): StringIdByText => {
   const idByIndex = new Map(found.map((row) => [row.text_index, row.id]));
   return new Map(
     rows.map((row) => {
@@ -118,7 +122,7 @@ const runInternStatements = async (
 export const internStringRows = async (
   rows: PreparedStringRow[],
   tx?: TxScope,
-): Promise<Map<string, number>> => {
+): Promise<StringIdByText> => {
   if (rows.length === 0) return new Map();
   const created = nowIso();
   const textIndexes = rows.map((r) => r.textIndex);
@@ -167,5 +171,5 @@ export const internStringRows = async (
 export const getOrCreateStringIds = async (
   texts: string[],
   tx?: TxScope,
-): Promise<Map<string, number>> =>
+): Promise<StringIdByText> =>
   internStringRows(await prepareStringRows(texts), tx);

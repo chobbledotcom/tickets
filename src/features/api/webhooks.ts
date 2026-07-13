@@ -69,11 +69,16 @@ const renderPaidSuccessPage = async (
   );
 };
 
+/** The `session_id` query param of a payment callback, or "" when absent.
+ * Shared by every callback handler that reads it. */
+const paymentSessionId = (request: Request): string =>
+  getSearchParam(request, "session_id");
+
 /** Wrap handler with session ID extraction */
 const withSessionId =
   (handler: (sessionId: string) => Promise<Response>) =>
   (request: Request): Promise<Response> => {
-    const sessionId = getSearchParam(request, "session_id");
+    const sessionId = paymentSessionId(request);
     if (!sessionId) {
       logError({
         code: ErrorCode.PAYMENT_SESSION,
@@ -210,7 +215,7 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
   // Stripe uses session_id via {CHECKOUT_SESSION_ID} template variable;
   // Square appends orderId as a query parameter to the redirect URL
   const sessionId =
-    getSearchParam(request, "session_id") || getSearchParam(request, "orderId");
+    paymentSessionId(request) || getSearchParam(request, "orderId");
   if (sessionId) return processSessionAndRedirect(sessionId);
 
   const tokensParam = getSearchParam(request, "tokens");

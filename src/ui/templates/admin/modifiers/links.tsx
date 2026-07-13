@@ -40,6 +40,23 @@ export type AnswerLinks = {
   selected: number[];
 };
 
+/** One heading with its tickable items — the single group both link editors
+ *  show. Each item is named and either active (normal) or deactivated (muted). */
+const OneGroupCheckboxes = ({
+  label,
+  options,
+  selected,
+  name,
+}: Pick<ScopeLinks, "options" | "selected"> & {
+  label: string;
+  name: string;
+}): JSX.Element => (
+  <LinkedItemsCheckboxes
+    groups={[{ label, options: toLinkedItemOptions(options, selected) }]}
+    name={name}
+  />
+);
+
 /** The listing/group link editor shown on the edit page for a scoped modifier. */
 export const ScopeLinksForm = ({
   modifier,
@@ -54,14 +71,11 @@ export const ScopeLinksForm = ({
       {links.options.length === 0 ? (
         <p>{t("modifiers.scope.none")}</p>
       ) : (
-        <LinkedItemsCheckboxes
-          groups={[
-            {
-              label: t(term),
-              options: toLinkedItemOptions(links.options, links.selected),
-            },
-          ]}
+        <OneGroupCheckboxes
+          label={t(term)}
           name={field}
+          options={links.options}
+          selected={links.selected}
         />
       )}
       <SubmitButton icon="save">{t("modifiers.scope.save")}</SubmitButton>
@@ -86,20 +100,14 @@ export const AnswerLinksForm = ({
     {answerLinks.options.length === 0 ? (
       <p>{t("modifiers.answers.none")}</p>
     ) : (
-      <LinkedItemsCheckboxes
-        groups={[
-          {
-            label: t("terms.answers"),
-            options: toLinkedItemOptions(
-              answerLinks.options.map((option) => ({
-                ...option,
-                active: true,
-              })),
-              answerLinks.selected,
-            ),
-          },
-        ]}
+      <OneGroupCheckboxes
+        label={t("terms.answers")}
         name="answer_ids"
+        options={answerLinks.options.map((option) => ({
+          ...option,
+          active: true,
+        }))}
+        selected={answerLinks.selected}
       />
     )}
     <SubmitButton icon="save">{t("modifiers.answers.save")}</SubmitButton>

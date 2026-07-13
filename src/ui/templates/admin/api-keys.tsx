@@ -43,6 +43,13 @@ const lastUsedCell = (apiKey: ApiKeyDisplay): string =>
 const createdCell = (apiKey: ApiKeyDisplay): string =>
   new Date(apiKey.created).toLocaleDateString();
 
+/** The success/error flash shown at the top of a page, read from its opts. */
+const OptsFlash = ({
+  opts,
+}: {
+  opts: { error?: string | undefined; success?: string | undefined };
+}): JSX.Element => <Flash error={opts.error} success={opts.success} />;
+
 const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
   String(
     <tr>
@@ -87,7 +94,7 @@ export const adminApiKeysPage = (
     adminSession,
     t("api_keys.title"),
     <>
-      <Flash error={opts.error} success={opts.success} />
+      <OptsFlash opts={opts} />
 
       {opts.newKey && (
         <div class="warning">
@@ -143,7 +150,7 @@ export const adminApiKeyManagePage = (
     `${t("api_keys.title")}: ${apiKey.name}`,
     <>
       <h1>{apiKey.name}</h1>
-      <Flash error={opts.error} success={opts.success} />
+      <OptsFlash opts={opts} />
       <DetailTable>
         <tr>
           <th>{t("common.created")}</th>

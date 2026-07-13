@@ -49,6 +49,9 @@ import {
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 
+/** Keeps only the listings that are still active. */
+const activeOnly = filter((e: ListingWithCount) => e.active);
+
 /** The dashboard's quick-create actions — shortcuts to add a listing or an
  *  attendee straight from the home page (each section's own sub-nav reaches the
  *  same create flows once you're inside it). */
@@ -221,7 +224,7 @@ export const adminDashboardPage = (
   // newest-attendee sections below stay based on the full set. Offer the bar
   // (same control as the public/attendee filters) only when more than one
   // listing type is present.
-  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
+  const activeListings = activeOnly(listings);
   // The multi-booking builder offers only standalone-bookable listings; a child
   // is never an entry point (I3) and a hidden package's member 404s on its own
   // page, so both are excluded from the selectable set and the "2+ listings"
@@ -308,7 +311,7 @@ export const adminListingsPage = (
     Object.keys(columns),
     isEditor ? EDITOR_LISTING_DEFAULT_ORDER : LISTING_DEFAULT_ORDER,
   );
-  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
+  const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
   );

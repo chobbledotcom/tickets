@@ -2,6 +2,7 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
+import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
@@ -226,50 +227,57 @@ export const getAttendeesPage = async ({
   return trimAttendeePage(rows);
 };
 
+/** Keeps only attendees who have at least one real (quantity > 0) booking line —
+ * a no-quantity-only placeholder (interested/cancelled) has no valid ticket URL,
+ * so it is never part of an email audience. Shared by every pii_blob read. */
+const HAS_REAL_LINE = `EXISTS (
+       SELECT 1 FROM listing_attendees
+       WHERE attendee_id = attendees.id AND quantity > 0
+     )`;
+
+/** Select the encrypted pii_blob of each real-audience attendee (an
+ * ATTENDEE_KIND row with a real line) matching one extra narrowing clause, then
+ * return just the blobs. The bulk-email audience reads all read and unwrap the
+ * blob the same way; they differ only in how they pick which attendees match. */
+const selectAudiencePiiBlobs = async (
+  extraWhere: string,
+  args?: InValue[],
+): Promise<OwnerKeyEncrypted[]> => {
+  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
+    `SELECT pii_blob FROM attendees
+     WHERE kind = '${ATTENDEE_KIND}' AND ${extraWhere}`,
+    args,
+  );
+  return rows.map((r) => r.pii_blob);
+};
+
 /**
  * Get every attendee's encrypted PII blob (one row per attendee).
  * Used to resolve bulk-email recipient lists, where only the email inside each
  * blob is needed. De-duplication of addresses happens after decryption.
  */
-export const getAllAttendeePiiBlobs = async (): Promise<
-  OwnerKeyEncrypted[]
-> => {
-  // Restrict the "all attendees" bulk-email audience to attendees with ≥1 real
-  // (quantity > 0) line, so a no-quantity-only attendee (an interested/cancelled
-  // placeholder) isn't emailed — its ticket URL would 404.
-  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
-    `SELECT pii_blob FROM attendees
-     WHERE kind = '${ATTENDEE_KIND}'
-       AND EXISTS (
-       SELECT 1 FROM listing_attendees
-       WHERE attendee_id = attendees.id AND quantity > 0
-     )`,
-  );
-  return rows.map((r) => r.pii_blob);
-};
+export const getAllAttendeePiiBlobs = (): Promise<OwnerKeyEncrypted[]> =>
+  selectAudiencePiiBlobs(HAS_REAL_LINE);
 
 /**
  * Get the encrypted PII blobs for attendees booked onto any of the given
  * listings (one row per attendee, even if booked onto several of them).
  * Returns an empty array when no listing IDs are supplied.
  */
-export const getAttendeePiiBlobsForListings = async (
+export const getAttendeePiiBlobsForListings = (
   listingIds: number[],
-): Promise<OwnerKeyEncrypted[]> => {
-  if (listingIds.length === 0) return [];
-  const rows = await queryAll<{ pii_blob: OwnerKeyEncrypted }>(
-    // quantity > 0: only attendees with a real line on these listings — a
-    // no-quantity sentinel line doesn't make someone an "attendee of X".
-    `SELECT pii_blob FROM attendees
-     WHERE kind = '${ATTENDEE_KIND}'
-       AND id IN (
+): Promise<OwnerKeyEncrypted[]> =>
+  listingIds.length === 0
+    ? Promise.resolve([])
+    : // quantity > 0: only attendees with a real line on these listings — a
+      // no-quantity sentinel line doesn't make someone an "attendee of X".
+      selectAudiencePiiBlobs(
+        `id IN (
        SELECT DISTINCT attendee_id FROM listing_attendees
        WHERE listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0
      )`,
-    listingIds,
-  );
-  return rows.map((r) => r.pii_blob);
-};
+        listingIds,
+      );
 
 /**
  * Get the encrypted PII blob for the attendee identified by a plaintext ticket
