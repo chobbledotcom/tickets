@@ -86,120 +86,82 @@ export interface StaticBundle {
   options: esbuild.BuildOptions;
 }
 
+/** A browser bundle built the standard way (bundled, minified, IIFE, deno
+ *  loader plugins). `extra` overrides that default per bundle — the order
+ *  widget needs ESM, the iframe-resizer child needs a licence banner. */
+const browserBundle = (
+  label: string,
+  entryPoint: string,
+  outfile: string,
+  extra: esbuild.BuildOptions = {},
+): StaticBundle => ({
+  label,
+  options: {
+    bundle: true,
+    entryPoints: [entryPoint],
+    format: "iife",
+    minify: true,
+    outfile,
+    platform: "browser",
+    plugins: denoLoaderPlugins(),
+    ...extra,
+  },
+});
+
 export const STATIC_JS_BUNDLES: StaticBundle[] = [
-  {
-    label: "Scanner",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/scanner.js"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.scanner,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
-  {
-    label: "Admin",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/admin.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.admin,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
-  {
-    label: "Logistics map",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/logistics-map.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.logisticsMap,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
-  {
-    label: "Markdown editor",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/markdown-editor.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.markdownEditor,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
-  {
-    label: "Embed",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/embed.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.embed,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
-  {
-    label: "Contact",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/contact.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.contact,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
-  {
-    // ESM (not IIFE): the order widget is loaded as `<script type="module">`,
-    // and that module form is what makes the cross-origin CORS gate bite — a
-    // classic-script include would bypass it. The `export {}` in order.ts also
-    // forces module-only parsing.
-    label: "Order",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/order.ts"],
+  browserBundle(
+    "Scanner",
+    "./src/ui/client/scanner.js",
+    STATIC_ASSET_OUTFILES.scanner,
+  ),
+  browserBundle(
+    "Admin",
+    "./src/ui/client/admin.ts",
+    STATIC_ASSET_OUTFILES.admin,
+  ),
+  browserBundle(
+    "Logistics map",
+    "./src/ui/client/logistics-map.ts",
+    STATIC_ASSET_OUTFILES.logisticsMap,
+  ),
+  browserBundle(
+    "Markdown editor",
+    "./src/ui/client/markdown-editor.ts",
+    STATIC_ASSET_OUTFILES.markdownEditor,
+  ),
+  browserBundle(
+    "Embed",
+    "./src/ui/client/embed.ts",
+    STATIC_ASSET_OUTFILES.embed,
+  ),
+  browserBundle(
+    "Contact",
+    "./src/ui/client/contact.ts",
+    STATIC_ASSET_OUTFILES.contact,
+  ),
+  // ESM (not IIFE): the order widget is loaded as `<script type="module">`,
+  // and that module form is what makes the cross-origin CORS gate bite — a
+  // classic-script include would bypass it. The `export {}` in order.ts also
+  // forces module-only parsing.
+  browserBundle(
+    "Order",
+    "./src/ui/client/order.ts",
+    STATIC_ASSET_OUTFILES.order,
+    {
       format: "esm",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.order,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
     },
-  },
-  {
-    label: "iframe-resizer-parent",
-    options: {
-      bundle: true,
-      entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
-  {
-    label: "iframe-resizer-child",
-    options: {
-      banner: { js: "window.iframeResizer={license:'GPLv3'};" },
-      bundle: true,
-      entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
-      platform: "browser",
-      plugins: denoLoaderPlugins(),
-    },
-  },
+  ),
+  browserBundle(
+    "iframe-resizer-parent",
+    "./src/ui/client/iframe-resizer-parent.ts",
+    STATIC_ASSET_OUTFILES.iframeResizerParent,
+  ),
+  browserBundle(
+    "iframe-resizer-child",
+    "./src/ui/client/iframe-resizer-child.ts",
+    STATIC_ASSET_OUTFILES.iframeResizerChild,
+    { banner: { js: "window.iframeResizer={license:'GPLv3'};" } },
+  ),
 ];
 
 export const buildStaticAssets = async (
