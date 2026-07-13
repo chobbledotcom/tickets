@@ -7,6 +7,7 @@
  * field, and a builder keeps them from drifting.
  */
 
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import { t } from "#i18n";
 import { VALID_DAY_NAMES } from "#shared/dates.ts";
@@ -24,6 +25,7 @@ import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+/* jscpd:ignore-end */
 
 /**
  * Validate a user-saved URL that must point at a public https:// domain.

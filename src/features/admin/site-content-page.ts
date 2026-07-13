@@ -5,6 +5,7 @@
  * or two slotted between Edit and Images. Keeps the two editors from drifting.
  */
 
+/* jscpd:ignore-start */
 import {
   type ActionDef,
   customTab,
@@ -17,6 +18,8 @@ import { isStorageEnabled } from "#shared/storage.ts";
 import type { ImageUseItemType } from "#shared/types.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
 import { loadItemImagesPanel } from "./item-images.ts";
+
+/* jscpd:ignore-end */
 
 /** The Edit (and Items) tabs mutate the entity, so they hide in read-only mode
  * — their POSTs bounce to /read-only there, so a bare-URL default must not

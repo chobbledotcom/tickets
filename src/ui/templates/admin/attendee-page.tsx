@@ -6,6 +6,7 @@
  * attendee-specific content it composes.
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { targetQuery } from "#shared/bulk-email.ts";
@@ -29,6 +30,7 @@ import {
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
+/* jscpd:ignore-end */
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
  * /admin/history editor link. Null when the attendee has no value for that

@@ -2,6 +2,7 @@
  * Setup routes - initial system configuration
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { applyFlash, parseFormWithCsrf } from "#routes/csrf.ts";
 import {
@@ -20,6 +21,8 @@ import { ErrorCode, logDbError, logDebug, logError } from "#shared/logger.ts";
 import { getSetupFields } from "#templates/fields/admin.ts";
 import type { SetupFormValues } from "#templates/fields/types.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
+
+/* jscpd:ignore-end */
 
 /** Response helper - renders setup page with current stored CSRF token */
 const setupResponse = (error?: string) => htmlResponse(setupPage(error));

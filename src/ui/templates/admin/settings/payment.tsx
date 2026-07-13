@@ -2,6 +2,7 @@
  * Payment Provider, Stripe, Square, and Booking Fee forms for settings
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
@@ -21,6 +22,7 @@ import {
   getStripeKeyFields,
   getSumupFields,
 } from "#templates/fields/admin.ts";
+/* jscpd:ignore-end */
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
   <SaveForm

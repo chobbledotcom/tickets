@@ -10,6 +10,7 @@
  * and saves everything.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   ATTENDEE_LOGISTICS_FORM_ID,
@@ -27,6 +28,8 @@ import { AddressFieldWithLookup } from "#templates/components/address-field.tsx"
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
+
+/* jscpd:ignore-end */
 
 /** Props for the parts of the tab that render from the whole tab payload. */
 type LogisticsTabProps = { data: AttendeeLogisticsTabData };

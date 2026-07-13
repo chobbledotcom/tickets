@@ -3,6 +3,7 @@
  * (slug appended between name and description).
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -12,6 +13,8 @@ import {
   buildHiddenField,
   getSlugField,
 } from "#templates/fields/validators.ts";
+
+/* jscpd:ignore-end */
 
 /** Max attendees field for group forms */
 const getGroupMaxAttendeesField = (): Field => ({

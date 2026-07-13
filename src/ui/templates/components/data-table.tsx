@@ -12,6 +12,7 @@
  * HTML string for callers with their own renderRow() helper.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -19,6 +20,7 @@ import {
   type ColumnKind,
   colClass,
 } from "#templates/components/table-columns.ts";
+/* jscpd:ignore-end */
 
 export type Column = {
   /** The <th> content. */

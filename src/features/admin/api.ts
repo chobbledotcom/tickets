@@ -7,6 +7,7 @@
  *   - Session cookie + x-csrf-token header
  */
 
+/* jscpd:ignore-start */
 import { reduce } from "#fp";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
@@ -60,6 +61,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { validateChildEdges } from "./listings-parents.ts";
+/* jscpd:ignore-end */
 
 // =============================================================================
 // Published API types — the contract for callers

@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import {
   AUTH_FORM,
   type AuthPolicy,
@@ -11,6 +12,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
+/* jscpd:ignore-end */
 
 export type FormValidator<TValues> = {
   validate: (form: FormParams) => ValidationResult<TValues>;

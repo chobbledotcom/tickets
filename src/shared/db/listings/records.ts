@@ -1,5 +1,6 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
 import { decrypt } from "#shared/crypto/encryption.ts";
@@ -34,6 +35,7 @@ import {
   type ListingInput,
   rawListingsTable,
 } from "./table.ts";
+/* jscpd:ignore-end */
 
 export type ListingProjectionRow = Omit<ListingWithCount, "profit">;
 

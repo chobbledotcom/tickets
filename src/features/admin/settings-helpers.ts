@@ -9,6 +9,7 @@
  * return SettingsFormHandler for use with settingsRoute/advancedSettingsRoute.
  */
 
+/* jscpd:ignore-start */
 import {
   type AuthPolicy,
   type AuthSession,
@@ -24,6 +25,8 @@ import type { FormParams } from "#shared/form-data.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 // ── Types ───────────────────────────────────────────────────────────
 
