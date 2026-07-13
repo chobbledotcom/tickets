@@ -5,10 +5,11 @@
  * carry or compare.
  */
 
-import { filter, sumOf } from "#fp";
+import { filter } from "#fp";
 import { costAccount, revenueAccount } from "#shared/accounting/accounts.ts";
 import { instantToEpochMs, isInstant } from "#shared/validation/timestamp.ts";
 import { accountKey, sameAccount } from "./account.ts";
+import { legMatches, sumLegs } from "./legs.ts";
 import type { AccountRef, Transfer } from "./types.ts";
 
 /** Every account's balance, keyed by {@link accountKey}. */
@@ -53,7 +54,7 @@ export const profitProjection =
 export const sumOfKind =
   (kind: string) =>
   (transfers: Transfer[]): number =>
-    sumOf((t: Transfer) => (t.kind === kind ? t.amount : 0))(transfers);
+    sumLegs(legMatches({ kind }))(transfers);
 
 /**
  * Transfers whose business time falls in the half-open window [from, to).

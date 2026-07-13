@@ -31,7 +31,7 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import { sameAccount } from "#shared/ledger/account.ts";
+import { legMatches } from "#shared/ledger/legs.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -46,8 +46,9 @@ type ComputedRefund = {
 const isRefundLeg = (kind: string | undefined): boolean =>
   kind?.startsWith("refund_") ?? false;
 
-const isProviderPaymentLeg = (leg: Transfer): boolean =>
-  leg.kind === KIND.payment && sameAccount(leg.source, WORLD);
+/** A provider cash payment: `payment` sourced from the world (card/bank in),
+ *  as opposed to an operator-recorded manual payment. */
+const isProviderPaymentLeg = legMatches({ from: WORLD, kind: KIND.payment });
 
 const isOperatorMoneyLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
