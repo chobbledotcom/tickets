@@ -1,5 +1,7 @@
 /* jscpd:ignore-start */
+
 import { handlersFor } from "#routes/admin/handlers.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 /**
  * Admin user management routes - owner only
  */
@@ -88,7 +90,7 @@ const wrapInviteDataKey = async (
  * assignments to display names. */
 const loadAgentNameById = async (): Promise<Map<number, string>> => {
   const agents = await loadAssignableAgents();
-  return new Map(agents.map((a) => [a.id, a.name]));
+  return idNameMap(agents);
 };
 
 /** Resolve the chosen `agent_ids` from a form down to the ids that are real

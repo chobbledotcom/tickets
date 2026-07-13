@@ -1,4 +1,5 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
@@ -143,7 +144,7 @@ const handleQuestionsGet = ownerPage(async (session) => {
   // Resolve listing ids to their decrypted names for the Listings column,
   // dropping any ids whose listing has since been deleted (listing_questions
   // rows are not pruned on listing deletion, so orphans can linger).
-  const nameById = new Map(allListings.map((l) => [l.id, l.name]));
+  const nameById = idNameMap(allListings);
   const listingNames = new Map(
     [...questionListingIds].map(([questionId, ids]) => [
       questionId,
