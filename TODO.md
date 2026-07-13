@@ -1038,3 +1038,18 @@ scoped to the confirmed bugs.*
   quantities. If a real divergence source ever appears, re-write the
   placeholder rows from the signed intent before refunding, so the operator
   record always mirrors what was paid for. (Raised by Codex on PR #1802.)
+- **Show a booking whose listing was deleted in the operator view.** The
+  attendee bookings table (`attendeeBookingsFromLines` +
+  `getRenderListings`) resolves each line's listing from `getAllListings()`
+  and drops a line whose listing no longer exists, so a booking for a deleted
+  listing is invisible in the table — true for the no-stage
+  `datelessGhostBookings` refund path and, after the delete/stage race fix
+  (5818fbb preserves the pending-staged rows), for a raced-delete staged
+  order too. The data is intact (the row, the ledger money round-trip, and the
+  refund system note all attach to the record); only the table line is hidden.
+  Keep a renderable "deleted listing" placeholder line (read-only — a deleted
+  listing can't be re-booked) so the operator sees exactly what the customer
+  paid for. Belongs with the admin-lifecycle work (review item #8, how pending
+  and unusual attendee states surface in the operator UI) so the placeholder's
+  look is decided once across every deleted/pending case, not piecemeal.
+  (Raised by Codex on PR #1802.)
