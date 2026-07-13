@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#shared/db/client.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
 import {
   getAllImages,
   getImageUsesForImage,
@@ -24,7 +25,7 @@ describeWithEnv(
       const listing = await createTestListing({ name: "Repaired listing" });
       const real = await makeImage("Real");
       const brokenId = await insertBrokenImage();
-      const secondBrokenId = await insertBrokenImage({ name: "Also broken" });
+      await insertBrokenImage({ name: "Also broken" });
       await setImagesForItem("listing", listing.id, [brokenId, real.id]);
 
       await runMigration();
@@ -35,7 +36,6 @@ describeWithEnv(
         "SELECT id FROM images ORDER BY id",
       );
       expect(remainingIds.map((row) => row.id)).toEqual([real.id]);
-      expect(remainingIds.map((row) => row.id)).not.toContain(secondBrokenId);
       expect(await getImageUsesForImage(brokenId)).toEqual([]);
       expect(await getImageUsesForImage(real.id)).toEqual([
         {
@@ -49,6 +49,26 @@ describeWithEnv(
       expect((await getAllImages()).map((image) => image.name)).toEqual([
         "Real",
       ]);
+    });
+
+    test("fails loudly on a filename that will not decrypt, deleting nothing", async () => {
+      const kept = await makeImage("Kept");
+      await execute(
+        `INSERT INTO images (name, filename, filename_thumb, alt_text)
+         VALUES (?, 'not-a-ciphertext', 'not-a-ciphertext', '')`,
+        [await encrypt("Unknown corruption")],
+      );
+
+      // Unknown corruption is not the known encrypted-empty shape, so the
+      // migration must stop rather than guess that deleting data is safe.
+      await expect(runMigration()).rejects.toThrow(
+        "Invalid encrypted data format",
+      );
+      const remaining = await queryAll<{ id: number }>(
+        "SELECT id FROM images ORDER BY id",
+      );
+      expect(remaining.length).toBe(2);
+      expect(remaining[0]?.id).toBe(kept.id);
     });
 
     test("is a no-op when every image record is readable (idempotent re-run)", async () => {
