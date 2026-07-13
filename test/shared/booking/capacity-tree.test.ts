@@ -20,6 +20,13 @@ const tl = (id: number, maxPurchasable: number): TicketListing => ({
   maxPurchasable,
 });
 
+/** Two package members (ids 1 and 2), each with ample own capacity (100). */
+const twoMembersById = (): Map<number, TicketListing> =>
+  new Map([
+    [1, tl(1, 100)],
+    [2, tl(2, 100)],
+  ]);
+
 /** A package tree over the given member ids, each with its per-package qty. */
 const packageTree = (
   qtyById: ReadonlyMap<number, number>,
