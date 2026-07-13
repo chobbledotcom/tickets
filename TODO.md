@@ -964,3 +964,25 @@ they were left out of that PR's scope.
   (a doc-accuracy pass, not a dedup): pick the example per endpoint — a paid
   response for the priced package bundle, or document both free and paid shapes —
   so the sample response matches the sample request.
+
+---
+
+## Split `src/shared/forms.tsx` (~779 lines) into focused modules
+
+*Origin: CodeRabbit review on PR #1800 (jscpd 0% work).*
+
+`src/shared/forms.tsx` is well over the ~400-line guideline (779 lines) and is
+grandfathered in `biome.json`'s `noExcessiveLinesPerFile` override. It mixes two
+concerns that should live apart:
+
+- **Form-shell / scaffold** — `CsrfForm`, `ConfirmForm`, `Flash`, and the
+  submit/section scaffolding (the pieces that wrap a form and its buttons).
+- **Field rendering** — `defineForm`, the `Field[]` renderers, `validateForm`,
+  and the value-type machinery.
+
+Follow-up: split the shell/scaffold components into their own module (e.g.
+`src/shared/forms/shell.tsx`) and keep the field-rendering helpers in
+`forms/fields.tsx`, re-exporting from `forms.tsx` only if needed. Migrate every
+importer, then delete the `biome.json` override entry for `forms.tsx`. Out of
+scope for the dedup PR (a pure structural move, no behaviour change), but worth
+doing next time this file is touched.
