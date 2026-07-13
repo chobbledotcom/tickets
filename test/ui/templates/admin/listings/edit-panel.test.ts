@@ -186,7 +186,7 @@ describe("adminListingEditPage form sections", () => {
     expect(html).toContain("<h2>Adjust income</h2>");
     expect(html).toContain(`action="/admin/listing/${listing.id}/income"`);
     expect(html).toContain('name="income"');
-    expect(html).toContain("This adds a correction to Money history.");
+    expect(html).toContain("This adds a correction to Money.");
   });
 
   test("links from the income form to the detail page's money breakdown", () => {

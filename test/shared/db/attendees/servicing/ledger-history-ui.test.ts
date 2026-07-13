@@ -66,7 +66,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
     expect(body).toContain(listing.name);
     expect(body).toContain("Money out");
     expect(body).toContain(`href="/admin/ledger?listing=${listing.id}"`);
-    expect(body).toContain("View money history");
+    expect(body).toContain("View money");
     expect(body).toContain(`/admin/servicing/${id}/cost/`);
   });
 
@@ -79,7 +79,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
     const body = await response.text();
     expect(body).toContain(listing.name);
     expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
-    expect(body).not.toContain("View money history");
+    expect(body).not.toContain("View money");
   });
 
   test("shows a deleted cost listing as plain text without a dead ledger link", async () => {
@@ -91,7 +91,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
 
     expect(body).toContain("Deleted listing");
     expect(body).not.toContain(`/admin/ledger?listing=${listing.id}`);
-    expect(body).not.toContain("View money history");
+    expect(body).not.toContain("View money");
   });
 
   test("getServicingCosts returns records in (occurred_at, transfer_id) order with each memo on its own row", async () => {

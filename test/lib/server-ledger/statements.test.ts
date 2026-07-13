@@ -20,7 +20,7 @@ describeWithEnv(
       const response = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Money history");
+      expect(html).toContain("Money");
       // The attendee's own label heads the page; a fully-paid sale nets to zero.
       expect(html).toContain("Ada Lovelace");
       expect(html).toContain("Amount still owed:");
@@ -63,7 +63,7 @@ describeWithEnv(
       const response = await adminGet("/admin/ledger/modifier/1");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Money history");
+      expect(html).toContain("Money");
       // No modifier row exists, so the account falls back to "Modifier #1".
       expect(html).toContain("Modifier #1");
     });
@@ -97,7 +97,7 @@ describeWithEnv(
       const response = await adminGet("/admin/ledger/writeoff/default");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Money history");
+      expect(html).toContain("Money");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
       expect(html).toContain("Corrections");
       // The correction's counterparty is the listing's revenue account.

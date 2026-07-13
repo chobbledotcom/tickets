@@ -169,8 +169,8 @@ describe("GroupOverviewPanel", () => {
     expect(html).toContain("Net after refunds and costs");
     expect(html).toContain("£160");
     expect(html).toContain('href="/admin/ledger?group=8"');
-    expect(html).toContain("View group money history");
-    expect(html).toContain("View every change in the group's money history.");
+    expect(html).toContain("View group money");
+    expect(html).toContain("View every change in the group's money.");
   });
 
   test("does not offer a forbidden ledger link without owner access", () => {

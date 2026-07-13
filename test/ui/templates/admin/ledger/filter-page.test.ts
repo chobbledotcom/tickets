@@ -39,9 +39,9 @@ describe("adminLedgerPage", () => {
     ...overrides,
   });
 
-  test("renders the money history heading, nav, stats, filters, and simple list", () => {
+  test("renders the money heading, nav, stats, filters, and simple list", () => {
     const html = adminLedgerPage(pageData(), SESSION);
-    expect(html).toContain("Money history");
+    expect(html).toContain("Money");
     expect(html).toContain('href="/admin/ledger"');
     expect(html).toContain("<th>Activity</th>");
     expect(html).toContain("Simple view");

@@ -16,7 +16,7 @@ import {
 // jscpd:ignore-end
 
 describeWithEnv("servicing cost page", { db: true }, () => {
-  test("keeps an inactive former hold's name and exact owner money-history link", async () => {
+  test("keeps an inactive former hold's name and exact owner Money link", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,
       name: "Old boiler room",
