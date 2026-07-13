@@ -50,7 +50,6 @@ import {
   formatDateRangeLabel,
 } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
@@ -58,18 +57,26 @@ import {
   type Attendee,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
-import { AdminPage } from "#templates/admin/admin-page.tsx";
+import {
+  AdminListingLink,
+  AdminPage,
+  renderAdminPage,
+} from "#templates/admin/admin-page.tsx";
 import {
   BookingStatusBadges,
   InactiveNote,
 } from "#templates/admin/attendee-detail.tsx";
-import { EditQuestions } from "#templates/admin/attendees.tsx";
+import {
+  EditQuestions,
+  type EditQuestionsData,
+} from "#templates/admin/attendees.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import {
   type FormSection,
   FormSections,
 } from "#templates/components/aggregate-sections.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import {
@@ -81,7 +88,7 @@ import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 /** Template data for the attendee form: everything the editable form itself
  * renders. The other tabs' data (log, ledger, notes, contact history) lives
  * with those tabs, not here. */
-export type AttendeeFormTemplateData = {
+export type AttendeeFormTemplateData = EditQuestionsData & {
   /** "create" or "edit". */
   mode: "create" | "edit";
   /** Parsed form values (shared range + one line per rendered listing). */
@@ -109,12 +116,6 @@ export type AttendeeFormTemplateData = {
   /** A recoverable save failure (capacity, no lines) shown above the form on
    * the in-place 400 re-render. */
   saveError?: string | undefined;
-  /** Custom questions across the attendee's booked listings. */
-  questions: QuestionWithAnswers[];
-  /** Currently-selected answer ids for the rendered questions. */
-  selectedAnswerIds: number[];
-  /** Currently-entered free-text answers, keyed by question id. */
-  selectedTextAnswers: Map<number, string>;
   /** Optional return URL the caller came from. */
   returnUrl?: string | undefined;
   /** Overbooking / over-duration warnings per listing id (booked lines only). */
@@ -188,7 +189,7 @@ const ListingRow = ({
   return (
     <tr class={lineRowClass(line, booked)}>
       <td>
-        <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
+        <AdminListingLink listing={listing} />
         {label ? <span class="muted small booking-path"> {label}</span> : null}
         <InactiveNote active={listing.active} />
         {BookingStatusBadges({
@@ -307,28 +308,23 @@ const ListingEditor = ({ data }: AttendeeFormProps): JSX.Element => {
           {t("attendee_form.show_package_paths")}
         </label>
       )}
-      <div class="table-scroll">
-        <table class="line-editor">
-          <thead>
-            <tr>
-              <th>{t("terms.listing")}</th>
-              <th>{t("attendee_form.col_dates")}</th>
-              <th>{t("attendee_form.col_qty")}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.parsed.lines.map((line, index) => (
-              <ListingRow
-                data={data}
-                index={index}
-                line={line}
-                warnings={data.lineWarnings.get(line.listingId) ?? []}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={[
+          { header: t("terms.listing") },
+          { header: t("attendee_form.col_dates") },
+          { header: t("attendee_form.col_qty") },
+          { header: "" },
+        ]}
+        rows={data.parsed.lines.map((line, index) => (
+          <ListingRow
+            data={data}
+            index={index}
+            line={line}
+            warnings={data.lineWarnings.get(line.listingId) ?? []}
+          />
+        ))}
+        tableClass="line-editor"
+      />
     </div>
   );
 };
@@ -745,7 +741,7 @@ export const AttendeesPage = (props: {
   prose?: JSX.Element;
   session: AdminSession;
   title: string;
-}): JSX.Element => {
+}): string => {
   const {
     active = "/admin/attendees",
     children,
@@ -753,11 +749,14 @@ export const AttendeesPage = (props: {
     session,
     title,
   } = props;
-  return (
-    <AdminPage active={active} session={session} title={title}>
+  return renderAdminPage(
+    active,
+    session,
+    title,
+    <>
       <ProseHeading heading={title}>{prose}</ProseHeading>
       {children}
-    </AdminPage>
+    </>,
   );
 };
 

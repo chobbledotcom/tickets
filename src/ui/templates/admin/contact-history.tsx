@@ -12,9 +12,9 @@ import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import { CsrfForm, Flash, renderField } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AttendeesPage } from "#templates/admin/attendee-form.tsx";
+import { ContactNotes } from "#templates/admin/attendee-page.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 /* jscpd:ignore-end */
@@ -54,19 +54,8 @@ export const contactHistoryPage = ({
   flashSuccess,
   formError,
 }: ContactHistoryPageData): string =>
-  String(
-    <AttendeesPage
-      prose={
-        <>
-          <p>{t("contact_history.description")}</p>
-          <p class="muted small">
-            {t("contact_history.hash_label")}: <code>{hmac}</code>
-          </p>
-        </>
-      }
-      session={session}
-      title={t("contact_history.title")}
-    >
+  AttendeesPage({
+    children: (
       <CsrfForm action={`/admin/history/${hmac}`} id="contact-history-form">
         <Flash error={flashError} success={flashSuccess} />
         {formError && <ErrorAlert>{formError}</ErrorAlert>}
@@ -121,9 +110,7 @@ export const contactHistoryPage = ({
         {record.adminNotes && (
           <section>
             <h2>{t("contact_history.note_preview_label")}</h2>
-            <div class="contact-notes">
-              <Raw html={renderMarkdown(record.adminNotes)} />
-            </div>
+            <ContactNotes notes={record.adminNotes} />
           </section>
         )}
 
@@ -133,5 +120,15 @@ export const contactHistoryPage = ({
           </button>
         </p>
       </CsrfForm>
-    </AttendeesPage>,
-  );
+    ),
+    prose: (
+      <>
+        <p>{t("contact_history.description")}</p>
+        <p class="muted small">
+          {t("contact_history.hash_label")}: <code>{hmac}</code>
+        </p>
+      </>
+    ),
+    session,
+    title: t("contact_history.title"),
+  });

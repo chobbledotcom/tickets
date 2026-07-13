@@ -10,7 +10,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
-import { renderAdminPage } from "#templates/admin/admin-page.tsx";
+import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
@@ -20,30 +20,11 @@ import {
 
 /* jscpd:ignore-end */
 
-/** List-page opener: success flash and the Add button. The page title lives on
- * the browser tab and the nav, so the body carries no redundant `<h1>`. */
-const CollectionHeader = ({
-  addHref,
-  addLabel,
-  success,
-}: {
-  addHref: string;
-  addLabel: string;
-  success?: string | undefined;
-}): JSX.Element => (
-  <>
-    <Flash success={success} />
-    <p class="actions">
-      <ActionButton href={addHref} icon="plus">
-        {addLabel}
-      </ActionButton>
-    </p>
-  </>
-);
-
-/** Curried list page for a Site-tab collection at `base`: the AdminPage
- * shell and the shared opener, with the caller supplying just the collection
- * body. `messages` is the i18n prefix carrying `.title` and `.add`. */
+/** Curried list page for a Site-tab collection at `base`: the AdminPage shell
+ * with its success flash and Add button (the page's own flash + actions row),
+ * with the caller supplying just the collection body. `messages` is the i18n
+ * prefix carrying `.title` and `.add`. The page title lives on the browser tab
+ * and the nav, so the body carries no redundant `<h1>`. */
 export const collectionPage =
   (messages: string, base: string) =>
   (
@@ -51,18 +32,20 @@ export const collectionPage =
     successMessage: string | undefined,
     body: Child,
   ): string =>
-    renderAdminPage(
-      base,
-      session,
-      t(`${messages}.title`),
-      <>
-        <CollectionHeader
-          addHref={`${base}/new`}
-          addLabel={t(`${messages}.add`)}
-          success={successMessage}
-        />
+    String(
+      <AdminPage
+        actions={
+          <ActionButton href={`${base}/new`} icon="plus">
+            {t(`${messages}.add`)}
+          </ActionButton>
+        }
+        active={base}
+        flash={<Flash success={successMessage} />}
+        session={session}
+        title={t(`${messages}.title`)}
+      >
         {body}
-      </>,
+      </AdminPage>,
     );
 
 /** The Edit-tab panel for a Site content editor (Pages, News): a CsrfForm

@@ -378,15 +378,20 @@ export const PaymentDetails = ({
 const editableAnswers = (q: QuestionWithAnswers, selectedAnswerIds: number[]) =>
   q.answers.filter((a) => a.active || selectedAnswerIds.includes(a.id));
 
+/** The custom-question inputs an admin edit form renders: the questions to ask,
+ *  plus the currently-chosen answer ids and free-text answers to pre-fill. The
+ *  attendee form's template data carries these same three fields. */
+export type EditQuestionsData = {
+  questions: QuestionWithAnswers[];
+  selectedAnswerIds: number[];
+  selectedTextAnswers: Map<number, string>;
+};
+
 export const EditQuestions = ({
   questions,
   selectedAnswerIds,
   selectedTextAnswers,
-}: {
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  selectedTextAnswers: Map<number, string>;
-}): JSX.Element => (
+}: EditQuestionsData): JSX.Element => (
   <>
     {questions.map((q) =>
       questionControl(q, {
@@ -522,6 +527,27 @@ const MergeAnswersDecisionTable = ({
   );
 };
 
+/** A not-checked radio option preceded by a line break — the shape each choice
+ *  after the first in the booking-conflict decision (and its money follow-up)
+ *  takes, so the `<br/>` + radio pairing lives in one place. */
+const BreakRadio = ({
+  name,
+  value,
+  children,
+}: {
+  name: string;
+  value: string;
+  children: Child;
+}): JSX.Element => (
+  <>
+    <br />
+    <RadioOption checked={false} name={name} value={value}>
+      {" "}
+      {children}
+    </RadioOption>
+  </>
+);
+
 /** One row of the booking decision table: the shared leading listing/date/qty
  *  cells followed by the row's status and (optionally) decision cells. Both the
  *  moveable and conflicting booking rows open with these same three cells. */
@@ -618,16 +644,12 @@ const MergeBookingsDecisionTable = ({
                 {" "}
                 Keep target
               </RadioOption>
-              <br />
-              <RadioOption checked={false} name={name} value="take_source">
-                {" "}
+              <BreakRadio name={name} value="take_source">
                 Replace with source
-              </RadioOption>
-              <br />
-              <RadioOption checked={false} name={name} value="skip_source">
-                {" "}
+              </BreakRadio>
+              <BreakRadio name={name} value="skip_source">
                 Skip source
-              </RadioOption>
+              </BreakRadio>
               {moneyAtStake > 0 && (
                 <div class="merge-money-decision">
                   <p class="muted">
@@ -646,15 +668,9 @@ const MergeBookingsDecisionTable = ({
                     {" "}
                     Keep as the person's credit
                   </RadioOption>
-                  <br />
-                  <RadioOption
-                    checked={false}
-                    name={`money_${key}`}
-                    value="writeoff"
-                  >
-                    {" "}
+                  <BreakRadio name={`money_${key}`} value="writeoff">
                     Write it off
-                  </RadioOption>
+                  </BreakRadio>
                 </div>
               )}
             </td>

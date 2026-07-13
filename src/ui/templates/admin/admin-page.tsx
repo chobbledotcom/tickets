@@ -75,6 +75,16 @@ export const AdminPage = ({
   </Layout>
 );
 
+/** A link to a listing's admin page showing its name —
+ *  `<a href="/admin/listing/{id}">{name}</a>`. Owned here so the same admin
+ *  listing link isn't re-authored (and re-detected as a clone) across the
+ *  attendee form and the booking-QR page. */
+export const AdminListingLink = ({
+  listing,
+}: {
+  listing: { id: number; name: string };
+}): JSX.Element => <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>;
+
 /** Render an admin page to an HTML string with no flash — the plain
  *  `String(<AdminPage active session title>…</AdminPage>)` wrapper shared by
  *  the bulk-email pages, the Site-tab collection pages, and the API-keys pages. */
@@ -246,7 +256,11 @@ export const successListPage =
     titleKey: string,
     active: string,
     body: (items: Items, session: AdminSession) => Child,
-  ) =>
+  ): ((
+    items: Items,
+    session: AdminSession,
+    successMessage?: string,
+  ) => string) =>
   (items: Items, session: AdminSession, successMessage?: string): string =>
     successAdminPage(t(titleKey), active)(session, successMessage)(
       body(items, session),
@@ -257,7 +271,11 @@ export const successListPage =
  *  and success notices its route passes back after a submit — the shape the
  *  seeds and catalog-import pages share. */
 export const flashFormPage =
-  (titleKey: string, active: string, body: (session: AdminSession) => Child) =>
+  (
+    titleKey: string,
+    active: string,
+    body: (session: AdminSession) => Child,
+  ): ((session: AdminSession, error?: string, success?: string) => string) =>
   (session: AdminSession, error?: string, success?: string): string =>
     flashAdminPage(t(titleKey), active)(session, error, success)(body(session));
 

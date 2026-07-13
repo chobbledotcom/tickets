@@ -21,9 +21,11 @@ import {
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form.tsx";
+import { TitledSection } from "#templates/admin/entity-pages.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
+import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 
 /** One latitude/longitude input. The map script re-pins as these change. */
@@ -101,43 +103,36 @@ const OtherAttendees = ({
 }): JSX.Element | null => {
   if (others.length === 0) return null;
   return (
-    <article>
-      <h3>{t("attendee_logistics.others_heading")}</h3>
+    <TitledSection titleKey="attendee_logistics.others_heading">
       <p class="small">{t("attendee_logistics.others_hint")}</p>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("attendee_logistics.col_attendee")}</th>
-              <th>{t("terms.listing")}</th>
-              <th>{t("attendee_logistics.col_dates")}</th>
-              <th>{t("attendee_logistics.col_start")}</th>
-              <th>{t("attendee_logistics.col_end")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {others.map((line) => (
-              <tr>
-                <td>
-                  <a href={`/admin/attendees/${line.attendeeId}/logistics`}>
-                    {line.name}
-                  </a>
-                </td>
-                <td>
-                  {line.listingName}
-                  {line.quantity > 1 ? (
-                    <span class="muted small"> ×{line.quantity}</span>
-                  ) : null}
-                </td>
-                <td>{formatDateRangeLabel(line.startAt, line.endAt)}</td>
-                <td>{legLabel(line.startTime)}</td>
-                <td>{legLabel(line.endTime)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </article>
+      <DataTable
+        columns={[
+          { header: t("attendee_logistics.col_attendee") },
+          { header: t("terms.listing") },
+          { header: t("attendee_logistics.col_dates") },
+          { header: t("attendee_logistics.col_start") },
+          { header: t("attendee_logistics.col_end") },
+        ]}
+        rows={others.map((line) => (
+          <tr>
+            <td>
+              <a href={`/admin/attendees/${line.attendeeId}/logistics`}>
+                {line.name}
+              </a>
+            </td>
+            <td>
+              {line.listingName}
+              {line.quantity > 1 ? (
+                <span class="muted small"> ×{line.quantity}</span>
+              ) : null}
+            </td>
+            <td>{formatDateRangeLabel(line.startAt, line.endAt)}</td>
+            <td>{legLabel(line.startTime)}</td>
+            <td>{legLabel(line.endTime)}</td>
+          </tr>
+        ))}
+      />
+    </TitledSection>
   );
 };
 
