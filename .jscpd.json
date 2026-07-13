@@ -10,7 +10,8 @@
     "**/node_modules/**",
     "**/package-lock.json",
     "**/deno.lock",
-    "**/fp.ts"
+    "**/fp.ts",
+    "**/db/migrations/2*.ts"
   ],
   "format": [
     "javascript",

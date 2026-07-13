@@ -13,6 +13,7 @@ import {
   formatIsoForPreview,
   type PreviewableListing,
 } from "#shared/bulk-replace.ts";
+import { escapeHtml } from "#shared/jsx/escape-html.ts";
 
 export const initDuplicatePreview = (): void => {
   const container = document.querySelector<HTMLElement>(
@@ -42,10 +43,7 @@ export const initDuplicatePreview = (): void => {
     tbody.innerHTML = rows
       .map((row) => {
         const td = (cls: string, text: string) =>
-          `<td data-preview-${cls}>${text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")}</td>`;
+          `<td data-preview-${cls}>${escapeHtml(text)}</td>`;
         return (
           `<tr data-listing-id="${row.id}">` +
           td("original-name", row.originalName) +
