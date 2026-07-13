@@ -55,6 +55,30 @@ describeWithEnv(
         return response;
       };
 
+      /** Book a paid attendee on `listingId` and recognise a £15 sale leg in the
+       *  ledger, so hasPaidLine's DB guard sees a gross sale (not a price_paid
+       *  column). Returns the new attendee id. */
+      const bookPaidAttendee = async (
+        listingId: number,
+        details: {
+          email: string;
+          name: string;
+          paymentId: string;
+          quantity: number;
+        },
+      ): Promise<number> => {
+        const created = await createAttendeeAtomic({
+          bookings: [{ listingId, quantity: details.quantity }],
+          email: details.email,
+          name: details.name,
+          paymentId: details.paymentId,
+        });
+        if (!created.success) throw new Error("setup");
+        const attendeeId = created.attendees[0]!.id;
+        await postListingSale({ attendeeId, gross: 1500, listingId });
+        return attendeeId;
+      };
+
       test("marking a line no-quantity keeps it as a quantity-0 row, not deleted", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
         const attendee = await createTestAttendee(
@@ -119,20 +143,13 @@ describeWithEnv(
 
       test("blocks marking a paid line no-quantity (line unchanged)", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
-        const created = await createAttendeeAtomic({
-          bookings: [{ listingId: listing.id, quantity: 2 }],
+        // Recognise the payment in the ledger: hasPaidLine (the DB guard) keys on a
+        // gross sale leg now, not a price_paid column.
+        const attendeeId = await bookPaidAttendee(listing.id, {
           email: "paid@example.com",
           name: "Paid",
           paymentId: "pay_block",
-        });
-        if (!created.success) throw new Error("setup");
-        const attendeeId = created.attendees[0]!.id;
-        // Recognise the payment in the ledger: hasPaidLine (the DB guard) keys on a
-        // gross sale leg now, not a price_paid column.
-        await postListingSale({
-          attendeeId,
-          gross: 1500,
-          listingId: listing.id,
+          quantity: 2,
         });
 
         const response = await markNoQuantity(attendeeId, listing.id, "Paid");
@@ -215,18 +232,11 @@ describeWithEnv(
 
       test("blocks no-quantity on a paid line even with a stale (missing) line key", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
-        const created = await createAttendeeAtomic({
-          bookings: [{ listingId: listing.id, quantity: 1 }],
+        const attendeeId = await bookPaidAttendee(listing.id, {
           email: "stale@example.com",
           name: "Stale",
           paymentId: "pay_stale",
-        });
-        if (!created.success) throw new Error("setup");
-        const attendeeId = created.attendees[0]!.id;
-        await postListingSale({
-          attendeeId,
-          gross: 1500,
-          listingId: listing.id,
+          quantity: 1,
         });
         // Submit with an empty line key so the form's existingBooking is null and
         // the per-line model guard can't fire — the DB-based guard must still block.

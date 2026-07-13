@@ -991,9 +991,6 @@ describeWithEnv("server (admin group packages)", { db: true }, () => {
       },
     );
     expect(await groups.table.findById(group.id)).toBeNull();
-    const { getListingWithCount } = await import(
-      "#shared/db/listings/records.ts"
-    );
-    expect(await getListingWithCount(memberListing.id)).not.toBeNull();
+    expect(await loadListing(memberListing.id)).not.toBeNull();
   });
 });

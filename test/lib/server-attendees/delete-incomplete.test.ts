@@ -128,17 +128,13 @@ describeWithEnv(
       });
 
       test("refuses to delete empty-payment-id attendee with processed payment reference", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin({
-          maxAttendees: 100,
-          unitPrice: 1000,
-        });
-        const attendee = await createPaidTestAttendee(
-          listing.id,
-          "Balance Paid",
-          "balance-paid@example.com",
-          "",
-          1000,
-        );
+        const { listing, cookie, csrfToken, attendee } =
+          await setupPaidAttendee(
+            "Balance Paid",
+            "balance-paid@example.com",
+            "",
+            1000,
+          );
         await reserveSession("balance_paid_delete_guard");
         await finalizeSession(
           "balance_paid_delete_guard",
@@ -164,10 +160,7 @@ describeWithEnv(
       });
 
       test("refuses to delete admin-added attendee on paid listing via delete-incomplete", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin({
-          maxAttendees: 100,
-          unitPrice: 1000,
-        });
+        const { listing, cookie, csrfToken } = await loginToPaidListing();
         // Admin-added attendee: no payment_id and price_paid=0
         const attendee = await createTestAttendee(
           listing.id,
@@ -194,18 +187,12 @@ describeWithEnv(
       });
 
       test("deletes incomplete attendee on free can_pay_more listing", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin({
-          canPayMore: true,
-          maxAttendees: 100,
-          unitPrice: 0,
-        });
-        const attendee = await createPaidTestAttendee(
-          listing.id,
-          "Jane Stuck",
-          "jane@example.com",
-          "",
-          500,
-        );
+        const { listing, cookie, csrfToken, attendee } =
+          await setupPaidAttendee("Jane Stuck", "jane@example.com", "", 500, {
+            canPayMore: true,
+            maxAttendees: 100,
+            unitPrice: 0,
+          });
 
         const response = await submitDeleteIncomplete(
           listing.id,
@@ -226,10 +213,7 @@ describeWithEnv(
       });
 
       test("returns 404 for non-existent attendee", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin({
-          maxAttendees: 100,
-          unitPrice: 1000,
-        });
+        const { listing, cookie, csrfToken } = await loginToPaidListing();
 
         const response = await submitDeleteIncomplete(
           listing.id,

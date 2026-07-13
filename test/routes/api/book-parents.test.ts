@@ -223,10 +223,7 @@ describePublicApi(() => {
       // still log/notify the registration, exactly like the standalone API
       // booking and the web free path. The activity log is the observable proof
       // the notifier ran (it also fires the email/webhook).
-      const { parent, child } = await makeParent({
-        children: [{ maxAttendees: 10, unitPrice: 0 }],
-        parent: { maxAttendees: 10, unitPrice: 0 },
-      });
+      const { parent, child } = await freeParentWithChild();
       const { response } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
 

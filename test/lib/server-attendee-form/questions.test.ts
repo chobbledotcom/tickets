@@ -64,6 +64,35 @@ describeWithEnv(
         return { aA, aB, attendeeId, qA, qB };
       };
 
+      /** Answer qA with its real option and qB with `qbAnswer`, then submit the
+       *  edit under `name`. Returns the POST response. */
+      const submitAnswerEdit = async (
+        ids: Awaited<ReturnType<typeof setupMultiEventQuestions>>,
+        qbAnswer: string,
+        name: string,
+      ): Promise<Response> => {
+        const form = await buildAttendeeEditForm(ids.attendeeId, {
+          extra: {
+            [`question_${ids.qA.id}`]: String(ids.aA.id),
+            [`question_${ids.qB.id}`]: qbAnswer,
+          },
+          name,
+        });
+        const { response } = await adminFormPost(
+          `/admin/attendees/${ids.attendeeId}`,
+          form,
+        );
+        return response;
+      };
+
+      /** The set of answer ids stored for `attendeeId`. */
+      const savedAnswerIds = async (attendeeId: number): Promise<Set<number>> =>
+        new Set(
+          (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
+            attendeeId,
+          ) ?? [],
+        );
+
       test("edit page renders questions from every booked event", async () => {
         const { attendeeId } = await setupMultiEventQuestions();
         const response = await awaitTestRequest(

@@ -18,15 +18,24 @@ import {
 } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
 
+/** Request the admin backup page with the given session cookie and read its
+ *  body, so each test can assert on the status and HTML itself. */
+const loadBackupPage = async (
+  cookie: string,
+): Promise<{ response: Response; html: string }> => {
+  const response = await handleRequest(
+    mockRequest("/admin/backup", { headers: { cookie } }),
+  );
+  const html = await response.text();
+  return { html, response };
+};
+
 describeWithEnv("backup routes", { db: true }, () => {
   describe("GET /admin/backup", () => {
     test("loads backup page without storage enabled", async () => {
       const cookie = await testCookie();
-      const response = await handleRequest(
-        mockRequest("/admin/backup", { headers: { cookie } }),
-      );
+      const { response, html } = await loadBackupPage(cookie);
       expect(response.status).toBe(200);
-      const html = await response.text();
       expect(html).toContain("Backup");
     });
 
@@ -41,12 +50,9 @@ describeWithEnv("backup routes", { db: true }, () => {
         // Make deleteFile throw
         setDeleteOverride(new Error("delete failed"));
         try {
-          const response = await handleRequest(
-            mockRequest("/admin/backup", { headers: { cookie } }),
-          );
+          const { response, html } = await loadBackupPage(cookie);
           // Page should still load despite deleteFile throwing
           expect(response.status).toBe(200);
-          const html = await response.text();
           expect(html).toContain("Backup");
         } finally {
           setDeleteOverride(null);
