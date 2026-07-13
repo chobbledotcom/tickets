@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
@@ -18,6 +19,8 @@ import {
 } from "#templates/admin/ledger.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
+
+/* jscpd:ignore-end */
 
 type LedgerEntryFormValues = {
   amount: string;
