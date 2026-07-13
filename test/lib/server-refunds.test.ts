@@ -277,7 +277,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
         const response = await submitRefund(ctx);
         await expectFlashRedirect(
           `/admin/attendees/${attendee.id}/refund`,
-          expect.stringContaining("It could not be recorded in Money"),
+          "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
           false,
         )(response);
         expect(mockRefund.calls.length).toBeGreaterThan(0);

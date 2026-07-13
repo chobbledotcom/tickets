@@ -266,7 +266,7 @@ describeWithEnv(
         expect(response.status).toBe(302);
         expectFlash(
           response,
-          expect.stringContaining("It could not be recorded in Money"),
+          "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
           false,
         );
         // The error must not silently flip the payment to refunded: with no
