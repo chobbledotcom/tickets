@@ -77,6 +77,21 @@ const activate = async (sessionId: string) => {
   };
 };
 
+/** Run an activation expected to throw `message`, then assert the whole thing
+ * rolled back — the staged row stays at quantity 0, never claimed against a
+ * stage the activation couldn't finish. */
+const expectActivationRollback = async (
+  setup: { run: () => Promise<unknown>; stage: { attendeeId: number } },
+  message: string,
+): Promise<void> => {
+  await expect(setup.run()).rejects.toThrow(message);
+  const row = await execute(
+    "SELECT quantity FROM listing_attendees WHERE attendee_id = ?",
+    [setup.stage.attendeeId],
+  );
+  expect(row.rows.map((value) => value.quantity)).toEqual([0]);
+};
+
 describeWithEnv("db > staged booking activation", { db: true }, () => {
   test("activates the staged row", async () => {
     const setup = await activate("cs_activate_ok");
@@ -353,14 +368,29 @@ describeWithEnv("db > staged booking activation", { db: true }, () => {
        END`,
     );
 
-    await expect(setup.run()).rejects.toThrow(
+    await expectActivationRollback(
+      setup,
       "Payment session cs_activate_finalize was not finalized",
     );
-    const row = await execute(
-      "SELECT quantity FROM listing_attendees WHERE attendee_id = ?",
-      [setup.stage.attendeeId],
+  });
+
+  test("throws when the stage is no longer pending at activation", async () => {
+    const setup = await activate("cs_activate_notpending");
+    // Resolve the stage out from under the activation (as a concurrent delivery
+    // would) while leaving the quantity-0 rows intact: the row-level pre-check
+    // still passes, so the guard that matters is the compare-and-set flip, which
+    // must find no pending stage to book and refuse to book someone else's.
+    await execute(
+      "UPDATE checkout_stages SET state = 'failed' WHERE payment_session_id = ?",
+      ["cs_activate_notpending"],
     );
-    expect(row.rows.map((value) => value.quantity)).toEqual([0]);
+
+    // The throw rolls the whole activation back, so the row stays at quantity 0
+    // rather than being claimed against a stage that was already resolved.
+    await expectActivationRollback(
+      setup,
+      "was not this attendee's pending stage at activation",
+    );
   });
 
   // refusalReason is the answer given when the atomic claim refuses. The

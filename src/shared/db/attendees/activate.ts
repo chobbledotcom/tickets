@@ -136,10 +136,22 @@ export const activateStagedBooking = async (
       if (finalized.rowsAffected !== 1) {
         throw new Error(`Payment session ${sessionId} was not finalized`);
       }
-      await tx.execute({
-        args: [sessionId],
-        sql: "UPDATE checkout_stages SET state = 'booked' WHERE payment_session_id = ?",
+      // Flip the stage to booked as a compare-and-set: only a row that is still
+      // this attendee's PENDING stage may become booked, and exactly one must.
+      // The pre-check and the fail-closed guard mean the stage IS pending here,
+      // so a miss (0 rows: a concurrent flip, or a session/attendee mismatch) is
+      // an impossible state — throw to roll the whole activation back rather than
+      // book a stage that isn't ours, and let the redelivery re-resolve it.
+      const booked = await tx.execute({
+        args: [sessionId, attendeeId],
+        sql: `UPDATE checkout_stages SET state = 'booked'
+               WHERE payment_session_id = ? AND attendee_id = ? AND state = 'pending'`,
       });
+      if (booked.rowsAffected !== 1) {
+        throw new Error(
+          `Checkout stage for session ${sessionId} was not this attendee's pending stage at activation (attendee ${attendeeId})`,
+        );
+      }
     });
     return { success: true };
   } catch (error) {
