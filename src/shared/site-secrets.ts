@@ -19,9 +19,10 @@ import {
   collectHostSecrets,
   HOST_INFRA_SECRET_KEYS,
   resolveHostingProvider,
+  siteHostingAccess,
 } from "#shared/builder.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
-import { getEnv } from "#shared/env.ts";
+import { tryStep } from "#shared/try-step.ts";
 
 /**
  * The secrets we would copy to a freshly built site, recomputed for an existing
@@ -58,44 +59,14 @@ export type SiteSecretsView =
     }
   | { ok: false; error: string };
 
-type SecretsPrecondition =
-  | { ok: true; hostingId: string }
-  | { ok: false; error: string };
-
-/** A site can only be inspected when it has a hosting ID and the host has the relevant API key. */
-const secretsPrecondition = (site: BuiltSite): SecretsPrecondition => {
-  if (!site.hostingId) {
-    return {
-      error: "This site has no hosting ID, so its secrets can't be read.",
-      ok: false,
-    };
-  }
-  const { configEnvVar } = resolveHostingProvider(site.hostingProvider);
-  if (!getEnv(configEnvVar)) {
-    return {
-      error: `${configEnvVar} is not configured on this host, so site secrets can't be read.`,
-      ok: false,
-    };
-  }
-  return { hostingId: site.hostingId, ok: true };
-};
-
 /** Fetch the live secret names for a site, resilient to network/parse errors. */
-const listSecretNames = async (
+const listSecretNames = (
   site: BuiltSite,
   hostingId: string,
-): Promise<{ ok: true; names: string[] } | { ok: false; error: string }> => {
-  try {
-    return await resolveHostingProvider(site.hostingProvider).getSecretNames(
-      hostingId,
-    );
-  } catch (e) {
-    return {
-      error: `Failed to list secrets: ${(e as Error).message}`,
-      ok: false,
-    };
-  }
-};
+): Promise<{ ok: true; names: string[] } | { ok: false; error: string }> =>
+  tryStep("Failed to list secrets", () =>
+    resolveHostingProvider(site.hostingProvider).getSecretNames(hostingId),
+  );
 
 type ResolvedSiteSecrets = {
   hostingId: string;
@@ -112,7 +83,7 @@ const resolveSiteSecrets = async (
 ): Promise<
   { ok: true; data: ResolvedSiteSecrets } | { ok: false; error: string }
 > => {
-  const pre = secretsPrecondition(site);
+  const pre = siteHostingAccess(site, "its secrets can't be read");
   if (!pre.ok) return pre;
   const listed = await listSecretNames(site, pre.hostingId);
   if (!listed.ok) return listed;

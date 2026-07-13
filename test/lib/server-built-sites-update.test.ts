@@ -22,6 +22,20 @@ const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";
 const seedSiteBackup = (dbUrl: string): Promise<string> =>
   uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp(), dbName(dbUrl)));
 
+/** POST the update for a site and assert it flash-redirects to the edit page
+ * with the "no hosting ID" error — the shared expectation of every provider's
+ * missing-hosting-id case. */
+const expectNoHostingIdError = async (siteId: number): Promise<void> => {
+  const { response } = await adminFormPost(
+    `/admin/built-sites/${siteId}/update`,
+  );
+  await expectFlashRedirect(
+    `/admin/built-sites/${siteId}/edit`,
+    expect.stringContaining("no hosting ID"),
+    false,
+  )(response);
+};
+
 describeWithEnv(
   "POST /admin/built-sites/:id/update",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
@@ -85,14 +99,7 @@ describeWithEnv(
 
     test("errors when the site has no Bunny script ID", async () => {
       const site = await createTestBuiltSite({ name: "No Script" });
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/update`,
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        expect.stringContaining("no hosting ID"),
-        false,
-      )(response);
+      await expectNoHostingIdError(site.id);
     });
 
     test("surfaces a deploy failure", async () => {
@@ -235,14 +242,7 @@ describeWithEnv(
         hostingProvider: "deno",
         name: "No Deno App",
       });
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/update`,
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        expect.stringContaining("no Deno app ID"),
-        false,
-      )(response);
+      await expectNoHostingIdError(site.id);
     });
 
     test("deploys to a Deno app when all conditions are met", async () => {

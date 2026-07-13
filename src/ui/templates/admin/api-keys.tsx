@@ -19,6 +19,7 @@ import {
   GuideFooter,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
@@ -251,6 +252,21 @@ const DocsSection = (props: DocsSectionProps): JSX.Element => (
   </PageBlock>
 );
 
+/** One endpoint group on the docs page: its heading, intro line, and the
+ * endpoints it documents. Modelled as data so the two groups (public, admin)
+ * render through one shared fold. */
+type EndpointDocsSection = DocsSectionProps & { endpoints: EndpointDoc[] };
+
+/** Render the endpoint groups: each one is a DocsSection holding its
+ * endpoint list. */
+const endpointDocsSections = sectionsRenderer(
+  ({ endpoints, ...section }: EndpointDocsSection) => (
+    <DocsSection {...section}>
+      <Raw html={EndpointList({ endpoints })} />
+    </DocsSection>
+  ),
+);
+
 /**
  * Admin API documentation page
  */
@@ -274,22 +290,21 @@ export const adminApiDocsPage = (
         </p>
       </DocsSection>
 
-      <DocsSection
-        heading={t("api_keys.public_api")}
-        intro={t("api_keys.public_api_note")}
-      >
-        <Raw html={EndpointList({ endpoints: publicEndpoints })} />
-      </DocsSection>
-
-      <DocsSection
-        heading={t("api_keys.admin_api")}
-        intro={
-          <>
-            Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
-          </>
-        }
-      >
-        <Raw html={EndpointList({ endpoints: adminEndpoints })} />
-      </DocsSection>
+      {endpointDocsSections([
+        {
+          endpoints: publicEndpoints,
+          heading: t("api_keys.public_api"),
+          intro: t("api_keys.public_api_note"),
+        },
+        {
+          endpoints: adminEndpoints,
+          heading: t("api_keys.admin_api"),
+          intro: (
+            <>
+              Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
+            </>
+          ),
+        },
+      ])}
     </>,
   );

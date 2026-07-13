@@ -6,7 +6,6 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { ListingAttributesById } from "#shared/db/attributes.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { renderMarkdown } from "#shared/markdown.ts";
 import { listingOptionKey, packageOptionKey } from "#shared/order/options.ts";
 import {
   ORDER_FIELD,
@@ -21,11 +20,13 @@ import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingAttributes } from "./listing-attributes.ts";
 import {
   compareGroupsByName,
+  MarkdownProse,
   PackagesSection,
   type PublicNavProps,
   /* jscpd:ignore-end */
   publicPage,
   renderListingImage,
+  titleWithSiteName,
 } from "./shared.tsx";
 
 /**
@@ -204,8 +205,7 @@ export const orderGalleryPage = (
   introText?: string | null,
   attributesByListing: ListingAttributesById = new Map(),
 ): string => {
-  const orderTitle = t("nav.public.order");
-  const title = websiteTitle ? `${orderTitle} - ${websiteTitle}` : orderTitle;
+  const title = titleWithSiteName(t("nav.public.order"), websiteTitle);
   const cards = pipe(
     map(renderOrderCard(states, attributesByListing)),
     (rows) => rows.join(""),
@@ -220,11 +220,7 @@ export const orderGalleryPage = (
     nav,
   )(
     <>
-      {introText && (
-        <div class="prose">
-          <Raw html={renderMarkdown(introText)} />
-        </div>
-      )}
+      <MarkdownProse markdown={introText ?? ""} />
       {listings.length === 0 && packages.length === 0 ? (
         <p>
           <em>{t("public.order.empty")}</em>

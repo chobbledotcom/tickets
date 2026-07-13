@@ -1,6 +1,7 @@
 import { t } from "#i18n";
 import { getSettingsNagItems } from "#shared/settings-nags.ts";
 import type { NagItem } from "#shared/types.ts";
+import { ItemList } from "#templates/components/item-list.tsx";
 
 export const SettingsNagBanner = ({
   items = getSettingsNagItems(),
@@ -15,13 +16,10 @@ export const SettingsNagBanner = ({
       <p>
         <strong>{t("settings.nag_banner_heading")}</strong>
       </p>
-      <ul>
-        {items.map((item) => (
-          <li>
-            <a href={item.href}>{item.label}</a>
-          </li>
-        ))}
-      </ul>
+      <ItemList
+        items={items}
+        render={(item) => <a href={item.href}>{item.label}</a>}
+      />
     </output>
   );
 };

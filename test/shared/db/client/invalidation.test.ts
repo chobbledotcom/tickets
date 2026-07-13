@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
+import { afterEach, it as test } from "@std/testing/bdd";
 import {
   registerTableInvalidation,
-  resetCacheRegistry,
+  type Unregister,
 } from "#shared/cache-registry.ts";
 import { execute, executeBatch } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -16,18 +16,24 @@ import { describeWithEnv } from "#test-utils/db.ts";
  * the public execute() + registry API.
  */
 describeWithEnv("db > client write invalidation", { db: true }, () => {
-  beforeEach(() => resetCacheRegistry());
-  afterEach(() => resetCacheRegistry());
+  // Each test's registration is removed afterwards; the registry is shared
+  // module state, so a leftover counter would keep firing for later tests.
+  const cleanups: Unregister[] = [];
+  afterEach(() => {
+    for (const cleanup of cleanups.splice(0)) cleanup();
+  });
 
   /** Register an invalidation on `settings` and count its firings. */
   const countFirings = (whenColumns?: readonly string[]): { fired: number } => {
     const counter = { fired: 0 };
-    registerTableInvalidation(
-      ["settings"],
-      () => {
-        counter.fired++;
-      },
-      { whenColumns },
+    cleanups.push(
+      registerTableInvalidation(
+        ["settings"],
+        () => {
+          counter.fired++;
+        },
+        { whenColumns },
+      ),
     );
     return counter;
   };

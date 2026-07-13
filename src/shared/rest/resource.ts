@@ -128,15 +128,6 @@ const validateAndParse = async <T, V extends FieldValues = FieldValues>(
   return { input: await toInput(validation.values), ok: true };
 };
 
-/** Check existence and return not found result if missing */
-const requireExists = async <Row, Input>(
-  table: Table<Row, Input>,
-  id: InValue,
-): Promise<NotFoundResult | null> => {
-  const existing = await table.findById(id);
-  return existing ? null : { notFound: true, ok: false };
-};
-
 /** Run async validation, return error result or null */
 const runValidation = async <Input, Id>(
   validate: ValidateFn<Input, Id>,
@@ -178,7 +169,7 @@ export type NamedResource<
  * Define a REST resource with typed CRUD operations.
  */
 export const defineResource = <
-  Row,
+  Row extends { id: number },
   Input,
   Id = InValue,
   Values extends FieldValues = FieldValues,
@@ -229,50 +220,55 @@ export const defineResource = <
     return table.findByIdPrimary!(id);
   };
 
+  /** Run the post-commit hook for a written row, when both exist. */
+  const runAfterCommit = async (row: Row | null): Promise<void> => {
+    if (row && config.afterCommit) {
+      await config.afterCommit(row.id);
+    }
+  };
+
+  /** Run `fn` only when the row exists; otherwise report not found. */
+  const withExistingRow = async <Outcome>(
+    id: InValue,
+    fn: () => Promise<Outcome>,
+  ): Promise<Outcome | NotFoundResult> =>
+    (await table.findById(id)) ? fn() : { notFound: true, ok: false };
+
   const create = async (form: FormParams): Promise<CreateResult<Row>> => {
     const result = await parseAndValidate(form, parseInput, config.validate);
     if (!result.ok) return result;
     const row = config.afterWrite
       ? ((await writeInTransaction(null, result.input, form)) as Row)
       : await table.insert(result.input);
-    if (config.afterCommit)
-      await config.afterCommit((row as unknown as { id: number }).id);
+    await runAfterCommit(row);
     return { ok: true, row };
   };
 
-  const update = async (
-    id: InValue,
-    form: FormParams,
-  ): Promise<UpdateResult<Row>> => {
-    const notFound = await requireExists(table, id);
-    if (notFound) return notFound;
-    const result = await parseAndValidate(
-      form,
-      parseInput,
-      config.validate,
-      id as Id,
-    );
-    if (!result.ok) return result;
-    const row = config.afterWrite
-      ? await writeInTransaction(id as number, result.input, form)
-      : await table.update(id, result.input);
-    if (row && config.afterCommit) {
-      await config.afterCommit((row as unknown as { id: number }).id);
-    }
-    return toUpdateResult(row);
-  };
+  const update = (id: InValue, form: FormParams): Promise<UpdateResult<Row>> =>
+    withExistingRow(id, async (): Promise<UpdateResult<Row>> => {
+      const result = await parseAndValidate(
+        form,
+        parseInput,
+        config.validate,
+        id as Id,
+      );
+      if (!result.ok) return result;
+      const row = config.afterWrite
+        ? await writeInTransaction(id as number, result.input, form)
+        : await table.update(id, result.input);
+      await runAfterCommit(row);
+      return toUpdateResult(row);
+    });
 
-  const deleteRow = async (id: InValue): Promise<DeleteResult> => {
-    const notFound = await requireExists(table, id);
-    if (notFound) return notFound;
-
-    if (config.onDelete) {
-      await config.onDelete(id);
-    } else {
-      await table.deleteById(id);
-    }
-    return { ok: true };
-  };
+  const deleteRow = (id: InValue): Promise<DeleteResult> =>
+    withExistingRow(id, async (): Promise<DeleteResult> => {
+      if (config.onDelete) {
+        await config.onDelete(id);
+      } else {
+        await table.deleteById(id);
+      }
+      return { ok: true };
+    });
 
   const verifyName = nameField
     ? (row: Row, confirmName: string): boolean => {
@@ -297,7 +293,7 @@ export const defineResource = <
  * Define a named REST resource - requires nameField and guarantees verifyName is present.
  */
 export const defineNamedResource = <
-  Row,
+  Row extends { id: number },
   Input,
   Id = InValue,
   V extends FieldValues = FieldValues,

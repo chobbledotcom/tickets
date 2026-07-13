@@ -13,12 +13,7 @@ import {
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { getSetupCsrfToken } from "#test-utils/csrf.ts";
-import {
-  createTestDb,
-  describeWithEnv,
-  invalidateTestDbCache,
-  resetDb,
-} from "#test-utils/db.ts";
+import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import {
   assertSchemaEmpty,
   schemaMarkerKeys,
@@ -39,6 +34,7 @@ import {
   wrapDbClient,
 } from "#test-utils/record-queries.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
+import { invalidateTestDbCache } from "#test-utils/test-state.ts";
 
 describeWithEnv("server (setup)", { db: true }, () => {
   /** Get CSRF token from setup page and submit setup form with given fields */

@@ -18,6 +18,7 @@ import {
   AccountStatementSection,
 } from "#templates/admin/ledger/statement.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
+import { ProseArticle } from "#templates/components/prose-article.tsx";
 
 export type AttendeeLedgerView = {
   status: AttendeeStatus | null;
@@ -92,18 +93,20 @@ const OrderSummaryList = ({ view }: ViewProps): JSX.Element => {
 /** The secure customer payment link — shown only when an online payment can
  * actually be taken (outstanding balance, provider set, a real line to pay). */
 const PaymentLink = ({ link }: { link: string }): JSX.Element => (
-  <article>
-    <div class="prose">
-      <h3>{t("attendee_balance.payment_link_heading")}</h3>
-      <p>{t("attendee_balance.payment_link_description")}</p>
-      <p>
-        <input class="copyable" readonly type="text" value={link} />
-      </p>
-      {/* Only quantity > 0 lines are charged, so a mixed booking (some real,
-          some no-quantity lines) collects less than the full balance online. */}
-      <p class="muted small">{t("attendee_balance.quantity_note")}</p>
-    </div>
-  </article>
+  <ProseArticle
+    heading={<h3>{t("attendee_balance.payment_link_heading")}</h3>}
+    prose={
+      <>
+        <p>{t("attendee_balance.payment_link_description")}</p>
+        <p>
+          <input class="copyable" readonly type="text" value={link} />
+        </p>
+        {/* Only quantity > 0 lines are charged, so a mixed booking (some real,
+            some no-quantity lines) collects less than the full balance online. */}
+        <p class="muted small">{t("attendee_balance.quantity_note")}</p>
+      </>
+    }
+  />
 );
 
 /** Why no online payment link is offered — each blocking reason spelled out, so
@@ -185,10 +188,8 @@ export const AttendeeLedgerPanel = (view: AttendeeLedgerView): JSX.Element => (
     </div>
 
     <AccountStatementSection
-      account={view.ledger.account}
       fullLedgerHref={view.fullLedgerHref}
-      lines={view.ledger.lines}
-      names={view.ledger.names}
+      ledger={view.ledger}
       returnUrl={view.returnUrl}
     />
 

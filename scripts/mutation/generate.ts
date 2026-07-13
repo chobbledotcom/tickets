@@ -116,7 +116,7 @@ const operatorMutants: MutantFn = (node, content, exhaustive) => {
   );
 };
 
-// --- Unary operators: `!x → x` (drop a guard), `-x ↔ +x` -----------------
+// --- Unary / update operators: `!x → x`, `-x ↔ +x`, `i++ ↔ i--` ----------
 
 const UNARY_MUTATIONS: Record<
   string,
@@ -127,41 +127,49 @@ const UNARY_MUTATIONS: Record<
   "+": [{ newOperator: "-", replacement: "-" }],
 };
 
-const unaryMutants = (node: AstNode, content: string): Mutant[] => {
-  const { argument, operator, start } = node as AstNode & {
-    argument: { start: number };
-    operator: string;
-    start: number;
-  };
-  // A prefix unary operator occupies [node.start, argument.start).
-  return (UNARY_MUTATIONS[operator] ?? []).map((m) =>
-    spanMutant(
-      content,
-      start,
-      argument.start,
-      operator,
-      m.newOperator,
-      m.replacement,
-    ),
-  );
-};
-
-// --- Update operators: `i++ ↔ i--` ---------------------------------------
-
-const updateMutants = (node: AstNode, content: string): Mutant[] => {
+/** Mutants that replace the operator token sitting beside a node's argument —
+ * before it for a prefix operator (`!x`, `++i`), after it for a postfix one
+ * (`i++`). Shared by the unary and update mutators, which only differ in
+ * which replacements they swap in. */
+const argumentOperatorMutants = (
+  node: AstNode,
+  content: string,
+  swaps: ReadonlyArray<{ newOperator: string; replacement: string }>,
+): Mutant[] => {
   const { argument, end, operator, prefix, start } = node as AstNode & {
     argument: { end: number; start: number };
     end: number;
-    operator: "++" | "--";
+    operator: string;
     prefix: boolean;
     start: number;
   };
-  const flipped = operator === "++" ? "--" : "++";
   // Prefix occupies [node.start, argument.start); postfix [argument.end, node.end).
   const [opStart, opEnd] = prefix
     ? [start, argument.start]
     : [argument.end, end];
-  return [spanMutant(content, opStart, opEnd, operator, flipped, flipped)];
+  return swaps.map((m) =>
+    spanMutant(content, opStart, opEnd, operator, m.newOperator, m.replacement),
+  );
+};
+
+const unaryMutants = (node: AstNode, content: string): Mutant[] =>
+  argumentOperatorMutants(
+    node,
+    content,
+    // No entry means "no sensible mutation for this operator" — the documented
+    // default for the unary operators we don't flip (typeof/void/delete/~), not
+    // a swallowed missing value.
+    UNARY_MUTATIONS[(node as AstNode & { operator: string }).operator] ?? [],
+  );
+
+const updateMutants = (node: AstNode, content: string): Mutant[] => {
+  const flipped =
+    (node as AstNode & { operator: "++" | "--" }).operator === "++"
+      ? "--"
+      : "++";
+  return argumentOperatorMutants(node, content, [
+    { newOperator: flipped, replacement: flipped },
+  ]);
 };
 
 // --- Boolean literals: `true ↔ false` ------------------------------------
@@ -236,20 +244,34 @@ const literalMutants: MutantFn = (node, content, exhaustive) => [
   ...stringLiteralMutants(node, content, exhaustive),
 ];
 
-// --- Side-effect statement removal: `await persist(x); → ;` ---------------
+// --- Statement removals ----------------------------------------------------
+
+/** Replace the whole statement with an empty one — valid even as a braceless
+ * if/for/while body. Used directly for throw/break/continue, and via
+ * {@link statementRemovalMutants} for side-effect expression statements. */
+const statementRemoval = (node: AstNode, content: string): Mutant[] => {
+  const { end, start } = node as AstNode & { end: number; start: number };
+  return [
+    spanMutant(
+      content,
+      start,
+      end,
+      clippedText(content, start, end),
+      "(removed)",
+      ";",
+    ),
+  ];
+};
+
+// Side-effect statement removal: `await persist(x); → ;`
 
 const REMOVABLE_EXPRESSIONS = new Set(["AwaitExpression", "CallExpression"]);
 
 const statementRemovalMutants = (node: AstNode, content: string): Mutant[] => {
-  const { end, expression, start } = node as AstNode & {
-    end: number;
-    expression: { type: string };
-    start: number;
-  };
-  if (!REMOVABLE_EXPRESSIONS.has(expression.type)) return [];
-  const label = clippedText(content, start, end);
-  // Replace with an empty statement — valid even as a braceless if/for/while body.
-  return [spanMutant(content, start, end, label, "(removed)", ";")];
+  const { expression } = node as AstNode & { expression: { type: string } };
+  return REMOVABLE_EXPRESSIONS.has(expression.type)
+    ? statementRemoval(node, content)
+    : [];
 };
 
 // --- Control-flow removals ------------------------------------------------
@@ -265,20 +287,6 @@ const returnMutants = (node: AstNode, content: string): Mutant[] => {
       `return ${clippedText(content, argument.start, argument.end)}`,
       "return undefined",
       "undefined",
-    ),
-  ];
-};
-
-const statementRemoval = (node: AstNode, content: string): Mutant[] => {
-  const { end, start } = node as AstNode & { end: number; start: number };
-  return [
-    spanMutant(
-      content,
-      start,
-      end,
-      clippedText(content, start, end),
-      "(removed)",
-      ";",
     ),
   ];
 };

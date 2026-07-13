@@ -4,14 +4,8 @@
 
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
-import { adminPath } from "#shared/admin-surface.ts";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
-import {
-  type ColumnGenerators,
-  getHeaderText,
-  renderCells,
-  resolveColumnLayout,
-} from "#shared/column-order.ts";
+import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
   EDITOR_LISTING_DEFAULT_ORDER,
   EDITOR_LISTING_TABLE_COLUMNS,
@@ -20,7 +14,6 @@ import {
 } from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
-import { formatDateLabel } from "#shared/dates.ts";
 import type { ActiveListingStats } from "#shared/db/attendee-types.ts";
 import type { ServicingEventSummary } from "#shared/db/attendees/servicing.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -39,6 +32,7 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { AdminPage, flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
 import { HolidayTable } from "#templates/admin/holidays.tsx";
 import {
   attributeFilterHref,
@@ -48,11 +42,12 @@ import {
   renderAttributeFilterBars,
   typeFilterHref,
 } from "#templates/admin/listing-attribute-filters.ts";
-import { WritableLink } from "#templates/admin/writable-only.tsx";
-import { AttendeeTable } from "#templates/attendee-table.tsx";
+import {
+  ListingsTableBlock,
+  renderListingsTableSection,
+} from "#templates/admin/listing-table.tsx";
+import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
-import { PageBlock } from "#templates/components/page-structure.tsx";
-import { escapeHtml } from "#templates/layout.tsx";
 
 /** The dashboard's quick-create actions — shortcuts to add a listing or an
  *  attendee straight from the home page (each section's own sub-nav reaches the
@@ -67,34 +62,6 @@ const DashboardQuickActions = (): JSX.Element => (
     </ActionButton>
   </p>
 );
-
-/** The ordered column layout a listings table (or single row) renders from. */
-type ListingColumnArgs = {
-  columnKeys: string[];
-  filters: Map<string, string>;
-  columns?: ColumnGenerators<ListingWithCount>;
-};
-
-/** Render a single listing table row using ordered column keys. `columns`
- * defaults to the full staff column set; the editor variant passes its
- * money-free, edit-linked set. */
-export const ListingRow = ({
-  e,
-  columnKeys,
-  filters,
-  columns = LISTING_TABLE_COLUMNS,
-}: ListingColumnArgs & { e: ListingWithCount }): string => {
-  const isInactive = !e.active;
-  const cells = renderCells(
-    e,
-    columnKeys,
-    columns,
-    undefined,
-    filters,
-    escapeHtml,
-  );
-  return `<tr${isInactive ? ' class="inactive-row"' : ""}>${cells}</tr>`;
-};
 
 /** Checkbox item for multi-booking link builder */
 const MultiBookingCheckbox = ({ e }: { e: ListingWithCount }): string =>
@@ -199,18 +166,16 @@ const newestAttendeesSection = (
   return String(
     <details open>
       <summary>{t("admin.dashboard.newest_attendees", { count })}</summary>
-      <div class="table-scroll">
-        <Raw
-          html={AttendeeTable({
-            allowedDomain: getEffectiveDomain(),
-            presorted: true,
-            rows: tableRows,
-            showCheckin: false,
-            showDate: false,
-            showListing: true,
-          })}
-        />
-      </div>
+      <AttendeeTableBlock
+        options={{
+          allowedDomain: getEffectiveDomain(),
+          presorted: true,
+          rows: tableRows,
+          showCheckin: false,
+          showDate: false,
+          showListing: true,
+        }}
+      />
     </details>,
   );
 };
@@ -228,130 +193,6 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
       />
     </details>,
   );
-
-const upcomingServicingRow = (event: ServicingEventSummary) => {
-  // One `<li>` per service event (not per booking line), so a multi-listing hold
-  // appears once. The compact details carry the listing count rather than every
-  // name — the listing names are listed in the `/admin/servicing` table. The
-  // date uses the app's deterministic formatter, not the runtime's locale.
-  const listingCount = event.bookings.length;
-  const details = [
-    event.date ? formatDateLabel(event.date) : "",
-    `${listingCount} listing${listingCount === 1 ? "" : "s"}`,
-    `${event.totalQuantity}`,
-  ].filter(Boolean);
-  return (
-    <li>
-      <WritableLink href={adminPath("servicingEdit", { id: event.id })}>
-        {event.name}
-      </WritableLink>{" "}
-      <span class="muted">{details.join(" · ")}</span>
-    </li>
-  );
-};
-
-const upcomingServicingSection = (events: ServicingEventSummary[]): string =>
-  String(
-    <details open>
-      <summary>{t("admin.dashboard.upcoming_service_events")}</summary>
-      <ul>{events.map(upcomingServicingRow)}</ul>
-    </details>,
-  );
-
-/** The subset of `columnKeys` that the given column set actually defines. */
-export const validListingColumnKeys = (
-  columnKeys: string[],
-  columns: ColumnGenerators<ListingWithCount>,
-): string[] => columnKeys.filter((key) => columns[key]);
-
-/** Render the listing rows (or the single empty-state row) for a listings
- *  table body. Shared by the dashboard listings section and the group detail
- *  page; `emptyText` is the message shown when there are no listings. */
-/** The listing collection + column layout every listings table renders from. */
-type ListingTableArgs = ListingColumnArgs & {
-  listings: ListingWithCount[];
-};
-
-export const renderListingRows = ({
-  listings,
-  columnKeys,
-  filters,
-  emptyText,
-  columns = LISTING_TABLE_COLUMNS,
-}: ListingTableArgs & { emptyText: string }): string =>
-  listings.length > 0
-    ? pipe(
-        map((e: ListingWithCount) =>
-          ListingRow({ columnKeys, columns, e, filters }),
-        ),
-        joinStrings,
-      )(listings)
-    : `<tr><td colspan="${columnKeys.length}">${emptyText}</td></tr>`;
-
-/** Render the listing table with dynamic column keys. `columns` defaults to the
- * staff column set; the editor variant passes its money-free set. */
-export const renderListingTable = (
-  columnKeys: string[],
-  rows: string,
-  columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
-): string => {
-  const headers = pipe(
-    map((key: string) => `<th>${getHeaderText(columns[key]!)}</th>`),
-    joinStrings,
-  )(validListingColumnKeys(columnKeys, columns));
-  return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
-};
-
-export const renderListingsTableSection = (
-  listings: ListingWithCount[],
-  columnKeys: string[],
-  filters: Map<string, string>,
-  columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
-): string => {
-  const listingRows = renderListingRows({
-    columnKeys: validListingColumnKeys(columnKeys, columns),
-    columns,
-    emptyText: t("admin.dashboard.no_listings"),
-    filters,
-    listings,
-  });
-
-  return String(
-    <div class="table-scroll">
-      <Raw html={renderListingTable(columnKeys, listingRows, columns)} />
-    </div>,
-  );
-};
-
-/** A listings table with an optional filter row above it. When `csvExport` is
- * set, a CSV-export footer is shown below in the same block. Shared by the
- * dashboard (active-only table, no export) and the
- * listings index (active + deactivated, exports all). */
-const ListingsTableBlock = ({
-  listings,
-  columnKeys,
-  filters,
-  csvExport = false,
-  csvHref = "/admin/listings/csv",
-  headerHtml = "",
-  columns = LISTING_TABLE_COLUMNS,
-}: ListingTableArgs & {
-  csvExport?: boolean;
-  csvHref?: string;
-  headerHtml?: string;
-}): JSX.Element => (
-  <PageBlock>
-    <Raw html={headerHtml} />
-    <Raw
-      html={renderListingsTableSection(listings, columnKeys, filters, columns)}
-    />
-    {csvExport && (
-      <div class="table-actions">
-        <a href={csvHref}>{t("listings_table.export_csv")}</a>
-      </div>
-    )}
-  </PageBlock>
-);
 
 /**
  * Admin dashboard page

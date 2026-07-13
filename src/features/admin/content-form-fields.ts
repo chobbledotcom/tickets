@@ -5,18 +5,23 @@
  * edit form and reading a submitted one.
  */
 
+// jscpd:ignore-start
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
+import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
+import type { Field } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { slugFieldBase } from "#templates/fields/validators.ts";
+
+// jscpd:ignore-end
 
 const MAX_NAME = 128;
 const MAX_META_TITLE = 64;
 const MAX_META_DESCRIPTION = 160;
 
 /** The required display-name field (each editor supplies its own label). */
-export const contentNameField = (label: string) =>
+const contentNameField = (label: string) =>
   ({
     label,
     maxlength: MAX_NAME,
@@ -39,7 +44,7 @@ export const contentSlugField = (publicLinkPath?: (slug: string) => string) =>
   }) as const;
 
 /** The optional SEO meta title + description pair. */
-export const seoMetaFields = () =>
+const seoMetaFields = () =>
   [
     {
       hint: t("fields.meta_title_hint"),
@@ -58,7 +63,7 @@ export const seoMetaFields = () =>
   ] as const;
 
 /** The markdown body field, with the formatting-help hint. */
-export const markdownContentField = () =>
+const markdownContentField = () =>
   ({
     hintHtml: formattingHint(),
     label: t("fields.content"),
@@ -68,17 +73,97 @@ export const markdownContentField = () =>
     type: "textarea",
   }) as const;
 
-/** Snake-case pre-fill values for the shared SEO/content fields. */
-export const contentMetaValues = (row: {
+/** The fields after the name/slug, shared by the create and edit forms:
+ * SEO meta, any per-editor extras (e.g. the news snippet), then the body. */
+type TrailingContentFields<Extra extends readonly Field[]> = readonly [
+  ...ReturnType<typeof seoMetaFields>,
+  ...Extra,
+  ReturnType<typeof markdownContentField>,
+];
+
+/** The create + edit form pair a Site content editor (Pages, News) uses. */
+export type ContentForms<
+  CreateSlug extends readonly Field[],
+  Extra extends readonly Field[],
+> = {
+  createForm: FormDefinition<
+    readonly [
+      ReturnType<typeof contentNameField>,
+      ...CreateSlug,
+      ...TrailingContentFields<Extra>,
+    ]
+  >;
+  editForm: FormDefinition<
+    readonly [
+      ReturnType<typeof contentNameField>,
+      ReturnType<typeof contentSlugField>,
+      ...TrailingContentFields<Extra>,
+    ]
+  >;
+};
+
+/**
+ * Build the create + edit forms for a Site content editor (Pages, News).
+ * The two editors share every field; a config carries what differs:
+ *
+ * - `createSlugFields` — `[contentSlugField()]` when the create form asks for
+ *   the slug (Pages), `[]` when the slug is auto-generated on create (News).
+ *   Either way the create form shows no public link: the entity has no live
+ *   page yet, and a restored-after-error slug must not render a link that 404s.
+ * - `extraFields` — per-editor fields between the SEO meta pair and the
+ *   markdown body (e.g. the news snippet).
+ * - `publicLinkPath` — the saved slug's public page, linked on the edit form.
+ */
+export const defineContentForms = <
+  const CreateSlug extends readonly Field[],
+  const Extra extends readonly Field[],
+>(config: {
+  createSlugFields: CreateSlug;
+  extraFields: Extra;
+  /** Form ids: `<id>` for create, `<id>Edit` for edit. */
+  id: string;
+  nameLabel: string;
+  publicLinkPath: (slug: string) => string;
+}): ContentForms<CreateSlug, Extra> => {
+  const nameField = contentNameField(config.nameLabel);
+  const trailingFields = [
+    ...seoMetaFields(),
+    ...config.extraFields,
+    markdownContentField(),
+  ] as const;
+  return {
+    createForm: defineForm({
+      fields: [
+        nameField,
+        ...config.createSlugFields,
+        ...trailingFields,
+      ] as const,
+      id: config.id,
+    }),
+    editForm: defineForm({
+      fields: [
+        nameField,
+        contentSlugField(config.publicLinkPath),
+        ...trailingFields,
+      ] as const,
+      id: `${config.id}Edit`,
+    }),
+  };
+};
+
+/** Snake-case values for pre-filling a content editor's edit form. */
+export const contentFieldValues = (row: {
   content: string;
   meta_description: string;
   meta_title: string;
   name: string;
+  slug: string;
 }): Record<string, string> => ({
   content: row.content,
   meta_description: row.meta_description,
   meta_title: row.meta_title,
   name: row.name,
+  slug: row.slug,
 });
 
 /** The submitted SEO/content columns shared by create and update. */

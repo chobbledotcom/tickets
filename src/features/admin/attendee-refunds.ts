@@ -10,9 +10,10 @@ import {
   withListingAttendeesAuth,
 } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
@@ -291,15 +292,12 @@ const processRefundAll = async (
 };
 
 /** Handle POST /admin/listing/:id/refund-all */
-const handleAdminRefundAllPost = (
-  request: Request,
-  { id }: ListingRouteParams,
-): Promise<Response> =>
-  withAuth(request, AUTH_FORM, (session, form) =>
-    withDecryptedAttendees(session, id, (listing, attendees) =>
+const handleAdminRefundAllPost = createAuthedHandler<ListingRouteParams>({
+  handle: ({ form, params, session }) =>
+    withDecryptedAttendees(session, params.id, (listing, attendees) =>
       processRefundAll(listing, attendees, session, form),
     ),
-  );
+});
 
 /** Attendee refund routes */
 export const adminHandlers = handlersFor("attendeeRefunds")({

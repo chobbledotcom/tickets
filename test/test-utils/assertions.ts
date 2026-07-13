@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { once } from "#fp";
 import { getSessionCookieName, parseFlashValue } from "#shared/cookies.ts";
+import { BROKEN_IMAGE_PNG } from "#shared/images/broken.ts";
 
 export const FLASH_TEST_ID = "t001";
 
@@ -583,7 +584,10 @@ interface TestRequiresAuthOptions {
   body?: Record<string, string>;
   method?: "GET" | "POST";
   multipart?: boolean;
-  setup?: () => Promise<void>;
+  /** Optional per-test preparation. Return a cleanup function to undo any
+   * state the setup switched (e.g. the restore from `setTestEnv`) — module
+   * state left switched leaks into every test that runs after this one. */
+  setup?: () => Promise<(() => void) | undefined> | Promise<void>;
 }
 
 export const testRequiresAuth = (
@@ -591,18 +595,21 @@ export const testRequiresAuth = (
   options: TestRequiresAuthOptions = {},
 ): void => {
   it("redirects to login when not authenticated", async () => {
-    await options.setup?.();
-    const { handleRequest } = await import("#routes");
-    const { mockFormRequest, mockMultipartRequest, mockRequest } = await import(
-      "#test-utils/mocks.ts"
-    );
-    const request = options.multipart
-      ? mockMultipartRequest(path, options.body!)
-      : options.method === "POST"
-        ? mockFormRequest(path, options.body!)
-        : mockRequest(path);
-    const response = await handleRequest(request);
-    expectAdminRedirect(response);
+    const cleanup = await options.setup?.();
+    try {
+      const { handleRequest } = await import("#routes");
+      const { mockFormRequest, mockMultipartRequest, mockRequest } =
+        await import("#test-utils/mocks.ts");
+      const request = options.multipart
+        ? mockMultipartRequest(path, options.body!)
+        : options.method === "POST"
+          ? mockFormRequest(path, options.body!)
+          : mockRequest(path);
+      const response = await handleRequest(request);
+      expectAdminRedirect(response);
+    } finally {
+      cleanup?.();
+    }
   });
 };
 
@@ -638,4 +645,16 @@ export const expectEncryptedAtRest = (
   for (const value of values) {
     expect(value?.startsWith("enc:")).toBe(true);
   }
+};
+
+/** Assert a response is the uncached red-pixel fallback for a broken image. */
+export const expectBrokenImageResponse = async (
+  response: Response,
+): Promise<void> => {
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("image/png");
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+    BROKEN_IMAGE_PNG,
+  );
 };

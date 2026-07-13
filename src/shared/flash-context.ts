@@ -4,7 +4,7 @@
  * Consumed by templates via getFlash() — no manual reading needed in handlers.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
+import { createScope } from "#shared/request-scoped.ts";
 
 /** Flash message shape — fields are only present when a message exists */
 export type Flash = {
@@ -28,36 +28,36 @@ export type Flash = {
  */
 type FlashStore = Flash & { formId?: string; consumed?: boolean };
 
-const flashStore = new AsyncLocalStorage<FlashStore>();
+const flashScope = createScope<FlashStore>();
 
 /** Run a function within a flash context scope */
 export const runWithFlashContext = <T>(fn: () => T): T =>
-  flashStore.run({}, fn);
+  flashScope.run({}, fn);
 
 /** Record which form a redirect targeted, so the matching CsrfForm renders the
  *  flash inline rather than the Layout rendering it at the top of the page. */
 export const setFlashFormId = (formId: string | null): void => {
-  const store = flashStore.getStore();
+  const store = flashScope.current();
   if (store && formId) store.formId = formId;
 };
 
 /** The form a redirect targeted, or undefined when the flash isn't form-scoped. */
 export const getFlashFormId = (): string | undefined =>
-  flashStore.getStore()?.formId;
+  flashScope.current()?.formId;
 
 /** Mark the flash as rendered, so the Layout backstop won't render it again. */
 export const consumeFlash = (): void => {
-  const store = flashStore.getStore();
+  const store = flashScope.current();
   if (store) store.consumed = true;
 };
 
 /** Whether the flash has already been rendered this request. */
 export const flashConsumed = (): boolean =>
-  flashStore.getStore()?.consumed === true;
+  flashScope.current()?.consumed === true;
 
 /** Set the flash context for the current request (called by middleware) */
 export const setFlashContext = (flash: Flash): void => {
-  const store = flashStore.getStore();
+  const store = flashScope.current();
   if (store) {
     store.success = flash.success;
     store.error = flash.error;
@@ -68,7 +68,7 @@ export const setFlashContext = (flash: Flash): void => {
 
 /** Get the current flash message (for use in templates/handlers) */
 export const getFlash = (): Flash => {
-  const store = flashStore.getStore();
+  const store = flashScope.current();
   return {
     error: store?.error,
     info: store?.info,
@@ -79,7 +79,7 @@ export const getFlash = (): Flash => {
 
 /** Whether the current request has a flash message */
 export const hasFlash = (): boolean => {
-  const store = flashStore.getStore();
+  const store = flashScope.current();
   return (
     store?.success !== undefined ||
     store?.error !== undefined ||

@@ -2,21 +2,18 @@
  * Admin site page editor templates
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   siteContactForm,
   siteHomeForm,
   siteOrderForm,
 } from "#routes/admin/site.ts";
-import { CsrfForm } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { GuideFooter, SaveButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
-
-/* jscpd:ignore-end */
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /** The public-site guide footer shared by the home, contact and order editors
  * (all three map to the guide's `#public-site` section). The site editors are
@@ -32,18 +29,33 @@ const SiteGuideFooter = ({
   </GuideFooter>
 );
 
-/** A /admin/site sub-page: the flash admin-page shell with the shared public-site
- *  guide footer appended after the body, so every site editor ends the same way. */
-const siteAdminPage =
+/** Open a site editor page: pass the title and nav path, then the session and
+ * any flash messages, then the page body. The public-site guide footer is
+ * always appended after the body. */
+const siteEditorPage =
   (title: string, active: string) =>
   (session: AdminSession, error?: string, success?: string) =>
-  (body: JSX.Element): string =>
+  (body: Child): string =>
     flashAdminPage(title, active)(session, error, success)(
       <>
         {body}
         <SiteGuideFooter adminLevel={session.adminLevel} />
       </>,
     );
+
+/** One of the site text editors: its schema-rendered fields inside a form that
+ * ends with the standard save button. */
+const SiteTextForm = ({
+  action,
+  html,
+}: {
+  action: string;
+  html: string;
+}): JSX.Element => (
+  <SaveForm action={action} submitLabel={t("common.save")}>
+    <Raw html={html} />
+  </SaveForm>
+);
 
 /**
  * Homepage editor - website title + homepage text
@@ -55,19 +67,17 @@ export const adminSiteHomePage = (
   error?: string,
   success?: string,
 ): string =>
-  siteAdminPage(t("site.home_title"), "/admin/site")(session, error, success)(
+  siteEditorPage(t("site.home_title"), "/admin/site")(session, error, success)(
     <>
       <h2>{t("site.home.heading")}</h2>
 
-      <CsrfForm action="/admin/site">
-        <Raw
-          html={siteHomeForm.render({
-            homepage_text: homepageText,
-            website_title: websiteTitle,
-          })}
-        />
-        {SaveButton()}
-      </CsrfForm>
+      <SiteTextForm
+        action="/admin/site"
+        html={siteHomeForm.render({
+          homepage_text: homepageText,
+          website_title: websiteTitle,
+        })}
+      />
     </>,
   );
 
@@ -107,7 +117,7 @@ const ContactFormToggle = ({
   hasBusinessEmail,
   botpoisonEnabled,
 }: ContactFormState): JSX.Element => (
-  <CsrfForm action="/admin/site/contact/form">
+  <SaveForm action="/admin/site/contact/form" submitLabel={t("common.save")}>
     <div class="prose">
       <h2>{t("site.contact_form_heading")}</h2>
       <p>
@@ -131,8 +141,7 @@ const ContactFormToggle = ({
       />{" "}
       Enable contact form
     </label>
-    {SaveButton()}
-  </CsrfForm>
+  </SaveForm>
 );
 
 /**
@@ -145,7 +154,7 @@ export const adminSiteContactPage = (
   error?: string,
   success?: string,
 ): string =>
-  siteAdminPage(t("site.contact_title"), "/admin/site/contact")(
+  siteEditorPage(t("site.contact_title"), "/admin/site/contact")(
     session,
     error,
     success,
@@ -153,14 +162,12 @@ export const adminSiteContactPage = (
     <>
       <h2>{t("site.contact.heading")}</h2>
 
-      <CsrfForm action="/admin/site/contact">
-        <Raw
-          html={siteContactForm.render({
-            contact_page_text: contactPageText,
-          })}
-        />
-        {SaveButton()}
-      </CsrfForm>
+      <SiteTextForm
+        action="/admin/site/contact"
+        html={siteContactForm.render({
+          contact_page_text: contactPageText,
+        })}
+      />
 
       <ContactFormToggle
         botpoisonEnabled={contactForm.botpoisonEnabled}
@@ -210,7 +217,7 @@ export const adminSiteOrderPage = (
   error?: string,
   success?: string,
 ): string =>
-  siteAdminPage(t("site.order_title"), "/admin/site/order")(
+  siteEditorPage(t("site.order_title"), "/admin/site/order")(
     session,
     error,
     success,
@@ -226,7 +233,10 @@ export const adminSiteOrderPage = (
         <OrderListingsNote listingCount={state.listingCount} />
       </div>
 
-      <CsrfForm action="/admin/site/order/toggle">
+      <SaveForm
+        action="/admin/site/order/toggle"
+        submitLabel={t("common.save")}
+      >
         <label>
           <input
             checked={state.enabled}
@@ -236,12 +246,11 @@ export const adminSiteOrderPage = (
           />{" "}
           Enable order page
         </label>
-        {SaveButton()}
-      </CsrfForm>
+      </SaveForm>
 
-      <CsrfForm action="/admin/site/order">
-        <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
-        {SaveButton()}
-      </CsrfForm>
+      <SiteTextForm
+        action="/admin/site/order"
+        html={siteOrderForm.render({ order_intro_text: introText })}
+      />
     </>,
   );

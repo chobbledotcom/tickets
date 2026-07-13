@@ -7,11 +7,7 @@ import { t } from "#i18n";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import { savedFormValue } from "#shared/forms.tsx";
-import {
-  questionFieldset,
-  questionSelectField,
-  questionTextField,
-} from "#templates/components/question-text.tsx";
+import { questionControl } from "#templates/components/question-controls.tsx";
 /* jscpd:ignore-end */
 
 /** Render one question control. `required` is the HTML constraint: page listings
@@ -31,34 +27,14 @@ export const renderQuestion = (
   listingIds?: string,
 ): JSX.Element => {
   const answered = savedFormValue(`question_${q.id}`);
-  const options = q.answers.filter((a) => a.active);
-  if (q.display_type === "free_text") {
-    return questionTextField(q, listingIds, answered, required);
-  }
-  if (q.display_type === "select") {
-    return questionSelectField(q, listingIds, {
-      isChosen: (id) => answered === String(id),
-      options,
-      placeholder: t("public.ticket.select_answer_placeholder"),
-      required,
-    });
-  }
-  return questionFieldset(
-    q,
+  return questionControl(q, {
+    isChosen: (answerId) => answered === String(answerId),
     listingIds,
-    options.map((a) => (
-      <label>
-        <input
-          checked={answered === String(a.id)}
-          name={`question_${q.id}`}
-          required={required}
-          type="radio"
-          value={String(a.id)}
-        />{" "}
-        {a.text}
-      </label>
-    )),
-  );
+    options: q.answers.filter((a) => a.active),
+    placeholder: t("public.ticket.select_answer_placeholder"),
+    required,
+    textValue: answered,
+  });
 };
 
 /** A choice question whose answers are all deactivated has nothing selectable, so

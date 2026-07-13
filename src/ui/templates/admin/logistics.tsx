@@ -22,7 +22,7 @@ import type {
   AdminSession,
   LogisticsAgent,
 } from "#shared/types.ts";
-import { successAdminPage } from "#templates/admin/admin-page.tsx";
+import { successListPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
@@ -87,23 +87,19 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
  * Admin logistics settings page — the has-logistics toggle plus, when enabled,
  * logistics-agent management.
  */
-export const adminLogisticsPage = (
-  agents: LogisticsAgent[],
-  session: AdminSession,
-  successMessage?: string,
-): string =>
-  successAdminPage(t("logistics.title"), "/admin/logistics")(
-    session,
-    successMessage,
-  )(
+export const adminLogisticsPage = successListPage<LogisticsAgent[]>(
+  "logistics.title",
+  "/admin/logistics",
+  (agents) => (
     <>
       <WritableOnly>{HasLogisticsForm(settings.hasLogistics)}</WritableOnly>
       {settings.hasLogistics && AgentsSection(agents)}
       <GuideFooter href="/admin/guide#logistics">
         {t("logistics.guide_link")}
       </GuideFooter>
-    </>,
-  );
+    </>
+  ),
+);
 
 /** Logistics agent create/edit form values. */
 export const logisticsAgentToFieldValues = (

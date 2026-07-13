@@ -8,9 +8,8 @@ import {
   TEST_SESSION,
   withBuilder,
 } from "#test/templates/admin/listings/helpers.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
-
-registerListingTemplateHooks();
 
 /** An edit-panel render with both always-open URLs cleared, so only the field
  *  named in `overrides` can force the Advanced disclosure open. */
@@ -25,6 +24,8 @@ const advancedPanelHtml = (
   );
 
 describe("adminListingEditPage group select", () => {
+  registerListingTemplateHooks();
+
   test("checks the listing's groups when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "Group Two" })];
     const listing = testListingWithCount({});
@@ -53,6 +54,8 @@ describe("adminListingEditPage group select", () => {
 });
 
 describe("adminListingEditPage duration warning", () => {
+  registerListingTemplateHooks();
+
   test("includes duration warning + confirmation gate with current duration", () => {
     const listing = testListingWithCount({
       duration_days: 3,
@@ -73,6 +76,8 @@ describe("adminListingEditPage duration warning", () => {
 });
 
 describe("adminListingEditPage day prices", () => {
+  registerListingTemplateHooks();
+
   test("renders priced day-count inputs and checks the customisable toggle", () => {
     const listing = testListingWithCount({
       customisable_days: true,
@@ -101,6 +106,32 @@ describe("adminListingEditPage day prices", () => {
 });
 
 describe("adminListingEditPage form sections", () => {
+  registerListingTemplateHooks();
+
+  /** Render the edit panel for a listing whose stored counts drifted from the
+   *  recount, so the mismatch-shown and read-only tests share one setup. */
+  const renderMismatchPanel = (): {
+    html: string;
+    listing: ReturnType<typeof testListingWithCount>;
+  } => {
+    const listing = testListingWithCount({
+      attendee_count: 7,
+      tickets_count: 3,
+    });
+    const html = String(
+      ListingEditPanel({
+        aggregateRecalculation: {
+          booked_quantity: { current: 7, recalculated: 4 },
+          tickets_count: { current: 3, recalculated: 3 },
+        },
+        groups: [],
+        listing,
+        session: TEST_SESSION,
+      }),
+    );
+    return { html, listing };
+  };
+
   test("groups fields under section legends and an Advanced disclosure", () => {
     const listing = testListingWithCount();
     const html = String(
@@ -195,28 +226,29 @@ describe("adminListingEditPage form sections", () => {
   });
 
   test("shows a running-total mismatch on the edit page", () => {
-    const listing = testListingWithCount({
-      attendee_count: 7,
-      tickets_count: 3,
-    });
-    const html = String(
-      ListingEditPanel({
-        aggregateRecalculation: {
-          booked_quantity: { current: 7, recalculated: 4 },
-          tickets_count: { current: 3, recalculated: 3 },
-        },
-        groups: [],
-        listing,
-        session: TEST_SESSION,
-      }),
-    );
+    const { html, listing } = renderMismatchPanel();
     expect(html).toContain("Mismatch");
     expect(html).toContain("expected <strong>4</strong>, got");
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
   });
+
+  test("hides the recalculate link in read-only mode", () => {
+    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    try {
+      const { html, listing } = renderMismatchPanel();
+      // The mismatch is still surfaced, but the recalculate action would route
+      // to a write page blocked in read-only mode, so its link is dropped.
+      expect(html).toContain("Mismatch");
+      expect(html).not.toContain(`/admin/listings/recalculate/${listing.id}`);
+    } finally {
+      restore();
+    }
+  });
 });
 
 describe("adminListingEditPage Advanced section auto-open", () => {
+  registerListingTemplateHooks();
+
   test("stays collapsed when only the slug is set", () => {
     // Slug is always populated; on its own it must not force the section open.
     const html = advancedPanelHtml({});
@@ -245,6 +277,8 @@ describe("adminListingEditPage Advanced section auto-open", () => {
 });
 
 describe("adminListingEditPage Advanced section auto-open (builder fields)", () => {
+  registerListingTemplateHooks();
+
   test("opens when a renewal tier (months per unit) is set", () => {
     withBuilder(() => {
       expect(advancedPanelHtml({ months_per_unit: 3 })).toContain(

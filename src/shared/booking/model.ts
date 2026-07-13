@@ -18,6 +18,9 @@ export type TicketListing = {
   maxPurchasable: number;
 };
 
+/** Each parent listing's children, keyed by the parent's listing id. */
+export type ChildrenByParent = ReadonlyMap<number, readonly TicketListing[]>;
+
 /** The key for one parent and one child. */
 export const childDateKey = (parentId: number, childId: number): string =>
   `${parentId}:${childId}`;
@@ -114,18 +117,19 @@ export const childPassesAllChecks =
   (child: TicketListing): boolean =>
     checks.every((check) => check(child));
 
-/** Checks if a child can be picked before the buyer chooses days. */
-export const childCanBePickedBeforeDays: (child: TicketListing) => boolean =
+/** Checks a child can still be booked, before any date or day count is chosen
+ * (a daily child's date checks come later, once the buyer picks one). */
+export const childCanBeBooked: (child: TicketListing) => boolean =
   childPassesAllChecks([childActive, childOpen, childInStock]);
 
 /** Child ids that can still be booked. */
 export const bookableChildIds = (
-  childrenByParentId: ReadonlyMap<number, readonly TicketListing[]> | undefined,
+  childrenByParentId: ChildrenByParent | undefined,
 ): ReadonlySet<number> =>
   new Set(
     [...(childrenByParentId?.values() ?? [])]
       .flat()
-      .filter(childCanBePickedBeforeDays)
+      .filter(childCanBeBooked)
       .map((child) => child.listing.id),
   );
 
@@ -172,10 +176,26 @@ export const keepOptionsSomeChildSupports = <T>(
   return options.filter((value) => supported.has(value));
 };
 
+/** A listing paired with its own children. */
+export type MemberWithChildren = {
+  member: TicketListing;
+  children: readonly TicketListing[];
+};
+
+/** The listings that actually have children, each paired with them. */
+export const membersWithChildren = (
+  members: readonly TicketListing[],
+  childrenByParentId: ChildrenByParent | undefined,
+): MemberWithChildren[] =>
+  members.flatMap((member) => {
+    const children = childrenByParentId?.get(member.listing.id);
+    return !children || children.length === 0 ? [] : [{ children, member }];
+  });
+
 /** Runs a step for each listing that has children, carrying the result along. */
 export const updateForMembersWithChildren = <T>(
   members: readonly TicketListing[],
-  childrenByParentId: ReadonlyMap<number, readonly TicketListing[]>,
+  childrenByParentId: ChildrenByParent,
   initial: T,
   step: (
     current: T,
@@ -183,12 +203,10 @@ export const updateForMembersWithChildren = <T>(
     children: readonly TicketListing[],
   ) => T,
 ): T =>
-  members.reduce((current, member) => {
-    const children = childrenByParentId.get(member.listing.id);
-    return !children || children.length === 0
-      ? current
-      : step(current, member, children);
-  }, initial);
+  membersWithChildren(members, childrenByParentId).reduce(
+    (current, { member, children }) => step(current, member, children),
+    initial,
+  );
 
 /** Builds listing availability for ticket pages before a date is chosen. A
  * listing without the `dateLessCap` rule has no date-less own count — its cap
@@ -212,9 +230,7 @@ export const buildTicketListing = (
 };
 
 /** Day counts every customisable listing on the page supports. */
-export const dayCountsEveryListingSupports = (
-  listings: TicketListing[],
-): number[] => {
+const dayCountsEveryListingSupports = (listings: TicketListing[]): number[] => {
   const customisable = listings.filter(
     (listing) => listing.listing.customisable_days,
   );
@@ -240,10 +256,10 @@ export const dayCountsChildSupports = (
 };
 
 /** Keeps day counts that each member's children can support. */
-export const keepDayCountsChildrenSupport = (
+const keepDayCountsChildrenSupport = (
   members: TicketListing[],
   counts: number[],
-  childrenByParentId: ReadonlyMap<number, TicketListing[]>,
+  childrenByParentId: ChildrenByParent,
 ): number[] =>
   updateForMembersWithChildren(
     members,
@@ -253,32 +269,23 @@ export const keepDayCountsChildrenSupport = (
       keepOptionsSomeChildSupports(
         current,
         children,
-        childCanBePickedBeforeDays,
+        childCanBeBooked,
         (child) => dayCountsChildSupports(child) ?? current,
       ),
   );
 
-/** Keeps parent day counts that at least one child can support. */
-export const keepParentDayCountsChildrenSupport = (
+/** Day counts the page's "number of days" selector can offer. Starts from the
+ * counts every customisable listing supports, then keeps only counts the
+ * required children can serve. A package page books every member, so each
+ * parent member's child union constrains the bundle's spans; every other page
+ * constrains only the single-listing-parent case. */
+export const pageDayCounts = (
   listings: TicketListing[],
-  parentDayCounts: number[],
-  childrenByParentId: ReadonlyMap<number, TicketListing[]> | undefined,
-): number[] =>
-  !childrenByParentId || listings.length !== 1
-    ? parentDayCounts
-    : keepDayCountsChildrenSupport(
-        listings,
-        parentDayCounts,
-        childrenByParentId,
-      );
-
-/** Package day counts that all parent members and children can support. */
-export const packageDayCountsChildrenSupport = (
-  listings: TicketListing[],
-  childrenByParentId: ReadonlyMap<number, TicketListing[]>,
-): number[] =>
-  keepDayCountsChildrenSupport(
-    listings,
-    dayCountsEveryListingSupports(listings),
-    childrenByParentId,
-  );
+  childrenByParentId: ChildrenByParent | undefined,
+  hasPackages: boolean,
+): number[] => {
+  const counts = dayCountsEveryListingSupports(listings);
+  return childrenByParentId && (hasPackages || listings.length === 1)
+    ? keepDayCountsChildrenSupport(listings, counts, childrenByParentId)
+    : counts;
+};

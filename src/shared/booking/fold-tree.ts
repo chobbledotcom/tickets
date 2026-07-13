@@ -2,7 +2,7 @@ import { compact, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import { formatAtomicError, parseCustomPrice } from "#shared/booking/form.ts";
 import {
-  childCanBePickedBeforeDays,
+  childCanBeBooked,
   childDateOk,
   childDaysFromParent,
   childHasPriceForDays,
@@ -63,7 +63,7 @@ export const childSelectableForSpan = (
 ): boolean =>
   childPassesAllChecks(
     compact([
-      childCanBePickedBeforeDays,
+      childCanBeBooked,
       duration === null ? null : childHasPriceForDays(duration),
       duration === null ? null : childUsesSameDays(duration),
     ]),

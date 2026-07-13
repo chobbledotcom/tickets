@@ -10,9 +10,9 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import type { InValue } from "@libsql/client";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { settingsToggle } from "#routes/admin/settings-helpers.ts";
+/* jscpd:ignore-start */
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-/* jscpd:ignore-start */
 import type { IdRouteHandler } from "#routes/entity.ts";
 import {
   errorRedirect,

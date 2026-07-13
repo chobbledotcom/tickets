@@ -10,6 +10,7 @@ import { errorMessage } from "#shared/error-message.ts";
 import { processExists, stopProcess, stopProcessNow } from "../process.ts";
 import { projectRoot } from "../project-root.ts";
 import {
+  envWith,
   offTerminationSignals,
   onTerminationSignals,
 } from "./child-process.ts";
@@ -135,13 +136,13 @@ const childEnv = (
   id: string,
   runRootPath: string,
   snapshotRoot: string,
-): Record<string, string> => ({
-  ...Deno.env.toObject(),
-  [MUTATION_SNAPSHOT_CHILD_ENV]: "1",
-  [MUTATION_RUN_ID_ENV]: id,
-  [MUTATION_RUN_ROOT_ENV]: runRootPath,
-  [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
-});
+): Record<string, string> =>
+  envWith({
+    [MUTATION_SNAPSHOT_CHILD_ENV]: "1",
+    [MUTATION_RUN_ID_ENV]: id,
+    [MUTATION_RUN_ROOT_ENV]: runRootPath,
+    [MUTATION_WORK_ROOT_ENV]: snapshotRoot,
+  });
 
 const childArgs: SnapshotArgsFn = (root, snapshotRoot, args) => [
   "run",

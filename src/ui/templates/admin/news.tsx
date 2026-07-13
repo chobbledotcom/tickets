@@ -17,12 +17,13 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, NewsPost, NewsPostSummary } from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
   contentEditPanel,
   deleteConfirmPage,
 } from "#templates/admin/site-content.tsx";
-import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
+import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 
@@ -30,6 +31,8 @@ import { DataTable } from "#templates/components/data-table.tsx";
 
 const LIST = "/admin/site/news";
 const ACTIVE = LIST;
+
+const DeleteLink = rowDeleteLink(LIST);
 
 export const adminNewsListPage = (
   posts: NewsPostSummary[],
@@ -55,9 +58,7 @@ export const adminNewsListPage = (
             {post.name}
           </WritableLink>,
           formatDatetimeShort(post.created),
-          <WritableOnly>
-            <a href={`${LIST}/${post.id}/delete`}>{t("common.delete")}</a>
-          </WritableOnly>,
+          <DeleteLink id={post.id} />,
         ])}
       />
     ),

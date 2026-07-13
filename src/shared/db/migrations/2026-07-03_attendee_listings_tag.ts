@@ -1,4 +1,4 @@
-import { schemaMigration } from "./define.ts";
+import { bareSchemaMigration } from "./define.ts";
 
 /** Matches the old {{listing}} column tag (with optional inner whitespace and
  * an optional trailing filter) without touching the new {{listings}} tag —
@@ -14,10 +14,9 @@ const LISTING_TAG = /\{\{(\s*)listing(\s*[|}])/g;
  * default order). Data-only — no schema requirement — and a no-op when the
  * setting is unset or never used the tag.
  */
-export default schemaMigration(
+export default bareSchemaMigration(
   "2026-07-03_attendee_listings_tag",
   "Rename the {{listing}} tag to {{listings}} in the stored attendee column-order template.",
-  {},
   async ({ getDb }) => {
     const result = await getDb().execute(
       "SELECT value FROM settings WHERE key = 'attendee_column_order'",

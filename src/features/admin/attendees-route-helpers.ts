@@ -8,15 +8,17 @@ import {
   createEntityRouteHandlers,
   withEntityLoader,
 } from "#routes/admin/entity-handlers.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import type { IdFormHandler } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { createAuthedHandler } from "#shared/app-forms.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
@@ -67,10 +69,8 @@ const getDecryptedAttendee = async (
  * load with whatever else the caller needs alongside it. */
 export const withDecryptedAttendee =
   <T>(complete: (attendee: Attendee) => Promise<T | null>) =>
-  async (attendeeId: number): Promise<T | null> => {
-    const attendee = await getDecryptedAttendee(attendeeId);
-    return attendee === null ? null : complete(attendee);
-  };
+  (attendeeId: number): Promise<T | null> =>
+    findByIdThen(getDecryptedAttendee)(attendeeId, complete);
 
 /**
  * Load an attendee (by id alone) plus its HOME listing — the attendee-scoped
@@ -168,36 +168,19 @@ export const verifiedAttendeeAction = (
     return handler(data, form);
   });
 
-/** Handler receiving the loaded attendee+listing, the session and the form. */
-type AttendeeFormHandler = (
-  data: AttendeeWithListing,
-  session: AuthSession,
-  form: FormParams,
-) => Response | Promise<Response>;
-
-/** Auth + load attendee from form handler */
-const withAttendeeForm = (
-  request: Request,
-  listingId: number,
-  attendeeId: number,
-  handler: AttendeeFormHandler,
-): Promise<Response> =>
-  withAuth(request, AUTH_FORM, (session, form) =>
-    withAttendee(listingId, attendeeId)((data) => handler(data, session, form)),
-  );
+/** Route params for a POST scoped to one attendee by its id alone. */
+type AttendeeIdRouteParams = { attendeeId: number };
 
 /** A POST route scoped to one attendee (no listing load): authenticate under
  * the admin form gate, then run `handle` with the attendee id, the session, and
  * the parsed form. Shared by the note and logistics POSTs. */
-export const attendeeFormPost =
-  (handle: IdFormHandler) =>
-  (
-    request: Request,
-    { attendeeId }: { attendeeId: number },
-  ): Promise<Response> =>
-    withAuth(request, AUTH_FORM, (session, form) =>
-      handle(attendeeId, session, form),
-    );
+export const attendeeFormPost = (
+  handle: IdFormHandler,
+): ((request: Request, params: AttendeeIdRouteParams) => Promise<Response>) =>
+  createAuthedHandler<AttendeeIdRouteParams>({
+    handle: ({ form, params, session }) =>
+      handle(params.attendeeId, session, form),
+  });
 
 /** Read return_url from request query params */
 export const getReturnUrl = (request: Request): string =>
@@ -213,12 +196,12 @@ type AttendeeFormAction = (
 ) => Response | Promise<Response>;
 
 /** Create an attendee form handler with typed IDs */
-export const attendeeFormAction =
-  (handler: AttendeeFormAction) =>
-  (
-    request: Request,
-    { listingId, attendeeId }: AttendeeRouteParams,
-  ): Promise<Response> =>
-    withAttendeeForm(request, listingId, attendeeId, (data, session, form) =>
-      handler(data, session, form, listingId, attendeeId),
-    );
+export const attendeeFormAction = (
+  handler: AttendeeFormAction,
+): ((request: Request, params: AttendeeRouteParams) => Promise<Response>) =>
+  createAuthedHandler<AttendeeRouteParams, AttendeeWithListing>({
+    handle: ({ context, form, params, session }) =>
+      handler(context, session, form, params.listingId, params.attendeeId),
+    loadContext: ({ listingId, attendeeId }) =>
+      loadAttendeeForListing(listingId, attendeeId),
+  });

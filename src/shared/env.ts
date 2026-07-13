@@ -46,7 +46,7 @@ export const parseWarnDays = (
   return n;
 };
 
-/** Pure helper: is the site read-only based on a cutoff timestamp? */
+/** The cutoff's time in milliseconds, or null when it doesn't parse as a date. */
 const parseCutoffMs = (cutoff: string): number | null => {
   const parsed = Date.parse(cutoff);
   return Number.isNaN(parsed) ? null : parsed;
@@ -77,7 +77,7 @@ export const isInWarningWindow = (
 export const isReadOnly = (): boolean => {
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return false;
-  if (Number.isNaN(Date.parse(cutoff))) {
+  if (parseCutoffMs(cutoff) === null) {
     void withLazyLogger(({ ErrorCode, logError }) =>
       logError({
         code: ErrorCode.DATA_INVALID,
@@ -102,8 +102,7 @@ export const isReadOnlyWarning = (): boolean => {
 export const getReadOnlyCutoffIso = (): string | null => {
   const cutoff = getEnv("READ_ONLY_FROM");
   if (!cutoff) return null;
-  const parsed = Date.parse(cutoff);
-  return Number.isNaN(parsed) ? null : cutoff;
+  return parseCutoffMs(cutoff) === null ? null : cutoff;
 };
 
 /** Get the RENEWAL_URL, or null if not set */

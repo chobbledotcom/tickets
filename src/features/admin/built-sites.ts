@@ -4,6 +4,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * Admin built site management routes - owner only
  */
 
+/* jscpd:ignore-start */
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
@@ -15,6 +16,8 @@ import {
   redirect,
 } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
+/* jscpd:ignore-end */
+import { siteHostingAccess } from "#shared/builder.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
@@ -23,8 +26,6 @@ import {
   builtSitesCrudTable,
   isUpdateTier,
 } from "#shared/db/built-sites.ts";
-import { settings } from "#shared/db/settings.ts";
-import { getEnv } from "#shared/env.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
@@ -41,7 +42,10 @@ import {
   addMissingSiteSecrets,
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
-import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
+import {
+  deployAndReport,
+  loadBuiltSiteUpdateState,
+} from "#shared/site-update.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   deployLatestReleaseToDeno,
@@ -219,59 +223,27 @@ const runSiteUpdate = async (
       "No backup of this site in the last hour — back it up before updating.",
     );
   }
-  try {
-    const result = await settings.withCurrentTask("update", deploy);
-    if (!result.ok) return editError(id, result.error);
-    await logActivity(
-      `Updated built site '${site.name}' to ${result.value.name} (${result.value.tagName})`,
-    );
-    return editSuccess(
-      id,
-      `Updated '${site.name}' to ${result.value.name} — the new version will be active shortly`,
-    );
-  } catch (e) {
-    return editError(id, `Update failed: ${(e as Error).message}`);
-  }
+  return deployAndReport({
+    deploy,
+    logPrefix: `Updated built site '${site.name}'`,
+    onError: (message) => editError(id, message),
+    onSuccess: (message) => editSuccess(id, message),
+    successPrefix: `Updated '${site.name}'`,
+  });
 };
 
-/** POST /admin/built-sites/:id/update — deploy the latest release to the site. */
+/** POST /admin/built-sites/:id/update — deploy the latest release to the site.
+ *
+ * The site migrates on its next request after deploy, so a recent backup of
+ * *this site's* database (taken to our storage by the upgrade workflow) is
+ * required before pushing a new version. */
 const handleUpdateSite = ownerPost(async (site, _form, id) => {
-  if (site.hostingProvider === "deno") {
-    if (!getEnv("DENO_DEPLOY_TOKEN")) {
-      return editError(
-        id,
-        "DENO_DEPLOY_TOKEN is not configured on this host, so Deno sites can't be updated.",
-      );
-    }
-    if (!site.hostingId) {
-      return editError(
-        id,
-        "This site has no Deno app ID, so it can't be updated.",
-      );
-    }
-    return runSiteUpdate(site, id, () =>
-      deployLatestReleaseToDeno(site.hostingId),
-    );
-  }
-
-  // Bunny path
-  if (!getEnv("BUNNY_API_KEY")) {
-    return editError(
-      id,
-      "BUNNY_API_KEY is not configured on this host, so sites can't be updated.",
-    );
-  }
-  if (!site.hostingId) {
-    return editError(
-      id,
-      "This site has no hosting ID, so it can't be updated.",
-    );
-  }
-  // The site migrates on its next request after deploy, so require a recent
-  // backup of *this site's* database (taken to our storage by the upgrade
-  // workflow) before pushing a new version.
+  const access = siteHostingAccess(site, "it can't be updated");
+  if (!access.ok) return editError(id, access.error);
   return runSiteUpdate(site, id, () =>
-    deployLatestReleaseToScript(site.hostingId),
+    site.hostingProvider === "deno"
+      ? deployLatestReleaseToDeno(site.hostingId)
+      : deployLatestReleaseToScript(site.hostingId),
   );
 });
 

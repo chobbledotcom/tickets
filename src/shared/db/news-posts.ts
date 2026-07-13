@@ -29,6 +29,7 @@ import {
   encryptedSlugSchema,
   idAndCreatedSchema,
 } from "#shared/db/common-schema.ts";
+import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
@@ -36,6 +37,7 @@ import {
 import { decryptNameSlug } from "#shared/db/query.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
+import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
@@ -116,11 +118,6 @@ registerTableInvalidation(["news_posts"], () => existenceCache.invalidate());
 export const hasNewsPosts = async (): Promise<boolean> =>
   (await existenceCache.getAll()).length > 0;
 
-/** Decrypt an encrypted-text value, honouring the `''` = "no value" convention
- * (matches `col.encryptedText`'s read — an empty column never decrypts). */
-const decryptText = (value: EnvKeyEncrypted | ""): Promise<string> | string =>
-  value === "" ? value : decrypt(value);
-
 /** A summary row as stored: slug, name, and snippet still sealed. */
 type SealedSummaryRow = Omit<NewsPostSummary, "slug" | "name" | "snippet"> & {
   slug: EnvKeyEncrypted;
@@ -140,7 +137,7 @@ const decryptSummary = async (
   created: row.created,
   id: row.id,
   ...(await decryptNameSlug(row, decrypt)),
-  snippet: await decryptText(row.snippet),
+  snippet: await decryptTextOrEmpty(row.snippet),
 });
 
 /** Load the summary projection for every post, newest first: id, created,
@@ -168,9 +165,15 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
   );
   return mapParallel(async (row: SealedCardRow) => ({
     ...(await decryptSummary(row)),
-    image_alt_text: await decryptText(row.image_alt_text),
-    image_thumb_url: await decryptText(row.image_thumb_url),
-    image_url: await decryptText(row.image_url),
+    image_alt_text: await decryptTextOrEmpty(row.image_alt_text),
+    image_thumb_url: await decryptImageFilenameOrEmpty(
+      row.image_thumb_url,
+      `news post ${row.id} thumbnail image`,
+    ),
+    image_url: await decryptImageFilenameOrEmpty(
+      row.image_url,
+      `news post ${row.id} image`,
+    ),
   }))(rows);
 };
 

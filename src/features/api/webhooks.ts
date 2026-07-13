@@ -18,6 +18,7 @@ import { unique } from "#fp";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import {
   classifySession,
+  paymentSessionErrorLogger,
   validatePaidSession,
 } from "#routes/api/payment-processing/classify.ts";
 import {
@@ -231,8 +232,7 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
  * No attendee cleanup needed - attendee is only created after successful payment.
  */
 /** Log a payment session error with cancel context prefix */
-const logCancelError = (detail: string): void =>
-  logError({ code: ErrorCode.PAYMENT_SESSION, detail: `[cancel] ${detail}` });
+const logCancelError = paymentSessionErrorLogger("cancel");
 
 const handlePaymentCancel = withSessionId(async (sid) => {
   const provider = await getActivePaymentProvider();

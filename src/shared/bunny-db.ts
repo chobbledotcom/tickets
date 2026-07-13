@@ -6,6 +6,7 @@
  * Auth: AccessKey header (same BUNNY_API_KEY as CDN API)
  */
 
+import * as v from "valibot";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
 import { type ApiResult, fetchText, jsonHeaders } from "#shared/fetch.ts";
@@ -20,23 +21,16 @@ const DB_API_BASE = "https://api.bunny.net/database";
  */
 export const STORAGE_REGION = "eu-west-1";
 
-/** All European Bunny database node IDs. */
-export const EUROPEAN_REGIONS = [
-  "AMS",
-  "AT",
-  "BU",
-  "CZ",
-  "DE",
-  "DK",
-  "ES",
-  "FR",
-  "GR",
-  "HR",
-  "IT",
-  "PL",
-  "SE",
-  "UK",
-];
+/** One region Bunny reports it can host a database node in. */
+const RegionConfigSchema = v.object({ id: v.string() });
+
+/** The regions Bunny will accept, from GET /database/v1/config. */
+const DbConfigResponseSchema = v.object({
+  primary_regions: v.array(RegionConfigSchema),
+  replica_regions: v.array(RegionConfigSchema),
+});
+
+type RegionConfig = v.InferOutput<typeof RegionConfigSchema>;
 
 interface CreateDbResponse {
   db_id: string;
@@ -64,6 +58,35 @@ export interface CreateDatabaseResult {
 const dbApiHeaders = (): Record<string, string> =>
   jsonHeaders({ AccessKey: getBunnyApiKey() });
 
+/** Just the node IDs from a list of regions Bunny reported. */
+const regionIds = (regions: RegionConfig[]): string[] =>
+  regions.map((region) => region.id);
+
+/**
+ * Ask Bunny which database regions it will accept right now, so a new database
+ * runs on every one of Bunny's servers instead of a fixed list. Reading the
+ * live config means new Bunny regions are used automatically, with no code
+ * change needed when Bunny adds a server.
+ */
+const getAllRegions = async (): Promise<
+  ApiResult<{ primaryRegions: string[]; replicaRegions: string[] }>
+> => {
+  const res = await fetchText(`${DB_API_BASE}/v1/config`, {
+    headers: dbApiHeaders(),
+  });
+
+  if (!res.ok) {
+    return parseBunnyError(res, "Get database config");
+  }
+
+  const config = v.parse(DbConfigResponseSchema, JSON.parse(res.text));
+  return {
+    ok: true,
+    primaryRegions: regionIds(config.primary_regions),
+    replicaRegions: regionIds(config.replica_regions),
+  };
+};
+
 /**
  * Create a new Bunny database with the given name.
  * Returns the database URL and a full-access token.
@@ -71,12 +94,18 @@ const dbApiHeaders = (): Record<string, string> =>
 const createDatabaseImpl = async (
   name: string,
 ): Promise<ApiResult<CreateDatabaseResult>> => {
-  // 1. Create the database with all European nodes as primaries and replicas
+  // 1. Find every region Bunny will accept, so the database runs everywhere
+  const regions = await getAllRegions();
+  if (!regions.ok) {
+    return regions;
+  }
+
+  // 2. Create the database with all of Bunny's nodes as primaries and replicas
   const createRes = await fetchText(`${DB_API_BASE}/v2/databases`, {
     body: JSON.stringify({
       name,
-      primary_regions: EUROPEAN_REGIONS,
-      replicas_regions: EUROPEAN_REGIONS,
+      primary_regions: regions.primaryRegions,
+      replicas_regions: regions.replicaRegions,
       storage_region: STORAGE_REGION,
     }),
     headers: dbApiHeaders(),
@@ -90,7 +119,7 @@ const createDatabaseImpl = async (
   const createData: CreateDbResponse = JSON.parse(createRes.text);
   const dbId = createData.db_id;
 
-  // 2. Fetch database details to get the connection URL
+  // 3. Fetch database details to get the connection URL
   const getRes = await fetchText(
     `${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}`,
     { headers: dbApiHeaders() },
@@ -103,7 +132,7 @@ const createDatabaseImpl = async (
   const getData: GetDbResponse = JSON.parse(getRes.text);
   const dbUrl = getData.db.url;
 
-  // 3. Generate a full-access token
+  // 4. Generate a full-access token
   const tokenRes = await fetchText(
     `${DB_API_BASE}/v2/databases/${encodeURIComponent(dbId)}/auth/generate`,
     {

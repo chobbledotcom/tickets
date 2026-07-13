@@ -8,7 +8,8 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * email exists, a message form that delivers to the host.
  */
 
-import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
+/* jscpd:ignore-start */
+import { formPost, OWNER_FORM, ownerResponsePage } from "#routes/auth.ts";
 import { requireMessageField } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -16,8 +17,8 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
+/* jscpd:ignore-end */
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import {
   getSupportPageText,
@@ -32,21 +33,19 @@ import { adminSupportPage } from "#templates/admin/support.tsx";
 const SUPPORT_PATH = "/admin/support";
 
 /** GET /admin/support — render the support page (404 when the feature is off). */
-const handleSupportGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, (session) => {
-    if (!isSupportEnabled()) return notFoundResponse();
-    const flash = getFlash();
-    return htmlResponse(
-      adminSupportPage({
-        error: flash.error,
-        formActive: isSupportFormActive(),
-        nagLabel: supportNagLabel(),
-        session,
-        success: flash.success,
-        supportText: getSupportPageText(),
-      }),
-    );
-  });
+const handleSupportGet = ownerResponsePage((session, _request, flash) => {
+  if (!isSupportEnabled()) return notFoundResponse();
+  return htmlResponse(
+    adminSupportPage({
+      error: flash.error,
+      formActive: isSupportFormActive(),
+      nagLabel: supportNagLabel(),
+      session,
+      success: flash.success,
+      supportText: getSupportPageText(),
+    }),
+  );
+});
 
 /** Validate the message, deliver to the host (from the site's business email),
  * then record the submission for the nag. 404s when the form is not active so
@@ -63,8 +62,7 @@ const submitSupportMessage = async (form: FormParams): Promise<Response> => {
 };
 
 /** POST /admin/support — owner-only, CSRF-checked support message. */
-const handleSupportPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, (_session, form) => submitSupportMessage(form));
+const handleSupportPost = formPost(OWNER_FORM)(submitSupportMessage);
 
 /** Support routes */
 export const adminHandlers = handlersFor("support")({

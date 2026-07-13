@@ -54,10 +54,16 @@ export const loadListingImagesPanel = ({
 }: LoadedListing): Promise<JSX.Element> =>
   loadItemImagesPanel("listing", listing.id, `/admin/listing/${listing.id}`);
 
+/** A tab section loader the entity-page framework invokes with the loaded
+ *  listing (and a page context this panel ignores). */
+type ListingPanelLoader = (entity: LoadedListing) => Promise<JSX.Element>;
+
 /** A choose-from-a-site-wide-set panel (Questions, Attributes): load every
  *  available item and this listing's selected ids in parallel, then render. The
- *  tab is owner-only (matching the route's own gate). `error` is set only on an
- *  in-place 400 re-render. */
+ *  tab is owner-only (matching the route's own gate). Save feedback arrives as
+ *  a redirect flash rendered by the page frame, so the panel carries no error
+ *  of its own — an extra loader parameter here would silently receive the
+ *  framework's page-context argument instead. */
 const listingChoicePanelLoader =
   <Item>(
     loadItems: () => Promise<Item[]>,
@@ -66,33 +72,34 @@ const listingChoicePanelLoader =
       listing: ListingWithCount,
       items: Item[],
       selectedIds: Set<number>,
-      error: string | undefined,
     ) => JSX.Element,
-  ) =>
-  async ({ listing }: LoadedListing, error?: string): Promise<JSX.Element> => {
+  ): ListingPanelLoader =>
+  async ({ listing }: LoadedListing): Promise<JSX.Element> => {
     const [items, selectedIds] = await Promise.all([
       loadItems(),
       loadSelectedIds(listing.id),
     ]);
-    return render(listing, items, new Set(selectedIds), error);
+    return render(listing, items, new Set(selectedIds));
   };
 
 /** Build the Questions tab: assign the site's questions to this listing. */
-export const loadListingQuestionsPanel = listingChoicePanelLoader(
-  getAllQuestionsWithAnswers,
-  getListingQuestionIds,
-  (listing, allQuestions, assignedIds, error) =>
-    ListingQuestionsPanel({ allQuestions, assignedIds, error, listing }),
-);
+export const loadListingQuestionsPanel: ListingPanelLoader =
+  listingChoicePanelLoader(
+    getAllQuestionsWithAnswers,
+    getListingQuestionIds,
+    (listing, allQuestions, assignedIds) =>
+      ListingQuestionsPanel({ allQuestions, assignedIds, listing }),
+  );
 
 /** Build the Attributes tab: choose the public attributes displayed for this
  *  listing. */
-export const loadListingAttributesPanel = listingChoicePanelLoader(
-  getAllAttributesWithOptions,
-  listingAttributeOptions.getIds,
-  (listing, attributes, selectedOptionIds, error) =>
-    ListingAttributesPanel({ attributes, error, listing, selectedOptionIds }),
-);
+export const loadListingAttributesPanel: ListingPanelLoader =
+  listingChoicePanelLoader(
+    getAllAttributesWithOptions,
+    listingAttributeOptions.getIds,
+    (listing, attributes, selectedOptionIds) =>
+      ListingAttributesPanel({ attributes, listing, selectedOptionIds }),
+  );
 
 /** Build the QR tab: the booking-QR generation form. The tab is hidden for a
  *  child / hidden-package listing (no standalone booking page), so the loader

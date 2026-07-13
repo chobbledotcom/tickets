@@ -61,6 +61,7 @@ import {
   listingInputToEdge,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { seenBefore } from "#shared/seen-before.ts";
 import {
   type AdminLevel,
   availableDayCounts,
@@ -98,17 +99,15 @@ const resolveNames = (
   noun: string,
 ): { ids: number[] } | { error: string } => {
   const ids: number[] = [];
-  const seen = new Set<string>();
+  const isRepeat = seenBefore();
   for (const name of names) {
     // A repeated reference would insert a duplicate edge/membership row and trip
     // a unique index (a raw 500); reject it with an intelligible message first.
-    const key = normalizeEntityName(name);
-    if (seen.has(key)) {
+    if (isRepeat(normalizeEntityName(name))) {
       return {
         error: `The ${noun} "${name}" is referenced more than once — remove the duplicate.`,
       };
     }
-    seen.add(key);
     const match = matchName(index, name);
     if (!match.ok) {
       return {

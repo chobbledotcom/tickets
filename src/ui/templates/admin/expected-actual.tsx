@@ -1,5 +1,6 @@
 import { t } from "#i18n";
 import { Badge } from "#templates/components/badge.tsx";
+import { ItemList } from "#templates/components/item-list.tsx";
 
 export type ExpectedActualItem = {
   actual: string;
@@ -7,9 +8,26 @@ export type ExpectedActualItem = {
   label: string;
 };
 
-export const hasExpectedActualMismatches = (
-  items: ExpectedActualItem[],
-): boolean => items.length > 0;
+/** Keeps only the rows whose stored value no longer matches the recount,
+ * turned into the items the drift notice displays. Shared by the listing and
+ * answer running-total warnings, which build the same recalculate rows. */
+export const driftedRowItems = (
+  rows: readonly { current: string; label: string; recalculated: string }[],
+): ExpectedActualItem[] =>
+  rows.flatMap((row) =>
+    row.current === row.recalculated
+      ? []
+      : [{ actual: row.current, expected: row.recalculated, label: row.label }],
+  );
+
+/** One drift line: the label, the value we expected, and the value stored. */
+const MismatchText = ({ item }: { item: ExpectedActualItem }): JSX.Element => (
+  <>
+    <strong>{item.label}</strong>: {t("expected_actual.expected")}{" "}
+    <strong>{item.expected}</strong>, {t("expected_actual.got")}{" "}
+    <strong>{item.actual}</strong>
+  </>
+);
 
 export const ExpectedActualNotice = ({
   actionHref,
@@ -37,23 +55,16 @@ export const ExpectedActualNotice = ({
   return (
     <details class="expected-actual-notice" role="alert">
       <summary>
-        <Badge variant="alert">{badge}</Badge> <strong>{first.label}</strong>:{" "}
-        {t("expected_actual.expected")} <strong>{first.expected}</strong>,{" "}
-        {t("expected_actual.got")} <strong>{first.actual}</strong>
+        <Badge variant="alert">{badge}</Badge> <MismatchText item={first} />
         {extra}.
       </summary>
       <div>
         <p>{noticeTitle}</p>
         <p>{explanation}</p>
-        <ul>
-          {items.map((item) => (
-            <li>
-              <strong>{item.label}</strong>: {t("expected_actual.expected")}{" "}
-              <strong>{item.expected}</strong>, {t("expected_actual.got")}{" "}
-              <strong>{item.actual}</strong>
-            </li>
-          ))}
-        </ul>
+        <ItemList
+          items={items}
+          render={(item) => <MismatchText item={item} />}
+        />
         {actionHref && actionLabel && (
           <p>
             <a href={actionHref}>{actionLabel}</a>
@@ -71,7 +82,7 @@ export const ExpectedActualTableRow = ({
   header: string;
   notice: Parameters<typeof ExpectedActualNotice>[0];
 }): JSX.Element | null => {
-  if (!hasExpectedActualMismatches(notice.items)) return null;
+  if (notice.items.length === 0) return null;
   return (
     <tr>
       <th>{header}</th>

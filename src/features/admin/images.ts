@@ -29,6 +29,7 @@ import { getAllListingOptions } from "#shared/db/listings/records.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { featureGate } from "#shared/response-steps.ts";
 import {
   deleteImageStorageFilesStrict,
   isStorageEnabled,
@@ -53,12 +54,9 @@ import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 // jscpd:ignore-end
 
 const imagePath = (id: number): string => `/admin/images/${id}/edit`;
-const storageDisabledRedirect = (): Response =>
-  redirect("/admin/images", t("images.storage_off"), false);
-const withStorageEnabled = (
-  action: () => Response | Promise<Response>,
-): Response | Promise<Response> =>
-  isStorageEnabled() ? action() : storageDisabledRedirect();
+const withStorageEnabled = featureGate(isStorageEnabled, () =>
+  redirect("/admin/images", t("images.storage_off"), false),
+);
 
 const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = (request) =>
   requireContentOr(request, async (session) => {

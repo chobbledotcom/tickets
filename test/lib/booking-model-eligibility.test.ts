@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   bookableChildIds,
   childActive,
-  childCanBePickedBeforeDays,
+  childCanBeBooked,
   childDateKey,
   childDateOk,
   childHasDateOrStockForDays,
@@ -287,30 +287,26 @@ describe("booking model — child eligibility", () => {
     });
   });
 
-  describe("childCanBePickedBeforeDays", () => {
+  describe("childCanBeBooked", () => {
     test("true for an active, open, in-stock child", () => {
       expect(
-        childCanBePickedBeforeDays(
+        childCanBeBooked(
           resolved({ active: true, attendee_count: 0, max_attendees: 10 }),
         ),
       ).toBe(true);
     });
 
     test("false when inactive", () => {
-      expect(childCanBePickedBeforeDays(resolved({ active: false }))).toBe(
-        false,
-      );
+      expect(childCanBeBooked(resolved({ active: false }))).toBe(false);
     });
 
     test("false when closed", () => {
-      expect(childCanBePickedBeforeDays(resolved({}, true))).toBe(false);
+      expect(childCanBeBooked(resolved({}, true))).toBe(false);
     });
 
     test("false when sold out", () => {
       expect(
-        childCanBePickedBeforeDays(
-          resolved({ attendee_count: 1, max_attendees: 1 }),
-        ),
+        childCanBeBooked(resolved({ attendee_count: 1, max_attendees: 1 })),
       ).toBe(false);
     });
   });

@@ -270,14 +270,14 @@ describe("adminFooterHtml", () => {
 });
 
 describe("renderAdminFooter", () => {
-  test("returns empty string when the page was not flagged as admin", () => {
-    runWithQueryLogContext(() => {
+  test("returns empty string when the page was not flagged as admin", async () => {
+    await runWithQueryLogContext(async () => {
       expect(renderAdminFooter()).toBe("");
     });
   });
 
-  test("renders the footer with logout once flagged, with no debug menu when query logging is off", () => {
-    runWithQueryLogContext(() => {
+  test("renders the footer with logout once flagged, with no debug menu when query logging is off", async () => {
+    await runWithQueryLogContext(async () => {
       markAdminFooter("owner");
       const html = renderAdminFooter();
       expect(html).toContain('<footer class="admin-footer">');
@@ -291,8 +291,8 @@ describe("renderAdminFooter", () => {
     });
   });
 
-  test("renders only logout for a non-staff role flagged via the store", () => {
-    runWithQueryLogContext(() => {
+  test("renders only logout for a non-staff role flagged via the store", async () => {
+    await runWithQueryLogContext(async () => {
       markAdminFooter("editor");
       const html = renderAdminFooter();
       expect(html).toContain('<a href="/admin/logout">Log out</a>');
@@ -301,16 +301,16 @@ describe("renderAdminFooter", () => {
     });
   });
 
-  test("consumes the flag so a later render is empty", () => {
-    runWithQueryLogContext(() => {
+  test("consumes the flag so a later render is empty", async () => {
+    await runWithQueryLogContext(async () => {
       markAdminFooter("owner");
       renderAdminFooter();
       expect(renderAdminFooter()).toBe("");
     });
   });
 
-  test("includes the debug menu and uptime when footer debug is enabled", () => {
-    runWithQueryLogContext(() => {
+  test("includes the debug menu and uptime when footer debug is enabled", async () => {
+    await runWithQueryLogContext(async () => {
       enableFooterDebug();
       markAdminFooter("owner");
       const html = renderAdminFooter();

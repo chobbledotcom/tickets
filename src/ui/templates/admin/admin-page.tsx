@@ -14,10 +14,16 @@
  */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { AdminNav, type NavActive } from "#templates/admin/nav.tsx";
+import { AgentHeader } from "#templates/admin/agent-header.tsx";
+import {
+  AdminNav,
+  type NavActive,
+  StaffAdminNav,
+} from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
@@ -230,3 +236,58 @@ export const flashAdminPage = adminOpenerFor(
       <Flash {...flashProps(error, success)} />
     ),
 );
+
+/** Bind a collection page to its title and nav highlight once. The returned
+ *  function renders the whole page from the items it lists, the viewer's
+ *  session, and an optional success notice — the exact signature the
+ *  list-page routes (groups, logistics) call with. */
+export const successListPage =
+  <Items,>(
+    titleKey: string,
+    active: string,
+    body: (items: Items, session: AdminSession) => Child,
+  ) =>
+  (items: Items, session: AdminSession, successMessage?: string): string =>
+    successAdminPage(t(titleKey), active)(session, successMessage)(
+      body(items, session),
+    );
+
+/** Bind a single-form page to its title and nav highlight once. The returned
+ *  function renders the whole page from the viewer's session plus the error
+ *  and success notices its route passes back after a submit — the shape the
+ *  seeds and catalog-import pages share. */
+export const flashFormPage =
+  (titleKey: string, active: string, body: (session: AdminSession) => Child) =>
+  (session: AdminSession, error?: string, success?: string): string =>
+    flashAdminPage(t(titleKey), active)(session, error, success)(body(session));
+
+/** A page for staff and delivery agents alike (the run sheet, the logout
+ *  page): Layout + the staff nav, with the bare agent header shown to agent
+ *  users instead. `staffHeading` is what non-agent viewers get in the header
+ *  spot — the logout page shows an `<h1>`; the run sheet shows nothing. */
+export const staffAdminPage = ({
+  active,
+  children,
+  session,
+  staffHeading,
+  title,
+}: {
+  active: NavActive;
+  children: Child;
+  session: AdminSession;
+  staffHeading?: Child;
+  title: string;
+}): string =>
+  String(
+    <Layout
+      beforeContent={<StaffAdminNav active={active} session={session} />}
+      title={title}
+    >
+      {session.adminLevel === "agent" ? (
+        <AgentHeader title={title} />
+      ) : (
+        staffHeading
+      )}
+      {children}
+    </Layout>,
+  );

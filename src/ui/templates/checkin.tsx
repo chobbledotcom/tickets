@@ -9,11 +9,8 @@ import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import {
-  AttendeeTable,
-  type AttendeeTableRow,
-} from "#templates/attendee-table.tsx";
+import { AttendeeTableBlock } from "#templates/admin/attendee-table-block.tsx";
+import type { AttendeeTableRow } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./public/shared.tsx";
 import { SubmitWithHidden } from "./public/unsubscribe.tsx";
@@ -58,18 +55,16 @@ export const checkinAdminPage = (
           value={nextValue}
         />
       </CsrfForm>
-      <div class="table-scroll">
-        <Raw
-          html={AttendeeTable({
-            allowedDomain,
-            phonePrefix,
-            returnUrl: checkinPath,
-            rows: tableRows,
-            showDate,
-            showListing: true,
-          })}
-        />
-      </div>
+      <AttendeeTableBlock
+        options={{
+          allowedDomain,
+          phonePrefix,
+          returnUrl: checkinPath,
+          rows: tableRows,
+          showDate,
+          showListing: true,
+        }}
+      />
     </Layout>,
   );
 };

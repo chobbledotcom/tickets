@@ -4,8 +4,9 @@
  */
 
 import { t } from "#i18n";
-import { CsrfFormShell, Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */
@@ -24,7 +25,7 @@ export const ResetDatabaseForm = ({
   action: string;
   id?: string;
 }): JSX.Element => (
-  <CsrfFormShell
+  <SaveForm
     action={action}
     id={id}
     submitClass="danger"
@@ -54,7 +55,7 @@ export const ResetDatabaseForm = ({
       required
       type="text"
     />
-  </CsrfFormShell>
+  </SaveForm>
 );
 
 /**

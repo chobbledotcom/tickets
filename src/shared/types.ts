@@ -204,6 +204,29 @@ export const normalizeDurationDays = (value: number): number =>
 export type DayPrices = Record<number, number>;
 
 /**
+ * Build a {@link DayPrices} map from raw entries. `checkEntry` reads one raw
+ * key/value pair and returns the day count and price to keep, `null` to skip
+ * that entry, or a problem message — which stops the walk and is returned in
+ * place of the map. Shared by the lenient stored-value reader
+ * ({@link parseDayPrices}) and the fail-closed admin API body parser.
+ */
+export const buildDayPrices = <Problem extends string = never>(
+  raw: object,
+  checkEntry: (
+    key: string,
+    value: unknown,
+  ) => { days: number; price: number } | Problem | null,
+): DayPrices | Problem => {
+  const result: DayPrices = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const entry = checkEntry(key, value);
+    if (typeof entry === "string") return entry;
+    if (entry !== null) result[entry.days] = entry.price;
+  }
+  return result;
+};
+
+/**
  * Coerce an arbitrary stored/parsed value into a clean {@link DayPrices} map.
  * Keeps only whole-number day counts in [1, MAX_DURATION_DAYS] mapped to
  * finite, non-negative whole-number minor-unit prices; everything else is
@@ -212,21 +235,18 @@ export type DayPrices = Record<number, number>;
  */
 export const parseDayPrices = (raw: unknown): DayPrices => {
   if (typeof raw !== "object" || raw === null) return {};
-  const result: DayPrices = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+  // No problem messages here: bad entries are skipped, never reported.
+  return buildDayPrices<never>(raw, (key, value) => {
     const days = Number(key);
     const price = Number(value);
-    if (
-      Number.isInteger(days) &&
+    return Number.isInteger(days) &&
       days >= 1 &&
       days <= MAX_DURATION_DAYS &&
       Number.isInteger(price) &&
       price >= 0
-    ) {
-      result[days] = price;
-    }
-  }
-  return result;
+      ? { days, price }
+      : null;
+  });
 };
 
 /** The subset of listing fields needed to reason about day-count pricing. */

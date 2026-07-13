@@ -691,6 +691,22 @@ export const validatedPaymentSession = (fields: {
   paymentStatus: fields.paymentStatus,
 });
 
+/** The payload/signature pair a test POSTs to a provider webhook route. */
+export type SignedTestWebhook = { payload: string; signature: string };
+
+/**
+ * Build a test webhook delivery: JSON-encode the event, sign it with the
+ * provider's own signing rule, and return the payload/signature pair a test
+ * can POST to the webhook route. Each provider supplies only `sign`.
+ */
+export const signedTestWebhook = async (
+  listing: unknown,
+  sign: (payload: string) => Promise<string>,
+): Promise<SignedTestWebhook> => {
+  const payload = JSON.stringify(listing);
+  return { payload, signature: await sign(payload) };
+};
+
 export const parseWebhookPayload = (
   payload: string,
   errorCode: ErrorCodeType,

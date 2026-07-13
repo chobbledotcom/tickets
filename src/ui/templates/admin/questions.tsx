@@ -19,6 +19,7 @@ import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
+  driftedRowItems,
   type ExpectedActualItem,
   ExpectedActualNotice,
 } from "#templates/admin/expected-actual.tsx";
@@ -26,6 +27,7 @@ import {
   adminRecalculatePage,
   type RecalculateRow,
 } from "#templates/admin/recalculate.tsx";
+import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   CheckboxForm,
@@ -293,24 +295,22 @@ export type AnswerModifierOption = { id: number; name: string };
 const answerRecalculatePath = (questionId: number, answerId: number): string =>
   `/admin/questions/${questionId}/answers/${answerId}/recalculate`;
 
+/** Build the recalculate table rows comparing the stored selection total with
+ * the value rebuilt from attendee answers. */
+const answerRecalculateRows = (
+  snapshot: AnswerAggregateRecalculation,
+): RecalculateRow[] =>
+  buildRecalculateRows(
+    answerAggregateFields,
+    (_name: AnswerAggregateField, value) => String(value),
+    snapshot,
+  );
+
 /** Drifted answer aggregate columns as expected/actual items (expected = the
  * value rebuilt from attendee answers, actual = the stored running total). */
 const answerAggregateMismatchItems = (
   recalc: AnswerAggregateRecalculation,
-): ExpectedActualItem[] =>
-  answerAggregateFields.flatMap((field) => {
-    const name = field.name as AnswerAggregateField;
-    const values = recalc[name];
-    return values.current === values.recalculated
-      ? []
-      : [
-          {
-            actual: String(values.current),
-            expected: String(values.recalculated),
-            label: field.label,
-          },
-        ];
-  });
+): ExpectedActualItem[] => driftedRowItems(answerRecalculateRows(recalc));
 
 /** Owner-editable selection total, with the same drift warning and recalculate
  * link the listing edit page uses for its running totals. */
@@ -419,21 +419,6 @@ export const adminAnswerEditPage = (
     </p>,
   );
 
-/** Build the recalculate table rows comparing the stored selection total with
- * the value rebuilt from attendee answers. */
-const answerRecalculateRows = (
-  snapshot: AnswerAggregateRecalculation,
-): RecalculateRow[] =>
-  answerAggregateFields.map((field) => {
-    const name = field.name as AnswerAggregateField;
-    return {
-      current: String(snapshot[name].current),
-      label: field.label,
-      name,
-      recalculated: String(snapshot[name].recalculated),
-    };
-  });
-
 /** Answer running-total recalculation page — the reset flow linked from the
  * edit page's drift warning, mirroring the listing/modifier recalculate pages. */
 export const adminAnswerRecalculatePage = (
@@ -534,11 +519,10 @@ export const adminAnswerDeletePage = (
   );
 };
 
-/** Listing questions assignment page */
 /**
  * The listing "Questions" panel: assign the site's questions to this listing.
- * Rendered as the listing entity page's Questions tab (owner-only). Carries its
- * own error flash for in-place 400 re-renders.
+ * Rendered as the listing entity page's Questions tab (owner-only). Save
+ * feedback arrives as a redirect flash rendered by the page frame.
  */
 type ListingQuestionsPanelProps = ListingPanelProps & {
   allQuestions: QuestionWithAnswers[];
@@ -548,10 +532,9 @@ type ListingQuestionsPanelProps = ListingPanelProps & {
 export const ListingQuestionsPanel = (
   props: ListingQuestionsPanelProps,
 ): JSX.Element => {
-  const { allQuestions, assignedIds, error, listing } = props;
+  const { allQuestions, assignedIds, listing } = props;
   return listingChoicePanel(
     t("questions.listing.heading", { listing: listing.name }),
-    error,
     <p>
       <a href="/admin/questions">{t("questions.listing.manage")}</a>
     </p>,

@@ -19,8 +19,6 @@ import {
   withoutBuilder,
 } from "./helpers.ts";
 
-registerListingTemplateHooks();
-
 /** A listing carrying the renewal-tier builder fields, shared by the
  *  months_per_unit / initial_site_months visibility tests. */
 const builderListing = () =>
@@ -41,6 +39,8 @@ describeWithEnv(
   "listing images",
   { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
+    registerListingTemplateHooks();
+
     describe("adminListingPage image section", () => {
       test("does not show image upload on detail page", () => {
         const html = detailHtml(testListingWithCount({ image_url: "" }));

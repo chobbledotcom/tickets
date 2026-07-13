@@ -24,6 +24,7 @@ import {
   type EntityPage,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
+import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
@@ -157,13 +158,10 @@ const ownerWriteTab = (
   slug: string,
   labelKey: string,
   load: (entity: LoadedListing) => Promise<JSX.Element>,
-): TabDef<LoadedListing> => ({
-  intent: "write-form",
-  labelKey,
-  sections: [{ kind: "custom", load }],
-  slug,
-  visible: (_entity, session) => isOwnerRole(session.adminLevel),
-});
+): TabDef<LoadedListing> =>
+  writeFormTab(slug, labelKey, load, (_entity, session) =>
+    isOwnerRole(session.adminLevel),
+  );
 
 /** The tabbed listing page. */
 export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
@@ -199,28 +197,16 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       slug: "scanner",
       visible: staffAnd((entity) => !entity.listing.purchase_only),
     },
-    {
-      intent: "write-form",
-      labelKey: "entity.tab.edit",
-      sections: [
-        {
-          kind: "custom",
-          load: (entity, ctx) => loadListingEditPanel(entity, ctx),
-        },
-      ],
-      slug: "edit",
-      // Editors and above may edit, but not in read-only mode — where the
-      // global guard redirects the edit route to /read-only. Hide the tab then
-      // rather than render a link that immediately bounces (and so an editor's
-      // bare-URL default can't resolve onto an un-editable form).
-    },
-    {
-      intent: "write-form",
-      labelKey: "entity.tab.images",
-      sections: [{ kind: "custom", load: loadListingImagesPanel }],
-      slug: "images",
-      visible: () => isStorageEnabled(),
-    },
+    // Editors and above may edit, but not in read-only mode — where the
+    // global guard redirects the edit route to /read-only. Hide the tab then
+    // rather than render a link that immediately bounces (and so an editor's
+    // bare-URL default can't resolve onto an un-editable form).
+    writeFormTab("edit", "entity.tab.edit", (entity, ctx) =>
+      loadListingEditPanel(entity, ctx),
+    ),
+    writeFormTab("images", "entity.tab.images", loadListingImagesPanel, () =>
+      isStorageEnabled(),
+    ),
     ownerWriteTab(
       "attributes",
       "entity.tab.attributes",
@@ -231,22 +217,17 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
       "entity.tab.questions",
       loadListingQuestionsPanel,
     ),
-    {
-      intent: "write-form",
-      labelKey: "entity.tab.qr",
-      sections: [
-        { kind: "custom", load: (entity) => loadListingQrPanel(entity) },
-      ],
-      slug: "qr",
-      // Staff-only, and a child / hidden-package listing has no standalone
-      // booking page, so its booking QR would point at a dead /ticket link.
-      // Hidden in read-only mode too: the QR form posts to
-      // POST /admin/listing/:id/qr, which the read-only guard default-denies —
-      // so a followable tab would carry an unsubmittable form.
-      visible: staffAnd(
-        (entity) => !entity.isChild && !entity.isHiddenPackageMember,
-      ),
-    },
+    // Staff-only, and a child / hidden-package listing has no standalone
+    // booking page, so its booking QR would point at a dead /ticket link.
+    // Hidden in read-only mode too: the QR form posts to
+    // POST /admin/listing/:id/qr, which the read-only guard default-denies —
+    // so a followable tab would carry an unsubmittable form.
+    writeFormTab(
+      "qr",
+      "entity.tab.qr",
+      (entity) => loadListingQrPanel(entity),
+      staffAnd((entity) => !entity.isChild && !entity.isHiddenPackageMember),
+    ),
     {
       labelKey: "entity.tab.activity",
       sections: [{ kind: "activity", load: loadListingActivity }],

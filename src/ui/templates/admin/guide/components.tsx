@@ -11,6 +11,7 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 /* jscpd:ignore-end */
 
@@ -116,15 +117,13 @@ const renderEntry = (entry: GuideEntry): JSX.Element =>
   );
 
 /** Render the guide from its schema: one <Section> per section, in order. */
-export const renderGuideSections = (sections: GuideSection[]): JSX.Element => (
-  <>
-    {sections.map((section) => (
-      <Section id={section.id} title={t(`guide.sections.${section.titleKey}`)}>
-        {section.entries.map(renderEntry)}
-      </Section>
-    ))}
-  </>
-);
+export const renderGuideSections: (
+  sections: readonly GuideSection[],
+) => JSX.Element = sectionsRenderer((section: GuideSection) => (
+  <Section id={section.id} title={t(`guide.sections.${section.titleKey}`)}>
+    {section.entries.map(renderEntry)}
+  </Section>
+));
 
 /** Render a column reference table from column generators */
 export const columnReferenceTable = (

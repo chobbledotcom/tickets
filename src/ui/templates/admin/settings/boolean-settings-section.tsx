@@ -13,8 +13,9 @@
  * widen to `any`.
  */
 
+import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { settingsSectionFrom } from "#templates/components/settings-section.tsx";
+import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
 
 export type BooleanSettingsSectionConfig<TState> = {
@@ -30,7 +31,7 @@ export type BooleanSettingsSectionConfig<TState> = {
 export const booleanSettingsSection =
   <TState,>(config: BooleanSettingsSectionConfig<TState>) =>
   (state: TState): JSX.Element =>
-    settingsSectionFrom(
-      config,
+    settingsSectionWith(
+      { ...config, submitLabel: config.submitLabel ?? t("common.save") },
       <YesNoRadios name={config.fieldName} on={config.value(state)} />,
     );

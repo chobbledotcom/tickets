@@ -43,6 +43,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { nowMs } from "#shared/now.ts";
 import type { LogisticsAgent, User } from "#shared/types.ts";
+import { flashProps } from "#templates/admin/admin-page.tsx";
 
 import {
   adminUserAgentsPage,
@@ -177,22 +178,30 @@ const usersErrorResponse = async (
     status,
   );
 
+/** The page opts every users screen carries: who is viewing (so their own row
+ * can't offer self-delete), plus any flash notices from the last action. */
+const userPageOpts = (
+  session: AuthSession,
+): { currentUserId: number; error?: string; success?: string } => {
+  const flash = getFlash();
+  return {
+    currentUserId: session.userId,
+    ...flashProps(flash.error, flash.success),
+  };
+};
+
 /**
  * Handle GET /admin/users
  */
 const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
-  requireOwnerOr(request, async (session) => {
-    const invite = getSearchParam(request, "invite");
-    const flash = getFlash();
-    return htmlResponse(
+  requireOwnerOr(request, async (session) =>
+    htmlResponse(
       await renderUsersPage(session, {
-        currentUserId: session.userId,
-        error: flash.error,
-        inviteLink: invite,
-        success: flash.success,
+        ...userPageOpts(session),
+        inviteLink: getSearchParam(request, "invite"),
       }),
-    );
-  });
+    ),
+  );
 
 /** Build a DisplayUser with its assigned logistics-agent names resolved. */
 const toDisplayUserWithAgents = async (user: User): Promise<DisplayUser> =>
@@ -215,17 +224,15 @@ const ownerUserPage =
     );
 
 /** Handle GET /admin/users/:id - per-user management page */
-const handleUserManageGet = ownerUserPage(async (user, session) => {
-  const displayUser = await toDisplayUserWithAgents(user);
-  const flash = getFlash();
-  return htmlResponse(
-    adminUserManagePage(displayUser, session, {
-      currentUserId: session.userId,
-      error: flash.error,
-      success: flash.success,
-    }),
-  );
-});
+const handleUserManageGet = ownerUserPage(async (user, session) =>
+  htmlResponse(
+    adminUserManagePage(
+      await toDisplayUserWithAgents(user),
+      session,
+      userPageOpts(session),
+    ),
+  ),
+);
 
 /**
  * Handle GET /admin/user/new - show invite user form
@@ -310,41 +317,41 @@ const withLoadedUser = async (
   return found(user, errorPage);
 };
 
-/** Null when the user is a delivery agent; otherwise the error response to
- * return (agent assignments only apply to delivery agents). */
-const ensureAgentUser = async (
+/** Run `next` only when the user is a delivery agent; otherwise return the
+ * error page (agent assignments only apply to delivery agents). */
+const withAgentUser = async (
   user: User,
   errorPage: UserErrorPageFn,
-): Promise<Response | null> =>
+  next: () => Promise<Response>,
+): Promise<Response> =>
   (await decryptAdminLevel(user)) === "agent"
-    ? null
+    ? next()
     : errorPage(t("error.not_agent_user"), 400);
 
 /** Render the edit-agents page for an agent user (or an error response). */
-const renderUserAgentsPage = async (
+const renderUserAgentsPage = (
   session: AuthSession,
   user: User,
   errorPage: UserErrorPageFn,
   error?: string,
-): Promise<Response> => {
-  const notAgent = await ensureAgentUser(user, errorPage);
-  if (notAgent) return notAgent;
-  const [agents, selectedIds, username] = await Promise.all([
-    loadAssignableAgents(),
-    userAgents.getIds(user.id),
-    decryptUsername(user),
-  ]);
-  const displayUser = await toDisplayUser(user);
-  return htmlResponse(
-    adminUserAgentsPage(
-      { ...displayUser, username },
-      agents,
-      new Set(selectedIds),
-      session,
-      error,
-    ),
-  );
-};
+): Promise<Response> =>
+  withAgentUser(user, errorPage, async () => {
+    const [agents, selectedIds, username] = await Promise.all([
+      loadAssignableAgents(),
+      userAgents.getIds(user.id),
+      decryptUsername(user),
+    ]);
+    const displayUser = await toDisplayUser(user);
+    return htmlResponse(
+      adminUserAgentsPage(
+        { ...displayUser, username },
+        agents,
+        new Set(selectedIds),
+        session,
+        error,
+      ),
+    );
+  });
 
 /** Handle GET /admin/users/:id/agents - edit an agent user's logistics agents */
 const handleUserAgentsGet = ownerUserPage((user, session, errorPage) =>
@@ -356,15 +363,15 @@ const handleUserAgentsPost: TypedRouteHandler<
   "POST /admin/users/:id/agents"
 > = (request, { id }) =>
   withAuth(request, OWNER_FORM, (session, form) =>
-    withLoadedUser(session, id, async (user, errorPage) => {
-      const notAgent = await ensureAgentUser(user, errorPage);
-      if (notAgent) return notAgent;
-      await saveAgentSelection(user.id, form);
-      await logActivity(
-        `Agents updated for user '${await decryptUsername(user)}'`,
-      );
-      return redirect("/admin/users", t("success.agents_updated"), true);
-    }),
+    withLoadedUser(session, id, (user, errorPage) =>
+      withAgentUser(user, errorPage, async () => {
+        await saveAgentSelection(user.id, form);
+        await logActivity(
+          `Agents updated for user '${await decryptUsername(user)}'`,
+        );
+        return redirect("/admin/users", t("success.agents_updated"), true);
+      }),
+    ),
   );
 
 /** Confirmed-delete handlers for users */

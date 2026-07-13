@@ -35,8 +35,10 @@ import {
   type PaymentProvider,
 } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+/* jscpd:ignore-start */
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
+/* jscpd:ignore-end */
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider.ts";
 

@@ -4,9 +4,9 @@ import { buildOgTags } from "#templates/public/reservations/og-tags.ts";
 
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
 
-registerPublicTemplateHooks();
-
 describe("buildOgTags", () => {
+  registerPublicTemplateHooks();
+
   test("includes title, type, and url", () => {
     const html = buildOgTags(
       {

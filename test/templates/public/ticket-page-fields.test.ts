@@ -10,9 +10,9 @@ import {
   ticketListing,
 } from "./helpers.ts";
 
-registerPublicTemplateHooks();
-
 describe("ticketPage — fields & form", () => {
+  registerPublicTemplateHooks();
+
   test("renders markdown paragraphs in terms and conditions", () => {
     const listings = [
       ticketListing({

@@ -12,56 +12,57 @@
 
 export type OperatorTable = Record<string, string[]>;
 
+/** Binary operators with no replacements — bitwise/shift operators and
+ * `instanceof` have no sensible swap, so both the fast and the exhaustive
+ * table leave them alone. Declared once so the two tables can never drift. */
+const unswappedBinaryOperators: OperatorTable = {
+  "&": [],
+  "^": [],
+  "<<": [],
+  ">>": [],
+  ">>>": [],
+  "|": [],
+  instanceof: [],
+};
+
 /** Binary operator → replacement (one distant mutation each). */
 export const binaryOperators: OperatorTable = {
+  ...unswappedBinaryOperators,
   "-": ["/"],
   "!=": ["==="],
   "!==": ["=="],
   "*": ["-"],
   "**": ["+"],
   "/": ["+"],
-  "&": [],
   "%": ["+"],
-  "^": [],
   "+": ["*"],
   "<": [">="],
-  "<<": [],
   "<=": [">"],
   "==": ["!=="],
   "===": ["!="],
   ">": ["<="],
   ">=": ["<"],
-  ">>": [],
-  ">>>": [],
-  "|": [],
   in: [],
-  instanceof: [],
 };
 
 /** Binary operator → every sensible replacement. */
 export const binaryOperatorsExhaustive: OperatorTable = {
+  ...unswappedBinaryOperators,
   "-": ["+", "*", "/"],
   "!=": ["==", "===", "!=="],
   "!==": ["==", "!=", "==="],
   "*": ["+", "-", "/"],
   "**": ["+", "-", "*"],
   "/": ["+", "-", "*"],
-  "&": [],
   "%": ["+", "-", "*"],
-  "^": [],
   "+": ["-", "*", "/"],
   "<": ["<=", ">", ">="],
-  "<<": [],
   "<=": ["<", ">", ">="],
   "==": ["===", "!=", "!=="],
   "===": ["==", "!=", "!=="],
   ">": ["<", "<=", ">="],
   ">=": ["<", "<=", ">"],
-  ">>": [],
-  ">>>": [],
-  "|": [],
   in: ["+"],
-  instanceof: [],
 };
 
 /**

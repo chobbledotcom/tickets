@@ -7,8 +7,8 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { encryptedNameSchema } from "#shared/db/common-schema.ts";
-import { col, defineCachedListTable } from "#shared/db/table.ts";
+import { idAndEncryptedNameSchema } from "#shared/db/common-schema.ts";
+import { defineCachedListTable } from "#shared/db/table.ts";
 import type { LogisticsAgent } from "#shared/types.ts";
 
 /** Logistics agent input fields for create/update (camelCase). */
@@ -25,8 +25,5 @@ export const logisticsAgents = defineCachedListTable<
   name: "logistics_agents",
   orderBy: "id ASC",
   primaryKey: "id",
-  schema: {
-    id: col.generated<number>(),
-    ...encryptedNameSchema(encrypt, decrypt),
-  },
+  schema: idAndEncryptedNameSchema(encrypt, decrypt),
 });

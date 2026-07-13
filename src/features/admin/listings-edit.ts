@@ -53,6 +53,7 @@ import {
   dimensionsOf,
   inferTemplate,
   LISTING_TEMPLATES,
+  type ListingTemplate,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
 import type {
@@ -97,16 +98,28 @@ export const handleNewListingGet: TypedRouteHandler<
     if (!templateParam) {
       return htmlResponse(adminListingPickerPage(session));
     }
-    const template =
-      LISTING_TEMPLATES.find((t) => t.id === templateParam) ?? null;
-    // Logistics-requiring templates are unavailable when the feature is disabled.
-    if (template?.requiresLogistics && !settings.hasLogistics) {
-      return htmlResponse(adminListingPickerPage(session));
-    }
+    const gate = chosenTemplateOrPicker(templateParam, session);
+    if ("picker" in gate) return gate.picker;
     return renderNewListingPage(session, {
-      templateId: template?.id ?? "custom",
+      templateId: gate.template?.id ?? "custom",
     });
   });
+
+/** Look up the operator's chosen listing template. A template that needs
+ * logistics while the feature is off is unavailable, so the picker page is
+ * given back instead — the create GET gate and the create POST backstop (a
+ * form opened while logistics was enabled, or a crafted POST) share this
+ * guard. */
+const chosenTemplateOrPicker = (
+  templateId: string | null,
+  session: AdminSession,
+): { template: ListingTemplate | null } | { picker: Response } => {
+  const template =
+    LISTING_TEMPLATES.find((candidate) => candidate.id === templateId) ?? null;
+  return template?.requiresLogistics && !settings.hasLogistics
+    ? { picker: htmlResponse(adminListingPickerPage(session)) }
+    : { template };
+};
 
 /** Load every group and render the new-listing form. Shared by the empty-form
  *  GET and the rejected-create re-render, which both fetch the group list then
@@ -254,13 +267,9 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     });
 
     // Mirror the GET gate: reject logistics templates when the feature is off.
-    // Guards against a form opened while logistics was enabled, or a crafted POST.
     const chosenTemplateId = form.getString("template_id") || null;
-    const chosenTemplate =
-      LISTING_TEMPLATES.find((t) => t.id === chosenTemplateId) ?? null;
-    if (chosenTemplate?.requiresLogistics && !settings.hasLogistics) {
-      return htmlResponse(adminListingPickerPage(session));
-    }
+    const gate = chosenTemplateOrPicker(chosenTemplateId, session);
+    if ("picker" in gate) return gate.picker;
 
     // Template-specific date validation: reject a blank date when the operator
     // chose the one-off-event template and hasn't changed the non-date dims.

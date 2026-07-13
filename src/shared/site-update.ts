@@ -1,12 +1,17 @@
 /**
  * Built-site update support: read a site's recorded version through its
- * read-only database keys and decide whether it is behind the latest release.
+ * read-only database keys, decide whether it is behind the latest release,
+ * and run a release deploy as the current "update" task.
  *
  * The deploy itself reuses the exact self-update path against the site's own
- * hosting script/app; this module only gathers the comparison state shown next
- * to the Update button.
+ * hosting script/app; `deployAndReport` wraps that shared tail (task lock,
+ * activity log, flash message) for both the self-update page and the
+ * built-site Update button.
  */
 
+/* jscpd:ignore-start */
+import { resolveHostingProvider } from "#shared/builder.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
@@ -15,6 +20,8 @@ import {
   readSiteSetting,
   type SiteDbResult,
 } from "#shared/site-db.ts";
+/* jscpd:ignore-end */
+import { tryStep } from "#shared/try-step.ts";
 import {
   CURRENT_SCRIPT_VERSION_KEY,
   formatBuildDate,
@@ -39,6 +46,32 @@ export type BuiltSiteUpdateState = {
   updateAvailable: boolean;
   /** The site is on the latest known release. */
   upToDate: boolean;
+};
+
+/**
+ * Run a release deploy as the current "update" task, write the activity-log
+ * line, and turn the outcome into a response. `logPrefix` opens the log line
+ * ("Software updated" / "Updated built site '…'") and `successPrefix` opens
+ * the success flash ("Updated" / "Updated '…'"); both finish with the
+ * released version. A thrown deploy failure becomes an error response.
+ */
+export const deployAndReport = async (opts: {
+  deploy: () => Promise<{ tagName: string; name: string }>;
+  logPrefix: string;
+  successPrefix: string;
+  onSuccess: (message: string) => Response;
+  onError: (message: string) => Response;
+}): Promise<Response> => {
+  const result = await tryStep("Update failed", () =>
+    settings.withCurrentTask("update", opts.deploy),
+  );
+  if (!result.ok) return opts.onError(result.error);
+  await logActivity(
+    `${opts.logPrefix} to ${result.value.name} (${result.value.tagName})`,
+  );
+  return opts.onSuccess(
+    `${opts.successPrefix} to ${result.value.name} — the new version will be active shortly`,
+  );
 };
 
 /** Read the version a built site recorded for itself, via its read-only keys. */
@@ -72,10 +105,10 @@ export const loadBuiltSiteUpdateState = async (
     isNewerVersion(latestVersion, siteVersion!);
   const upToDate = Boolean(siteVersion) && haveLatest && !updateAvailable;
 
-  const providerConfigured =
-    site.hostingProvider === "deno"
-      ? Boolean(getEnv("DENO_DEPLOY_TOKEN"))
-      : Boolean(getEnv("BUNNY_API_KEY"));
+  // The provider's own config env var is the single source for "can deploy".
+  const providerConfigured = Boolean(
+    getEnv(resolveHostingProvider(site.hostingProvider).configEnvVar),
+  );
 
   return {
     hasHostingId: Boolean(site.hostingId),

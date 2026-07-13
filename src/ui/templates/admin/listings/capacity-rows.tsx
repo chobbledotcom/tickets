@@ -7,6 +7,7 @@ import {
   GroupCapacityMeter,
 } from "#templates/components/capacity.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import type { GroupContext } from "./types.ts";
 
 export type ListingCapacityRowsProps = {
@@ -78,25 +79,26 @@ type AttendeesSummaryRowProps = Omit<ListingCapacityRowsProps, "groupContext">;
 export const AttendeesSummaryRow = (
   props: AttendeesSummaryRowProps,
 ): JSX.Element => (
-  <tr>
-    <th>
-      {t("listings_table.listing_attendees")}
-      {props.dailySuffix}
-    </th>
-    <td>
-      <AttendeeCountDisplay {...props} />
-      {props.isDaily && !props.dateFilter && (
-        <>
-          {" "}
-          <small>
-            {t("listings_table.capacity_per_date", {
-              capacity: props.listing.max_attendees,
-            })}
-          </small>
-        </>
-      )}
-    </td>
-  </tr>
+  <LabelledRow
+    label={
+      <>
+        {t("listings_table.listing_attendees")}
+        {props.dailySuffix}
+      </>
+    }
+  >
+    <AttendeeCountDisplay {...props} />
+    {props.isDaily && !props.dateFilter && (
+      <>
+        {" "}
+        <small>
+          {t("listings_table.capacity_per_date", {
+            capacity: props.listing.max_attendees,
+          })}
+        </small>
+      </>
+    )}
+  </LabelledRow>
 );
 
 export const GroupAttendeesRow = ({
@@ -108,22 +110,20 @@ export const GroupAttendeesRow = ({
   groupAttendeeCount: number;
   dailySuffix: string;
 }): JSX.Element => (
-  <tr>
-    <th>
-      {t("listings_table.group_attendees")}
-      {dailySuffix}
-    </th>
-    <td>
-      <GroupCapacityMeter
-        count={groupAttendeeCount}
-        max={group.max_attendees}
-      />{" "}
-      <small>
-        {t("listings_table.across_all_listings_in")}{" "}
-        <a href={`/admin/groups/${group.id}`}>{group.name}</a>
-      </small>
-    </td>
-  </tr>
+  <LabelledRow
+    label={
+      <>
+        {t("listings_table.group_attendees")}
+        {dailySuffix}
+      </>
+    }
+  >
+    <GroupCapacityMeter count={groupAttendeeCount} max={group.max_attendees} />{" "}
+    <small>
+      {t("listings_table.across_all_listings_in")}{" "}
+      <a href={`/admin/groups/${group.id}`}>{group.name}</a>
+    </small>
+  </LabelledRow>
 );
 
 export const ListingCapacityRows = (

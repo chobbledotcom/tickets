@@ -25,6 +25,7 @@ import {
 } from "#shared/db/api-keys.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import type { AdminSession } from "#shared/types.ts";
+import { flashProps } from "#templates/admin/admin-page.tsx";
 import {
   adminApiDocsPage,
   adminApiKeyManagePage,
@@ -154,10 +155,11 @@ const handleApiKeyManageGet: TypedRouteHandler<
     if (!apiKey) return notFoundResponse();
     const flash = applyFlash(request);
     return htmlResponse(
-      adminApiKeyManagePage(apiKey, session, {
-        error: flash.error,
-        success: flash.success,
-      }),
+      adminApiKeyManagePage(
+        apiKey,
+        session,
+        flashProps(flash.error, flash.success),
+      ),
     );
   });
 

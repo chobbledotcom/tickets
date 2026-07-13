@@ -5,8 +5,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { contentFieldValues } from "#routes/admin/content-form-fields.ts";
 import {
-  pageToValues,
   sitePageEditForm,
   sitePageForm,
 } from "#routes/admin/site-pages-form.ts";
@@ -19,6 +19,7 @@ import type {
   SitePageNavRow,
 } from "#shared/types.ts";
 import { adminFormPage } from "#templates/admin/admin-page.tsx";
+import { rowDeleteLink } from "#templates/admin/delete-link.tsx";
 import {
   collectionPage,
   contentEditPanel,
@@ -27,6 +28,7 @@ import {
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
 
 /* jscpd:ignore-end */
@@ -73,11 +75,7 @@ const Arrows = ({
   </WritableOnly>
 );
 
-const DeleteLink = ({ id }: { id: number }): JSX.Element => (
-  <WritableOnly>
-    <a href={`${LIST}/${id}/delete`}>{t("common.delete")}</a>
-  </WritableOnly>
-);
+const DeleteLink = rowDeleteLink(LIST);
 
 /** A page row's name cell: the page name linking through to its edit page.
  * Shared by the root-page list and the nested-page list. */
@@ -230,7 +228,7 @@ const ItemPicker = ({
 export const sitePageEditPanel = (page: SitePage): JSX.Element =>
   contentEditPanel(
     `${LIST}/${page.id}/edit`,
-    sitePageEditForm.renderFields(pageToValues(page)),
+    sitePageEditForm.renderFields(contentFieldValues(page)),
   );
 
 /** The Items tab's panel: the page's current contents (reorderable, each
@@ -256,11 +254,9 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
           cells: (item) => [
             t(`site.pages.type.${item.type}`),
             item.label,
-            <CsrfForm action={`${itemBase(item)}/remove`} class="inline">
-              <button class="link-button small" type="submit">
-                {t("site.pages.remove")}
-              </button>
-            </CsrfForm>,
+            <InlineFormButton action={`${itemBase(item)}/remove`}>
+              {t("site.pages.remove")}
+            </InlineFormButton>,
           ],
           headers: [
             t("site.pages.item_type_column"),

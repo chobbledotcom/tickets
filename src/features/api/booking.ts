@@ -47,28 +47,11 @@ const bookingResultToResponse = (
   }
 };
 
-/**
- * Resolve and validate the booking date for listings booked per date (a no-op
- * for date-less listings, whose capacity is one running total). Returns the
- * submitted date, null for date-less listings, or a 400 response when the date
- * is missing or unavailable.
- */
-const resolveBookingDate = async (
-  listing: ListingWithCount,
-  body: Record<string, unknown>,
-): Promise<string | null | Response> => {
-  if (!countsPerDate(listing.listing_type)) return null;
-  const submittedDate = String(body.date ?? "");
-  const availableDates = getAvailableDates(listing, await getActiveHolidays());
-  if (!submittedDate || !availableDates.includes(submittedDate)) {
-    return apiError(bookingError.invalidDate);
-  }
-  return submittedDate;
-};
-
-/** Resolve a booking's quantity (clamped to the listing's per-order max) and its
- * date (validated for daily listings), or a 400 response for an invalid date.
- * Shared by the standalone and parent booking paths. */
+/** Resolve a booking's quantity (clamped to the listing's per-order max) and
+ * its date. Listings booked per date must submit an available date; date-less
+ * listings (whose capacity is one running total) resolve to a null date.
+ * Returns a 400 response for an invalid quantity or a missing/unavailable
+ * date. Shared by the standalone and parent booking paths. */
 const resolveQuantityAndDate = async (
   listing: ListingWithCount,
   body: Record<string, unknown>,
@@ -76,8 +59,14 @@ const resolveQuantityAndDate = async (
   const quantity = resolvePositiveQuantity(body);
   if (quantity instanceof Response) return quantity;
   const clampedQuantity = Math.min(quantity, listing.max_quantity);
-  const date = await resolveBookingDate(listing, body);
-  return date instanceof Response ? date : { date, quantity: clampedQuantity };
+  if (!countsPerDate(listing.listing_type)) {
+    return { date: null, quantity: clampedQuantity };
+  }
+  const availableDates = getAvailableDates(listing, await getActiveHolidays());
+  if (typeof body.date !== "string" || !availableDates.includes(body.date)) {
+    return apiError(bookingError.invalidDate);
+  }
+  return { date: body.date, quantity: clampedQuantity };
 };
 
 /** POST /api/listings/:slug/book — create a booking */

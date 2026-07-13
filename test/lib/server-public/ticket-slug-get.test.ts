@@ -2,6 +2,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { setImagesForItem } from "#shared/db/images.ts";
+import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
+import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import {
   assertPublicHtml,
   expectFlash,
@@ -38,6 +41,24 @@ describeWithEnv(
           `/ticket/${listing.slug}`,
           "Continue",
           `action="/ticket/${listing.slug}"`,
+        );
+      });
+
+      test("still renders when the listing's image record is broken", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        await setImagesForItem("listing", listing.id, [
+          await insertBrokenImage(),
+        ]);
+
+        // The page renders (no 503) and shows the red-pixel marker in place
+        // of the unreadable image.
+        await assertPublicHtml(
+          `/ticket/${listing.slug}`,
+          "Continue",
+          `/image/${BROKEN_IMAGE_FILENAME}`,
         );
       });
 

@@ -84,7 +84,11 @@ export const editPanelHtml = (
     ListingEditPanel({ groups: [], listing, session: TEST_SESSION, ...extra }),
   );
 
-/** Register the beforeAll/afterEach hooks every listing-template test shares. */
+/** Register the beforeAll/afterEach hooks every listing-template test shares.
+ * Call it as the first statement INSIDE each top-level describe — at module
+ * level it would register *global* hooks, which cannot be added once any
+ * other module's tests exist (files share an isolate under the grouped
+ * runner). */
 export const registerListingTemplateHooks = (): void => {
   beforeAll(async () => {
     setupTestEncryptionKey();

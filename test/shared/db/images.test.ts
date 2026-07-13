@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#shared/crypto/encryption.ts";
-import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
+import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   appendImageToItem,
   clearImageUsesForItemStatement,
@@ -15,11 +14,14 @@ import {
   setItemsForImage,
 } from "#shared/db/images.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
+import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 const makeImage = (
   name: string,
@@ -48,7 +50,14 @@ const linkedImageIds = async (
 ): Promise<number[]> =>
   (await getImagesForItem(itemType, itemId)).map((image) => image.id);
 
+/** A broken image row with a working thumbnail, so tests can see that only
+ * the unreadable column falls back to the marker. */
+const insertBrokenImageWithGoodThumb = (): Promise<number> =>
+  insertBrokenImage({ thumbFilename: "broken-thumb.webp" });
+
 describeWithEnv("db > images", { db: true }, () => {
+  const errors = setupErrorSpy();
+
   describe("image metadata", () => {
     test("stores free text encrypted and decrypts image reads", async () => {
       const image = await makeImage("Hero", {
@@ -77,21 +86,46 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(await getImageById(9999)).toBeNull();
     });
 
-    test("rejects stored images whose filename decrypts to an empty string", async () => {
-      await execute(
-        `INSERT INTO images (name, filename, filename_thumb, alt_text)
-         VALUES (?, ?, ?, ?)`,
-        [
-          await encrypt("Broken"),
-          await encrypt(""),
-          await encrypt("broken-thumb.webp"),
-          "",
-        ],
-      );
+    test("swaps in the broken-image marker when a filename decrypts empty", async () => {
+      const id = await insertBrokenImageWithGoodThumb();
 
-      await expect(getAllImages()).rejects.toThrow(
-        "image filename must be non-empty",
+      const images = await getAllImages();
+      expect(images.map((image) => image.id)).toEqual([id]);
+      expect(images[0]?.filename).toBe(BROKEN_IMAGE_FILENAME);
+      expect(images[0]?.filename_thumb).toBe("broken-thumb.webp");
+      expect(images[0]?.name).toBe("Broken");
+      expect(errors.lastMessage()).toContain("E_IMAGE_BROKEN");
+      expect(errors.lastMessage()).toContain(
+        `image ${id} filename decrypted to an empty value`,
       );
+    });
+
+    test("projects the broken-image marker for an item's first image", async () => {
+      const listing = await createTestListing({ name: "Broken poster" });
+      const id = await insertBrokenImageWithGoodThumb();
+      await setImagesForItem("listing", listing.id, [id]);
+
+      expect(await getImageFilenamesForItem("listing", listing.id)).toEqual({
+        image_alt_text: "",
+        image_thumb_url: "broken-thumb.webp",
+        image_url: BROKEN_IMAGE_FILENAME,
+      });
+      expect(errors.lastMessage()).toContain(
+        `image ${id} (first image of listing ${listing.id}) filename decrypted to an empty value`,
+      );
+    });
+
+    test("projects the broken-image marker through listing reads", async () => {
+      const listing = await createTestListing({ name: "Broken projection" });
+      const id = await insertBrokenImageWithGoodThumb();
+      await setImagesForItem("listing", listing.id, [id]);
+
+      expect(await getListingWithCount(listing.id)).toMatchObject({
+        image_alt_text: "",
+        image_thumb_url: "broken-thumb.webp",
+        image_url: BROKEN_IMAGE_FILENAME,
+      });
+      expect(errors.contains(`listing ${listing.id} image`)).toBe(true);
     });
   });
 

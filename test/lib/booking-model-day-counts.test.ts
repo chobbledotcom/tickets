@@ -3,13 +3,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   childDaysFromParent,
   dayCountsChildSupports,
-  dayCountsEveryListingSupports,
   encodeChildDatesByDayCount,
   fixedParentDays,
-  keepDayCountsChildrenSupport,
   keepOptionsSomeChildSupports,
-  keepParentDayCountsChildrenSupport,
-  packageDayCountsChildrenSupport,
+  membersWithChildren,
+  pageDayCounts,
   type TicketListing,
   updateForMembersWithChildren,
 } from "#shared/booking/model.ts";
@@ -181,38 +179,25 @@ describe("booking model — day-count support", () => {
     });
   });
 
-  describe("dayCountsEveryListingSupports", () => {
-    test("empty when there are no customisable listings", () => {
-      const listings = [resolved({ customisable_days: false })];
-      expect(dayCountsEveryListingSupports(listings)).toEqual([]);
+  describe("membersWithChildren", () => {
+    test("pairs each member with its children, skipping members without any", () => {
+      const members = [
+        resolved({ id: 1 }),
+        resolved({ id: 2 }),
+        resolved({ id: 3 }),
+      ];
+      const child = resolved({ id: 10 });
+      const childrenByParentId = new Map([
+        [1, [child]],
+        [2, []],
+      ]);
+      expect(membersWithChildren(members, childrenByParentId)).toEqual([
+        { children: [child], member: members[0]! },
+      ]);
     });
 
-    test("intersects day counts across every customisable listing, sorted ascending", () => {
-      const listings = [
-        resolved({
-          customisable_days: true,
-          day_prices: { 1: 100, 2: 200, 3: 300 },
-          duration_days: 3,
-        }),
-        resolved({
-          customisable_days: true,
-          day_prices: { 2: 250, 3: 350 },
-          duration_days: 3,
-        }),
-      ];
-      expect(dayCountsEveryListingSupports(listings)).toEqual([2, 3]);
-    });
-
-    test("ignores non-customisable listings when intersecting", () => {
-      const listings = [
-        resolved({
-          customisable_days: true,
-          day_prices: { 1: 100, 2: 200 },
-          duration_days: 2,
-        }),
-        resolved({ customisable_days: false }),
-      ];
-      expect(dayCountsEveryListingSupports(listings)).toEqual([1, 2]);
+    test("empty when there is no children map at all", () => {
+      expect(membersWithChildren([resolved({ id: 1 })], undefined)).toEqual([]);
     });
   });
 
@@ -244,52 +229,58 @@ describe("booking model — day-count support", () => {
     });
   });
 
-  describe("keepDayCountsChildrenSupport", () => {
-    test("keeps counts every member's children collectively support", () => {
-      const parent1 = resolved({ id: 1 });
-      const parent2 = resolved({ id: 2 });
+  describe("pageDayCounts", () => {
+    /** A customisable listing offering exactly these priced day counts. */
+    const supporting = (
+      id: number,
+      dayPrices: Record<number, number>,
+    ): TicketListing =>
+      resolved({
+        customisable_days: true,
+        day_prices: dayPrices,
+        duration_days: Math.max(...Object.keys(dayPrices).map(Number)),
+        id,
+      });
+
+    test("empty when there are no customisable listings", () => {
+      const listings = [resolved({ customisable_days: false })];
+      expect(pageDayCounts(listings, undefined, false)).toEqual([]);
+    });
+
+    test("intersects day counts across every customisable listing, sorted ascending", () => {
+      const listings = [
+        supporting(1, { 1: 100, 2: 200, 3: 300 }),
+        supporting(2, { 2: 250, 3: 350 }),
+      ];
+      expect(pageDayCounts(listings, undefined, false)).toEqual([2, 3]);
+    });
+
+    test("ignores non-customisable listings when intersecting", () => {
+      const listings = [
+        supporting(1, { 1: 100, 2: 200 }),
+        resolved({ customisable_days: false, id: 2 }),
+      ];
+      expect(pageDayCounts(listings, undefined, false)).toEqual([1, 2]);
+    });
+
+    test("a package keeps only counts every member's children collectively support", () => {
       const childrenByParentId = new Map([
-        [
-          1,
-          [
-            resolved({
-              customisable_days: true,
-              day_prices: { 2: 200, 3: 300 },
-              duration_days: 3,
-              id: 10,
-            }),
-          ],
-        ],
-        [
-          2,
-          [
-            resolved({
-              customisable_days: true,
-              day_prices: { 3: 300 },
-              duration_days: 3,
-              id: 11,
-            }),
-          ],
-        ],
+        [1, [supporting(10, { 2: 200, 3: 300 })]],
+        [2, [supporting(11, { 3: 300 })]],
       ]);
-      expect(
-        keepDayCountsChildrenSupport(
-          [parent1, parent2],
-          [2, 3],
-          childrenByParentId,
-        ),
-      ).toEqual([3]);
+      const members = [
+        supporting(1, { 2: 200, 3: 300 }),
+        supporting(2, { 2: 200, 3: 300 }),
+      ];
+      expect(pageDayCounts(members, childrenByParentId, true)).toEqual([3]);
     });
 
-    test("members without a children entry don't restrict the counts", () => {
-      const parent1 = resolved({ id: 1 });
-      expect(
-        keepDayCountsChildrenSupport([parent1], [2, 3], new Map()),
-      ).toEqual([2, 3]);
+    test("package members without a children entry don't restrict the counts", () => {
+      const members = [supporting(1, { 2: 200, 3: 300 })];
+      expect(pageDayCounts(members, new Map(), true)).toEqual([2, 3]);
     });
 
-    test("only bookable children are considered", () => {
-      const parent = resolved({ id: 1 });
+    test("a package only counts bookable children", () => {
       const childrenByParentId = new Map([
         [
           1,
@@ -305,72 +296,35 @@ describe("booking model — day-count support", () => {
         ],
       ]);
       expect(
-        keepDayCountsChildrenSupport([parent], [2], childrenByParentId),
+        pageDayCounts([supporting(1, { 2: 200 })], childrenByParentId, true),
       ).toEqual([]);
     });
-  });
 
-  describe("keepParentDayCountsChildrenSupport", () => {
-    test("returns the parent day counts unchanged when there's no children map", () => {
-      const listings = [resolved({ id: 1 })];
+    test("returns the page's counts unchanged when there's no children map", () => {
+      const listings = [supporting(1, { 2: 200, 3: 300 })];
+      expect(pageDayCounts(listings, undefined, false)).toEqual([2, 3]);
+    });
+
+    test("without packages, children are ignored on a multi-listing page, even restrictive ones", () => {
+      const listings = [
+        supporting(1, { 2: 200, 3: 300 }),
+        supporting(2, { 2: 200, 3: 300 }),
+      ];
       expect(
-        keepParentDayCountsChildrenSupport(listings, [2, 3], undefined),
+        pageDayCounts(listings, oneChildSupportingDayTwo(), false),
       ).toEqual([2, 3]);
     });
 
-    test("returns the parent day counts unchanged for a multi-listing package", () => {
-      const listings = [resolved({ id: 1 }), resolved({ id: 2 })];
-      const childrenByParentId = new Map([[1, []]]);
+    test("without packages, a single listing's children restrict the counts", () => {
+      const listings = [supporting(1, { 2: 200, 3: 300 })];
       expect(
-        keepParentDayCountsChildrenSupport(
-          listings,
-          [2, 3],
-          childrenByParentId,
-        ),
-      ).toEqual([2, 3]);
-    });
-
-    test("ignores children entirely for a multi-listing package, even a restrictive one", () => {
-      const listings = [resolved({ id: 1 }), resolved({ id: 2 })];
-      expect(
-        keepParentDayCountsChildrenSupport(
-          listings,
-          [2, 3],
-          oneChildSupportingDayTwo(),
-        ),
-      ).toEqual([2, 3]);
-    });
-
-    test("restricts to what children support for a single-listing selection", () => {
-      const listing1 = resolved({ id: 1 });
-      expect(
-        keepParentDayCountsChildrenSupport(
-          [listing1],
-          [2, 3],
-          oneChildSupportingDayTwo(),
-        ),
-      ).toEqual([2]);
-    });
-  });
-
-  describe("packageDayCountsChildrenSupport", () => {
-    test("combines every listing's own supported counts with what children can support", () => {
-      const listing1 = resolved({
-        customisable_days: true,
-        day_prices: { 2: 200, 3: 300 },
-        duration_days: 3,
-        id: 1,
-      });
-      expect(
-        packageDayCountsChildrenSupport([listing1], oneChildSupportingDayTwo()),
+        pageDayCounts(listings, oneChildSupportingDayTwo(), false),
       ).toEqual([2]);
     });
 
-    test("empty when no listing is customisable", () => {
-      const listing1 = resolved({ customisable_days: false, id: 1 });
-      expect(packageDayCountsChildrenSupport([listing1], new Map())).toEqual(
-        [],
-      );
+    test("empty when no listing is customisable, even for a package", () => {
+      const listings = [resolved({ customisable_days: false, id: 1 })];
+      expect(pageDayCounts(listings, new Map(), true)).toEqual([]);
     });
   });
 });

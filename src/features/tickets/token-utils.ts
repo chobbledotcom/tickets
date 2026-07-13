@@ -23,6 +23,7 @@ import {
   recordTokenFailure,
 } from "#shared/db/token-attempts.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import type { MakeResponse } from "#shared/response-steps.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type Attendee,
@@ -258,7 +259,7 @@ export const withTokenRateLimit = async (
   request: Request,
   server: ServerContext | undefined,
   tokens: string[],
-  run: () => Response | Promise<Response>,
+  run: MakeResponse,
 ): Promise<Response> => {
   const ip = getClientIp(request, server);
   if (await isTokenRateLimited(ip)) return rateLimitedResponse();

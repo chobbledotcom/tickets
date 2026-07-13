@@ -12,8 +12,6 @@ import {
   renderListingDetail,
 } from "./helpers.ts";
 
-registerListingTemplateHooks();
-
 /** One checked-in (qty 2) and one not-checked-in (qty 3) attendee — the mix the
  *  dual checked-in row tests share. */
 const multiQtyPair = () => [
@@ -24,6 +22,8 @@ const dailyListingFive = () =>
   testListingWithCount({ attendee_count: 5, listing_type: "daily" });
 
 describe("adminListingPage duration display", () => {
+  registerListingTemplateHooks();
+
   test("shows booking duration row for daily listings", () => {
     const listing = testListingWithCount({
       attendee_count: 0,
@@ -117,6 +117,8 @@ describe("adminListingPage duration display", () => {
 });
 
 describe("adminListingPage details table", () => {
+  registerListingTemplateHooks();
+
   const listing = testListingWithCount({ attendee_count: 2 });
   const renderMismatch = (): string =>
     renderListingDetail({

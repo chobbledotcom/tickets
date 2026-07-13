@@ -19,6 +19,8 @@
  * detected).
  */
 
+import { resolve } from "@std/path";
+import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
 import { dim, green, red, yellow } from "../precommit/colors.ts";
 import { write } from "../precommit/write.ts";
 import { projectRoot } from "../project-root.ts";
@@ -28,6 +30,7 @@ import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { batchTestFiles } from "./batch.ts";
 import {
   denoExitCode,
+  envWith,
   offTerminationSignals,
   onTerminationSignals,
 } from "./child-process.ts";
@@ -39,6 +42,7 @@ import {
   loadIgnoreList,
   mutantKey,
 } from "./ignore.ts";
+import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
 import {
   formatProgressLine,
   formatSummaryLines,
@@ -82,10 +86,17 @@ const defaultBatchJobs = (): number =>
   parsePositiveInt(Deno.env.get("MUTATION_JOBS")) ??
   Math.max(1, Math.min(4, hardwareConcurrency() - 1));
 
-const testEnv = (): Record<string, string> => ({
-  ...Deno.env.toObject(),
-  ...stripeMockEnv(),
-});
+const testEnv = (): Record<string, string> => envWith(stripeMockEnv());
+
+/** The env for a mutant's test processes. When the mutated file feeds the
+ * run-wide prebuilt test state, the pointer to that (pre-mutant) snapshot is
+ * dropped so every test isolate rebuilds the golden DB and setup ceremony from
+ * the mutated code instead — see ./state-graph.ts. */
+const mutantTestEnv = (dropPrebuiltState: boolean): Record<string, string> => {
+  const env = testEnv();
+  if (dropPrebuiltState) delete env[TEST_STATE_DIR_ENV];
+  return env;
+};
 
 /**
  * Resolve how to invoke Biome's linter — the native binary when it is on PATH
@@ -207,7 +218,11 @@ const createStaticGates = async (): Promise<StaticGate[]> => [
 ];
 
 /** Run one `deno test` process over `batch`, returning its exit code. */
-const runTestBatch = (batch: string[], signal: AbortSignal): Promise<number> =>
+const runTestBatch = (
+  batch: string[],
+  signal: AbortSignal,
+  env: Record<string, string>,
+): Promise<number> =>
   denoExitCode(
     [
       "test",
@@ -224,7 +239,7 @@ const runTestBatch = (batch: string[], signal: AbortSignal): Promise<number> =>
     ],
     {
       cwd: projectRoot,
-      env: testEnv(),
+      env,
       signal,
       stderr: "null",
       stdout: "null",
@@ -244,10 +259,16 @@ const runTestBatch = (batch: string[], signal: AbortSignal): Promise<number> =>
  * a mutant, so the remaining batches are skipped. All batches share one timeout
  * and abort signal, so a mutant that hangs is still caught as "timed-out".
  */
+/** One test run's fixed shape: which files, how long, how wide, in what env. */
+interface TestRunConfig {
+  batchJobs: number;
+  env: Record<string, string>;
+  testFiles: string[];
+  timeoutMs: number;
+}
+
 const runTests = async (
-  testFiles: string[],
-  timeoutMs: number,
-  batchJobs: number,
+  { batchJobs, env, testFiles, timeoutMs }: TestRunConfig,
   abortSignal?: AbortSignal,
 ): Promise<{ durationMs: number; outcome: Outcome }> => {
   const controller = new AbortController();
@@ -266,7 +287,7 @@ const runTests = async (
         nextBatch += 1;
         if (!batch) return null;
         try {
-          const code = await runTestBatch(batch, controller.signal);
+          const code = await runTestBatch(batch, controller.signal, env);
           if (code !== 0) {
             controller.abort();
             return "failed";
@@ -322,6 +343,9 @@ interface MutantAssetHooks {
 
 interface FileMutationPlan {
   assets: MutantAssetHooks | null;
+  /** True when the file feeds the run-wide prebuilt test state, so its
+   * mutants must not seed tests from that (pre-mutant) snapshot. */
+  dropPrebuiltState: boolean;
   file: string;
   mutants: Mutant[];
   original: string;
@@ -332,9 +356,7 @@ const evaluateMutant = async (
   file: string,
   original: string,
   mutant: Mutant,
-  testFiles: string[],
-  timeoutMs: number,
-  batchJobs: number,
+  run: TestRunConfig,
   assets: MutantAssetHooks | null,
   gates: StaticGate[],
   abortSignal: AbortSignal,
@@ -354,12 +376,7 @@ const evaluateMutant = async (
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
     if (assets && !(await assets.rebuild())) return "killed";
-    const { outcome } = await runTests(
-      testFiles,
-      timeoutMs,
-      batchJobs,
-      abortSignal,
-    );
+    const { outcome } = await runTests(run, abortSignal);
     return toStatus(outcome);
   } finally {
     await Deno.writeTextFile(file, original);
@@ -372,10 +389,11 @@ const logFilePlan = (plan: FileMutationPlan, affectedCount: number): void => {
     console.log(yellow(`  no mutable operators in ${rel(plan.file)}`));
     return;
   }
-  const note =
-    affectedCount > 0
-      ? dim(` (rebuilding ${affectedCount} bundle(s) per mutant)`)
-      : "";
+  const notes = [
+    affectedCount > 0 ? `rebuilding ${affectedCount} bundle(s) per mutant` : "",
+    plan.dropPrebuiltState ? "prebuilt test state disabled" : "",
+  ].filter((entry) => entry !== "");
+  const note = notes.length > 0 ? dim(` (${notes.join("; ")})`) : "";
   console.log(
     dim(`  ${rel(plan.file)}: ${plan.mutants.length} mutants`) + note,
   );
@@ -383,6 +401,7 @@ const logFilePlan = (plan: FileMutationPlan, affectedCount: number): void => {
 
 const filePlan = async (
   rebuilder: AssetRebuilder | null,
+  stateBuilderFiles: Set<string> | null,
   exhaustive: boolean,
   file: string,
 ): Promise<FileMutationPlan> => {
@@ -397,6 +416,9 @@ const filePlan = async (
       : null;
   const plan = {
     assets,
+    // A null set means no prebuilt state is in play for this run at all.
+    dropPrebuiltState:
+      stateBuilderFiles?.has(resolve(projectRoot, file)) ?? false,
     file,
     mutants: generateMutants(original, file, exhaustive),
     original,
@@ -441,10 +463,10 @@ const establishBaseline = async (
 ): Promise<{ code: number } | { perMutantTimeout: number }> => {
   const { abortSignal, batchJobs, isAborted, testFiles, timeout } = opts;
   console.log(dim("Running baseline (unmutated) tests…"));
+  // The baseline runs unmutated code, so the prebuilt state snapshot is valid
+  // for it even when some target feeds that state.
   const baseline = await runTests(
-    testFiles,
-    BASELINE_TIMEOUT,
-    batchJobs,
+    { batchJobs, env: testEnv(), testFiles, timeoutMs: BASELINE_TIMEOUT },
     abortSignal,
   );
   if (isAborted()) return { code: 130 };
@@ -554,6 +576,12 @@ const evaluatePlanMutants = async (
     results,
     testFiles,
   } = opts;
+  const run: TestRunConfig = {
+    batchJobs,
+    env: mutantTestEnv(plan.dropPrebuiltState),
+    testFiles,
+    timeoutMs: perMutantTimeout,
+  };
   for (const mutant of plan.mutants) {
     if (isAborted()) break;
     originals.set(plan.file, plan.original);
@@ -561,9 +589,7 @@ const evaluatePlanMutants = async (
       plan.file,
       plan.original,
       mutant,
-      testFiles,
-      perMutantTimeout,
-      batchJobs,
+      run,
       plan.assets,
       gates,
       abortSignal,
@@ -642,6 +668,12 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const rebuilder: AssetRebuilder | null = useHarness
     ? await createAssetRebuilder()
     : null;
+  // Likewise the run-wide test state was built before any mutant existed: a
+  // mutant in a file that state was built from must not let its tests seed
+  // from the stale snapshot, so those files run without the state env var.
+  const stateBuilderFiles = Deno.env.get(TEST_STATE_DIR_ENV)
+    ? await collectModuleGraphFiles(STATE_BUILDER_ROOT, projectRoot)
+    : null;
   const gates = await createStaticGates();
 
   // Hoisted out of the try block: the ignore-list staleness check after it
@@ -650,7 +682,9 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const plans: FileMutationPlan[] = [];
   try {
     for (const file of sourceFiles) {
-      plans.push(await filePlan(rebuilder, exhaustive, file));
+      plans.push(
+        await filePlan(rebuilder, stateBuilderFiles, exhaustive, file),
+      );
     }
     const totalMutants = plans.reduce(
       (sum, plan) => sum + plan.mutants.length,

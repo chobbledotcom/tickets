@@ -1,7 +1,7 @@
-#!/usr/bin/env -S deno run --allow-read=src,test,deno.json
-
 /**
  * Unit-test coverage report — the thin shell.
+ * Run via `deno task unit-tests-report`, which grants
+ * --allow-read=src,test,deno.json.
  *
  * Walks `src/` and `test/`, counts lines, and prints which source files still
  * need a mirrored unit test, which existing tests are thinnest, and which test

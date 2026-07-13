@@ -8,10 +8,10 @@ import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { isBunnyCdnEnabled } from "#shared/config.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { hasRecentBackup } from "#shared/db/backup.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { deployAndReport } from "#shared/site-update.ts";
 import {
   deployLatestReleaseToScript,
   fetchLatestRelease,
@@ -86,26 +86,13 @@ const deployUpdate = async (): Promise<Response> => {
     );
   }
 
-  try {
-    const result = await settings.withCurrentTask("update", () =>
-      deployLatestReleaseToScript(),
-    );
-
-    if (!result.ok) {
-      return errorRedirect(UPDATE_PATH, result.error);
-    }
-
-    await logActivity(
-      `Software updated to ${result.value.name} (${result.value.tagName})`,
-    );
-    return redirect(
-      UPDATE_PATH,
-      `Updated to ${result.value.name} — the new version will be active shortly`,
-      true,
-    );
-  } catch (e) {
-    return errorRedirect(UPDATE_PATH, `Update failed: ${errorMsg(e)}`);
-  }
+  return deployAndReport({
+    deploy: () => deployLatestReleaseToScript(),
+    logPrefix: "Software updated",
+    onError: (message) => errorRedirect(UPDATE_PATH, message),
+    onSuccess: (message) => redirect(UPDATE_PATH, message, true),
+    successPrefix: "Updated",
+  });
 };
 
 export const adminHandlers = handlersFor("update")({

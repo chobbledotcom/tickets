@@ -4,9 +4,9 @@ import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 import { detailHtml, registerListingTemplateHooks } from "./helpers.ts";
 
-registerListingTemplateHooks();
-
 describe("adminListingPage export button", () => {
+  registerListingTemplateHooks();
+
   test("renders export CSV button", () => {
     const html = detailHtml(testListingWithCount({ attendee_count: 2 }));
     expect(html).toContain("/admin/listing/1/export");
@@ -23,6 +23,8 @@ describe("adminListingPage export button", () => {
 });
 
 describe("adminListingPage filter links", () => {
+  registerListingTemplateHooks();
+
   const listing = testListingWithCount({ attendee_count: 1 });
   const oneAttendee = [testAttendee()];
   const linkHtml = (activeFilter?: "in" | "out") =>
@@ -108,6 +110,8 @@ describe("adminListingPage filter links", () => {
 });
 
 describe("adminListingPage total revenue", () => {
+  registerListingTemplateHooks();
+
   test("shows total revenue for paid listings", () => {
     const html = detailHtml(
       testListingWithCount({ attendee_count: 2, unit_price: 1000 }),
@@ -140,6 +144,8 @@ describe("adminListingPage total revenue", () => {
 });
 
 describe("adminListingPage failed payments", () => {
+  registerListingTemplateHooks();
+
   // One resolved payment plus one unresolved (empty payment_id) attendee — the
   // mix several failed-payment tests build on.
   const paidPlusFailed = () => [
@@ -269,6 +275,8 @@ describe("adminListingPage failed payments", () => {
 });
 
 describe("adminListingPage Renewal tag", () => {
+  registerListingTemplateHooks();
+
   test("renders Renewal tag for tier listings with months_per_unit > 0", () => {
     const html = detailHtml(testListingWithCount({ months_per_unit: 3 }), {
       allowedDomain: "",

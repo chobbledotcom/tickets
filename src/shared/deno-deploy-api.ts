@@ -13,7 +13,10 @@ import {
   slugifyForProvider,
 } from "#shared/config.ts";
 import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
-import type { HostingProviderApi } from "#shared/provider-types.ts";
+import type {
+  CreateSiteFn,
+  HostingProviderApi,
+} from "#shared/provider-types.ts";
 
 /* jscpd:ignore-end */
 
@@ -169,11 +172,7 @@ export const denoDeployApi = {
   setEnvVars: setEnvVarsImpl,
 };
 
-const createDenoSiteImpl = async (
-  name: string,
-  code: string,
-  secrets: [string, string][],
-) => {
+const createDenoSiteImpl: CreateSiteFn = async (name, code, secrets) => {
   const createResult = await denoDeployApi.createApp(slugifyForDeno(name));
   if (!createResult.ok) return createResult;
   const setResult = await denoDeployApi.setEnvVars(createResult.appId, secrets);

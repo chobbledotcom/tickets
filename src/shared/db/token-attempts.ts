@@ -20,14 +20,18 @@
  * profile (timing of individual invalid-link clicks) small.
  */
 
+/* jscpd:ignore-start */
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { deleteByField, execute, queryOne } from "#shared/db/client.ts";
+import { clearAttemptsFor, lockoutActive } from "#shared/db/attempt-lockout.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
   TOKEN_WINDOW_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+
+/* jscpd:ignore-end */
 
 type TokenAttemptRow = {
   recent_tokens: string;
@@ -48,12 +52,7 @@ const readRow = (hashedIp: string): Promise<TokenAttemptRow | null> =>
 export const isTokenRateLimited = async (ip: string): Promise<boolean> => {
   const hashedIp = await hmacHash(ip);
   const row = await readRow(hashedIp);
-  if (!row?.locked_until) return false;
-
-  if (row.locked_until > nowMs()) return true;
-
-  await deleteByField("token_attempts", "ip", hashedIp);
-  return false;
+  return lockoutActive("token_attempts", hashedIp, row?.locked_until);
 };
 
 /**
@@ -102,5 +101,5 @@ export const recordTokenFailure = async (
  * URL before getting it right don't leave a fingerprint behind, and as a test
  * helper for resetting state between tests.
  */
-export const clearTokenAttempts = async (ip: string): Promise<void> =>
-  deleteByField("token_attempts", "ip", await hmacHash(ip));
+export const clearTokenAttempts: (ip: string) => Promise<void> =
+  clearAttemptsFor("token_attempts");

@@ -8,13 +8,13 @@
  * a wallet form is one declaration, not another hand-authored component.
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { MaskedTextarea } from "#templates/components/masked-textarea.tsx";
-import { settingsSectionFrom } from "#templates/components/settings-section.tsx";
-import { TextField } from "#templates/components/text-field.tsx";
-/* jscpd:ignore-end */
+import {
+  type SettingsSectionDetails,
+  settingsSectionWith,
+} from "#templates/components/settings-section.tsx";
+import { TextFields } from "#templates/components/text-fields.tsx";
 
 /** The host-config sentence appended to a wallet form's description: the host
  *  provides wallet credentials that the site is either falling back to (no
@@ -43,28 +43,23 @@ type WalletSecretField = {
   placeholder: string;
 };
 
-export const WalletSettingsForm = (config: {
-  action: string;
-  title: string;
-  submitLabel: string;
-  description: Child;
-  /** Whether the site has its own credentials saved (masks the secrets). */
-  configured: boolean;
-  textFields: readonly WalletTextField[];
-  secretFields: readonly WalletSecretField[];
-}): JSX.Element =>
-  settingsSectionFrom(
+export const WalletSettingsForm = (
+  config: SettingsSectionDetails & {
+    /** Whether the site has its own credentials saved (masks the secrets). */
+    configured: boolean;
+    textFields: readonly WalletTextField[];
+    secretFields: readonly WalletSecretField[];
+  },
+): JSX.Element =>
+  settingsSectionWith(
     config,
     <>
-      {config.textFields.map((field) => (
-        <TextField
-          label={t(field.labelKey)}
-          name={field.name}
-          placeholder={field.placeholder}
-          type={field.type}
-          value={field.value}
-        />
-      ))}
+      <TextFields
+        fields={config.textFields.map((field) => ({
+          ...field,
+          label: t(field.labelKey),
+        }))}
+      />
       {config.secretFields.map((field) => (
         <MaskedTextarea
           configured={config.configured}

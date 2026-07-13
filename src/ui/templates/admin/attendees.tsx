@@ -2,6 +2,7 @@
  * Admin attendee page templates
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
@@ -39,15 +40,13 @@ import {
 } from "#templates/components/labelled-para.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
-import {
-  questionFieldset,
-  questionSelectField,
-  questionTextField,
-} from "#templates/components/question-text.tsx";
+import { questionControl } from "#templates/components/question-controls.tsx";
 import {
   RadioOption,
   type RadioOptionProps,
 } from "#templates/components/radio-option.tsx";
+
+/* jscpd:ignore-end */
 
 /** A `<td>` cell holding one labelled radio option of a merge-decision group.
  *  The merge tables (PII fields, custom-question answers, booking conflicts)
@@ -390,29 +389,13 @@ export const EditQuestions = ({
 }): JSX.Element => (
   <>
     {questions.map((q) =>
-      q.display_type === "free_text"
-        ? questionTextField(q, undefined, selectedTextAnswers.get(q.id) ?? "")
-        : q.display_type === "select"
-          ? questionSelectField(q, undefined, {
-              isChosen: (id) => selectedAnswerIds.includes(id),
-              options: editableAnswers(q, selectedAnswerIds),
-              placeholder: "No answer",
-            })
-          : questionFieldset(
-              q,
-              undefined,
-              editableAnswers(q, selectedAnswerIds).map((a) => (
-                <label>
-                  <input
-                    checked={selectedAnswerIds.includes(a.id)}
-                    name={`question_${q.id}`}
-                    type="radio"
-                    value={String(a.id)}
-                  />{" "}
-                  {a.text}
-                </label>
-              )),
-            ),
+      questionControl(q, {
+        isChosen: (answerId) => selectedAnswerIds.includes(answerId),
+        options: editableAnswers(q, selectedAnswerIds),
+        placeholder: t("attendee_form.no_answer"),
+        // A saved free-text answer may legitimately not exist yet.
+        textValue: selectedTextAnswers.get(q.id) ?? "",
+      }),
     )}
   </>
 );

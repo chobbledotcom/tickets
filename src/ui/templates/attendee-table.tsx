@@ -12,7 +12,7 @@
  * via the opts object and iterates the ordered column definitions.
  */
 
-import { flatMap, joinStrings, map, pipe, sort } from "#fp";
+import { joinStrings, map, pipe, sort } from "#fp";
 import { t } from "#i18n";
 import {
   getHeaderText,
@@ -161,28 +161,20 @@ export const sortAttendeeRows: (
 // Answer helpers
 // ---------------------------------------------------------------------------
 
-/** Build answer text map from questions */
-const buildAnswerTextMap = (
+/** Build both answer lookups in one pass over the questions: answer id → the
+ * answer's text, and answer id → its question's text. */
+const buildAnswerMaps = (
   questions: QuestionWithAnswers[],
-): Map<number, string> =>
-  new Map(
-    pipe(
-      flatMap((q: QuestionWithAnswers) => q.answers),
-      map((a) => [a.id, a.text] as const),
-    )(questions),
-  );
-
-/** Build answer question map (answer ID → question text) */
-const buildAnswerQuestionMap = (
-  questions: QuestionWithAnswers[],
-): Map<number, string> => {
-  const m = new Map<number, string>();
+): Pick<AttendeeColumnOpts, "answerTextMap" | "answerQuestionMap"> => {
+  const answerTextMap = new Map<number, string>();
+  const answerQuestionMap = new Map<number, string>();
   for (const q of questions) {
     for (const a of q.answers) {
-      m.set(a.id, q.text);
+      answerTextMap.set(a.id, a.text);
+      answerQuestionMap.set(a.id, q.text);
     }
   }
-  return m;
+  return { answerQuestionMap, answerTextMap };
 };
 
 // ---------------------------------------------------------------------------
@@ -298,13 +290,12 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   );
   const colCount = visibleColumns.length;
 
-  const hasAnswers = visMap.answers;
-  const answerTextMap = hasAnswers
-    ? buildAnswerTextMap(opts.questionData!.questions)
-    : new Map<number, string>();
-  const answerQuestionMap = hasAnswers
-    ? buildAnswerQuestionMap(opts.questionData!.questions)
-    : new Map<number, string>();
+  // With no answers column there is nothing to look up — empty maps fall out.
+  // The non-null assertion is safe: computeVisibilityMap only sets
+  // `visMap.answers` true when `opts.questionData` is defined.
+  const { answerTextMap, answerQuestionMap } = buildAnswerMaps(
+    visMap.answers ? opts.questionData!.questions : [],
+  );
 
   const colOpts: AttendeeColumnOpts = {
     allowedDomain: opts.allowedDomain,

@@ -1,4 +1,3 @@
-import type { Row } from "@libsql/client";
 import { lazyRef } from "#fp";
 
 export const TEST_ADMIN_USERNAME = "testadmin";
@@ -16,32 +15,10 @@ export const TEST_STORAGE_ZONE = {
   zoneName: "testzone",
 } as const;
 
-type AdminSessionRow = {
-  token: string;
-  csrf_token: string;
-  expires: number;
-  wrapped_data_key: string | null;
-  user_id: number | null;
-};
-
 type TestSession = { cookie: string; csrfToken: string };
 
-type AdminSessionCache = {
-  cookie: string;
-  sessionRow: AdminSessionRow;
-} | null;
-
-// Resettable test caches as lazyRef cells (set(null) clears) — no module-level
-// `let`. Each thunk just yields the empty/null initial state.
-export const [getCachedSetupSettings, setCachedSetupSettings] = lazyRef<Array<{
-  key: string;
-  value: string;
-}> | null>(() => null);
-export const [getCachedSetupUsers, setCachedSetupUsers] = lazyRef<Row[] | null>(
-  () => null,
-);
-export const [getCachedAdminSession, setCachedAdminSession] =
-  lazyRef<AdminSessionCache>(() => null);
+// Resettable test cache as a lazyRef cell (set(null) clears) — no module-level
+// `let`. The setup-state cache lives in #test-utils/test-state.ts.
 export const [getInternalTestSession, setTestSession] =
   lazyRef<TestSession | null>(() => null);
 

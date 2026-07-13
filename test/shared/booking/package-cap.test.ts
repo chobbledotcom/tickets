@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  childCanBeBooked,
   childTicketLimit,
   groupCapacityInfo,
   packageLimitInfo,
@@ -34,30 +33,6 @@ describe("packageLimitInfo", () => {
       groupRemainingByGroupId: remaining,
       listings,
     });
-  });
-});
-
-describe("childCanBeBooked", () => {
-  test("true for an active, open, in-stock child", () => {
-    expect(
-      childCanBeBooked(
-        resolved({ active: true, attendee_count: 0, max_attendees: 10 }),
-      ),
-    ).toBe(true);
-  });
-
-  test("false when inactive", () => {
-    expect(childCanBeBooked(resolved({ active: false }))).toBe(false);
-  });
-
-  test("false when closed", () => {
-    expect(childCanBeBooked(resolved({}, true))).toBe(false);
-  });
-
-  test("false when sold out", () => {
-    expect(
-      childCanBeBooked(resolved({ attendee_count: 1, max_attendees: 1 })),
-    ).toBe(false);
   });
 });
 

@@ -29,16 +29,18 @@ const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
     ? line.transfer.source
     : line.transfer.destination;
 
-/** One account's running-balance statement. */
-const AccountStatementTable = ({
-  account,
-  lines,
-  names,
-  returnUrl,
-}: {
+export type AccountLedgerData = {
   account: AccountRef;
   lines: StatementLine[];
   names: LedgerNames;
+};
+
+/** One account's running-balance statement. */
+const AccountStatementTable = ({
+  ledger: { account, lines, names },
+  returnUrl,
+}: {
+  ledger: AccountLedgerData;
   returnUrl?: string;
 }): JSX.Element => {
   const accountCell = accountCellFor(names);
@@ -69,13 +71,9 @@ const AccountStatementTable = ({
 };
 
 const AccountStatementHeading = ({
-  account,
-  lines,
-  names,
+  ledger: { account, lines, names },
 }: {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
+  ledger: AccountLedgerData;
 }): JSX.Element => {
   const balance = lines.length > 0 ? lines[lines.length - 1]!.running : 0;
   return (
@@ -86,12 +84,6 @@ const AccountStatementHeading = ({
       })}
     </p>
   );
-};
-
-export type AccountLedgerData = {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
 };
 
 const AccountStatementActions = ({
@@ -131,30 +123,21 @@ type StatementLinks = {
 };
 
 export const AccountStatementSection = ({
-  account,
-  lines,
-  names,
+  ledger,
   returnUrl,
   fullLedgerHref,
 }: {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
+  ledger: AccountLedgerData;
 } & StatementLinks): JSX.Element => (
   <PageBlock>
-    <AccountStatementHeading account={account} lines={lines} names={names} />
+    <AccountStatementHeading ledger={ledger} />
     <AccountStatementActions
-      account={account}
+      account={ledger.account}
       fullLedgerHref={fullLedgerHref}
-      names={names}
+      names={ledger.names}
       returnUrl={returnUrl}
     />
-    <AccountStatementTable
-      account={account}
-      lines={lines}
-      names={names}
-      returnUrl={returnUrl}
-    />
+    <AccountStatementTable ledger={ledger} returnUrl={returnUrl} />
   </PageBlock>
 );
 
@@ -170,10 +153,8 @@ export const EmbeddedAccountStatementSection = ({
   <PageBlock id={id}>
     <h2>{t("admin.ledger.statement_heading")}</h2>
     <AccountStatementSection
-      account={ledger.account}
       fullLedgerHref={fullLedgerHref}
-      lines={ledger.lines}
-      names={ledger.names}
+      ledger={ledger}
       returnUrl={returnUrl}
     />
   </PageBlock>
@@ -189,9 +170,7 @@ export const adminAccountStatementPage = (
     "admin.ledger.statement_heading",
     session,
     <AccountStatementSection
-      account={account}
-      lines={lines}
-      names={names}
+      ledger={{ account, lines, names }}
       returnUrl={`/admin/ledger/${account.type}/${account.id}`}
     />,
   );

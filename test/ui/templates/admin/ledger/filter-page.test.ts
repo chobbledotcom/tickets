@@ -1,14 +1,16 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { LedgerFilterState } from "#templates/admin/ledger/filter.tsx";
 import {
   adminLedgerPage,
   type LedgerPageData,
 } from "#templates/admin/ledger.tsx";
 
-import { names, SESSION, transfer } from "./helpers.ts";
+import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
 
 describe("adminLedgerPage", () => {
+  beforeAll(setUpLedgerPageCrypto);
+
   const NO_FILTERS: LedgerFilterState = {
     from: null,
     fromMonth: null,

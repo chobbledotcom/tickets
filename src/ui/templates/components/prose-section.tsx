@@ -14,10 +14,14 @@ import { PageBlock } from "#templates/components/page-structure.tsx";
 
 export const ProseSection = ({
   title,
+  headingTag: Heading = "h2",
   children,
   footer,
 }: {
   title: Child;
+  /** Heading tag for the title — the surrounding page decides the level
+   *  (defaults to `h2`; a nested panel passes a deeper one). */
+  headingTag?: "h2" | "h3" | "h4";
   /** Body rendered inside the `.prose` block, under the heading. */
   children?: Child;
   /** Extra content rendered after the `.prose` block, still inside the section. */
@@ -25,7 +29,7 @@ export const ProseSection = ({
 }): JSX.Element => (
   <PageBlock as="section">
     <div class="prose">
-      <h2>{title}</h2>
+      <Heading>{title}</Heading>
       {children}
     </div>
     {footer}

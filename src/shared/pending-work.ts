@@ -8,28 +8,44 @@
  * handleRequest's finally block.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
+import { createScope, type ScopeRunner } from "#shared/request-scoped.ts";
 
-const pendingWork = new AsyncLocalStorage<Promise<unknown>[]>();
+const pendingWork = createScope<Promise<unknown>[]>();
 
-/** Run a function within a pending-work scope */
-export const runWithPendingWork = <T>(fn: () => T): T =>
-  pendingWork.run([], fn);
+/**
+ * Run a function within a pending-work scope. Whatever `fn` resolves to, the
+ * queue is drained once more on the way out: an error logged *after* the
+ * request's own flush (e.g. while the response is finalised) still queues
+ * work, and work that outlived its request would complete during whatever
+ * runs next — on Bunny that's a killed fetch, in tests a sanitizer failure
+ * in an unrelated test.
+ */
+export const runWithPendingWork: ScopeRunner = (fn) =>
+  pendingWork.run([], async () => {
+    try {
+      return await fn();
+    } finally {
+      await flushPendingWork();
+    }
+  });
 
 /** True when running inside a `runWithPendingWork` scope (i.e. a request). */
 export const hasPendingWorkScope = (): boolean =>
-  pendingWork.getStore() !== undefined;
+  pendingWork.current() !== undefined;
 
 /** Queue a promise that must complete before the response is sent */
 export const addPendingWork = (p: Promise<unknown>): void => {
-  const pending = pendingWork.getStore();
-  if (pending) pending.push(p);
+  pendingWork.current()?.push(p);
 };
 
-/** Await all queued work. Call before returning the response. */
+/** Await all queued work. Call before returning the response. Loops until the
+ * queue stays empty: work already running can queue more (a background job
+ * that fails queues its error's activity-log write), and a single pass would
+ * discard those late arrivals unawaited. */
 export const flushPendingWork = async (): Promise<void> => {
-  const pending = pendingWork.getStore();
-  if (!pending || pending.length === 0) return;
-  await Promise.allSettled(pending);
-  pending.length = 0;
+  const pending = pendingWork.current();
+  if (!pending) return;
+  while (pending.length > 0) {
+    await Promise.allSettled(pending.splice(0));
+  }
 };

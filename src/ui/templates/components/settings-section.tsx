@@ -11,9 +11,8 @@
  * secondary action in a `<footer>`) keep using {@link CsrfForm} directly.
  */
 
-import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
-import { CsrfFormShell } from "#shared/forms.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /**
  * Derive a settings form's id from its POST target, since each settings
@@ -46,9 +45,9 @@ export const SettingsSection = ({
   title: string;
   children?: Child;
 }): JSX.Element => (
-  <CsrfFormShell
+  <SaveForm
     action={action}
-    {...(enctype !== undefined ? { enctype } : {})}
+    enctype={enctype}
     id={id ?? formIdFromAction(action)}
     submitLabel={submitLabel}
   >
@@ -57,30 +56,29 @@ export const SettingsSection = ({
       {description}
     </div>
     {children}
-  </CsrfFormShell>
+  </SaveForm>
 );
 
-/** The config subset that maps straight onto {@link SettingsSection}. The
- *  config-driven sections (boolean toggles, wallet credentials, …) share this
- *  shape and render through {@link settingsSectionFrom}. */
-export type SettingsSectionConfig = {
+/** The heading, intro, action, and save-label a settings section needs,
+ * carried as one object. Config-driven forms build (or already hold) this
+ * shape and hand it straight to {@link settingsSectionWith}. */
+export type SettingsSectionDetails = {
   action: string;
+  description?: Child;
+  submitLabel: string;
   title: string;
-  description: Child;
-  submitLabel?: string;
 };
 
-/** Render a {@link SettingsSection} from a config object plus its body,
- *  defaulting the submit label to "Save". */
-export const settingsSectionFrom = (
-  config: SettingsSectionConfig,
+/** Render a settings section from a details object plus its fields. */
+export const settingsSectionWith = (
+  details: SettingsSectionDetails,
   children: Child,
 ): JSX.Element => (
   <SettingsSection
-    action={config.action}
-    description={config.description}
-    submitLabel={config.submitLabel ?? t("common.save")}
-    title={config.title}
+    action={details.action}
+    description={details.description}
+    submitLabel={details.submitLabel}
+    title={details.title}
   >
     {children}
   </SettingsSection>

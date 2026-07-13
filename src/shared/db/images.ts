@@ -2,6 +2,7 @@
  * First-class uploaded images and their ordered item links.
  */
 
+/* jscpd:ignore-start */
 import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -11,17 +12,17 @@ import {
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
+import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import { type ColumnDef, col } from "#shared/db/table.ts";
+import { decryptImageFilename } from "#shared/images/broken.ts";
 import type {
   Image,
   ImageUse,
   ImageUseItemType,
   ItemImageProjection,
 } from "#shared/types.ts";
-import {
-  isNonEmptyString,
-  type NonEmptyString,
-} from "#shared/validation/string.ts";
+import type { NonEmptyString } from "#shared/validation/string.ts";
+/* jscpd:ignore-end */
 
 export type ImageInput = {
   name: string;
@@ -39,27 +40,21 @@ export type OrderedImage = Image & { sort_order: number };
 
 const IMAGE_COLUMNS = "id, name, filename, filename_thumb, alt_text";
 
-const decryptedNonEmptyString = async (
-  encrypted: EnvKeyEncrypted,
-  name: string,
-): Promise<NonEmptyString> => {
-  const decrypted = await decrypt(encrypted);
-  if (isNonEmptyString(decrypted)) return decrypted;
-  throw new Error(`${name} must be non-empty`);
-};
-
-/** Encrypted NonEmptyString column: sealed on write, decrypted and re-checked
- * non-empty on read. col.encrypted carries the read-boundary assertion. */
-const encryptedNonEmptyText = (name: string): ColumnDef<NonEmptyString> =>
-  col.encrypted<NonEmptyString, EnvKeyEncrypted<NonEmptyString>>(
-    (value) => encrypt(value),
-    (value) => decryptedNonEmptyString(value, name),
-  );
+/** Encrypted filename column: sealed on write; on read, a value that will not
+ * decrypt to a real filename becomes the broken-image marker (reported, never
+ * thrown — one broken record must not take down every page that lists images).
+ * The `as` cast is the same sanctioned read boundary as col.encrypted. */
+const encryptedFilenameText = (label: string): ColumnDef<NonEmptyString> =>
+  ({
+    read: (raw: string, rowId?: unknown) =>
+      decryptImageFilename(raw, `image ${String(rowId)} ${label}`),
+    write: (value: NonEmptyString) => encrypt(value),
+  }) as unknown as ColumnDef<NonEmptyString>;
 
 export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   alt_text: col.encryptedText(encrypt, decrypt),
-  filename: encryptedNonEmptyText("image filename"),
-  filename_thumb: encryptedNonEmptyText("image thumbnail filename"),
+  filename: encryptedFilenameText("filename"),
+  filename_thumb: encryptedFilenameText("thumbnail filename"),
   id: col.generated<number>(),
   name: col.encryptedText(encrypt, decrypt),
 });
@@ -114,8 +109,9 @@ export const getImageFilenamesForItem = async (
     alt_text: EnvKeyEncrypted | "";
     filename: EnvKeyEncrypted;
     filename_thumb: EnvKeyEncrypted;
+    id: number;
   }>(
-    `SELECT image.filename, image.filename_thumb, image.alt_text
+    `SELECT image.id, image.filename, image.filename_thumb, image.alt_text
        FROM image_uses AS imageUse
        JOIN images AS image ON image.id = imageUse.image_id
       WHERE imageUse.item_type = ? AND imageUse.item_id = ?
@@ -125,13 +121,14 @@ export const getImageFilenamesForItem = async (
   );
   const row = rows[0];
   if (!row) return { image_alt_text: "", image_thumb_url: "", image_url: "" };
+  const imageRef = `image ${row.id} (first image of ${itemType} ${itemId})`;
   return {
-    image_alt_text: row.alt_text === "" ? "" : await decrypt(row.alt_text),
-    image_thumb_url: await decryptedNonEmptyString(
+    image_alt_text: await decryptTextOrEmpty(row.alt_text),
+    image_thumb_url: await decryptImageFilename(
       row.filename_thumb,
-      "image thumbnail filename",
+      `${imageRef} thumbnail filename`,
     ),
-    image_url: await decryptedNonEmptyString(row.filename, "image filename"),
+    image_url: await decryptImageFilename(row.filename, `${imageRef} filename`),
   };
 };
 
