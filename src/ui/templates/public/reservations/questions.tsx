@@ -7,10 +7,10 @@ import { t } from "#i18n";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
 import { savedFormValue } from "#shared/forms.tsx";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   questionFieldset,
-  questionWrapper,
+  questionSelectField,
+  questionTextField,
 } from "#templates/components/question-text.tsx";
 /* jscpd:ignore-end */
 
@@ -33,32 +33,15 @@ export const renderQuestion = (
   const answered = savedFormValue(`question_${q.id}`);
   const options = q.answers.filter((a) => a.active);
   if (q.display_type === "free_text") {
-    return questionWrapper(q, listingIds, (labelledBy) => (
-      <input
-        aria-labelledby={labelledBy}
-        maxlength={MAX_TEXTAREA_LENGTH}
-        name={`question_${q.id}`}
-        required={required}
-        type="text"
-        value={answered}
-      />
-    ));
+    return questionTextField(q, listingIds, answered, required);
   }
   if (q.display_type === "select") {
-    return questionWrapper(q, listingIds, (labelledBy) => (
-      <select
-        aria-labelledby={labelledBy}
-        name={`question_${q.id}`}
-        required={required}
-      >
-        <option value="">{t("public.ticket.select_answer_placeholder")}</option>
-        {options.map((a) => (
-          <option selected={answered === String(a.id)} value={String(a.id)}>
-            {a.text}
-          </option>
-        ))}
-      </select>
-    ));
+    return questionSelectField(q, listingIds, {
+      isChosen: (id) => answered === String(id),
+      options,
+      placeholder: t("public.ticket.select_answer_placeholder"),
+      required,
+    });
   }
   return questionFieldset(
     q,

@@ -7,6 +7,7 @@
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { isSimpleMarkdown, renderMarkdown } from "#shared/markdown.ts";
 
 /**
@@ -90,3 +91,60 @@ export const questionFieldset = (
       {controls}
     </fieldset>
   );
+
+/**
+ * A free-text question rendered as a labelled `<input>`. Shared by the public
+ * booking form and the admin attendee editor; each supplies the current value
+ * (and whether an answer is required).
+ */
+export const questionTextField = (
+  q: QuestionWithAnswers,
+  listingIds: string | undefined,
+  value: string,
+  required = false,
+): JSX.Element =>
+  questionWrapper(q, listingIds, (labelledBy) => (
+    <input
+      aria-labelledby={labelledBy}
+      maxlength={MAX_TEXTAREA_LENGTH}
+      name={`question_${q.id}`}
+      type="text"
+      value={value}
+      {...(required ? { required } : {})}
+    />
+  ));
+
+/**
+ * A single-choice question rendered as a labelled `<select>`. `options` are the
+ * answers to offer, `placeholder` the empty first option, and `isChosen` marks
+ * the currently-selected answer.
+ */
+export const questionSelectField = (
+  q: QuestionWithAnswers,
+  listingIds: string | undefined,
+  {
+    options,
+    placeholder,
+    required = false,
+    isChosen,
+  }: {
+    options: readonly { id: number; text: string }[];
+    placeholder: string;
+    required?: boolean;
+    isChosen: (id: number) => boolean;
+  },
+): JSX.Element =>
+  questionWrapper(q, listingIds, (labelledBy) => (
+    <select
+      aria-labelledby={labelledBy}
+      name={`question_${q.id}`}
+      {...(required ? { required } : {})}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((a) => (
+        <option selected={isChosen(a.id) || undefined} value={String(a.id)}>
+          {a.text}
+        </option>
+      ))}
+    </select>
+  ));

@@ -11,7 +11,6 @@ import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   bookingConflictLabel,
   bookingKey,
@@ -42,7 +41,8 @@ import { PageBlock } from "#templates/components/page-structure.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import {
   questionFieldset,
-  questionWrapper,
+  questionSelectField,
+  questionTextField,
 } from "#templates/components/question-text.tsx";
 import {
   RadioOption,
@@ -391,29 +391,13 @@ export const EditQuestions = ({
   <>
     {questions.map((q) =>
       q.display_type === "free_text"
-        ? questionWrapper(q, undefined, (labelledBy) => (
-            <input
-              aria-labelledby={labelledBy}
-              maxlength={MAX_TEXTAREA_LENGTH}
-              name={`question_${q.id}`}
-              type="text"
-              value={selectedTextAnswers.get(q.id) ?? ""}
-            />
-          ))
+        ? questionTextField(q, undefined, selectedTextAnswers.get(q.id) ?? "")
         : q.display_type === "select"
-          ? questionWrapper(q, undefined, (labelledBy) => (
-              <select aria-labelledby={labelledBy} name={`question_${q.id}`}>
-                <option value="">No answer</option>
-                {editableAnswers(q, selectedAnswerIds).map((a) => (
-                  <option
-                    selected={selectedAnswerIds.includes(a.id) || undefined}
-                    value={String(a.id)}
-                  >
-                    {a.text}
-                  </option>
-                ))}
-              </select>
-            ))
+          ? questionSelectField(q, undefined, {
+              isChosen: (id) => selectedAnswerIds.includes(id),
+              options: editableAnswers(q, selectedAnswerIds),
+              placeholder: "No answer",
+            })
           : questionFieldset(
               q,
               undefined,

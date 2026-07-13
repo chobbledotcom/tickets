@@ -677,19 +677,27 @@ export const CsrfFormShell = ({
   children,
   submitLabel,
   submitIcon = "save",
+  submitClass,
   ...rest
 }: {
   action: string;
   children?: Child;
   submitLabel: string;
   submitIcon?: IconName;
+  /** Class for the submit button, e.g. "danger" for a destructive action. */
+  submitClass?: string;
   id?: string | undefined;
   class?: string;
   enctype?: string;
 }): JSX.Element => (
   <CsrfForm action={action} {...rest}>
     {children}
-    <SubmitButton icon={submitIcon}>{submitLabel}</SubmitButton>
+    <SubmitButton
+      icon={submitIcon}
+      {...(submitClass !== undefined ? { class: submitClass } : {})}
+    >
+      {submitLabel}
+    </SubmitButton>
   </CsrfForm>
 );
 
