@@ -37,8 +37,10 @@ export type ColumnDef<T = unknown> = {
   default?: (() => T) | undefined;
   /** Transform value before writing to DB (e.g., encrypt) */
   write?: ((v: T) => Promise<T> | T) | undefined;
-  /** Transform value after reading from DB (e.g., decrypt) */
-  read?: ((v: T) => Promise<T> | T) | undefined;
+  /** Transform value after reading from DB (e.g., decrypt). Row reads pass the
+   * row's primary-key value as `rowId` so a read failure can name the record
+   * (single-column reads via `readColumn` may omit it). */
+  read?: ((v: T, rowId?: unknown) => Promise<T> | T) | undefined;
 };
 
 /**
@@ -51,10 +53,12 @@ export type TableSchema<Row> = {
 
 /** Run one column's declared read transform (e.g. decrypt) on a stored value —
  * identity when the column declares none or the value is null. For reading a
- * single column back without building a whole row. */
+ * single column back without building a whole row. `rowId` (when known) lets
+ * the transform name the record in error reports. */
 export type ReadColumn<Row> = <K extends keyof Row & string>(
   col: K,
   value: Row[K],
+  rowId?: unknown,
 ) => Promise<Row[K]>;
 
 // Case conversion is delegated to valibot's `toCamelCase`/`toSnakeCase` actions
@@ -222,10 +226,10 @@ export const defineTable = <Row, Input = Row>(
   // Run one column's read transform on a stored value (identity when the
   // column declares none or the value is null) — the per-column read logic
   // shared by fromDb and the single-column readColumn.
-  const readColumn: ReadColumn<Row> = async (col, value) => {
+  const readColumn: ReadColumn<Row> = async (col, value, rowId) => {
     const def = schema[col];
     if (def.read && value !== null) {
-      return (await def.read(value as never)) as typeof value;
+      return (await def.read(value as never, rowId)) as typeof value;
     }
     return value;
   };
@@ -234,7 +238,7 @@ export const defineTable = <Row, Input = Row>(
   const fromDb = async (row: Row): Promise<Row> => {
     const entries = await mapParallel(
       async (col: keyof Row & string) =>
-        [col, await readColumn(col, row[col])] as const,
+        [col, await readColumn(col, row[col], row[primaryKey])] as const,
     )(allColumns);
     return Object.fromEntries(entries) as Row;
   };
@@ -573,7 +577,7 @@ export const col = {
    * from the `day_count` rows of `listing_prices`. `read` must tolerate a missing
    * projection (undefined) so a stray un-projected SELECT degrades gracefully. */
   projected: <App>(
-    read: (raw: InValue | undefined) => Promise<App> | App,
+    read: (raw: InValue | undefined, rowId?: unknown) => Promise<App> | App,
   ): ColumnDef<App> => ({
     generated: true,
     projected: true,

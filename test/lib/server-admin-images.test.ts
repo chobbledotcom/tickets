@@ -3,10 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getDb } from "#shared/db/client.ts";
 import { getAllImages } from "#shared/db/images.ts";
+import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   adminGet,
   imageUploadRequest,
+  insertBrokenImage,
   makeImage,
   postImageUpload,
 } from "#test-utils/admin-images.ts";
@@ -46,6 +48,17 @@ describeWithEnv(
           "Hero",
           'href="/admin/images/',
           "/image/hero-thumb.webp",
+        );
+      });
+
+      test("renders the red-pixel marker for an image whose filenames are broken", async () => {
+        await insertBrokenImage({ name: "Broken library image" });
+
+        await expectHtmlResponse(
+          await adminGet("/admin/images"),
+          200,
+          "Broken library image",
+          `/image/${BROKEN_IMAGE_FILENAME}`,
         );
       });
 

@@ -46,9 +46,10 @@ describeWithEnv(
       // rebuild), the attendees.kind NOT NULL tightening (an empty-`requires`
       // constraint rebuild owning no additive objects to drop/restore), and the
       // attendee-listings-tag settings rewrite (data-only; covered by its own
-      // data test), and listing_image_thumb (historically added a column that
-      // first_class_images now drops).
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 17);
+      // data test), listing_image_thumb (historically added a column that
+      // first_class_images now drops), and remove_broken_image_records
+      // (data-only; covered by its own data test).
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 18);
     });
 
     test("verify reads the live schema from the primary, not a replica", async () => {

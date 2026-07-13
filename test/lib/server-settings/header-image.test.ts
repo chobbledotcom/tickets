@@ -6,6 +6,7 @@ import { settings } from "#shared/db/settings.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
   assertAdminHtml,
+  expectBrokenImageResponse,
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
@@ -318,12 +319,13 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
       });
     });
 
-    test("returns 404 when CDN reports the object missing", async () => {
+    test("serves the uncached red pixel when CDN reports the object missing", async () => {
       await withCdnProxy(
         () => new Response(null, { status: 404 }),
         async () => {
-          const response = await handleRequest(mockRequest(PROXY_URL));
-          expect(response.status).toBe(404);
+          await expectBrokenImageResponse(
+            await handleRequest(mockRequest(PROXY_URL)),
+          );
         },
       );
     });

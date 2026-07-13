@@ -13,13 +13,16 @@ import {
   isNewsSlugTaken,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
+import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
-import { makeImage } from "#test-utils/admin-images.ts";
+import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describeWithEnv("db > news-posts", { db: true }, () => {
+  const errors = setupErrorSpy();
   describe("encryption + single reads", () => {
     test("stores every free-text column encrypted and decrypts on read", async () => {
       const created = await createTestNewsPost("Launch day", {
@@ -145,6 +148,28 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(cards[1]?.image_url).toBe("");
       expect(cards[1]?.image_thumb_url).toBe("");
       expect(cards[1]?.image_alt_text).toBe("");
+    });
+
+    test("projects the broken-image marker for a broken linked image", async () => {
+      const post = await createTestNewsPost("Broken picture post");
+      await appendImageToItem(await insertBrokenImage(), {
+        itemId: post.id,
+        itemType: "news",
+      });
+
+      const cards = await getNewsPostCards();
+      expect(cards[0]?.image_url).toBe(BROKEN_IMAGE_FILENAME);
+      expect(cards[0]?.image_thumb_url).toBe(BROKEN_IMAGE_FILENAME);
+      expect(
+        errors.contains(
+          `news post ${post.id} image decrypted to an empty value`,
+        ),
+      ).toBe(true);
+      expect(
+        errors.contains(
+          `news post ${post.id} thumbnail image decrypted to an empty value`,
+        ),
+      ).toBe(true);
     });
 
     test("same-day posts tie-break by id, newest insert first", async () => {

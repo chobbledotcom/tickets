@@ -329,6 +329,13 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-10_processed_payments_attendee_index",
     () => import("./2026-07-10_processed_payments_attendee_index.ts"),
   ),
+  // Data-only repair: delete image records whose filename decrypts to "" —
+  // legacy encrypted-empty listing image_urls the first-class images backfill
+  // mistook for real filenames.
+  entry(
+    "2026-07-12_remove_broken_image_records",
+    () => import("./2026-07-12_remove_broken_image_records.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

@@ -23,6 +23,7 @@ import {
   markCurrentSchemaMigrationPending,
   markMigrationsForRerun,
 } from "#test/lib/db/migration-test-helpers.ts";
+import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assertSchemaEmpty,
@@ -127,6 +128,26 @@ describeWithEnv("db > migrations", { db: true }, () => {
       return result.rows[0]?.value as string | undefined;
     };
 
+    /** Put the database in the "site upgrading from an older release" state:
+     * the stored marker is that release's, and `migrationId` has not run.
+     * The marker must differ from the current one — a matching marker would
+     * read as up_to_date and the upgrade scenario couldn't arise. */
+    const simulateUpgradeFromRelease = async (
+      previousMarker: string,
+      migrationId: string,
+    ): Promise<void> => {
+      expect(previousMarker).not.toBe(LATEST_UPDATE);
+      await getDb().execute({
+        args: [previousMarker],
+        sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
+      });
+      await getDb().execute({
+        args: [migrationId],
+        sql: "DELETE FROM schema_migrations WHERE id = ?",
+      });
+      invalidateInitDbCache();
+    };
+
     const bootstrapSettingsTable = async (
       preInit?: () => Promise<unknown>,
     ): Promise<void> => {
@@ -217,24 +238,14 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // running its up() — the {{listing}} → {{listings}} rewrite would silently
       // never happen on real upgrades. Bumping LATEST_UPDATE flips the state to
       // "needs_migration" so the migration actually runs.
-      const PREVIOUS_RELEASE_MARKER =
-        "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.";
-      // Sanity: the previous marker must differ from the current one, else the
-      // upgrade would read as up_to_date and this scenario couldn't arise.
-      expect(PREVIOUS_RELEASE_MARKER).not.toBe(LATEST_UPDATE);
-
-      await getDb().execute({
-        args: [PREVIOUS_RELEASE_MARKER],
-        sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-      });
-      await getDb().execute(
-        "DELETE FROM schema_migrations WHERE id = '2026-07-03_attendee_listings_tag'",
-      );
       await getDb().execute({
         args: ["{{name}}, {{listing}}, {{email}}"],
         sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ?)",
       });
-      invalidateInitDbCache();
+      await simulateUpgradeFromRelease(
+        "Migrate listings.day_prices into the listing_prices 'day_count' dimension and drop the column.",
+        "2026-07-03_attendee_listings_tag",
+      );
 
       await initDb();
 
@@ -247,6 +258,29 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "2026-07-03_attendee_listings_tag",
       );
       // ...and the markers are refreshed to the current release.
+      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+    });
+
+    test("runs the broken-image cleanup on a site upgrading from the previous release", async () => {
+      // The same trap as the data-migration test above: without the
+      // LATEST_UPDATE bump shipped alongside remove_broken_image_records, an
+      // already-up-to-date site would read as up_to_date and baseline the new
+      // migration id WITHOUT deleting the broken image records.
+      await insertBrokenImage();
+      await simulateUpgradeFromRelease(
+        "Index processed_payments by attendee for roster, export, and refund lookups.",
+        "2026-07-12_remove_broken_image_records",
+      );
+
+      await initDb();
+
+      // The cleanup ran: the broken record is gone...
+      const images = await getDb().execute("SELECT id FROM images");
+      expect(images.rows.map((row) => row.id)).toEqual([]);
+      // ...the migration is recorded, and the marker is the current release's.
+      expect(await appliedMigrationIds()).toContain(
+        "2026-07-12_remove_broken_image_records",
+      );
       expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
