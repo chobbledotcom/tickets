@@ -135,6 +135,26 @@ const mergeKeepingTargetAnswer = async (
   );
 };
 
+/** Alice (target) and Bob (source) booked on a fresh 10-seat listing, with a
+ *  paid sale on the source stamped into `eventGroup` — the shared arrange for
+ *  the paid-conflict merge tests. `amount` defaults to postPaidSale's default. */
+const paidSourceConflict = async (eventGroup: string, amount?: number) => {
+  const listing = await createTestListing({ maxAttendees: 10 });
+  const target = await createAttendee(listing.id, "Alice", "a@test.com");
+  const source = await createAttendee(listing.id, "Bob", "b@test.com");
+  await postPaidSale({
+    ...(amount === undefined ? {} : { amount }),
+    attendeeId: source.id,
+    eventGroup,
+    listingId: listing.id,
+  });
+  await getDb().execute({
+    args: [eventGroup, source.id, listing.id],
+    sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+  });
+  return { listing, source, target };
+};
+
 describeWithEnv("attendee merge service", { db: true }, () => {
   describe("applyAttendeeMerge", () => {
     test("clears check-in when copying a no-quantity source line", async () => {

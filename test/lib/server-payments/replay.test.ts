@@ -8,7 +8,6 @@ import { getNoteRows } from "#shared/db/system-notes.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   createTestListing,
   deactivateTestListing,
