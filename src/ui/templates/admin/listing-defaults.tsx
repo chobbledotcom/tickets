@@ -57,8 +57,7 @@ const BoolControl = ({
   field: ListingDefaultField;
   value: boolean | undefined;
 }): JSX.Element => (
-  <label>
-    {labelFor(field)}
+  <LabeledInput field={field}>
     <SelectField
       name={inputName(field)}
       options={[
@@ -68,27 +67,49 @@ const BoolControl = ({
       ]}
       value={value === undefined ? "" : value === true ? "1" : "0"}
     />
-    <small>{hintFor(field)}</small>
-  </label>
+  </LabeledInput>
 );
 
 /** Number input; blank means no default. */
+/** A single `<input>` control wrapped in a {@link LabeledInput}: the shared
+ *  shape of the number and URL default fields. */
+const InputControl = ({
+  field,
+  type,
+  value,
+  min,
+  placeholder,
+}: {
+  field: ListingDefaultField;
+  type: string;
+  value: string;
+  min?: number;
+  placeholder?: string;
+}): JSX.Element => (
+  <LabeledInput field={field}>
+    <input
+      name={inputName(field)}
+      type={type}
+      value={value}
+      {...(min !== undefined ? { min } : {})}
+      {...(placeholder !== undefined ? { placeholder } : {})}
+    />
+  </LabeledInput>
+);
+
 const NumberControl = ({
   field,
   value,
 }: {
   field: ListingDefaultField;
   value: number | undefined;
-}): JSX.Element => (
-  <LabeledInput field={field}>
-    <input
-      min={0}
-      name={inputName(field)}
-      type="number"
-      value={value === undefined ? "" : String(value)}
-    />
-  </LabeledInput>
-);
+}): JSX.Element =>
+  InputControl({
+    field,
+    min: 0,
+    type: "number",
+    value: value === undefined ? "" : String(value),
+  });
 
 /** URL input; blank means no default. */
 const UrlControl = ({
@@ -97,16 +118,13 @@ const UrlControl = ({
 }: {
   field: ListingDefaultField;
   value: string | undefined;
-}): JSX.Element => (
-  <LabeledInput field={field}>
-    <input
-      name={inputName(field)}
-      placeholder={t("listing_defaults.url_placeholder")}
-      type="url"
-      value={value ?? ""}
-    />
-  </LabeledInput>
-);
+}): JSX.Element =>
+  InputControl({
+    field,
+    placeholder: t("listing_defaults.url_placeholder"),
+    type: "url",
+    value: value ?? "",
+  });
 
 /** Enable toggle plus the day checkboxes. */
 const DaysControl = ({
