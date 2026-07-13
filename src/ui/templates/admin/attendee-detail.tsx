@@ -129,10 +129,18 @@ export const AttendeeBookingsTable = ({
         }
         rows={bookings.map((booking) => [
           <>
-            <a href={`/admin/listing/${booking.listingId}`}>
-              {booking.listingName}
-            </a>
-            <InactiveNote active={booking.listingActive} leadingSpace />
+            {booking.listingDeleted ? (
+              // A deleted listing's page would 404 — never render a dead link,
+              // and "Deleted listing" already says why there's no name.
+              <span class="muted">{booking.listingName}</span>
+            ) : (
+              <>
+                <a href={`/admin/listing/${booking.listingId}`}>
+                  {booking.listingName}
+                </a>
+                <InactiveNote active={booking.listingActive} leadingSpace />
+              </>
+            )}
             {booking.parentListingId > 0 ? (
               <div class="muted small">
                 {t("attendee_detail.addon_under", {

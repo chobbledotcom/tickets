@@ -128,6 +128,11 @@ export type AttendeeBooking = {
   listingId: number;
   listingName: string;
   listingActive: boolean;
+  /** True when the booked listing no longer exists (deleted after this row was
+   * written — e.g. a delete racing a mid-payment checkout, whose rows are kept).
+   * The table then shows a plain "Deleted listing" placeholder, never a link
+   * that would 404. */
+  listingDeleted: boolean;
   quantity: number;
   startAt: string | null;
   endAt: string | null;
@@ -231,22 +236,24 @@ export const bookingDurationDays = (
 /**
  * Project the form's listing lines into read-only booking summaries: one per
  * line that carries a saved booking (the attendee's current registrations),
- * dropping not-yet-booked rows. A booked line always resolves its listing; the
- * `listing` guard only keeps a hand-crafted POST — one pairing a saved booking
- * key with an unknown listing id — from throwing by dropping that bogus line.
+ * dropping not-yet-booked rows. A saved row whose listing no longer exists —
+ * a delete racing a mid-payment checkout keeps the rows — still shows, as a
+ * plain "Deleted listing" placeholder, so the operator always sees what the
+ * customer booked.
  */
 export const attendeeBookingsFromLines = (
   lines: AttendeeFormLine[],
 ): AttendeeBooking[] =>
   mapNotNullish((line: AttendeeFormLine): AttendeeBooking | null => {
     const { existingBooking: booking, listing } = line;
-    if (!booking || !listing) return null;
+    if (!booking) return null;
     return {
       checkedIn: Boolean(booking.checked_in),
       endAt: booking.end_at,
-      listingActive: listing.active,
+      listingActive: listing?.active ?? false,
+      listingDeleted: listing === null,
       listingId: line.listingId,
-      listingName: listing.name,
+      listingName: listing?.name ?? t("attendee_form.deleted_listing"),
       parentListingId: booking.parent_listing_id,
       quantity: booking.quantity,
       refunded: Boolean(booking.refunded),

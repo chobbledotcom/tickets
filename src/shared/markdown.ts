@@ -79,3 +79,14 @@ export const isSimpleMarkdown = (text: string): boolean => {
     (PLAIN_INLINE_TYPES as readonly string[]).includes(tok.type),
   );
 };
+
+/** Replace each markdown link whose target starts with `prefix` with its plain
+ * text. Used to strip links the viewer isn't allowed to open (e.g. owner-only
+ * admin pages) before rendering — a rendered link is a promise that it works,
+ * so a viewer who can't follow it gets the words without the link. */
+export const withoutLinksTo = (markdown: string, prefix: string): string =>
+  markdown.replace(
+    /\[([^\]]*)\]\(([^)]*)\)/g,
+    (whole, text: string, href: string) =>
+      href.startsWith(prefix) ? text : whole,
+  );

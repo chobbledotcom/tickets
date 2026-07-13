@@ -21,6 +21,7 @@ const booking = (
   checkedIn: false,
   endAt: null,
   listingActive: true,
+  listingDeleted: false,
   listingId: 1,
   listingName: "Test Listing",
   parentListingId: 0,
@@ -223,6 +224,24 @@ describe("AttendeeBookingsTable", () => {
     expect(renderBookings([booking({ listingActive: true })])).not.toContain(
       "(Inactive)",
     );
+  });
+
+  test("shows a deleted listing's row as plain text, never a dead link", () => {
+    const html = renderBookings([
+      booking({
+        listingActive: false,
+        listingDeleted: true,
+        listingId: 42,
+        listingName: "Deleted listing",
+        quantity: 0,
+      }),
+    ]);
+    // The row still shows what the customer booked (the placeholder name and
+    // quantity), but with no link (the listing page would 404) and no
+    // "(Inactive)" note ("Deleted listing" already says why there's no name).
+    expect(html).toContain("Deleted listing");
+    expect(html).not.toContain('href="/admin/listing/42"');
+    expect(html).not.toContain("(Inactive)");
   });
 
   test("annotates a folded child row with the parent it was chosen under", () => {

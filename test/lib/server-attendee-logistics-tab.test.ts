@@ -106,9 +106,11 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
       lng: "-0.1",
     });
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toContain(
-      `/admin/attendees/${stage.attendeeId}/logistics`,
-    );
+    // The Logistics tab is hidden while pending (its URL 404s), so the refusal
+    // lands on the always-visible overview, where the banner explains the lock.
+    const location = response.headers.get("location") ?? "";
+    expect(location).toContain(`/admin/attendees/${stage.attendeeId}`);
+    expect(location).not.toContain("/logistics");
 
     const kept = (await getAttendee(
       stage.attendeeId,

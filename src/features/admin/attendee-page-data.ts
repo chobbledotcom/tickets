@@ -175,9 +175,11 @@ const lineForExistingRow = (
   error: null,
   existingBooking: existing.booking,
   key: existing.key,
-  // A stored row's listing always renders: booked inactive listings are in the
-  // render set, and deleting a listing deletes its rows.
-  listing: listingsById.get(existing.booking.listing_id)!,
+  // Booked inactive listings are in the render set, so a stored row's listing
+  // normally resolves. It is null for a DELETED listing: a delete racing a
+  // mid-payment checkout keeps the staged rows, and the read-only bookings
+  // table shows those as a "Deleted listing" placeholder.
+  listing: listingsById.get(existing.booking.listing_id) ?? null,
   listingId: existing.booking.listing_id,
   // A stored quantity-0 line renders with the "no quantity" box ticked.
   noQuantity: existing.booking.quantity === 0,

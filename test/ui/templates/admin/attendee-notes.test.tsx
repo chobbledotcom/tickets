@@ -30,10 +30,10 @@ beforeAll(async () => {
 
 describe("AttendeeNotesSection", () => {
   test("renders a system note as a red alert with its markdown link", () => {
-    const html = String(<AttendeeNotesSection notes={[note()]} />);
+    const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
     expect(html).toContain("system-note-alert");
     expect(html).toContain('role="alert"');
-    // The markdown body is rendered (the ledger link survives).
+    // The markdown body is rendered — for an OWNER the ledger link survives.
     expect(html).toContain('href="/admin/ledger?attendee=5"');
     // The × opens the are-you-sure delete page, returning to the attendee page.
     expect(html).toContain(
@@ -41,9 +41,20 @@ describe("AttendeeNotesSection", () => {
     );
   });
 
+  test("demotes the ledger link to plain text for a non-owner admin", () => {
+    const html = String(
+      <AttendeeNotesSection isOwner={false} notes={[note()]} />,
+    );
+    // The words stay, the owner-only link goes — a rendered link is a promise
+    // that it works, and only owners may open the ledger pages.
+    expect(html).toContain("see the ledger");
+    expect(html).not.toContain('href="/admin/ledger?attendee=5"');
+  });
+
   test("renders an owner note without the alert styling", () => {
     const html = String(
       <AttendeeNotesSection
+        isOwner={false}
         notes={[note({ note: "private reminder", type: "owner" })]}
       />,
     );
@@ -55,7 +66,7 @@ describe("AttendeeNotesSection", () => {
     // The empty section is dropped entirely (null renders as "" inside its
     // parent fragment) — the "Add a note" affordance now lives beside the page
     // heading (see AddNoteLink), not here.
-    expect(AttendeeNotesSection({ notes: [] })).toBeNull();
+    expect(AttendeeNotesSection({ isOwner: false, notes: [] })).toBeNull();
   });
 
   test("hides the delete link in read-only mode", () => {

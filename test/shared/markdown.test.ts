@@ -4,6 +4,7 @@ import {
   isSafeUrl,
   isSimpleMarkdown,
   renderMarkdown,
+  withoutLinksTo,
 } from "#shared/markdown.ts";
 
 describe("markdown", () => {
@@ -169,6 +170,36 @@ describe("markdown", () => {
 
     test("false for raw HTML", () => {
       expect(isSimpleMarkdown("text <b>bold</b> more")).toBe(false);
+    });
+  });
+  describe("withoutLinksTo", () => {
+    test("demotes a link matching the prefix to its plain text", () => {
+      expect(
+        withoutLinksTo(
+          "Check the [ledger](/admin/ledger/attendee/5).",
+          "/admin/ledger",
+        ),
+      ).toBe("Check the ledger.");
+    });
+
+    test("keeps links to other targets untouched", () => {
+      const text = "See [the guide](/admin/guide) for details.";
+      expect(withoutLinksTo(text, "/admin/ledger")).toBe(text);
+    });
+
+    test("handles several links, demoting only the matching ones", () => {
+      expect(
+        withoutLinksTo(
+          "[a](/admin/ledger/x) then [b](/admin/guide) then [c](/admin/ledger)",
+          "/admin/ledger",
+        ),
+      ).toBe("a then [b](/admin/guide) then c");
+    });
+
+    test("leaves plain text without links unchanged", () => {
+      expect(withoutLinksTo("no links here", "/admin/ledger")).toBe(
+        "no links here",
+      );
     });
   });
 });

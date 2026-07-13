@@ -334,11 +334,15 @@ export const attendeeBanner = ({
   statuses,
   notes,
   pendingCheckout,
+  isOwner,
 }: {
   attendee: Attendee;
   statuses: AttendeeStatus[];
   notes: SystemNote[];
   pendingCheckout: boolean;
+  /** Only owners may open the ledger pages, so a note's ledger link renders as
+   * plain text for everyone else. */
+  isOwner: boolean;
 }): JSX.Element | null => {
   const showStatus = statuses.length > 1;
   if (!showStatus && notes.length === 0 && !pendingCheckout) return null;
@@ -359,7 +363,7 @@ export const attendeeBanner = ({
           {t("attendee_form.pending_checkout_banner")}
         </div>
       )}
-      <AttendeeNotesSection notes={notes} />
+      <AttendeeNotesSection isOwner={isOwner} notes={notes} />
     </PageBlock>
   );
 };

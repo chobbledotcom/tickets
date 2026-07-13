@@ -63,6 +63,26 @@ describeWithEnv(
         expect((await adminGet(`${base}/actions`)).status).toBe(404);
       });
 
+      test("shows a raced-delete staged order as a deleted-listing line", async () => {
+        const listing = await createTestListing({ unitPrice: 1000 });
+        const stage = await stageMidPaymentAttendee(
+          listing,
+          "cs_detail_deleted",
+        );
+        // Simulate the delete/stage race: a delete that slipped past the
+        // preflight guard. The pending rows survive (deleteListing keeps them),
+        // but the listing itself is gone.
+        const { deleteListing } = await import("#shared/db/listings/delete.ts");
+        await deleteListing(listing.id);
+
+        const response = await adminGet(`/admin/attendees/${stage.attendeeId}`);
+        const html = await expectHtmlResponse(response, 200);
+        // The operator still sees what the customer paid for — a placeholder
+        // line, never a vanished booking or a link to the listing's 404.
+        expect(html).toContain("Deleted listing");
+        expect(html).not.toContain(`href="/admin/listing/${listing.id}"`);
+      });
+
       test("shows the write tabs again once the checkout resolves", async () => {
         const listing = await createTestListing({ unitPrice: 1000 });
         const stage = await stageMidPaymentAttendee(

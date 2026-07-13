@@ -117,13 +117,14 @@ const handleLogisticsSubmit = async (
   // A staged checkout's rows are claimed by the payment when it lands, and
   // activation rewrites the stored details from the signed order — a Logistics
   // save mid-payment would be silently lost. Fail closed until the payment
-  // finishes, exactly like the Edit tab.
+  // finishes, exactly like the Edit tab: redirect to the always-visible
+  // overview (the Logistics tab is hidden while pending, so its URL 404s),
+  // where the banner explains the locked state.
   if (await hasPendingCheckout(attendeeId)) {
     return redirect(
-      attendeePage.path(attendeeId, "logistics"),
+      attendeePage.path(attendeeId, ""),
       t("attendee_form.error_pending_checkout"),
       false,
-      { formId: ATTENDEE_LOGISTICS_FORM_ID },
     );
   }
 

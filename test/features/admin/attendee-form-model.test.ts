@@ -94,6 +94,7 @@ describe("attendeeBookingsFromLines", () => {
         checkedIn: true,
         endAt: "2026-06-03T00:00:00Z",
         listingActive: false,
+        listingDeleted: false,
         listingId: 7,
         listingName: "Kayak",
         parentListingId: 0,
@@ -127,9 +128,11 @@ describe("attendeeBookingsFromLines", () => {
     expect(bookings.map((b) => b.listingName)).toEqual(["Booked"]);
   });
 
-  test("drops a booking whose listing no longer resolves", () => {
-    // A hand-crafted POST can pair a real booking key with an unknown listing
-    // id; that bogus line is dropped rather than rendered with a null listing.
+  test("shows a booking whose listing no longer resolves as a placeholder", () => {
+    // A saved row can outlive its listing (a delete racing a mid-payment
+    // checkout keeps the staged rows). The operator must still see what the
+    // customer booked — a read-only "Deleted listing" placeholder, flagged so
+    // the table never links to the listing's 404.
     const bookings = attendeeBookingsFromLines([
       line({
         existingBooking: bookingRow({ listing_id: 99, quantity: 1 }),
@@ -137,7 +140,20 @@ describe("attendeeBookingsFromLines", () => {
         listingId: 99,
       }),
     ]);
-    expect(bookings).toEqual([]);
+    expect(bookings).toEqual([
+      {
+        checkedIn: false,
+        endAt: null,
+        listingActive: false,
+        listingDeleted: true,
+        listingId: 99,
+        listingName: "Deleted listing",
+        parentListingId: 0,
+        quantity: 1,
+        refunded: false,
+        startAt: null,
+      },
+    ]);
   });
 });
 
