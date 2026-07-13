@@ -60,8 +60,8 @@ describe("adminListingPage money breakdown", () => {
     // ledger, preselected to this listing (no arrow glyph, button-styled).
     expect(html).toContain("Income is what this listing earned before refunds");
     expect(html).toContain('href="/admin/ledger?listing=7"');
-    expect(html).toContain("View full money");
-    expect(html).not.toContain("View full money →");
+    expect(html).toContain("View all money changes");
+    expect(html).not.toContain("View all money changes →");
   });
 
   test("makes a refund-driven divergence between income and net balance visible", () => {

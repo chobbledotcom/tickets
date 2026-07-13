@@ -28,6 +28,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Money");
+    expect(html).not.toContain("Money history");
     // The sale leg credits the listing's revenue account, linked by its name.
     expect(html).toContain("Summer Concert");
     expect(html).toContain("/admin/ledger?listing=");

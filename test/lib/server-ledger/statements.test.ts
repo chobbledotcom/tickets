@@ -21,6 +21,7 @@ describeWithEnv(
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Money");
+      expect(html).not.toContain("Money history");
       // The attendee's own label heads the page; a fully-paid sale nets to zero.
       expect(html).toContain("Ada Lovelace");
       expect(html).toContain("Amount still owed:");
@@ -64,6 +65,7 @@ describeWithEnv(
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Money");
+      expect(html).not.toContain("Money history");
       // No modifier row exists, so the account falls back to "Modifier #1".
       expect(html).toContain("Modifier #1");
     });
@@ -98,6 +100,7 @@ describeWithEnv(
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Money");
+      expect(html).not.toContain("Money history");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
       expect(html).toContain("Corrections");
       // The correction's counterparty is the listing's revenue account.

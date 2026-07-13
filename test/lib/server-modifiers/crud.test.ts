@@ -328,6 +328,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
       expect(html).toContain("Money");
+      expect(html).not.toContain("Money history");
       expect(html).toContain("Add money change");
       expect(html).toContain(
         `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,

@@ -264,6 +264,7 @@ describeWithEnv("AdminNav", {}, () => {
     );
     expect(ownerHtml).toContain('href="/admin/ledger"');
     expect(ownerHtml).toContain("Money");
+    expect(ownerHtml).not.toContain("Money history");
     const managerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
     );
