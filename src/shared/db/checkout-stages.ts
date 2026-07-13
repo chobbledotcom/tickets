@@ -12,10 +12,9 @@ import {
   checkBatchAvailability,
   createAttendeeAtomic,
 } from "#shared/db/attendees/api.ts";
-import { DEPENDENT_ROW_TARGETS } from "#shared/db/attendees/delete.ts";
+import { runAttendeePurge } from "#shared/db/attendees/delete.ts";
 import {
   execute,
-  executeBatchWithResults,
   inPlaceholders,
   insert,
   primaryMatchingIdSet,
@@ -297,36 +296,17 @@ const pendingStageAttendees = (where: string): string =>
          WHERE payment.payment_session_id = stage.payment_session_id
       )`;
 
-/** Delete pending checkout PII only while no payment request has claimed it. */
-const discardPendingCheckoutsWhere = async (
+/** Delete pending checkout PII only while no payment request has claimed it.
+ * Built on the one shared purge mechanism (delete.ts), so a future dependent
+ * table cannot leak rows through the discard. The stage rows go LAST: every
+ * statement finds its attendees through the still-present checkout_stages rows
+ * (the id-select reads only checkout_stages and processed_payments, so
+ * deleting attendees first does not disturb it). */
+const discardPendingCheckoutsWhere = (
   where: string,
   args: InValue[],
-): Promise<number> => {
-  const attendeeIds = pendingStageAttendees(where);
-  const results = await executeBatchWithResults([
-    // Every table that hangs off an attendee, from the one shared declaration
-    // (delete.ts), so a future dependent table cannot leak rows through the
-    // discard. The stage rows themselves go LAST: every statement here finds
-    // its attendees through the still-present checkout_stages rows (the
-    // subquery reads only checkout_stages and processed_payments, so deleting
-    // attendees first does not disturb it).
-    ...DEPENDENT_ROW_TARGETS.filter(
-      (target) => target.table !== "checkout_stages",
-    ).map((target) => ({
-      args,
-      sql: `DELETE FROM ${target.table} WHERE ${target.field} IN (${attendeeIds})`,
-    })),
-    {
-      args,
-      sql: `DELETE FROM attendees WHERE id IN (${attendeeIds})`,
-    },
-    {
-      args,
-      sql: `DELETE FROM checkout_stages WHERE attendee_id IN (${attendeeIds})`,
-    },
-  ]);
-  return results[results.length - 1]!.rowsAffected;
-};
+): Promise<number> =>
+  runAttendeePurge(pendingStageAttendees(where), args, { stagesLast: true });
 
 /** Discard one or more cancelled sessions through the same atomic path. */
 export const discardPendingCheckoutSessions = (

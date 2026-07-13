@@ -20,7 +20,8 @@
  * listing" when the underlying row is gone.
  */
 
-import { executeBatchWithResults, queryOne } from "#shared/db/client.ts";
+import { runAttendeePurge } from "#shared/db/attendees/delete.ts";
+import { queryOne } from "#shared/db/client.ts";
 
 /**
  * Selects the ids of orphaned attendees older than the bound cut-off. Defined
@@ -34,19 +35,6 @@ const ORPHAN_IDS = `SELECT attendee.id
         SELECT 1 FROM listing_attendees AS booking
          WHERE booking.attendee_id = attendee.id
       )`;
-
-/** Dependent tables keyed by attendee_id, cleared before the attendees rows.
- * Mirrors the canonical deleteAttendee purge set (listing_attendees is empty
- * for a true orphan, but is included for exact parity and race safety).
- * `checkout_stages` is included so an orphan carrying a stale stage row never
- * leaves a dangling stage — the same cascade parity deleteAttendee gives. */
-const ORPHAN_DEPENDENT_TABLES = [
-  "processed_payments",
-  "checkout_stages",
-  "attendee_answers",
-  "listing_attendees",
-  "system_notes",
-] as const;
 
 /** Count orphaned attendees whose `created` is before `cutoffIso`. */
 export const countOrphanedAttendees = async (
@@ -62,31 +50,11 @@ export const countOrphanedAttendees = async (
 
 /**
  * Delete orphaned attendees whose `created` is before `cutoffIso`, along with
- * their dependent rows, in a single atomic batch. Dependents go first (they
- * reference the attendee), then the attendees themselves. Returns how many
- * attendee rows were removed.
+ * their dependent rows, in a single atomic batch — built on the one shared
+ * purge mechanism (delete.ts), so this is exactly "deleteAttendee applied to
+ * every orphan". Dependents go first (they reference the attendee), then the
+ * attendees themselves. Returns how many attendee rows were removed.
  */
-export const purgeOrphanedAttendees = async (
-  cutoffIso: string,
-): Promise<number> => {
-  const statements = [
-    ...ORPHAN_DEPENDENT_TABLES.map((table) => ({
-      args: [cutoffIso],
-      sql: `DELETE FROM ${table} WHERE attendee_id IN (${ORPHAN_IDS})`,
-    })),
-    // service_costs uses servicing_attendee_id (not attendee_id), so it cannot
-    // be in ORPHAN_DEPENDENT_TABLES; handle it separately to match deleteAttendee.
-    {
-      args: [cutoffIso],
-      sql: `DELETE FROM service_costs WHERE servicing_attendee_id IN (${ORPHAN_IDS})`,
-    },
-    {
-      args: [cutoffIso],
-      sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,
-    },
-  ];
-  // The final statement (the attendees delete) reports how many orphans went;
-  // executeBatchWithResults always returns one result per statement.
-  const results = await executeBatchWithResults(statements);
-  return results[results.length - 1]!.rowsAffected;
-};
+export const purgeOrphanedAttendees = (cutoffIso: string): Promise<number> =>
+  // The purge reports the attendees delete's affected rows — how many went.
+  runAttendeePurge(ORPHAN_IDS, [cutoffIso]);

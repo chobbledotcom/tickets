@@ -58,22 +58,23 @@ Every Codex review thread on the PR is answered.
 
 ---
 
-## In progress — the remaining review items, in order
+## Review items #8–#10 — shipped
 
-### #8 admin lifecycle (NEXT)
+### #8 admin lifecycle — shipped (880ac8e, 4c8aeff)
 
-How a mid-payment (pending-staged) record and its unusual siblings surface in
-the operator UI. Server-side blocks exist; the UI still renders dead controls:
-
-- Hide/disable edit, logistics, merge, resend, SMS, email, and delete for a
-  pending record (delete is blocked server-side but the button still renders —
-  "never render a dead or forbidden link").
-- "Checkout pending" wording: a clear state indicator on the record page and
-  in the attendee tables/CSV.
-- Owner-gate the ledger link in refund notes.
-- A renderable "deleted listing" placeholder line in the bookings table
-  (recorded in TODO.md — a deleted-listing booking row currently disappears
-  from the table while its data stays intact).
+- The attendee page hides the Edit, Logistics, and Actions tabs (and the
+  send-email button) while a checkout is pending; a hidden tab's URL 404s and
+  a banner alert explains the locked state. A raced edit or logistics save
+  redirects to the always-visible overview with the refusal as a flash.
+- Every attendee row carries a `pending_checkout` flag (projected per row in
+  the one shared attendee SELECT), so tables say "Payment in progress"
+  instead of "No quantity", and the CSV exports gain a conditional "Checkout
+  pending" column.
+- A note's owner-only ledger link renders as plain text for non-owner admins
+  (`withoutLinksTo`), across the banner, the list summaries, and the
+  delete-note page.
+- A booking row that outlives its listing shows as a plain "Deleted listing"
+  placeholder in the bookings table instead of disappearing — no dead link.
 
 ### #9 provider lifecycle — resolved
 
@@ -98,13 +99,17 @@ the operator UI. Server-side blocks exist; the UI still renders dead controls:
   projection, `attendeeIdsWithPendingStage`, `listingHasPendingCheckout`,
   `hasPendingCheckout`).
 
-### #10 repo cleanup
+### #10 repo cleanup — shipped
 
-- Stop exporting raw `DEPENDENT_ROW_TARGETS`.
-- Split files over ~400 lines that this work grew.
-- Remove any remaining alias/test-only exports.
-- Keep this file current; rewrite the PR title/description in plain language
-  when the work lands.
+- `DEPENDENT_ROW_TARGETS` is no longer exported. The three parallel purge
+  implementations (single-attendee delete, orphaned-attendee purge, and the
+  pending-checkout discard) now all build from one mechanism in `delete.ts`:
+  `attendeePurgeStatements` (internal) run through `runAttendeePurge` — a new
+  dependent table is cleaned by every purge path automatically, and the
+  orphan purge gained the `service_costs` parity it previously special-cased.
+- No file this branch touched exceeds the grandfathered limits, and every
+  helper added here has production callers (no alias/test-only exports).
+- The PR title/description are rewritten in plain language as the final step.
 
 ### Not picked up (deliberately)
 
