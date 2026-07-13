@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -16,7 +17,8 @@ const createTable = (): Promise<void> => createIdNameTable("we_items");
 const reject = (what: string) => () =>
   Promise.reject(new Error(`${what} must not run`));
 
-/** Call writeEntity with safe defaults, overriding only what a case exercises. */
+/** Call writeEntity with safe defaults, overriding only what a case exercises.
+ *  Defaults to the plain path (no join writes). */
 const writeWith = (
   table: Table<Row, Input>,
   overrides: Partial<EntityWrite<Row>>,
@@ -24,10 +26,9 @@ const writeWith = (
   writeEntity<Row>({
     buildStatement: () => table.insertStatement!({ name: "row" }),
     existingId: null,
-    joinWrite: () => Promise.resolve(),
+    joinWrites: [],
     plainWrite: () => table.insert({ name: "row" }),
     readBack: (id) => table.findByIdPrimary!(id),
-    transactional: false,
     ...overrides,
   });
 
@@ -48,12 +49,13 @@ describe("writeEntity", () => {
         afterCommitIds.push(id);
         return Promise.resolve();
       },
-      joinWrite: (_tx, id) => {
-        joinIds.push(id);
-        return Promise.resolve();
-      },
+      joinWrites: [
+        (_tx, id) => {
+          joinIds.push(id);
+          return Promise.resolve();
+        },
+      ],
       plainWrite: reject("plainWrite"),
-      transactional: true,
     });
 
     expect(row).toEqual({ id: 1, name: "row" });
@@ -64,7 +66,34 @@ describe("writeEntity", () => {
     expect(await table.findById(1)).toEqual({ id: 1, name: "row" });
   });
 
-  test("transactional path rolls the row back when the join write throws", async () => {
+  test("runs every join write in order, all inside the one transaction", async () => {
+    const table = makeTable();
+    const order: string[] = [];
+    const scopes: TxScope[] = [];
+
+    await writeWith(table, {
+      joinWrites: [
+        (tx, id) => {
+          scopes.push(tx);
+          order.push(`first:${id}`);
+          return Promise.resolve();
+        },
+        (tx, id) => {
+          scopes.push(tx);
+          order.push(`second:${id}`);
+          return Promise.resolve();
+        },
+      ],
+      plainWrite: reject("plainWrite"),
+    });
+
+    expect(order).toEqual(["first:1", "second:1"]);
+    // Both join writes share the one transaction scope — not two separate ones.
+    expect(scopes).toHaveLength(2);
+    expect(scopes[0]).toBe(scopes[1]);
+  });
+
+  test("transactional path rolls the row back when a join write throws", async () => {
     const table = makeTable();
     let afterCommitRan = false;
 
@@ -74,9 +103,8 @@ describe("writeEntity", () => {
           afterCommitRan = true;
           return Promise.resolve();
         },
-        joinWrite: () => Promise.reject(new Error("join failed")),
+        joinWrites: [() => Promise.reject(new Error("join failed"))],
         plainWrite: reject("plainWrite"),
-        transactional: true,
       }),
     ).rejects.toThrow("join failed");
 
@@ -86,7 +114,7 @@ describe("writeEntity", () => {
     expect(afterCommitRan).toBe(false);
   });
 
-  test("plain path: uses plainWrite, skips the statement/join hooks, still runs afterCommit", async () => {
+  test("plain path (no join writes): uses plainWrite, skips the statement, still runs afterCommit", async () => {
     const table = makeTable();
     let buildStatementRan = false;
     const afterCommitIds: number[] = [];
@@ -100,9 +128,7 @@ describe("writeEntity", () => {
         buildStatementRan = true;
         return table.insertStatement!({ name: "row" });
       },
-      joinWrite: reject("joinWrite"),
       readBack: reject("readBack"),
-      transactional: false,
     });
 
     expect(row).toEqual({ id: 1, name: "row" });
@@ -121,7 +147,6 @@ describe("writeEntity", () => {
       },
       plainWrite: () => Promise.resolve(null),
       readBack: () => Promise.resolve(null),
-      transactional: false,
     });
 
     expect(row).toBeNull();
@@ -133,7 +158,6 @@ describe("writeEntity", () => {
     const row = await writeWith(table, {
       plainWrite: () => table.insert({ name: "Dave" }),
       readBack: reject("readBack"),
-      transactional: false,
     });
     expect(row).toEqual({ id: 1, name: "Dave" });
   });

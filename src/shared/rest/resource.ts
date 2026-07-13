@@ -222,11 +222,11 @@ export const defineResource = <
           ? table.insertStatement!(result.input)
           : table.updateStatement!(existingId, result.input),
       existingId,
-      joinWrite: (tx, rowId) =>
-        config.afterWrite!(tx, rowId, result.input, form),
+      joinWrites: config.afterWrite
+        ? [(tx, rowId) => config.afterWrite!(tx, rowId, result.input, form)]
+        : [],
       plainWrite: () => fallback(result.input),
       readBack: (rowId) => table.findByIdPrimary!(rowId),
-      transactional: Boolean(config.afterWrite),
     });
     return { ok: true, row };
   };
