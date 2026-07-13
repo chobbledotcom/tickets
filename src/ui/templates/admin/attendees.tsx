@@ -8,7 +8,10 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type {
+  QuestionWithAnswers,
+  SelectedQuestionAnswers,
+} from "#shared/db/question-types.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -378,20 +381,11 @@ export const PaymentDetails = ({
 const editableAnswers = (q: QuestionWithAnswers, selectedAnswerIds: number[]) =>
   q.answers.filter((a) => a.active || selectedAnswerIds.includes(a.id));
 
-/** The custom-question inputs an admin edit form renders: the questions to ask,
- *  plus the currently-chosen answer ids and free-text answers to pre-fill. The
- *  attendee form's template data carries these same three fields. */
-export type EditQuestionsData = {
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  selectedTextAnswers: Map<number, string>;
-};
-
 export const EditQuestions = ({
   questions,
   selectedAnswerIds,
   selectedTextAnswers,
-}: EditQuestionsData): JSX.Element => (
+}: SelectedQuestionAnswers): JSX.Element => (
   <>
     {questions.map((q) =>
       questionControl(q, {

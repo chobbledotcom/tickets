@@ -50,6 +50,7 @@ import {
   formatDateRangeLabel,
 } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
+import type { SelectedQuestionAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
@@ -66,10 +67,7 @@ import {
   BookingStatusBadges,
   InactiveNote,
 } from "#templates/admin/attendee-detail.tsx";
-import {
-  EditQuestions,
-  type EditQuestionsData,
-} from "#templates/admin/attendees.tsx";
+import { EditQuestions } from "#templates/admin/attendees.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";
 import { AddressFieldWithLookup } from "#templates/components/address-field.tsx";
 import {
@@ -88,7 +86,7 @@ import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
 /** Template data for the attendee form: everything the editable form itself
  * renders. The other tabs' data (log, ledger, notes, contact history) lives
  * with those tabs, not here. */
-export type AttendeeFormTemplateData = EditQuestionsData & {
+export type AttendeeFormTemplateData = SelectedQuestionAnswers & {
   /** "create" or "edit". */
   mode: "create" | "edit";
   /** Parsed form values (shared range + one line per rendered listing). */

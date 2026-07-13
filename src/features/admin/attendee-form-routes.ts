@@ -44,7 +44,6 @@ import {
   loadPackagePaths,
   loadQuestionsForExisting,
   packagesByListingIdFrom,
-  type SelectedQuestionAnswers,
 } from "#routes/admin/attendee-page-data.ts";
 import {
   AUTH_FORM,
@@ -79,7 +78,10 @@ import {
   setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type {
+  QuestionWithAnswers,
+  SelectedQuestionAnswers,
+} from "#shared/db/question-types.ts";
 import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,

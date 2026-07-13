@@ -61,10 +61,10 @@ const sellPackageTicket = async (
 
 /** Load a listing by id (used to assert a member survives its deleted
  * package). */
-const loadListing = (id: number) =>
-  import("#shared/db/listings/records.ts").then((m) =>
-    m.getListingWithCount(id),
-  );
+const loadListing = async (id: number) => {
+  const m = await import("#shared/db/listings/records.ts");
+  return m.getListingWithCount(id);
+};
 
 /** A HIDDEN package, its sole member, and one sold ticket stamped with the
  * group id — the state whose deletion must un-group rather than destroy. */

@@ -43,7 +43,10 @@ import {
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
-import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import type {
+  QuestionWithAnswers,
+  SelectedQuestionAnswers,
+} from "#shared/db/question-types.ts";
 import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
@@ -551,14 +554,6 @@ export const buildTemplateData = async (
  * attendee's booked listings. The request's private key is only derived when
  * there are questions whose free-text answers need decrypting, so an attendee
  * with no questions never forces a key unwrap. */
-/** A set of custom questions plus which answers the attendee has picked: the
- * chosen option ids, and any free-text answers keyed by question id. */
-export type SelectedQuestionAnswers = {
-  questions: QuestionWithAnswers[];
-  selectedAnswerIds: number[];
-  selectedTextAnswers: Map<number, string>;
-};
-
 export const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
