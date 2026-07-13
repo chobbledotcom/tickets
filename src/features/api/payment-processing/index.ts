@@ -48,6 +48,7 @@ import {
   settleBalanceSession,
   specForFailure,
   stagedConflict,
+  stampStagedPaymentId,
   storeRefundedBooking,
 } from "#routes/api/payment-processing/store-refund.ts";
 import type {
@@ -62,7 +63,6 @@ import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   getCheckoutStageOrNull,
-  pendingStageAttendeeIdOrNull,
   resolvePendingStage,
 } from "#shared/db/checkout-stages.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
@@ -75,6 +75,7 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 
 type SessionProcessor = (
@@ -142,10 +143,12 @@ const alreadyHandledSession = (
  * or refund path. This protects live tickets after their idempotency row is lost. */
 /** Returns null when the ledger has not recorded this session yet. */
 const replaySessionFromLedgerOrNull = async (
-  sessionId: string,
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
   listingId: number,
-  paymentReference: string,
 ): Promise<PaymentResult | null> => {
+  const sessionId = session.id;
+  const paymentReference = session.paymentReference;
   const disposition = await bookingLedgerDisposition(sessionId);
   switch (disposition.status) {
     case "unrecorded":
@@ -163,13 +166,18 @@ const replaySessionFromLedgerOrNull = async (
       // so a crash after the ledger post can lose that flip. The outcome is
       // known, so resolve it (a pending stage blocks edits and merges and
       // holds the staged details unprunable) and leave the note the
-      // interrupted run never wrote. The note goes FIRST: if the resolve is
-      // lost, the retry still finds the stage pending and writes the note
-      // again — a duplicate note beats a permanently missing explanation.
-      const healedAttendeeId = await pendingStageAttendeeIdOrNull(sessionId);
-      if (healedAttendeeId !== null) {
+      // interrupted run never wrote.
+      const healedStage = await getCheckoutStageOrNull(sessionId);
+      if (healedStage?.state === "pending") {
+        // Stamp the payment reference the interrupted run never wrote — the
+        // money legs post BEFORE stampStagedPaymentId, so a crash between them
+        // leaves an empty payment_id, hiding the payment panel and refund path
+        // for a charge the note tells the operator to reconcile. Written before
+        // the note (which goes before the resolve: if the resolve is lost, the
+        // retry re-runs this heal, and a duplicate note beats a missing one).
+        await stampStagedPaymentId(healedStage, session, intent);
         await createSystemNote(
-          healedAttendeeId,
+          healedStage.attendeeId,
           healedStageNote(paymentReference),
         );
         await resolvePendingStage(sessionId);
@@ -239,9 +247,9 @@ const processReservedSession = async (
   // row is gone) never refunds a live ticket via the deleted-listing, price-change,
   // inactive-listing, or capacity paths, nor double-books it.
   const replay = await replaySessionFromLedgerOrNull(
-    sessionId,
+    session,
+    intent,
     signedListingId,
-    session.paymentReference,
   );
   if (replay !== null) return replay;
 

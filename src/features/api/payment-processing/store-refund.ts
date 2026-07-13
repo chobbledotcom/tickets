@@ -110,8 +110,10 @@ const placeholderFacts = (
  * details (rewriting the same contact fields staging wrote from this same
  * signed intent), so the record's payment panel can find the charge. Every
  * terminal outcome that keeps a staged record for a charged session stamps
- * this — without it the operator has no in-app view of the money. */
-const stampStagedPaymentId = (
+ * this — without it the operator has no in-app view of the money. Also used by
+ * the ledger-heal path, which repairs a crash that lost the stamp after the
+ * money legs were already posted. */
+export const stampStagedPaymentId = (
   stage: CheckoutStage,
   session: ValidatedPaymentSession,
   intent: BookingIntent,

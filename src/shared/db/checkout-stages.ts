@@ -286,20 +286,6 @@ export const resolvePendingStage = async (sessionId: string): Promise<void> => {
   );
 };
 
-/** The attendee holding a session's still-pending stage, or null when nothing
- * is pending — the expected case for almost every replayed session. Read on
- * the primary: the answer decides whether the healing note is written. */
-export const pendingStageAttendeeIdOrNull = async (
-  sessionId: string,
-): Promise<number | null> => {
-  const row = await queryOnePrimary<{ attendee_id: number }>(
-    `SELECT attendee_id FROM checkout_stages
-      WHERE payment_session_id = ? AND state = 'pending'`,
-    [sessionId],
-  );
-  return row?.attendee_id ?? null;
-};
-
 const pendingStageAttendees = (where: string): string =>
   `SELECT stage.attendee_id
      FROM checkout_stages AS stage

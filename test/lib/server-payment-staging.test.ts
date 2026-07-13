@@ -710,6 +710,15 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
       );
       expect(notes).toHaveLength(1);
       expect(notes[0]!.note).toContain("pi_cs_staged_wedged");
+      // The crash lost the payment-reference stamp (the money legs post before
+      // stampStagedPaymentId), so the heal writes it back — without it the kept
+      // record's payment panel and refund path stay hidden for real money.
+      const kept = await getAttendeeRaw(stage.attendeeId);
+      if (!kept) throw new Error("Expected the healed staged attendee");
+      expect(
+        (await decryptAttendeeFields(kept, await getTestPrivateKey(), true))
+          .payment_id,
+      ).toBe("pi_cs_staged_wedged");
     } finally {
       checkout.restore();
     }
