@@ -38,11 +38,11 @@ import {
   updateSitePage,
 } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { planReorder } from "#shared/reorder.ts";
 import {
   eligibleChildPages,
   isReservedSlug,
   parseTargetKey,
-  planReorder,
   targetKey,
 } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";

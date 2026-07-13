@@ -1,5 +1,6 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
 import { idNameMap } from "#shared/id-name-map.ts";
+import { planReorder } from "#shared/reorder.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
@@ -522,42 +523,46 @@ const handleAnswerRecalculatePost = answerActionHandler(
 );
 
 /** Factory for move-up/move-down handlers */
-const moveAnswerHandler = (direction: -1 | 1) =>
+const moveAnswerHandler = (dir: "up" | "down") =>
   answerActionHandler(async ({ context: { answer, question } }) => {
-    const idx = question.answers.findIndex((a) => a.id === answer.id);
-    const neighbor = question.answers[idx + direction];
-    if (neighbor) {
-      await swapAnswerOrder(answer.id, neighbor.id);
-    }
+    const pair = planReorder(
+      question.answers.map((a) => a.id),
+      answer.id,
+      dir,
+    );
+    if (pair) await swapAnswerOrder(pair[0], pair[1]);
     return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
   });
 
 /** Handle POST /admin/questions/:id/answers/:answerId/move-up */
-const handleMoveAnswerUp = moveAnswerHandler(-1);
+const handleMoveAnswerUp = moveAnswerHandler("up");
 
 /** Handle POST /admin/questions/:id/answers/:answerId/move-down */
-const handleMoveAnswerDown = moveAnswerHandler(1);
+const handleMoveAnswerDown = moveAnswerHandler("down");
 
 /** Factory for question move-up/move-down handlers. Swaps the question's
  * global sort_order with its neighbour in the ordered list. */
-const moveQuestionHandler = (direction: -1 | 1) =>
+const moveQuestionHandler = (dir: "up" | "down") =>
   createAuthedHandler<QuestionIdParams, QuestionWithAnswers>({
     auth: OWNER_FORM,
     handle: async ({ context: question }) => {
       const all = await getAllQuestionsWithAnswers();
-      const idx = all.findIndex((q) => q.id === question.id);
-      const neighbor = all[idx + direction];
-      if (neighbor) await swapQuestionOrder(question.id, neighbor.id);
+      const pair = planReorder(
+        all.map((q) => q.id),
+        question.id,
+        dir,
+      );
+      if (pair) await swapQuestionOrder(pair[0], pair[1]);
       return redirect("/admin/questions", "Question moved", true);
     },
     loadContext: ({ id }) => getQuestionWithAnswers(id),
   });
 
 /** Handle POST /admin/questions/:id/move-up */
-const handleMoveQuestionUp = moveQuestionHandler(-1);
+const handleMoveQuestionUp = moveQuestionHandler("up");
 
 /** Handle POST /admin/questions/:id/move-down */
-const handleMoveQuestionDown = moveQuestionHandler(1);
+const handleMoveQuestionDown = moveQuestionHandler("down");
 
 const handleListingQuestionsPost = createListingChoicePost({
   fieldName: "question_ids",

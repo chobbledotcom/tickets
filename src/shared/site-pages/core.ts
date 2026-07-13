@@ -191,17 +191,6 @@ export const eligibleChildPages = (
  * function both root-page and within-page reorder flow through; the apply ring
  * executes the swap.
  */
-export const planReorder = (
-  orderedKeys: readonly TargetKey[],
-  target: TargetKey,
-  dir: "up" | "down",
-): readonly [TargetKey, TargetKey] | null => {
-  const idx = orderedKeys.indexOf(target);
-  if (idx === -1) return null;
-  const neighbor = orderedKeys[idx + (dir === "up" ? -1 : 1)];
-  return neighbor === undefined ? null : [target, neighbor];
-};
-
 /** Slugs that would shadow a core route or nav label — rejected for a page. */
 const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "admin",

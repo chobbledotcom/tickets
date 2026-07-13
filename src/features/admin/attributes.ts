@@ -1,4 +1,5 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
+import { planReorder } from "#shared/reorder.ts";
 /**
  * Admin routes for listing attributes.
  */
@@ -335,22 +336,24 @@ const optionActionHandler = (
     loadContext: loadAttributeOption,
   });
 
-const moveOptionHandler = (direction: -1 | 1) =>
+const moveOptionHandler = (dir: "up" | "down") =>
   optionActionHandler(async ({ context: { attribute, option } }) => {
-    const index = attribute.options.findIndex((item) => item.id === option.id);
-    const neighbor = attribute.options[index + direction];
-    if (neighbor) await swapAttributeOptionOrder(option.id, neighbor.id);
+    const pair = planReorder(
+      attribute.options.map((item) => item.id),
+      option.id,
+      dir,
+    );
+    if (pair) await swapAttributeOptionOrder(pair[0], pair[1]);
     return redirect(`/admin/attributes/${attribute.id}`, "Option moved", true);
   });
 
-const moveAttributeHandler = (direction: -1 | 1) =>
+const moveAttributeHandler = (dir: "up" | "down") =>
   createAuthedHandler<AttributeParams, number>({
     auth: OWNER_FORM,
     handle: async ({ context: attributeId }) => {
       const attributeIds = await getAttributeIdsOrdered();
-      const index = attributeIds.indexOf(attributeId);
-      const neighborId = attributeIds[index + direction];
-      if (neighborId) await swapAttributeOrder(attributeId, neighborId);
+      const pair = planReorder(attributeIds, attributeId, dir);
+      if (pair) await swapAttributeOrder(pair[0], pair[1]);
       return redirect("/admin/attributes", "Attribute moved", true);
     },
     loadContext: ({ id }) => getAttributeId(id),
@@ -380,12 +383,12 @@ export const adminHandlers = handlersFor("attributes")({
   postAttributesByIdDelete: (request, { id }) =>
     attributeDelete.post(request, id),
   postAttributesByIdEdit: handleAttributeEdit,
-  postAttributesByIdMoveDown: moveAttributeHandler(1),
-  postAttributesByIdMoveUp: moveAttributeHandler(-1),
+  postAttributesByIdMoveDown: moveAttributeHandler("down"),
+  postAttributesByIdMoveUp: moveAttributeHandler("up"),
   postAttributesByIdOptions: handleAddOption,
   postAttributesByIdOptionsByOptionIdDelete: handleDeleteOptionPost,
   postAttributesByIdOptionsByOptionIdEdit: handleEditOptionPost,
-  postAttributesByIdOptionsByOptionIdMoveDown: moveOptionHandler(1),
-  postAttributesByIdOptionsByOptionIdMoveUp: moveOptionHandler(-1),
+  postAttributesByIdOptionsByOptionIdMoveDown: moveOptionHandler("down"),
+  postAttributesByIdOptionsByOptionIdMoveUp: moveOptionHandler("up"),
   postListingByIdAttributes: handleListingAttributesPost,
 });
