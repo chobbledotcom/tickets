@@ -6,6 +6,7 @@ import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
+import { NewTabLink } from "#templates/components/new-tab-link.tsx";
 
 /** The "read more" footer link shared by the built-sites list and builder pages. */
 export const BuiltSitesGuideFooter = (): JSX.Element => (
@@ -47,9 +48,7 @@ const BuiltSitesTable = ({
         <WritableLink href={`/admin/built-sites/${site.id}/edit`}>
           {site.name}
         </WritableLink>,
-        <a href={site.siteUrl} rel="noopener" target="_blank">
-          {site.siteUrl}
-        </a>,
+        <NewTabLink href={site.siteUrl}>{site.siteUrl}</NewTabLink>,
         site.assignedAttendeeId
           ? t("built_sites.status_assigned", { id: site.assignedAttendeeId })
           : site.assignable

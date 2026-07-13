@@ -2,7 +2,6 @@
  * Admin builder page template — create new Tickets instances
  */
 
-/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { builderForm } from "#routes/admin/builder.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
@@ -13,6 +12,8 @@ import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
+/* jscpd:ignore-start */
+import { NewTabLink } from "#templates/components/new-tab-link.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 /* jscpd:ignore-end */
 
@@ -63,9 +64,7 @@ const BuiltSitesTable = ({
       columns={namedColumns("builder.table_url", "builder.table_built")}
       rows={sites.map((site) => [
         site.name,
-        <a href={site.siteUrl} rel="noopener" target="_blank">
-          {site.siteUrl}
-        </a>,
+        <NewTabLink href={site.siteUrl}>{site.siteUrl}</NewTabLink>,
         site.created,
       ])}
     />
