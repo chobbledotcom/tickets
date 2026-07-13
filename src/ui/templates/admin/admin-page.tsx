@@ -266,6 +266,15 @@ export const successListPage =
       body(items, session),
     );
 
+/** The render function a flash-carrying admin page exposes: given the viewer's
+ *  session and optional error/success notices, it returns the page HTML. Shared
+ *  by the single-form pages here and the recalculate pages. */
+export type FlashPageRenderer = (
+  session: AdminSession,
+  error?: string,
+  success?: string,
+) => string;
+
 /** Bind a single-form page to its title and nav highlight once. The returned
  *  function renders the whole page from the viewer's session plus the error
  *  and success notices its route passes back after a submit — the shape the
@@ -275,7 +284,7 @@ export const flashFormPage =
     titleKey: string,
     active: string,
     body: (session: AdminSession) => Child,
-  ): ((session: AdminSession, error?: string, success?: string) => string) =>
+  ): FlashPageRenderer =>
   (session: AdminSession, error?: string, success?: string): string =>
     flashAdminPage(t(titleKey), active)(session, error, success)(body(session));
 

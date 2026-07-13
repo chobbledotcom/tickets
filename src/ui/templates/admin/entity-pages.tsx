@@ -11,6 +11,7 @@
  * Layout backstop above the page content.
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
@@ -28,6 +29,7 @@ import {
   PageBlock,
   PageRegions,
 } from "#templates/components/page-structure.tsx";
+/* jscpd:ignore-end */
 
 /** One row of a read-only summary table. `href` renders the value as a link
  * (`external` adds target=_blank); neither ⇒ plain content. Omit a row
