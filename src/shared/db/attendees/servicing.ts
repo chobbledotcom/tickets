@@ -32,8 +32,8 @@ import {
   decryptAttendeeFields,
   encryptPiiBlob,
 } from "#shared/db/attendees/pii.ts";
+import { loadAttendeeRows } from "#shared/db/attendees/queries.ts";
 import {
-  ATTENDEE_FIELDS,
   type AttendeeRowFor,
   getAttendees,
 } from "#shared/db/attendees/select.ts";
@@ -299,8 +299,7 @@ export const getServicingEvent = async (
   // One LEFT JOIN covers both a booked event (one row per held line) and an
   // orphan with no bookings (a single COALESCEd listing_id=0 row that
   // rowsToServicingEvent filters out) — no separate fallback query needed.
-  const rows = await getAttendees({
-    fields: ATTENDEE_FIELDS,
+  const rows = await loadAttendeeRows({
     join: "left",
     order: "start_then_listing",
     where: { attendeeIds: [id], kind: "servicing" },

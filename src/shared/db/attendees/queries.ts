@@ -15,6 +15,7 @@ import {
 import {
   ATTENDEE_FIELDS,
   type AttendeeRowFor,
+  type GetAttendeesQuery,
   getAttendees,
   pricePaidFromLedger,
   refundedFromLedger,
@@ -68,9 +69,15 @@ export type BrowsingAttendee = AttendeeRowFor<"refunded">;
  * Get attendees for an listing without decrypting PII
  * Used for tests and operations that don't need decrypted data
  */
+/** Load attendee rows carrying the standard {@link ATTENDEE_FIELDS} set (PII
+ * still encrypted — decrypt before display). Callers vary only in join, order,
+ * and where, so the field set is declared in exactly one place. */
+export const loadAttendeeRows = (
+  query: Omit<GetAttendeesQuery<(typeof ATTENDEE_FIELDS)[number]>, "fields">,
+): Promise<Attendee[]> => getAttendees({ ...query, fields: ATTENDEE_FIELDS });
+
 export const getAttendeesRaw = (listingId: number): Promise<Attendee[]> =>
-  getAttendees({
-    fields: ATTENDEE_FIELDS,
+  loadAttendeeRows({
     order: "created_desc",
     where: { listingIds: [listingId] },
   });
@@ -85,8 +92,7 @@ export const getAttendeePackageRowsRaw = (
   attendeeId: number,
   packageGroupId: number,
 ): Promise<Attendee[]> =>
-  getAttendees({
-    fields: ATTENDEE_FIELDS,
+  loadAttendeeRows({
     // No kind filter (as the original query): the attendee id already pins one
     // attendee, and its rows are returned whatever its kind. `attendee-or-
     // servicing` matches every kind the CHECK constraint allows.
@@ -208,8 +214,7 @@ export const getAttendeesPage = async ({
   // attendees not lines); getAttendees then returns every booking line for
   // those attendees. The listing filter and LIMIT/OFFSET are bound args.
   const idsArgs = listingIds ? [...listingIds, limit, offset] : [limit, offset];
-  const rows = await getAttendees({
-    fields: ATTENDEE_FIELDS,
+  const rows = await loadAttendeeRows({
     order: dir === "ASC" ? "id_asc" : "id_desc",
     where: {
       attendeeIdsSubquery: {
@@ -374,14 +379,9 @@ export const attendeeIdByLedgerEventGroup = async (
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
  */
-export const getAttendeeRaw = async (id: number): Promise<Attendee | null> => {
-  const rows = await getAttendees({
-    fields: ATTENDEE_FIELDS,
-    join: "left",
-    where: { attendeeIds: [id] },
-  });
-  return rows[0] ?? null;
-};
+export const getAttendeeRaw = async (id: number): Promise<Attendee | null> =>
+  (await loadAttendeeRows({ join: "left", where: { attendeeIds: [id] } }))[0] ??
+  null;
 
 /**
  * Get attendees by ID without decrypting PII, one row per (attendee, booking).
@@ -392,11 +392,7 @@ export const getAttendeeRaw = async (id: number): Promise<Attendee | null> => {
 export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> =>
   ids.length === 0
     ? Promise.resolve([])
-    : getAttendees({
-        fields: ATTENDEE_FIELDS,
-        join: "left",
-        where: { attendeeIds: ids },
-      });
+    : loadAttendeeRows({ join: "left", where: { attendeeIds: ids } });
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name
