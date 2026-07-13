@@ -29,7 +29,11 @@ export default bareSchemaMigration(
   "2026-07-12_remove_broken_image_records",
   "Delete image records whose stored filename is an encrypted empty string, plus their item links.",
   async ({ getDb }) => {
-    const result = await getDb().execute("SELECT id, filename FROM images");
+    // Scanned in id order, so an aborted run's behaviour is deterministic:
+    // everything before the record that failed was identified, nothing after.
+    const result = await getDb().execute(
+      "SELECT id, filename FROM images ORDER BY id",
+    );
     const brokenIds: number[] = [];
     for (const row of result.rows) {
       const filename = await decrypt(row.filename as EnvKeyEncrypted);
