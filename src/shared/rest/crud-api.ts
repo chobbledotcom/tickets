@@ -25,10 +25,11 @@ import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { ApiResult } from "#shared/fetch.ts";
 import type { ResponseFn } from "#shared/response-fn.ts";
+import { writeEntity } from "#shared/rest/write-entity.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -413,34 +414,8 @@ export const defineCrudApi = <
     action: string,
     status: number,
   ): Promise<Response> => {
-    if (config.afterCommit) await config.afterCommit(fullRow.id);
     await logAction(action, fullRow);
     return jsonResponse({ [responseKey]: await toResponse(fullRow) }, status);
-  };
-
-  /** Write the row and its join-table writes (the prepared side effect and/or
-   * `afterWrite`) in ONE transaction, so a failed join write rolls the row write
-   * back (no orphan row, no partial membership/override change), then read the
-   * committed row back. `existingId` is null on create (the id comes from the
-   * INSERT) and the existing id on update. */
-  const writeInTransaction = async (
-    statement: { args: InValue[]; sql: string },
-    existingId: number | null,
-    prepared: Prepared,
-    input: Input,
-  ): Promise<FullRow> => {
-    const id = await writeRowInTransaction(
-      statement,
-      existingId,
-      async (tx, rowId) => {
-        if (config.sideEffect)
-          await config.sideEffect.persist(tx, rowId, prepared);
-        if (config.afterWrite) await config.afterWrite(tx, rowId, input);
-      },
-    );
-    // Primary read-your-writes: a replica read here can lag the commit and miss
-    // the just-written row (null → crash on `.id`). See lookupAfterWrite.
-    return (await lookupAfterWrite(id))!;
   };
 
   /** Validate the body-only side effect BEFORE the row write (atomicity):
@@ -480,16 +455,21 @@ export const defineCrudApi = <
     const { input } = inputs;
     const prepared = await prepareSideEffect(inputs);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
-    const fullRow =
-      config.sideEffect || config.afterWrite
-        ? await writeInTransaction(
-            await getStatement(),
-            existingId,
-            prepared.value,
-            input,
-          )
-        : ((await plainWrite()) as unknown as FullRow);
-    return respondWithRow(fullRow, action, status);
+    const preparedValue = prepared.value;
+    const fullRow = await writeEntity<FullRow>({
+      afterCommit: config.afterCommit,
+      buildStatement: getStatement,
+      existingId,
+      joinWrite: async (tx, rowId) => {
+        if (config.sideEffect)
+          await config.sideEffect.persist(tx, rowId, preparedValue);
+        if (config.afterWrite) await config.afterWrite(tx, rowId, input);
+      },
+      plainWrite: () => plainWrite() as unknown as Promise<FullRow | null>,
+      readBack: lookupAfterWrite,
+      transactional: Boolean(config.sideEffect || config.afterWrite),
+    });
+    return respondWithRow(fullRow!, action, status);
   };
 
   /** Validate raw input against config.validate, then invoke fn with the typed
