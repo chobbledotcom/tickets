@@ -9,7 +9,18 @@ export const deleteListing = async (listingId: number): Promise<void> => {
   await executeBatch([
     {
       args: [listingId],
-      sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
+      // Keep the rows of an attendee whose checkout is still mid-payment. The
+      // delete guard (listingDeleteError) blocks a delete while a pending
+      // checkout exists, but it is a preflight: a stage inserted in the window
+      // between that read and this delete would otherwise have its booking rows
+      // cascaded away, stranding the paid order on an empty staged record when
+      // the payment lands. Preserving the (quantity-0) rows keeps that order
+      // whole; the checkout resolves or the prune removes the attendee outright.
+      sql: `DELETE FROM listing_attendees
+             WHERE listing_id = ?
+               AND attendee_id NOT IN (
+                 SELECT attendee_id FROM checkout_stages WHERE state = 'pending'
+               )`,
     },
     {
       args: [listingId],

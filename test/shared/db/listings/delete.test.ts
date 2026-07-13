@@ -10,6 +10,10 @@ import {
   getAttendeeRaw,
   getAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";
+import {
+  markCheckoutStage,
+  stageCheckout,
+} from "#shared/db/checkout-stages.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
 import {
@@ -24,6 +28,7 @@ import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/r
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttendee,
@@ -252,6 +257,40 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(orphan).not.toBeNull();
       expect(orphan!.id).toBe(attendee.id);
       expect(orphan!.listing_id).toBe(0);
+    });
+
+    test("keeps a pending checkout's rows, but cascades a resolved one's", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const intent = checkoutIntent({
+        items: [
+          checkoutItem({
+            listingId: listing.id,
+            name: listing.name,
+            slug: listing.slug,
+          }),
+        ],
+      });
+      // Two checkouts staged onto the listing about to be deleted: one still
+      // mid-payment (pending) and one that already resolved (booked).
+      const pending = await stageCheckout("sess_del_pending", "stripe", intent);
+      const booked = await stageCheckout("sess_del_booked", "stripe", intent);
+      await markCheckoutStage("sess_del_booked", "booked");
+
+      await deleteListing(listing.id);
+
+      // The delete guard is a preflight, so a stage that lands in its race window
+      // must not lose its rows — otherwise the paid order strands on an empty
+      // record. The pending checkout's quantity-0 row survives; the resolved
+      // one's is cascaded like any ordinary booking.
+      const rowCount = async (attendeeId: number): Promise<number> =>
+        (
+          await queryAll<{ id: number }>(
+            "SELECT id FROM listing_attendees WHERE attendee_id = ?",
+            [attendeeId],
+          )
+        ).length;
+      expect(await rowCount(pending.attendeeId)).toBe(1);
+      expect(await rowCount(booked.attendeeId)).toBe(0);
     });
 
     test("invalidates cache", async () => {
