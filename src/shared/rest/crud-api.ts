@@ -212,6 +212,14 @@ export interface AfterCommitConfig {
   afterCommit?: (id: number) => Promise<void>;
 }
 
+/** A join-table write run inside the row's write transaction, given the open
+ * transaction scope, the written row's id, and the parsed input. */
+export type AfterWriteHook<Input> = (
+  tx: TxScope,
+  id: number,
+  input: Input,
+) => Promise<void>;
+
 /** Configuration for defineCrudApi */
 export interface CrudApiConfig<
   Row,
@@ -224,7 +232,7 @@ export interface CrudApiConfig<
    * outside the main table. Runs inside the SAME transaction as the row write
    * (it receives the transaction scope), so a failure rolls the row write back
    * rather than leaving partial state. */
-  afterWrite?: (tx: TxScope, id: number, input: Input) => Promise<void>;
+  afterWrite?: AfterWriteHook<Input>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
