@@ -6,7 +6,6 @@
 /* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminSession,
@@ -14,9 +13,10 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 /** A text-message activity-log entry, shown as conversation history. */
@@ -83,7 +83,11 @@ const ComposeForm = ({
       {!configured && <Raw html={t("sms.contact.not_configured")} />}
 
       {attendee.phone && configured && (
-        <CsrfForm action="/admin/sms">
+        <SaveForm
+          action="/admin/sms"
+          submitIcon="check"
+          submitLabel={t("sms.contact.send")}
+        >
           <input name="listing" type="hidden" value={String(listing.id)} />
           <input name="attendee" type="hidden" value={String(attendee.id)} />
           <SectionFieldset
@@ -99,8 +103,7 @@ const ComposeForm = ({
               rows="4"
             />
           </SectionFieldset>
-          <SubmitButton icon="check">{t("sms.contact.send")}</SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       )}
 
       <h3>{t("sms.contact.history_heading")}</h3>

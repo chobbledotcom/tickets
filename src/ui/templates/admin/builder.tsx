@@ -5,15 +5,14 @@
 import { t } from "#i18n";
 import { builderForm } from "#routes/admin/builder.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 /* jscpd:ignore-start */
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 export type BuiltSiteDisplay = {
@@ -26,7 +25,12 @@ export type BuiltSiteDisplay = {
 const BuilderForm = (): JSX.Element => (
   <ProseSection
     footer={
-      <CsrfForm action="/admin/builder" id="builder-form">
+      <SaveForm
+        action="/admin/builder"
+        id="builder-form"
+        submitIcon="hammer"
+        submitLabel={t("builder.build_site_button")}
+      >
         <Raw
           html={builderForm.render({ db_provider: getDefaultDbProvider() })}
         />
@@ -37,10 +41,7 @@ const BuilderForm = (): JSX.Element => (
           </label>
           <small>{t("builder.available_for_assignment_help")}</small>
         </fieldset>
-        <SubmitButton icon="hammer">
-          {t("builder.build_site_button")}
-        </SubmitButton>
-      </CsrfForm>
+      </SaveForm>
     }
     title={t("builder.create_new_site")}
   >

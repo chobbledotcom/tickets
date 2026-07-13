@@ -5,13 +5,12 @@
  */
 
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { Modifier } from "#shared/types.ts";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /** Each linkable scope kind → the form field its checkboxes post under and the
  * term key for its plural type name. Adding a scope kind is one self-contained
@@ -67,7 +66,10 @@ export const ScopeLinksForm = ({
 }): JSX.Element => {
   const { field, term } = SCOPE_LINK_KINDS[links.kind];
   return (
-    <CsrfForm action={`/admin/modifiers/${modifier.id}/links`}>
+    <SaveForm
+      action={`/admin/modifiers/${modifier.id}/links`}
+      submitLabel={t("modifiers.scope.save")}
+    >
       {links.options.length === 0 ? (
         <p>{t("modifiers.scope.none")}</p>
       ) : (
@@ -78,8 +80,7 @@ export const ScopeLinksForm = ({
           selected={links.selected}
         />
       )}
-      <SubmitButton icon="save">{t("modifiers.scope.save")}</SubmitButton>
-    </CsrfForm>
+    </SaveForm>
   );
 };
 
@@ -93,7 +94,10 @@ export const AnswerLinksForm = ({
   modifier: Modifier;
   answerLinks: AnswerLinks;
 }): JSX.Element => (
-  <CsrfForm action={`/admin/modifiers/${modifier.id}/answers`}>
+  <SaveForm
+    action={`/admin/modifiers/${modifier.id}/answers`}
+    submitLabel={t("modifiers.answers.save")}
+  >
     <p>
       <small>{t("modifiers.answers.hint")}</small>
     </p>
@@ -110,6 +114,5 @@ export const AnswerLinksForm = ({
         selected={answerLinks.selected}
       />
     )}
-    <SubmitButton icon="save">{t("modifiers.answers.save")}</SubmitButton>
-  </CsrfForm>
+  </SaveForm>
 );

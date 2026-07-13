@@ -12,7 +12,7 @@ import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
 } from "#shared/db/question-types.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -51,6 +51,7 @@ import {
   RadioOption,
   type RadioOptionProps,
 } from "#templates/components/radio-option.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -361,14 +362,12 @@ export const PaymentDetails = ({
           </p>
         )}
       </div>
-      <CsrfForm
+      <SaveForm
         action={`/admin/attendees/${attendee.id}/refresh-payment`}
         class="inline"
-      >
-        <SubmitButton icon="rotate-ccw">
-          {t("admin.attendees.refresh_payment")}
-        </SubmitButton>
-      </CsrfForm>
+        submitIcon="rotate-ccw"
+        submitLabel={t("admin.attendees.refresh_payment")}
+      />
     </PageBlock>
   );
 };
@@ -718,7 +717,12 @@ export const AttendeeMergePanel = (
           </p>
         </div>
 
-        <CsrfForm action={`/admin/attendees/${target.id}/merge`}>
+        <SaveForm
+          action={`/admin/attendees/${target.id}/merge`}
+          submitClass="danger"
+          submitIcon="trash-2"
+          submitLabel="Merge and Delete Source Attendee"
+        >
           <input
             name="source_token"
             type="hidden"
@@ -770,10 +774,7 @@ export const AttendeeMergePanel = (
             <strong>Warning:</strong> This will permanently delete the source
             attendee. This action cannot be undone.
           </p>
-          <SubmitButton class="danger" icon="trash-2">
-            Merge and Delete Source Attendee
-          </SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       </div>
     )}
   </article>

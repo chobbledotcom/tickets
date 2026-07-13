@@ -11,13 +11,13 @@
 import { t } from "#i18n";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminListingLink, AdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { moneyPattern } from "#templates/components/price-input.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -184,7 +184,11 @@ export const ListingQrPanel = ({
         </p>
       </div>
       <Flash {...(error !== undefined ? { error } : {})} />
-      <CsrfForm action={formAction}>
+      <SaveForm
+        action={formAction}
+        submitIcon="plus"
+        submitLabel={t("listing_qr.generate_button")}
+      >
         <label>
           {t("listing_qr.customer_name")}
           <input
@@ -207,10 +211,7 @@ export const ListingQrPanel = ({
           />
         </label>
         {isDaily && <DateSelect dates={bookableDates} value={values.date} />}
-        <SubmitButton icon="plus">
-          {t("listing_qr.generate_button")}
-        </SubmitButton>
-      </CsrfForm>
+      </SaveForm>
       {result && (
         <QrResultPanel
           formAction={formAction}

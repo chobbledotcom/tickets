@@ -9,7 +9,6 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { VALID_DAY_NAMES } from "#shared/dates.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import {
   listingDefaultInputName as inputName,
   LISTING_DEFAULT_FIELDS,
@@ -22,8 +21,9 @@ import {
 import type { AdminSession } from "#shared/types.ts";
 import { flashAdminPage } from "#templates/admin/admin-page.tsx";
 import { ListingSectionFieldset } from "#templates/admin/money-summary.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { CheckboxLabel } from "#templates/components/aggregate-sections.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 
 /* jscpd:ignore-end */
@@ -198,7 +198,11 @@ export const adminListingDefaultsPage = (
     success,
   )(
     <>
-      <CsrfForm action="/admin/listing-defaults" id="listing-defaults">
+      <SaveForm
+        action="/admin/listing-defaults"
+        id="listing-defaults"
+        submitLabel={t("listing_defaults.save")}
+      >
         <div class="prose">
           <h2>{t("listing_defaults.title")}</h2>
           <p>{t("listing_defaults.intro")}</p>
@@ -206,8 +210,7 @@ export const adminListingDefaultsPage = (
         {fields.map((field) => (
           <DefaultControl defaults={defaults} field={field} />
         ))}
-        <SubmitButton icon="save">{t("listing_defaults.save")}</SubmitButton>
-      </CsrfForm>
+      </SaveForm>
 
       <GuideFooter href="/admin/guide#listings">
         {t("listing_defaults.guide_link")}

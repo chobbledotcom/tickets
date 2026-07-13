@@ -10,7 +10,6 @@ import {
   sitePageEditForm,
   sitePageForm,
 } from "#routes/admin/site-pages-form.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminSession,
@@ -30,6 +29,7 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { ReorderArrows } from "#templates/components/reorder.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -214,7 +214,12 @@ const ItemPicker = ({
   options: PickerOption[];
 }): JSX.Element | null =>
   options.length === 0 ? null : (
-    <CsrfForm action={`${LIST}/${pageId}/items`} class="inline-add">
+    <SaveForm
+      action={`${LIST}/${pageId}/items`}
+      class="inline-add"
+      submitIcon="plus"
+      submitLabel={t("site.pages.add_item")}
+    >
       <input name="item_type" type="hidden" value={type} />
       <label>
         {label}{" "}
@@ -224,8 +229,7 @@ const ItemPicker = ({
           ))}
         </select>
       </label>{" "}
-      <SubmitButton icon="plus">{t("site.pages.add_item")}</SubmitButton>
-    </CsrfForm>
+    </SaveForm>
   );
 
 /** The Edit tab's panel: the page-fields form (name, editable slug + public

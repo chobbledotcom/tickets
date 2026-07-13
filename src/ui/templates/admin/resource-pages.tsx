@@ -40,6 +40,7 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 /** A delete confirmation spec, parameterised by the entity. */
@@ -172,11 +173,14 @@ export const defineAdminResourcePages = <
 
   const newPage = (session: AdminSession, error?: string): string =>
     flashAdminPage(config.labels.addTitle, config.active)(session, error)(
-      <CsrfForm action={config.basePath}>
+      <SaveForm
+        action={config.basePath}
+        submitIcon="plus"
+        submitLabel={config.labels.addSubmit}
+      >
         <h1>{config.labels.addHeading}</h1>
         {config.renderFields(undefined)}
-        <SubmitButton icon="plus">{config.labels.addSubmit}</SubmitButton>
-      </CsrfForm>,
+      </SaveForm>,
     );
 
   const editPage = (

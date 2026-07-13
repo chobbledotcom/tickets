@@ -5,10 +5,10 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { isDemoMode } from "#shared/demo/mode.ts";
-import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { getLoginFields } from "#templates/fields/admin.ts";
 import { layoutPage } from "#templates/layout-page.tsx";
 /* jscpd:ignore-end */
@@ -21,10 +21,13 @@ export const adminLoginPage = (error?: string): string =>
     t("login.title"),
     <>
       <Flash {...flashProps(error)} />
-      <CsrfForm action="/admin/login">
+      <SaveForm
+        action="/admin/login"
+        submitIcon="log-in"
+        submitLabel={t("login.submit")}
+      >
         <Raw html={renderFields(getLoginFields())} />
-        <SubmitButton icon="log-in">{t("login.submit")}</SubmitButton>
-      </CsrfForm>
+      </SaveForm>
       {isDemoMode() && (
         <p>
           <a href="/demo/reset">{t("login.reset_database")}</a>

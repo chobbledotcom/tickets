@@ -16,7 +16,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
-import { CsrfForm, entityToFieldValues, renderFields } from "#shared/forms.tsx";
+import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
 import {
@@ -26,7 +26,7 @@ import {
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
   CheckboxLabel,
@@ -36,6 +36,7 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { logisticsAgentFields } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */
@@ -72,15 +73,18 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
       dataTable(agentColumns)(agents)
     )}
     <WritableOnly>
-      <CsrfForm action="/admin/logistics">
+      <SaveForm
+        action="/admin/logistics"
+        submitIcon="plus"
+        submitLabel={t("logistics.add_agent")}
+      >
         <SectionFieldset
           className="listing-section"
           legend={t("logistics.add_agent")}
         >
           <Raw html={renderFields(logisticsAgentFields)} />
         </SectionFieldset>
-        <SubmitButton icon="plus">{t("logistics.add_agent")}</SubmitButton>
-      </CsrfForm>
+      </SaveForm>
     </WritableOnly>
   </article>
 );

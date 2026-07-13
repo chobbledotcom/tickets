@@ -14,6 +14,7 @@ import {
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import {
   getSquareAccessTokenFields,
   getSquareWebhookFields,
@@ -22,9 +23,10 @@ import {
 } from "#templates/fields/admin.ts";
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
-  <CsrfForm
+  <SaveForm
     action="/admin/settings/payment-provider"
     id="settings-payment-provider"
+    submitLabel={t("settings.save_payment_provider")}
   >
     <div class="prose">
       <h2>{t("settings.payment_provider")}</h2>
@@ -48,10 +50,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
         </RadioOption>
       ))}
     </fieldset>
-    <SubmitButton icon="save">
-      {t("settings.save_payment_provider")}
-    </SubmitButton>
-  </CsrfForm>
+  </SaveForm>
 );
 
 /** Test/live mode notice for providers that use sk_test_/sk_live_ keys
@@ -239,9 +238,10 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
 
 export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "square" && s.squareTokenConfigured ? (
-    <CsrfForm
+    <SaveForm
       action="/admin/settings/square-webhook"
       id="settings-square-webhook"
+      submitLabel={t("settings.square.update_webhook_key")}
     >
       <div class="prose">
         <h2>{t("settings.square.webhook_heading")}</h2>
@@ -293,10 +293,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
             : {},
         )}
       />
-      <SubmitButton icon="save">
-        {t("settings.square.update_webhook_key")}
-      </SubmitButton>
-    </CsrfForm>
+    </SaveForm>
   ) : null;
 
 export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
@@ -322,7 +319,11 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
 
 export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider ? (
-    <CsrfForm action="/admin/settings/booking-fee" id="settings-booking-fee">
+    <SaveForm
+      action="/admin/settings/booking-fee"
+      id="settings-booking-fee"
+      submitLabel={t("settings.save_booking_fee")}
+    >
       <div class="prose">
         <h2>{t("settings.booking_fee")}</h2>
         <p>{t("settings.booking_fee_hint")}</p>
@@ -339,6 +340,5 @@ export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
           value={s.bookingFee}
         />
       </label>
-      <SubmitButton icon="save">{t("settings.save_booking_fee")}</SubmitButton>
-    </CsrfForm>
+    </SaveForm>
   ) : null;
