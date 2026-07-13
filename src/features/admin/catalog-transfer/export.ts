@@ -26,6 +26,7 @@ import {
   getStoredListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
+import { namedError } from "#shared/named-error.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { withGroupOrNull } from "../find-group.ts";
 import { getListingGroupMemberships } from "./membership.ts";
@@ -44,7 +45,7 @@ import {
  * can't represent — e.g. a bookable-day name or contact field the admin JSON API
  * accepted but the transfer schema rejects. The export route surfaces it as an
  * operator-facing 4xx rather than letting a raw parse error become a 500. */
-export class CatalogExportError extends Error {}
+export class CatalogExportError extends namedError("CatalogExportError") {}
 
 /** Project a stored row onto its transfer shape, or a {@link CatalogExportError}
  * (with an intelligible per-field message) when the row can't be represented. */

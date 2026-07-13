@@ -27,6 +27,7 @@ import {
   trackQuery,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
+import { namedError } from "#shared/named-error.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 
 /**
@@ -145,10 +146,9 @@ export const resultRows = <T>(result: ResultSet): T[] =>
 /** Raised when a write can't get through because the database stays locked after
  *  the retries below — too busy. The request layer turns this into a friendly
  *  auto-reloading page rather than a generic error. */
-export class DatabaseBusyError extends Error {
+export class DatabaseBusyError extends namedError("DatabaseBusyError") {
   constructor() {
     super("the database is too busy to complete this write");
-    this.name = "DatabaseBusyError";
   }
 }
 

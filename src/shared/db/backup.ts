@@ -29,6 +29,8 @@ import {
 } from "#shared/db/restore-legacy-columns.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS, readLimit } from "#shared/limits.ts";
+import { namedError } from "#shared/named-error.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   deleteFile,
   getBasename,
@@ -39,7 +41,7 @@ import {
 /** Thrown by restoreFromSql after resetDatabase() runs but a later step fails,
  *  so callers can distinguish a post-reset failure (DB wiped) from a pre-reset
  *  validation error (DB intact). */
-export class PostResetError extends Error {}
+export class PostResetError extends namedError("PostResetError") {}
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -248,7 +250,7 @@ const buildManifest = (
 /** Create a zip archive from table backups with manifest */
 export const createBackupZip = async (): Promise<Uint8Array> => {
   const encoder = new TextEncoder();
-  const timestamp = new Date().toISOString();
+  const timestamp = nowIso();
   const tables = await createBackup();
   const manifest = buildManifest(tables, timestamp);
 

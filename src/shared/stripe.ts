@@ -9,7 +9,7 @@ import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { nowMs } from "#shared/now.ts";
+import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
 import {
   assembleCheckoutMetadata,
@@ -528,7 +528,7 @@ export const verifyWebhookSignature = async (
   const { timestamp, signatures } = parsed;
 
   // Check timestamp tolerance
-  const nowSecs = Math.floor(nowMs() / 1000);
+  const nowSecs = nowSeconds();
   const timestampDelta = nowSecs - timestamp;
   if (Math.abs(timestampDelta) > toleranceSeconds) {
     logError({
@@ -567,7 +567,7 @@ export const constructTestWebhookEvent = (
   secret: string,
 ): Promise<SignedTestWebhook> =>
   signedTestWebhook(listing, async (payload) => {
-    const timestamp = Math.floor(nowMs() / 1000);
+    const timestamp = nowSeconds();
     const sig = await hmacSha256Hex(`${timestamp}.${payload}`, secret);
     return `t=${timestamp},v1=${sig}`;
   });

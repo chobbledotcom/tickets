@@ -27,7 +27,7 @@ import {
   pruneSmsMessagesBefore,
   type SmsMessageRow,
 } from "#shared/db/sms-messages.ts";
-import { nowMs } from "#shared/now.ts";
+import { nowMs, nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex } from "#shared/payment-crypto.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
@@ -48,8 +48,7 @@ const isFreshTimestamp = (timestamp: string): boolean => {
   if (!/^\d+$/.test(timestamp)) return false;
   const seconds = Number(timestamp);
   if (!Number.isSafeInteger(seconds)) return false;
-  const nowSeconds = Math.floor(nowMs() / 1000);
-  return Math.abs(nowSeconds - seconds) <= SMS_WEBHOOK_TOLERANCE_SECONDS;
+  return Math.abs(nowSeconds() - seconds) <= SMS_WEBHOOK_TOLERANCE_SECONDS;
 };
 
 /** Verify the X-Signature / X-Timestamp headers against the raw body. */

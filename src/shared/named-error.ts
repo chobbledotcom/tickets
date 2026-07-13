@@ -6,9 +6,9 @@
  * The concrete subclass stays a real named class, so it works as both a value
  * (`new`, `instanceof`) and a type.
  */
-export const namedError = (name: string): (new (message: string) => Error) =>
+export const namedError = (name: string): (new (message?: string) => Error) =>
   class extends Error {
-    constructor(message: string) {
+    constructor(message?: string) {
       super(message);
       this.name = name;
     }

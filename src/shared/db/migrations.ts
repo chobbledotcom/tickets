@@ -70,10 +70,11 @@ type DbState =
   | "missing_settings"
   | "uninitialized_settings";
 
-export class MissingSettingsTableError extends Error {
+export class MissingSettingsTableError extends namedError(
+  "MissingSettingsTableError",
+) {
   constructor(message = "Database settings table does not exist") {
     super(message);
-    this.name = "MissingSettingsTableError";
   }
 }
 

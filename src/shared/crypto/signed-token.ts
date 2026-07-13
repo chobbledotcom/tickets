@@ -14,7 +14,7 @@ import {
   fromBase64Url,
   toBase64Url,
 } from "#shared/crypto/utils.ts";
-import { nowMs } from "#shared/now.ts";
+import { nowSeconds } from "#shared/now.ts";
 
 /** Encode a JSON-serializable payload as a base64url string. */
 export const encodeTokenPayload = (payload: unknown): string =>
@@ -47,7 +47,7 @@ export const isTokenExpired = (
 /** Returns true when a token is expired as of right now, using the current
  * clock to compute nowS. Convenience wrapper over isTokenExpired. */
 export const isExpiredNow = (expiryUnixS: number, maxAgeS: number): boolean =>
-  isTokenExpired(expiryUnixS, maxAgeS, Math.floor(nowMs() / 1000));
+  isTokenExpired(expiryUnixS, maxAgeS, nowSeconds());
 
 /** Build a signed token from an encoded payload and its HMAC message. */
 export const buildSignedToken = async (

@@ -31,6 +31,7 @@ import {
 import { getNewsPostSummaries } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
+import { nowIso } from "#shared/now.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type ListingWithCount,
@@ -165,7 +166,7 @@ const buildVListing = (
 
 /** Build the full ICS calendar document */
 const buildIcs = ({ items, domain, title }: FeedData): string => {
-  const dtstamp = formatIcsDate(new Date().toISOString());
+  const dtstamp = formatIcsDate(nowIso());
   const vlistings = pipe(
     map((e: FeedItem) => buildVListing(e, domain, dtstamp)),
   )(items);
@@ -353,7 +354,7 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
         session,
       );
       const domain = getEffectiveDomain();
-      const dtstamp = formatIcsDate(new Date().toISOString());
+      const dtstamp = formatIcsDate(nowIso());
       const events = attendees.flatMap((attendee) => {
         const listing = listingById.get(attendee.listing_id);
         return listing?.date

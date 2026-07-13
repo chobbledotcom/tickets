@@ -47,6 +47,7 @@ import {
   SERVICING_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   selectedListingQuantities,
   selectedStartDate,
@@ -163,9 +164,7 @@ const handleCostPost = async (
     );
   }
   const serviceDate = event.bookings[0]?.date;
-  const occurredAt = serviceDate
-    ? `${serviceDate}T00:00:00.000Z`
-    : new Date().toISOString();
+  const occurredAt = serviceDate ? `${serviceDate}T00:00:00.000Z` : nowIso();
   try {
     await recordServiceCost({
       amount,

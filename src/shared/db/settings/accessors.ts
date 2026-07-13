@@ -21,6 +21,7 @@ import {
   setSnapshotField,
   snap,
 } from "#shared/db/settings/snapshot.ts";
+import { nowIso } from "#shared/now.ts";
 import type {
   AccessorSpec,
   StringAccessors,
@@ -114,7 +115,7 @@ export const boolUpdate = <K extends BoolSettingKey>(
 export const timestampUpdate =
   <K extends keyof SettingsData>(configKey: string, field: K) =>
   async (): Promise<void> => {
-    const ts = new Date().toISOString();
+    const ts = nowIso();
     await writeRaw(configKey, ts);
     setSnapshotField(field, ts as SettingsData[K]);
   };

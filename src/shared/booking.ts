@@ -15,6 +15,7 @@ import {
   hasAvailableSpots,
 } from "#shared/db/attendees/api.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
+import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
@@ -38,7 +39,7 @@ const owedBookingLedgerPoster =
       eventId: `booking-${attendeeId}`,
       lines: [{ gross, listingId }],
       modifiers: [],
-      occurredAt: new Date().toISOString(),
+      occurredAt: nowIso(),
     });
     await postBookingLegsTx(tx, attendeeId, legs);
   };

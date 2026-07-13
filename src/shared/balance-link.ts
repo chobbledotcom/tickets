@@ -10,7 +10,7 @@
  */
 
 import { defineSignedToken } from "#shared/crypto/define-signed-token.ts";
-import { nowMs } from "#shared/now.ts";
+import { expiresIn } from "#shared/now.ts";
 
 /** Balance links last 90 days — long enough to be a "pay when you can" link. */
 export const BALANCE_LINK_MAX_AGE_S = 90 * 24 * 60 * 60;
@@ -43,7 +43,7 @@ export const signBalanceToken = (
 ): Promise<string> =>
   balanceToken.sign(undefined, {
     a: attendeeId,
-    e: Math.floor(nowMs() / 1000) + maxAgeSeconds,
+    e: expiresIn(maxAgeSeconds),
   });
 
 /**
