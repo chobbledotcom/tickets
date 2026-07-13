@@ -9,7 +9,18 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, tx } from "#test-utils/ledger.ts";
-import { adminFormPost } from "#test-utils/session.ts";
+import { adminFormPost, adminGet } from "#test-utils/session.ts";
+
+/** GET an admin ledger page, assert it loads (200) with the "Money" heading and
+ *  not the old "Money history" name, and return its HTML for further checks. */
+export const ledgerPageHtml = async (path: string): Promise<string> => {
+  const response = await adminGet(path);
+  expect(response.status).toBe(200);
+  const html = await response.text();
+  expect(html).toContain("Money");
+  expect(html).not.toContain("Money history");
+  return html;
+};
 
 /** Seed a listing and registered attendee, then post a fully paid sale. */
 export const seededSale = async (

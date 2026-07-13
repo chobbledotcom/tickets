@@ -9,7 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
-import { seededSale } from "./helpers.ts";
+import { ledgerPageHtml, seededSale } from "./helpers.ts";
 
 describeWithEnv("server (admin ledger list views)", { db: true }, () => {
   testRequiresAuth("/admin/ledger");
@@ -24,11 +24,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
 
   test("renders recent transfers with the listing name resolved as a link", async () => {
     await seededSale("Summer Concert", 2500);
-    const response = await adminGet("/admin/ledger?view=dual");
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain("Money");
-    expect(html).not.toContain("Money history");
+    const html = await ledgerPageHtml("/admin/ledger?view=dual");
     // The sale leg credits the listing's revenue account, linked by its name.
     expect(html).toContain("Summer Concert");
     expect(html).toContain("/admin/ledger?listing=");

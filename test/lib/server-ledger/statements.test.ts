@@ -9,7 +9,7 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund, postModifierLeg, tx } from "#test-utils/ledger.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { seededSale } from "./helpers.ts";
+import { ledgerPageHtml, seededSale } from "./helpers.ts";
 
 describeWithEnv(
   "server (admin ledger account statements)",
@@ -17,11 +17,7 @@ describeWithEnv(
   () => {
     test("renders an account statement with a running balance", async () => {
       const { attendeeId } = await seededSale("Gala", 2500);
-      const response = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Money");
-      expect(html).not.toContain("Money history");
+      const html = await ledgerPageHtml(`/admin/ledger/attendee/${attendeeId}`);
       // The attendee's own label heads the page; a fully-paid sale nets to zero.
       expect(html).toContain("Ada Lovelace");
       expect(html).toContain("Amount still owed:");
@@ -61,11 +57,7 @@ describeWithEnv(
 
     test("falls back to 'Modifier #<id>' when no modifier row exists", async () => {
       await postModifierLeg({ delta: 500, modifierId: 1 });
-      const response = await adminGet("/admin/ledger/modifier/1");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Money");
-      expect(html).not.toContain("Money history");
+      const html = await ledgerPageHtml("/admin/ledger/modifier/1");
       // No modifier row exists, so the account falls back to "Modifier #1".
       expect(html).toContain("Modifier #1");
     });
@@ -96,11 +88,7 @@ describeWithEnv(
         thankYouUrl: "https://example.com",
       });
       await adjustListingIncome(listing.id, 1500);
-      const response = await adminGet("/admin/ledger/writeoff/default");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Money");
-      expect(html).not.toContain("Money history");
+      const html = await ledgerPageHtml("/admin/ledger/writeoff/default");
       // The writeoff singleton renders its label, not a raw "writeoff:default".
       expect(html).toContain("Corrections");
       // The correction's counterparty is the listing's revenue account.

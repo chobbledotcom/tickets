@@ -246,14 +246,25 @@ export const flashAdminPage = adminOpenerFor(
  *  each differs only in its title, nav path, and how it renders its data — never
  *  in the `(session, …, error?, success?) => flashAdminPage(…)` wrapper. Pass
  *  `undefined` for `active` to fall back to the settings nav highlight. */
-export const flashDataPage =
-  <D,>(
-    title: string,
-    active: string | undefined,
-    renderBody: (data: D) => Child,
-  ) =>
-  (session: AdminSession, data: D, error?: string, success?: string): string =>
+// A `function` declaration (not a `const` arrow) so it is hoisted: the page
+// modules below build their `adminXPage` with `flashDataPage(...)` at module
+// load, and admin-page.tsx sits in an import cycle with them, so a const would
+// be in its temporal dead zone when they run. Calling it only builds a closure
+// (the flashAdminPage/renderBody calls happen later, at render), so hoisting is
+// safe.
+export function flashDataPage<D>(
+  title: string,
+  active: string | undefined,
+  renderBody: (data: D) => Child,
+): (
+  session: AdminSession,
+  data: D,
+  error?: string,
+  success?: string,
+) => string {
+  return (session, data, error, success) =>
     flashAdminPage(title, active)(session, error, success)(renderBody(data));
+}
 
 /** Curried opener for pages that carry their error/success notices inside a
  *  single `opts` object (the users list and per-user manage pages). Binds the
