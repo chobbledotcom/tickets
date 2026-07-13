@@ -23,7 +23,7 @@ import type { Table } from "#shared/db/table.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
 import { validateForm } from "#shared/forms.tsx";
-import type { ParseResult } from "#shared/rest/crud-api.ts";
+import type { AfterCommitConfig, ParseResult } from "#shared/rest/crud-api.ts";
 
 /* jscpd:ignore-end */
 
@@ -79,13 +79,7 @@ export interface ResourceConfig<
   Input,
   Id = InValue,
   Values extends FieldValues = FieldValues,
-> {
-  /** Run after a successful create/update has committed, keyed on the row id.
-   * Unlike `afterWrite` (which shares the write transaction), this fires
-   * post-commit — for reconciling a derived table (e.g. listing_prices) that the
-   * transactional `insertStatement`/`updateStatement` path would otherwise
-   * bypass along with the {@link Table} wrapper. */
-  afterCommit?: (id: number) => Promise<void>;
+> extends AfterCommitConfig {
   /** Side-effect run after a successful create/update with the written row's
    * id, the parsed input, and the raw form — e.g. to persist join-table rows (a
    * listing's groups) or dynamic inputs (a group's per-listing package prices)

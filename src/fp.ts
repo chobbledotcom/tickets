@@ -362,6 +362,15 @@ export const byId = <T extends { id: number }>(
 };
 
 /**
+ * A copy of `base` with `extra` entries merged on top (an `extra` key wins over
+ * the same key in `base`). Curried so a fixed base — an auth header set, the
+ * process environment — can be extended per call.
+ */
+export const withEntries =
+  <V>(base: Record<string, V>) =>
+  (extra: Record<string, V>): Record<string, V> => ({ ...base, ...extra });
+
+/**
  * Split an array into chunks of a given size.
  * Curried adapter over `@std/collections.chunk` (which throws for size < 1).
  */

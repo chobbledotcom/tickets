@@ -1,3 +1,5 @@
+import { withEntries } from "#fp";
+
 /** Run `deno <args>` to completion and return its exit code. */
 export const denoExitCode = async (
   args: string[],
@@ -14,10 +16,7 @@ export const denoExitCode = async (
  * a spawned child process. */
 export const envWith = (
   extras: Record<string, string>,
-): Record<string, string> => ({
-  ...Deno.env.toObject(),
-  ...extras,
-});
+): Record<string, string> => withEntries(Deno.env.toObject())(extras);
 
 // Signal handling is platform-dependent (e.g. SIGTERM on Windows), so every
 // add/remove is best-effort — callers must still clean up via finally/exit.

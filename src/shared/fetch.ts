@@ -7,6 +7,8 @@
  * left open for the Deno runtime to complain about.
  */
 
+import { withEntries } from "#fp";
+
 /** A fetch result whose body has already been read to a string. */
 export type FetchResult = {
   status: number;
@@ -25,10 +27,8 @@ export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
  */
 export const jsonHeaders = (
   auth: Record<string, string>,
-): Record<string, string> => ({
-  ...auth,
-  "Content-Type": "application/json",
-});
+): Record<string, string> =>
+  withEntries(auth)({ "Content-Type": "application/json" });
 
 /**
  * Parse a JSON error response into a structured error.

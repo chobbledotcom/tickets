@@ -7,20 +7,17 @@
  */
 
 /* jscpd:ignore-start */
-import type { CreateDatabaseResult } from "#shared/bunny-db.ts";
 import {
   getTursoApiToken,
   getTursoGroup,
   getTursoOrganization,
   slugifyForProvider,
 } from "#shared/config.ts";
-import {
-  type ApiResult,
-  fetchText,
-  jsonHeaders,
-  parseApiError,
-} from "#shared/fetch.ts";
-import type { DatabaseProviderApi } from "#shared/provider-types.ts";
+import { fetchText, jsonHeaders, parseApiError } from "#shared/fetch.ts";
+import type {
+  CreateDatabaseFn,
+  DatabaseProviderApi,
+} from "#shared/provider-types.ts";
 
 /* jscpd:ignore-end */
 
@@ -55,9 +52,7 @@ const tursoApiHeaders = (): Record<string, string> =>
  * Create a new Turso database with the given name.
  * Returns the database URL and a full-access JWT token.
  */
-const createDatabaseImpl = async (
-  name: string,
-): Promise<ApiResult<CreateDatabaseResult>> => {
+const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   const org = getTursoOrganization();
   const group = getTursoGroup();
   const dbSlug = slugifyForTurso(name);

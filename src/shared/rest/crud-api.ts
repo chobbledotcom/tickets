@@ -202,19 +202,23 @@ export interface CrudSideEffect<Input, FullRow, Prepared> {
   ) => Promise<{ error: string } | { value: Prepared }>;
 }
 
+/** The post-commit hook shared by every write-config: it runs after a
+ * create/update has committed and the row has been re-read, keyed on the row
+ * id. Unlike `afterWrite` (which shares the write transaction), this fires
+ * post-commit — for reconciling a derived table (e.g. listing_prices) that the
+ * transactional `insertStatement`/`updateStatement` path would otherwise
+ * bypass. */
+export interface AfterCommitConfig {
+  afterCommit?: (id: number) => Promise<void>;
+}
+
 /** Configuration for defineCrudApi */
 export interface CrudApiConfig<
   Row,
   Input,
   FullRow extends Row = Row,
   Prepared = void,
-> {
-  /** Run after a create/update has committed and the row has been re-read, keyed
-   * on the row id. Unlike `sideEffect`/`afterWrite` (which run inside the write
-   * transaction), this fires post-commit — for reconciling a derived table that
-   * the form paths keep in sync elsewhere but the transactional `insertStatement`/
-   * `updateStatement` path would otherwise bypass (e.g. listing_prices). */
-  afterCommit?: (id: number) => Promise<void>;
+> extends AfterCommitConfig {
   /** Side-effect run with the written row's id and the parsed input to persist
    * join-table rows (a listing's groups, a group's package members) that live
    * outside the main table. Runs inside the SAME transaction as the row write
