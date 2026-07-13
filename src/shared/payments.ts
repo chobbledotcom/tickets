@@ -313,6 +313,11 @@ export interface PaymentProvider {
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
 
+  /** The webhook event type for a checkout that expired unpaid, for providers
+   * whose hosted sessions have a deadline (Stripe). Absent means the provider
+   * never reports expiry and abandoned checkouts wait for the stage pruner. */
+  readonly checkoutExpiredEventType?: string;
+
   /**
    * Create a checkout session for one or more listings.
    * Returns a session ID and hosted checkout URL, or null on failure.
@@ -321,6 +326,11 @@ export interface PaymentProvider {
     intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<CheckoutSessionResult>;
+
+  /** Close a hosted checkout early so an old tab cannot pay after its staged
+   * details were discarded (the cancel page). Best-effort; absent when the
+   * provider has no way to close a session. */
+  expireCheckoutSession?(sessionId: string): Promise<void>;
 
   /**
    * Check if a payment has been refunded via the provider API.

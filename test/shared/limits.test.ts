@@ -5,7 +5,9 @@ import {
   ADDRESS_CACHE_MS,
   ADDRESS_LOOKUP_LOCKOUT_MS,
   ATTACHMENT_URL_MAX_AGE_S,
+  assertCheckoutExpiryValid,
   assertPaymentsRetentionSafe,
+  CHECKOUT_SESSION_EXPIRY_MINUTES,
   FORM_STASH_MAX_BYTES,
   FORM_STASH_MAX_ENTRIES,
   FORM_STASH_TTL_MS,
@@ -122,6 +124,29 @@ describe("limits", () => {
     });
   });
 
+  describe("assertCheckoutExpiryValid", () => {
+    test("returns values inside the skew-buffered range", () => {
+      expect(assertCheckoutExpiryValid(35)).toBe(35);
+      expect(assertCheckoutExpiryValid(60)).toBe(60);
+      expect(assertCheckoutExpiryValid(24 * 60 - 5)).toBe(24 * 60 - 5);
+    });
+
+    test("throws outside the skew-buffered range", () => {
+      // Stripe judges expires_at by its own clock on arrival, so an
+      // exact-boundary value could land out of range and fail every checkout
+      // at creation time — a bad configured value must fail at startup instead.
+      expect(() => assertCheckoutExpiryValid(34)).toThrow("between 35");
+      expect(() => assertCheckoutExpiryValid(24 * 60 - 4)).toThrow(
+        "between 35",
+      );
+    });
+
+    test("the live expiry constant satisfies its own range", () => {
+      expect(CHECKOUT_SESSION_EXPIRY_MINUTES).toBeGreaterThanOrEqual(35);
+      expect(CHECKOUT_SESSION_EXPIRY_MINUTES).toBeLessThanOrEqual(24 * 60 - 5);
+    });
+  });
+
   describe("ADDRESS_CACHE_DAYS", () => {
     test("defaults to 90 days and derives the millisecond window", () => {
       expect(ADDRESS_CACHE_DAYS).toBe(90);
@@ -143,6 +168,7 @@ describe("limits", () => {
         "APIKEY_LOCKOUT_MS",
         "ATTACHMENT_URL_MAX_AGE_S",
         "BOOKING_LOCKOUT_MS",
+        "CHECKOUT_SESSION_EXPIRY_MINUTES",
         "FORM_STASH_MAX_BYTES",
         "FORM_STASH_MAX_ENTRIES",
         "FORM_STASH_TTL_MS",
@@ -158,6 +184,7 @@ describe("limits", () => {
         "MAX_LOGIN_ATTEMPTS",
         "MAX_TEXTAREA_LENGTH",
         "MAX_TOKEN_404S",
+        "PRUNE_CHECKOUT_STAGES_RETENTION_DAYS",
         "PRUNE_CONTACTS_RETENTION_DAYS",
         "PRUNE_INTERVAL_HOURS",
         "PRUNE_LOGINS_RETENTION_DAYS",

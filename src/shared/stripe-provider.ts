@@ -21,6 +21,7 @@ import {
 } from "#shared/payments.ts";
 import {
   createCheckoutSession,
+  expireCheckoutSession,
   isoFromUnixSeconds,
   retrieveCheckoutSession,
   retrievePaymentIntent,
@@ -43,7 +44,13 @@ const createStripeCheckoutSession = makeCreateCheckoutSession(
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "checkout.session.completed",
+
+  checkoutExpiredEventType: "checkout.session.expired",
+
   createCheckoutSession: createStripeCheckoutSession,
+
+  expireCheckoutSession: (sessionId: string) =>
+    expireCheckoutSession(sessionId),
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     const intent = await retrievePaymentIntent(paymentReference);

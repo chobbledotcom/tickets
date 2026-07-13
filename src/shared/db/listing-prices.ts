@@ -34,8 +34,8 @@ import {
   execute,
   executeBatch,
   inPlaceholders,
-  queryBatchPrimary,
   queryIdColumn,
+  queryOnePrimary,
   type TxScope,
 } from "#shared/db/client.ts";
 import { type DayPrices, parseDayPrices } from "#shared/types.ts";
@@ -413,17 +413,14 @@ export const syncListingPricesForIds = async (
 
 /** Re-sync one listing's `base` row from its current `unit_price` column. Called
  * after every listing insert/update (the form/API `afterCommit`) so the mirror
- * never drifts from the column. The source row is read on the primary
- * (write-mode batch) so it reflects the just-committed write rather than a
- * lagging replica. A missing listing is a no-op. Day-count rows are written from
- * input by the write paths, not re-derived here. */
+ * never drifts from the column. The source row is read on the primary so it
+ * reflects the just-committed write rather than a lagging replica. A missing
+ * listing is a no-op. Day-count rows are written from input by the write paths,
+ * not re-derived here. */
 export const syncListingPrices = async (listingId: number): Promise<void> => {
-  const [result] = await queryBatchPrimary([
-    {
-      args: [listingId],
-      sql: "SELECT id, unit_price FROM listings WHERE id = ?",
-    },
-  ]);
-  const row = (result?.rows as unknown as ListingPriceSourceRow[])[0];
+  const row = await queryOnePrimary<ListingPriceSourceRow>(
+    "SELECT id, unit_price FROM listings WHERE id = ?",
+    [listingId],
+  );
   if (row) await executeBatch(sourceRowStatements(row));
 };

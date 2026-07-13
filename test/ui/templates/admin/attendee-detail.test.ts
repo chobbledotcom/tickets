@@ -39,6 +39,7 @@ const renderDetail = (
   attendee = testAttendee(),
   phonePrefix = "44",
   hasRealLine = true,
+  pendingCheckout = false,
 ): string =>
   String(
     renderSection({
@@ -47,6 +48,7 @@ const renderDetail = (
         allowedDomain: ALLOWED_DOMAIN,
         attendee,
         hasRealLine,
+        pendingCheckout,
         phonePrefix,
       }),
     }),
@@ -77,6 +79,20 @@ describe("attendee summary section", () => {
     );
     expect(html).not.toContain("/t/tok-ghost");
     expect(html).toContain("No quantity");
+  });
+
+  test("says payment in progress instead of no quantity for a mid-payment record", () => {
+    // A staged checkout's record must explain that a payment is under way —
+    // the "No quantity" wording invites the operator edit the guard refuses.
+    const html = renderDetail(
+      testAttendee({ ticket_token: "tok-mid-payment" }),
+      "44",
+      false,
+      true,
+    );
+    expect(html).not.toContain("/t/tok-mid-payment");
+    expect(html).toContain("Payment in progress");
+    expect(html).not.toContain("No quantity");
   });
 
   test("renders email as a mailto link when present", () => {

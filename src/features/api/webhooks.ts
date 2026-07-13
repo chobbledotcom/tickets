@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { unique } from "#fp";
+import { asString, unique } from "#fp";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import {
   classifySessionIntent,
@@ -44,6 +44,7 @@ import {
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 /* jscpd:ignore-end */
+import { discardPendingCheckoutSessions } from "#shared/db/checkout-stages.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
@@ -123,15 +124,7 @@ const processSessionAndRedirect = async (
   // verified intent still holds it, rather than redirecting to the token path.
   const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
 
-  // Token persistence diverges by render path. The redirect path skips persisting
-  // (the tokens go in the URL, so storing them would leave them in the DB forever
-  // when the redirect wins the race). The direct-render path (explicit thank-you
-  // URL) does NOT put the tokens in a URL, so it MUST persist them — otherwise a
-  // reload hits the already-processed branch with no stored token and the buyer
-  // loses the ticket link.
-  const result = await processPaymentSession(sessionId, validation.data, {
-    storeTokens: explicitThankYou !== "",
-  });
+  const result = await processPaymentSession(sessionId, validation.data);
 
   if (!result.success) {
     // Log once at the redirect boundary
@@ -154,16 +147,15 @@ const processSessionAndRedirect = async (
     );
   }
 
-  // Redirect path: the tokens go in the URL, so clear any a racing webhook stored
-  // (consumed now via the redirect URL), then redirect.
+  // Redirect path: once the URL is ready, clear the persisted copy in one write.
+  // Direct-render and webhook paths retain it for a later redirect or reload.
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
+    const location = `/payment/success?tokens=${encodeURIComponent(
+      result.ticketTokens.join("+"),
+    )}`;
     await clearSessionTokens(sessionId);
-    return redirectResponse(
-      `/payment/success?tokens=${encodeURIComponent(
-        result.ticketTokens.join("+"),
-      )}`,
-    );
+    return redirectResponse(location);
   }
 
   // Already-processed session (no tokens available) - render directly. An
@@ -237,7 +229,7 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
 /**
  * Handle GET /payment/cancel (redirect after cancelled payment)
  *
- * No attendee cleanup needed - attendee is only created after successful payment.
+ * Remove the quantity-zero staged attendee after an unpaid provider return.
  */
 /** Log a payment session error with cancel context prefix */
 const logCancelError = paymentSessionErrorLogger("cancel");
@@ -253,6 +245,14 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
     return paymentErrorResponse("Payment session not found");
+  }
+
+  if (session.paymentStatus !== "paid") {
+    const discarded = await discardPendingCheckoutSessions([sid]);
+    // Close the provider session too, so an old tab cannot pay for a checkout
+    // whose staged details are gone. Best-effort — a session we fail to close
+    // (or a provider with no way to close one) simply books fresh if paid late.
+    if (discarded > 0) await provider.expireCheckoutSession?.(sid);
   }
 
   return cancelPageResponse(session, logCancelError);
@@ -390,6 +390,16 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const auth = await authenticateWebhook(request, payload, payloadBytes);
   if (auth instanceof Response) return auth;
   const { provider, listing } = auth;
+
+  // A checkout that expired unpaid can never complete: discard its staged
+  // details now instead of waiting out the prune window. The discard's
+  // "no payment has claimed this session" guard makes a race with a
+  // just-completed payment safe — it simply deletes nothing.
+  if (listing.type === provider.checkoutExpiredEventType) {
+    const expiredId = asString((listing.data.object as { id?: unknown }).id);
+    if (expiredId) await discardPendingCheckoutSessions([expiredId]);
+    return webhookAckResponse();
+  }
 
   // Only handle checkout completed listings
   if (listing.type !== provider.checkoutCompletedEventType) {

@@ -134,9 +134,8 @@ describeWithEnv(
         "cs_modifier_soldout",
         mockRefund,
       );
-      // The greedy create's visit + booking are reversed, and the quantity-0
-      // placeholder records neither, so the refunded order leaves no phantom
-      // history on the buyer's contact.
+      // The failed atomic create and quantity-0 placeholder record no activity,
+      // so the refunded order leaves no phantom history on the buyer's contact.
       const { getContactRecord, getVisits, hashEmail } = await import(
         "#shared/db/contact-preferences.ts"
       );

@@ -13,7 +13,7 @@ import { setTestEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
-import { setupListingAndAttendee } from "./helpers.ts";
+import { setupListingAndAttendee, stageMidPaymentAttendee } from "./helpers.ts";
 
 describeWithEnv(
   "server (admin attendees) > attendee detail",
@@ -29,6 +29,18 @@ describeWithEnv(
       test("returns 404 for non-existent attendee", async () => {
         const response = await adminGet("/admin/attendees/999");
         expect(response.status).toBe(404);
+      });
+
+      test("shows a mid-payment record as payment in progress", async () => {
+        const listing = await createTestListing({ unitPrice: 1000 });
+        const stage = await stageMidPaymentAttendee(listing, "cs_detail_mid");
+        const response = await adminGet(`/admin/attendees/${stage.attendeeId}`);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        // The ticket cell explains the payment is still in flight — never the
+        // "No quantity" sentinel wording, which invites an operator edit.
+        expect(html).toContain("Payment in progress");
+        expect(html).not.toContain("No quantity");
       });
 
       // Regression: looking at one attendee wrongly rendered the Attendees

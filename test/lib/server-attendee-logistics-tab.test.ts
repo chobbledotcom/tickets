@@ -24,6 +24,7 @@ import { settings } from "#shared/db/settings.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { stageTestCheckout } from "#test-utils/db-helpers/processed-payments.ts";
 import {
   deliveredListingSetup,
   logisticsTabHtml,
@@ -91,6 +92,31 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     expect(saved.name).toBe("Pin Person");
     expect(saved.email).toBe("pin@example.com");
     expect(saved.ticket_token).toBe(created.ticket_token);
+  });
+
+  test("refuses to save while the attendee's checkout is mid-payment", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    const stage = await stageTestCheckout("cs_logistics_pending", listing);
+
+    // The payment claims and rewrites the stored details when it lands, so a
+    // Logistics save now would be silently lost — it fails closed instead.
+    const response = await postLogistics(stage.attendeeId, {
+      address: "1 Lost Change Lane",
+      lat: "51.5",
+      lng: "-0.1",
+    });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toContain(
+      `/admin/attendees/${stage.attendeeId}/logistics`,
+    );
+
+    const kept = (await getAttendee(
+      stage.attendeeId,
+      await getTestPrivateKey(),
+    ))!;
+    expect(kept.address).not.toBe("1 Lost Change Lane");
+    expect(kept.lat).toBe("");
+    expect(kept.lng).toBe("");
   });
 
   test("a pinned attendee renders the pin values and a visible map", async () => {

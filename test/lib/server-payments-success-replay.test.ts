@@ -163,8 +163,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
-        // First request redirects with tokens (no stored tokens — a hidden package
-        // carries no explicit thank-you URL, so storeTokens is false).
+        // First request redirects with tokens, then clears their persisted copy.
         const response1 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_hidden_replay"),
         );

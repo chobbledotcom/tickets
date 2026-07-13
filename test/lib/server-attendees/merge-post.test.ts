@@ -12,10 +12,16 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendeeDirect,
+  getAttendeeQuantities,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { setupListingAndDirectAttendee } from "./helpers.ts";
+import {
+  setupListingAndDirectAttendee,
+  stageMidPaymentAttendee,
+} from "./helpers.ts";
 // jscpd:ignore-end
 import { getMergeVersion, mergePair, submitMerge } from "./merge.ts";
 
@@ -60,6 +66,27 @@ const runMoneyDecisionMerge = async (
     l.message.includes("merged into"),
   );
   expect(log?.message).toBe(expectedLog);
+};
+
+/** Post a merge and assert it was refused because a mid-payment record was
+ *  involved: a redirect, a "mid-payment" flash, and the staged attendee left
+ *  with its single untouched quantity-0 line. Shared by the source-side and
+ *  target-side mid-payment guard tests, which differ only in which record is
+ *  staged. */
+const expectMidPaymentMergeRefused = async (
+  mergeIntoId: number,
+  sourceToken: string,
+  stagedAttendeeId: number,
+): Promise<void> => {
+  const { response } = await adminFormPost(
+    `/admin/attendees/${mergeIntoId}/merge`,
+    { source_token: sourceToken },
+  );
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining("mid-payment"), false);
+  expect(await getAttendeeQuantities(stagedAttendeeId)).toEqual([
+    { quantity: 0 },
+  ]);
 };
 
 describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
@@ -123,6 +150,36 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         response,
         expect.stringContaining("Cannot merge an attendee with themselves"),
         false,
+      );
+    });
+
+    test("refuses a mid-payment source", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        listing.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const stage = await stageMidPaymentAttendee(listing, "cs_merge_source");
+      // The staged record is the merge SOURCE (merged from).
+      await expectMidPaymentMergeRefused(
+        target.id,
+        stage.ticketToken,
+        stage.attendeeId,
+      );
+    });
+
+    test("refuses a mid-payment target", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const stage = await stageMidPaymentAttendee(listing, "cs_merge_target");
+      const { token: sourceToken } = await setupListingAndDirectAttendee({
+        listing: { maxAttendees: 10 },
+      });
+      // The staged record is the merge TARGET (merged into).
+      await expectMidPaymentMergeRefused(
+        stage.attendeeId,
+        sourceToken,
+        stage.attendeeId,
       );
     });
 

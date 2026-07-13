@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getCheckoutStageOrNull } from "#shared/db/checkout-stages.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -10,7 +11,6 @@ import {
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
 import {
-  finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -20,6 +20,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  finalizeTestPaymentSession as finalizePaymentSession,
+  stageTestCheckout,
+} from "#test-utils/db-helpers/processed-payments.ts";
 import { consumeModifierStock } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
@@ -66,6 +70,16 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     const processed = await isSessionProcessed("sess_attendee_delete");
     expect(processed).toBeNull();
+  });
+
+  test("removes checkout stage records", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const sessionId = "sess_stage_attendee_delete";
+    const stage = await stageTestCheckout(sessionId, listing);
+
+    await deleteAttendee(stage.attendeeId);
+
+    expect(await getCheckoutStageOrNull(sessionId)).toBeNull();
   });
 
   test("releases listing aggregate totals by default", async () => {

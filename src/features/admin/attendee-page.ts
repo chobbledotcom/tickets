@@ -45,6 +45,7 @@ import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
+import { attendeeIdsWithPendingStage } from "#shared/db/checkout-stages.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -128,15 +129,16 @@ const overviewTab: TabDef<LoadedAttendee> = {
   sections: [
     {
       kind: "summary",
-      rows: ({ attendee, existing }) =>
-        Promise.resolve(
-          attendeeSummaryRows({
-            allowedDomain: getEffectiveDomain(),
-            attendee,
-            hasRealLine: existing.some((line) => line.booking.quantity > 0),
-            phonePrefix: settings.phonePrefix,
-          }),
-        ),
+      rows: async ({ attendee, existing }) =>
+        attendeeSummaryRows({
+          allowedDomain: getEffectiveDomain(),
+          attendee,
+          hasRealLine: existing.some((line) => line.booking.quantity > 0),
+          pendingCheckout: (
+            await attendeeIdsWithPendingStage([attendee.id])
+          ).has(attendee.id),
+          phonePrefix: settings.phonePrefix,
+        }),
     },
     customSection(async ({ attendee, existing }) => {
       const renderListings = await getRenderListings(existing);

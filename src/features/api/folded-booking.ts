@@ -37,6 +37,7 @@ import type { BookingTree } from "#shared/booking/tree.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
+import { createStagedCheckout } from "#shared/db/checkout-stages.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
@@ -278,7 +279,7 @@ const completeFoldedBooking = async (
     if (!available) return soldOutResponse();
     const provider = (await getActivePaymentProvider())!;
     const baseUrl = getBaseUrl(request);
-    const result = await provider.createCheckoutSession(intent, baseUrl);
+    const result = await createStagedCheckout(provider, intent, baseUrl);
     if (!result) return checkoutFailedResponse();
     return "error" in result
       ? checkoutFailedResponse(result.error)

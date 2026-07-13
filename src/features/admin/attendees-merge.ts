@@ -4,6 +4,7 @@
 
 /* jscpd:ignore-start */
 import { filter, map, pipe, unique } from "#fp";
+import { t } from "#i18n";
 import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AttendeeRouteParams } from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
@@ -19,7 +20,10 @@ import {
 } from "#shared/db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
+
+import { attendeeIdsWithPendingStage } from "#shared/db/checkout-stages.ts";
 import { queryAll } from "#shared/db/client.ts";
+
 import { syncAttendeeContactTokens } from "#shared/db/contact-tokens.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -303,6 +307,16 @@ const validateMergePostInput = async (
     };
   }
 
+  // A record that is mid-payment must stay exactly as staged: merging it (in
+  // either direction) moves or rewrites the rows the payment will claim.
+  const pending = await attendeeIdsWithPendingStage([attendeeId, source.id]);
+  if (pending.size > 0) {
+    return {
+      ok: false,
+      response: errorRedirect(actionsTab, t("admin.merge.pending_checkout")),
+    };
+  }
+
   return { ok: true, source, sourceToken };
 };
 
@@ -470,6 +484,17 @@ export const loadMergePanel = async (
       null,
       token,
       "Cannot merge an attendee with themselves",
+    );
+  }
+  // Show the block here too, so the operator never fills in a decision form
+  // the POST would refuse.
+  const pending = await attendeeIdsWithPendingStage([target.id, source.id]);
+  if (pending.size > 0) {
+    return AttendeeMergePanel(
+      target,
+      null,
+      token,
+      t("admin.merge.pending_checkout"),
     );
   }
   const diff = await buildMergeDiffFor(target, source, target.id);

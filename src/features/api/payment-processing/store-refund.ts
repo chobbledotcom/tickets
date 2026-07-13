@@ -28,17 +28,28 @@ import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { bookingDateFields } from "#routes/public/ticket-payment.ts";
+import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import type { CreateAttendeeSuccess } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { contactFields } from "#shared/db/attendees/pii.ts";
+import { updateAttendeePII } from "#shared/db/attendees/update.ts";
+import {
+  type CheckoutStage,
+  getCheckoutStageOrNull,
+  markCheckoutStage,
+} from "#shared/db/checkout-stages.ts";
 import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import type { BookingItem, ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import {
+  type PlaceholderRefundFacts,
+  recordPlaceholderRefund,
+} from "#shared/refund-ledger.ts";
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
@@ -79,6 +90,75 @@ export const datelessGhostBookings = (items: readonly BookingItem[]) =>
 type PlaceholderBookings = Parameters<
   typeof createAttendeeAtomic
 >[0]["bookings"];
+
+/** The money facts of a kept-but-unhonoured booking, read off its session:
+ * what the provider charged, whose record holds it, and the session id that
+ * keys the ledger event group. Shared by every keep-and-record path. */
+const placeholderFacts = (
+  session: ValidatedPaymentSession,
+  attendeeId: number,
+  listingId: number,
+): PlaceholderRefundFacts => ({
+  amount: session.amountTotal,
+  attendeeId,
+  eventId: session.id,
+  listingId,
+  occurredAt: businessTime(session),
+});
+
+/** Write the provider's payment reference into a kept staged record's stored
+ * details (rewriting the same contact fields staging wrote from this same
+ * signed intent), so the record's payment panel can find the charge. Every
+ * terminal outcome that keeps a staged record for a charged session stamps
+ * this — without it the operator has no in-app view of the money. */
+const stampStagedPaymentId = (
+  stage: CheckoutStage,
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+): Promise<void> =>
+  updateAttendeePII(stage.attendeeId, {
+    ...contactFields(intent),
+    lat: "",
+    lng: "",
+    payment_id: session.paymentReference,
+    ticket_token: stage.ticketToken,
+  });
+
+/** The facts identifying a charge held against a staged record: the paid
+ * session, its signed intent, the staged attendee, and the listing the money is
+ * for. These four always travel together into the money-posting helper. */
+type HeldStagedCharge = {
+  session: ValidatedPaymentSession;
+  intent: BookingIntent;
+  stage: CheckoutStage;
+  listingId: number;
+};
+
+/** Stamp the held charge's payment reference onto the staged record, then post
+ * its money to the ledger — the `payment` leg, plus `refund_cash` when the money
+ * went back. Shared by both paid-but-not-ticketed terminal paths (a mid-payment
+ * close and a mid-payment edit conflict) so neither can post one without the
+ * other. A failed ledger write is a system fault, not part of the outcome: it
+ * throws so the caller leaves the stage pending and the provider's next delivery
+ * re-runs the whole path (a settled refund reads back as refunded, so a retry
+ * never moves money twice). */
+const recordHeldStagedMoney = async (
+  { session, intent, stage, listingId }: HeldStagedCharge,
+  memo: string,
+  refunded: boolean,
+): Promise<void> => {
+  await stampStagedPaymentId(stage, session, intent);
+  const { posted } = await recordPlaceholderRefund(
+    placeholderFacts(session, stage.attendeeId, listingId),
+    memo,
+    refunded,
+  );
+  if (!posted) {
+    throw new Error(
+      `Could not record session ${session.id}'s money in the ledger`,
+    );
+  }
+};
 
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
@@ -160,26 +240,26 @@ export const storeRefundedBooking = async (
   spec: RefundSpec,
 ): Promise<PaymentFailureResult> => {
   if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
+  // Resolved here, not taken as a parameter, so no failure path can forget the
+  // session was staged and mint a duplicate placeholder beside the staged one.
+  const stage = await getCheckoutStageOrNull(session.id);
   const listingId = bookings[0]!.listingId;
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
-  const stored = await createAttendeeAtomic({
-    ...(await attendeeBaseFields(session, intent)),
-    allowOverbook: true,
-    bookings,
-  });
-  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
-    .attendees[0]!.id;
+  const attendeeId = stage
+    ? stage.attendeeId
+    : (
+        (await createAttendeeAtomic({
+          ...(await attendeeBaseFields(session, intent)),
+          allowOverbook: true,
+          bookings,
+        })) as CreateAttendeeSuccess
+      ).attendees[0]!.id;
+  if (stage) await stampStagedPaymentId(stage, session, intent);
   const refunded = await tryRefund(session.paymentReference, listingId);
   await recordPlaceholderRefund(
-    {
-      amount: session.amountTotal,
-      attendeeId,
-      eventId: session.id,
-      listingId,
-      occurredAt: businessTime(session),
-    },
+    placeholderFacts(session, attendeeId, listingId),
     spec.code,
     refunded,
   );
@@ -200,6 +280,13 @@ export const storeRefundedBooking = async (
     attendeeId,
     refundedNoteText(attendeeId, spec, refunded, session.paymentReference),
   );
+  // The stage resolves LAST — after the refund attempt and the ledger/note
+  // writes — so a throw anywhere above leaves it pending and the redelivery
+  // re-runs the whole path (tryRefund reads an already-settled refund as
+  // success, so a retry never refunds twice). A crash between the ledger post
+  // and this line is healed by the next delivery's orphaned-ledger answer,
+  // which resolves the leftover pending stage (resolvePendingStage).
+  if (stage) await markCheckoutStage(session.id);
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or
   // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
   // refund retry — the booking exists, so a retry can't re-create it), and the
@@ -215,20 +302,141 @@ export const storeRefundedBooking = async (
   };
 };
 
+/** Every honour failure that is safe to refund. "stage_active" is deliberately
+ * excluded: its rows may be a live booking, so the money must wait for the
+ * operator ({@link stagedConflict}) — the type makes routing it here an error. */
+export type RefundableFailure = Extract<HonourResult, { ok: false }> & {
+  reason: Exclude<
+    Extract<HonourResult, { ok: false }>["reason"],
+    "stage_active"
+  >;
+};
+
 /** The refund reason code for each way a booking we tried can fail: a sold-out
- *  extra reads differently from a full event, and the broken-system
- *  encryption_error we don't special-case is treated as "the event filled up". */
-const FAILURE_REFUND_CODES: Record<
-  Extract<HonourResult, { ok: false }>["reason"],
-  RefundCode
-> = {
+ *  extra reads differently from a full event, the broken-system
+ *  encryption_error we don't special-case is treated as "the event filled up",
+ *  and changed staged lines (still all quantity 0, so nothing is live) read as
+ *  "the booking changed". */
+const FAILURE_REFUND_CODES: Record<RefundableFailure["reason"], RefundCode> = {
   capacity_exceeded: "capacity_full",
   encryption_error: "capacity_full",
   sold_out: "sold_out",
+  stage_mismatch: "order_changed",
 };
 
 /** The placeholder refund reason for a booking we tried but couldn't honour. */
-export const specForFailure = (
-  failure: Extract<HonourResult, { ok: false }>,
-): RefundSpec =>
+export const specForFailure = (failure: RefundableFailure): RefundSpec =>
   refundSpec(FAILURE_REFUND_CODES[failure.reason])(failure.detail);
+
+/**
+ * After a known-listing validation failure refunds a session (closed or
+ * deactivated mid-payment — the refund happened in validateAllItems), resolve
+ * the stage: mark it failed and leave the usual refunded-booking note on the
+ * staged attendee, which IS the operator's record of the order. Without this
+ * the stage stayed "pending", which both hid the story from the operator and
+ * held the staged PII shielded from the prune for as long as the payment row
+ * lived. A session with no stage passes through unchanged.
+ */
+export const failStagedValidation = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  listingId: number,
+  result: PaymentFailureResult,
+): Promise<PaymentFailureResult> => {
+  const stage = await getCheckoutStageOrNull(session.id);
+  if (!stage) return result;
+  // A refund that FAILED must stay retryable: the reservation is released and
+  // the provider's next delivery re-attempts it. Resolving the stage here
+  // would make that retry hit the resolved-stage guard and answer "already
+  // processed" without ever refunding — so the stage only resolves once the
+  // money is actually back.
+  if (result.refunded !== true) return result;
+  // The staged attendee is the operator's record of the order, so its ledger
+  // must show the charge and the refund that actually happened — the same
+  // payment + refund_cash round-trip every other kept-and-refunded booking
+  // records.
+  await recordHeldStagedMoney(
+    { intent, listingId, session, stage },
+    "listing_closed",
+    true,
+  );
+  await createSystemNote(
+    stage.attendeeId,
+    refundedNoteText(
+      stage.attendeeId,
+      refundSpec("listing_closed")(result.detail ?? result.error),
+      true,
+      session.paymentReference,
+    ),
+  );
+  // Resolved last: a throw above leaves the stage pending, so the redelivery
+  // re-runs this path (the settled refund reads back as refunded). A crash
+  // between the ledger post and this line is healed by the next delivery's
+  // orphaned-ledger answer (resolvePendingStage).
+  await markCheckoutStage(session.id);
+  return result;
+};
+
+/** What the customer reads when their paid order needs the organiser's eyes:
+ * we neither issue a ticket nor promise a refund, because the operator decides. */
+const NEEDS_ORGANISER_MESSAGE =
+  "Your payment was received, but this booking needs to be confirmed by the organiser. Please contact them.";
+
+/** The operator-facing note for a staged order whose rows were already given a
+ * real quantity outside payment. PII-free; carries the payment reference so the
+ * charge can be found in the provider dashboard. */
+const stagedConflictNote = (paymentReference: string): string =>
+  `This booking was changed while its payment was still being processed, so the payment could not complete automatically. The payment was NOT refunded. Please check the booking's quantities, then either confirm the booking with the customer or refund the payment manually. Payment reference: ${paymentReference} (code: stage_active).`;
+
+/**
+ * A paid session whose staged rows were already given a real quantity outside
+ * the payment flow (an operator edit mid-checkout). The rows may be a live
+ * booking, so this must NOT refund (money back beside a live ticket is the
+ * exact failure the staged flow exists to prevent) and must NOT re-claim the
+ * rows (double-counting capacity and money). Instead the money waits for the
+ * operator: a loud classified error, a note on the booking's own record, and a
+ * terminal handled outcome so every replay answers the same.
+ */
+export const stagedConflict = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  stage: CheckoutStage,
+  listingId: number,
+  detail: string,
+): Promise<PaymentFailureResult> => {
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail,
+    listingId,
+  });
+  await createSystemNote(
+    stage.attendeeId,
+    stagedConflictNote(session.paymentReference),
+  );
+  // The charge we hold is a money fact the operator reconciles against: stamp
+  // the payment reference (so the record's payment panel and in-app refund
+  // work) and post the received `payment` leg — no sale and no refund, so the
+  // ledger says exactly "we hold this customer's money". Posted before the
+  // stage resolves: a crash in between replays off the ledger preflight as
+  // "already handled" (the conflicted rows never carry this session's event
+  // group, so the leg reads as orphaned money) — never a double post, and the
+  // preflight resolves the leftover pending stage (resolvePendingStage).
+  await recordHeldStagedMoney(
+    { intent, listingId, session, stage },
+    "stage_active",
+    false,
+  );
+  // The outcome is recorded, so the stage resolves: the operator must now be
+  // ABLE to edit the record to act on the note (a pending stage blocks edits
+  // and merges), and a very late redelivery answers "already processed".
+  await markCheckoutStage(session.id);
+  // Status 200: a recorded, operator-owned terminal outcome. The webhook acks
+  // it (retrying cannot resolve a human decision), and `refunded` stays absent
+  // so the customer message carries no refund promise either way.
+  return {
+    detail,
+    error: NEEDS_ORGANISER_MESSAGE,
+    status: 200,
+    success: false,
+  };
+};

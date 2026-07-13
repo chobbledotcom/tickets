@@ -32,25 +32,22 @@ describe("test-utils — listing & attendee factories", () => {
       expect(attendee.id).toBeGreaterThan(0);
     });
 
-    test("rolls back the partial booking and fails loudly when a listing can't take it", async () => {
+    test("fails loudly and leaves no booking when a listing can't take the order", async () => {
       const open = await createTestListing({ maxAttendees: 10 });
       const full = await createTestListing({ maxAttendees: 1, name: "Full" });
       await bookTestAttendee([full.id], "Filler"); // uses the only spot
 
       await expect(
         bookTestAttendee([open.id, full.id], "Partial"),
-      ).rejects.toThrow("Failed to book test attendee onto all 2 listing(s)");
+      ).rejects.toThrow("Failed to create attendee: capacity_exceeded");
 
-      // The booking that DID land on `open` is rolled back, so no stray
-      // attendee is left occupying capacity or skewing later assertions.
+      // The atomic batch leaves no attendee occupying capacity.
       const { getAttendeesRaw } = await import(
         "#shared/db/attendees/queries.ts"
       );
       expect((await getAttendeesRaw(open.id)).length).toBe(0);
 
-      // Regression: the rollback must also reverse the contact-activity count
-      // that the greedy create recorded — under the same source — or the
-      // contact keeps a booking that no longer exists.
+      // Regression: an order that did not commit records no contact activity.
       const { getContactCountFields, hashEmail } = await import(
         "#shared/db/contact-preferences.ts"
       );

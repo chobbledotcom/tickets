@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
+import { stageCheckout } from "#shared/db/checkout-stages.ts";
 import type { Answer, Question } from "#shared/db/question-types.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
@@ -12,6 +13,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
 } from "#test-utils/assertions.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import {
   buildAttendeeEditForm,
   createTestAttendee,
@@ -21,6 +23,27 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+
+/** Stage a paid checkout for `listing` (a quantity-0 attendee plus a pending
+ *  checkout stage), as if the customer were on the provider's payment page.
+ *  The admin-mutation guard tests all build their mid-payment record here. */
+export const stageMidPaymentAttendee = (
+  listing: { id: number; name: string; slug: string },
+  sessionId: string,
+): ReturnType<typeof stageCheckout> =>
+  stageCheckout(
+    sessionId,
+    "stripe",
+    checkoutIntent({
+      items: [
+        checkoutItem({
+          listingId: listing.id,
+          name: listing.name,
+          slug: listing.slug,
+        }),
+      ],
+    }),
+  );
 
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
  *  Doe" by default). The single most repeated setup across the attendee admin

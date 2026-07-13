@@ -11,7 +11,10 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendeeDirect,
+  getAttendeeQuantities,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
@@ -28,6 +31,7 @@ import {
   expectFlashPage,
   firstAttendee,
   setupListingAndAttendee,
+  stageMidPaymentAttendee,
   submitAttendeeEdit,
 } from "./helpers.ts";
 
@@ -113,6 +117,24 @@ describeWithEnv(
         const html = await response.text();
         expect(html).toContain("Name is required");
         expect(html).toContain(returnUrl);
+      });
+
+      test("refuses edits while the record is mid-payment", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 10,
+          unitPrice: 1000,
+        });
+        const stage = await stageMidPaymentAttendee(listing, "cs_edit_guard");
+        const response = await submitAttendeeEdit(stage.attendeeId, {
+          name: "Edited Anyway",
+        });
+        // The guard re-renders the form with the block message; nothing saves.
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain("This booking is mid-payment");
+        // The staged rows the payment will claim are untouched.
+        expect(await getAttendeeQuantities(stage.attendeeId)).toEqual([
+          { quantity: 0 },
+        ]);
       });
 
       test("rejects whitespace-only name", async () => {

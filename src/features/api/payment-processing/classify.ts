@@ -12,6 +12,7 @@ import type {
   SignedVerdict,
 } from "#routes/api/webhook-types.ts";
 import { paymentErrorResponse } from "#routes/payment-response.ts";
+import { discardPendingCheckoutSessions } from "#shared/db/checkout-stages.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -135,6 +136,7 @@ export const validatePaidSession = async (
   // URL for every outcome, so a card decline lands here. Show the friendly
   // cancel/try-again page, not a "contact support" error.
   if (session.paymentStatus === "failed") {
+    await discardPendingCheckoutSessions([sessionId]);
     return {
       ok: false,
       response: await cancelPageResponse(session, logRedirectError),

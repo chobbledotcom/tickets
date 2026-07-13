@@ -131,9 +131,16 @@ describeWithEnv(
   },
 );
 
-describeWithEnv("server (scheduled tasks): not a builder", { db: true }, () => {
-  test("POST does not poke built sites when not a builder", async () => {
-    await insertBuiltSite("Client", "client.b-cdn.net");
-    await expectPostScheduledPokesNothing();
-  });
-});
+// CAN_BUILD_SITES is pinned OFF, not left ambient: this file shares an isolate
+// with builder tests that switch the flag on, and a leaked "true" would make
+// this instance poke (the exact thing being tested against).
+describeWithEnv(
+  "server (scheduled tasks): not a builder",
+  { db: true, env: { CAN_BUILD_SITES: undefined } },
+  () => {
+    test("POST does not poke built sites when not a builder", async () => {
+      await insertBuiltSite("Client", "client.b-cdn.net");
+      await expectPostScheduledPokesNothing();
+    });
+  },
+);

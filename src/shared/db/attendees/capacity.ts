@@ -50,6 +50,12 @@ export const dateToStartEnd = (
   return { endAt: range.endAt, startAt: range.startAt };
 };
 
+/** The stored start timestamp for a booking line. */
+export const bookingStartAt = (
+  booking: Pick<ListingBooking, "date" | "durationDays">,
+): string | null =>
+  dateToStartEnd(booking.date ?? null, booking.durationDays ?? 1).startAt;
+
 type RemainingMap = Map<number, number>;
 
 /** Distinct group ids worth a cap lookup — positive only (0 = ungrouped). */

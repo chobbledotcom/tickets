@@ -60,6 +60,7 @@ describeWithEnv(
         );
         // Should show "contact support" since refund failed (no payment reference)
         expect(html).toContain("contact support");
+        expect(html).not.toContain("automatically refunded");
       } finally {
         mockRetrieve.restore();
       }

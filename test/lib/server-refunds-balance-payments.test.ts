@@ -4,10 +4,7 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
-import {
-  finalizeSession as finalizePaymentSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
   expectFlashRedirect,
@@ -16,6 +13,7 @@ import {
 import { settle } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizePaymentSession } from "#test-utils/db-helpers/processed-payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import {

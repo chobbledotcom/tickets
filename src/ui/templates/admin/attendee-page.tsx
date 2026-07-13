@@ -79,11 +79,15 @@ export const attendeeSummaryRows = ({
   allowedDomain,
   phonePrefix,
   hasRealLine,
+  pendingCheckout,
 }: {
   attendee: Attendee;
   allowedDomain: string;
   phonePrefix: string;
   hasRealLine: boolean;
+  /** True while this record's checkout is staged and the customer may still be
+   * paying — the ticket cell then says so instead of "No quantity". */
+  pendingCheckout: boolean;
 }): SummaryRow[] =>
   compact([
     { labelKey: "common.name", value: attendee.name },
@@ -129,7 +133,9 @@ export const attendeeSummaryRows = ({
           labelKey: "terms.ticket",
           value: (
             <span class="muted small">
-              {t("admin.attendee_table.no_quantity")}
+              {pendingCheckout
+                ? t("admin.attendee_table.payment_in_progress")
+                : t("admin.attendee_table.no_quantity")}
             </span>
           ),
         },

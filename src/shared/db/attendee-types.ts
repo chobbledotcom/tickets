@@ -38,7 +38,6 @@ export type EncryptedAttendeeData = {
 /** Input for encrypting attendee fields */
 export type EncryptInput = ContactInfo & {
   paymentId: string;
-  pricePaid: number;
 };
 
 /** Input for building an Attendee result from an insert */
@@ -64,6 +63,15 @@ export type BuildAttendeeInput = ContactInfo & {
 export type CreateAttendeeResult =
   | { success: true; attendees: Attendee[] }
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
+
+/** The success arm of an atomic create, for call sites whose input makes
+ * failure impossible: a quantity-0 overbook insert has no capacity gate, and
+ * if the PII can't encrypt the whole system is already broken — we don't
+ * defend against that. */
+export type CreateAttendeeSuccess = Extract<
+  CreateAttendeeResult,
+  { success: true }
+>;
 
 /** A single listing booking within a multi-listing attendee creation */
 export type ListingBooking = {
@@ -114,6 +122,9 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
+  /** Exact ticket token to encrypt and index. Paid recovery prepares this once;
+   * other create paths omit it and receive a fresh token. */
+  ticketToken?: string;
 };
 
 /** Row from listing_attendees — per-listing booking data */

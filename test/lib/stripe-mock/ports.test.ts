@@ -140,10 +140,15 @@ describe("startStripeMock ports", () => {
   test("surfaces stderr when the spawned mock fails", async () => {
     await withTempStripeMockPaths(async (paths) => {
       await writeFailingMock(paths, "wrong binary");
+      // A generous poll budget: the wait loop returns the moment the child's
+      // exit is observed, so this normally takes one script run (~60ms). A
+      // tight budget flakes on a loaded runner — the harness can give up and
+      // kill the script before its echo runs, and the stderr this test
+      // exists to see is then never written.
       await expectStripeMockFails(
         {
-          delayMs: 10,
-          maxAttempts: 10,
+          delayMs: 20,
+          maxAttempts: 100,
           paths,
         },
         `${STRIPE_MOCK_FAILED_TO_START}: wrong binary`,

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  pruneCheckoutStages,
   pruneContacts,
   pruneLoginAttempts,
   pruneOrphanAttendees,
@@ -12,6 +13,7 @@ import {
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  PRUNE_CHECKOUT_STAGES_RETENTION_MS,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
@@ -27,6 +29,7 @@ import {
   insertContactPreference,
   insertLoginAttempt,
   insertOrphanAttendee,
+  insertPendingCheckoutStage,
   insertString,
   insertSumupCheckout,
   insertTokenAttempt,
@@ -38,6 +41,28 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("db > table pruning", { db: true }, () => {
+  describe("pruneCheckoutStages", () => {
+    test("deletes pending checkout PII older than retention", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_CHECKOUT_STAGES_RETENTION_MS - 60_000,
+      ).toISOString();
+      const attendeeId = await insertPendingCheckoutStage("stage_old", old);
+
+      expect(await pruneCheckoutStages()).toBe(1);
+      expect(await attendeeExists(attendeeId)).toBe(false);
+    });
+
+    test("keeps pending checkout PII within retention", async () => {
+      const attendeeId = await insertPendingCheckoutStage(
+        "stage_recent",
+        new Date(nowMs() - 1000).toISOString(),
+      );
+
+      expect(await pruneCheckoutStages()).toBe(0);
+      expect(await attendeeExists(attendeeId)).toBe(true);
+    });
+  });
+
   describe("pruneSumupCheckouts", () => {
     test("deletes checkout metadata older than retention window", async () => {
       const old = new Date(

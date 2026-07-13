@@ -190,8 +190,8 @@ export const MAX_DURATION_DAYS = 90;
  * agree by construction. Idempotent, so applying it to an already-normalized
  * value (e.g. a column-clamped `listing.duration_days`) is a safe no-op.
  */
-export const normalizeDurationDays = (value: number): number =>
-  Number.isFinite(value)
+export const normalizeDurationDays = (value: number | undefined): number =>
+  typeof value === "number" && Number.isFinite(value)
     ? Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(value)))
     : 1;
 

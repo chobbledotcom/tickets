@@ -17,8 +17,8 @@ import type {
   PricedLine,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
-import { createBookingAtomic } from "#shared/db/attendees/api.ts";
-import type { BookingBatchPlan } from "#shared/db/attendees/create.ts";
+import { createBookingAtomic as createBookingAtomicImpl } from "#shared/db/attendees/api.ts";
+import type { BookingBatchPlan } from "#shared/db/attendees/create-batch.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne, withTransaction } from "#shared/db/client.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
@@ -29,6 +29,11 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+
+const createBookingAtomic = (
+  input: Parameters<typeof createBookingAtomicImpl>[0],
+  plan: Parameters<typeof createBookingAtomicImpl>[1],
+) => createBookingAtomicImpl({ ...input, ticketToken: "BATCHTOKEN" }, plan);
 
 /** Narrow a createBookingAtomic result to the successful shape, or fail the test. */
 const expectBookingOk = (
@@ -104,11 +109,12 @@ const buildPlan = async (opts: {
     total: opts.total ?? 0,
   });
   const plan = await bookingBatchPlan(
+    null,
     usages,
     { eventId: opts.eventId, occurredAt: OCCURRED_AT, pricedOrder },
     opts.sessionId
       ? { paymentReference: `pi_${opts.sessionId}`, sessionId: opts.sessionId }
-      : undefined,
+      : null,
   );
   return { plan, pricedOrder };
 };
@@ -366,6 +372,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       sessionId: "sess_batch_existing_ledger",
       total: 500,
     });
+    plan.legs = [plan.legs[0]!];
     await postTransfers(plan.legs);
 
     await expectCapacityExceeded(plan, listing.id, 500, plan.legs.length);
@@ -374,7 +381,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     ).toBe(null);
   });
 
-  test("posts no legs and does not finalize when a multi-listing cart only partly lands", async () => {
+  test("rolls back every row when a multi-listing cart only partly lands", async () => {
     const open = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
     const full = await createTestListing({ maxAttendees: 0, unitPrice: 500 });
     const { plan } = await buildPlan({
@@ -397,10 +404,9 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       plan,
     );
 
-    // Greedy create: the open listing's booking landed, the full one didn't.
-    expect(expectBookingOk(result).attendees.length).toBe(1);
-    // The all-bookings-landed guard held back every leg and the finalize, so the
-    // caller's ensureAllBookings can roll the partial booking back cleanly.
+    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+    expect(await getAttendeesRaw(open.id)).toEqual([]);
+    expect(await getAttendeesRaw(full.id)).toEqual([]);
     expect((await allTransfers()).length).toBe(0);
     expect((await isSessionProcessed("sess_batch_partial"))!.attendee_id).toBe(
       null,

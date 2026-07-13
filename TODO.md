@@ -338,26 +338,14 @@ existing ticket?) and likely adding payment-intent uniqueness — out of scope f
 a test-only file split. Starting point: `src/features/api/payment-processing.ts`
 (the `/payment/success` finalize path) and `#shared/db/processed-payments.ts`.
 
-## Payment-processing review follow-ups (from PR #1692)
+## Payment-processing review follow-up (from PR #1692)
 
-Both items describe behaviour that predates the payment-processing split (the
-code was moved verbatim from the old `payment-processing.ts` monolith). They are
+This item describes behaviour that predates the payment-processing split (the
+code was moved verbatim from the old `payment-processing.ts` monolith). It is
 recorded here because the split PR was a pure reorganisation — changing this
-behaviour there would be out of scope — and CodeRabbit flagged them as worth a
-look.
+behaviour there would have been out of scope — and CodeRabbit flagged it as
+worth a look.
 
-- **Refund after a committed booking** (`src/features/api/payment-processing/index.ts`,
-  the `try { honoured = await createAttendeeForSession(...) } catch` in
-  `processReservedSession`). `createAttendeeForSession` commits the attendee +
-  bookings atomically, then runs `ensureAllBookings` (a post-commit read). If
-  that post-write step *threw*, the `catch` would route to `storeRefundedBooking`
-  — refunding a booking that actually persisted. Today `ensureAllBookings`
-  returns a structured `{ ok: false }` rather than throwing on the capacity path,
-  so the window is theoretical, but it isn't guarded structurally. Fix direction:
-  narrow the `try` to the pre-commit call only, or guarantee the post-commit
-  cleanup path is non-throwing, so a persisted booking can never be refunded.
-  Add a regression test that makes the post-commit step throw and asserts no
-  refund is issued.
 - **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
   `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
   `validateAllItems` calls `getListingWithCount` once per item in a loop, and
@@ -1006,3 +994,47 @@ Follow-up: give each variable's description its own locale key under a new
 (these are developer/operator reference docs for a technical feature, and the
 i18n-coverage gate doesn't flag them), but worth doing when this settings surface
 is next touched. Keep the copy plain per the Simple-Language rules.
+
+## Deferred from the staged-checkout hardening PR (review of PR #1764)
+
+*Origin: the adversarial review of the staged-checkout branch. These were
+verified as accurate findings but deferred because each trades a small win
+against real churn or a redesign of a money path; the hardening PR stayed
+scoped to the confirmed bugs.*
+
+- **Batch `activateStagedBooking`'s interactive transaction.** It holds the
+  primary write lock across one round-trip per statement (pii update, N booking
+  updates, M usage inserts, legs, finalize, stage mark) plus in-transaction
+  crypto (`batchFinalizeStatement` encrypts inside the lock). The batch-with-
+  guards shape in `create-batch.ts` (`BOOKING_WRITE_GUARD`-style `changes()=0`
+  probes instead of `rowsAffected` checks) would make the whole activation one
+  round trip. Substantive rework of a money path — do it with its own focused
+  mutation run.
+- **Thread already-loaded listings into `stageCheckout`.** `stagedBookings`
+  re-fetches (and re-decrypts) the order's listings that all four
+  `createStagedCheckout` call sites already hold. Threading them through saves
+  one SELECT per paid checkout start but adds a parameter every future checkout
+  entry must supply correctly, and deletes the "listing vanished before
+  staging" freshness throw — weigh both before doing it.
+- **Batch the two-execute spots.** `store-refund.ts`'s staged path
+  (`updateAttendeePII` then `markCheckoutStage`) and `recordOrderActivity`'s
+  email+phone upserts each fire sequential single executes. Both are
+  replay-healed (verified), so this is round-trip thrift, not correctness; it
+  needs the helpers restructured to return statements instead of executing.
+- **One shared "session returned unpaid" resolver.** The cancel path discards
+  on `paymentStatus !== "paid"` while classify discards only on `"failed"` —
+  deliberate today ("unpaid" can still complete on the success path), but the
+  next provider integration should not have to rediscover that asymmetry.
+- **Reuse #1775's `createSystemNoteOnce` for stranded-refund note dedup** once
+  that PR merges — the store-refund replay path can stack an identical system
+  note on a redelivery after a mid-flight crash (rare, replay-healed).
+- **`defineTable`-ize `checkout_stages`** (hand-written row type + mapping in
+  `checkout-stages.ts`) when the table next grows a column.
+- **Rebuild refund placeholders from the signed lines on `stage_mismatch`.**
+  A refused staged order keeps its rows as stored; with the admin guard those
+  rows can no longer be operator-edited while pending, so the realistic
+  mismatch sources are derived-key changes (listing type flips, parent-edge
+  changes) where the rows still name the customer's exact listings and
+  quantities. If a real divergence source ever appears, re-write the
+  placeholder rows from the signed intent before refunding, so the operator
+  record always mirrors what was paid for. (Raised by Codex on PR #1802.)

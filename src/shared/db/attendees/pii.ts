@@ -14,8 +14,8 @@ import {
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { generateTicketToken } from "#shared/crypto/utils.ts";
 import type {
+  AttendeeInput,
   AttendeePii,
   EncryptedAttendeeData,
   EncryptInput,
@@ -28,6 +28,26 @@ import type { ContactInfo, PiiBlob } from "#shared/types.ts";
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
+
+/** The five stored contact fields from an attendee write, with the optional
+ * ones defaulted to "". Shared by the create result and the encryption input so
+ * both read the same contact shape from one place. */
+export const attendeeContactInfo = (input: AttendeeInput): ContactInfo => ({
+  address: input.address ?? "",
+  email: input.email,
+  name: input.name,
+  phone: input.phone ?? "",
+  special_instructions: input.special_instructions ?? "",
+});
+
+/** Project one attendee write into the fields stored in its encrypted PII. */
+export const attendeeEncryptionInput = (
+  input: AttendeeInput,
+  paymentId: string,
+): EncryptInput => ({
+  ...attendeeContactInfo(input),
+  paymentId,
+});
 
 /** Build a PII blob JSON from contact fields. An unpinned latitude/longitude
  * ("") is left out of the JSON so blobs without a pin stay as small as before. */
@@ -157,14 +177,28 @@ export const contactFields = ({
   special_instructions,
 });
 
+/** The fields every freshly-built attendee echo carries with the same fixed
+ * values: a new booking is un-checked-in, un-refunded, and location-less, and
+ * the encrypted blob is never echoed back. Shared by the create result and the
+ * committed-rows recovery read, so the two projections cannot drift. */
+export const ATTENDEE_ECHO_DEFAULTS = {
+  attachment_downloads: 0,
+  checked_in: false,
+  lat: "",
+  lng: "",
+  pii_blob: "",
+  refunded: false,
+  split_logistics_agents: false,
+} as const;
+
 /** Encrypt attendee fields into a PII blob, returning null if key not configured */
 export const encryptAttendeeFields = async (
   input: EncryptInput,
+  ticketToken: string,
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = settings.publicKey;
   if (!publicKeyJwk) return null;
 
-  const ticketToken = generateTicketToken();
   // Bookings never carry a pinned location — lat/lng are admin-side only.
   const piiJson = buildPiiBlob({
     ...contactFields(input),

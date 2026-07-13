@@ -17,7 +17,6 @@ import {
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import {
-  finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -35,6 +34,7 @@ import {
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizePaymentSession } from "#test-utils/db-helpers/processed-payments.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {

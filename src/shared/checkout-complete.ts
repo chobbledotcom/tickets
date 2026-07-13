@@ -20,7 +20,7 @@ import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type {
   BookingBatchPlan,
   LedgerPoster,
-} from "#shared/db/attendees/create.ts";
+} from "#shared/db/attendees/create-batch.ts";
 import { type TxScope, update } from "#shared/db/client.ts";
 import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { nowIso } from "#shared/now.ts";
@@ -40,14 +40,15 @@ const BATCH_LEG_ATTENDEE_PLACEHOLDER = 1;
  * the same batch. The paid path keys `eventId` on its payment session id, so the
  * legs are attendee-id-independent and can be built before the attendee exists. */
 export const bookingBatchPlan = async (
+  attendeeId: number | null,
   usages: ModifierUsage[],
   ledger: { pricedOrder: PricedOrder; occurredAt: string; eventId: string },
-  finalize?: { paymentReference: string; sessionId: string },
+  finalize: { paymentReference: string; sessionId: string } | null,
 ): Promise<BookingBatchPlan> => ({
-  ...(finalize !== undefined ? { finalize } : {}),
+  finalize,
   legs: await mapBooking(
     bookingFactsFromOrder(ledger.pricedOrder, {
-      attendeeId: BATCH_LEG_ATTENDEE_PLACEHOLDER,
+      attendeeId: attendeeId ?? BATCH_LEG_ATTENDEE_PLACEHOLDER,
       eventId: ledger.eventId,
       occurredAt: ledger.occurredAt,
     }),

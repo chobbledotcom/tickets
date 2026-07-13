@@ -2,11 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import {
-  hashEmail,
-  hashPhone,
-  recordVisit,
-} from "#shared/db/contact-preferences.ts";
+import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
 import {
   ADDON_MAX_QUANTITY,
   type AddOnReachabilityCheck,
@@ -27,6 +23,7 @@ import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { seedContactVisits } from "#test-utils/db-helpers/contacts.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   consumeModifierStock,
@@ -519,9 +516,8 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     });
 
     test("reads the max visit count across email and phone", async () => {
-      await recordVisit(await hashEmail("seen@example.com"));
-      await recordVisit(await hashPhone("07700 900123"));
-      await recordVisit(await hashPhone("07700 900123"));
+      await seedContactVisits(await hashEmail("seen@example.com"));
+      await seedContactVisits(await hashPhone("07700 900123"), 2);
 
       expect(await buyerVisits("seen@example.com", "07700 900123")).toBe(2);
     });

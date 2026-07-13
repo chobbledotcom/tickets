@@ -336,6 +336,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-12_remove_broken_image_records",
     () => import("./2026-07-12_remove_broken_image_records.ts"),
   ),
+  // Store fresh paid orders at quantity zero before leaving for the provider.
+  entry(
+    "2026-07-12_checkout_stages",
+    () => import("./2026-07-12_checkout_stages.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

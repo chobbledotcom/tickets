@@ -1,23 +1,24 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
   decryptSessionTokens,
-  finalizeSession as finalizePaymentSession,
   finalizeSessionIfUnresolved,
   isSessionProcessed,
+  isUnresolvedReservation,
   markSessionFailed,
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
-  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizePaymentSession } from "#test-utils/db-helpers/processed-payments.ts";
 import { expectRefundReferences } from "#test-utils/payment-references.ts";
 
 const finalizeSession = (
@@ -186,29 +187,33 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("re-throws non-unique-constraint errors", async () => {
-      await getDb().execute("DROP TABLE processed_payments");
-
-      try {
-        await reserveSession("sess_error");
-        throw new Error("should not reach here");
-      } catch (e) {
-        expect(String(e)).not.toContain("should not reach here");
-        expect(String(e)).not.toContain("UNIQUE constraint");
-      }
-
-      // Recreate the table for subsequent tests
       await getDb().execute(`
-        CREATE TABLE IF NOT EXISTS processed_payments (
-          payment_session_id TEXT PRIMARY KEY,
-          attendee_id INTEGER,
-          processed_at TEXT NOT NULL,
-          ticket_tokens TEXT NOT NULL DEFAULT '',
-          failure_data TEXT NOT NULL DEFAULT '',
-          payment_reference TEXT NOT NULL DEFAULT '',
-          provider_refunded_at TEXT NOT NULL DEFAULT '',
-          FOREIGN KEY (attendee_id) REFERENCES attendees(id)
-        )
+        CREATE TRIGGER reject_processed_payment_insert
+        BEFORE INSERT ON processed_payments
+        BEGIN
+          SELECT RAISE(ABORT, 'synthetic insert failure');
+        END
       `);
+
+      await expect(reserveSession("sess_error")).rejects.toThrow(
+        "synthetic insert failure",
+      );
+    });
+
+    test("recognizes only attendee-less, outcome-less reservations as unresolved", async () => {
+      await reserveSession("sess_unresolved_shape");
+      const reserved = (await isSessionProcessed("sess_unresolved_shape"))!;
+
+      expect(isUnresolvedReservation(reserved)).toBe(true);
+      expect(isUnresolvedReservation({ ...reserved, attendee_id: 1 })).toBe(
+        false,
+      );
+      expect(
+        isUnresolvedReservation({
+          ...reserved,
+          failure_data: "recorded" as EnvKeyEncrypted,
+        }),
+      ).toBe(false);
     });
   });
 
@@ -217,8 +222,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     // unit test binds it as a literal `?` and uses a trivially-true guard, so it
     // exercises the UNRESOLVED + guard gating without an in-batch attendee row.
     const trueGuard = { args: [] as never[], sql: "1 = 1" };
-
-    test("sets attendee_id and clears ticket_tokens on an unresolved reservation", async () => {
+    test("sets the attendee and encrypted ticket token on an unresolved reservation", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const attendeeResult = await bookAttendee(listing, {
         email: "fss@example.com",
@@ -228,12 +232,17 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       const attendeeId = attendeeResult.attendees[0]!.id;
 
       await reserveSession("sess_fss");
+      await getDb().execute(
+        "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
+        [await encrypt("tok-replacement"), "sess_fss"],
+      );
       const stmt = await batchFinalizeStatement(
         "sess_fss",
         "?",
         attendeeId,
         trueGuard,
         "pi_fss",
+        "tok-fss",
       );
       await getDb().execute(stmt);
 
@@ -241,7 +250,8 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(row!.attendee_id).toBe(attendeeId);
       expect(row!.payment_reference).not.toContain("pi_fss");
       await expectRefundReferences(attendeeId, ["pi_fss"]);
-      expect(row!.ticket_tokens).toBe("");
+      expect(row!.ticket_tokens).not.toContain("tok-fss");
+      expect(await decryptSessionTokens(row!.ticket_tokens)).toBe("tok-fss");
     });
 
     test("is a no-op when the session is already finalized", async () => {
@@ -263,6 +273,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         attendeeId + 999,
         trueGuard,
         "pi_second",
+        "tok-second",
       );
       await getDb().execute(stmt);
 
@@ -292,6 +303,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           sql: "1 = 0",
         },
         "pi_fss3",
+        "tok-fss3",
       );
       await getDb().execute(stmt);
 
@@ -301,42 +313,29 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
   });
 
-  describe("setSessionTicketTokens", () => {
-    test("stores encrypted ticket tokens on a finalized session", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendeeResult = await bookAttendee(listing, {
-        email: "stt@example.com",
-        name: "Stt",
-      });
-      if (!attendeeResult.success) throw new Error("setup failed");
-      const attendeeId = attendeeResult.attendees[0]!.id;
-
-      await reserveSession("sess_stt");
-      await finalizeSession("sess_stt", attendeeId, ["tok-test"]);
-      await setSessionTicketTokens("sess_stt", ["tok-abc"]);
-
-      const row = await isSessionProcessed("sess_stt");
-      // ticket_tokens is stored encrypted, not as plaintext
-      expect(row!.ticket_tokens).not.toBe("");
-      expect(row!.ticket_tokens).not.toContain("tok-abc");
-    });
-
-    test("is a no-op if the session was pruned", async () => {
-      // Should not throw even when the session row is absent
-      await setSessionTicketTokens("sess_nonexistent", ["tok-abc"]);
-    });
-  });
-
   describe("finalizeSessionIfUnresolved", () => {
     test("stamps attendee_id on an unresolved reservation, leaving tokens untouched", async () => {
       await reserveSession("sess_heal");
 
-      await finalizeSessionIfUnresolved("sess_heal", 42);
+      await finalizeSessionIfUnresolved("sess_heal", 42, "");
 
       const row = (await isSessionProcessed("sess_heal"))!;
       expect(row.attendee_id).toBe(42);
       // The ledger-replay heal never writes ticket_tokens.
       expect(row.ticket_tokens).toBe("");
+      expect(row.payment_reference).toBe("");
+    });
+
+    test("stores a supplied payment reference on the healed reservation", async () => {
+      await reserveSession("sess_heal_reference");
+
+      await finalizeSessionIfUnresolved(
+        "sess_heal_reference",
+        42,
+        "pi_heal_reference",
+      );
+
+      await expectRefundReferences(42, ["pi_heal_reference"]);
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {
@@ -347,7 +346,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // The replaying delivery tries to heal it to a different attendee; the
       // unresolved guard must make it a no-op so it never clobbers the winner's
       // ticket_tokens (which would render the success page without the ticket).
-      await finalizeSessionIfUnresolved("sess_raced", 99);
+      await finalizeSessionIfUnresolved("sess_raced", 99, "");
 
       const row = (await isSessionProcessed("sess_raced"))!;
       expect(row.attendee_id).toBe(7);
@@ -355,7 +354,11 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("is a no-op if the session was pruned", async () => {
-      await finalizeSessionIfUnresolved("sess_gone", 1);
+      await finalizeSessionIfUnresolved("sess_gone", 1, "");
     });
+  });
+
+  test("decryptSessionTokens returns an empty string for an empty field", async () => {
+    expect(await decryptSessionTokens("")).toBe("");
   });
 });

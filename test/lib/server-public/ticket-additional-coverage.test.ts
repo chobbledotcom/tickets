@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { hashPhone, recordVisit } from "#shared/db/contact-preferences.ts";
+import { hashPhone } from "#shared/db/contact-preferences.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -21,6 +21,7 @@ import {
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { seedContactVisits } from "#test-utils/db-helpers/contacts.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -32,7 +33,7 @@ import { setupStripe } from "#test-utils/settings.ts";
  * setup behind both returning-customer Square tests below (one records the
  * visit without an email configured, the other with). */
 const setupReturningCustomerFeeListing = async () => {
-  await recordVisit(await hashPhone("555-1234"));
+  await seedContactVisits(await hashPhone("555-1234"));
   const listing = await createTestListing({
     fields: "phone",
     maxAttendees: 50,

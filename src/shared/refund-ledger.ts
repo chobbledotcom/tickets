@@ -127,11 +127,19 @@ const computeAttendeeRefund = async (
   }
   const orders = await coveredRefundGroups(legs, references);
   if (orders.length === 0) return { groups: [], posted: false };
-  // Only auto-reverse a fully-paid account. If the attendee still owes (an
-  // unpaid reservation) or holds credit, a full provider refund can't map cleanly
-  // onto the ledger: reversing the account while a balance remains would strand
-  // receivables or over-refund it. Such cases go to a manual adjustment instead.
-  if (balanceOf(account)(legs) !== 0) return { groups: [], posted: false };
+  // Only auto-reverse an account the reversal leaves at zero. Fully paid is
+  // the normal booking shape. The other clean shape is pure held cash — every
+  // covered leg is a provider payment (a staged conflict's held charge, never
+  // matched by a sale), so reversing returns exactly what we hold. Anything
+  // else — still owing, or credit mixed with sales — can't map cleanly:
+  // reversing would strand receivables or over-refund, so those go to a
+  // manual adjustment instead.
+  const pureHeldCash = orders.every((group) =>
+    group.every(isProviderPaymentLeg),
+  );
+  if (!pureHeldCash && balanceOf(account)(legs) !== 0) {
+    return { groups: [], posted: false };
+  }
   const occurredAt = nowIso();
   return {
     groups: await Promise.all(
@@ -279,8 +287,13 @@ export type PlaceholderRefundFacts = {
  * {@link recordAttendeeRefund} can't be reused here: this placeholder records a
  * cash-only booking that was never honoured, so there is no sale leg or
  * fully-paid account to reverse. Never throws — the provider refund has already
- * settled, so a ledger write must not turn it into a 500; a failed post is
- * logged and reported as `posted: false`.
+ * settled, so a ledger write must not turn it into a 500. `posted` reports
+ * whether every leg this call had to write is stored: the payment alone when
+ * no refund happened (we still hold the money — the record is complete), the
+ * payment plus its `refund_cash` reversal when one did. A failed write is
+ * logged and reported as `posted: false`; the caller decides whether that is
+ * terminal (a settled refund is) or must be retried (a held payment that
+ * never reached the ledger).
  */
 export const recordPlaceholderRefund = (
   facts: PlaceholderRefundFacts,
@@ -304,7 +317,9 @@ export const recordPlaceholderRefund = (
           occurredAt: facts.occurredAt,
         }),
       );
-      if (!refunded) return false;
+      // No refund: the payment leg alone is the complete record (we still hold
+      // the money), so this call posted everything it had to — report success.
+      if (!refunded) return true;
       // Reverse the payment we just posted as refund_cash (read back so mapRefund
       // gets the stored legs). This runs once per session — a redelivery replays the
       // terminal outcome before reaching here — so there is never a prior reversal.

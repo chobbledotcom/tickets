@@ -6,7 +6,6 @@ import {
   getVisits,
   hashEmail,
   isHashUnsubscribed,
-  recordVisit,
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -16,6 +15,7 @@ import {
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { seedContactVisits } from "#test-utils/db-helpers/contacts.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 
 const getUnsubscribe = (query = ""): Promise<Response> =>
@@ -131,7 +131,7 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
 
     test("forgets the contact row", async () => {
       const hash = await hashEmail("forgetme@example.com");
-      await recordVisit(hash);
+      await seedContactVisits(hash);
       const response = await postUnsubscribe({
         action: "forget",
         email: hash,

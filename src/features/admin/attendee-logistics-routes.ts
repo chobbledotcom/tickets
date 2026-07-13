@@ -35,6 +35,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
+import { hasPendingCheckout } from "#shared/db/checkout-stages.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
 import {
   LOGISTICS_DEMO_FIELDS,
@@ -112,6 +113,19 @@ const handleLogisticsSubmit = async (
     loadAttendeeForEdit(attendeeId),
   );
   if (!entity) return notFoundResponse();
+
+  // A staged checkout's rows are claimed by the payment when it lands, and
+  // activation rewrites the stored details from the signed order — a Logistics
+  // save mid-payment would be silently lost. Fail closed until the payment
+  // finishes, exactly like the Edit tab.
+  if (await hasPendingCheckout(attendeeId)) {
+    return redirect(
+      attendeePage.path(attendeeId, "logistics"),
+      t("attendee_form.error_pending_checkout"),
+      false,
+      { formId: ATTENDEE_LOGISTICS_FORM_ID },
+    );
+  }
 
   const values: LogisticsFormValues = {
     address: form.getString("address"),

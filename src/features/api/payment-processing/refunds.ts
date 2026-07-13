@@ -201,9 +201,16 @@ const REFUND_REASONS = {
     notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
     reason: "the amount charged did not match the agreed total",
   },
+  listing_closed: {
+    reason: "the listing stopped taking bookings while they were paying",
+  },
   listing_removed: {
     notify: ErrorCode.PAYMENT_SESSION,
     reason: "the listing was removed while they were paying",
+  },
+  order_changed: {
+    notify: ErrorCode.PAYMENT_SESSION,
+    reason: "the booking changed between checkout and payment",
   },
   price_changed: {
     reason: "the listing price changed while they were paying",

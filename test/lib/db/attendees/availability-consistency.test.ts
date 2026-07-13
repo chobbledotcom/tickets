@@ -8,7 +8,6 @@ import {
   checkBatchAvailability,
   createAttendeeAtomic,
 } from "#shared/db/attendees/api.ts";
-import { queryAll } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -25,12 +24,8 @@ import {
  * capacity rules; this test pins them together so a future change to one that
  * diverges from the other fails CI rather than silently over/under-offering.
  *
- * The oracle is the real write: run the cart through `createAttendeeAtomic`
- * and check whether EVERY line landed (the unpaid batch path commits whatever
- * fits and reports success on a partial cart, so "all lines committed" — not
- * the success flag — is the fit question the preflight answers). The
- * fully-booked outcome must equal the preflight verdict for the same cart
- * against the same pre-write state.
+ * The oracle is the real all-or-nothing write. Its result must equal the
+ * preflight verdict for the same cart against the same pre-write state.
  */
 describeWithEnv(
   "db > attendees > availability preflight matches the write",
@@ -53,18 +48,7 @@ describeWithEnv(
         email: "x@example.com",
         name: "X",
       });
-      // "Fully booked" — every cart line landed a row — is the fit question.
-      // The unpaid batch path commits whatever fits and still reports success
-      // on a partial cart, so the success flag alone would over-report.
-      let fullyBooked = false;
-      if (write.success) {
-        const rows = await queryAll<{ c: number }>(
-          "SELECT COUNT(*) AS c FROM listing_attendees WHERE attendee_id = ?",
-          [write.attendees[0]!.id],
-        );
-        fullyBooked = rows[0]!.c === bookings.length;
-      }
-      expect(fullyBooked).toBe(preflight);
+      expect(write.success).toBe(preflight);
       return preflight;
     };
 

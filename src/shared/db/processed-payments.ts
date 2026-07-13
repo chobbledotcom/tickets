@@ -4,9 +4,8 @@
  * Uses a two-phase locking pattern to prevent duplicate attendee creation:
  * 1. reserveSession() - Claims the session with NULL attendee_id
  * 2. createBookingAtomic() with batchFinalizeStatement() inside the same batch
- *    - Creates the attendee and sets attendee_id atomically, closing the crash
- *    window between creation and a separate finalize call.
- * 3. (webhook only) setSessionTicketTokens() - Persists replay tokens.
+ *    - Creates the attendee and stores its id and token atomically, closing the
+ *    crash window before a separate finalize call.
  *
  * If reserveSession fails (session already claimed), we check if it's:
  * - Finalized (attendee_id set) → return success with existing attendee
@@ -202,29 +201,9 @@ export const reserveSession = async (
 };
 
 /** Encrypt a list of ticket tokens for storage, joining with "+". */
-const encryptTicketTokens = (
+export const encryptTicketTokens = (
   ticketTokens: string[],
 ): Promise<EnvKeyEncrypted> => encrypt(ticketTokens.join("+"));
-
-/**
- * Finalize a reserved session with the created attendee ID (second phase)
- */
-export const finalizeSession = async (
-  sessionId: string,
-  attendeeId: number,
-  ticketTokens: string[],
-  paymentReference: string,
-): Promise<void> => {
-  await execute(
-    "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ?, payment_reference = ? WHERE payment_session_id = ?",
-    [
-      attendeeId,
-      await encryptTicketTokens(ticketTokens),
-      await encryptPaymentReference(paymentReference),
-      sessionId,
-    ],
-  );
-};
 
 /**
  * Heal a still-unresolved reservation by stamping `attendee_id`, leaving
@@ -244,7 +223,7 @@ export const finalizeSession = async (
 export const finalizeSessionIfUnresolved = async (
   sessionId: string,
   attendeeId: number,
-  paymentReference = "",
+  paymentReference: string,
 ): Promise<void> => {
   const refClause = paymentReference ? ", payment_reference = ?" : "";
   const refParams = paymentReference
@@ -299,22 +278,6 @@ export const parseSessionFailure = async (
 };
 
 /**
- * Store encrypted ticket tokens on an already-finalized session so later
- * webhook replays can return them. Separated from batchFinalizeStatement so
- * token encryption never holds the write lock open. No-op if the session was
- * pruned.
- */
-export const setSessionTicketTokens = async (
-  sessionId: string,
-  ticketTokens: string[],
-): Promise<void> => {
-  await execute(
-    "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
-    [await encryptTicketTokens(ticketTokens), sessionId],
-  );
-};
-
-/**
  * Decrypt the ticket_tokens field from a processed payment record.
  * Returns the plaintext token string (e.g. "tok1+tok2") or empty string.
  */
@@ -332,14 +295,3 @@ export const clearSessionTokens: (sessionId: string) => Promise<void> =
   sessionIdWrite(
     "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
   );
-
-/**
- * Get the attendee ID for an already-processed session
- * Used to return success for idempotent webhook retries
- */
-export const getProcessedAttendeeId = async (
-  sessionId: string,
-): Promise<number | null> => {
-  const result = await isSessionProcessed(sessionId);
-  return result?.attendee_id ?? null;
-};

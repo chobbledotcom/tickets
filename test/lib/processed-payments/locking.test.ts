@@ -3,9 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   clearSessionTokens,
-  decryptSessionTokens,
-  finalizeSession,
-  getProcessedAttendeeId,
   isSessionProcessed,
   reserveSession,
   STALE_RESERVATION_MS,
@@ -14,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizeSession } from "#test-utils/db-helpers/processed-payments.ts";
 
 /** Perform the full two-phase reserve+finalize as production code does */
 const processSession = async (
@@ -56,6 +54,28 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const result = await isSessionProcessed("cs_reserved_123");
       expect(result?.payment_session_id).toBe("cs_reserved_123");
       expect(result?.attendee_id).toBeNull();
+    });
+
+    test("the finalize fixture refuses an already-resolved session", async () => {
+      await reserveSession("cs_finalize_twice");
+      await finalizeSession(
+        "cs_finalize_twice",
+        ctx.attendeeId,
+        ["tok-test"],
+        "pi_cs_finalize_twice",
+      );
+
+      // The fixture writes through the real guarded finalize, so a second
+      // finalize — a state production can never write — fails loudly instead
+      // of silently overwriting the resolved row.
+      await expect(
+        finalizeSession(
+          "cs_finalize_twice",
+          ctx.attendeeId,
+          ["tok-test"],
+          "pi_cs_finalize_twice",
+        ),
+      ).rejects.toThrow("not an unresolved reservation");
     });
   });
 
@@ -126,37 +146,6 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
     });
   });
 
-  describe("finalizeSession", () => {
-    test("sets attendee_id on reserved session", async () => {
-      await reserveSession("cs_to_finalize");
-      await finalizeSession(
-        "cs_to_finalize",
-        ctx.attendeeId,
-        ["tok-test"],
-        "pi_cs_to_finalize",
-      );
-
-      const record = await isSessionProcessed("cs_to_finalize");
-      expect(record?.attendee_id).toBe(ctx.attendeeId);
-    });
-
-    test("stores ticket tokens encrypted when provided", async () => {
-      await reserveSession("cs_with_tokens");
-      await finalizeSession(
-        "cs_with_tokens",
-        ctx.attendeeId,
-        ["tok_abc", "tok_def"],
-        "pi_cs_with_tokens",
-      );
-
-      const record = await isSessionProcessed("cs_with_tokens");
-      expect(record?.ticket_tokens).toMatch(/^enc:1:/);
-      expect(await decryptSessionTokens(record!.ticket_tokens)).toBe(
-        "tok_abc+tok_def",
-      );
-    });
-  });
-
   describe("clearSessionTokens", () => {
     test("clears stored tokens while preserving attendee_id", async () => {
       await reserveSession("cs_clear_test");
@@ -186,30 +175,6 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const record = await isSessionProcessed("cs_clear_noop");
       expect(record?.ticket_tokens).toBe("");
       expect(record?.attendee_id).toBe(ctx.attendeeId);
-    });
-  });
-
-  describe("getProcessedAttendeeId", () => {
-    test("returns null for unprocessed session", async () => {
-      expect(await getProcessedAttendeeId("cs_never_processed")).toBeNull();
-    });
-
-    test("returns null for reserved-but-not-finalized session", async () => {
-      await reserveSession("cs_reserved_only");
-      expect(await getProcessedAttendeeId("cs_reserved_only")).toBeNull();
-    });
-
-    test("returns attendee ID after finalization", async () => {
-      await reserveSession("cs_finalized_attendee");
-      await finalizeSession(
-        "cs_finalized_attendee",
-        ctx.attendeeId,
-        ["tok-test"],
-        "pi_cs_finalized_attendee",
-      );
-      expect(await getProcessedAttendeeId("cs_finalized_attendee")).toBe(
-        ctx.attendeeId,
-      );
     });
   });
 

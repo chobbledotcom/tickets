@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
-import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
@@ -20,29 +19,14 @@ export const bookTestAttendee = async (
   name = "Alice",
   email?: string,
 ): Promise<Attendee> => {
-  // Record the booking (and, on rollback, reverse its contact-activity count)
-  // under one source so the greedy create and the cleanup can't drift.
-  const source = "public";
   const result = await createAttendeeAtomic({
     bookings: listingIds.map((listingId) => ({ listingId })),
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
-    source,
+    source: "public",
   });
   if (!result.success) {
     throw new Error(`Failed to create attendee: ${result.reason}`);
-  }
-  // createAttendeeAtomic is greedy: it reports success once any booking lands,
-  // so a full/blocked listing would silently leave the attendee booked onto
-  // fewer listings than asked for. Reuse production's "no half-saved attendee"
-  // rule, which rolls the partial attendee back (reversing the same source's
-  // booking count) and reports failure, then fail the setup loudly rather than
-  // leaving stray bookings to skew the test.
-  const check = await ensureAllBookings(result, listingIds.length, source);
-  if (!check.ok) {
-    throw new Error(
-      `Failed to book test attendee onto all ${listingIds.length} listing(s): ${check.reason}`,
-    );
   }
   return result.attendees[0]!;
 };
@@ -119,6 +103,18 @@ export const insertOrphanAttendee = async (
     }) as never,
   );
   return Number(result.lastInsertRowid);
+};
+
+/** The quantities of an attendee's booking rows, for asserting that a guarded
+ *  mutation left staged (quantity-0) lines untouched. */
+export const getAttendeeQuantities = async (
+  attendeeId: number,
+): Promise<{ quantity: number }[]> => {
+  const { queryAll } = await import("#shared/db/client.ts");
+  return queryAll<{ quantity: number }>(
+    "SELECT quantity FROM listing_attendees WHERE attendee_id = ? ORDER BY id",
+    [attendeeId],
+  );
 };
 
 /** Check whether an attendee row exists by id. Returns true when the row is

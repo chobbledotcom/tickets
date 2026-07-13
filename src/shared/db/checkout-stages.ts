@@ -1,0 +1,307 @@
+/* jscpd:ignore-start */
+import type { InValue } from "@libsql/client";
+import * as v from "valibot";
+import { unique } from "#fp";
+import { orderBookings } from "#shared/booking-lines.ts";
+import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { generateTicketToken } from "#shared/crypto/utils.ts";
+import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import type { CreateAttendeeSuccess } from "#shared/db/attendee-types.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { DEPENDENT_ROW_TARGETS } from "#shared/db/attendees/delete.ts";
+import {
+  execute,
+  executeBatchWithResults,
+  inPlaceholders,
+  insert,
+  matchingIdSet,
+  queryOnePrimary,
+  type TxScope,
+} from "#shared/db/client.ts";
+import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
+import {
+  decryptSessionTokens,
+  encryptTicketTokens,
+} from "#shared/db/processed-payments.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
+import { toBookingItems } from "#shared/payment-helpers.ts";
+import type {
+  CheckoutIntent,
+  PaymentProvider,
+  PaymentProviderType,
+} from "#shared/payments.ts";
+
+/* jscpd:ignore-end */
+
+const CheckoutStageStateSchema = v.picklist(["pending", "booked", "failed"]);
+export type CheckoutStageState = v.InferOutput<typeof CheckoutStageStateSchema>;
+
+type CheckoutStageRow = {
+  attendee_id: number;
+  state: CheckoutStageState;
+  ticket_tokens: EnvKeyEncrypted;
+};
+
+export type CheckoutStage = {
+  attendeeId: number;
+  state: CheckoutStageState;
+  ticketToken: string;
+};
+
+const stagedBookings = async (intent: CheckoutIntent) => {
+  const items = toBookingItems(intent);
+  const listings = await getListingsWithCountsByIds(
+    unique(items.map((item) => item.e)),
+  );
+  const listingById = new Map(listings.map((listing) => [listing.id, listing]));
+  const lines = items.map((item) => {
+    const listing = listingById.get(item.e);
+    if (!listing) throw new Error(`Listing ${item.e} vanished before checkout`);
+    return { item, listing };
+  });
+  return orderBookings(lines, { ...intent, items }).map((booking) => ({
+    ...booking,
+    quantity: 0,
+  }));
+};
+
+const stageInsert = async (
+  tx: TxScope,
+  sessionId: string,
+  attendeeId: number,
+  provider: PaymentProviderType,
+  ticketToken: string,
+): Promise<void> => {
+  await tx.execute(
+    insert("checkout_stages", {
+      attendee_id: attendeeId,
+      created_at: nowIso(),
+      payment_session_id: sessionId,
+      provider,
+      state: "pending",
+      ticket_tokens: await encryptTicketTokens([ticketToken]),
+    }),
+  );
+};
+
+/** Save a fresh checkout as one attendee with exact quantity-zero path rows. */
+export const stageCheckout = async (
+  sessionId: string,
+  provider: PaymentProviderType,
+  intent: CheckoutIntent,
+): Promise<CheckoutStage> => {
+  const ticketToken = generateTicketToken();
+  // The overbook insert below cannot refuse (see CreateAttendeeSuccess), so
+  // the result is the success arm by construction.
+  const result = (await createAttendeeAtomic(
+    {
+      address: intent.address,
+      // A quantity-0 staged row claims nothing, so it must never be capacity
+      // gated: an already-overbooked listing (a supported admin state) or one
+      // deactivated mid-checkout would otherwise refuse to even START the
+      // checkout. Real capacity is enforced at activation, with the real
+      // quantities — that check refusing is what the refund path is for.
+      allowOverbook: true,
+      bookings: await stagedBookings(intent),
+      email: intent.email,
+      name: intent.name,
+      phone: intent.phone,
+      source: "public",
+      special_instructions: intent.special_instructions,
+      statusId: await getPublicStatusId(),
+      ticketToken,
+    },
+    (tx, attendeeId) =>
+      stageInsert(tx, sessionId, attendeeId, provider, ticketToken),
+  )) as CreateAttendeeSuccess;
+  return {
+    attendeeId: result.attendees[0]!.id,
+    state: "pending",
+    ticketToken,
+  };
+};
+
+/** Create the provider session, then stage it before exposing the checkout URL. */
+export const createStagedCheckout = async (
+  provider: PaymentProvider,
+  intent: CheckoutIntent,
+  baseUrl: string,
+) => {
+  const result = await provider.createCheckoutSession(intent, baseUrl);
+  if (!result || "error" in result || intent.balanceAttendeeId !== undefined) {
+    return result;
+  }
+  await stageCheckout(result.sessionId, provider.type, intent);
+  return result;
+};
+
+/** The session-creator callback {@link runCheckoutFlow} expects: stage this
+ * order at quantity zero, then create the provider checkout for it. Curried so
+ * every checkout entry point injects staging the same way. */
+export const stagedSessionCreator =
+  (intent: CheckoutIntent) => (provider: PaymentProvider, baseUrl: string) =>
+    createStagedCheckout(provider, intent, baseUrl);
+
+export const getCheckoutStageOrNull = async (
+  sessionId: string,
+): Promise<CheckoutStage | null> => {
+  const row = await queryOnePrimary<
+    CheckoutStageRow & { attendee_exists: number | null }
+  >(
+    `SELECT stage.attendee_id, stage.state, stage.ticket_tokens,
+            attendee.id AS attendee_exists
+       FROM checkout_stages AS stage
+       LEFT JOIN attendees AS attendee ON attendee.id = stage.attendee_id
+      WHERE stage.payment_session_id = ?`,
+    [sessionId],
+  );
+  if (!row) return null;
+  const parsedState = v.parse(CheckoutStageStateSchema, row.state);
+  // A PENDING stage whose attendee is gone can never activate (every deletion
+  // path is meant to remove the stage too, so this is a missed cascade).
+  // Report it loudly and treat the session as unstaged: the payment then books
+  // fresh from its signed intent — the correct outcome for the customer. A
+  // RESOLVED (booked/failed) dangling stage is returned as-is instead, so the
+  // resolved-stage guard still refuses to re-process money already handled.
+  if (row.attendee_exists === null && parsedState === "pending") {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Checkout stage for session ${sessionId} points at deleted attendee ${row.attendee_id}; booking fresh`,
+    });
+    return null;
+  }
+  const ticketToken = await decryptSessionTokens(row.ticket_tokens);
+  if (!ticketToken) throw new Error(`Checkout stage ${sessionId} has no token`);
+  return {
+    attendeeId: row.attendee_id,
+    state: parsedState,
+    ticketToken,
+  };
+};
+
+/**
+ * Which of these attendees are mid-payment: their checkout is staged and the
+ * customer may still be paying. Admin mutations (edits, merges) must leave
+ * such records alone — the payment claims the exact staged rows when it lands,
+ * so changing them strands the paid order. Deleting the record is still fine:
+ * the delete cascade removes the stage, and a later payment books fresh.
+ * Array in, set out — call with one id for the single case.
+ */
+export const attendeeIdsWithPendingStage = (
+  attendeeIds: readonly number[],
+): Promise<Set<number>> =>
+  // Pinned to the primary: this gates mutations, and a replica lagging the
+  // just-staged insert would let an edit slip through the guard.
+  matchingIdSet(
+    attendeeIds,
+    (placeholders) =>
+      `SELECT attendee_id AS id FROM checkout_stages
+        WHERE state = 'pending' AND attendee_id IN (${placeholders})`,
+    { primary: true },
+  );
+
+/** Whether this one attendee is mid-payment — a pending staged checkout the
+ * payment may still claim. Single-id form of {@link attendeeIdsWithPendingStage}
+ * for the admin-edit guards that block a save while the payment is in flight. */
+export const hasPendingCheckout = async (
+  attendeeId: number,
+): Promise<boolean> =>
+  (await attendeeIdsWithPendingStage([attendeeId])).has(attendeeId);
+
+export const markCheckoutStage = async (
+  sessionId: string,
+  state: CheckoutStageState = "failed",
+): Promise<void> => {
+  await execute(
+    "UPDATE checkout_stages SET state = ? WHERE payment_session_id = ?",
+    [state, sessionId],
+  );
+};
+
+/** Resolve a stage a crash left pending after its money was already recorded.
+ * Guarded to pending so a booked stage is never downgraded, and a session with
+ * no stage is a no-op. Called when the ledger preflight answers "already
+ * handled": the outcome is known, so the record must not read as mid-payment
+ * forever — a pending stage blocks edits and merges and holds the staged
+ * details unprunable. */
+export const resolvePendingStage = async (sessionId: string): Promise<void> => {
+  await execute(
+    `UPDATE checkout_stages SET state = 'failed'
+      WHERE payment_session_id = ? AND state = 'pending'`,
+    [sessionId],
+  );
+};
+
+/** The attendee holding a session's still-pending stage, or null when nothing
+ * is pending — the expected case for almost every replayed session. Read on
+ * the primary: the answer decides whether the healing note is written. */
+export const pendingStageAttendeeIdOrNull = async (
+  sessionId: string,
+): Promise<number | null> => {
+  const row = await queryOnePrimary<{ attendee_id: number }>(
+    `SELECT attendee_id FROM checkout_stages
+      WHERE payment_session_id = ? AND state = 'pending'`,
+    [sessionId],
+  );
+  return row?.attendee_id ?? null;
+};
+
+const pendingStageAttendees = (where: string): string =>
+  `SELECT stage.attendee_id
+     FROM checkout_stages AS stage
+    WHERE stage.state = 'pending'
+      AND ${where}
+      AND NOT EXISTS (
+        SELECT 1
+          FROM processed_payments AS payment
+         WHERE payment.payment_session_id = stage.payment_session_id
+      )`;
+
+/** Delete pending checkout PII only while no payment request has claimed it. */
+const discardPendingCheckoutsWhere = async (
+  where: string,
+  args: InValue[],
+): Promise<number> => {
+  const attendeeIds = pendingStageAttendees(where);
+  const results = await executeBatchWithResults([
+    // Every table that hangs off an attendee, from the one shared declaration
+    // (delete.ts), so a future dependent table cannot leak rows through the
+    // discard. The stage rows themselves go LAST: every statement here finds
+    // its attendees through the still-present checkout_stages rows (the
+    // subquery reads only checkout_stages and processed_payments, so deleting
+    // attendees first does not disturb it).
+    ...DEPENDENT_ROW_TARGETS.filter(
+      (target) => target.table !== "checkout_stages",
+    ).map((target) => ({
+      args,
+      sql: `DELETE FROM ${target.table} WHERE ${target.field} IN (${attendeeIds})`,
+    })),
+    {
+      args,
+      sql: `DELETE FROM attendees WHERE id IN (${attendeeIds})`,
+    },
+    {
+      args,
+      sql: `DELETE FROM checkout_stages WHERE attendee_id IN (${attendeeIds})`,
+    },
+  ]);
+  return results[results.length - 1]!.rowsAffected;
+};
+
+/** Discard one or more cancelled sessions through the same atomic path. */
+export const discardPendingCheckoutSessions = (
+  sessionIds: string[],
+): Promise<number> =>
+  sessionIds.length === 0
+    ? Promise.resolve(0)
+    : discardPendingCheckoutsWhere(
+        `stage.payment_session_id IN (${inPlaceholders(sessionIds)})`,
+        sessionIds,
+      );
+
+/** Remove abandoned pending checkouts older than the retention cutoff. */
+export const prunePendingCheckoutStages = (
+  cutoffIso: string,
+): Promise<number> =>
+  discardPendingCheckoutsWhere("stage.created_at < ?", [cutoffIso]);

@@ -192,6 +192,10 @@ const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
  * single-statement query and write helpers below. */
 type SqlArgs = [sql: string, args?: InValue[]];
 
+/** Like {@link SqlArgs} but with the args required — the primary readers always
+ * key on a written row's id, so an argless call is a mistake. */
+type PrimarySqlArgs = [sql: string, args: InValue[]];
+
 /**
  * Run a single statement: track it for the query log / N+1 guard, then fire any
  * table-scoped cache invalidation. Every single-statement read and write goes
@@ -225,21 +229,36 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
 export const queryOne = async <T>(...[sql, args]: SqlArgs): Promise<T | null> =>
   firstRowOrNull<T>(await execute(sql, args));
 
-/**
- * Query a single row on the primary (read-your-writes), returning null if not
- * found. Use this to read a row back immediately after committing its own write:
- * a plain {@link queryOne} runs in "read" mode, which Turso can route to a
- * replica lagging the just-committed write and so miss the row (returning null);
- * routing through {@link queryBatchPrimary} ("write" mode) always hits the
- * primary. Mirrors the same guard on {@link syncListingPrices}. `args` is
- * required — every read-back keys on the written row's id.
- */
-export const queryOnePrimary = async <T>(
+/** Run one statement on the primary ("write" mode, read-your-writes) and hand
+ * back its ResultSet. Shared by the single-row and all-rows primary readers. */
+const onePrimaryResult = async (
   sql: string,
   args: InValue[],
-): Promise<T | null> => {
+): Promise<ResultSet> => {
   const [result] = await queryBatchPrimary([{ args, sql }]);
-  return firstRowOrNull<T>(result!);
+  return result!;
+};
+
+/**
+ * Query all rows on the primary (read-your-writes). Use this to read rows back
+ * immediately after committing their own write, or for a read that gates or
+ * feeds a write: a plain {@link queryAll}/{@link queryOne} runs in "read" mode,
+ * which Turso can route to a replica lagging the just-committed write and so
+ * miss the row; routing through {@link queryBatchPrimary} ("write" mode) always
+ * hits the primary. Mirrors the same guard on {@link syncListingPrices}. `args`
+ * is required — every read-back keys on the written row's id.
+ */
+export const queryAllPrimary = async <T>(
+  ...[sql, args]: PrimarySqlArgs
+): Promise<T[]> => resultRows<T>(await onePrimaryResult(sql, args));
+
+/** Query a single row on the primary (read-your-writes), returning null if not
+ * found — the single-row companion to {@link queryAllPrimary}. */
+export const queryOnePrimary = async <T>(
+  ...args: PrimarySqlArgs
+): Promise<T | null> => {
+  const rows = await queryAllPrimary<T>(...args);
+  return rows[0] ?? null;
 };
 
 /** Query all rows, returning a typed array */
@@ -269,6 +288,33 @@ export const rowExistsForIdList =
   (buildSql: (idsPlaceholders: string) => string) =>
   (leadingId: number, ids: number[]): Promise<boolean> =>
     rowExists(buildSql(inPlaceholders(ids)), [leadingId, ...ids]);
+
+/**
+ * Of a batch of ids, the ones a single-column `... AS id` query returns. Your
+ * `buildSql` receives the `IN (...)` placeholder string and must select exactly
+ * one column aliased `id`. Empty input short-circuits to an empty set (an
+ * `IN ()` clause is never valid SQL). Reads the replica by default; pass
+ * `primary` for a set that gates a write and so must not see a lagging replica.
+ * Shared by the batch membership lookups so their empty-guard and set-building
+ * live in one place.
+ */
+/** A set of the `id` column from rows of a single-`id`-column query. */
+const idSetFromRows = (rows: readonly { id: number }[]): Set<number> =>
+  new Set(rows.map((row) => row.id));
+
+export const matchingIdSet = async (
+  ids: readonly number[],
+  buildSql: (idsPlaceholders: string) => string,
+  { primary = false }: { primary?: boolean } = {},
+): Promise<Set<number>> => {
+  if (ids.length === 0) return new Set();
+  const sql = buildSql(inPlaceholders(ids));
+  const args = [...ids];
+  const rows = primary
+    ? await queryAllPrimary<{ id: number }>(sql, args)
+    : await queryAll<{ id: number }>(sql, args);
+  return idSetFromRows(rows);
+};
 
 /**
  * The next `sort_order` for rows of `table` in one group: one past the current

@@ -14,6 +14,7 @@ import { buildTicketListing } from "#shared/booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
+import { stagedSessionCreator } from "#shared/db/checkout-stages.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -121,8 +122,11 @@ const skipToCheckout = (
   payload: QrBookPayload,
 ): Promise<Response> => {
   const intent = buildCheckoutIntent(listing, payload);
-  return runCheckoutFlow(`qr-book listing=${listing.id}`, request, intent, () =>
-    errorResponse(listing.slug, 500),
+  return runCheckoutFlow(
+    `qr-book listing=${listing.id}`,
+    request,
+    stagedSessionCreator(intent),
+    () => errorResponse(listing.slug, 500),
   );
 };
 

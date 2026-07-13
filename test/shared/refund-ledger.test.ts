@@ -195,6 +195,30 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await expectRefundNeedsManualAdjustment();
   });
 
+  test("reverses pure held cash — a conflict's payment with no sale", async () => {
+    // A staged conflict holds the customer's charge as a lone payment leg
+    // (no sale — the booking was never honoured through payment). The
+    // operator's in-app refund must be ledgerable: reversing returns exactly
+    // what we hold, so it never strands as a manual adjustment.
+    await recordPlaceholderRefund(
+      {
+        amount: 5000,
+        attendeeId: ATTENDEE,
+        eventId: "sess-1",
+        listingId: 1,
+        occurredAt: BOOKING_AT,
+      },
+      "stage_active",
+      false,
+    );
+    expect(
+      await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]),
+    ).toEqual({ posted: true });
+    const legs = await transfersByAccount(attendeeAccount(ATTENDEE));
+    expect(legs.filter((l) => l.kind === "refund_cash").length).toBe(1);
+    expect(balanceOf(attendeeAccount(ATTENDEE))(legs)).toBe(0);
+  });
+
   test("is idempotent — a second refund writes nothing but still reports posted", async () => {
     await postBooking();
     await recordAttendeeRefund(ATTENDEE, [sessionReference("sess-1")]);
@@ -325,9 +349,10 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
   });
 
   test("posts only the payment when the refund failed (we still hold the money)", async () => {
+    // posted: everything this call had to write — just the payment — is stored.
     expect(await recordPlaceholderRefund(PH, "charge_mismatch", false)).toEqual(
       {
-        posted: false,
+        posted: true,
       },
     );
     const legs = await transfersByAccount(attendeeAccount(7));
@@ -337,25 +362,37 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     expect(balanceOf(attendeeAccount(7))(legs)).toBe(5000);
   });
 
-  test("logs and does not throw when the ledger post conflicts", async () => {
-    // Pre-claim the payment leg's reference under a different event so the cash-in
-    // post hits a reference collision and the catch path runs.
-    const collidingRef = await legReference(["booking", PH.eventId, "payment"]);
-    await postTransfers([
+  /** Pre-claim the payment leg's reference under a different event, so the
+   * cash-in post hits a reference collision and the catch path runs. */
+  const blockPaymentLeg = async (eventGroup: string) =>
+    postTransfers([
       {
         amount: 100,
         destination: attendeeAccount(99),
-        eventGroup: "blocker",
+        eventGroup,
         kind: "payment",
         occurredAt: BOOKING_AT,
-        reference: collidingRef,
+        reference: await legReference(["booking", PH.eventId, "payment"]),
         source: WORLD,
       },
     ]);
+
+  test("logs and does not throw when the ledger post conflicts", async () => {
+    await blockPaymentLeg("blocker");
     expect(await recordPlaceholderRefund(PH, "sold_out", true)).toEqual({
       posted: false,
     });
     // The classified error is the operator's only breadcrumb for the miss.
+    expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+  });
+
+  test("reports a held payment that never reached the ledger", async () => {
+    await blockPaymentLeg("blocker-held");
+    // posted:false with no refund asked: the held payment was NOT written, so
+    // the caller must not go terminal (stagedConflict throws to retry).
+    expect(await recordPlaceholderRefund(PH, "stage_active", false)).toEqual({
+      posted: false,
+    });
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
   });
 });

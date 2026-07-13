@@ -50,9 +50,12 @@ const restoreListingContributions = (
   }));
 
 /** The tables holding an attendee's dependent rows, each with the column that
- * links it to the attendee. Deleted (in this order) before the attendee row. */
-const DEPENDENT_ROW_TARGETS = [
+ * links it to the attendee. Deleted (in this order) before the attendee row.
+ * Exported so the pending-checkout discard (checkout-stages.ts) purges the
+ * same set — a new dependent table added here is cleaned there automatically. */
+export const DEPENDENT_ROW_TARGETS = [
   { field: "attendee_id", table: "processed_payments" },
+  { field: "attendee_id", table: "checkout_stages" },
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
   { field: "attendee_id", table: "system_notes" },

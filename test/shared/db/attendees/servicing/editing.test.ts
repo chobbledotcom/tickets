@@ -16,6 +16,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -43,6 +44,32 @@ describeWithEnv("servicing §4 — editing", { db: true }, () => {
       name: "Boiler Service +1",
     });
     expect(await tokenIndexOf(event.id)).toBe(before);
+  });
+
+  test("editing preserves the booking row and its line state", async () => {
+    const { event, listing } = await createServicingHold({ quantity: 2 });
+    await getDb().execute({
+      args: [event.id, listing.id],
+      sql: `UPDATE listing_attendees
+               SET checked_in = 1, attachment_downloads = 7
+             WHERE attendee_id = ? AND listing_id = ?`,
+    });
+    const readLine = () =>
+      getDb().execute({
+        args: [event.id, listing.id],
+        sql: `SELECT id, checked_in, attachment_downloads
+                FROM listing_attendees
+               WHERE attendee_id = ? AND listing_id = ?`,
+      });
+    const before = (await readLine()).rows[0]!;
+
+    await updateServicingEvent(event.id, {
+      bookings: [{ listingId: listing.id, quantity: 2 }],
+      name: "Renamed service",
+    });
+
+    const after = (await readLine()).rows[0]!;
+    expect(after).toEqual(before);
   });
 
   test("editing updates name and bookings (changed qty, removed listing)", async () => {

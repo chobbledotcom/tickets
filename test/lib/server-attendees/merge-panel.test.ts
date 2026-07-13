@@ -11,7 +11,10 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { setupListingAndDirectAttendee } from "./helpers.ts";
+import {
+  setupListingAndDirectAttendee,
+  stageMidPaymentAttendee,
+} from "./helpers.ts";
 // jscpd:ignore-end
 import { mergePair } from "./merge.ts";
 
@@ -52,6 +55,19 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "Merge Attendee",
         "Search by Ticket Token",
       );
+    });
+
+    test("shows the mid-payment block instead of the decision form", async () => {
+      const { attendee, listing } = await setupListingAndDirectAttendee({
+        listing: { maxAttendees: 10 },
+      });
+      const stage = await stageMidPaymentAttendee(listing, "cs_merge_panel");
+      const response = await mergeActionsPage(attendee.id, stage.ticketToken);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("mid-payment");
+      // No decision form renders — there is nothing the operator may submit.
+      expect(html).not.toContain("merge_version");
     });
 
     test("shows error when token not found", async () => {

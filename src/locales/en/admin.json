@@ -110,6 +110,8 @@
   "admin.attendee_table.check_in": "Check in",
   "admin.attendee_table.refunded_badge": "Refunded",
   "admin.attendee_table.no_quantity": "No quantity",
+  "admin.attendee_table.payment_in_progress": "Payment in progress",
+  "admin.merge.pending_checkout": "One of these records is mid-payment and cannot be merged. Wait for the payment to finish, or delete the record.",
   "admin.attendee_table.servicing": "Service",
   "admin.checkin.title": "Check-in",
   "admin.checkin.heading": "Check-in",

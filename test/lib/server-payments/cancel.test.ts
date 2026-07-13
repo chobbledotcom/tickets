@@ -1,9 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { getCheckoutStageOrNull } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
+import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
   expectHtmlResponse,
@@ -12,6 +15,7 @@ import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { stageTestCheckout } from "#test-utils/db-helpers/processed-payments.ts";
 import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
@@ -25,6 +29,36 @@ import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
  *  which listing/package ids the items carry. */
 const cancelSession = (sessionId: string, items: string) =>
   johnCheckoutSession(sessionId, { items, paid: false });
+
+/** Run the cancel request for a session and expect the page to answer 200. */
+const requestCancel = async (
+  listingId: number,
+  sessionId: string,
+): Promise<void> => {
+  await withMocks(
+    () => cancelSession(sessionId, singleItem(listingId, 1, 1000)),
+    async () => {
+      const response = await handleRequest(
+        mockRequest(`/payment/cancel?session_id=${sessionId}`),
+      );
+      expect(response.status).toBe(200);
+    },
+    resetStripeClient,
+  );
+};
+
+/** A staged checkout ready to cancel: its listing and its staged row. */
+const stageForCancel = async (sessionId: string) => {
+  const listing = await createTestListing({
+    maxAttendees: 50,
+    unitPrice: 1000,
+  });
+  return { listing, stage: await stageTestCheckout(sessionId, listing) };
+};
+
+/** Record calls to the provider's session-expire hook. */
+const stubExpire = () =>
+  stub(stripeApi, "expireCheckoutSession", () => Promise.resolve());
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/cancel", () => {
@@ -112,6 +146,46 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         },
         resetStripeClient,
       );
+    });
+
+    test("removes the unpaid staged attendee", async () => {
+      await setupStripe();
+      const sessionId = "cs_staged_cancel";
+      const { listing, stage } = await stageForCancel(sessionId);
+
+      await requestCancel(listing.id, sessionId);
+
+      expect(await getCheckoutStageOrNull(sessionId)).toBeNull();
+      const attendee = await getDb().execute({
+        args: [stage.attendeeId],
+        sql: "SELECT id FROM attendees WHERE id = ?",
+      });
+      expect(attendee.rows).toEqual([]);
+    });
+
+    test("closes the provider session after discarding the stage", async () => {
+      await setupStripe();
+      const sessionId = "cs_staged_cancel_expire";
+      const { listing } = await stageForCancel(sessionId);
+      using expire = stubExpire();
+
+      await requestCancel(listing.id, sessionId);
+      // The staged details are gone, so the hosted page is closed too — an
+      // old tab can no longer pay for a checkout we no longer hold.
+      expect(expire.calls.map((call) => call.args)).toEqual([[sessionId]]);
+    });
+
+    test("leaves the provider session open when nothing was discarded", async () => {
+      await setupStripe();
+      const sessionId = "cs_staged_cancel_claimed";
+      const { listing } = await stageForCancel(sessionId);
+      // A payment request has claimed the session: the discard is refused, so
+      // the hosted page must stay open for that payment to finish.
+      await reserveSession(sessionId);
+      using expire = stubExpire();
+
+      await requestCancel(listing.id, sessionId);
+      expect(expire.calls.length).toBe(0);
     });
 
     test("a cancelled checkout for a now-non-standalone child suppresses the retry link", async () => {

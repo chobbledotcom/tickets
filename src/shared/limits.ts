@@ -383,6 +383,55 @@ export const PRUNE_SUMUP_RETENTION_HOURS = limit(
   "hours",
 );
 
+/** Retention (days) for unpaid quantity-zero checkout stages (default: 7).
+ * Provider callbacks after cleanup use the normal no-stage booking path.
+ * Stages only need to outlive the longest completable checkout — Stripe
+ * sessions expire after CHECKOUT_SESSION_EXPIRY_MINUTES and SumUp's after 30
+ * minutes, so a Stripe/SumUp-only deployment can safely lower this to 1 day.
+ * Square payment links never expire, so the default stays a conservative 7.
+ * Keep PRUNE_UNUSED_STRINGS_RETENTION_DAYS at least this long too, or a very
+ * late completion books fine but loses its free-text answers. */
+export const PRUNE_CHECKOUT_STAGES_RETENTION_DAYS = limit(
+  "PRUNE_CHECKOUT_STAGES_RETENTION_DAYS",
+  7,
+  "Prune: pending checkout stage retention",
+  "days",
+);
+
+/**
+ * Stripe rejects a checkout expiry outside 30 minutes–24 hours, judged by
+ * STRIPE'S clock when the request arrives — so the configurable range keeps a
+ * five-minute buffer inside both ends, or clock skew plus request latency
+ * could push an exact-boundary value out of range and fail every checkout.
+ * Checked at startup rather than on the first customer's checkout.
+ */
+export const assertCheckoutExpiryValid = (minutes: number): number => {
+  if (minutes < 35 || minutes > 24 * 60 - 5) {
+    throw new Error(
+      `CHECKOUT_SESSION_EXPIRY_MINUTES=${minutes} must be between 35 and 1435 ` +
+        "(Stripe allows 30 minutes to 24 hours, and a five-minute buffer " +
+        "inside each end absorbs clock skew).",
+    );
+  }
+  return minutes;
+};
+
+/**
+ * How long a hosted Stripe checkout stays payable (minutes, default 60),
+ * applied as the session's expiry when it is created. After expiry the hosted
+ * page cannot complete and Stripe sends checkout.session.expired, which
+ * discards the staged details straight away. SumUp checkouts expire themselves
+ * at 30 minutes; Square payment links take no expiry and rely on the stage
+ * pruner alone.
+ */
+export const CHECKOUT_SESSION_EXPIRY_MINUTES = computedLimit(
+  assertCheckoutExpiryValid(readLimit("CHECKOUT_SESSION_EXPIRY_MINUTES", 60)),
+  60,
+  "CHECKOUT_SESSION_EXPIRY_MINUTES",
+  "Checkout: Stripe session expiry",
+  "minutes",
+);
+
 /**
  * Retention (days) for encrypted string rows that have not been attached to an
  * attendee answer (default: 7). These are usually abandoned paid checkouts:
@@ -489,6 +538,8 @@ export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
+export const PRUNE_CHECKOUT_STAGES_RETENTION_MS =
+  PRUNE_CHECKOUT_STAGES_RETENTION_DAYS * DAY_MS;
 export const PRUNE_UNUSED_STRINGS_RETENTION_MS =
   PRUNE_UNUSED_STRINGS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_CONTACTS_RETENTION_MS =

@@ -268,10 +268,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(await isSessionProcessed("cs_refund_failed")).toBeNull();
 
           // The next retry re-attempts the refund (proof the lock was released).
-          await handleRequest(
+          const retry = await handleRequest(
             mockRequest("/payment/success?session_id=cs_refund_failed"),
           );
           expect(mockRefund.calls.length).toBe(2);
+          expect(await retry.text()).toContain("contact support");
         },
         resetStripeClient,
       );

@@ -62,9 +62,9 @@ const inOrderParentByChild = async (
  * `orderToken` and exact `parentListingId`. This function skips recomputation
  * for those to preserve true multi-parent provenance.
  */
-export const annotateOrderParents = async (
-  bookings: ListingBooking[],
-): Promise<ListingBooking[]> => {
+export const annotateOrderParents = async <T extends ListingBooking>(
+  bookings: T[],
+): Promise<T[]> => {
   // Pre-expanded orders (expandChildAllocations path) already carry orderToken
   // and exact parentListingId. Skip the edge-based recomputation to preserve
   // true multi-parent provenance — recomputing would overwrite correct parent
@@ -111,11 +111,11 @@ const splitPricePaid = (
  * (carrying that parent), plus — for any units the allocations don't cover — a
  * single parent-less remainder row. A booking with no allocation stays one
  * standalone row. `pricePaid` is split across the rows by {@link splitPricePaid}. */
-const expandBooking = (
-  booking: ListingBooking,
+const expandBooking = <T extends ListingBooking>(
+  booking: T,
   childAllocs: readonly { parentId: number; qty: number }[] | undefined,
   orderToken: string,
-): ListingBooking[] => {
+): T[] => {
   if (!childAllocs) return [{ ...booking, orderToken }];
   const totalQty = booking.quantity ?? 1;
   const allocatedQty = childAllocs.reduce((sum, a) => sum + a.qty, 0);
@@ -154,10 +154,10 @@ const expandBooking = (
  * parent for each unit. Used by both the free path and the paid webhook path,
  * which thread the allocation through the round-trip.
  */
-export const expandChildAllocations = (
-  bookings: ListingBooking[],
+export const expandChildAllocations = <T extends ListingBooking>(
+  bookings: T[],
   allocations: ChildAllocation[],
-): ListingBooking[] => {
+): T[] => {
   const orderToken = crypto.randomUUID();
   const allocByChild = new Map<number, { parentId: number; qty: number }[]>();
   for (const alloc of allocations) {

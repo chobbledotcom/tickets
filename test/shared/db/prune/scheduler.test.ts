@@ -56,6 +56,13 @@ describeWithEnv("db > prune scheduler", { db: true }, () => {
       );
     });
 
+    test("records fresh checkout-stage timestamp after running", async () => {
+      await clearAllLastPruned();
+      await expectFreshPrunedTimestampAfterRun(
+        () => settings.lastPrunedCheckoutStages,
+      );
+    });
+
     test("records fresh sessions timestamp after running", async () => {
       await clearAllLastPruned();
       await expectFreshPrunedTimestampAfterRun(

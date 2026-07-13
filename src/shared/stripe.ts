@@ -8,6 +8,7 @@ import { lazyRef, once } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
+import { CHECKOUT_SESSION_EXPIRY_MINUTES } from "#shared/limits.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
@@ -207,9 +208,14 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
       }
     }
 
-    // Create new webhook endpoint (preserves any existing webhooks)
+    // Create new webhook endpoint (preserves any existing webhooks). The
+    // expired event lets an abandoned checkout's staged details be discarded
+    // the moment it can no longer be paid, instead of waiting out the pruner.
     const endpoint = await client.webhookEndpoints.create({
-      enabled_events: ["checkout.session.completed"],
+      enabled_events: [
+        "checkout.session.completed",
+        "checkout.session.expired",
+      ],
       url: webhookUrl,
     });
 
@@ -236,6 +242,7 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
  * Production code uses stripeApi.method() to enable test mocking
  */
 export const stripeApi: {
+  expireCheckoutSession: (sessionId: string) => Promise<void>;
   getStripeClient: () => Promise<Stripe | null>;
   resetStripeClient: () => void;
   retrieveCheckoutSession: (id: string) => Promise<StripeCheckoutFields | null>;
@@ -296,6 +303,11 @@ export const stripeApi: {
 
     const params: Stripe.Checkout.SessionCreateParams = {
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
+      // A hard deadline on the hosted page: after this Stripe refuses payment
+      // and sends checkout.session.expired, which discards the staged details
+      // — so no money can arrive for a checkout we no longer hold.
+      expires_at:
+        Math.floor(Date.now() / 1000) + CHECKOUT_SESSION_EXPIRY_MINUTES * 60,
       line_items: lineItems,
       mode: "payment",
       payment_method_types: ["card"],
@@ -317,6 +329,18 @@ export const stripeApi: {
     );
     return session;
   },
+  /** Close a hosted checkout early (the cancel page discarded its staged
+   * details). withClient already logs and swallows a session that cannot be
+   * expired — already completed or already expired — which is fine: this is
+   * best-effort, and a late payment on a session we failed to close simply
+   * books fresh. */
+  expireCheckoutSession: async (sessionId: string): Promise<void> => {
+    await withClient(
+      (s) => s.checkout.sessions.expire(sessionId),
+      ErrorCode.STRIPE_SESSION,
+    );
+  },
+
   /** Get or create Stripe client */
   getStripeClient: getClientImpl,
 
@@ -428,6 +452,8 @@ export const retrieveCheckoutSession = (id: string) =>
 export const retrievePaymentIntent = (id: string) =>
   stripeApi.retrievePaymentIntent(id);
 export const refundPayment = (id: string) => stripeApi.refundPayment(id);
+export const expireCheckoutSession = (id: string): Promise<void> =>
+  stripeApi.expireCheckoutSession(id);
 export const createCheckoutSession = (i: CheckoutIntent, b: string) =>
   stripeApi.createCheckoutSession(i, b);
 export const testStripeConnection = () => stripeApi.testStripeConnection();

@@ -69,6 +69,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   LAST_ACTIVITY_LOG_BACKFILL
   LAST_PRUNED_ADDRESSES
   LAST_PRUNED_CONTACTS
+  LAST_PRUNED_CHECKOUT_STAGES
   LAST_PRUNED_INVITES
   LAST_PRUNED_LOGINS
   LAST_PRUNED_ORPHANS
@@ -147,6 +148,12 @@ const EXPECTED_SETTING_ROWS = [
   ["ATTENDEE_COLUMN_ORDER", "plaintext", "attendeeColumnOrder"],
   ["LAST_PRUNED_PAYMENTS", "plaintext", "lastPrunedPayments"],
   ["LAST_PRUNED_SESSIONS", "plaintext", "lastPrunedSessions"],
+  [
+    "LAST_PRUNED_CHECKOUT_STAGES",
+    "plaintext",
+    "lastPrunedCheckoutStages",
+    "prune",
+  ],
   ["LAST_PRUNED_SUMUP", "plaintext", "lastPrunedSumup"],
   ["LAST_PRUNED_STRINGS", "plaintext", "lastPrunedStrings", "prune"],
   ["LAST_PRUNED_LOGINS", "plaintext", "lastPrunedLogins", "prune"],

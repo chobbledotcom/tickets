@@ -100,12 +100,9 @@ export const setupSoldOutModifierRace = async (
     stock: 1,
   });
   // Simulate the race: a *different*, concurrent order consumes the modifier's
-  // last unit between pricing and our commit. Its usage lands on that other
-  // order's attendee (a sentinel id, never ours), so it stands after our order
-  // rolls back — exactly as a real competing booking's stock would. Firing on our
-  // attendee INSERT (just before the booking insert in the batch) is only the
-  // hook for "stock gone by commit time"; it must not attach to NEW.id, or it
-  // would look like our own consumption.
+  // last unit between pricing and our commit. It lands on a sentinel attendee,
+  // never ours. The test trigger itself rolls back with this transaction; its
+  // purpose is only to make the in-transaction stock guard observe the race.
   await getDb().execute(
     `CREATE TRIGGER test_consume_modifier_before_order
      AFTER INSERT ON attendees

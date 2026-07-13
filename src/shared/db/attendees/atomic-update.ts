@@ -41,7 +41,7 @@ import {
 } from "#shared/db/attendees/capacity.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
-import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
+import { executeBatchWithResults, queryAllPrimary } from "#shared/db/client.ts";
 
 /**
  * A guard statement that aborts the whole write batch when the immediately
@@ -119,17 +119,20 @@ export type ExistingLine = {
   booking: ListingAttendeeRow;
 };
 
-/** Read all current listing_attendees rows for an attendee, with line keys. */
+/** Read all current listing_attendees rows for an attendee, with line keys.
+ * Pinned to the primary: every caller is a read-modify-write (atomic edits,
+ * servicing edits, staged activation) or feeds one, and a replica lagging a
+ * just-staged write would misread the lines as missing or changed. */
 export const loadExistingLines = async (
   attendeeId: number,
 ): Promise<ExistingLine[]> => {
-  const rows = await queryAll<ListingAttendeeRow>(
+  const bookings = await queryAllPrimary<ListingAttendeeRow>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees WHERE attendee_id = ?
      ORDER BY start_at, listing_id`,
     [attendeeId],
   );
-  return rows.map((booking) => ({
+  return bookings.map((booking) => ({
     booking,
     key: lineKeyFromBooking(booking),
   }));

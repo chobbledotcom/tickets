@@ -11,10 +11,7 @@ import { execute } from "#shared/db/client.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import {
-  finalizeSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { isPaidListing } from "#shared/types.ts";
 import {
   overviewStatsFromAttendees,
@@ -27,6 +24,7 @@ import {
   createPaidTestAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeTestPaymentSession as finalizeSession } from "#test-utils/db-helpers/processed-payments.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>

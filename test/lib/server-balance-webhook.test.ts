@@ -9,6 +9,7 @@ import {
 } from "#shared/accounting/queries.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
+import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -108,6 +109,9 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       expect(
         (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
       ).toBe(0);
+      expect((await isSessionProcessed("cs_balance_replay"))?.attendee_id).toBe(
+        attendeeId,
+      );
     } finally {
       second.restore();
       refund.restore();

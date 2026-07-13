@@ -134,6 +134,37 @@ describeStripe("stripe", () => {
       expect(retrievedSession?.id).toBe(createdSession?.id);
     });
 
+    test("creates the session with the configured expiry deadline", async () => {
+      await settings.update.stripe.secretKey("sk_test_mock");
+      const { CHECKOUT_SESSION_EXPIRY_MINUTES } = await import(
+        "#shared/limits.ts"
+      );
+      const client = await stripeClient();
+      const listing = testListing({ unit_price: 1000 });
+      const before = Math.floor(Date.now() / 1000);
+      await withMocks(
+        () => stub(client.checkout.sessions, "create"),
+        async (createSpy) => {
+          await createCheckoutSession(
+            checkoutIntent({ items: [lineFor(listing)] }),
+            "http://localhost:3000",
+          );
+          const after = Math.floor(Date.now() / 1000);
+          const params = createSpy.calls[0]!.args[0] as CreatedSessionParams & {
+            expires_at?: number;
+          };
+          // The hosted page gets a hard deadline: after it, no money can
+          // arrive for a checkout whose staged details we may have discarded.
+          expect(params.expires_at).toBeGreaterThanOrEqual(
+            before + CHECKOUT_SESSION_EXPIRY_MINUTES * 60,
+          );
+          expect(params.expires_at).toBeLessThanOrEqual(
+            after + CHECKOUT_SESSION_EXPIRY_MINUTES * 60,
+          );
+        },
+      );
+    });
+
     test("creates checkout session with intent metadata", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
