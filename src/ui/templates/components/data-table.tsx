@@ -174,3 +174,23 @@ export const dataTable =
       tableClass={options?.tableClass}
     />
   );
+
+/** An admin collection body: the shared "nothing yet" paragraph when the list
+ *  is empty, otherwise a {@link DataTable}. Every admin list page (groups,
+ *  modifiers, …) shows this same empty-or-table, so it lives here once. */
+export const CollectionTable = <T,>({
+  items,
+  emptyKey,
+  columns,
+  rows,
+}: {
+  items: readonly T[];
+  emptyKey: string;
+  columns: Column[];
+  rows: DataTableProps["rows"];
+}): JSX.Element =>
+  items.length === 0 ? (
+    <p>{t(emptyKey)}</p>
+  ) : (
+    <DataTable columns={columns} rows={rows} />
+  );

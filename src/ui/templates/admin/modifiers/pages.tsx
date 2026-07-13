@@ -24,7 +24,7 @@ import {
   SaveChangesButton,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import { CollectionTable } from "#templates/components/data-table.tsx";
 import { getModifierFields } from "#templates/fields/modifier.ts";
 import { ModifierRunningTotalsSection } from "./aggregates.tsx";
 import {
@@ -88,34 +88,32 @@ export const adminModifiersPage = (
     active: "/admin/modifiers",
     children: (
       <>
-        {modifiers.length === 0 ? (
-          <p>{t("modifiers.no_modifiers")}</p>
-        ) : (
-          <DataTable
-            columns={[
-              { header: t("common.name") },
-              { header: t("modifiers.rule_column") },
-              { class: "quantity", header: t("modifiers.uses_column") },
-              { class: "quantity", header: t("modifiers.orders_column") },
-              { class: "amount", header: t("modifiers.revenue_column") },
-            ]}
-            rows={modifiers.map((m) => [
-              adminDestinationAllowed(
-                "modifierEdit",
-                session.adminLevel,
-                isReadOnly(),
-              ) ? (
-                <a href={adminPath("modifierEdit", { id: m.id })}>{m.name}</a>
-              ) : (
-                m.name
-              ),
-              ruleSummary(m),
-              m.total_uses,
-              m.usage_count,
-              formatCurrency(m.total_revenue),
-            ])}
-          />
-        )}
+        <CollectionTable
+          columns={[
+            { header: t("common.name") },
+            { header: t("modifiers.rule_column") },
+            { class: "quantity", header: t("modifiers.uses_column") },
+            { class: "quantity", header: t("modifiers.orders_column") },
+            { class: "amount", header: t("modifiers.revenue_column") },
+          ]}
+          emptyKey="modifiers.no_modifiers"
+          items={modifiers}
+          rows={modifiers.map((m) => [
+            adminDestinationAllowed(
+              "modifierEdit",
+              session.adminLevel,
+              isReadOnly(),
+            ) ? (
+              <a href={adminPath("modifierEdit", { id: m.id })}>{m.name}</a>
+            ) : (
+              m.name
+            ),
+            ruleSummary(m),
+            m.total_uses,
+            m.usage_count,
+            formatCurrency(m.total_revenue),
+          ])}
+        />
         <ModifiersGuideFooter />
       </>
     ),

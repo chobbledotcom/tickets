@@ -27,10 +27,7 @@ export const ResetDatabaseForm = saveFormComponent<{
       <h2>{t("settings.advanced.database_reset.heading")}</h2>
       <article>
         <aside>
-          <p>
-            <strong>Warning:</strong> This will permanently delete all listings,
-            attendees, settings, and other data. This action cannot be undone.
-          </p>
+          <p>{t("settings.advanced.database_reset.warning")}</p>
         </aside>
       </article>
       <p>{t("settings.advanced.database_reset.confirm_intro")}</p>
