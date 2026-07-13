@@ -95,6 +95,19 @@ const wrongListingResponse = (
   });
 };
 
+/** The JSON scan result for one attendee: who they are, how many tickets they
+ * hold, and what the scan found or did. */
+const scanResult = (
+  entry: TokenEntry,
+  attendeeName: string,
+  status: "already_checked_in" | "verify_id" | "checked_in",
+): Response =>
+  jsonResponse({
+    name: attendeeName,
+    quantity: entry.attendee.quantity,
+    status,
+  });
+
 /** Check attendee state (refunded/checked_in/verify_id); return response or null */
 const checkAttendeeState = (
   entry: TokenEntry,
@@ -105,18 +118,10 @@ const checkAttendeeState = (
     return jsonResponse({ name: attendeeName, status: "refunded" });
   }
   if (entry.attendee.checked_in) {
-    return jsonResponse({
-      name: attendeeName,
-      quantity: entry.attendee.quantity,
-      status: "already_checked_in",
-    });
+    return scanResult(entry, attendeeName, "already_checked_in");
   }
   if (entry.listing.non_transferable && !idVerified) {
-    return jsonResponse({
-      name: attendeeName,
-      quantity: entry.attendee.quantity,
-      status: "verify_id",
-    });
+    return scanResult(entry, attendeeName, "verify_id");
   }
   return null;
 };
@@ -132,11 +137,7 @@ const performCheckIn = async (
     entry.listing.id,
     entry.attendee.id,
   );
-  return jsonResponse({
-    name: attendeeName,
-    quantity: entry.attendee.quantity,
-    status: "checked_in",
-  });
+  return scanResult(entry, attendeeName, "checked_in");
 };
 
 /**

@@ -6,6 +6,12 @@
  */
 
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import { divWithClass } from "#templates/components/div-with-class.tsx";
+
+/** A `<div class="prose">` block — the standard prose styling wrapper the
+ *  components below share. */
+const Prose: (props: { children: Child }) => JSX.Element =
+  divWithClass("prose");
 
 export const ProseHeading = ({
   heading,
@@ -14,10 +20,10 @@ export const ProseHeading = ({
   heading: Child;
   children?: Child;
 }): JSX.Element => (
-  <div class="prose">
+  <Prose>
     <h1>{heading}</h1>
     {children}
-  </div>
+  </Prose>
 );
 
 /** One paragraph of trusted HTML — `<p><Raw html=.../></p>`. Owned here so the
@@ -34,7 +40,7 @@ export const RawParagraph = ({ html }: { html: string }): JSX.Element => (
  *  pages open with. Owning it here keeps that shape from being re-authored (and
  *  re-detected as a clone) per page. */
 export const ProseIntro = ({ html }: { html: string }): JSX.Element => (
-  <div class="prose">
+  <Prose>
     <RawParagraph html={html} />
-  </div>
+  </Prose>
 );

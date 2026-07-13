@@ -2,6 +2,7 @@
  * Minimal form framework for declarative form handling
  */
 
+/* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
@@ -22,6 +23,7 @@ import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { Icon } from "#templates/components/actions.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
+/* jscpd:ignore-end */
 
 export type FieldType =
   | "text"
@@ -173,6 +175,21 @@ const parseCheckboxGroup = (form: FormParams, name: string): string =>
     .map((v) => v.trim())
     .filter((v) => v)
     .join(",");
+
+/** Read a field's raw submitted text from the form, by field type: a
+ *  checkbox group joins its ticked boxes into one comma-separated string, a
+ *  datetime joins its date and time inputs (null when only a time was given),
+ *  and every other type reads its single input. Shared by validation and by
+ *  the saved-form re-fill, so the two can never read a field differently. */
+const readFieldText = (form: FormParams, field: Field): string | null => {
+  if (field.type === "checkbox-group") {
+    return parseCheckboxGroup(form, field.name);
+  }
+  if (field.type === "datetime") {
+    return getDatetimeValue(form, field.name);
+  }
+  return form.getString(field.name);
+};
 
 /** Split a datetime value (YYYY-MM-DDTHH:MM) into date and time parts */
 const splitDatetime = (value: string): { date: string; time: string } => {
@@ -422,21 +439,16 @@ const collectFieldValue = (
   form: FormParams,
   field: Field,
 ): string | FieldValidationResult => {
-  if (field.type === "datetime") {
-    const result = getDatetimeValue(form, field.name);
-    if (result === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
-    if (!result) {
-      if (field.required) {
-        return requiredFieldError(field);
-      }
-      return { valid: true, value: null };
+  const raw = readFieldText(form, field);
+  // Only a datetime can read as null: a time was given without a date.
+  if (raw === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
+  if (field.type === "datetime" && !raw) {
+    if (field.required) {
+      return requiredFieldError(field);
     }
-    return result;
+    return { valid: true, value: null };
   }
-  if (field.type === "checkbox-group") {
-    return parseCheckboxGroup(form, field.name);
-  }
-  return form.getString(field.name);
+  return raw;
 };
 
 /**
@@ -607,17 +619,13 @@ export const getSavedFormData = (): FormParams | null =>
 export const savedFormValue = (name: string): string =>
   savedFormScope.current().form?.getString(name) ?? "";
 
-/** Get a saved value for a field, or empty string if not available */
+/** Get a saved value for a field, or empty string if not available. A
+ *  half-filled datetime (time without date) reads as null and restores
+ *  nothing — there is no valid value to re-fill. */
 const getSavedValue = (field: Field): string => {
   const form = savedFormScope.current().form;
   if (!form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
-  if (field.type === "checkbox-group") {
-    return parseCheckboxGroup(form, field.name);
-  }
-  if (field.type === "datetime") {
-    return getDatetimeValue(form, field.name) ?? "";
-  }
-  return form.getString(field.name);
+  return readFieldText(form, field) ?? "";
 };
 
 /**

@@ -18,9 +18,18 @@ import {
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
 
+/** Makes a logger that records a payment-session error, prefixed with the
+ * payment step it happened on (e.g. "redirect", "cancel"). */
+export const paymentSessionErrorLogger =
+  (step: string): ((detail: string) => void) =>
+  (detail: string): void =>
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `[${step}] ${detail}`,
+    });
+
 /** Log a payment session error with redirect context prefix */
-export const logRedirectError = (detail: string): void =>
-  logError({ code: ErrorCode.PAYMENT_SESSION, detail: `[redirect] ${detail}` });
+const logRedirectError = paymentSessionErrorLogger("redirect");
 
 /** Split the `total.sig` price proof into a non-negative integer total and a
  * non-empty signature, or null when the field is absent or malformed. */

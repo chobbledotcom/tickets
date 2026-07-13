@@ -5,7 +5,7 @@
  * wraps it in its own cell (`<td>`, `<span class="reorder">`, …).
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
+import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 
 /** The reorder inputs shared by {@link ReorderArrows} and the per-table cells
  *  that wrap it (e.g. `ReorderControls` in questions.tsx): a direction-to-path
@@ -32,11 +32,9 @@ const ArrowButton = ({
   direction: ReorderDirection;
   title?: string | undefined;
 }): JSX.Element => (
-  <CsrfForm action={action(direction)} class="inline">
-    <button class="link-button small" title={title} type="submit">
-      {ARROW_GLYPH[direction]}
-    </button>
-  </CsrfForm>
+  <InlineFormButton action={action(direction)} title={title}>
+    {ARROW_GLYPH[direction]}
+  </InlineFormButton>
 );
 
 /** The arrows for the row at `index` of `count`. `action` builds the POST path

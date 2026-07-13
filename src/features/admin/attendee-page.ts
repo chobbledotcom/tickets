@@ -40,6 +40,7 @@ import {
   type PageCtx,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
+import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { loadPreviousBookings } from "#routes/admin/previous-bookings.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -216,18 +217,8 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
     ),
   tabs: [
     overviewTab,
-    {
-      intent: "write-form",
-      labelKey: "entity.tab.edit",
-      sections: [{ kind: "custom", load: loadEditPanel }],
-      slug: "edit",
-    },
-    {
-      intent: "write-form",
-      labelKey: "entity.tab.logistics",
-      sections: [{ kind: "custom", load: loadLogisticsPanel }],
-      slug: "logistics",
-    },
+    writeFormTab("edit", "entity.tab.edit", loadEditPanel),
+    writeFormTab("logistics", "entity.tab.logistics", loadLogisticsPanel),
     {
       labelKey: "entity.tab.ledger",
       sections: [

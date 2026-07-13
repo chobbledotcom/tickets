@@ -6,7 +6,8 @@
  */
 
 import { createClient } from "@libsql/client";
-import { setupTestEncryptionKey } from "#test-utils/env";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { timedRunner } from "./timed-run.ts";
 
 interface Timing {
   duration: number;
@@ -15,22 +16,33 @@ interface Timing {
 
 const timings: Timing[] = [];
 
-const recordTiming = <T>(name: string, start: number, result: T): T => {
-  timings.push({ duration: performance.now() - start, name });
-  return result;
+const pushTiming = (name: string, ms: number): void => {
+  timings.push({ duration: ms, name });
 };
 
-const measure = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
-  const start = performance.now();
-  return recordTiming(name, start, await fn());
-};
+const measure = timedRunner({
+  after: (name, _startedAt, ms) => pushTiming(name, ms),
+});
 
 const measureSync = <T>(name: string, fn: () => T): T => {
   const start = performance.now();
-  return recordTiming(name, start, fn());
+  const result = fn();
+  pushTiming(name, performance.now() - start);
+  return result;
 };
 
 const log = console.log.bind(console);
+
+/** Time one `initDb` call — used cold (creates tables) and warm (bails on the
+ * version check), which differ only in the name and options. */
+const measureInitDb = (
+  name: string,
+  options?: { allowMissingSettings: boolean },
+): Promise<void> =>
+  measure(name, async () => {
+    const { initDb } = await import("#shared/db/migrations.ts");
+    await initDb(options);
+  });
 
 /**
  * Time a cached call: one cold `call()` (queries + caches) then five warm ones,
@@ -104,16 +116,12 @@ const main = async () => {
   });
 
   // 4. Measure initDb (first run - creates tables)
-  await measure("4. initDb (cold - creates tables)", async () => {
-    const { initDb } = await import("#shared/db/migrations.ts");
-    await initDb({ allowMissingSettings: true });
+  await measureInitDb("4. initDb (cold - creates tables)", {
+    allowMissingSettings: true,
   });
 
   // 5. Measure initDb (warm - bails early)
-  await measure("5. initDb (warm - version check only)", async () => {
-    const { initDb } = await import("#shared/db/migrations.ts");
-    await initDb();
-  });
+  await measureInitDb("5. initDb (warm - version check only)");
 
   // 6. Measure isSetupComplete query
   await measure("6. isSetupComplete() query", async () => {
@@ -154,8 +162,8 @@ const main = async () => {
   log("Testing session caching (10s TTL):\n");
   const { createSession, getSession } = await import("#shared/db/sessions.ts");
 
-  // Create a session
-  await createSession("test-token", "test-csrf", Date.now() + 3600000);
+  // Create a session (no wrapped data key; the setup-created user is id 1)
+  await createSession("test-token", "test-csrf", Date.now() + 3600000, null, 1);
 
   await profileCaching(() => getSession("test-token"));
 

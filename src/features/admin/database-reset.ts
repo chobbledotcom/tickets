@@ -4,23 +4,17 @@
  */
 
 import { t } from "#i18n";
-import { applyFlash } from "#routes/csrf.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-start */
-import { createFormRoute } from "#shared/app-forms.ts";
+import { createFormRoute, publicFormPage } from "#shared/app-forms.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllImages } from "#shared/db/images.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { featureGate } from "#shared/response-steps.ts";
 import {
   deleteAllImageStorageFiles,
   deleteAllListingAttachmentFiles,
@@ -35,10 +29,7 @@ import {
 /* jscpd:ignore-end */
 
 /** Guard: require demo mode, else 404 */
-const withDemoResetAccess = (
-  handler: () => Response | Promise<Response>,
-): Response | Promise<Response> =>
-  isDemoMode() ? handler() : notFoundResponse();
+const withDemoResetAccess = featureGate(isDemoMode, notFoundResponse);
 
 /** Form schema for database reset confirmation */
 export const demoResetForm = defineForm({
@@ -59,11 +50,7 @@ export const demoResetForm = defineForm({
 
 /** Handle GET /demo/reset - show reset confirmation page */
 const handleDemoResetGet = (request: Request): Response | Promise<Response> =>
-  withDemoResetAccess(async () => {
-    applyFlash(request);
-    await signCsrfToken();
-    return htmlResponse(demoResetPage());
-  });
+  withDemoResetAccess(() => publicFormPage(request, () => demoResetPage()));
 
 export const deleteStorageAndResetDatabase = async (): Promise<void> => {
   if (isStorageEnabled()) {

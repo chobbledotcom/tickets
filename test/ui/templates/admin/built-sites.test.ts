@@ -242,7 +242,7 @@ describe("adminBuiltSiteEditPage — secrets panel", () => {
       undefined,
       {
         error:
-          "BUNNY_API_KEY is not configured on this host, so site secrets can't be read.",
+          "BUNNY_API_KEY is not configured on this host, so its secrets can't be read.",
         ok: false,
       },
     );

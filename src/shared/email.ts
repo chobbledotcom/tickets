@@ -116,6 +116,14 @@ export const setHostEmailConfigForTest = (config: EmailConfig | null): void =>
 /** For testing: reset host email config to read from env vars. */
 export const resetHostEmailConfig = (): void => setHostEmailOverride(undefined);
 
+/** The email config sending should use: the site's own settings when complete,
+ * otherwise the host-level config. Null when neither is configured — callers
+ * treat that as "email is off". */
+export const getActiveEmailConfig = (): EmailConfig | null => {
+  const siteConfig = getEmailConfig();
+  return siteConfig !== null ? siteConfig : getHostEmailConfig();
+};
+
 type Headers = Record<string, string>;
 type ProviderRequest = (
   config: EmailConfig,
@@ -404,7 +412,7 @@ export const sendRegistrationEmails = async (
   entries: EmailEntry[],
   currency: string,
 ): Promise<void> => {
-  const config = (await getEmailConfig()) ?? getHostEmailConfig();
+  const config = getActiveEmailConfig();
   if (!config) return;
 
   const attendeeRaw = entries[0]?.attendee.email;

@@ -14,14 +14,14 @@ import { t } from "#i18n";
 import { formatDateLongLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
-import type { Image, NewsPost, NewsPostCard } from "#shared/types.ts";
+import type { NewsPost, NewsPostCard } from "#shared/types.ts";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
+import { seoContentPage } from "./content-page.tsx";
 import {
   PublicImageGallery,
   type PublicNavProps,
   publicPage,
-  publicSeoPage,
   renderListingImage,
 } from "./shared.tsx";
 
@@ -62,13 +62,9 @@ export const newsListPage = (
  * and date read as part of the article rather than page chrome. The shared
  * shell renders no `<h1>` of its own (`showHeading: false`); this page supplies
  * it inside the prose. */
-export const newsPostPage = (
-  post: NewsPost,
-  images: readonly Image[],
-  nav: PublicNavProps,
-  websiteTitle: string,
-): string =>
-  publicSeoPage(post, nav, websiteTitle, { showHeading: false })(
+export const newsPostPage = seoContentPage<NewsPost>(
+  { showHeading: false },
+  (post, images) => (
     <div class="prose">
       <h1>{post.name}</h1>
       <p class="news-post-date">
@@ -76,5 +72,6 @@ export const newsPostPage = (
       </p>
       <PublicImageGallery images={images} />
       {post.content && <Raw html={renderMarkdown(post.content)} />}
-    </div>,
-  );
+    </div>
+  ),
+);

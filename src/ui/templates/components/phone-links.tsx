@@ -8,6 +8,7 @@
 
 import { t } from "#i18n";
 import { phoneLinks } from "#shared/phone.ts";
+import { NewTabLink } from "#templates/components/new-tab-link.tsx";
 
 export const PhoneLinks = ({
   phone,
@@ -28,9 +29,9 @@ export const PhoneLinks = ({
             {"("}
             <a href={links.tel}>{t("attendee_detail.tel")}</a>
             {" / "}
-            <a href={links.whatsapp} rel="noopener" target="_blank">
+            <NewTabLink href={links.whatsapp}>
               {t("attendee_detail.whatsapp")}
-            </a>
+            </NewTabLink>
             {")"}
           </small>
         </>

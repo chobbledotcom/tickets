@@ -5,22 +5,13 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
-import { AgentHeader } from "#templates/admin/agent-header.tsx";
-import { StaffAdminNav } from "#templates/admin/nav.tsx";
+import { staffAdminPage } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { Layout } from "#templates/layout.tsx";
 
 export const adminLogoutPage = (session: AdminSession): string =>
-  String(
-    <Layout
-      beforeContent={<StaffAdminNav active="" session={session} />}
-      title={t("logout.title")}
-    >
-      {session.adminLevel === "agent" ? (
-        <AgentHeader title={t("logout.title")} />
-      ) : (
-        <h1>{t("logout.title")}</h1>
-      )}
+  staffAdminPage({
+    active: "",
+    children: (
       <section aria-labelledby="logout-confirm-heading">
         <h2 id="logout-confirm-heading">{t("logout.confirm_heading")}</h2>
         <p>{t("logout.confirm_body")}</p>
@@ -30,5 +21,8 @@ export const adminLogoutPage = (session: AdminSession): string =>
           </SubmitButton>
         </CsrfForm>
       </section>
-    </Layout>,
-  );
+    ),
+    session,
+    staffHeading: <h1>{t("logout.title")}</h1>,
+    title: t("logout.title"),
+  });

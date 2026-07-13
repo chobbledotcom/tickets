@@ -86,6 +86,33 @@ const commit = (
 const judgeable = (option: OrderOption, dateChosen: boolean): boolean =>
   dateChosen || !option.needsDate;
 
+/** Judge one unselected option against the cart: each rule that fails names
+ * the option's state, and an option passing them all is plainly available. */
+const judgeOption = (
+  option: OrderOption,
+  pools: OrderPools,
+  ledger: PoolLedger,
+  committed: readonly OrderOption[],
+  dateChosen: boolean,
+): OrderOptionState => {
+  if (!option.bookableAlone) return { kind: "unavailable" };
+  if (!judgeable(option, dateChosen)) return { kind: "needs_date" };
+  const demand = demandOf(option, pools);
+  const shortPool = firstShortPool(ledger, demand);
+  if (shortPool === null) return { kind: "available" };
+  // Doesn't fit beside the cart. If it doesn't fit on a fresh ledger either,
+  // it never fitted today at all; otherwise some committed selection is
+  // holding the contested capacity — the pool only shrank through commits,
+  // so the earliest committed selection drawing from it always exists.
+  if (firstShortPool(openLedger(pools), demand) !== null) {
+    return { kind: "unavailable" };
+  }
+  const blocker = committed.find((selected) =>
+    demandOf(selected, pools).has(shortPool),
+  )!;
+  return { byKey: blocker.key, byName: blocker.name, kind: "blocked" };
+};
+
 /**
  * Evaluate every option against the cart. `selectedKeys` is the visitor's
  * selection in the order it was added (unknown keys are ignored);
@@ -120,40 +147,12 @@ export const evaluateOrder = (
 
   const states = new Map<string, OrderOptionState>();
   for (const option of options) {
-    if (selectedSet.has(option.key)) {
-      states.set(option.key, { kind: "selected" });
-      continue;
-    }
-    if (!option.bookableAlone) {
-      states.set(option.key, { kind: "unavailable" });
-      continue;
-    }
-    if (!judgeable(option, dateChosen)) {
-      states.set(option.key, { kind: "needs_date" });
-      continue;
-    }
-    const demand = demandOf(option, pools);
-    const shortPool = firstShortPool(ledger, demand);
-    if (shortPool === null) {
-      states.set(option.key, { kind: "available" });
-      continue;
-    }
-    // Doesn't fit beside the cart. If it doesn't fit on a fresh ledger either,
-    // it never fitted today at all; otherwise some committed selection is
-    // holding the contested capacity — the pool only shrank through commits,
-    // so the earliest committed selection drawing from it always exists.
-    if (firstShortPool(openLedger(pools), demand) !== null) {
-      states.set(option.key, { kind: "unavailable" });
-      continue;
-    }
-    const blocker = committed.find((selected) =>
-      demandOf(selected, pools).has(shortPool),
-    )!;
-    states.set(option.key, {
-      byKey: blocker.key,
-      byName: blocker.name,
-      kind: "blocked",
-    });
+    states.set(
+      option.key,
+      selectedSet.has(option.key)
+        ? { kind: "selected" }
+        : judgeOption(option, pools, ledger, committed, dateChosen),
+    );
   }
   return states;
 };

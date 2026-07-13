@@ -19,7 +19,7 @@
 import type { InValue } from "@libsql/client";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
-import type { SqlStatement } from "#shared/db/client.ts";
+import { joinStatements, type SqlStatement } from "#shared/db/client.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
 /** A half-open [startAt, endAt) window of whole days, as timestamps. Also
@@ -288,19 +288,16 @@ export const buildCapacityCondition = (
     return buildDayCapacitySql(listingId, qty, null, excludeAttendeeId);
   }
   const duration = normalizeDurationDays(durationDays);
-  const clauses: string[] = [];
-  const args: InValue[] = [];
-  for (let i = 0; i < duration; i++) {
+  const dayClauses = Array.from({ length: duration }, (_, i) => {
     const daily = buildDayCapacitySql(
       listingId,
       qty,
       dateToRange(addDays(date, i), 1),
       excludeAttendeeId,
     );
-    clauses.push(`(${daily.sql})`);
-    args.push(...daily.args);
-  }
-  return { args, sql: clauses.join(" AND ") };
+    return { args: daily.args, sql: `(${daily.sql})` };
+  });
+  return joinStatements(dayClauses, " AND ");
 };
 
 /** One listing's or one group's cart demand, split into per-day (dated daily)
@@ -389,10 +386,9 @@ export const buildBatchCapacitySql = (
     );
   }
   if (clauses.length === 0) return { args: [], sql: "SELECT 1 AS fits" };
+  const combined = joinStatements(clauses, " AND ");
   return {
-    args: clauses.flatMap((c) => c.args),
-    sql: `SELECT CASE WHEN ${clauses
-      .map((c) => c.sql)
-      .join(" AND ")} THEN 1 ELSE 0 END AS fits`,
+    args: combined.args,
+    sql: `SELECT CASE WHEN ${combined.sql} THEN 1 ELSE 0 END AS fits`,
   };
 };

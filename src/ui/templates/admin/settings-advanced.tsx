@@ -6,7 +6,6 @@ import { t } from "#i18n";
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
 import { SETTINGS_FORMS } from "#shared/settings/forms.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { themedAdminPage } from "#templates/admin/admin-page.tsx";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AddressLookupForm } from "#templates/admin/settings/address-lookup.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
@@ -19,7 +18,7 @@ import { EmailNotificationsForm } from "#templates/admin/settings/email.tsx";
 import { AdminEmailTemplateForm } from "#templates/admin/settings/email-tpl-admin.tsx";
 import { ConfirmationEmailTemplateForm } from "#templates/admin/settings/email-tpl-confirmation.tsx";
 import { GoogleWalletForm } from "#templates/admin/settings/google-wallet.tsx";
-import { SettingsGuideFooter } from "#templates/admin/settings/guide-footer.tsx";
+import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { settingsForm } from "#templates/admin/settings/schema-form.tsx";
 import { SmsGatewayForm } from "#templates/admin/settings/sms-gateway.tsx";
 import { HostSubdomainForm } from "#templates/admin/settings/subdomain.tsx";
@@ -70,7 +69,7 @@ export const adminAdvancedSettingsPage = (
   session: AdminSession,
   s: AdvancedSettingsPageState,
 ): string =>
-  themedAdminPage(t("settings.advanced.title"), "/admin/settings-advanced")(
+  settingsPage(t("settings.advanced.title"), "/admin/settings-advanced")(
     session,
     s.theme,
   )(
@@ -100,7 +99,5 @@ export const adminAdvancedSettingsPage = (
         action="/admin/settings/reset-database"
         id="settings-reset-database"
       />
-
-      <SettingsGuideFooter />
     </>,
   );

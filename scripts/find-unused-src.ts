@@ -107,43 +107,53 @@ function collectFiles(dir: string): string[] {
   return result.sort();
 }
 
+/** Collect one `{ names, specifier }` entry per match of an import regex;
+ * `read` says which capture groups carry the named imports and the specifier. */
+const importsFromMatches = (
+  content: string,
+  regex: RegExp,
+  read: (match: RegExpMatchArray) => {
+    namedImports: string;
+    specifier: string;
+  },
+): { specifier: string; names: string[] }[] =>
+  [...content.matchAll(regex)].map((match) => {
+    const { namedImports, specifier } = read(match);
+    return { names: splitAliasedNames(namedImports), specifier };
+  });
+
+// Static imports/exports:
+//   import { a, b } from "specifier"
+//   import name from "specifier"
+//   import * as name from "specifier"
+//   import "specifier"
+//   import type { a } from "specifier"
+//   export { a } from "specifier"
+const staticRegex =
+  /(?:import|export)\s+(?:type\s+)?(?:\{([^}]*)\}|(\*\s+as\s+\w+)|\w+)?\s*(?:,\s*\{([^}]*)\})?\s*(?:from\s+)?["']([^"']+)["']/g;
+
+// Dynamic imports:
+//   const { a, b } = await import("specifier")
+//   await import("specifier")
+//   () => import("specifier")
+const dynamicRegex =
+  /(?:const\s+\{([^}]*)\}\s*=\s*(?:await\s+)?)?import\(\s*["']([^"']+)["']\s*\)/g;
+
 /** Extract both static and dynamic import specifiers from a file */
 function extractImports(
   filePath: string,
 ): { specifier: string; names: string[] }[] {
   const content = readSource(filePath);
-  const imports: { specifier: string; names: string[] }[] = [];
-
-  // Static imports/exports:
-  //   import { a, b } from "specifier"
-  //   import name from "specifier"
-  //   import * as name from "specifier"
-  //   import "specifier"
-  //   import type { a } from "specifier"
-  //   export { a } from "specifier"
-  const staticRegex =
-    /(?:import|export)\s+(?:type\s+)?(?:\{([^}]*)\}|(\*\s+as\s+\w+)|\w+)?\s*(?:,\s*\{([^}]*)\})?\s*(?:from\s+)?["']([^"']+)["']/g;
-
-  for (const match of content.matchAll(staticRegex)) {
-    const namedImports = (match[1] || "") + (match[3] || "");
-    const specifier = match[4]!;
-    imports.push({ names: splitAliasedNames(namedImports), specifier });
-  }
-
-  // Dynamic imports:
-  //   const { a, b } = await import("specifier")
-  //   await import("specifier")
-  //   () => import("specifier")
-  const dynamicRegex =
-    /(?:const\s+\{([^}]*)\}\s*=\s*(?:await\s+)?)?import\(\s*["']([^"']+)["']\s*\)/g;
-
-  for (const match of content.matchAll(dynamicRegex)) {
-    const namedImports = match[1] || "";
-    const specifier = match[2]!;
-    imports.push({ names: splitAliasedNames(namedImports), specifier });
-  }
-
-  return imports;
+  return [
+    ...importsFromMatches(content, staticRegex, (match) => ({
+      namedImports: (match[1] || "") + (match[3] || ""),
+      specifier: match[4]!,
+    })),
+    ...importsFromMatches(content, dynamicRegex, (match) => ({
+      namedImports: match[1] || "",
+      specifier: match[2]!,
+    })),
+  ];
 }
 
 /** Patterns that match named export declarations */
@@ -257,12 +267,24 @@ for (const file of allFiles) {
   }
 }
 
+/** Print one check's banner heading. */
+const printHeading = (title: string): void => {
+  const bar = "═".repeat(63);
+  console.log(bar);
+  console.log(`  ${title}`);
+  console.log(`${bar}\n`);
+};
+
+/** Close a check's section: "None found." or its total, e.g. "Total: 3 file(s)".
+ * `prefix` carries the dead-code check's extra blank line before its total. */
+const printTotal = (count: number, unit: string, prefix = ""): void => {
+  console.log(
+    count === 0 ? "  None found.\n" : `${prefix}  Total: ${count} ${unit}(s)\n`,
+  );
+};
+
 // ---- Check 1: Files only imported from tests ----
-console.log("═══════════════════════════════════════════════════════════════");
-console.log("  FILES imported by test/ but NEVER by other src/ files");
-console.log(
-  "═══════════════════════════════════════════════════════════════\n",
-);
+printHeading("FILES imported by test/ but NEVER by other src/ files");
 
 let fileCount = 0;
 for (const srcFile of candidateSrcFiles) {
@@ -279,18 +301,10 @@ for (const srcFile of candidateSrcFiles) {
   }
 }
 
-if (fileCount === 0) {
-  console.log("  None found.\n");
-} else {
-  console.log(`  Total: ${fileCount} file(s)\n`);
-}
+printTotal(fileCount, "file");
 
 // ---- Check 2: Individual exports only used in tests ----
-console.log("═══════════════════════════════════════════════════════════════");
-console.log("  EXPORTS used in test/ but NEVER in other src/ files");
-console.log(
-  "═══════════════════════════════════════════════════════════════\n",
-);
+printHeading("EXPORTS used in test/ but NEVER in other src/ files");
 
 let exportCount = 0;
 for (const srcFile of srcFiles) {
@@ -325,18 +339,10 @@ for (const srcFile of srcFiles) {
   }
 }
 
-if (exportCount === 0) {
-  console.log("  None found.\n");
-} else {
-  console.log(`  Total: ${exportCount} export(s)\n`);
-}
+printTotal(exportCount, "export");
 
 // ---- Check 3: Files not imported by anything (dead code) ----
-console.log("═══════════════════════════════════════════════════════════════");
-console.log("  FILES not imported by anything (potential dead code)");
-console.log(
-  "═══════════════════════════════════════════════════════════════\n",
-);
+printHeading("FILES not imported by anything (potential dead code)");
 
 let deadCount = 0;
 for (const srcFile of candidateSrcFiles) {
@@ -345,8 +351,4 @@ for (const srcFile of candidateSrcFiles) {
   console.log(`  ${srcFile}`);
 }
 
-if (deadCount === 0) {
-  console.log("  None found.\n");
-} else {
-  console.log(`\n  Total: ${deadCount} file(s)\n`);
-}
+printTotal(deadCount, "file", "\n");

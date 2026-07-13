@@ -41,6 +41,11 @@ export const PricedJsonExample = ({
   </>
 );
 
+/** The SMS Gateway for Android app link, used across the SMS guide entries. */
+const SmsGatewayAppLink = (): JSX.Element => (
+  <a href="https://sms-gate.app">SMS Gateway for Android</a>
+);
+
 export const integrationsSections = (): GuideSection[] => [
   {
     entries: [
@@ -85,10 +90,10 @@ export const integrationsSections = (): GuideSection[] => [
         <p>
           The SMS gateway lets you send text messages to attendees from an
           attendee's <strong>Contact</strong> page, using a spare Android phone
-          as the sender. It uses the free, open-source{" "}
-          <a href="https://sms-gate.app">SMS Gateway for Android</a> app: you
-          install the app on a phone, and this site sends messages through it.
-          There is no per-message cost beyond your phone's normal SMS allowance.
+          as the sender. It uses the free, open-source <SmsGatewayAppLink />{" "}
+          app: you install the app on a phone, and this site sends messages
+          through it. There is no per-message cost beyond your phone's normal
+          SMS allowance.
         </p>,
       ),
       custom(
@@ -107,11 +112,9 @@ export const integrationsSections = (): GuideSection[] => [
         "sms_setup",
         <ol>
           <li>
-            Install the{" "}
-            <a href="https://sms-gate.app">SMS Gateway for Android</a> app on a
-            phone and register for the free cloud account it offers. The app
-            then shows you a <strong>username and password</strong> for that
-            cloud account.
+            Install the <SmsGatewayAppLink /> app on a phone and register for
+            the free cloud account it offers. The app then shows you a{" "}
+            <strong>username and password</strong> for that cloud account.
           </li>
           <li>
             In the app, enable <strong>end-to-end encryption</strong> and set a

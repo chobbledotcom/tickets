@@ -19,10 +19,6 @@ import {
 } from "#shared/types.ts";
 import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
-  renderListingRows,
-  renderListingTable,
-} from "#templates/admin/dashboard.tsx";
-import {
   buildSharedDetailRows,
   renderDetailRows,
   sumQuantity,
@@ -32,7 +28,11 @@ import {
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
 import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
-import { MoneySummary } from "#templates/admin/money-summary.tsx";
+import {
+  renderListingRows,
+  renderListingTable,
+} from "#templates/admin/listing-table.tsx";
+import { MoneySummaryBlock } from "#templates/admin/listings/ledger-section.tsx";
 import {
   PublicTicketLink,
   UnavailablePublicUrlRow,
@@ -41,6 +41,7 @@ import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
@@ -49,6 +50,7 @@ import {
   PageBlock,
   PageRegions,
 } from "#templates/components/page-structure.tsx";
+import { TableScroll } from "#templates/components/table-scroll.tsx";
 
 const totalAttendeeCount = sumOf(
   (listing: ListingWithCount) => listing.attendee_count,
@@ -104,27 +106,20 @@ const GroupAttendeesRow = ({
 }: {
   group: Group;
   attendeeCount: number;
-}): JSX.Element => {
-  if (group.max_attendees <= 0) {
-    return (
-      <tr>
-        <th>{t("groups.group_attendees")}</th>
-        <td>
-          {attendeeCount} <small>({t("groups.detail.no_group_cap")})</small>
-        </td>
-      </tr>
-    );
-  }
-  return (
-    <tr>
-      <th>{t("groups.group_attendees")}</th>
-      <td>
+}): JSX.Element => (
+  <LabelledRow label={t("groups.group_attendees")}>
+    {group.max_attendees <= 0 ? (
+      <>
+        {attendeeCount} <small>({t("groups.detail.no_group_cap")})</small>
+      </>
+    ) : (
+      <>
         <GroupCapacityMeter count={attendeeCount} max={group.max_attendees} />{" "}
         <small>{t("groups.detail.attendees_scope")}</small>
-      </td>
-    </tr>
-  );
-};
+      </>
+    )}
+  </LabelledRow>
+);
 
 /** Public share rows, or a note when the public group route would not work. */
 const GroupShareRows = ({
@@ -144,16 +139,13 @@ const GroupShareRows = ({
 }): JSX.Element =>
   shareable ? (
     <>
-      <tr>
-        <th>{t("common.public_url")}</th>
-        <td>
-          <PublicTicketLink
-            href={ticketUrl}
-            label={`${allowedDomain}/ticket/${group.slug}`}
-            qrHref={`/ticket/${group.slug}/qr`}
-          />
-        </td>
-      </tr>
+      <LabelledRow label={t("common.public_url")}>
+        <PublicTicketLink
+          href={ticketUrl}
+          label={`${allowedDomain}/ticket/${group.slug}`}
+          qrHref={`/ticket/${group.slug}/qr`}
+        />
+      </LabelledRow>
       {CopyableInputRow({
         id: `embed-script-${group.id}`,
         label: t("common.embed_script"),
@@ -247,45 +239,43 @@ export const GroupOverviewPanel = ({
       </article>
 
       {showMoney && (
-        <PageBlock as="article">
-          <MoneySummary
-            ledgerHref={ledgerHref}
-            ledgerLabel={t("groups.money.view_ledger")}
-            note={t("groups.money.note")}
-            rows={[
-              {
-                amount: money.recognisedIncome,
-                label: t("groups.money.income"),
-              },
-              {
-                amount: -money.servicingCosts,
-                label: t("groups.money.costs"),
-              },
-              {
-                amount: -money.refunds,
-                label: t("groups.money.refunds"),
-              },
-              {
-                amount: -money.externalCosts,
-                label: t("groups.money.external_costs"),
-              },
-              {
-                amount: net,
-                label: t("groups.money.net"),
-                signed: false,
-                subtotal: true,
-              },
-            ]}
-            title={t("groups.money.heading")}
-          />
-        </PageBlock>
+        <MoneySummaryBlock
+          ledgerHref={ledgerHref}
+          ledgerLabel={t("groups.money.view_ledger")}
+          note={t("groups.money.note")}
+          rows={[
+            {
+              amount: money.recognisedIncome,
+              label: t("groups.money.income"),
+            },
+            {
+              amount: -money.servicingCosts,
+              label: t("groups.money.costs"),
+            },
+            {
+              amount: -money.refunds,
+              label: t("groups.money.refunds"),
+            },
+            {
+              amount: -money.externalCosts,
+              label: t("groups.money.external_costs"),
+            },
+            {
+              amount: net,
+              label: t("groups.money.net"),
+              signed: false,
+              subtotal: true,
+            },
+          ]}
+          title={t("groups.money.heading")}
+        />
       )}
 
       <PageBlock>
         <h2>{t("terms.listings")}</h2>
-        <div class="table-scroll">
+        <TableScroll>
           <Raw html={renderListingTable(columnKeys, listingRows)} />
-        </div>
+        </TableScroll>
       </PageBlock>
 
       {!isReadOnly() && ungroupedListings.length > 0 && (

@@ -523,6 +523,29 @@ const lineDate = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) =>
     ? { date: parsed.startDate, durationDays: parsed.dayCount }
     : { date: null, durationDays: 1 };
 
+/** The booking fields every persisted line carries — its date range, its own
+ * booking path, and its quantity. Shared by the create and edit adapters so
+ * the two can never disagree about what a line stores. */
+const lineBookingFields = (
+  line: AttendeeFormLine,
+  parsed: ParsedAttendeeForm,
+): {
+  date: string | null;
+  durationDays: number;
+  listingId: number;
+  packageGroupId: number;
+  quantity: number;
+} => ({
+  ...lineDate(line, parsed),
+  listingId: line.listingId,
+  // Each line books its own path, so two lines for one listing (its own
+  // row beside a package's row) persist as two rows on distinct slots.
+  packageGroupId: line.packageGroupId,
+  // A retained line always has a non-null quantity: isBookedLine guarantees
+  // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
+  quantity: line.quantity!,
+});
+
 export const toCreateInput = (
   parsed: ParsedAttendeeForm,
 ): ContactInfo & {
@@ -533,17 +556,11 @@ export const toCreateInput = (
   // Retained lines, not just booked lines: a no-quantity line is persisted as a
   // quantity-0 sentinel (price_paid defaults to 0, satisfying the §1 invariant).
   bookings: parsed.lines.filter(isRetainedLine).map((line): ListingBooking => {
-    const { date, durationDays } = lineDate(line, parsed);
+    // A date-less (standard) line stores no duration.
+    const { durationDays, ...booking } = lineBookingFields(line, parsed);
     return {
-      date,
-      ...(date && durationDays !== undefined ? { durationDays } : {}),
-      listingId: line.listingId,
-      // Each line books its own path, so two lines for one listing (its own
-      // row beside a package's row) persist as two rows on distinct slots.
-      packageGroupId: line.packageGroupId,
-      // A retained line always has a non-null quantity: isBookedLine guarantees
-      // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
-      quantity: line.quantity!,
+      ...booking,
+      ...(booking.date ? { durationDays } : {}),
     };
   }),
   email: parsed.email,
@@ -606,24 +623,17 @@ export const toDesiredLines = (
   // Retained lines, not just booked lines: a checked quantity-0 line must
   // persist (become/stay a quantity-0 row) rather than fall out and be
   // deleted.
-  parsed.lines.filter(isRetainedLine).map((line): DesiredListingLine => {
-    const { date, durationDays } = lineDate(line, parsed);
-    return {
-      date,
-      durationDays,
+  parsed.lines.filter(isRetainedLine).map(
+    (line): DesiredListingLine => ({
+      // The shared fields include the line's own path — an existing row's
+      // stored values, a blank line's chosen package — so the edit always
+      // targets exactly one slot.
+      ...lineBookingFields(line, parsed),
       exists: Boolean(line.existingBooking),
       key: line.key,
-      listingId: line.listingId,
-      // The line's own path — an existing row's stored values, a blank
-      // line's chosen package — so the edit always targets exactly one slot.
-      packageGroupId: line.packageGroupId,
       parentListingId: line.parentListingId,
-      // A retained line always has a non-null quantity: isBookedLine
-      // guarantees ≥ 1, and a no-quantity line is parsed/built with
-      // quantity 0.
-      quantity: line.quantity!,
-    };
-  });
+    }),
+  );
 
 /** A status/balance mismatch surfaced on the attendee form. */
 export type BalanceNotice = { tone: "warning" | "info"; message: string };

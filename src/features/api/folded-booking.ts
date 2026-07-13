@@ -197,7 +197,7 @@ export const foldChildrenOrError = async (
  * flag is the caller's: the parent path reads paid-ness from the folded
  * listings (a standard listing's settings), the package path from the priced
  * order lines (a package override can flip a member's paid-ness). */
-export const validateFoldedFields = (
+const validateFoldedFields = (
   form: FormParams,
   fold: Extract<FoldChildrenResult, { ok: true }>,
   paid: boolean,
@@ -208,6 +208,23 @@ export const validateFoldedFields = (
     (msg) => apiError(msg),
     paid,
   );
+
+/** Validate the folded order's contact fields, then charge or create it via
+ * {@link completeFoldedBooking}. The parent and package API booking flows both
+ * end here, so the validate-then-complete tail lives once. */
+export const finishFoldedBooking = async (
+  request: Request,
+  form: FormParams,
+  paid: boolean,
+  order: Omit<FoldedBookingInput, "contact">,
+): Promise<Response> => {
+  const valResult = validateFoldedFields(form, order.fold, paid);
+  if (valResult instanceof Response) return valResult;
+  return completeFoldedBooking(request, {
+    ...order,
+    contact: extractContact(valResult),
+  });
+};
 
 /** Charge or create a folded parent+children order. Paid (with a provider): a
  * multi-item checkout session whose webhook creates and pairs the rows. Free (or
@@ -226,7 +243,7 @@ export const validateFoldedFields = (
  * revalidation); the caller builds — and, for a HIDDEN package, conceals — the
  * per-path `items`, so the hosted checkout's line items never reveal a
  * concealed member's name. */
-export const completeFoldedBooking = async (
+const completeFoldedBooking = async (
   request: Request,
   input: FoldedBookingInput,
 ): Promise<Response> => {
@@ -355,14 +372,6 @@ export const processParentApiBooking = async (
   );
   if (fold instanceof Response) return fold;
 
-  // Validate contact fields against the MERGED parent+child requirements and the
-  // folded paid-ness (a free parent with a paid child still needs Square's email).
-  const valResult = validateFoldedFields(
-    form,
-    fold,
-    fold.listings.some((e) => isPaidListing(e.listing)),
-  );
-  if (valResult instanceof Response) return valResult;
   const items = buildOrderLines(
     tree,
     nodeQuantitiesFor(tree, new Map([[listing.id, quantity]]), new Map()),
@@ -370,13 +379,19 @@ export const processParentApiBooking = async (
     fold.customPrices,
     fold.dayCount,
   );
-  return completeFoldedBooking(request, {
-    contact: extractContact(valResult),
-    date,
-    fold,
-    items,
-    // The fold always starts from this single parent, so its configured
-    // thank-you URL is the one a folded order would otherwise drop.
-    parentThankYouUrl: listing.thank_you_url,
-  });
+  // Contact fields validate against the MERGED parent+child requirements and the
+  // folded paid-ness (a free parent with a paid child still needs Square's email).
+  return finishFoldedBooking(
+    request,
+    form,
+    fold.listings.some((e) => isPaidListing(e.listing)),
+    {
+      date,
+      fold,
+      items,
+      // The fold always starts from this single parent, so its configured
+      // thank-you URL is the one a folded order would otherwise drop.
+      parentThankYouUrl: listing.thank_you_url,
+    },
+  );
 };

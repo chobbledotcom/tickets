@@ -10,7 +10,7 @@ import {
   type KeyedCache,
   type KeyedCacheConfig,
 } from "#shared/db/keyed-cache.ts";
-import { col, type Table } from "#shared/db/table.ts";
+import { type ColumnDef, col, type Table } from "#shared/db/table.ts";
 
 export { defineIdTable } from "#shared/db/define-id-table.ts";
 // Re-exported for users.ts, which caches a table-less query and so wires the
@@ -67,15 +67,6 @@ export const encryptedSlugSchema = (
   slug_index: col.simple<BlindIndex>(),
 });
 
-/** Shared columns for tables with a generated id plus the encrypted slug pair. */
-export const idAndEncryptedSlugSchema = (
-  encrypt: EncryptFn,
-  decrypt: DecryptFn,
-) => ({
-  id: col.generated<number>(),
-  ...encryptedSlugSchema(encrypt, decrypt),
-});
-
 /** Shared encrypted `name` column for tables that store a display name. */
 export const encryptedNameSchema = (
   encrypt: EncryptFn,
@@ -83,6 +74,24 @@ export const encryptedNameSchema = (
 ) => ({
   name: col.encrypted(encrypt, decrypt),
 });
+
+/** Give an encrypted-column schema builder a generated `id` column as well —
+ * the shared opener of the "id plus encrypted fields" table schemas below. */
+const withGeneratedId =
+  <Schema>(buildSchema: (encrypt: EncryptFn, decrypt: DecryptFn) => Schema) =>
+  (
+    encrypt: EncryptFn,
+    decrypt: DecryptFn,
+  ): Schema & { id: ColumnDef<number> } => ({
+    id: col.generated<number>(),
+    ...buildSchema(encrypt, decrypt),
+  });
+
+/** Shared columns for tables with a generated id plus the encrypted slug pair. */
+export const idAndEncryptedSlugSchema = withGeneratedId(encryptedSlugSchema);
+
+/** Shared columns for tables with a generated id plus an encrypted name. */
+export const idAndEncryptedNameSchema = withGeneratedId(encryptedNameSchema);
 
 /** Shared generated `id` + plaintext `created` stamp columns. `created` stays
  * unencrypted so SQL can order and prune by time without decrypting. */

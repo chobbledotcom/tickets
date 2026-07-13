@@ -5,6 +5,7 @@ import {
   type SqlStatement,
   withTransaction,
 } from "#shared/db/client.ts";
+import { stringColumnSet } from "#shared/db/query.ts";
 import { logDebug } from "#shared/logger.ts";
 import { queryRowsWithArg } from "./master-query.ts";
 import { APP_SCHEMA, SCHEMA } from "./schema/index.ts";
@@ -41,7 +42,7 @@ export const getExistingColumns = async (
   table: string,
 ): Promise<Set<string>> => {
   const result = await getDb().execute(`PRAGMA table_info(${table})`);
-  return new Set(result.rows.map((row) => String(row.name)));
+  return stringColumnSet(result.rows, "name");
 };
 
 export const tableExists = async (table: string): Promise<boolean> => {
@@ -108,10 +109,26 @@ export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
     tables.set(tbl, cols);
   }
 
-  const indexes = new Set(indexRows!.rows.map((row) => String(row.name)));
-  const triggers = new Set(triggerRows!.rows.map((row) => String(row.name)));
+  const indexes = stringColumnSet(indexRows!.rows, "name");
+  const triggers = stringColumnSet(triggerRows!.rows, "name");
   return { indexes, tables, triggers };
 };
+
+/** Build a sync/verify step that first loads its live-schema probe — the whole
+ * snapshot or one table's columns — then hands it to the work. Every step
+ * below opens with the same read, so the probe lives here once. */
+const stepUsing =
+  <Probe>(loadProbe: () => Promise<Probe>) =>
+  (work: (probe: Probe) => Promise<void>) =>
+  async (): Promise<void> =>
+    work(await loadProbe());
+
+/** Steps that work from one whole-schema snapshot (a single batched read). */
+const fromLiveSchema = stepUsing(snapshotLiveSchema);
+
+/** Steps that fork on the live attendees table's columns — the legacy-schema
+ * probe the attendee backfills and the legacy-column drop all open with. */
+const fromAttendeeColumns = stepUsing(() => getExistingColumns("attendees"));
 
 /** Build the idempotent CREATE INDEX statement for a declared index. */
 const createIndexSql = (tableName: string, idx: Index): string => {
@@ -331,53 +348,54 @@ const requireColumns = (
   assertColumnsPresent("legacy", table, existing, required);
 };
 
-const backfillListingAttendees = async (): Promise<void> => {
-  const attendeeColumns = await getExistingColumns("attendees");
-  if (!attendeeColumns.has("listing_id")) {
-    logDebug(
-      "Migration",
-      "attendees.listing_id is absent, skipping listing_attendees backfill",
-    );
-    return;
-  }
+const backfillListingAttendees = fromAttendeeColumns(
+  async (attendeeColumns) => {
+    if (!attendeeColumns.has("listing_id")) {
+      logDebug(
+        "Migration",
+        "attendees.listing_id is absent, skipping listing_attendees backfill",
+      );
+      return;
+    }
 
-  requireColumns("attendees", attendeeColumns, [
-    "id",
-    "listing_id",
-    "date",
-    "quantity",
-    "checked_in_v2",
-    "attachment_downloads",
-  ]);
-  requireColumns(
-    "listing_attendees",
-    await getExistingColumns("listing_attendees"),
-    [
+    requireColumns("attendees", attendeeColumns, [
+      "id",
       "listing_id",
-      "attendee_id",
-      "start_at",
-      "end_at",
+      "date",
       "quantity",
-      "checked_in",
+      "checked_in_v2",
       "attachment_downloads",
-    ],
-  );
+    ]);
+    requireColumns(
+      "listing_attendees",
+      await getExistingColumns("listing_attendees"),
+      [
+        "listing_id",
+        "attendee_id",
+        "start_at",
+        "end_at",
+        "quantity",
+        "checked_in",
+        "attachment_downloads",
+      ],
+    );
 
-  // refunded and price_paid were both dropped from listing_attendees (refund
-  // status and per-row amount paid are now projected from the transfers ledger),
-  // so the legacy attendees.refunded_v2 / price_paid_v2 values are not restored —
-  // a historical paid or refunded booking re-surfaces via its backfilled sale /
-  // refund_cash leg, not a per-row column.
-  await getDb().execute(
-    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
+    // refunded and price_paid were both dropped from listing_attendees (refund
+    // status and per-row amount paid are now projected from the transfers ledger),
+    // so the legacy attendees.refunded_v2 / price_paid_v2 values are not restored —
+    // a historical paid or refunded booking re-surfaces via its backfilled sale /
+    // refund_cash leg, not a per-row column.
+    await getDb().execute(
+      `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
      SELECT listing_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
        quantity, checked_in_v2, attachment_downloads
      FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)`,
-  );
-};
+    );
+  },
+);
 
 /**
  * Drop any legacy columns from attendees that aren't in the current schema
@@ -387,8 +405,7 @@ const backfillListingAttendees = async (): Promise<void> => {
  * SQLite can't DROP COLUMN when a FK references the column, so we recreate
  * the table. Idempotent: if every existing column matches the schema, skip.
  */
-const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
-  const cols = await getExistingColumns("attendees");
+const dropDeprecatedAttendeeColumns = fromAttendeeColumns(async (cols) => {
   const expected = getAppSchemaColumns("attendees");
   const hasLegacy = [...cols].some((c) => !expected.has(c));
   if (!hasLegacy) {
@@ -415,7 +432,7 @@ const dropDeprecatedAttendeeColumns = async (): Promise<void> => {
   );
   await recreateTable("attendees");
   logDebug("Migration", "Table recreation complete.");
-};
+});
 
 /** Create missing tables and add missing columns in a single pass */
 export const createTableSql = ([name, table]: [string, Table]): string => {
@@ -446,38 +463,38 @@ const writeStatement = (sql: string): SqlStatement => ({
 export const noArgStatements = (sqls: string[]): SqlStatement[] =>
   sqls.map(writeStatement);
 
-export const applySchemaChanges = async (): Promise<void> => {
-  const live = await snapshotLiveSchema();
-  const statements: SqlStatement[] = [];
-  for (const entry of SCHEMA) {
-    const [name, table] = entry;
-    const existing = live.tables.get(name);
-    if (!existing) {
-      // Missing table: one CREATE carries every column, so no ALTERs follow.
-      statements.push({ args: [], sql: createTableSql(entry) });
-      continue;
-    }
-    for (const [col, type] of table.columns) {
-      if (!existing.has(col)) {
-        statements.push({
-          args: [],
-          sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
-        });
+export const applySchemaChanges: () => Promise<void> = fromLiveSchema(
+  async (live) => {
+    const statements: SqlStatement[] = [];
+    for (const entry of SCHEMA) {
+      const [name, table] = entry;
+      const existing = live.tables.get(name);
+      if (!existing) {
+        // Missing table: one CREATE carries every column, so no ALTERs follow.
+        statements.push({ args: [], sql: createTableSql(entry) });
+        continue;
+      }
+      for (const [col, type] of table.columns) {
+        if (!existing.has(col)) {
+          statements.push({
+            args: [],
+            sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
+          });
+        }
       }
     }
-  }
-  // Run statements through runMigration rather than a single batch so another
-  // edge isolate can safely win the same additive schema race after our
-  // snapshot. runMigration ignores idempotent duplicate/already-exists DDL
-  // errors but still surfaces real failures.
-  for (const statement of statements) {
-    await runMigration(statement.sql);
-  }
-};
+    // Run statements through runMigration rather than a single batch so another
+    // edge isolate can safely win the same additive schema race after our
+    // snapshot. runMigration ignores idempotent duplicate/already-exists DDL
+    // errors but still surfaces real failures.
+    for (const statement of statements) {
+      await runMigration(statement.sql);
+    }
+  },
+);
 
 /** Create missing indexes and drop legacy ones */
-export const syncIndexes = async (): Promise<void> => {
-  const live = await snapshotLiveSchema();
+export const syncIndexes: () => Promise<void> = fromLiveSchema(async (live) => {
   const declared = SCHEMA.flatMap(([tableName, table]) =>
     (table.indexes ?? []).map((idx) => ({
       columns: idx.columns,
@@ -518,30 +535,31 @@ export const syncIndexes = async (): Promise<void> => {
   // One batched write (one subrequest) instead of a CREATE/DROP per index.
   const statements = [...creates, ...drops];
   if (statements.length > 0) await executeBatch(statements);
-};
+});
 
 /**
  * Create missing declared triggers and drop legacy project-owned (trg_*) ones.
  * Run sequentially (not batched) because a compound CREATE TRIGGER … BEGIN …
  * END carries internal semicolons that some batch transports mis-split.
  */
-export const syncTriggers = async (): Promise<void> => {
-  const live = await snapshotLiveSchema();
-  const declaredNames = new Set(TRIGGERS.map((t) => t.name));
-  for (const trg of TRIGGERS) {
-    if (
-      !live.triggers.has(trg.name) &&
-      canCreateTrigger(trg.name, trg.table, live.tables)
-    ) {
-      await runMigration(trg.sql);
+export const syncTriggers: () => Promise<void> = fromLiveSchema(
+  async (live) => {
+    const declaredNames = new Set(TRIGGERS.map((t) => t.name));
+    for (const trg of TRIGGERS) {
+      if (
+        !live.triggers.has(trg.name) &&
+        canCreateTrigger(trg.name, trg.table, live.tables)
+      ) {
+        await runMigration(trg.sql);
+      }
     }
-  }
-  for (const name of live.triggers) {
-    if (name.startsWith("trg_") && !declaredNames.has(name)) {
-      await runMigration(`DROP TRIGGER IF EXISTS ${name}`);
+    for (const name of live.triggers) {
+      if (name.startsWith("trg_") && !declaredNames.has(name)) {
+        await runMigration(`DROP TRIGGER IF EXISTS ${name}`);
+      }
     }
-  }
-};
+  },
+);
 
 /**
  * Recompute the listings aggregate columns from listing_attendees in a single
@@ -572,13 +590,13 @@ const BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA = {
   legacy: BACKFILL_LEGACY_LISTING_AGGREGATES_SQL,
 };
 
-export const backfillListingAggregates = async (): Promise<void> => {
-  const attendeeColumns = await getExistingColumns("attendees");
-  const sql = attendeeColumns.has("kind")
-    ? BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.current
-    : BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.legacy;
-  await getDb().execute({ args: [], sql });
-};
+export const backfillListingAggregates: () => Promise<void> =
+  fromAttendeeColumns(async (attendeeColumns) => {
+    const sql = attendeeColumns.has("kind")
+      ? BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.current
+      : BACKFILL_LISTING_AGGREGATES_SQL_BY_SCHEMA.legacy;
+    await getDb().execute({ args: [], sql });
+  });
 
 /**
  * Recompute the modifiers aggregate columns from modifier_usages in a single
@@ -608,36 +626,37 @@ export const backfillAnswerAggregates = async (): Promise<void> => {
   );
 };
 
-export const verifyCurrentAppSchema = async (): Promise<void> => {
-  // One snapshot (a single batched round-trip) replaces the per-table
-  // tableExists/getExistingColumns/indexExists probes — dozens of subrequests
-  // that could alone exceed the edge per-request cap.
-  const live = await snapshotLiveSchema();
-  for (const [name, table] of APP_SCHEMA) {
-    assertLiveTableColumns(
-      "appSchema",
-      live,
-      name,
-      table.columns.map(([col]) => col),
-    );
+// One snapshot (a single batched round-trip) replaces the per-table
+// tableExists/getExistingColumns/indexExists probes — dozens of subrequests
+// that could alone exceed the edge per-request cap.
+export const verifyCurrentAppSchema: () => Promise<void> = fromLiveSchema(
+  async (live) => {
+    for (const [name, table] of APP_SCHEMA) {
+      assertLiveTableColumns(
+        "appSchema",
+        live,
+        name,
+        table.columns.map(([col]) => col),
+      );
 
-    for (const index of table.indexes ?? []) {
-      if (!live.indexes.has(index.name)) {
+      for (const index of table.indexes ?? []) {
+        if (!live.indexes.has(index.name)) {
+          throw new Error(
+            `Database schema verification failed: missing index ${index.name}`,
+          );
+        }
+      }
+    }
+
+    for (const trigger of TRIGGERS) {
+      if (!live.triggers.has(trigger.name)) {
         throw new Error(
-          `Database schema verification failed: missing index ${index.name}`,
+          `Database schema verification failed: missing trigger ${trigger.name}`,
         );
       }
     }
-  }
-
-  for (const trigger of TRIGGERS) {
-    if (!live.triggers.has(trigger.name)) {
-      throw new Error(
-        `Database schema verification failed: missing trigger ${trigger.name}`,
-      );
-    }
-  }
-};
+  },
+);
 
 export const syncCurrentSchema = async (
   repairLegacySchemaRenames?: () => Promise<void>,

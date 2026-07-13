@@ -9,6 +9,19 @@ import { csrfPost } from "./csrf.ts";
  * @param cssClass - CSS class for result formatting
  * @param formatLines - extract display lines from JSON response
  */
+/** Show the result box with the given text, coloured green for a pass and red
+ * for a failure. */
+const showTestResult = (
+  resultDiv: HTMLElement,
+  text: string,
+  passed: boolean,
+  cssClass: string,
+) => {
+  resultDiv.textContent = text;
+  resultDiv.classList.remove("hidden", "success", "error");
+  resultDiv.classList.add(passed ? "success" : "error", cssClass);
+};
+
 const setupTestButton = (
   btnId: string,
   resultId: string,
@@ -30,13 +43,19 @@ const setupTestButton = (
         .closest("form")
         ?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
       const data = await csrfPost(url, csrfInput?.value ?? "");
-      resultDiv.textContent = formatLines(data).join("\n");
-      resultDiv.classList.remove("hidden", "success", "error");
-      resultDiv.classList.add(data.ok ? "success" : "error", cssClass);
+      showTestResult(
+        resultDiv,
+        formatLines(data).join("\n"),
+        data.ok,
+        cssClass,
+      );
     } catch (e) {
-      resultDiv.textContent = `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`;
-      resultDiv.classList.remove("hidden", "success", "error");
-      resultDiv.classList.add("error", cssClass);
+      showTestResult(
+        resultDiv,
+        `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`,
+        false,
+        cssClass,
+      );
     }
     button.disabled = false;
     button.textContent = "Test Connection";

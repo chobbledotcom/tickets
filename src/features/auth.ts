@@ -3,7 +3,7 @@
  */
 
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
-import { parseFormData } from "#routes/csrf.ts";
+import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import { lowerContentType } from "#routes/middleware.ts";
 import {
   htmlResponse,
@@ -28,12 +28,16 @@ import {
   getUserAuthFieldsById,
   type UserAuthFields,
 } from "#shared/db/users.ts";
+import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms.tsx";
+/* jscpd:ignore-start */
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+/* jscpd:ignore-end */
+import type { MakeResponse, RequestRoute } from "#shared/response-steps.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
 import {
@@ -384,7 +388,7 @@ type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
 export const withSession = async (
   request: Request,
   handler: SessionHandler,
-  onNoSession: () => Response | Promise<Response>,
+  onNoSession: MakeResponse,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   return session ? handler(session) : onNoSession();
@@ -435,24 +439,47 @@ export type SessionGuard<TSession> = (
   handler: (session: TSession) => Response | Promise<Response>,
 ) => Promise<Response>;
 
+/** Factory for authenticated GET routes whose builder returns the full
+ * Response — for pages that may 404, redirect, or set headers. Applies any
+ * flashed message first and hands its values to the builder. */
+export const authResponsePage =
+  <TSession>(requireSession: SessionGuard<TSession>) =>
+  (
+    build: (
+      session: TSession,
+      request: Request,
+      flash: Flash,
+    ) => Response | Promise<Response>,
+  ): RequestRoute =>
+  (request) =>
+    requireSession(request, (session) =>
+      build(session, request, applyFlash(request)),
+    );
+
 /** Factory for creating authenticated page handlers. The render callback is
  * given the request too, for pages that read query params (e.g. the deliveries
- * run sheet's date picker); callers that only need the session simply ignore
- * it. */
+ * run sheet's date picker), and the flashed message values, for pages that
+ * thread them into the template; callers that need neither simply ignore
+ * them. */
 export const authPage =
   <TSession>(requireSession: SessionGuard<TSession>) =>
   (
-    render: (session: TSession, request: Request) => string | Promise<string>,
-  ): ((request: Request) => Promise<Response>) =>
-  (request) =>
-    requireSession(request, async (session) => {
-      const { applyFlash } = await import("#routes/csrf.ts");
-      applyFlash(request);
-      return htmlResponse(await render(session, request));
-    });
+    render: (
+      session: TSession,
+      request: Request,
+      flash: Flash,
+    ) => string | Promise<string>,
+  ): RequestRoute =>
+    authResponsePage(requireSession)(async (session, request, flash) =>
+      htmlResponse(await render(session, request, flash)),
+    );
 
 /** Owner-only GET page: authenticate, apply flash, render HTML */
 export const ownerPage = authPage(requireOwnerOr);
+
+/** Owner-only GET route whose builder returns the full Response (may 404 or
+ * redirect instead of rendering). */
+export const ownerResponsePage = authResponsePage(requireOwnerOr);
 
 /** Authenticated GET page: authenticate, apply flash, render HTML */
 export const sessionPage = authPage(requireSessionOr);
@@ -669,3 +696,10 @@ export const gatedPost =
   ) =>
   (request: Request): Promise<Response> =>
     withAuth(request, policy, handle);
+
+/** A {@link gatedPost} whose handler only needs the parsed form — for POST
+ * routes that act on the form alone and never read the session. */
+export const formPost =
+  (policy: AuthPolicy<"form">) =>
+  (handle: (form: FormParams) => Response | Promise<Response>): RequestRoute =>
+    gatedPost(policy)((_session, form) => handle(form));

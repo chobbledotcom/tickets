@@ -22,7 +22,9 @@ import type {
   TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
+import { TableScroll } from "#templates/components/table-scroll.tsx";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import type { AttendeeFilter, DateOption } from "./types.ts";
 
@@ -221,10 +223,7 @@ export const AttendeesSection = ({
     exportQuery ? `?${exportQuery}` : ""
   }`;
   return (
-    <article>
-      <div class="prose">
-        <h2 id="attendees">{t("terms.attendees")}</h2>
-      </div>
+    <ProseArticle heading={<h2 id="attendees">{t("terms.attendees")}</h2>}>
       {isDaily && availableDates.length > 0 && (
         <Raw
           html={DateSelector({
@@ -253,7 +252,7 @@ export const AttendeesSection = ({
           showListing: false,
         })}
       />
-    </article>
+    </ProseArticle>
   );
 };
 
@@ -261,19 +260,22 @@ export const FailedPaymentsSection = ({
   attendees,
   listingId,
 }: FailedPaymentsProps): JSX.Element => (
-  <article>
-    <div class="prose">
+  <ProseArticle
+    heading={
       <h2 id="failed-payments">{t("listings_table.failed_payments")}</h2>
+    }
+    prose={
       <p>
         {t("listings_table.attendees_with_unresolved_payments", {
           count: attendees.length,
         })}
       </p>
-    </div>
-    <div class="table-scroll">
+    }
+  >
+    <TableScroll>
       <Raw html={FailedPaymentsTable({ attendees, listingId })} />
-    </div>
-  </article>
+    </TableScroll>
+  </ProseArticle>
 );
 
 export const AddAttendeeSection = ({

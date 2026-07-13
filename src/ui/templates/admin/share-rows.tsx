@@ -1,4 +1,5 @@
 import { t } from "#i18n";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 
 export const PublicTicketLink = ({
   href,
@@ -23,10 +24,7 @@ export const UnavailablePublicUrlRow = ({
 }: {
   message: string;
 }): JSX.Element => (
-  <tr>
-    <th>{t("common.public_url")}</th>
-    <td>
-      <em>{message}</em>
-    </td>
-  </tr>
+  <LabelledRow label={t("common.public_url")}>
+    <em>{message}</em>
+  </LabelledRow>
 );

@@ -21,6 +21,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { isMaskSentinel } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -104,8 +105,14 @@ const runValidate = async <T>(
 const asRoute = (
   opts: RedirectOpts,
   handler: SettingsFormHandler,
-): ((request: Request) => Promise<Response>) =>
-  wrapRoute(pathFor(opts), opts.auth)(handler);
+): RequestRoute => wrapRoute(pathFor(opts), opts.auth)(handler);
+
+/** Wrap a "config → handler" builder into its convenience route form: the one
+ * config drives both the handler and the auth + redirect wiring. */
+const routedSettings =
+  <C extends RedirectOpts>(toHandler: (cfg: C) => SettingsFormHandler) =>
+  (cfg: C): RequestRoute =>
+    asRoute(cfg, toHandler(cfg));
 
 // ── Core: createSettingsHandler ─────────────────────────────────────
 
@@ -147,10 +154,8 @@ const createSettingsHandler =
   };
 
 /** Convenience: createSettingsHandler + route wrapping */
-const settingsHandler = <T>(
-  cfg: SettingsHandlerConfig<T>,
-): ((request: Request) => Promise<Response>) =>
-  asRoute(cfg, createSettingsHandler(cfg));
+const settingsHandler = <T>(cfg: SettingsHandlerConfig<T>): RequestRoute =>
+  routedSettings(createSettingsHandler<T>)(cfg);
 
 // ── Specialization: toggleHandler ───────────────────────────────────
 
@@ -169,10 +174,8 @@ const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
   });
 
 /** Convenience: toggleHandler + route wrapping */
-const settingsToggle = (
-  cfg: ToggleConfig,
-): ((request: Request) => Promise<Response>) =>
-  asRoute(cfg, toggleHandler(cfg));
+const settingsToggle: (cfg: ToggleConfig) => RequestRoute =
+  routedSettings(toggleHandler);
 
 // ── Shared field config base ─────────────────────────────────────────
 
@@ -202,10 +205,8 @@ const clearableFieldHandler = (
   });
 
 /** Convenience: clearableFieldHandler + route wrapping */
-const settingsClearable = (
-  cfg: ClearableFieldConfig,
-): ((request: Request) => Promise<Response>) =>
-  asRoute(cfg, clearableFieldHandler(cfg));
+const settingsClearable: (cfg: ClearableFieldConfig) => RequestRoute =
+  routedSettings(clearableFieldHandler);
 
 // ── Secret field helpers ────────────────────────────────────────────
 
@@ -286,10 +287,8 @@ const secretFieldHandler =
   };
 
 /** Convenience: secretFieldHandler + route wrapping */
-const settingsSecret = (
-  cfg: SecretFieldConfig,
-): ((request: Request) => Promise<Response>) =>
-  asRoute(cfg, secretFieldHandler(cfg));
+const settingsSecret: (cfg: SecretFieldConfig) => RequestRoute =
+  routedSettings(secretFieldHandler);
 
 // ── Payment-provider credential routes ──────────────────────────────
 

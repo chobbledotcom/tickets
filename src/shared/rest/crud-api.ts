@@ -27,6 +27,7 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { type TxScope, writeRowInTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
+import type { ApiResult } from "#shared/fetch.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -57,7 +58,7 @@ const requireString = (
 export const requireStrings = <K extends string>(
   body: Record<string, unknown>,
   keys: readonly K[],
-): { ok: true; values: Record<K, string> } | { ok: false; error: string } => {
+): ApiResult<{ values: Record<K, string> }> => {
   const values = {} as Record<K, string>;
   for (const key of keys) {
     const value = requireString(body, key);
@@ -93,9 +94,7 @@ export const bodyBoolean = (
 ): boolean => (typeof body[key] === "boolean" ? body[key] : fallback);
 
 /** Result of parsing a JSON body into a typed input */
-export type ParseResult<Input> =
-  | { ok: true; input: Input }
-  | { ok: false; error: string };
+export type ParseResult<Input> = ApiResult<{ input: Input }>;
 
 /** Outcome of parsing a single array element: a value, or a rejection reason. */
 export type ItemResult<T> = { value: T } | { error: string };
@@ -172,7 +171,7 @@ export const parseUpdateSlug = async <Index extends string>(
 export const parseUpdateName = (
   body: Record<string, unknown>,
   existing: string,
-): { ok: true; name: string } | { ok: false; error: string } => {
+): ApiResult<{ name: string }> => {
   const name = body.name != null ? String(body.name).trim() : existing;
   return name === ""
     ? { error: "name cannot be empty", ok: false }

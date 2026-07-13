@@ -12,20 +12,20 @@ import { apiRoutes } from "#routes/api/index.ts";
 import {
   ADMIN_API_ENDPOINTS,
   ADMIN_API_EXAMPLE_ADMIN_LISTING,
-  ADMIN_API_EXAMPLE_LISTING,
   type EndpointDoc,
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
+import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { PublicListingSchema } from "#test-utils/api-schemas.ts";
 
 describe("admin API example", () => {
   test("toAdminListing output matches the documented example", () => {
-    const result = toAdminListing(ADMIN_API_EXAMPLE_LISTING);
+    const result = toAdminListing(API_EXAMPLE_LISTING);
     expect(result).toEqual(ADMIN_API_EXAMPLE_ADMIN_LISTING);
   });
 
   test("example has all AdminListing keys", () => {
-    const result = toAdminListing(ADMIN_API_EXAMPLE_LISTING);
+    const result = toAdminListing(API_EXAMPLE_LISTING);
     const resultKeys = Object.keys(result).sort();
     const exampleKeys = Object.keys(ADMIN_API_EXAMPLE_ADMIN_LISTING).sort();
     expect(exampleKeys).toEqual(resultKeys);
@@ -67,7 +67,7 @@ describe("endpoint docs", () => {
         e.method === "GET" && e.path === "/api/admin/listings",
     )!;
     const parsed = JSON.parse(listEndpoint.response);
-    const realAdminListing = toAdminListing(ADMIN_API_EXAMPLE_LISTING);
+    const realAdminListing = toAdminListing(API_EXAMPLE_LISTING);
     const realKeys = Object.keys(realAdminListing).sort();
     const exampleKeys = Object.keys(parsed.listings[0]).sort();
     expect(exampleKeys).toEqual(realKeys);

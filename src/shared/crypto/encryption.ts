@@ -139,11 +139,14 @@ export const validateEncryptionKey = (): void => {
   getEncryptionKeyString();
 };
 
+/** The IV and ciphertext bytes one AES-GCM encryption produces. */
+export type AesGcmEncrypted = { iv: Uint8Array; ciphertext: Uint8Array };
+
 /** AES-GCM encrypt raw data, returning IV and ciphertext bytes */
 export const aesGcmEncryptRaw = async (
   data: BufferSource,
   key: CryptoKey,
-): Promise<{ iv: Uint8Array; ciphertext: Uint8Array }> => {
+): Promise<AesGcmEncrypted> => {
   const iv = getRandomBytes(12);
   const ciphertext = await crypto.subtle.encrypt(
     { iv: iv as BufferSource, name: "AES-GCM" },
@@ -152,6 +155,13 @@ export const aesGcmEncryptRaw = async (
   );
   return { ciphertext: new Uint8Array(ciphertext), iv };
 };
+
+/** AES-GCM encrypt a text string, returning IV and ciphertext bytes. */
+export const aesGcmEncryptText = (
+  plaintext: string,
+  key: CryptoKey,
+): Promise<AesGcmEncrypted> =>
+  aesGcmEncryptRaw(new TextEncoder().encode(plaintext), key);
 
 /** AES-GCM decrypt raw data, returning the decrypted ArrayBuffer */
 export const aesGcmDecryptRaw = (
@@ -197,7 +207,7 @@ const concatBytes = (...parts: Uint8Array[]): Uint8Array => {
 const nodeAesGcmEncrypt = (
   data: Uint8Array,
   keyBytes: Uint8Array,
-): { ciphertext: Uint8Array; iv: Uint8Array } => {
+): AesGcmEncrypted => {
   const iv = getRandomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", keyBytes, iv);
   const ciphertext = concatBytes(
@@ -234,10 +244,7 @@ export const symmetricEncrypt = async (
   plaintext: string,
   key: CryptoKey,
 ): Promise<KeyEncrypted> => {
-  const { iv, ciphertext } = await aesGcmEncryptRaw(
-    new TextEncoder().encode(plaintext),
-    key,
-  );
+  const { iv, ciphertext } = await aesGcmEncryptText(plaintext, key);
   return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext) as KeyEncrypted;
 };
 

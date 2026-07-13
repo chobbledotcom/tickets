@@ -9,9 +9,9 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+/* jscpd:ignore-start */
 import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-/* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */

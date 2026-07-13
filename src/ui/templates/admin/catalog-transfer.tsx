@@ -7,26 +7,15 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
-import type { AdminSession } from "#shared/types.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 /* jscpd:ignore-end */
 
-export const adminCatalogImportPage = (
-  session: AdminSession,
-  error?: string,
-  success?: string,
-): string => {
-  const page = flashAdminPage(
-    t("catalog_transfer.page_title"),
-    "/admin/listings",
-  );
-  return page(
-    session,
-    error,
-    success,
-  )(
+export const adminCatalogImportPage = flashFormPage(
+  "catalog_transfer.page_title",
+  "/admin/listings",
+  (session) => (
     <>
       <ProseHeading heading={t("catalog_transfer.heading")}>
         <p>{t("catalog_transfer.description")}</p>
@@ -56,6 +45,6 @@ export const adminCatalogImportPage = (
       >
         {t("catalog_transfer.guide_link")}
       </GuideFooter>
-    </>,
-  );
-};
+    </>
+  ),
+);

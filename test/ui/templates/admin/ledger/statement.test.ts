@@ -79,9 +79,7 @@ describe("AccountStatementSection", () => {
     const refs = names({ listings: new Map([[1, "Concert"]]) });
     const html = String(
       AccountStatementSection({
-        account: acct,
-        lines: lines(),
-        names: refs,
+        ledger: { account: acct, lines: lines(), names: refs },
         returnUrl: "/admin/ledger/attendee/1",
       }),
     );
@@ -107,16 +105,18 @@ describe("AccountStatementSection", () => {
     const revenue = account("revenue", 1);
     const html = String(
       AccountStatementSection({
-        account: revenue,
-        lines: statementFor(revenue)([
-          transfer({
-            amount: 5000,
-            destination: account("revenue", 1),
-            kind: "sale",
-            source: account("attendee", 1),
-          }),
-        ]),
-        names: names(),
+        ledger: {
+          account: revenue,
+          lines: statementFor(revenue)([
+            transfer({
+              amount: 5000,
+              destination: account("revenue", 1),
+              kind: "sale",
+              source: account("attendee", 1),
+            }),
+          ]),
+          names: names(),
+        },
         returnUrl: "/admin/ledger/revenue/1",
       }),
     );
@@ -130,24 +130,26 @@ describe("AccountStatementSection", () => {
     const cost = account("cost", 1);
     const html = String(
       AccountStatementSection({
-        account: cost,
-        lines: statementFor(cost)([
-          transfer({
-            amount: 5000,
-            destination: account("external", "world"),
-            id: 1,
-            kind: "service_cost",
-            source: cost,
-          }),
-          transfer({
-            amount: 2000,
-            destination: cost,
-            id: 2,
-            kind: "service_cost",
-            source: account("external", "world"),
-          }),
-        ]),
-        names: names({ listings: new Map([[1, "Concert"]]) }),
+        ledger: {
+          account: cost,
+          lines: statementFor(cost)([
+            transfer({
+              amount: 5000,
+              destination: account("external", "world"),
+              id: 1,
+              kind: "service_cost",
+              source: cost,
+            }),
+            transfer({
+              amount: 2000,
+              destination: cost,
+              id: 2,
+              kind: "service_cost",
+              source: account("external", "world"),
+            }),
+          ]),
+          names: names({ listings: new Map([[1, "Concert"]]) }),
+        },
         returnUrl: "/admin/ledger/cost/1",
       }),
     );
@@ -163,9 +165,7 @@ describe("AccountStatementSection", () => {
   test("renders the empty state row spanning all five columns", () => {
     const html = String(
       AccountStatementSection({
-        account: acct,
-        lines: [],
-        names: names(),
+        ledger: { account: acct, lines: [], names: names() },
         returnUrl: "/admin/ledger/attendee/1",
       }),
     );
@@ -176,16 +176,18 @@ describe("AccountStatementSection", () => {
   const renderStatement = (returnUrl: string): string =>
     String(
       AccountStatementSection({
-        account: acct,
-        lines: statementFor(acct)([
-          transfer({
-            destination: account("attendee", 1),
-            id: 1,
-            kind: MANUAL_ATTENDEE_PAYMENT,
-            source: account("external", "world"),
-          }),
-        ]),
-        names: names(),
+        ledger: {
+          account: acct,
+          lines: statementFor(acct)([
+            transfer({
+              destination: account("attendee", 1),
+              id: 1,
+              kind: MANUAL_ATTENDEE_PAYMENT,
+              source: account("external", "world"),
+            }),
+          ]),
+          names: names(),
+        },
         returnUrl,
       }),
     );
@@ -200,9 +202,7 @@ describe("AccountStatementSection", () => {
   test("does not link checkout-event statement deltas to the maintenance route", () => {
     const html = String(
       AccountStatementSection({
-        account: acct,
-        lines: lines(),
-        names: names(),
+        ledger: { account: acct, lines: lines(), names: names() },
         returnUrl: "/admin/attendees/1",
       }),
     );
@@ -279,10 +279,12 @@ describe("adminAccountStatementPage", () => {
   test("keeps the full-ledger action for accounts that cannot add entries", () => {
     const html = String(
       AccountStatementSection({
-        account: account("writeoff", "default"),
         fullLedgerHref: "/admin/ledger/writeoff/default",
-        lines: [],
-        names: names(),
+        ledger: {
+          account: account("writeoff", "default"),
+          lines: [],
+          names: names(),
+        },
         returnUrl: "/admin/listing/7",
       }),
     );

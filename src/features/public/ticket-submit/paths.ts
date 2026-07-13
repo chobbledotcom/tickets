@@ -15,14 +15,16 @@ import type {
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
-import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+import {
+  groupListingAnswerSets,
+  saveAttendeeAnswers,
+} from "#shared/db/questions/attendee-answers/save.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
-  buildListingAnswerMap,
-  buildListingTextAnswerMap,
+  type AnswerInfo,
   type extractContact,
-  groupListingAnswerSets,
+  listingAnswerMaps,
   ticketFormErrorResponse,
 } from "../ticket-form.ts";
 import {
@@ -31,7 +33,7 @@ import {
   handlePaymentFlow,
 } from "../ticket-payment.ts";
 import type { TicketCtx } from "../types.ts";
-import { type AnswerInfo, computeListingTextAnswerIdMap } from "./parse.ts";
+import { computeListingTextAnswerIdMap } from "./parse.ts";
 
 export type PathParams = OrderSpan & {
   ctx: TicketCtx;
@@ -156,21 +158,9 @@ export const handleFreePath = async (
   await logAndNotifyRegistration(result.entries, siteTokenIndex);
 
   if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
+    const maps = listingAnswerMaps(info, ctx.questionListingMap);
     await saveAttendeeAnswers(
-      groupListingAnswerSets(
-        result.entries,
-        buildListingAnswerMap(
-          info.activeQuestions,
-          info.answerIds,
-          ctx.questionListingMap,
-          info.selectedListingIds,
-        ),
-        buildListingTextAnswerMap(
-          info.textAnswers,
-          ctx.questionListingMap,
-          info.selectedListingIds,
-        ),
-      ),
+      groupListingAnswerSets(result.entries, maps.answerIds, maps.textAnswers),
     );
   }
 

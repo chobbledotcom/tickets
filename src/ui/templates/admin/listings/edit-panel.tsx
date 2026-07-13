@@ -1,7 +1,8 @@
 import { map } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
+import { adminPath } from "#shared/admin-surface.ts";
+import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { inferTemplate } from "#shared/listing-templates.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
@@ -28,50 +29,6 @@ import {
 import { listingFormClassAttr, listingToFieldValues } from "./form-values.tsx";
 import type { ChildCandidate, ListingEditPanelOptions } from "./types.ts";
 
-const ListingIncomeAdjustSection = ({
-  listing,
-  show,
-}: {
-  listing: ListingWithCount;
-  show: boolean;
-}): JSX.Element | null =>
-  show ? (
-    <MoneyAdjustSection
-      action={`/admin/listing/${listing.id}/income`}
-      className="listing-section"
-      currentLabel={t("listings_table.adjust_income_current")}
-      currentValue={listing.income}
-      inputId="income"
-      inputLabel={t("listings_table.adjust_income_new_label")}
-      inputMin="0"
-      link={{
-        href: `/admin/listing/${listing.id}#income-ledger`,
-        label: t("listings_table.income_ledger_link"),
-      }}
-      submitLabel={t("listings_table.adjust_income_submit")}
-      title={t("listings_table.adjust_income")}
-      warning={t("listings_table.adjust_income_warning")}
-    />
-  ) : null;
-
-const ListingRunningTotalsSection = ({
-  aggregateRecalculation,
-  listing,
-  show,
-}: {
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  listing: ListingWithCount;
-  show: boolean;
-}): JSX.Element | null =>
-  show ? (
-    <RunningTotalsFieldset config={listingRunningTotalsConfig(listing)}>
-      <ListingAggregateMismatchNotice
-        actionHref={`/admin/listings/recalculate/${listing.id}`}
-        aggregateRecalculation={aggregateRecalculation}
-      />
-    </RunningTotalsFieldset>
-  ) : null;
-
 const listingRunningTotalsConfig = (
   listing: ListingWithCount,
 ): RunningTotalsConfig => ({
@@ -79,7 +36,7 @@ const listingRunningTotalsConfig = (
   fields: listingAggregateFields,
   legend: t("listings_table.running_totals"),
   note: t("listings_table.running_totals_note"),
-  recalculateHref: `/admin/listings/recalculate/${listing.id}`,
+  recalculateHref: adminPath("listingRecalculate", { listingId: listing.id }),
   recalculateLabel: t("listings_table.recalculate_totals"),
   values: listingAggregateToFieldValues(listing),
 });
@@ -221,16 +178,40 @@ export const ListingEditPanel = ({
           useDefaultsChecked: listing.use_defaults,
           values: listingToFieldValues(listing),
         })}
-        <ListingRunningTotalsSection
-          aggregateRecalculation={aggregateRecalculation}
-          listing={listing}
-          show={showFinancials}
-        />
+        {showFinancials && (
+          <RunningTotalsFieldset config={listingRunningTotalsConfig(listing)}>
+            <ListingAggregateMismatchNotice
+              actionHref={
+                isReadOnly()
+                  ? undefined
+                  : adminPath("listingRecalculate", { listingId: listing.id })
+              }
+              aggregateRecalculation={aggregateRecalculation}
+            />
+          </RunningTotalsFieldset>
+        )}
         <SubmitButton icon="save" id="listing-edit-submit">
           {t("common.save_changes")}
         </SubmitButton>
       </CsrfForm>
-      <ListingIncomeAdjustSection listing={listing} show={showFinancials} />
+      {showFinancials && (
+        <MoneyAdjustSection
+          action={`/admin/listing/${listing.id}/income`}
+          className="listing-section"
+          currentLabel={t("listings_table.adjust_income_current")}
+          currentValue={listing.income}
+          inputId="income"
+          inputLabel={t("listings_table.adjust_income_new_label")}
+          inputMin="0"
+          link={{
+            href: `/admin/listing/${listing.id}#income-ledger`,
+            label: t("listings_table.income_ledger_link"),
+          }}
+          submitLabel={t("listings_table.adjust_income_submit")}
+          title={t("listings_table.adjust_income")}
+          warning={t("listings_table.adjust_income_warning")}
+        />
+      )}
       {storageEnabled && listing.attachment_name && (
         <div class="attachment-info">
           <p>

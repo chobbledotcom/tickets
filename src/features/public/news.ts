@@ -8,8 +8,10 @@
  * would render must never 404.
  */
 
+// jscpd:ignore-start
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+// jscpd:ignore-end
 import {
   computeNewsSlugIndex,
   getNewsPostBySlugIndex,
@@ -19,7 +21,7 @@ import { settings } from "#shared/db/settings.ts";
 import { newsListPage, newsPostPage } from "#templates/public/news.tsx";
 import { requirePublicSite } from "./pages.ts";
 import { publicNavProps } from "./site-nav.ts";
-import { renderContentPage } from "./site-page.ts";
+import { publicSlugRoute, renderContentPage } from "./site-page.ts";
 
 const handleNewsList = async (): Promise<Response> => {
   const [posts, nav] = await Promise.all([
@@ -39,7 +41,6 @@ const handleNewsPost = async (slug: string): Promise<Response> => {
 export const routeNews = createRouter(
   defineRoutes({
     "GET /news": () => requirePublicSite(handleNewsList),
-    "GET /news/:slug": (_request, { slug }: { slug: string }) =>
-      requirePublicSite(() => handleNewsPost(slug)),
+    "GET /news/:slug": publicSlugRoute(handleNewsPost),
   }),
 );

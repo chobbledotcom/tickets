@@ -97,9 +97,14 @@ export const sumupPaymentProvider: PaymentProvider = {
     return session.paymentStatus === "paid" ? session : "skip";
   },
 
+  /* jscpd:ignore-start -- PaymentProvider interface conformance, not
+     duplication: every provider must write this exact member signature, but
+     the bodies share no logic (SumUp reads its locally staged checkout;
+     Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
   ): Promise<ValidatedPaymentSession | null> {
+    /* jscpd:ignore-end */
     // sessionId is our checkout_reference (set on the redirect URL); the
     // staged row carries the SumUp id for a direct fetch. An empty sumupId
     // means checkout creation failed after staging — nothing to retrieve.

@@ -1,3 +1,4 @@
+import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm, type Field, renderFields } from "#shared/forms.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -42,23 +43,29 @@ export type FormSection = {
   children: Child;
 };
 
+/** Build a "render the whole list" function from a "render one section"
+ *  function: each section is rendered in order and the results are joined
+ *  into one fragment. Shared by the form-section and guide-section folds. */
+export const sectionsRenderer =
+  <Section,>(renderSection: (section: Section) => JSX.Element) =>
+  (sections: readonly Section[]): JSX.Element => (
+    <>{sections.map(renderSection)}</>
+  );
+
 /** Render a form's `FormSection[]` as a run of {@link SectionFieldset}s. */
 export const FormSections = ({
   sections,
 }: {
   sections: readonly FormSection[];
-}): JSX.Element => (
-  <>
-    {sections.map((section) => (
-      <SectionFieldset
-        className={section.className || "listing-section"}
-        legend={section.legend}
-      >
-        {section.children}
-      </SectionFieldset>
-    ))}
-  </>
-);
+}): JSX.Element =>
+  sectionsRenderer((section: FormSection) => (
+    <SectionFieldset
+      className={section.className || "listing-section"}
+      legend={section.legend}
+    >
+      {section.children}
+    </SectionFieldset>
+  ))(sections);
 
 export const StackDetails = ({
   children,
@@ -216,7 +223,13 @@ export const RunningTotalsFieldset = ({
     </p>
     <Raw html={renderFields(config.fields, config.values)} />
     <p>
-      <a href={config.recalculateHref}>{config.recalculateLabel}</a>
+      {/* The recalculate route is a write, blocked in read-only mode, so show
+          its label as plain text there rather than a link that can't work. */}
+      {isReadOnly() ? (
+        config.recalculateLabel
+      ) : (
+        <a href={config.recalculateHref}>{config.recalculateLabel}</a>
+      )}
     </p>
   </SectionFieldset>
 );

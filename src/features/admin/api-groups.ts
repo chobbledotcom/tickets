@@ -36,7 +36,12 @@ import {
   requireStrings,
 } from "#shared/rest/crud-api.ts";
 import { normalizeSlug } from "#shared/slug.ts";
-import type { DayPrices, Group, GroupListing } from "#shared/types.ts";
+import {
+  buildDayPrices,
+  type DayPrices,
+  type Group,
+  type GroupListing,
+} from "#shared/types.ts";
 
 /** A package member override in a JSON request body. `price` is minor units:
  * `null` means no override (use the listing's own price), `0` means free in the
@@ -86,23 +91,19 @@ const parseMemberDayPrices = (
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     return { error: "package_members day_prices must be an object" };
   }
-  const dayPrices: DayPrices = {};
-  for (const [key, value] of Object.entries(raw)) {
+  const dayPrices = buildDayPrices(raw, (key, value) => {
     const days = Number(key);
     if (!/^\d+$/.test(key) || !Number.isInteger(days) || days < 1) {
-      return {
-        error: "package_members day_prices keys must be positive day counts",
-      };
+      return "package_members day_prices keys must be positive day counts";
     }
     if (!Number.isInteger(value) || (value as number) < 0) {
-      return {
-        error:
-          "package_members day_prices values must be non-negative integers",
-      };
+      return "package_members day_prices values must be non-negative integers";
     }
-    dayPrices[days] = value as number;
-  }
-  return { value: dayPrices };
+    return { days, price: value as number };
+  });
+  return typeof dayPrices === "string"
+    ? { error: dayPrices }
+    : { value: dayPrices };
 };
 
 const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {

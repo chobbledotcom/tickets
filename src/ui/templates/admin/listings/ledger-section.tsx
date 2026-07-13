@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
@@ -7,6 +8,8 @@ import {
   type MoneySummaryRow,
 } from "#templates/admin/money-summary.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+
+/* jscpd:ignore-end */
 
 const whenNonZero = (
   value: number,
@@ -62,6 +65,19 @@ const incomeBreakdownRows = (
     },
   ]);
 
+/** A money summary presented as its own article block on a detail page.
+ * Shared by the listing income ledger and the group money summary. */
+export const MoneySummaryBlock = ({
+  id,
+  ...summary
+}: Parameters<typeof MoneySummary>[0] & {
+  id?: string | undefined;
+}): JSX.Element => (
+  <PageBlock as="article" id={id}>
+    <MoneySummary {...summary} />
+  </PageBlock>
+);
+
 export const ListingIncomeLedgerSection = ({
   breakdown,
   ledgerHref,
@@ -71,13 +87,12 @@ export const ListingIncomeLedgerSection = ({
   ledgerHref?: string | undefined;
   listing: ListingWithCount;
 }): JSX.Element => (
-  <PageBlock as="article" id="income-ledger">
-    <MoneySummary
-      ledgerHref={ledgerHref}
-      ledgerLabel={t("listings_table.income_ledger_view_full")}
-      note={t("listings_table.income_ledger_recognised_note")}
-      rows={incomeBreakdownRows(breakdown, listing)}
-      title={t("listings_table.income_ledger_legend")}
-    />
-  </PageBlock>
+  <MoneySummaryBlock
+    id="income-ledger"
+    ledgerHref={ledgerHref}
+    ledgerLabel={t("listings_table.income_ledger_view_full")}
+    note={t("listings_table.income_ledger_recognised_note")}
+    rows={incomeBreakdownRows(breakdown, listing)}
+    title={t("listings_table.income_ledger_legend")}
+  />
 );

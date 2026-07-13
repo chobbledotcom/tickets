@@ -2,6 +2,7 @@
  * Admin attendee page templates
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
@@ -11,7 +12,6 @@ import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   bookingConflictLabel,
   bookingKey,
@@ -40,14 +40,13 @@ import {
 } from "#templates/components/labelled-para.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
-import {
-  questionFieldset,
-  questionWrapper,
-} from "#templates/components/question-text.tsx";
+import { questionControl } from "#templates/components/question-controls.tsx";
 import {
   RadioOption,
   type RadioOptionProps,
 } from "#templates/components/radio-option.tsx";
+
+/* jscpd:ignore-end */
 
 /** A `<td>` cell holding one labelled radio option of a merge-decision group.
  *  The merge tables (PII fields, custom-question answers, booking conflicts)
@@ -390,45 +389,13 @@ export const EditQuestions = ({
 }): JSX.Element => (
   <>
     {questions.map((q) =>
-      q.display_type === "free_text"
-        ? questionWrapper(q, undefined, (labelledBy) => (
-            <input
-              aria-labelledby={labelledBy}
-              maxlength={MAX_TEXTAREA_LENGTH}
-              name={`question_${q.id}`}
-              type="text"
-              value={selectedTextAnswers.get(q.id) ?? ""}
-            />
-          ))
-        : q.display_type === "select"
-          ? questionWrapper(q, undefined, (labelledBy) => (
-              <select aria-labelledby={labelledBy} name={`question_${q.id}`}>
-                <option value="">No answer</option>
-                {editableAnswers(q, selectedAnswerIds).map((a) => (
-                  <option
-                    selected={selectedAnswerIds.includes(a.id) || undefined}
-                    value={String(a.id)}
-                  >
-                    {a.text}
-                  </option>
-                ))}
-              </select>
-            ))
-          : questionFieldset(
-              q,
-              undefined,
-              editableAnswers(q, selectedAnswerIds).map((a) => (
-                <label>
-                  <input
-                    checked={selectedAnswerIds.includes(a.id)}
-                    name={`question_${q.id}`}
-                    type="radio"
-                    value={String(a.id)}
-                  />{" "}
-                  {a.text}
-                </label>
-              )),
-            ),
+      questionControl(q, {
+        isChosen: (answerId) => selectedAnswerIds.includes(answerId),
+        options: editableAnswers(q, selectedAnswerIds),
+        placeholder: t("attendee_form.no_answer"),
+        // A saved free-text answer may legitimately not exist yet.
+        textValue: selectedTextAnswers.get(q.id) ?? "",
+      }),
     )}
   </>
 );

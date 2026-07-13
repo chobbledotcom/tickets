@@ -43,6 +43,15 @@ const owedBookingLedgerPoster =
     await postBookingLegsTx(tx, attendeeId, legs);
   };
 
+/** True when the listing still has spots for this quantity on this date (no
+ * date for a date-less listing, whose capacity is one running total). */
+export const listingHasSpots = (
+  listing: Pick<ListingWithCount, "id" | "duration_days">,
+  quantity: number,
+  date: string | null | undefined,
+): Promise<boolean> =>
+  hasAvailableSpots(listing.id, quantity, date, listing.duration_days);
+
 /** Booking result — callers map this to their response format */
 export type BookingResult =
   | { type: "success"; attendee: Attendee }
@@ -76,12 +85,7 @@ export const processBooking = async (
     (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
 
   if (needsPayment) {
-    const available = await hasAvailableSpots(
-      listing.id,
-      quantity,
-      date,
-      listing.duration_days,
-    );
+    const available = await listingHasSpots(listing, quantity, date);
     if (!available) return { type: "sold_out" };
 
     // Provider is guaranteed to exist when isPaymentsEnabled() is true

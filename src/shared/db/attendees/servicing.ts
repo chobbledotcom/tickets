@@ -2,6 +2,7 @@ import { sumByKey, sumOf, unique } from "#fp";
 import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
+import type { TransferEndpoints } from "#shared/accounting/rows.ts";
 import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
@@ -746,12 +747,11 @@ export const recordServiceCost = async (
   return row!.id;
 };
 
-type CostRow = {
+/** The narrow transfers columns a service-cost read needs: the row's id and
+ * amount plus the shared account endpoints (to see which side is the cost
+ * account), and the encrypted memo where selected. */
+type CostRow = TransferEndpoints & {
   id: number;
-  source_type: string;
-  source_id: string;
-  dest_type: string;
-  dest_id: string;
   amount: number;
   memo?: EnvKeyEncrypted;
 };

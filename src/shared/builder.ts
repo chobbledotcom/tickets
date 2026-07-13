@@ -28,6 +28,7 @@ import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { withSiteDb } from "#shared/site-db.ts";
+import { tryStep } from "#shared/try-step.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
 
@@ -162,25 +163,20 @@ const getBuildCode = async (
 ): Promise<{ ok: true; code: string } | { ok: false; error: string }> => {
   if (input.code !== undefined) return { code: input.code, ok: true };
 
-  try {
+  return tryStep("Failed to fetch release", async () => {
     const release = await fetchLatestRelease();
     if (!release.assetUrl) {
-      return { error: "No release asset found on GitHub", ok: false };
+      return { error: "No release asset found on GitHub", ok: false as const };
     }
     const assetResponse = await fetchText(release.assetUrl);
     if (!assetResponse.ok) {
       return {
         error: `Failed to download release: ${assetResponse.status}`,
-        ok: false,
+        ok: false as const,
       };
     }
-    return { code: assetResponse.text, ok: true };
-  } catch (e) {
-    return {
-      error: `Failed to fetch release: ${(e as Error).message}`,
-      ok: false,
-    };
-  }
+    return { code: assetResponse.text, ok: true as const };
+  });
 };
 
 /** Use supplied DB credentials or provision a new database via the selected provider. */
@@ -280,6 +276,28 @@ const HOSTING_PROVIDERS: Record<HostingProvider, HostingProviderApi> = {
 export const resolveHostingProvider = (
   provider: HostingProvider,
 ): HostingProviderApi => HOSTING_PROVIDERS[provider];
+
+/**
+ * A built site can only be reached on its hosting provider when it has a
+ * hosting ID and the host holds the provider's API key. `blocked` finishes
+ * the error sentence — e.g. "its secrets can't be read".
+ */
+export const siteHostingAccess = (
+  site: { hostingId: string; hostingProvider: HostingProvider },
+  blocked: string,
+): { ok: true; hostingId: string } | { ok: false; error: string } => {
+  if (!site.hostingId) {
+    return { error: `This site has no hosting ID, so ${blocked}.`, ok: false };
+  }
+  const { configEnvVar } = resolveHostingProvider(site.hostingProvider);
+  if (!getEnv(configEnvVar)) {
+    return {
+      error: `${configEnvVar} is not configured on this host, so ${blocked}.`,
+      ok: false,
+    };
+  }
+  return { hostingId: site.hostingId, ok: true };
+};
 
 /** Dispatch database creation to the selected provider. */
 function createDatabase(name: string, provider: DbProvider = "bunny") {

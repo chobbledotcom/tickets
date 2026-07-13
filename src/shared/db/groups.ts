@@ -3,7 +3,7 @@
  */
 
 /* jscpd:ignore-start */
-import { byId, mapNotNullish } from "#fp";
+import { byId, groupBy, groupToMap, mapNotNullish } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -12,6 +12,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  queryIdColumn,
   queryOne,
   type SqlStatement,
   type TxScope,
@@ -35,7 +36,7 @@ import {
   getListingsWithCountsByIds,
   queryListingsWithCounts,
 } from "#shared/db/listings/records.ts";
-import { nameSource, queryAndMap } from "#shared/db/query.ts";
+import { nameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import {
@@ -517,36 +518,29 @@ export const packageDisplaysForRows = (
   getPackageDisplaysByIds(rows.map((row) => row.attendee.package_group_id));
 
 /** The listing ids that are members of a group, ascending. */
-export const getGroupListingIds = async (
-  groupId: number,
-): Promise<number[]> => {
-  const rows = await queryAll<{ listing_id: number }>(
-    "SELECT listing_id FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
+export const getGroupListingIds = (groupId: number): Promise<number[]> =>
+  queryIdColumn(
+    "SELECT listing_id AS id FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
     [groupId],
   );
-  return rows.map((r) => r.listing_id);
-};
 
 /** Map each listing id to the ids of the groups it belongs to, in one query.
  * Listings that belong to no group are absent from the map. */
 export const getGroupIdsByListingIds = async (
   listingIds: number[],
-): Promise<Map<number, number[]>> => {
-  const result = new Map<number, number[]>();
-  if (listingIds.length === 0) return result;
-  const rows = await queryAll<{ group_id: number; listing_id: number }>(
-    `SELECT group_id, listing_id FROM group_listings
-       WHERE listing_id IN (${inPlaceholders(listingIds)})
-     ORDER BY group_id ASC`,
-    listingIds,
+): Promise<Map<number, number[]>> =>
+  groupToMap(
+    (row: { group_id: number; listing_id: number }) => row.listing_id,
+    (row) => row.group_id,
+  )(
+    await rowsByIds<{ group_id: number; listing_id: number }>(
+      listingIds,
+      (placeholders) =>
+        `SELECT group_id, listing_id FROM group_listings
+           WHERE listing_id IN (${placeholders})
+         ORDER BY group_id ASC`,
+    ),
   );
-  for (const row of rows) {
-    const list = result.get(row.listing_id);
-    if (list) list.push(row.group_id);
-    else result.set(row.listing_id, [row.group_id]);
-  }
-  return result;
-};
 
 /**
  * Add listings to a group (membership rows), ignoring any already present.
@@ -634,40 +628,71 @@ const listingGroupDiffStatements = (
   return statements;
 };
 
-export const setListingGroups = async (
+/** The ids on one side of a listing↔group membership row matching `id` on the
+ * other side, read on the caller's open write transaction (so the read sees the
+ * transaction's own earlier writes). Shared by the transactional membership
+ * writers below. */
+const membershipSideTx = async (
+  tx: TxScope,
+  select: "group_id" | "listing_id",
+  where: "group_id" | "listing_id",
+  id: number,
+): Promise<Set<number>> => {
+  const rows = await tx.execute({
+    args: [id],
+    sql: `SELECT ${select} FROM group_listings WHERE ${where} = ?`,
+  });
+  return new Set(rows.rows.map((row) => Number(row[select])));
+};
+
+/** Read the listing's current group set via `readCurrent`, diff it against the
+ * wanted `groupIds`, and hand the change statements to `run` — the shared core
+ * of the batch and transactional variants, so they can't drift. */
+const applyListingGroupDiff = async (
   listingId: number,
   groupIds: number[],
+  readCurrent: () => Promise<Set<number>>,
+  run: (statements: SqlStatement[]) => Promise<void>,
 ): Promise<void> => {
-  const current = new Set(await getGroupIdsByListingId(listingId));
   const statements = listingGroupDiffStatements(
     listingId,
-    current,
+    await readCurrent(),
     new Set(groupIds),
   );
-  if (statements.length > 0) await executeBatch(statements);
+  if (statements.length > 0) await run(statements);
 };
+
+/** Replace a listing's whole group set (the listing-form checkboxes). */
+type SetListingGroups = (
+  listingId: number,
+  groupIds: number[],
+) => Promise<void>;
+
+export const setListingGroups: SetListingGroups = (listingId, groupIds) =>
+  applyListingGroupDiff(
+    listingId,
+    groupIds,
+    async () => new Set(await getGroupIdsByListingId(listingId)),
+    executeBatch,
+  );
 
 /** Replace a listing's group memberships inside an existing write transaction,
  * so the change commits atomically with the listing row write (the admin API
  * create/update path). Mirrors {@link setListingGroups} but reads the current
  * set and runs each statement on the caller's `tx`. */
-export const setListingGroupsTx = async (
+export const setListingGroupsTx = (
   tx: TxScope,
   listingId: number,
   groupIds: number[],
-): Promise<void> => {
-  const rows = await tx.execute({
-    args: [listingId],
-    sql: "SELECT group_id FROM group_listings WHERE listing_id = ?",
-  });
-  const current = new Set(rows.rows.map((r) => Number(r.group_id)));
-  const statements = listingGroupDiffStatements(
+): Promise<void> =>
+  applyListingGroupDiff(
     listingId,
-    current,
-    new Set(groupIds),
+    groupIds,
+    () => membershipSideTx(tx, "group_id", "listing_id", listingId),
+    async (statements) => {
+      for (const stmt of statements) await tx.execute(stmt);
+    },
   );
-  for (const stmt of statements) await tx.execute(stmt);
-};
 
 /**
  * Remove every listing from a group (used when the group is deleted), along with
@@ -703,17 +728,12 @@ const groupFlatPriceSubquery = (groupIdExpr: string): string =>
  * read from the `group` dimension of `listing_prices`; `quantity` from the
  * membership row.
  */
-export const getGroupPackagePrices = (
+export const getGroupPackagePrices = async (
   groupId: number,
 ): Promise<GroupListing[]> =>
-  queryAll<GroupListing>(
-    `SELECT groupListing.group_id, groupListing.listing_id,
-            ${groupFlatPriceSubquery("groupListing.group_id")},
-            groupListing.quantity
-       FROM group_listings AS groupListing
-      WHERE groupListing.group_id = ? ORDER BY groupListing.listing_id ASC`,
-    [groupId],
-  );
+  // A single group is the batched read with one id — a group with no
+  // membership rows is absent from the map, i.e. it has no member rows.
+  (await getGroupPackagePricesByGroupIds([groupId])).get(groupId) ?? [];
 
 /** A package group's member rows projected into the two maps every consumer
  * needs (the booking flow, the webhook revalidation, the bookability gate, and
@@ -751,25 +771,20 @@ export const loadPackageMemberPricing = async (groupId: number) => {
  * round-trip. Groups with no membership rows are absent from the map. */
 export const getGroupPackagePricesByGroupIds = async (
   groupIds: number[],
-): Promise<Map<number, GroupListing[]>> => {
-  const result = new Map<number, GroupListing[]>();
-  if (groupIds.length === 0) return result;
-  const rows = await queryAll<GroupListing>(
-    `SELECT groupListing.group_id, groupListing.listing_id,
+): Promise<Map<number, GroupListing[]>> =>
+  groupBy(
+    await rowsByIds<GroupListing>(
+      groupIds,
+      (placeholders) =>
+        `SELECT groupListing.group_id, groupListing.listing_id,
             ${groupFlatPriceSubquery("groupListing.group_id")},
             groupListing.quantity
        FROM group_listings AS groupListing
-      WHERE groupListing.group_id IN (${inPlaceholders(groupIds)})
+      WHERE groupListing.group_id IN (${placeholders})
    ORDER BY groupListing.listing_id ASC`,
-    groupIds,
+    ),
+    (row) => row.group_id,
   );
-  for (const row of rows) {
-    const list = result.get(row.group_id);
-    if (list) list.push(row);
-    else result.set(row.group_id, [row]);
-  }
-  return result;
-};
 
 /** The statement that copies a source listing's per-package `quantity` onto a
  * freshly-duplicated listing's membership rows, for every package group they
@@ -931,13 +946,7 @@ export const setGroupPackageMembers = (
     groupId,
     members,
     tx
-      ? async () => {
-          const rows = await tx.execute({
-            args: [groupId],
-            sql: "SELECT listing_id FROM group_listings WHERE group_id = ?",
-          });
-          return new Set(rows.rows.map((r) => Number(r.listing_id)));
-        }
+      ? () => membershipSideTx(tx, "listing_id", "group_id", groupId)
       : async () => new Set(await getGroupListingIds(groupId)),
     tx ? (stmt) => tx.execute(stmt) : (stmt) => execute(stmt.sql, stmt.args),
   );

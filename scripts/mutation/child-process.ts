@@ -10,6 +10,15 @@ export const denoExitCode = async (
   return code;
 };
 
+/** The current process env plus the given extra variables — the env handed to
+ * a spawned child process. */
+export const envWith = (
+  extras: Record<string, string>,
+): Record<string, string> => ({
+  ...Deno.env.toObject(),
+  ...extras,
+});
+
 // Signal handling is platform-dependent (e.g. SIGTERM on Windows), so every
 // add/remove is best-effort — callers must still clean up via finally/exit.
 const forEachTerminationSignal = (
@@ -24,12 +33,18 @@ const forEachTerminationSignal = (
   }
 };
 
+/** Apply one of Deno's listener methods (add or remove) to a handler for
+ * every termination signal — the shared body of the register/unregister pair.
+ * The method is looked up per call, so tests can stub the Deno namespace. */
+const terminationSignalListeners =
+  (method: "addSignalListener" | "removeSignalListener") =>
+  (handler: () => void): void =>
+    forEachTerminationSignal((signal) => Deno[method](signal, handler));
+
 /** Register `handler` for SIGINT and SIGTERM. */
-export const onTerminationSignals = (handler: () => void): void =>
-  forEachTerminationSignal((signal) => Deno.addSignalListener(signal, handler));
+export const onTerminationSignals: (handler: () => void) => void =
+  terminationSignalListeners("addSignalListener");
 
 /** Unregister a `handler` previously passed to `onTerminationSignals`. */
-export const offTerminationSignals = (handler: () => void): void =>
-  forEachTerminationSignal((signal) =>
-    Deno.removeSignalListener(signal, handler),
-  );
+export const offTerminationSignals: (handler: () => void) => void =
+  terminationSignalListeners("removeSignalListener");

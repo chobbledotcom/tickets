@@ -2,6 +2,7 @@
  * First-class uploaded images and their ordered item links.
  */
 
+/* jscpd:ignore-start */
 import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -21,6 +22,7 @@ import type {
   ItemImageProjection,
 } from "#shared/types.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
+/* jscpd:ignore-end */
 
 export type ImageInput = {
   name: string;

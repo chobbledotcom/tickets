@@ -171,6 +171,12 @@ export const PublicImageGallery = ({
     </fieldset>
   );
 
+/** A page title with the website title after it, when the site has one. */
+export const titleWithSiteName = (
+  base: string,
+  websiteTitle: string,
+): string => (websiteTitle ? `${base} - ${websiteTitle}` : base);
+
 /** One `<link rel="alternate">` feed-discovery tag for the shared head. */
 const feedDiscoveryTag = (
   type: string,
@@ -227,7 +233,7 @@ const seoPageHead = (
     : "";
   return {
     headExtra: feedDiscoveryTags() + metaTag,
-    title: websiteTitle ? `${base} - ${websiteTitle}` : base,
+    title: titleWithSiteName(base, websiteTitle),
   };
 };
 

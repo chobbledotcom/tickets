@@ -870,3 +870,97 @@ the answer/question factories) into a local helper the suites import, and keep
 `questionTextFlat` + `buildAnswerSummaryRows` with whichever suite reads most
 naturally. Preserve every existing assertion — behaviour must not change. The
 attribute template test (`attributes.test.tsx`) is the shape to mirror.
+
+## Pre-existing issues surfaced during the min-tokens-20 dedup (PR #1795)
+
+CodeRabbit flagged these while reviewing the dedup PR. Each is a real point but
+pre-existing (the dedup preserved the behaviour, it did not introduce it), so
+they were left out of that PR's scope.
+
+- **Bulk email draft cleared after the send, not before**
+  (`src/features/admin/bulk-email.ts`, the `sendBulkEmails → recordContacts →
+  bulkEmailDraft("") → logActivity` sequence). `sendBulkEmails` is
+  non-idempotent, so if `recordContacts` throws after the send, a retry can
+  resend to the whole audience. Moving the draft-clear before the send trades
+  that for the opposite risk (a failed send loses the draft with no retry), so
+  it needs a deliberate decision — likely a "draft consumed" marker distinct
+  from "draft empty". Not a dedup regression: the ordering is byte-identical to
+  before the PR.
+
+- **Tautological admin-API example test**
+  (`test/shared/admin-api-example.test.ts`: `toAdminListing output matches the
+  documented example`). `ADMIN_API_EXAMPLE_ADMIN_LISTING` is defined as
+  `toAdminListing(API_EXAMPLE_LISTING)` and the test compares
+  `toAdminListing(API_EXAMPLE_LISTING)` against it — both sides derive from the
+  same call, so the assertion cannot catch a `toAdminListing` shape regression.
+  Fix: author an independent `AdminListing` fixture (or assert against an
+  admin-listing schema). Pre-existing — the base had the same tautology via the
+  now-removed `ADMIN_API_EXAMPLE_LISTING` alias.
+
+- **Bulk-group-duplicate form loses inputs on a failed POST**
+  (`src/ui/templates/admin/bulk-actions.tsx` `adminDuplicateGroupPage`). On a
+  validation error the form re-renders with defaults (`${group.name} (copy)`,
+  blank find/replace/date) instead of the submitted values. Pre-existing: the
+  page's `values` param was already unused before this branch (this dedup only
+  deleted the dead param), so the form has never re-filled on error. Fix: thread
+  the submitted values back into the `TextField`/`TextFields` inputs, following
+  the flash/form-refill pattern other admin forms use.
+
+- **Attempt-lockout expired-row cleanup is not TOCTOU-safe**
+  (`src/shared/db/attempt-lockout.ts` `lockoutActive`). The expired-row delete is
+  unconditional, so a request that observes an expired lockout can delete a fresh
+  lockout another request wrote in between, losing rate-limit state for that IP.
+  Pre-existing: the two attempt tables (`login_attempts`, `token_attempts`) both
+  deleted unconditionally before this branch merged them into one helper. Fix:
+  make the delete conditional on the stored `locked_until` still equalling the
+  observed value, in one atomic statement.
+
+- **`deployAndReport` lets an activity-log failure mask a successful deploy**
+  (`src/shared/site-update.ts`). Only the deploy runs inside `tryStep`; the
+  `logActivity` write after it is not, so a transient log-write failure throws
+  out of `deployAndReport` as a raw 500 even though the deploy succeeded (before
+  this dedup each route's own try/catch returned its normal error page). The
+  right fix is to make the activity-log write best-effort — a successful deploy
+  should return success even if the log line can't be written — with a
+  regression test that stubs `logActivity` to reject. Introduced by folding the
+  two update routes onto the shared helper.
+
+- **Update success/log copy is hardcoded, not in the catalog**
+  (`src/shared/site-update.ts` `deployAndReport`, fed by
+  `src/features/admin/update.ts` and `built-sites.ts`). The success flash
+  (`"${successPrefix} to ${name} — the new version will be active shortly"`) and
+  the activity-log line (`"${logPrefix} to ${name} (${tag})"`) are built from
+  hardcoded `successPrefix`/`logPrefix`/tail strings rather than `t()` keys. This
+  copy is byte-identical to what lived in `update.ts` on `main` before the dedup
+  (the flash string `"Updated to … — the new version will be active shortly"` was
+  already there); the dedup only moved it into the shared helper. Fix: add ICU
+  keys with `{name}`/`{version}` placeholders and pass the two call sites' prefix
+  choices as keyed variants, so the flash and log line read from the catalog.
+  Out of scope for a dedup PR (pre-existing copy, not a new string).
+
+- **Admin API docs prose is hardcoded, not in the catalog**
+  (`src/ui/templates/admin/api-keys.tsx` — the authentication intro
+  `"Admin API endpoints require authentication…"`, the `"Public API endpoints
+  require no authentication. All responses are JSON."` line, the admin-group
+  intro `"Requires <code>Authorization: Bearer YOUR_API_KEY</code> header."`, and
+  the `"Use it with: <code>…</code>"` copy-notice line). These are all present
+  unchanged on `main` — the dedup restructured the page onto `DocsSection`/
+  `sectionsRenderer` but did not touch the wording. Developer-facing API-doc copy
+  may keep literal technical terms, but the surrounding prose still belongs in
+  `src/locales/en/*.json` (the sibling `api_keys.public_api_note` already is a
+  catalog key). Fix: add `api_keys.*` keys for the four strings, rendering the
+  `<code>`-bearing ones via `Raw`. Out of scope for a dedup PR (pre-existing
+  copy).
+
+- **The `/api/*/book` docs show a free response for a priced sample**
+  (`src/shared/admin-api-example.ts`). Both `POST /api/listings/:slug/book` and
+  `POST /api/packages/:slug/book` document their response as
+  `API_BOOK_FREE_EXAMPLE_JSON` (`amountOwed: 0`, a ticket token), even though the
+  package sample request is a priced bundle whose real response would carry a
+  `checkoutUrl` (`API_BOOK_PAID_EXAMPLE_JSON` already exists). Pre-existing: on
+  `main` both endpoints used a local `API_EXAMPLE_BOOKING_RESPONSE` const that is
+  byte-identical to `API_BOOK_FREE_EXAMPLE_JSON`, and this dedup only merged that
+  duplicate into the shared constant — it did not change which example shows. Fix
+  (a doc-accuracy pass, not a dedup): pick the example per endpoint — a paid
+  response for the priced package bundle, or document both free and paid shapes —
+  so the sample response matches the sample request.

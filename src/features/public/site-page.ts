@@ -52,6 +52,19 @@ export const renderContentPage = async <T extends { id: number }>(
   return htmlResponse(render(item, images, nav, settings.websiteTitle));
 };
 
+/** A public GET route for a slugged content page: the public-site gate runs
+ * FIRST (so a disabled site never leaks whether the slug exists), then the
+ * slug handler. Shared by `/page/:slug` and `/news/:slug`. */
+export const publicSlugRoute =
+  (
+    handle: (slug: string) => Promise<Response>,
+  ): ((
+    request: Request,
+    params: { slug: string },
+  ) => Response | Promise<Response>) =>
+  (_request, { slug }) =>
+    requirePublicSite(() => handle(slug));
+
 const handleSitePage = async (slug: string): Promise<Response> => {
   const slugIndex = await computeSitePageSlugIndex(slug);
   const page = await getSitePageBySlugIndex(slugIndex);
@@ -66,7 +79,6 @@ const handleSitePage = async (slug: string): Promise<Response> => {
 /** Route `/page/*` requests (public-site gate first, then slug resolution). */
 export const routeSitePage = createRouter(
   defineRoutes({
-    "GET /page/:slug": (_request, { slug }: { slug: string }) =>
-      requirePublicSite(() => handleSitePage(slug)),
+    "GET /page/:slug": publicSlugRoute(handleSitePage),
   }),
 );

@@ -26,13 +26,19 @@ import {
   instantToEpochMs,
 } from "#shared/validation/timestamp.ts";
 
-/** One row of the transfers table, as the database returns it. */
-type TransferRow = {
-  id: number | bigint;
+/** The two account endpoints of a stored transfers row: the account the money
+ * left (`source_*`) and the account it entered (`dest_*`). Shared with the
+ * narrow cost-row reads that only need to know which side is which. */
+export type TransferEndpoints = {
   source_type: string;
   source_id: string;
   dest_type: string;
   dest_id: string;
+};
+
+/** One row of the transfers table, as the database returns it. */
+type TransferRow = TransferEndpoints & {
+  id: number | bigint;
   amount: number | bigint;
   occurred_at: number | bigint;
   recorded_at: number | bigint;
@@ -148,10 +154,7 @@ export const insertStatement = (
  * skipped. Takes the built statement (not the columns) so the column list still
  * lives only in {@link insertStatement}.
  */
-export const orIgnore = (statement: {
-  sql: string;
-  args: InValue[];
-}): { sql: string; args: InValue[] } => ({
+export const orIgnore = (statement: SqlStatement): SqlStatement => ({
   args: statement.args,
   sql: statement.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO"),
 });

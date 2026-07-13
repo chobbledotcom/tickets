@@ -16,12 +16,11 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
-  type AuthSession,
+  formPost,
+  gatedPost,
   OWNER_FORM,
-  requireOwnerOr,
-  withAuth,
+  ownerResponsePage,
 } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -78,6 +77,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { ok } from "#shared/response.ts";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import {
@@ -146,17 +146,6 @@ const saveDraft = async (
   await settings.update.bulkEmailDraft(encrypted);
 };
 
-/** Wrap an owner-only page builder: gate on owner, record the flash's target
- * form (so a matching CsrfForm renders it inline), then build. The flash itself
- * is rendered by the targeted form or the Layout backstop — not threaded here. */
-const ownerEmailPage =
-  (build: (request: Request, session: AuthSession) => Promise<Response>) =>
-  (request: Request): Promise<Response> =>
-    requireOwnerOr(request, (session) => {
-      applyFlash(request);
-      return build(request, session);
-    });
-
 /** Split recipients into those who'll be sent to and a skipped (unsubscribed) count. */
 const partitionRecipients = async (
   recipients: string[],
@@ -186,8 +175,9 @@ const decryptTemplateSubjects = async (
   );
 };
 
-/** GET /admin/emails — compose form. */
-const handleComposeGet = ownerEmailPage(async (request, session) => {
+/** GET /admin/emails — compose form. The flash itself is rendered by the
+ * targeted form or the Layout backstop — not threaded here. */
+const handleComposeGet = ownerResponsePage(async (session, request) => {
   const params = new URL(request.url).searchParams;
   const target = await targetFromQuery(params);
   if (!target) return notFoundResponse();
@@ -275,19 +265,24 @@ const validateFormBody = async (
   };
 };
 
-/** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
-/* jscpd:ignore-start */
-const handlePreviewPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async (_session, form) => {
+/** An owner POST that starts from a validated compose form: bounce back on a
+ * validation redirect, else hand the extracted fields (and raw form) on. */
+const validatedEmailPost = (
+  next: (fields: ValidatedEmailForm, form: FormParams) => Promise<Response>,
+): RequestRoute =>
+  formPost(OWNER_FORM)(async (form) => {
     const result = await validateFormBody(form);
-    if (result instanceof Response) return result;
-    await saveDraft({ ...result });
-    return ok(PREVIEW_PATH, "Review your email below before sending.");
+    return result instanceof Response ? result : next(result, form);
   });
-/* jscpd:ignore-end */
+
+/** POST /admin/emails/preview — validate, persist the draft, redirect to preview. */
+const handlePreviewPost = validatedEmailPost(async (fields) => {
+  await saveDraft({ ...fields });
+  return ok(PREVIEW_PATH, "Review your email below before sending.");
+});
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
-const handlePreviewGet = ownerEmailPage(async (_request, session) => {
+const handlePreviewGet = ownerResponsePage(async (session) => {
   const privateKey = await requireRequestPrivateKey();
   const draft = await parseSavedDraft(privateKey);
   if (!draft) return redirectResponse(COMPOSE_PATH);
@@ -327,71 +322,74 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
 });
 
 /** POST /admin/emails/send — send the saved draft via the bulk provider. */
-const handleSendPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async (_session, _form) => {
-    const draft = await parseSavedDraft(await requireRequestPrivateKey());
-    if (!draft) {
-      return errorRedirect(COMPOSE_PATH, "There's no email to send.");
-    }
-    const { privateKey, recipients, config } = await loadSendContext(
-      draft.target,
+const handleSendPost = gatedPost(OWNER_FORM)(async (_session, _form) => {
+  const draft = await parseSavedDraft(await requireRequestPrivateKey());
+  if (!draft) {
+    return errorRedirect(COMPOSE_PATH, "There's no email to send.");
+  }
+  const { privateKey, recipients, config } = await loadSendContext(
+    draft.target,
+  );
+  if (!config) {
+    return errorRedirect(
+      PREVIEW_PATH,
+      "Configure your own email provider before sending bulk email.",
     );
-    if (!config) {
-      return errorRedirect(
-        PREVIEW_PATH,
-        "Configure your own email provider before sending bulk email.",
-      );
-    }
-    if (recipients.length === 0) {
-      return errorRedirect(PREVIEW_PATH, "There are no recipients to send to.");
-    }
-    const unsubscribed = draft.marketing
-      ? await getUnsubscribedHashSet()
-      : new Set<string>();
-    const payload = await buildBulkPayload({
-      bodyHtml: renderMarkdown(draft.body),
-      bodyText: draft.body,
-      marketing: draft.marketing,
-      recipients,
-      subject: draft.subject,
-      unsubscribed,
-    });
-    if (payload.recipients.length === 0) {
-      return errorRedirect(
-        PREVIEW_PATH,
-        "Everyone in this audience has unsubscribed.",
-      );
-    }
-    const result = await sendBulkEmails(config, payload);
-    await recordContacts(
-      await hashAll(payload.recipients.map((r) => r.to)),
-      draft.subject,
-      privateKey,
-    );
-    await settings.update.bulkEmailDraft("");
-    const providerSummary = summarizeProviderResponse(result.responses);
-    const recipientLabel = `${result.attempted} recipient${
-      result.attempted === 1 ? "" : "s"
-    }`;
-    await logActivity(
-      `Sent bulk email "${draft.subject}" to ${recipientLabel}. ${providerSummary}`,
-      targetLogListingId(draft.target),
-    );
-    return ok(
-      COMPOSE_PATH,
-      `Sent to ${recipientLabel} via ${
-        EMAIL_PROVIDER_LABELS[config.provider]
-      }. ${providerSummary}`,
-    );
+  }
+  if (recipients.length === 0) {
+    return errorRedirect(PREVIEW_PATH, "There are no recipients to send to.");
+  }
+  const unsubscribed = draft.marketing
+    ? await getUnsubscribedHashSet()
+    : new Set<string>();
+  const payload = await buildBulkPayload({
+    bodyHtml: renderMarkdown(draft.body),
+    bodyText: draft.body,
+    marketing: draft.marketing,
+    recipients,
+    subject: draft.subject,
+    unsubscribed,
   });
+  if (payload.recipients.length === 0) {
+    return errorRedirect(
+      PREVIEW_PATH,
+      "Everyone in this audience has unsubscribed.",
+    );
+  }
+  const result = await sendBulkEmails(config, payload);
+  await recordContacts(
+    await hashAll(payload.recipients.map((r) => r.to)),
+    draft.subject,
+    privateKey,
+  );
+  await settings.update.bulkEmailDraft("");
+  const providerSummary = summarizeProviderResponse(result.responses);
+  const recipientLabel = `${result.attempted} recipient${
+    result.attempted === 1 ? "" : "s"
+  }`;
+  await logActivity(
+    `Sent bulk email "${draft.subject}" to ${recipientLabel}. ${providerSummary}`,
+    targetLogListingId(draft.target),
+  );
+  return ok(
+    COMPOSE_PATH,
+    `Sent to ${recipientLabel} via ${
+      EMAIL_PROVIDER_LABELS[config.provider]
+    }. ${providerSummary}`,
+  );
+});
+
+/** Flash back to the compose page with the saved template selected. */
+const templateSavedResponse = (
+  target: BulkEmailTarget,
+  templateId: number,
+  message: string,
+): Response =>
+  ok(`${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`, message);
 
 /** POST /admin/emails/templates — save or update a template. */
-/* jscpd:ignore-start */
-const handleTemplateSavePost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async (_session, form) => {
-    const result = await validateFormBody(form);
-    if (result instanceof Response) return result;
-    const { subject, body, target } = result;
+const handleTemplateSavePost = validatedEmailPost(
+  async ({ subject, body, target }, form) => {
     const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
     const encBody = await encryptWithOwnerKey(body, settings.publicKey);
     const updateExisting = form.getFlag("update_existing");
@@ -409,10 +407,7 @@ const handleTemplateSavePost = (request: Request): Promise<Response> =>
         );
       }
       await updateEmailTemplate(templateId, encSubject, encBody);
-      return ok(
-        `${COMPOSE_PATH}${targetQuery(target)}&template=${templateId}`,
-        "Template updated.",
-      );
+      return templateSavedResponse(target, templateId, "Template updated.");
     }
 
     const count = await countEmailTemplates();
@@ -423,12 +418,9 @@ const handleTemplateSavePost = (request: Request): Promise<Response> =>
       );
     }
     const newId = await insertEmailTemplate(encSubject, encBody);
-    return ok(
-      `${COMPOSE_PATH}${targetQuery(target)}&template=${newId}`,
-      "Template saved.",
-    );
-  });
-/* jscpd:ignore-end */
+    return templateSavedResponse(target, newId, "Template saved.");
+  },
+);
 
 /**
  * GET/POST /admin/emails/templates/:id/delete — typed-confirmation delete,

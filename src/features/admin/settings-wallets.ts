@@ -3,6 +3,7 @@
  * Owner-only access enforced via settingsHandler
  */
 
+import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {
   processSecretField,
@@ -72,39 +73,64 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     if (!d.passTypeId) return t("error.apple_pass_type_id_required");
     if (!d.teamId) return t("error.apple_team_id_required");
     if (!settings.appleWallet.hasDbConfig) {
-      const requiredError = validateAppleWalletRequiredSecrets(d);
-      if (requiredError) return requiredError;
+      // No saved config to fall back on, so every secret must be uploaded now.
+      const missing = firstAppleSecretProblem(d, (field, secret) =>
+        secret.action === "provided" ? null : t(field.missingKey),
+      );
+      if (missing) return missing;
     }
-    return validateAppleWalletPemFields(d);
+    return firstAppleSecretProblem(d, (field, secret) =>
+      secret.action === "provided" && !field.looksValid(secret.value)
+        ? t(field.invalidKey)
+        : null,
+    );
   },
 });
 
-/** Ensure required secrets are provided when no DB config exists */
-const validateAppleWalletRequiredSecrets = (
-  d: AppleWalletFormData,
-): string | null => {
-  if (d.cert.action !== "provided")
-    return t("error.apple_signing_cert_required");
-  if (d.key.action !== "provided") return t("error.apple_signing_key_required");
-  if (d.wwdr.action !== "provided") return t("error.apple_wwdr_cert_required");
-  return null;
+/** One Apple Wallet secret upload, described as data: how to read it from the
+ * form, the error keys for a missing or malformed value, and the PEM check
+ * that decides "malformed". */
+type AppleSecretField = {
+  fromForm: (d: AppleWalletFormData) => SecretFieldResult;
+  invalidKey: string;
+  looksValid: (value: string) => boolean;
+  missingKey: string;
 };
 
-/** Validate PEM structure of provided Apple Wallet secret fields */
-const validateAppleWalletPemFields = (
+/** The three secret uploads on the Apple Wallet form. */
+const APPLE_SECRET_FIELDS: readonly AppleSecretField[] = [
+  {
+    fromForm: (d) => d.cert,
+    invalidKey: "error.apple_signing_cert_invalid",
+    looksValid: isValidPemCertificate,
+    missingKey: "error.apple_signing_cert_required",
+  },
+  {
+    fromForm: (d) => d.key,
+    invalidKey: "error.apple_signing_key_invalid",
+    looksValid: isValidPemPrivateKey,
+    missingKey: "error.apple_signing_key_required",
+  },
+  {
+    fromForm: (d) => d.wwdr,
+    invalidKey: "error.apple_wwdr_cert_invalid",
+    looksValid: isValidPemCertificate,
+    missingKey: "error.apple_wwdr_cert_required",
+  },
+];
+
+/** First problem found across the Apple secret fields, checked in form order.
+ * Null when every field passes — the expected outcome for a valid submit. */
+const firstAppleSecretProblem = (
   d: AppleWalletFormData,
-): string | null => {
-  if (d.cert.action === "provided" && !isValidPemCertificate(d.cert.value)) {
-    return t("error.apple_signing_cert_invalid");
-  }
-  if (d.key.action === "provided" && !isValidPemPrivateKey(d.key.value)) {
-    return t("error.apple_signing_key_invalid");
-  }
-  if (d.wwdr.action === "provided" && !isValidPemCertificate(d.wwdr.value)) {
-    return t("error.apple_wwdr_cert_invalid");
-  }
-  return null;
-};
+  problemWith: (
+    field: AppleSecretField,
+    secret: SecretFieldResult,
+  ) => string | null,
+): string | null =>
+  mapNotNullish((field: AppleSecretField) =>
+    problemWith(field, field.fromForm(d)),
+  )(APPLE_SECRET_FIELDS)[0] ?? null;
 
 /**
  * Handle POST /admin/settings/google-wallet - owner only

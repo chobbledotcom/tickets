@@ -20,6 +20,7 @@ import {
   inPlaceholders,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { stringColumnSet } from "#shared/db/query.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -303,7 +304,7 @@ const getAppliedMigrationIds = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
     `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE}`,
   );
-  return new Set(result.rows.map((row) => String(row.id)));
+  return stringColumnSet(result.rows, "id");
 };
 
 /** Build the INSERT that records a migration as applied. */

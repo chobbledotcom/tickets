@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  driftedRowItems,
   type ExpectedActualItem,
   ExpectedActualNotice,
   ExpectedActualTableRow,
-  hasExpectedActualMismatches,
 } from "#templates/admin/expected-actual.tsx";
 
 const item = (over: Partial<ExpectedActualItem> = {}): ExpectedActualItem => ({
@@ -14,10 +14,24 @@ const item = (over: Partial<ExpectedActualItem> = {}): ExpectedActualItem => ({
   ...over,
 });
 
-test("hasExpectedActualMismatches is false only for an empty list", () => {
-  expect(hasExpectedActualMismatches([])).toBe(false);
-  expect(hasExpectedActualMismatches([item()])).toBe(true);
-  expect(hasExpectedActualMismatches([item(), item()])).toBe(true);
+test("driftedRowItems keeps only the drifted rows, as expected/actual items", () => {
+  const items = driftedRowItems([
+    { current: "4", label: "Total", recalculated: "3" },
+    { current: "5", label: "Subtotal", recalculated: "5" },
+    { current: "0", label: "Tax", recalculated: "1" },
+  ]);
+  // The matching Subtotal row is dropped; each drifted row maps the stored
+  // value to `actual` and the recounted value to `expected`.
+  expect(items).toEqual([
+    { actual: "4", expected: "3", label: "Total" },
+    { actual: "0", expected: "1", label: "Tax" },
+  ]);
+});
+
+test("driftedRowItems returns an empty list when every row matches", () => {
+  expect(
+    driftedRowItems([{ current: "2", label: "Total", recalculated: "2" }]),
+  ).toEqual([]);
 });
 
 test("ExpectedActualNotice returns null when there are no items", () => {

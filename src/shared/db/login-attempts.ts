@@ -10,7 +10,8 @@
  */
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { deleteByField, execute, queryOne } from "#shared/db/client.ts";
+import { clearAttemptsFor, lockoutActive } from "#shared/db/attempt-lockout.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 
@@ -30,27 +31,13 @@ const withHashedIpAttempts = async <T>(
   return handler(hashedIp, row);
 };
 
-/** Check if lockout is active, resetting expired locks */
-const checkLockout = async (
+/** Check if lockout is active, resetting expired locks. A missing row (no
+ * attempts yet) reads as not limited. */
+const checkLockout = (
   hashedIp: string,
   row: LoginAttemptRow | null,
-): Promise<boolean> => {
-  if (!row) return false;
-
-  const currentMs = nowMs();
-
-  // Check if currently locked out
-  if (row.locked_until && row.locked_until > currentMs) {
-    return true;
-  }
-
-  // If lockout expired, reset
-  if (row.locked_until && row.locked_until <= currentMs) {
-    await deleteByField("login_attempts", "ip", hashedIp);
-  }
-
-  return false;
-};
+): Promise<boolean> =>
+  lockoutActive("login_attempts", hashedIp, row?.locked_until);
 
 /** Build an attempt recorder with the given threshold/lockout window. */
 const makeRecordAttempt =
@@ -126,7 +113,5 @@ export const recordFailedLogin = (ip: string): Promise<boolean> =>
 /**
  * Clear login attempts for an IP (on successful login)
  */
-export const clearLoginAttempts = async (ip: string): Promise<void> => {
-  const hashedIp = await hmacHash(ip);
-  await deleteByField("login_attempts", "ip", hashedIp);
-};
+export const clearLoginAttempts: (ip: string) => Promise<void> =
+  clearAttemptsFor("login_attempts");

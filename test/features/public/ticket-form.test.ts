@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  buildListingAnswerMap,
-  buildListingTextAnswerMap,
-  groupListingAnswerSets,
+  type AnswerInfo,
+  listingAnswerMaps,
   parseAddOnSelections,
   parseQuantities,
 } from "#routes/public/ticket-form.ts";
 import type { TicketListing } from "#shared/booking/model.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
+import { groupListingAnswerSets } from "#shared/db/questions/attendee-answers/save.ts";
 import { FormParams } from "#shared/form-data.ts";
 
 const question = (
@@ -33,14 +33,25 @@ const question = (
   text: `Question ${id}`,
 });
 
+/** An AnswerInfo with everything empty except the given fields. */
+const answerInfo = (over: Partial<AnswerInfo>): AnswerInfo => ({
+  activeQuestions: [],
+  answerIds: [],
+  selectedListingIds: new Set(),
+  textAnswers: [],
+  ...over,
+});
+
 describe("ticket form answer grouping", () => {
   test("saves free-text-only submissions for the matching listing attendee", () => {
     const selectedListingIds = new Set([101]);
-    const textMap = buildListingTextAnswerMap(
-      [{ questionId: 1, text: "Front row please" }],
+    const textMap = listingAnswerMaps(
+      answerInfo({
+        selectedListingIds,
+        textAnswers: [{ questionId: 1, text: "Front row please" }],
+      }),
       new Map([[1, [101]]]),
-      selectedListingIds,
-    );
+    ).textAnswers;
 
     const grouped = groupListingAnswerSets(
       [{ attendee: { id: 501 }, listing: { id: 101 } }],
@@ -60,16 +71,14 @@ describe("ticket form answer grouping", () => {
       [1, [101]],
       [2, [202]],
     ]);
-    const choiceMap = buildListingAnswerMap(
-      [question(1, "radio"), question(2, "free_text")],
-      [10],
+    const { answerIds: choiceMap, textAnswers: textMap } = listingAnswerMaps(
+      answerInfo({
+        activeQuestions: [question(1, "radio"), question(2, "free_text")],
+        answerIds: [10],
+        selectedListingIds,
+        textAnswers: [{ questionId: 2, text: "Vegan" }],
+      }),
       questionListingMap,
-      selectedListingIds,
-    );
-    const textMap = buildListingTextAnswerMap(
-      [{ questionId: 2, text: "Vegan" }],
-      questionListingMap,
-      selectedListingIds,
     );
 
     const grouped = groupListingAnswerSets(
@@ -94,15 +103,17 @@ describe("ticket form answer grouping", () => {
     // must land in 101's bucket — the second must not overwrite the first (the
     // per-listing bucket is created once, then appended), and the answer index
     // must advance so each question reads its own submitted id.
-    const choiceMap = buildListingAnswerMap(
-      [question(1, "radio"), question(2, "radio")],
-      [11, 22],
+    const choiceMap = listingAnswerMaps(
+      answerInfo({
+        activeQuestions: [question(1, "radio"), question(2, "radio")],
+        answerIds: [11, 22],
+        selectedListingIds: new Set([101]),
+      }),
       new Map([
         [1, [101]],
         [2, [101]],
       ]),
-      new Set([101]),
-    );
+    ).answerIds;
     expect(choiceMap).toEqual({ "101": [11, 22] });
   });
 
@@ -118,15 +129,17 @@ describe("ticket form answer grouping", () => {
     // The parser skips the inactive-only question, so answerIds holds only the
     // active question's answer (20). The map must put it on Q2's listing (202),
     // not consume the slot for the skipped Q1 (101).
-    const choiceMap = buildListingAnswerMap(
-      [inactiveOnly, question(2, "radio")],
-      [20],
+    const choiceMap = listingAnswerMaps(
+      answerInfo({
+        activeQuestions: [inactiveOnly, question(2, "radio")],
+        answerIds: [20],
+        selectedListingIds: new Set([101, 202]),
+      }),
       new Map([
         [1, [101]],
         [2, [202]],
       ]),
-      new Set([101, 202]),
-    );
+    ).answerIds;
 
     expect(choiceMap).toEqual({ "202": [20] });
   });
@@ -136,11 +149,13 @@ describe("ticket form answer grouping", () => {
 
     // An empty map means the question is assigned to no listing in particular,
     // so it applies to every selected listing.
-    const textMap = buildListingTextAnswerMap(
-      [{ questionId: 1, text: "Window seat" }],
+    const textMap = listingAnswerMaps(
+      answerInfo({
+        selectedListingIds,
+        textAnswers: [{ questionId: 1, text: "Window seat" }],
+      }),
       new Map(),
-      selectedListingIds,
-    );
+    ).textAnswers;
 
     expect(textMap).toEqual({
       "101": [{ questionId: 1, text: "Window seat" }],
@@ -150,11 +165,13 @@ describe("ticket form answer grouping", () => {
 
   test("deduplicates assign-all text answers by question for one attendee", () => {
     const selectedListingIds = new Set([101, 202]);
-    const textMap = buildListingTextAnswerMap(
-      [{ questionId: 1, text: "Window seat" }],
+    const textMap = listingAnswerMaps(
+      answerInfo({
+        selectedListingIds,
+        textAnswers: [{ questionId: 1, text: "Window seat" }],
+      }),
       new Map(),
-      selectedListingIds,
-    );
+    ).textAnswers;
 
     const grouped = groupListingAnswerSets(
       [

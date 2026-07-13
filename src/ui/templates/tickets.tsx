@@ -284,12 +284,17 @@ const collectPackageBuckets = (
  * suppressed when its token also carries a package (the pass would 404). */
 const renderCardsHtml = (
   cards: TicketCard[],
-  displayFor: (card: TicketCard) => PackageDisplay | undefined,
-  buckets: Map<string, TicketCard[]>,
-  packageTokens: Set<string>,
+  packageDisplays: ReadonlyMap<number, PackageDisplay>,
   appleWalletEnabled: boolean,
   googleWalletEnabled: boolean,
 ): string[] => {
+  // Resolve each card's package display (only for a real, non-zero package id).
+  // A row with no display renders as its own normal card — so a token mixing a
+  // hidden package with a standalone booking collapses the package (hiding its
+  // members) while still showing the standalone ticket.
+  const displayFor = (card: TicketCard): PackageDisplay | undefined =>
+    packageDisplays.get(card.entry.attendee.package_group_id);
+  const { buckets, packageTokens } = collectPackageBuckets(cards, displayFor);
   const rendered = new Set<string>();
   const htmlParts: string[] = [];
   for (const card of cards) {
@@ -319,19 +324,9 @@ export const ticketViewPage = (
   googleWalletEnabled = false,
   packageDisplays: ReadonlyMap<number, PackageDisplay> = new Map(),
 ): string => {
-  // Resolve each card's package display (only for a real, non-zero package id),
-  // then bucket the package rows and render. A row with no display renders as its
-  // own normal card — so a token mixing a hidden package with a standalone
-  // booking collapses the package (hiding its members) while still showing the
-  // standalone ticket.
-  const displayFor = (card: TicketCard): PackageDisplay | undefined =>
-    packageDisplays.get(card.entry.attendee.package_group_id);
-  const { buckets, packageTokens } = collectPackageBuckets(cards, displayFor);
   const htmlParts = renderCardsHtml(
     cards,
-    displayFor,
-    buckets,
-    packageTokens,
+    packageDisplays,
     appleWalletEnabled,
     googleWalletEnabled,
   );

@@ -42,30 +42,29 @@ export const listingParents = linkTableSide(
   "parent_listing_id",
 );
 
-/** Run a child-id-selecting query (whose SQL embeds an `IN (…)` placeholder list
- * over `ids`) and return its results as a set. Empty input short-circuits to an
- * empty set with no query — the shared shape of the child-id lookups below. */
-const childIdSet = async (
-  sql: string,
-  ids: readonly number[],
-): Promise<Set<number>> => {
-  if (ids.length === 0) return new Set();
-  return new Set(await queryIdColumn(sql, [...ids]));
-};
+/** A lookup answering which of the given listing ids are children, per the
+ * query shape it was built with (see {@link childIdLookup}). */
+type ChildIdLookup = (ids: readonly number[]) => Promise<Set<number>>;
+
+/** Build a child-id lookup from its query shape: `buildSql` receives the bound
+ * `?`-placeholder list for the ids and returns the SQL selecting the matching
+ * child ids `AS id`. The returned lookup answers with a set, and empty input
+ * short-circuits to an empty set with no query. */
+const childIdLookup =
+  (buildSql: (placeholders: string) => string): ChildIdLookup =>
+  async (ids) =>
+    ids.length === 0
+      ? new Set()
+      : new Set(await queryIdColumn(buildSql(inPlaceholders(ids)), [...ids]));
 
 /** Of the given listing ids, the set that are a child of some parent (i.e. have
  * a `listing_parents` edge naming them as `child_listing_id`). Used to reject
  * child slugs at the booking entry point — a booking can never start from a
  * child. Returns an empty set for an empty input (no query). */
-export const getChildListingIds = (
-  ids: readonly number[],
-): Promise<Set<number>> =>
-  childIdSet(
-    `SELECT DISTINCT child_listing_id AS id FROM listing_parents WHERE child_listing_id IN (${inPlaceholders(
-      ids,
-    )})`,
-    ids,
-  );
+export const getChildListingIds: ChildIdLookup = childIdLookup(
+  (placeholders) =>
+    `SELECT DISTINCT child_listing_id AS id FROM listing_parents WHERE child_listing_id IN (${placeholders})`,
+);
 
 /** Of the given listing ids, the set that are a child AND are NOT sold on their
  * own (`listings.bookable_alone = 0`). This is the narrowed gate predicate: a
@@ -75,17 +74,14 @@ export const getChildListingIds = (
  * predicate — "renders under a parent, folds, carries allocations" — while this
  * one answers the GATE question "has no standalone existence". Returns an empty
  * set for empty input (no query). */
-export const getNonStandaloneChildIds = (
-  ids: readonly number[],
-): Promise<Set<number>> =>
-  childIdSet(
+export const getNonStandaloneChildIds: ChildIdLookup = childIdLookup(
+  (placeholders) =>
     `SELECT DISTINCT listingParent.child_listing_id AS id
        FROM listing_parents AS listingParent
        JOIN listings AS listing ON listing.id = listingParent.child_listing_id
-      WHERE listingParent.child_listing_id IN (${inPlaceholders(ids)})
+      WHERE listingParent.child_listing_id IN (${placeholders})
         AND listing.bookable_alone = 0`,
-    ids,
-  );
+);
 
 /** Whether any of `ids` is a child with no standalone existence (see
  * {@link getNonStandaloneChildIds}). The gate the explicit-slug entry points

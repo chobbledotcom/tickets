@@ -26,15 +26,16 @@ import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
 import {
-  buildListingAnswerMap,
-  buildListingTextAnswerMap,
+  type AnswerInfo,
   getTicketFieldsSetting,
+  listingAnswerMaps,
   parseQuantities,
   ticketFormErrorResponse,
 } from "../ticket-form.ts";
@@ -84,6 +85,15 @@ export const validateTicketFields = (
     requiresPayment,
   );
 
+/** The page's listings that match the pay-more flag. */
+const listingsByPayMore = (
+  ctx: TicketCtx,
+  canPayMore: boolean,
+): ListingWithCount[] =>
+  ctx.listings
+    .filter(({ listing }) => listing.can_pay_more === canPayMore)
+    .map(({ listing }) => listing);
+
 /** Parse custom prices for pay-more listings. Returns an error message string
  * on validation failure, or the custom-price map otherwise. */
 export const parseCustomPrices = (
@@ -92,8 +102,7 @@ export const parseCustomPrices = (
   quantities: Map<number, number>,
 ): string | Map<number, number> => {
   const customPrices = new Map<number, number>();
-  for (const { listing } of ctx.listings) {
-    if (!listing.can_pay_more) continue;
+  for (const listing of listingsByPayMore(ctx, true)) {
     const qty = quantities.get(listing.id) ?? 0;
     if (qty <= 0) continue;
     const priceResult = parseCustomPrice(
@@ -128,16 +137,9 @@ export const applyQrTokenOverride = async (
   if (!token || ctx.slugs.length !== 1) return;
   const payload = await verifyQrBookToken(ctx.slugs[0]!, token);
   if (!payload || payload.v < 0) return;
-  for (const { listing } of ctx.listings) {
-    if (!listing.can_pay_more) customPrices.set(listing.id, payload.v);
+  for (const listing of listingsByPayMore(ctx, false)) {
+    customPrices.set(listing.id, payload.v);
   }
-};
-
-export type AnswerInfo = {
-  activeQuestions: TicketCtx["questions"];
-  answerIds: number[];
-  textAnswers: import("#shared/db/question-types.ts").TextAnswer[];
-  selectedListingIds: Set<number>;
 };
 
 /** Compute listing-answer map if answers exist */
@@ -152,11 +154,7 @@ export const computeListingTextAnswerIdMap = async (
   );
   return Object.fromEntries(
     Object.entries(
-      buildListingTextAnswerMap(
-        info.textAnswers,
-        ctx.questionListingMap,
-        info.selectedListingIds,
-      ),
+      listingAnswerMaps(info, ctx.questionListingMap).textAnswers,
     ).map(([listingId, answers]) => [
       listingId,
       // These answers are a subset of the texts handed to getOrCreateStringIds,
@@ -176,12 +174,7 @@ export const computeListingAnswerMap = (
   info: AnswerInfo,
 ): Record<string, number[]> | undefined =>
   info.answerIds.length > 0
-    ? buildListingAnswerMap(
-        info.activeQuestions,
-        info.answerIds,
-        ctx.questionListingMap,
-        info.selectedListingIds,
-      )
+    ? listingAnswerMaps(info, ctx.questionListingMap).answerIds
     : undefined;
 
 /** The buyer-chosen count for one package (0 when absent/invalid). */
