@@ -13,7 +13,7 @@ import {
   inPlaceholders,
   queryAll,
   queryIdColumn,
-  queryOne,
+  rowExists,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
@@ -248,11 +248,8 @@ export const getActiveListingsByGroupIds = (
 
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */
-export const groupExists = async (id: number): Promise<boolean> =>
-  (await queryOne<{ id: number }>(
-    "SELECT id FROM groups WHERE id = ? LIMIT 1",
-    [id],
-  )) !== null;
+export const groupExists = (id: number): Promise<boolean> =>
+  rowExists("SELECT 1 FROM groups WHERE id = ? LIMIT 1", [id]);
 
 /**
  * Get all listings in a group with attendee counts (including inactive).
@@ -336,13 +333,12 @@ const anyGroupMatching = async (
   condition: string,
 ): Promise<boolean> => {
   if (groupIds.length === 0) return false;
-  const rows = await queryAll<{ id: number }>(
-    `SELECT id FROM groups WHERE id IN (${inPlaceholders(
+  return rowExists(
+    `SELECT 1 FROM groups WHERE id IN (${inPlaceholders(
       groupIds,
     )}) AND ${condition} LIMIT 1`,
     [...groupIds],
   );
-  return rows.length > 0;
 };
 
 /** Whether any of the given group ids names a HIDDEN package group
@@ -361,8 +357,8 @@ export const anyListingInPackageGroup = async (
   listingIds: readonly number[],
 ): Promise<boolean> => {
   if (listingIds.length === 0) return false;
-  const rows = await queryAll<{ listing_id: number }>(
-    `SELECT groupListing.listing_id
+  return rowExists(
+    `SELECT 1
        FROM group_listings AS groupListing
        JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
       WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})
@@ -370,7 +366,6 @@ export const anyListingInPackageGroup = async (
       LIMIT 1`,
     [...listingIds],
   );
-  return rows.length > 0;
 };
 
 /** Of the given listing ids, those that belong to a HIDDEN package — a package
@@ -490,12 +485,12 @@ export const getPackageDisplayById = async (
 /** Whether any booking row is stamped with this package's group id — sold
  * tickets whose display (and hidden-member concealment) resolves through the
  * live package row. Refund placeholders (quantity 0) don't count. */
-export const hasPackageBookings = async (groupId: number): Promise<boolean> =>
-  (await queryOne<{ one: number }>(
-    `SELECT 1 AS one FROM listing_attendees
+export const hasPackageBookings = (groupId: number): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM listing_attendees
       WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
     [groupId],
-  )) !== null;
+  );
 
 /** The package displays for a set of (possibly repeated or zero)
  * `package_group_id`s — only ids naming a live package appear in the map. Lets
