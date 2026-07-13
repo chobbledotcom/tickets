@@ -24,6 +24,7 @@ import {
   getAttendeeTextAnswers,
 } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
+import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import type {
   ApplyAttendeeMergeInput,
@@ -272,19 +273,14 @@ const bookingSaleAmount = async (
   eventGroup: string,
 ): Promise<number> => {
   if (!eventGroup) return 0;
-  const account = attendeeAccount(attendeeId);
-  const revenue = revenueAccount(listingId);
   const legs = await transfersByEventGroup(eventGroup);
-  return legs
-    .filter(
-      (leg) =>
-        leg.kind === KIND.sale &&
-        leg.source.type === account.type &&
-        leg.source.id === account.id &&
-        leg.destination.type === revenue.type &&
-        leg.destination.id === revenue.id,
-    )
-    .reduce((sum, leg) => sum + leg.amount, 0);
+  return sumLegs(
+    legMatches({
+      from: attendeeAccount(attendeeId),
+      kind: KIND.sale,
+      to: revenueAccount(listingId),
+    }),
+  )(legs);
 };
 
 /** Classify a source booking against the target's bookings at the same key. */

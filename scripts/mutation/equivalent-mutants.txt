@@ -42,9 +42,9 @@ src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): numb
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
-src/shared/ledger/project.ts:19:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts:20:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/listing-parents-rules.ts:124:4  ?? → ||    # find()?.error(): an i18n message is never "", so only undefined reaches the fallback either way
-src/shared/ledger/project.ts:37:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts:38:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts:71:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/ledger/reconcile.ts:113:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts:116:35  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
