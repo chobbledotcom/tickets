@@ -12,6 +12,7 @@ import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
+  attendeeHoldsUnreturnedCash,
   getAttendeePackageRowsRaw,
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
@@ -85,6 +86,19 @@ const deleteAttendeeAndRedirect = async (
     return redirect(
       redirectTo,
       t("attendee_form.error_pending_checkout"),
+      false,
+      opts,
+    );
+  }
+  // A stage_active conflict resolves its stage to `failed` but leaves a held
+  // provider `payment` leg (no sale) the operator must still refund. Deleting
+  // the record would remove the note, the row, and the payment reference,
+  // leaving only orphaned ledger cash with no in-app refund path — so block it
+  // until the held cash is returned.
+  if (await attendeeHoldsUnreturnedCash(attendeeId)) {
+    return redirect(
+      redirectTo,
+      t("attendee_form.error_held_cash"),
       false,
       opts,
     );

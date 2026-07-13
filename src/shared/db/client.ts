@@ -316,6 +316,15 @@ export const matchingIdSet = async (
   return idSetFromRows(rows);
 };
 
+/** A primary-pinned {@link matchingIdSet} lookup as a reusable membership guard:
+ * give it the query builder, get back the `(ids) => Set` check every mutation
+ * guard shares (a replica lagging a just-written row must not let a mutation slip
+ * past). Curried so each guard is `export const X = primaryMatchingIdSet(sql)`. */
+export const primaryMatchingIdSet =
+  (buildSql: (idsPlaceholders: string) => string) =>
+  (ids: readonly number[]): Promise<Set<number>> =>
+    matchingIdSet(ids, buildSql, { primary: true });
+
 /**
  * The next `sort_order` for rows of `table` in one group: one past the current
  * max, or 0 when the group is empty. `table` and `groupColumn` must be trusted

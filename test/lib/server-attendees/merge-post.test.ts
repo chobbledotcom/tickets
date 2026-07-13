@@ -17,6 +17,7 @@ import {
   getAttendeeQuantities,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postHeldPayment } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   setupListingAndDirectAttendee,
@@ -181,6 +182,36 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         sourceToken,
         stage.attendeeId,
       );
+    });
+
+    test("refuses a merge when a record holds unreturned conflict cash", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { attendee: target } = await createTestAttendeeDirect(
+        listing.id,
+        "Jane Doe",
+        "jane@example.com",
+      );
+      const { attendee: source, token: sourceToken } =
+        await createTestAttendeeDirect(
+          listing.id,
+          "John Smith",
+          "john@example.com",
+        );
+      // A stage_active conflict leaves the source holding a provider payment
+      // (no sale) that must be refunded; merging would repoint that held cash
+      // onto a mixed account the refund ledger can't reconcile.
+      await postHeldPayment({
+        amount: 500,
+        attendeeId: source.id,
+        listingId: listing.id,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${target.id}/merge`,
+        { source_token: sourceToken },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("not refunded"), false);
     });
 
     test("a merge that adopts the source's email re-homes Previous bookings", async () => {

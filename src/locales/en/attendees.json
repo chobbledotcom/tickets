@@ -149,6 +149,7 @@
   "attendee_form.error_built_site_no_qty": "Unassign the built site from this booking before marking it no quantity.",
   "attendee_form.error_paid_no_qty": "Refund this booking's payment before marking it no quantity.",
   "attendee_form.error_pending_checkout": "This booking is mid-payment. Wait for the payment to finish or expire.",
+  "attendee_form.error_held_cash": "This booking holds a payment that was not refunded. Refund it before you delete this record.",
   "attendee_form.error_capacity": "Not enough spots available for one or more selected listings — nothing was saved. Please review the quantities and try again.",
   "attendee_form.saved_added": "Added {value}",
   "attendee_form.saved_updated": "Updated {value}",

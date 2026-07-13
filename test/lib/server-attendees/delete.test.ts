@@ -13,6 +13,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { postHeldPayment } from "#test-utils/ledger.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminAttendeeAction,
@@ -235,6 +236,36 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
         "#shared/db/attendees/queries.ts"
       );
       expect(await getAttendeeRaw(stage.attendeeId)).not.toBeNull();
+    });
+
+    test("refuses to delete a record holding unreturned conflict cash", async () => {
+      const { listing } = await setupListingAndLogin({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Held Buyer",
+        "held-delete@example.com",
+      );
+      // A stage_active conflict resolves its stage but leaves a held provider
+      // payment (no sale) the operator must still refund; deleting would orphan
+      // that ledger cash. Confirming by name gets past the confirmation step.
+      await postHeldPayment({
+        amount: 1000,
+        attendeeId: attendee.id,
+        listingId: listing.id,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}/delete`,
+        { confirm_identifier: "Held Buyer" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("not refunded"), false);
+      // The record survives so the operator can still refund the held cash.
+      const { getAttendeeRaw } = await import(
+        "#shared/db/attendees/queries.ts"
+      );
+      expect(await getAttendeeRaw(attendee.id)).not.toBeNull();
     });
 
     test("can delete attendee without releasing bookings", async () => {

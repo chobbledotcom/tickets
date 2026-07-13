@@ -18,7 +18,7 @@ import {
   executeBatchWithResults,
   inPlaceholders,
   insert,
-  matchingIdSet,
+  primaryMatchingIdSet,
   queryOnePrimary,
   type TxScope,
 } from "#shared/db/client.ts";
@@ -229,18 +229,13 @@ export const getCheckoutStageOrNull = async (
  * lands, so changing OR removing them strands the paid order. Array in, set out
  * — call with one id for the single case.
  */
-export const attendeeIdsWithPendingStage = (
-  attendeeIds: readonly number[],
-): Promise<Set<number>> =>
-  // Pinned to the primary: this gates mutations, and a replica lagging the
-  // just-staged insert would let an edit slip through the guard.
-  matchingIdSet(
-    attendeeIds,
-    (placeholders) =>
-      `SELECT attendee_id AS id FROM checkout_stages
-        WHERE state = 'pending' AND attendee_id IN (${placeholders})`,
-    { primary: true },
-  );
+// Pinned to the primary: this gates mutations, and a replica lagging the
+// just-staged insert would let an edit slip through the guard.
+export const attendeeIdsWithPendingStage = primaryMatchingIdSet(
+  (placeholders) =>
+    `SELECT attendee_id AS id FROM checkout_stages
+      WHERE state = 'pending' AND attendee_id IN (${placeholders})`,
+);
 
 /** Does this listing have any attendee mid-payment (a pending staged checkout)?
  * Gates listing deletion: deleting a listing removes its booking rows but leaves

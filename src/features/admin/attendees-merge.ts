@@ -15,6 +15,7 @@ import {
   decryptAttendees,
 } from "#shared/db/attendees/pii.ts";
 import {
+  attendeeIdsHoldingUnreturnedCash,
   getAttendeeRaw,
   LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees/queries.ts";
@@ -269,6 +270,24 @@ const buildMergeFlashParts = mergeMessageParts(
   ],
 );
 
+/** Why a merge of these two records is blocked right now, or null when it's
+ * allowed. Two money states forbid it, both of which the merge would
+ * mis-reconcile onto a mixed account: either record is mid-payment (a pending
+ * stage claims its exact rows), or either holds unreturned conflict cash (a
+ * stage_active `payment` leg with no sale) the operator must refund first. */
+const mergeMoneyBlock = async (
+  targetId: number,
+  sourceId: number,
+): Promise<string | null> => {
+  if ((await attendeeIdsWithPendingStage([targetId, sourceId])).size > 0) {
+    return t("admin.merge.pending_checkout");
+  }
+  if ((await attendeeIdsHoldingUnreturnedCash([targetId, sourceId])).size > 0) {
+    return t("admin.merge.held_cash");
+  }
+  return null;
+};
+
 /** Validate merge POST preconditions, returning an error Response or the source */
 const validateMergePostInput = async (
   attendeeId: number,
@@ -307,14 +326,12 @@ const validateMergePostInput = async (
     };
   }
 
-  // A record that is mid-payment must stay exactly as staged: merging it (in
-  // either direction) moves or rewrites the rows the payment will claim.
-  const pending = await attendeeIdsWithPendingStage([attendeeId, source.id]);
-  if (pending.size > 0) {
-    return {
-      ok: false,
-      response: errorRedirect(actionsTab, t("admin.merge.pending_checkout")),
-    };
+  // A record that is mid-payment (or holding unreturned conflict cash) must stay
+  // exactly as staged: merging it (in either direction) moves or rewrites the
+  // rows the payment will claim, or the held cash the operator must refund.
+  const moneyBlock = await mergeMoneyBlock(attendeeId, source.id);
+  if (moneyBlock) {
+    return { ok: false, response: errorRedirect(actionsTab, moneyBlock) };
   }
 
   return { ok: true, source, sourceToken };
@@ -488,14 +505,9 @@ export const loadMergePanel = async (
   }
   // Show the block here too, so the operator never fills in a decision form
   // the POST would refuse.
-  const pending = await attendeeIdsWithPendingStage([target.id, source.id]);
-  if (pending.size > 0) {
-    return AttendeeMergePanel(
-      target,
-      null,
-      token,
-      t("admin.merge.pending_checkout"),
-    );
+  const moneyBlock = await mergeMoneyBlock(target.id, source.id);
+  if (moneyBlock) {
+    return AttendeeMergePanel(target, null, token, moneyBlock);
   }
   const diff = await buildMergeDiffFor(target, source, target.id);
   return AttendeeMergePanel(target, source, token, undefined, diff);

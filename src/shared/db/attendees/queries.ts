@@ -26,6 +26,7 @@ import {
 } from "#shared/db/attendees/select.ts";
 import {
   inPlaceholders,
+  primaryMatchingIdSet,
   queryAll,
   queryOne,
   rowExists,
@@ -366,17 +367,25 @@ export const hasPaidLine = rowExistsForIdList(
  * both miss it. Read from the live ledger, no decryption. A fully-paid booking
  * nets to 0, a deposit is negative (owed), and a refunded record nets back to 0,
  * so none of them read as held cash.
+ *
+ * Array in, set out — call with one id for the single case. Pinned to the
+ * primary: this gates writes (no-quantity edits, deletes, merges), and a replica
+ * lagging the just-posted held-payment leg would let a mutation slip through the
+ * guard — the same reason the pending-checkout guard reads the primary.
  */
-export const attendeeHoldsUnreturnedCash = (
+export const attendeeIdsHoldingUnreturnedCash = primaryMatchingIdSet(
+  (placeholders) =>
+    `SELECT attendee.id AS id FROM attendees AS attendee
+      WHERE attendee.id IN (${placeholders})
+        AND ${accountBalanceSubquery(ATTENDEE, "attendee.id")} > 0`,
+);
+
+/** Whether this one attendee holds unreturned conflict cash — single-id form of
+ * {@link attendeeIdsHoldingUnreturnedCash} for the no-quantity and delete guards. */
+export const attendeeHoldsUnreturnedCash = async (
   attendeeId: number,
 ): Promise<boolean> =>
-  rowExists(
-    `SELECT 1 FROM attendees AS attendee
-      WHERE attendee.id = ?
-        AND ${accountBalanceSubquery(ATTENDEE, "attendee.id")} > 0
-      LIMIT 1`,
-    [attendeeId],
-  );
+  (await attendeeIdsHoldingUnreturnedCash([attendeeId])).has(attendeeId);
 
 /**
  * The id of the attendee whose booking owns this ledger event group, or null
