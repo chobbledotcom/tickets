@@ -22,6 +22,13 @@ import { useSetting } from "#test-utils/settings.ts";
  *  confirmation email. Collapses the shared `invalidateCache` + `loadKeys` +
  *  `buildTemplateData` + `renderEmailContent` sequence repeated across the
  *  custom-template tests. */
+/** The first argument of every `console.error` call the spy captured — the
+ *  render-error tests read the logged messages this same way. */
+const errorLogMessages = (errorSpy: {
+  calls: { args: unknown[] }[];
+}): string[] =>
+  map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+
 const renderConfirmation = async (): Promise<{
   data: TemplateData;
   result: Awaited<ReturnType<typeof renderEmailContent>>;

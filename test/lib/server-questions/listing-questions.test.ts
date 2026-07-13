@@ -248,6 +248,17 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
     };
 
+    /** Assert exactly these question ids are assigned to the listing. */
+    const expectAssignedQuestionIds = async (
+      listingId: number,
+      expected: number[],
+    ): Promise<void> => {
+      const { getListingQuestionIds } = await import(
+        "#shared/db/questions/queries.ts"
+      );
+      expect(await getListingQuestionIds(listingId)).toEqual(expected);
+    };
+
     testRequiresAuth("/admin/listing/1/questions", {
       body: {
         question_ids: "1",
@@ -277,12 +288,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the questions are assigned
-      const { getListingQuestionIds } = await import(
-        "#shared/db/questions/queries.ts"
-      );
-      const assigned = await getListingQuestionIds(listing.id);
-      expect(assigned.length).toBe(1);
-      expect(assigned[0]).toBe(q1);
+      await expectAssignedQuestionIds(listing.id, [q1]);
     });
 
     test("assigns no questions when none selected", async () => {
@@ -296,11 +302,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Questions updated",
       )(response);
 
-      const { getListingQuestionIds } = await import(
-        "#shared/db/questions/queries.ts"
-      );
-      const assigned = await getListingQuestionIds(listing.id);
-      expect(assigned.length).toBe(0);
+      await expectAssignedQuestionIds(listing.id, []);
     });
 
     test("replaces existing question assignments", async () => {
@@ -309,7 +311,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const q2 = await createQuestion("New question?");
 
       // Assign q1 first
-      const { getListingQuestionIds, listingQuestions } = await import(
+      const { listingQuestions } = await import(
         "#shared/db/questions/queries.ts"
       );
       await listingQuestions.setIds(listing.id, [q1]);
@@ -318,9 +320,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const response = await postListingQuestions(listing.id, String(q2));
       expect(response.status).toBe(302);
 
-      const assigned = await getListingQuestionIds(listing.id);
-      expect(assigned.length).toBe(1);
-      expect(assigned[0]).toBe(q2);
+      await expectAssignedQuestionIds(listing.id, [q2]);
     });
 
     test("logs activity with singular when 1 question assigned", async () => {

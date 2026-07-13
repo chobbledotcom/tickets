@@ -2,12 +2,12 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
-import { stubCheckout } from "#test-utils/checkout.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { postExpectingNoCheckout } from "./_shared-checkout.ts";
 
 describeWithEnv(
   "routes > site assignment checkout validation",
@@ -37,23 +37,17 @@ describeWithEnv(
           ).text(),
         )!;
 
-        const { checkout, calls } = stubCheckout("cs_should_not_run");
+        const { response, checkoutCalls } = await postExpectingNoCheckout(
+          mockFormRequest(`/ticket/${listing.slug}`, {
+            csrf_token: csrf,
+            email: "site@example.com",
+            name: "Site Buyer",
+            [`quantity_${listing.id}`]: "1",
+          }),
+        );
 
-        try {
-          const response = await handleRequest(
-            mockFormRequest(`/ticket/${listing.slug}`, {
-              csrf_token: csrf,
-              email: "site@example.com",
-              name: "Site Buyer",
-              [`quantity_${listing.id}`]: "1",
-            }),
-          );
-
-          expect(response.status).toBe(302);
-          expect(calls()).toBe(0);
-        } finally {
-          checkout.restore();
-        }
+        expect(response.status).toBe(302);
+        expect(checkoutCalls).toBe(0);
       });
     });
   },

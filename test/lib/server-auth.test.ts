@@ -460,25 +460,10 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("routes/admin/auth.ts (wrappedDataKey corrupted path)", () => {
     test("login fails when wrapped data key cannot be unwrapped", async () => {
-      // Corrupt the user's wrapped_data_key so unwrapKey throws
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute({
-        args: [],
-        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
-      });
-
-      const response = await handleRequest(
-        await mockAdminLoginRequest({
-          password: TEST_ADMIN_PASSWORD,
-          username: "testadmin",
-        }),
-      );
-      // Should fail - KEK can't unwrap corrupted key
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Username or password was wrong"),
-        false,
+      // A corrupted wrapped_data_key can't be unwrapped by the KEK.
+      await expectLoginRejectedWithWrappedKey(
+        "corrupted_key",
+        "Username or password was wrong",
       );
     });
   });
@@ -505,26 +490,8 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
 
   describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
     test("login returns error redirect when user has null wrappedDataKey", async () => {
-      // Null out user's wrapped_data_key
-      const { getDb } = await import("#shared/db/client.ts");
-      await getDb().execute({
-        args: [],
-        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
-      });
-
-      // Login should redirect with error since user is not activated
-      const response = await handleRequest(
-        await mockAdminLoginRequest({
-          password: TEST_ADMIN_PASSWORD,
-          username: "testadmin",
-        }),
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not been activated"),
-        false,
-      );
+      // A null wrapped_data_key means the user is not activated.
+      await expectLoginRejectedWithWrappedKey(null, "not been activated");
     });
   });
 

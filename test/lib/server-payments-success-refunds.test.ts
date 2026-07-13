@@ -20,6 +20,7 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
+import { createHiddenPackageGroup } from "./payment-success-helpers.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
@@ -68,8 +69,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         name: "Open Add-On",
         unitPrice: 500,
       });
-      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      const group = await createHiddenPackageGroup();
       // The standalone session was signed before this listing became a hidden
       // package member; it is then deactivated, so per-item validation fails on
       // it. The failure message must not expose the concealed member's name.

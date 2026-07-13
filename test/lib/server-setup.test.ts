@@ -60,6 +60,36 @@ describeWithEnv("server (setup)", { db: true }, () => {
     });
   }
 
+  /** Simulate a real browser completing setup through the given URL: GET the
+   *  page, read its CSRF token, then POST the standard valid credentials.
+   *  Asserts the GET returns 200, a token is present, and the POST redirects to
+   *  /setup/complete. */
+  async function completeSetupViaBrowser(setupUrl: string): Promise<void> {
+    const getResponse = await handleRequest(
+      new Request(setupUrl, {
+        headers: { host: "localhost" },
+        method: "GET",
+      }),
+    );
+    expect(getResponse.status).toBe(200);
+
+    const csrfToken = getSetupCsrfToken(await getResponse.text());
+    expect(csrfToken).not.toBeNull();
+
+    const postResponse = await handleRequest(
+      mockSetupFormRequest(
+        {
+          admin_password: "mypassword123",
+          admin_password_confirm: "mypassword123",
+          admin_username: "testadmin",
+          country: "GB",
+        },
+        csrfToken as string,
+      ),
+    );
+    expectRedirect(postResponse, /^\/setup\/complete$/);
+  }
+
   async function resetToBrandNewDatabase(): Promise<void> {
     await resetDatabase();
     invalidateTestDbCache();

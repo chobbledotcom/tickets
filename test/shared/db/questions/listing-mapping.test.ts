@@ -17,13 +17,19 @@ import {
   seedQuestionWithAndWithoutAnswers,
 } from "./helpers.ts";
 
+/** Two answered questions ("Q1", "Q2") and a fresh listing — the shared
+ *  arrange behind the assign/replace mapping tests. */
+const twoQuestionsAndListing = async () => {
+  const q1 = await createQuestionWithAnswers("Q1", ["A1"]);
+  const q2 = await createQuestionWithAnswers("Q2", ["A2"]);
+  const listing = await createTestListing();
+  return { listing, q1, q2 };
+};
+
 describeWithEnv("custom questions", { db: true }, () => {
   describe("listing-question mapping", () => {
     test("assigns questions to an listing", async () => {
-      const q1 = await createQuestionWithAnswers("Q1", ["A1"]);
-      const q2 = await createQuestionWithAnswers("Q2", ["A2"]);
-
-      const listing = await createTestListing();
+      const { listing, q1, q2 } = await twoQuestionsAndListing();
       // Assign in reverse; the listing ignores assignment order and uses the
       // global question order (here creation/id order, since both are at the
       // default sort_order 0).
@@ -47,10 +53,7 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("replaces listing questions on re-assignment", async () => {
-      const q1 = await createQuestionWithAnswers("Q1", ["A1"]);
-      const q2 = await createQuestionWithAnswers("Q2", ["A2"]);
-
-      const listing = await createTestListing();
+      const { listing, q1, q2 } = await twoQuestionsAndListing();
       await listingQuestions.setIds(listing.id, [q1.id, q2.id]);
       await listingQuestions.setIds(listing.id, [q2.id]);
 

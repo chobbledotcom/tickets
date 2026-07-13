@@ -179,29 +179,19 @@ describeWithEnv(
       });
 
       test("deletes incomplete attendee on free can_pay_more listing", async () => {
-        const { listing, cookie, csrfToken, attendee } =
-          await setupPaidAttendee("Jane Stuck", "jane@example.com", "", 500, {
-            canPayMore: true,
-            maxAttendees: 100,
-            unitPrice: 0,
-          });
+        const { listing, attendee, deleteIncomplete } = await setupPaidAttendee(
+          "Jane Stuck",
+          "jane@example.com",
+          "",
+          500,
+          { canPayMore: true, maxAttendees: 100, unitPrice: 0 },
+        );
 
-        const response = await submitDeleteIncomplete(
+        await expectDeleteSucceeded(
+          await deleteIncomplete(),
           listing.id,
           attendee.id,
-          cookie,
-          csrfToken,
         );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}/attendees`,
-          "Incomplete registration removed",
-        )(response);
-
-        const { getAttendeeRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
-        const deleted = await getAttendeeRaw(attendee.id);
-        expect(deleted).toBeNull();
       });
 
       test("returns 404 for non-existent attendee", async () => {

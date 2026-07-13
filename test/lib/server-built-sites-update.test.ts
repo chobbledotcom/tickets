@@ -14,6 +14,7 @@ import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
+import { useLocalStoragePath } from "./_shared-site-update.ts";
 
 /** A built site database URL whose backups land in a site-specific folder. */
 const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";
@@ -224,18 +225,7 @@ describeWithEnv(
   "POST /admin/built-sites/:id/update (Deno site)",
   { db: true, env: { CAN_BUILD_SITES: "true", DENO_DEPLOY_TOKEN: "tok123" } },
   () => {
-    let storageTmp: string;
-    let restoreStorage: () => void;
-
-    beforeEach(() => {
-      storageTmp = Deno.makeTempDirSync();
-      restoreStorage = setTestEnv({ LOCAL_STORAGE_PATH: storageTmp });
-    });
-
-    afterEach(() => {
-      restoreStorage?.();
-      if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
-    });
+    useLocalStoragePath();
 
     test("errors when the Deno site has no hostingId", async () => {
       const site = await createTestBuiltSite({

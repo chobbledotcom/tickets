@@ -3,13 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
-import { groups } from "#shared/db/groups.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createHiddenPackageGroup } from "./payment-success-helpers.ts";
 
 /** Make a request through the full handler pipeline */
 const walletRequest = (
@@ -161,8 +160,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
 
     test("404s a package booking's token (a single-member pass would leak/misrepresent the bundle)", async () => {
       await configureAppleWallet();
-      const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      const group = await createHiddenPackageGroup();
       const member = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,
@@ -190,8 +188,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       // is wrong even if the standalone row sorts first — the gate must inspect
       // every booking, not just the first.
       await configureAppleWallet();
-      const group = await createTestGroup({ isPackage: true, name: "Bundle2" });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      const group = await createHiddenPackageGroup("Bundle2");
       const member = await createTestListing({
         groupId: group.id,
         maxAttendees: 10,

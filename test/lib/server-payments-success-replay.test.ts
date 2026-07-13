@@ -12,6 +12,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { renderPaymentSuccess } from "./payment-success-helpers.ts";
 
 // jscpd:ignore-end
 
@@ -108,13 +109,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
-        const redirectResponse = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_hidden_pkg"),
-        );
+        const { redirectResponse, response, html } =
+          await renderPaymentSuccess("cs_hidden_pkg");
         expect(redirectResponse.status).toBe(302);
-        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
-        const html = await response.text();
         // The ticket link still shows, but the concealed member's thank-you URL
         // (which would meta-refresh to the listing the package hid) must not leak.
         expect(html).toContain("View your ticket");

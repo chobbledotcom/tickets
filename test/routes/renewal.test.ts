@@ -17,6 +17,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { postExpectingNoCheckout } from "./_shared-checkout.ts";
 
 const setupRenewalSite = async () => {
   await insertBuiltSite(
@@ -369,23 +370,17 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       });
       const { token } = await setupRenewalSite();
 
-      const { checkout, calls } = stubCheckout("cs_should_not_run");
-
-      try {
-        const response = await handleRequest(
-          mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
-            email: "renew@example.com",
-            name: "Renewer",
-            [`quantity_${tier.id}`]: "1",
-          }),
-        );
-        // Standard ticket-form behavior: missing CSRF → redirect back to the
-        // form (no payment session created).
-        expect(response.status).toBe(302);
-        expect(calls()).toBe(0);
-      } finally {
-        checkout.restore();
-      }
+      const { response, checkoutCalls } = await postExpectingNoCheckout(
+        mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
+          email: "renew@example.com",
+          name: "Renewer",
+          [`quantity_${tier.id}`]: "1",
+        }),
+      );
+      // Standard ticket-form behavior: missing CSRF → redirect back to the
+      // form (no payment session created).
+      expect(response.status).toBe(302);
+      expect(checkoutCalls).toBe(0);
     });
   });
 });
