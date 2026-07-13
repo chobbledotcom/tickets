@@ -52,23 +52,43 @@ describeWithEnv(
     });
 
     test("fails loudly on a filename that will not decrypt, deleting nothing", async () => {
+      const listing = await createTestListing({ name: "Aborted repair" });
       const kept = await makeImage("Kept");
-      await execute(
+      // Seeded BEFORE the malformed row, so the scan (which walks ids in
+      // order) has already identified this broken record when the malformed
+      // one throws — a regression that deletes as it scans would remove it.
+      const brokenId = await insertBrokenImage();
+      await setImagesForItem("listing", listing.id, [brokenId]);
+      const malformed = await execute(
         `INSERT INTO images (name, filename, filename_thumb, alt_text)
          VALUES (?, 'not-a-ciphertext', 'not-a-ciphertext', '')`,
         [await encrypt("Unknown corruption")],
       );
+      const malformedId = Number(malformed.lastInsertRowid);
 
       // Unknown corruption is not the known encrypted-empty shape, so the
       // migration must stop rather than guess that deleting data is safe.
       await expect(runMigration()).rejects.toThrow(
         "Invalid encrypted data format",
       );
+      // Every record survives — including the already-identified broken one
+      // and its item link, because deletes only run after the full scan.
       const remaining = await queryAll<{ id: number }>(
         "SELECT id FROM images ORDER BY id",
       );
-      expect(remaining.length).toBe(2);
-      expect(remaining[0]?.id).toBe(kept.id);
+      expect(remaining.map((row) => row.id)).toEqual([
+        kept.id,
+        brokenId,
+        malformedId,
+      ]);
+      expect(await getImageUsesForImage(brokenId)).toEqual([
+        {
+          image_id: brokenId,
+          item_id: listing.id,
+          item_type: "listing",
+          sort_order: 0,
+        },
+      ]);
     });
 
     test("is a no-op when every image record is readable (idempotent re-run)", async () => {
