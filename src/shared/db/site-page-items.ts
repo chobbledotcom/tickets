@@ -157,19 +157,17 @@ export const swapPageItemOrder = (
   a: ItemRef,
   b: ItemRef,
 ): Promise<void> =>
-  swapSortOrders(
-    async (tx) => {
-      const rows = resultRows<{
-        item_id: number;
-        item_type: SitePageItemType;
-        sort_order: number;
-      }>(
-        await tx.execute({
-          args: [pageId, a.type, a.id, b.type, b.id],
-          sql: `SELECT item_type, item_id, sort_order FROM site_page_items
+  swapSortOrders<{
+    item_id: number;
+    item_type: SitePageItemType;
+    sort_order: number;
+  }>(
+    {
+      args: [pageId, a.type, a.id, b.type, b.id],
+      sql: `SELECT item_type, item_id, sort_order FROM site_page_items
       WHERE page_id = ? AND ((item_type = ? AND item_id = ?) OR (item_type = ? AND item_id = ?))`,
-        }),
-      );
+    },
+    (rows) => {
       const orderOf = (ref: ItemRef): number | undefined =>
         rows.find((r) => r.item_type === ref.type && r.item_id === ref.id)
           ?.sort_order;
