@@ -14,7 +14,12 @@ import {
   getTursoOrganization,
   slugifyForProvider,
 } from "#shared/config.ts";
-import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
+import {
+  type ApiResult,
+  fetchText,
+  jsonHeaders,
+  parseApiError,
+} from "#shared/fetch.ts";
 import type { DatabaseProviderApi } from "#shared/provider-types.ts";
 
 /* jscpd:ignore-end */
@@ -43,10 +48,8 @@ interface CreateTursoTokenResponse {
 }
 
 /** Headers for all Turso API requests. */
-const tursoApiHeaders = (): Record<string, string> => ({
-  Authorization: `Bearer ${getTursoApiToken()}`,
-  "Content-Type": "application/json",
-});
+const tursoApiHeaders = (): Record<string, string> =>
+  jsonHeaders({ Authorization: `Bearer ${getTursoApiToken()}` });
 
 /**
  * Create a new Turso database with the given name.

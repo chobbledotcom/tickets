@@ -8,7 +8,7 @@
 
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
-import { type ApiResult, fetchText } from "#shared/fetch.ts";
+import { type ApiResult, fetchText, jsonHeaders } from "#shared/fetch.ts";
 import type { DatabaseProviderApi } from "#shared/provider-types.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
@@ -61,10 +61,8 @@ export interface CreateDatabaseResult {
 }
 
 /** Headers for all Bunny Database API requests. */
-const dbApiHeaders = (): Record<string, string> => ({
-  AccessKey: getBunnyApiKey(),
-  "Content-Type": "application/json",
-});
+const dbApiHeaders = (): Record<string, string> =>
+  jsonHeaders({ AccessKey: getBunnyApiKey() });
 
 /**
  * Create a new Bunny database with the given name.
