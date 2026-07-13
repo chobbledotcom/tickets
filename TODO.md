@@ -1053,3 +1053,22 @@ scoped to the confirmed bugs.*
   and unusual attendee states surface in the operator UI) so the placeholder's
   look is decided once across every deleted/pending case, not piecemeal.
   (Raised by Codex on PR #1802.)
+- **A paid-but-stuck staged checkout can be pruned at 7 days (ACCEPTED EDGE —
+  deliberate).** If a paid staged checkout's processing keeps failing past the
+  provider's ~3-day webhook-retry window — a refund returning `false`, a ledger
+  write failing, or a worker crash — the stage stays `pending` and is pruned at
+  `PRUNE_CHECKOUT_STAGES_RETENTION_DAYS` (7), deleting OUR record of a payment
+  still captured at the provider. Left as-is by the owner's call: the money is
+  never lost (recoverable at the provider), and each failing delivery fires
+  `logError` → ntfy + the admin activity log + Sentry, so the operator is
+  alerted repeatedly across the ~3-day retry window and reconciles (manual
+  refund / fix) well before the prune. The trade accepted: alerts are
+  front-loaded in the retry window with a ~4-day quiet tail before the prune,
+  and the alert names the failure (an error code) rather than an impending
+  prune — but reacting to the failure IS the fix. If it ever needs a hard fix:
+  add a durable "payment captured" mark to `checkout_stages` (stamped on the
+  first paid delivery) and skip marked stages in `prunePendingCheckoutStages`,
+  or record the captured cash as a held `payment` leg on deferral so the record
+  is kept and operator-actionable (the held-cash model, already guarded). The
+  prune's existing `NOT EXISTS processed_payments` guard is unchanged.
+  (Raised by Codex on PR #1802; decision by owner.)
