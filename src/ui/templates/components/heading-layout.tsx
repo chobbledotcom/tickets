@@ -5,6 +5,7 @@
  */
 
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import { PageHeading } from "#templates/components/prose-heading.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export const HeadingLayout = ({
@@ -17,7 +18,7 @@ export const HeadingLayout = ({
   children: Child;
 }): JSX.Element => (
   <Layout title={title}>
-    <h1>{heading}</h1>
+    <PageHeading heading={heading} />
     {children}
   </Layout>
 );

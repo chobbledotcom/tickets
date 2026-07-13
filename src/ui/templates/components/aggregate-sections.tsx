@@ -1,6 +1,7 @@
 import { isReadOnly } from "#shared/env.ts";
 import { type Field, renderFields } from "#shared/forms.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { AdminSession } from "#shared/types.ts";
 import type { FlashPageRenderer } from "#templates/admin/admin-page.tsx";
 import { adminRecalculatePage } from "#templates/admin/recalculate.tsx";
 import type { IconName } from "#templates/components/actions.tsx";
@@ -239,3 +240,19 @@ export const recalculatePageRenderer =
   ): FlashPageRenderer =>
   (session, error, success) =>
     adminRecalculatePage({ ...config, error, session, success });
+
+/** Binds a two-argument recalculate renderer (which captures the record and its
+ *  recounted snapshot) to the per-request `(session, error?, success?)` tail the
+ *  listing and modifier recalculate page routes call with. */
+export const bindRecalculatePage =
+  <Record, Snapshot>(
+    renderer: (record: Record, snapshot: Snapshot) => FlashPageRenderer,
+  ): ((
+    record: Record,
+    snapshot: Snapshot,
+    session: AdminSession,
+    error?: string,
+    success?: string,
+  ) => string) =>
+  (record, snapshot, session, error, success) =>
+    renderer(record, snapshot)(session, error, success);

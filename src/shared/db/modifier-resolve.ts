@@ -56,14 +56,21 @@ type GroupScopeResolver = (
 const liveGroupScopeResolver: GroupScopeResolver =
   getModifierGroupListingIdsByModifierId;
 
+/** Per-modifier in-scope listing ids: null = whole order, an array = scoped. */
+type ListingScopes = Map<number, number[] | null>;
+
+/** The active opt-in add-on modifiers plus each one's resolved listing scopes —
+ * the shared starting point for the add-on and child-reachability checks. */
+type OptionalAddOns = { optional: Modifier[]; scopes: ListingScopes };
+
 /** Batched listing scopes for modifiers: null = whole order, array = scoped.
  * `resolveGroupScopes` chooses how a "groups"-scoped modifier's member listing
  * ids are resolved (live join by default; in-memory for the would-be check). */
 const listingIdsByModifierId = async (
   modifiers: Modifier[],
   resolveGroupScopes: GroupScopeResolver = liveGroupScopeResolver,
-): Promise<Map<number, number[] | null>> => {
-  const scopes = new Map<number, number[] | null>();
+): Promise<ListingScopes> => {
+  const scopes: ListingScopes = new Map();
   const listingScoped = modifiers.filter((m) => m.scope === "listings");
   const groupScoped = modifiers.filter((m) => m.scope === "groups");
   for (const modifier of modifiers) {
@@ -157,9 +164,7 @@ const activeModifiersById = async (): Promise<Map<number, Modifier>> =>
 /** Resolve the in-scope listing ids (null = whole order) of every active
  * answer-trigger modifier among `ids`. Ids that aren't an active answer
  * modifier are omitted, so a stale link never contributes a quantity. */
-const answerModifierScopes = async (
-  ids: number[],
-): Promise<Map<number, number[] | null>> => {
+const answerModifierScopes = async (ids: number[]): Promise<ListingScopes> => {
   const byId = await activeModifiersById();
   return listingIdsByModifierId(
     ids
@@ -441,10 +446,7 @@ const addOnCanRequirePayment = (modifier: Modifier): boolean =>
  * pre-save check). */
 const optionalAddOnsWithScopes = async (
   resolveGroupScopes?: GroupScopeResolver,
-): Promise<{
-  optional: Modifier[];
-  scopes: Map<number, number[] | null>;
-}> => {
+): Promise<OptionalAddOns> => {
   const optional = (await getActiveModifiers()).filter(
     (m) => m.trigger === "optional",
   );
@@ -521,10 +523,7 @@ export const childOnlyAddOnName = async (
  * scope dead-ends through `childId` for a parent page of `parentPageListingIds`,
  * or null. */
 const childOnlyAddOnNameWithScopes = (
-  {
-    optional,
-    scopes,
-  }: { optional: Modifier[]; scopes: Map<number, number[] | null> },
+  { optional, scopes }: OptionalAddOns,
   childId: number,
   parentPageListingIds: readonly number[],
 ): string | null => {

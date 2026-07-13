@@ -24,29 +24,28 @@
  * no `data-child-qty` marker, so it is never touched and stays disabled throughout. */
 import {
   childQtyControls,
+  fireChange,
   initParentSelectors,
   onChangeOf,
   setControlDisabled,
   soleChildId,
 } from "./child-selection.ts";
 
-/** The `name="date"` control's value, or "" when absent. */
-const selectedDate = (): string => {
+/** The value of the `[name=...]` control, or "" when it's absent. */
+const controlValue = (name: string): string => {
   const control = document.querySelector<HTMLSelectElement | HTMLInputElement>(
-    '[name="date"]',
+    `[name="${name}"]`,
   );
   return control === null ? "" : control.value;
 };
 
+/** The `name="date"` control's value, or "" when absent. */
+const selectedDate = (): string => controlValue("date");
+
 /** The `name="day_count"` value, or "" when absent/unchosen. Compared as a string
  * against the `data-child-spans` tokens, so no numeric parse is needed (the
  * selector only ever emits "" or an integer span). */
-const selectedSpan = (): string => {
-  const control = document.querySelector<HTMLSelectElement | HTMLInputElement>(
-    '[name="day_count"]',
-  );
-  return control === null ? "" : control.value;
-};
+const selectedSpan = (): string => controlValue("day_count");
 
 /** Split a (present) comma-separated `data-child-*` attribute into its tokens. */
 const tokens = (raw: string): string[] => raw.split(",");
@@ -155,7 +154,7 @@ const applySoleCompat = (
   // (a visible select instead keeps the buyer's choice, which they can re-pick).
   if (compatible && quantity.type === "hidden") {
     quantity.value = "1";
-    quantity.dispatchEvent(new Event("change", { bubbles: true }));
+    fireChange(quantity);
   }
 };
 

@@ -29,6 +29,13 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { NamedResource } from "#shared/rest/resource.ts";
 import type { AdminSession } from "#shared/types.ts";
 
+/** Wrap a `(request, id)` action as an `:id` route handler — the shape the
+ *  confirmed-delete GET and POST entries share. */
+const idRoute =
+  (run: (request: Request, id: number) => Promise<Response>): IdRouteHandler =>
+  (request, { id }) =>
+    run(request, id);
+
 /**
  * `Row` is the stored row the resource writes and the edit/delete pages load via
  * `table.findById`; `Display` is the (optionally richer) row the list page
@@ -190,10 +197,8 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     return {
       createPost,
-      deleteGet: (request: Request, { id }: { id: number }) =>
-        confirmedDelete.get(request, id),
-      deletePost: (request: Request, { id }: { id: number }) =>
-        confirmedDelete.post(request, id),
+      deleteGet: idRoute(confirmedDelete.get),
+      deletePost: idRoute(confirmedDelete.post),
       editGet,
       editPost,
       listGet,

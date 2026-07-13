@@ -11,7 +11,7 @@ import { createActionHandler } from "#routes/admin/actions.ts";
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 /* jscpd:ignore-start */
 import { OWNER_MULTIPART, requireOwnerOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
+import { applyFlash, requireUploadedFile } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
@@ -185,10 +185,10 @@ const handleBackupRestore: TypedRouteHandler<"POST /admin/backup/restore"> = (
   request,
 ) =>
   withAuth(request, OWNER_MULTIPART, async (session, formData) => {
-    const file = formData.get("backup_file");
-    if (!(file instanceof File) || file.size === 0) {
-      return redirect("/admin/backup", "Please select a backup file", false);
-    }
+    const file = requireUploadedFile(formData, "backup_file", () =>
+      redirect("/admin/backup", "Please select a backup file", false),
+    );
+    if (file instanceof Response) return file;
 
     const bytes = new Uint8Array(await file.arrayBuffer());
 

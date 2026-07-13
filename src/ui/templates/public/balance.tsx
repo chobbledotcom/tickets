@@ -7,9 +7,8 @@
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
-import { CsrfForm } from "#shared/forms.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
+import { SubmitForm } from "#templates/components/submit-form.tsx";
 import { AmountLine, prosePage, simplePublicPage } from "./shared.tsx";
 
 /** Recap + pay form for an outstanding balance. */
@@ -43,13 +42,13 @@ export const balancePaymentPage = (
         amount={amount}
         label={`${t("public_balance.balance_due")}:`}
       />
-      <CsrfForm action={`/pay/${token}`}>
-        <SubmitButton icon="save">
-          {t("public_balance.pay_amount_now", {
-            amount: formatCurrency(amount),
-          })}
-        </SubmitButton>
-      </CsrfForm>
+      <SubmitForm
+        action={`/pay/${token}`}
+        icon="save"
+        submitLabel={t("public_balance.pay_amount_now", {
+          amount: formatCurrency(amount),
+        })}
+      />
     </>,
   );
 

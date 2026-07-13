@@ -7,7 +7,7 @@ import { t } from "#i18n";
 import { Flash } from "#shared/forms.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
 import { saveFormComponent } from "#templates/components/save-form.tsx";
-import { Layout } from "#templates/layout.tsx";
+import { layoutPage } from "#templates/layout-page.tsx";
 
 /** Confirmation phrase that must be typed to reset the database */
 export const RESET_DATABASE_PHRASE =
@@ -55,8 +55,9 @@ export const ResetDatabaseForm = saveFormComponent<{
  * Demo reset standalone page - accessible without login when DEMO_MODE is enabled
  */
 export const demoResetPage = (error?: string): string =>
-  String(
-    <Layout title={t("settings.advanced.database_reset.heading")}>
+  layoutPage(
+    t("settings.advanced.database_reset.heading"),
+    <>
       <Flash error={error} />
       <ResetDatabaseForm action="/demo/reset" />
       <p>
@@ -64,5 +65,5 @@ export const demoResetPage = (error?: string): string =>
           {t("settings.advanced.database_reset.back_to_login")}
         </BackButton>
       </p>
-    </Layout>,
+    </>,
   );

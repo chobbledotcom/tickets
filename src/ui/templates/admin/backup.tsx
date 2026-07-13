@@ -7,7 +7,7 @@ import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
@@ -58,17 +58,10 @@ const RetentionNote = ({
   );
 };
 
-export const adminBackupPage = (
-  session: AdminSession,
-  state: BackupPageState,
-  error?: string,
-  success?: string,
-): string =>
-  flashAdminPage(t("backup.page_title"), "/admin/backup")(
-    session,
-    error,
-    success,
-  )(
+export const adminBackupPage = flashDataPage<BackupPageState>(
+  t("backup.page_title"),
+  "/admin/backup",
+  (state) => (
     <>
       {!state.isRemote && (
         <p>
@@ -168,8 +161,9 @@ export const adminBackupPage = (
       <GuideFooter href="/admin/guide#backups">
         {t("backup.guide_link")}
       </GuideFooter>
-    </>,
-  );
+    </>
+  ),
+);
 
 export const RESTORE_CONFIRM_PHRASE =
   "This will restore my whole database to an earlier state. Existing info will be lost. I understand that this is dangerous.";

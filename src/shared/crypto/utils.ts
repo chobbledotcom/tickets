@@ -11,11 +11,31 @@ export const constantTimeEqual = (a: string, b: string): boolean => {
   const encoder = new TextEncoder();
   const bufA = encoder.encode(a);
   const bufB = encoder.encode(b);
+  return constantTimeCodesEqual(
+    bufA.length,
+    bufB.length,
+    (i) => bufA[i] ?? 0,
+    (i) => bufB[i] ?? 0,
+  );
+};
 
-  const len = Math.max(bufA.length, bufB.length);
-  let result = bufA.length ^ bufB.length;
+/**
+ * Constant-time compare of two code sequences, given their lengths and a
+ * per-index code reader for each. Walks the longer sequence and folds every
+ * difference into one flag with XOR, so no early return leaks a length or the
+ * position of the first mismatch. Callers supply the code source (UTF-8 bytes,
+ * UTF-16 char codes, …), keeping this the single constant-time comparison loop.
+ */
+export const constantTimeCodesEqual = (
+  lengthA: number,
+  lengthB: number,
+  codeA: (i: number) => number,
+  codeB: (i: number) => number,
+): boolean => {
+  const len = Math.max(lengthA, lengthB);
+  let result = lengthA ^ lengthB;
   for (let i = 0; i < len; i++) {
-    result |= (bufA[i] ?? 0) ^ (bufB[i] ?? 0);
+    result |= codeA(i) ^ codeB(i);
   }
   return result === 0;
 };

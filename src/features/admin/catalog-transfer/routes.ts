@@ -10,18 +10,22 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 import { t } from "#i18n";
 import { contentMultipartRoute } from "#routes/admin/listings-edit.ts";
-import { type AuthSession, requireContentOr } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
+import {
+  type AuthSession,
+  contentPage,
+  requireContentOr,
+} from "#routes/auth.ts";
+import { requireUploadedFile } from "#routes/csrf.ts";
 import {
   encodeBody,
   errorRedirect,
-  htmlResponse,
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
+import { slugify } from "#shared/slug.ts";
 import { adminCatalogImportPage } from "#templates/admin/catalog-transfer.tsx";
 import { CatalogExportError, exportGroup, exportListing } from "./export.ts";
 import { importCatalog } from "./import.ts";
@@ -39,13 +43,8 @@ const jsonDownload = (data: unknown, filename: string): Response =>
   });
 
 /** A safe, human-readable download filename from an entity name. */
-const catalogFilename = (kind: string, name: string): string => {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${kind}-${slug || kind}.json`;
-};
+const catalogFilename = (kind: string, name: string): string =>
+  `${kind}-${slugify(name) || kind}.json`;
 
 /** Content-gated export download: load the blob by id (404 when absent) and
  * stream it as a named JSON attachment. `load` receives the session so an
@@ -102,15 +101,10 @@ const handleGroupExport: TypedRouteHandler<
   );
 
 /** GET /admin/catalog/import — the import upload form. */
-const handleImportGet: TypedRouteHandler<"GET /admin/catalog/import"> = (
-  request,
-) =>
-  requireContentOr(request, (session) => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      adminCatalogImportPage(session, flash.error, flash.success),
-    );
-  });
+const handleImportGet: TypedRouteHandler<"GET /admin/catalog/import"> =
+  contentPage((session, _request, flash) =>
+    adminCatalogImportPage(session, flash.error, flash.success),
+  );
 
 /** POST /admin/catalog/import — validate and apply an uploaded blob. */
 const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
@@ -122,10 +116,10 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
     if (isDemoMode()) {
       return errorRedirect(IMPORT_PATH, t("catalog_transfer.demo_disabled"));
     }
-    const file = formData.get("catalog_file");
-    if (!(file instanceof File) || file.size === 0) {
-      return errorRedirect(IMPORT_PATH, t("catalog_transfer.no_file"));
-    }
+    const file = requireUploadedFile(formData, "catalog_file", () =>
+      errorRedirect(IMPORT_PATH, t("catalog_transfer.no_file")),
+    );
+    if (file instanceof Response) return file;
 
     let parsed: unknown;
     try {

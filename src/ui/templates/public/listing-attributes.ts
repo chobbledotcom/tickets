@@ -1,4 +1,7 @@
-import type { AttributeWithOptions } from "#shared/db/attributes.ts";
+import type {
+  AttributeWithOptions,
+  ListingAttributesById,
+} from "#shared/db/attributes.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 const attributeOptionsText = (attribute: AttributeWithOptions): string =>
@@ -17,3 +20,9 @@ export const renderListingAttributes = (
         .map(renderAttribute)
         .join("")}</dl>`
     : "";
+
+/** The attributes markup for one listing, looked up by its id. */
+export const listingAttributesHtml = (
+  attributesByListing: ListingAttributesById,
+  listingId: number,
+): string => renderListingAttributes(attributesByListing.get(listingId));

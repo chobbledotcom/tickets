@@ -23,6 +23,7 @@ import type { Table } from "#shared/db/table.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
 import { validateForm } from "#shared/forms.tsx";
+import { mapValidationError } from "#shared/optional-validate.ts";
 import type { AfterCommitConfig, ParseResult } from "#shared/rest/crud-api.ts";
 
 /* jscpd:ignore-end */
@@ -123,15 +124,15 @@ const validateAndParse = async <T, V extends FieldValues = FieldValues>(
 };
 
 /** Run async validation, return error result or null */
-const runValidation = async <Input, Id>(
+const runValidation = <Input, Id>(
   validate: ValidateFn<Input, Id>,
   input: Input,
   id?: Id,
-): Promise<ErrorResult | null> => {
-  if (!validate) return null;
-  const error = await validate(input, id);
-  return error ? { error, ok: false } : null;
-};
+): Promise<ErrorResult | null> =>
+  mapValidationError(
+    validate && (() => validate(input, id)),
+    (error): ErrorResult => ({ error, ok: false }),
+  );
 
 /** Convert row or null to update result */
 const toUpdateResult = <Row>(row: Row | null): UpdateResult<Row> =>
@@ -228,30 +229,46 @@ export const defineResource = <
   ): Promise<Outcome | NotFoundResult> =>
     (await table.findById(id)) ? fn() : { notFound: true, ok: false };
 
-  const create = async (form: FormParams): Promise<CreateResult<Row>> => {
-    const result = await parseAndValidate(form, parseInput, config.validate);
+  /** Parse + validate the form, write the row (transactionally when
+   * `afterWrite` is set, else the plain insert/update `fallback`), then run the
+   * post-commit hook. `existingId` is null on create and the row id on update.
+   * Returns the parse/validate error, or the written row. */
+  const parseWriteAndCommit = async (
+    form: FormParams,
+    existingId: number | null,
+    fallback: (input: Input) => Promise<Row | null>,
+    id?: Id,
+  ): Promise<ErrorResult | { ok: true; row: Row | null }> => {
+    const result = await parseAndValidate(
+      form,
+      parseInput,
+      config.validate,
+      id,
+    );
     if (!result.ok) return result;
     const row = config.afterWrite
-      ? ((await writeInTransaction(null, result.input, form)) as Row)
-      : await table.insert(result.input);
+      ? await writeInTransaction(existingId, result.input, form)
+      : await fallback(result.input);
     await runAfterCommit(row);
     return { ok: true, row };
   };
 
+  const create = async (form: FormParams): Promise<CreateResult<Row>> => {
+    const result = await parseWriteAndCommit(form, null, (input) =>
+      table.insert(input),
+    );
+    return result.ok ? { ok: true, row: result.row as Row } : result;
+  };
+
   const update = (id: InValue, form: FormParams): Promise<UpdateResult<Row>> =>
     withExistingRow(id, async (): Promise<UpdateResult<Row>> => {
-      const result = await parseAndValidate(
+      const result = await parseWriteAndCommit(
         form,
-        parseInput,
-        config.validate,
+        id as number,
+        (input) => table.update(id, input),
         id as Id,
       );
-      if (!result.ok) return result;
-      const row = config.afterWrite
-        ? await writeInTransaction(id as number, result.input, form)
-        : await table.update(id, result.input);
-      await runAfterCommit(row);
-      return toUpdateResult(row);
+      return result.ok ? toUpdateResult(result.row) : result;
     });
 
   const deleteRow = (id: InValue): Promise<DeleteResult> =>

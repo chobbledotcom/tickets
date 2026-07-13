@@ -109,6 +109,14 @@ export const isUnresolvedReservation = (row: ProcessedPayment): boolean =>
 const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   execute(sql, [sessionId]);
 
+/** A void write parameterized by a single payment session ID: curries the SQL,
+ * returns a function that runs it for one session. */
+const sessionIdWrite =
+  (sql: string) =>
+  async (sessionId: string): Promise<void> => {
+    await execWithSessionId(sessionId, sql);
+  };
+
 /**
  * Release an in-progress reservation so the very next delivery can re-claim it.
  * Deletes only a still-unresolved row, so it never clobbers a finalized success
@@ -122,12 +130,10 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
  *    redelivery collide and return 409 until the row goes stale (~5 min),
  *    gating refund recovery on a local timer instead of provider redelivery.
  */
-export const releaseReservation = async (sessionId: string): Promise<void> => {
-  await execWithSessionId(
-    sessionId,
+export const releaseReservation: (sessionId: string) => Promise<void> =
+  sessionIdWrite(
     `DELETE FROM processed_payments WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
   );
-};
 
 /**
  * Delete all stale reservations (unfinalized, outcome-less, and older than
@@ -322,12 +328,10 @@ export const decryptSessionTokens = async (
 /**
  * Clear stored ticket tokens for a session (after redirect has consumed them)
  */
-export const clearSessionTokens = async (sessionId: string): Promise<void> => {
-  await execWithSessionId(
-    sessionId,
+export const clearSessionTokens: (sessionId: string) => Promise<void> =
+  sessionIdWrite(
     "UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ?",
   );
-};
 
 /**
  * Get the attendee ID for an already-processed session

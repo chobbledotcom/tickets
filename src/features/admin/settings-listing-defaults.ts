@@ -9,9 +9,7 @@
 
 import { t } from "#i18n";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { VALID_DAY_NAMES } from "#shared/dates.ts";
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
@@ -127,21 +125,16 @@ export const parseListingDefaultsForm = (
 };
 
 /** GET /admin/listing-defaults — owner only. */
-export const handleListingDefaultsGet: TypedRouteHandler<
-  "GET /admin/listing-defaults"
-> = (request) =>
-  requireOwnerOr(request, (session) => {
-    const flash = applyFlash(request);
-    return htmlResponse(
-      adminListingDefaultsPage(
-        session,
-        settings.listingDefaults,
-        settings.hasLogistics,
-        flash.error,
-        flash.success,
-      ),
-    );
-  });
+export const handleListingDefaultsGet: TypedRouteHandler<"GET /admin/listing-defaults"> =
+  ownerPage((session, _request, flash) =>
+    adminListingDefaultsPage(
+      session,
+      settings.listingDefaults,
+      settings.hasLogistics,
+      flash.error,
+      flash.success,
+    ),
+  );
 
 /** POST /admin/listing-defaults — owner only. */
 export const handleListingDefaultsPost = settingsHandler<ParseResult>({

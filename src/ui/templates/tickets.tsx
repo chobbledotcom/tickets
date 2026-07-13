@@ -32,6 +32,10 @@ export type TicketCard = {
   attachmentUrl?: string;
 };
 
+/** True when every card is a purchase-only listing (no admission ticket). */
+const allCardsPurchaseOnly = (cards: readonly TicketCard[]): boolean =>
+  cards.every((c) => c.entry.listing.purchase_only);
+
 /** Pluralize ticket count */
 const ticketCount = (count: number): string => t("tickets.count", { count });
 
@@ -112,7 +116,7 @@ const renderPackageCard = (
   packageInfo: PackageDisplay,
 ): string => {
   const { token } = cards[0]!;
-  const purchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
+  const purchaseOnly = allCardsPurchaseOnly(cards);
   // Each member's signed attachment link rides along on its row so a bundle
   // buyer can still download per-listing files (a standalone card would show
   // them). A hidden package shows no members, so its attachments stay concealed
@@ -332,7 +336,7 @@ export const ticketViewPage = (
   );
   const cardHtml = htmlParts.join("");
 
-  const allPurchaseOnly = cards.every((c) => c.entry.listing.purchase_only);
+  const allPurchaseOnly = allCardsPurchaseOnly(cards);
   // Each package collapses to one card, so count rendered cards (not member rows)
   // in the heading rather than revealing a package's member count.
   const heading = allPurchaseOnly

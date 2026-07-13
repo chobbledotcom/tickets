@@ -19,6 +19,7 @@ import {
   downloadImage,
   getBasename,
   isStorageEnabled,
+  sanitizeBasename,
 } from "#shared/storage.ts";
 
 /** Get MIME type from a filename's extension, defaulting to octet-stream */
@@ -34,12 +35,8 @@ const forbiddenResponse = (): Response =>
  * Sanitize an attachment name for use in the Content-Disposition header.
  * Strips characters that could be used for HTTP header injection or path traversal.
  */
-const sanitizeAsciiFilename = (name: string): string => {
-  const basename = getBasename(name);
-  return (
-    basename.replace(/[^\x20-\x7E]/g, "").replace(/[":;\\]/g, "_") || "file"
-  );
-};
+const sanitizeAsciiFilename = (name: string): string =>
+  sanitizeBasename(name, [/[^\x20-\x7E]/g, ""], [/[":;\\]/g, "_"]);
 
 /** RFC 5987-encode a filename for the filename* parameter (UTF-8 percent-encoded). */
 const encodeRfc5987 = (name: string): string => {

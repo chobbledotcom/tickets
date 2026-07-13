@@ -21,7 +21,6 @@ import {
   hasRefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -43,6 +42,7 @@ import {
   type RefundCounts,
   refundCandidateAtProvider,
 } from "./refunds/provider.ts";
+import { requirePaymentProvider } from "./require-provider.ts";
 
 /* jscpd:ignore-end */
 
@@ -124,10 +124,10 @@ const handleAttendeeRefund = verifiedAttendeeAction(
       );
     }
 
-    const provider = await getActivePaymentProvider();
-    if (!provider) {
-      return refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl);
-    }
+    const provider = await requirePaymentProvider(() =>
+      refundError(attendeeId, NO_PROVIDER_ERROR, returnUrl),
+    );
+    if (provider instanceof Response) return provider;
 
     const refunded = await refundCandidateAtProvider(
       provider,
@@ -274,10 +274,10 @@ const processRefundAll = async (
     return fail(refundAllUrl, t("error.no_attendees_to_refund"));
   }
 
-  const provider = await getActivePaymentProvider();
-  if (!provider) {
-    return fail(refundAllUrl, NO_PROVIDER_ERROR);
-  }
+  const provider = await requirePaymentProvider(() =>
+    fail(refundAllUrl, NO_PROVIDER_ERROR),
+  );
+  if (provider instanceof Response) return provider;
 
   const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
   const remaining = refundable.length - batch.length;

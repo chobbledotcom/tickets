@@ -260,13 +260,15 @@ export type DayPricedListing = Pick<
  * that fall within [1, duration_days] (duration_days is the maximum when
  * `customisable_days` is on). Empty for non-customisable listings.
  */
+export const ascending = (a: number, b: number): number => a - b;
+
 export const availableDayCounts = (listing: DayPricedListing): number[] => {
   if (!listing.customisable_days) return [];
   const max = normalizeDurationDays(listing.duration_days);
   return Object.keys(listing.day_prices)
     .map(Number)
     .filter((n) => n >= 1 && n <= max)
-    .sort((a, b) => a - b);
+    .sort(ascending);
 };
 
 /**

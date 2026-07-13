@@ -34,6 +34,7 @@ import {
   adminNewsListPage,
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
+import { checkContentForm } from "./check-content-form.ts";
 import { seoContentInput } from "./content-form-fields.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
@@ -60,7 +61,7 @@ const validateFields = (
 ):
   | { ok: true; input: NewsPostWriteInput }
   | { ok: false; response: Response } => {
-  const result = validateContentFormOr(newsPostForm.validate(form), errorPath);
+  const result = checkContentForm(newsPostForm, form, errorPath);
   if (!result.ok) return result;
   return {
     input: {
@@ -77,7 +78,7 @@ const renderList = siteContentGet(async (session) =>
   adminNewsListPage(await getNewsPostSummaries(), session),
 );
 
-const renderNew = siteContentGet((session) => adminNewsNewPage(session));
+const renderNew = siteContentGet(adminNewsNewPage);
 
 const handleCreate = siteCreatePost(
   paths.newPage,

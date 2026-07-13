@@ -28,6 +28,9 @@ import { SectionFieldset } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 
+/** Props for the parts of the tab that render from the whole tab payload. */
+type LogisticsTabProps = { data: AttendeeLogisticsTabData };
+
 /** One latitude/longitude input. The map script re-pins as these change. */
 const CoordinateInput = ({
   labelKey,
@@ -55,11 +58,7 @@ const CoordinateInput = ({
 /** The pinned-location block: the pair of inputs and the map container. The
  * map stays hidden until there is a pin to show (the script reveals it as
  * soon as coordinates appear). */
-const PinnedLocation = ({
-  data,
-}: {
-  data: AttendeeLogisticsTabData;
-}): JSX.Element => {
+const PinnedLocation = ({ data }: LogisticsTabProps): JSX.Element => {
   const pinned = data.values.lat !== "" && data.values.lng !== "";
   return (
     <SectionFieldset
@@ -139,9 +138,7 @@ const OtherAttendees = ({
 /** The whole Logistics tab: the save form, then the other attendees. */
 export const AttendeeLogisticsPanel = ({
   data,
-}: {
-  data: AttendeeLogisticsTabData;
-}): JSX.Element => (
+}: LogisticsTabProps): JSX.Element => (
   <>
     <CsrfForm
       action={`/admin/attendees/${data.attendee.id}/logistics`}

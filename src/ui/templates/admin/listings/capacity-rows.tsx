@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -9,6 +10,7 @@ import {
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import type { GroupContext } from "./types.ts";
+/* jscpd:ignore-end */
 
 export type ListingCapacityRowsProps = {
   listing: ListingWithCount;

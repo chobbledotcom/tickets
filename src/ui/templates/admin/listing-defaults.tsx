@@ -49,27 +49,6 @@ const LabeledInput = ({
   </label>
 );
 
-/** Tri-state select: no default / yes / no. */
-const BoolControl = ({
-  field,
-  value,
-}: {
-  field: ListingDefaultField;
-  value: boolean | undefined;
-}): JSX.Element => (
-  <LabeledInput field={field}>
-    <SelectField
-      name={inputName(field)}
-      options={[
-        { label: t("listing_defaults.no_default"), value: "" },
-        { label: t("listing_defaults.bool_yes"), value: "1" },
-        { label: t("listing_defaults.bool_no"), value: "0" },
-      ]}
-      value={value === undefined ? "" : value === true ? "1" : "0"}
-    />
-  </LabeledInput>
-);
-
 /** Number input; blank means no default. */
 /** A single `<input>` control wrapped in a {@link LabeledInput}: the shared
  *  shape of the number and URL default fields. */
@@ -165,8 +144,19 @@ const KIND_CONTROLS: Record<
     value: ListingDefaults[keyof ListingDefaults],
   ) => JSX.Element
 > = {
+  // Tri-state select: no default / yes / no.
   bool: (field, value) => (
-    <BoolControl field={field} value={value as boolean | undefined} />
+    <LabeledInput field={field}>
+      <SelectField
+        name={inputName(field)}
+        options={[
+          { label: t("listing_defaults.no_default"), value: "" },
+          { label: t("listing_defaults.bool_yes"), value: "1" },
+          { label: t("listing_defaults.bool_no"), value: "0" },
+        ]}
+        value={value === true ? "1" : value === false ? "0" : ""}
+      />
+    </LabeledInput>
   ),
   days: (field, value) => (
     <DaysControl field={field} value={value as string[] | undefined} />

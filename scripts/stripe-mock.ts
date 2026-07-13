@@ -9,6 +9,7 @@
 
 import { join } from "node:path";
 import { delay } from "#shared/now.ts";
+import { withFileLock } from "./lock-file.ts";
 import { stopProcess, stopProcessNow } from "./process.ts";
 import {
   defaultStripeMockPaths,
@@ -225,24 +226,8 @@ const withStripeMockStartLock = async <T>(
   paths: StripeMockPaths,
   body: LockBody<T>,
 ): Promise<T> => {
-  const lockPath = stripeMockStartLockPath(paths);
   await ensureBinDir(paths);
-  const lock = await Deno.open(lockPath, {
-    create: true,
-    read: true,
-    write: true,
-  });
-
-  try {
-    await lock.lock();
-    try {
-      return await body();
-    } finally {
-      lock.unlock();
-    }
-  } finally {
-    lock.close();
-  }
+  return withFileLock(stripeMockStartLockPath(paths), body);
 };
 
 const resolveStripeMockPort = (
@@ -270,12 +255,20 @@ type StripeMockStartAttempt =
   | { readonly kind: "running"; readonly mock: RunningStripeMock }
   | { readonly kind: "retry"; readonly error: string };
 
+/** The values every start step threads through together: the caller's options,
+ * the env to read the port from, the resolved paths, and whether the port was
+ * pinned (env/option) rather than auto-picked. */
+type StripeMockStartContext = {
+  options: StartStripeMockOptions;
+  env: StripeMockEnvSource;
+  paths: StripeMockPaths;
+  configuredPort: boolean;
+};
+
 const attemptStartStripeMock = async (
-  options: StartStripeMockOptions,
-  env: StripeMockEnvSource,
-  paths: StripeMockPaths,
-  configuredPort: boolean,
+  ctx: StripeMockStartContext,
 ): Promise<StripeMockStartAttempt> => {
+  const { options, env, paths, configuredPort } = ctx;
   const port = resolveStripeMockPort(options, env);
 
   if (await isStripeMockRunning(port)) {
@@ -306,21 +299,13 @@ const attemptStartStripeMock = async (
 };
 
 const startStripeMockProcess = async (
-  options: StartStripeMockOptions,
-  env: StripeMockEnvSource,
-  paths: StripeMockPaths,
-  configuredPort: boolean,
+  ctx: StripeMockStartContext,
   startAttempts: number,
 ): Promise<RunningStripeMock> => {
   let lastStartupError = "";
 
   for (let attempt = 0; attempt < startAttempts; attempt++) {
-    const result = await attemptStartStripeMock(
-      options,
-      env,
-      paths,
-      configuredPort,
-    );
+    const result = await attemptStartStripeMock(ctx);
     if (result.kind === "running") return result.mock;
     // Keep the first meaningful stderr: a later retry can return an empty error
     // that would otherwise clobber the useful failure context.
@@ -345,8 +330,8 @@ export const startStripeMock = async (
     : (options.startAttempts ?? START_ATTEMPTS);
   if (!configuredPort) await downloadStripeMock(options);
 
-  const start = () =>
-    startStripeMockProcess(options, env, paths, configuredPort, startAttempts);
+  const ctx: StripeMockStartContext = { configuredPort, env, options, paths };
+  const start = () => startStripeMockProcess(ctx, startAttempts);
   return configuredPort
     ? await start()
     : await withStripeMockStartLock(paths, start);

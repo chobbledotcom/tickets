@@ -72,6 +72,7 @@ import {
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
+import { childAddOnError } from "../listings-parents.ts";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
 import {
   CatalogTransferSchema,
@@ -314,12 +315,7 @@ const validateParentEdges = async (
     // The would-be child (id 0) must not carry an opt-in add-on reachable only
     // through itself from this parent's page — mirroring the edge editor.
     const addOn = addOnChecker?.(0, [parentId]);
-    if (addOn) {
-      return t("listings_table.children_err_child_addon", {
-        addon: addOn,
-        name: input.name,
-      });
-    }
+    if (addOn) return childAddOnError(addOn, input.name);
   }
   return null;
 };

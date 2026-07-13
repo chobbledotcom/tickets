@@ -20,6 +20,21 @@ import { DOMAIN_PATTERN } from "#shared/embed-hosts.ts";
 import { fail, ok } from "#shared/response.ts";
 
 /**
+ * Given a result that either succeeded or failed with an `error` string, show
+ * the failure on `formId` as an error page with `status`, or hand the
+ * successful result to `onOk`. Every domain step here follows this shape:
+ * check `.ok`, show the error on the form, otherwise carry on.
+ */
+const orErrorPage = <S extends { ok: true }, R>(
+  result: S | { ok: false; error: string },
+  errorPage: ErrorPageFn,
+  status: number,
+  formId: string,
+  onOk: (ok: S) => R | Promise<R>,
+): ReturnType<ErrorPageFn> | R | Promise<R> =>
+  result.ok ? onOk(result) : errorPage(result.error, status, formId);
+
+/**
  * Run a task guarded by the global current-task lock, returning the task's
  * Response on success or a 409 error page when another task holds the lock.
  */
@@ -30,10 +45,7 @@ const runGuardedTask = async (
   task: () => Promise<Response>,
 ): Promise<Response> => {
   const taskResult = await settings.withCurrentTask(taskName, task);
-  if (!taskResult.ok) {
-    return errorPage(taskResult.error, 409, formId);
-  }
-  return taskResult.value;
+  return orErrorPage(taskResult, errorPage, 409, formId, (ok) => ok.value);
 };
 
 /** Guard returning an errorPage response when Bunny CDN isn't configured. */
@@ -130,21 +142,21 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
       errorPage,
       async () => {
         const result = await validateCustomDomain(customDomain);
-        if (!result.ok) {
-          return errorPage(
-            result.error,
-            502,
-            "settings-custom-domain-validate",
-          );
-        }
-
-        await settings.update.customDomainLastValidated();
-        await logActivity(`Custom domain validated: ${customDomain}`);
-        return ok(
-          "/admin/settings-advanced",
-          t("success.custom_domain_validated"),
-          {
-            formId: "settings-custom-domain-validate",
+        return orErrorPage(
+          result,
+          errorPage,
+          502,
+          "settings-custom-domain-validate",
+          async () => {
+            await settings.update.customDomainLastValidated();
+            await logActivity(`Custom domain validated: ${customDomain}`);
+            return ok(
+              "/admin/settings-advanced",
+              t("success.custom_domain_validated"),
+              {
+                formId: "settings-custom-domain-validate",
+              },
+            );
           },
         );
       },
@@ -208,17 +220,21 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
       errorPage,
       async () => {
         const result = await registerBunnySubdomain(raw);
-        if (!result.ok) {
-          return errorPage(result.error, 502, FORM_ID_HOST_SUBDOMAIN);
-        }
-
-        await settings.update.bunnySubdomain(result.fullDomain);
-        await logActivity(`Host subdomain set to ${result.fullDomain}`);
-        return ok(
-          "/admin/settings-advanced",
-          `Subdomain registered: ${result.fullDomain}`,
-          {
-            formId: FORM_ID_HOST_SUBDOMAIN,
+        return orErrorPage(
+          result,
+          errorPage,
+          502,
+          FORM_ID_HOST_SUBDOMAIN,
+          async (ok_) => {
+            await settings.update.bunnySubdomain(ok_.fullDomain);
+            await logActivity(`Host subdomain set to ${ok_.fullDomain}`);
+            return ok(
+              "/admin/settings-advanced",
+              `Subdomain registered: ${ok_.fullDomain}`,
+              {
+                formId: FORM_ID_HOST_SUBDOMAIN,
+              },
+            );
           },
         );
       },

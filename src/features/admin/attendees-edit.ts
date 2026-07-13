@@ -30,10 +30,7 @@ import {
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  getActivePaymentProvider,
-  type PaymentProvider,
-} from "#shared/payments.ts";
+import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 /* jscpd:ignore-start */
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -41,6 +38,7 @@ import type { Attendee, ListingWithCount } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider.ts";
+import { requirePaymentProvider } from "./require-provider.ts";
 
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
@@ -128,10 +126,10 @@ export const handleRefreshPayment: TypedRouteHandler<
       );
     }
 
-    const provider = await getActivePaymentProvider();
-    if (!provider) {
-      return errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR);
-    }
+    const provider = await requirePaymentProvider(() =>
+      errorRedirect(`/admin/attendees/${attendeeId}`, NO_PROVIDER_ERROR),
+    );
+    if (provider instanceof Response) return provider;
 
     const refreshedReferences = await refreshProviderRefunds(
       provider,

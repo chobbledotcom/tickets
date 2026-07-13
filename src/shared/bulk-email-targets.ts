@@ -186,6 +186,21 @@ type TargetSpec<T extends BulkEmailTarget> = {
   readonly logListingId: (target: T) => number | null;
 };
 
+/** A hidden fixed control that round-trips one pre-chosen field value — the
+ * compose control for every target picked through a single form field. */
+const fixedControl = (name: string, value: string): ComposeControl => ({
+  fields: [[name, value]],
+  mode: "fixed",
+});
+
+/** Turn a field's raw value into a target when it has one, else `undefined`
+ * ("not this target's field — try the next spec"). The form and query parsers
+ * both read one field, so they share this "present → build" step. */
+const fromRawField =
+  <T extends BulkEmailTarget>(fromRaw: (raw: string) => Parsed<T>) =>
+  (raw: string | null | undefined): Parsed<T> =>
+    raw ? fromRaw(raw) : undefined;
+
 // ── Audience recipients ─────────────────────────────────────────────
 
 /** Whether an active listing has not yet happened (no date = ongoing/undated). */
@@ -267,10 +282,8 @@ const listingTargetFromRaw = async (
 
 const listingSpec: TargetSpec<ListingTarget> = {
   allowEmpty: false,
-  composeControl: (target) => ({
-    fields: [["listing_id", String(target.listingId)]],
-    mode: "fixed",
-  }),
+  composeControl: (target) =>
+    fixedControl("listing_id", String(target.listingId)),
   composeCopy: BULK_COMPOSE_COPY,
   describe: async (target) => {
     const listing = await getListingWithCount(target.listingId);
@@ -280,14 +293,10 @@ const listingSpec: TargetSpec<ListingTarget> = {
         : "Listing attendees",
     };
   },
-  fromForm: (form) => {
-    const raw = form.getString("listing_id");
-    return raw ? listingTargetFromRaw(raw) : undefined;
-  },
-  fromQuery: (params) => {
-    const raw = params.get("listing");
-    return raw ? listingTargetFromRaw(raw) : undefined;
-  },
+  fromForm: (form) =>
+    fromRawField(listingTargetFromRaw)(form.getString("listing_id")),
+  fromQuery: (params) =>
+    fromRawField(listingTargetFromRaw)(params.get("listing")),
   loadPiiBlobs: (target) => getAttendeePiiBlobsForListings([target.listingId]),
   logListingId: (target) => target.listingId,
   singleRecipient: false,
@@ -296,12 +305,15 @@ const listingSpec: TargetSpec<ListingTarget> = {
 
 // ── Attendee recipient ──────────────────────────────────────────────
 
+/** Build an attendee target from a (non-empty) ticket token. */
+const attendeeTargetFromRaw = (token: string): AttendeeTarget => ({
+  kind: "attendee",
+  token,
+});
+
 const attendeeSpec: TargetSpec<AttendeeTarget> = {
   allowEmpty: false,
-  composeControl: (target) => ({
-    fields: [["attendee", target.token]],
-    mode: "fixed",
-  }),
+  composeControl: (target) => fixedControl("attendee", target.token),
   composeCopy: {
     heading: "Email an attendee",
     intro:
@@ -310,14 +322,10 @@ const attendeeSpec: TargetSpec<AttendeeTarget> = {
   describe: (_target, recipients) => ({
     targetLabel: recipients[0] ?? "the selected attendee",
   }),
-  fromForm: (form) => {
-    const token = form.getString("attendee");
-    return token ? { kind: "attendee", token } : undefined;
-  },
-  fromQuery: (params) => {
-    const token = params.get("attendee");
-    return token ? { kind: "attendee", token } : undefined;
-  },
+  fromForm: (form) =>
+    fromRawField(attendeeTargetFromRaw)(form.getString("attendee")),
+  fromQuery: (params) =>
+    fromRawField(attendeeTargetFromRaw)(params.get("attendee")),
   loadPiiBlobs: async (target) => {
     const blob = await getAttendeePiiBlobForToken(target.token);
     return blob ? [blob] : [];

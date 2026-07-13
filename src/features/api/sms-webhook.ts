@@ -28,6 +28,7 @@ import {
   type SmsMessageRow,
 } from "#shared/db/sms-messages.ts";
 import { nowMs } from "#shared/now.ts";
+import { computeHmacSha256, hmacToHex } from "#shared/payment-crypto.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 
@@ -43,18 +44,8 @@ const EnvelopeSchema = v.object({
 });
 
 /** Hex HMAC-SHA256 of a message with the given secret. */
-const hmacHex = async (secret: string, message: string): Promise<string> => {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret) as BufferSource,
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-  return new Uint8Array(sig).toHex();
-};
+const hmacHex = async (secret: string, message: string): Promise<string> =>
+  hmacToHex(await computeHmacSha256(new TextEncoder().encode(message), secret));
 
 /** Parse the signed Unix-seconds timestamp and enforce freshness. */
 const isFreshTimestamp = (timestamp: string): boolean => {

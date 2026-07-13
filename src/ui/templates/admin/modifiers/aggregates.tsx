@@ -9,10 +9,11 @@ import type {
   ModifierAggregateField,
   ModifierAggregateRecalculation,
 } from "#shared/db/modifiers.ts";
-import type { AdminSession, Modifier } from "#shared/types.ts";
+import type { Modifier } from "#shared/types.ts";
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
 import {
+  bindRecalculatePage,
   type RunningTotalsConfig,
   RunningTotalsFieldset,
   recalculatePageRenderer,
@@ -31,12 +32,13 @@ const modifierRunningTotalsConfig = (
   values: modifierAggregateToFieldValues(modifier),
 });
 
+/** A modifier edit-page section that works from just the modifier record. */
+export type ModifierSectionProps = { modifier: Modifier };
+
 /** The running-totals fieldset on the modifier edit page. */
 export const ModifierRunningTotalsSection = ({
   modifier,
-}: {
-  modifier: Modifier;
-}): JSX.Element =>
+}: ModifierSectionProps): JSX.Element =>
   RunningTotalsFieldset({
     config: modifierRunningTotalsConfig(modifier),
   });
@@ -81,11 +83,6 @@ const modifierRecalculateRenderer = (
     title: t("modifiers.recalculate.heading", { name: modifier.name }),
   });
 
-export const adminModifierRecalculatePage = (
-  modifier: Modifier,
-  snapshot: ModifierAggregateRecalculation,
-  session: AdminSession,
-  error?: string,
-  success?: string,
-): string =>
-  modifierRecalculateRenderer(modifier, snapshot)(session, error, success);
+export const adminModifierRecalculatePage = bindRecalculatePage(
+  modifierRecalculateRenderer,
+);

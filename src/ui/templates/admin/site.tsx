@@ -43,6 +43,21 @@ const siteEditorPage =
       </>,
     );
 
+/** Bind a site editor page to its title, nav path, and a body built from the
+ *  page's two stored values, giving back a `(session, a, b, error?, success?)
+ *  => string` page. The three site editors differ only in their title/path and
+ *  how they render their values — never in this wrapper. */
+const siteDataPage =
+  <A, B>(title: string, active: string, renderBody: (a: A, b: B) => Child) =>
+  (
+    session: AdminSession,
+    a: A,
+    b: B,
+    error?: string,
+    success?: string,
+  ): string =>
+    siteEditorPage(title, active)(session, error, success)(renderBody(a, b));
+
 /** One of the site text editors: its schema-rendered fields inside a form that
  * ends with the standard save button. */
 const SiteTextForm = ({
@@ -60,14 +75,10 @@ const SiteTextForm = ({
 /**
  * Homepage editor - website title + homepage text
  */
-export const adminSiteHomePage = (
-  session: AdminSession,
-  websiteTitle: string,
-  homepageText: string,
-  error?: string,
-  success?: string,
-): string =>
-  siteEditorPage(t("site.home_title"), "/admin/site")(session, error, success)(
+export const adminSiteHomePage = siteDataPage<string, string>(
+  t("site.home_title"),
+  "/admin/site",
+  (websiteTitle, homepageText) => (
     <>
       <h2>{t("site.home.heading")}</h2>
 
@@ -78,8 +89,9 @@ export const adminSiteHomePage = (
           website_title: websiteTitle,
         })}
       />
-    </>,
-  );
+    </>
+  ),
+);
 
 /** State of the optional public contact form feature */
 interface ContactFormState {
@@ -147,18 +159,10 @@ const ContactFormToggle = ({
 /**
  * Contact page editor
  */
-export const adminSiteContactPage = (
-  session: AdminSession,
-  contactPageText: string,
-  contactForm: ContactFormState,
-  error?: string,
-  success?: string,
-): string =>
-  siteEditorPage(t("site.contact_title"), "/admin/site/contact")(
-    session,
-    error,
-    success,
-  )(
+export const adminSiteContactPage = siteDataPage<string, ContactFormState>(
+  t("site.contact_title"),
+  "/admin/site/contact",
+  (contactPageText, contactForm) => (
     <>
       <h2>{t("site.contact.heading")}</h2>
 
@@ -174,8 +178,9 @@ export const adminSiteContactPage = (
         enabled={contactForm.enabled}
         hasBusinessEmail={contactForm.hasBusinessEmail}
       />
-    </>,
-  );
+    </>
+  ),
+);
 
 /** State of the optional public order page feature */
 interface OrderPageState {
@@ -210,18 +215,10 @@ const OrderListingsNote = ({
  * Order page editor — toggle the public `/order` gallery on/off and edit the
  * intro text shown above the item grid.
  */
-export const adminSiteOrderPage = (
-  session: AdminSession,
-  introText: string,
-  state: OrderPageState,
-  error?: string,
-  success?: string,
-): string =>
-  siteEditorPage(t("site.order_title"), "/admin/site/order")(
-    session,
-    error,
-    success,
-  )(
+export const adminSiteOrderPage = siteDataPage<string, OrderPageState>(
+  t("site.order_title"),
+  "/admin/site/order",
+  (introText, state) => (
     <>
       <div class="prose">
         <h2>{t("site.order_page_heading")}</h2>
@@ -252,5 +249,6 @@ export const adminSiteOrderPage = (
         action="/admin/site/order"
         html={siteOrderForm.render({ order_intro_text: introText })}
       />
-    </>,
-  );
+    </>
+  ),
+);

@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import { join } from "node:path";
 import { delay } from "#shared/now.ts";
-import { openLockFile } from "../lock-file.ts";
+import { withFileLock } from "../lock-file.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
 import { projectRoot } from "../project-root.ts";
 
@@ -208,24 +208,6 @@ const removeLockIfOwned = async (
   }
 };
 
-const withInstallLockGuard = async <T>(
-  lockPath: string,
-  body: () => Promise<T>,
-): Promise<T> => {
-  const guard = await openLockFile(installLockGuardPath(lockPath));
-
-  try {
-    await guard.lock();
-    try {
-      return await body();
-    } finally {
-      guard.unlock();
-    }
-  } finally {
-    guard.close();
-  }
-};
-
 const createInstallLock = async (lockPath: string): Promise<InstallLock> => {
   const owner = crypto.randomUUID();
   const file = await Deno.open(lockPath, { createNew: true, write: true });
@@ -242,7 +224,7 @@ const tryAcquireInstallLock = (
   lockPath: string,
   settings: InstallLockSettings,
 ): Promise<InstallLock | null> =>
-  withInstallLockGuard(lockPath, async () => {
+  withFileLock(installLockGuardPath(lockPath), async () => {
     try {
       return await createInstallLock(lockPath);
     } catch (error) {

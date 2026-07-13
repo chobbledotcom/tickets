@@ -39,6 +39,7 @@ import { attendeePage } from "#routes/admin/attendee-page.ts";
 import {
   buildCreateForm,
   buildTemplateData,
+  emptySelectedQuestionAnswers,
   getRenderListings,
   loadAttendeeForEdit,
   loadPackagePaths,
@@ -144,9 +145,7 @@ type EditContext = SelectedQuestionAnswers & {
 const EMPTY_EDIT_CONTEXT: EditContext = {
   attendee: null,
   existingByKey: new Map(),
-  questions: [],
-  selectedAnswerIds: [],
-  selectedTextAnswers: new Map(),
+  ...emptySelectedQuestionAnswers(),
 };
 
 /** Edit mode: load the attendee, its existing lines (indexed by key), and its

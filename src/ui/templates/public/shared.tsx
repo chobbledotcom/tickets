@@ -237,6 +237,31 @@ const seoPageHead = (
  * false — the page's own name as the `<h1>`. A caller that renders its own
  * heading inside the body (the news post page, which folds the heading into its
  * `.prose` block) passes `showHeading: false`. */
+/** The `<Layout>` shell every public page shares: the `public-page` content
+ *  class, the head extras, the page title, and a `beforeContent` slot for the
+ *  nav (and any homepage heading). Both public-page helpers render through it so
+ *  the Layout prop block lives in one place. */
+const PublicLayout = ({
+  title,
+  headExtra,
+  beforeContent,
+  children,
+}: {
+  title: string;
+  headExtra: string;
+  beforeContent: Child;
+  children: Child;
+}): JSX.Element => (
+  <Layout
+    beforeContent={beforeContent}
+    contentClassName="public-page"
+    headExtra={headExtra}
+    title={title}
+  >
+    {children}
+  </Layout>
+);
+
 export const publicSeoPage =
   (
     page: { name: string; meta_title: string; meta_description: string },
@@ -247,15 +272,14 @@ export const publicSeoPage =
   (body: Child): string => {
     const { title, headExtra } = seoPageHead(page, websiteTitle);
     return String(
-      <Layout
+      <PublicLayout
         beforeContent={<PublicNav {...nav} />}
-        contentClassName="public-page"
         headExtra={headExtra}
         title={title}
       >
         {showHeading && <h1>{page.name}</h1>}
         {body}
-      </Layout>,
+      </PublicLayout>,
     );
   };
 
@@ -307,20 +331,19 @@ export const publicPage =
   ) =>
   (body: Child): string =>
     String(
-      <Layout
+      <PublicLayout
         beforeContent={
           <>
             {websiteTitle && <h1>{websiteTitle}</h1>}
             <PublicNav {...nav} />
           </>
         }
-        contentClassName="public-page"
         headExtra={headExtra}
         title={title}
       >
         {body}
         {showLoginFooter && <LoginFooter />}
-      </Layout>,
+      </PublicLayout>,
     );
 
 /** The `<Layout title><div class="prose"><h1>{heading}</h1>{prose}</div>

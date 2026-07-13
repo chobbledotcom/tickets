@@ -10,7 +10,7 @@ import { renderMarkdown } from "#shared/markdown.ts";
 import type { Group } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
-import { renderListingAttributes } from "./listing-attributes.ts";
+import { listingAttributesHtml } from "./listing-attributes.ts";
 import {
   compareGroupsByName,
   PackagesSection,
@@ -198,8 +198,9 @@ const renderListingCard =
     const descriptionHtml = listing.description
       ? renderMarkdown(listing.description)
       : "";
-    const attributesHtml = renderListingAttributes(
-      attributesByListing.get(listing.id),
+    const attributesHtml = listingAttributesHtml(
+      attributesByListing,
+      listing.id,
     );
     const cta = renderListingCardCta(
       info,

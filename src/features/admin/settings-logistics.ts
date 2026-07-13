@@ -37,6 +37,7 @@ import {
 } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
+import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import { isDeliveryRole } from "#shared/types.ts";
 import {
   type AgentUserOption,
@@ -126,10 +127,8 @@ const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
 
 /** The chosen `user_ids` reduced to ids that are real delivery-eligible users,
  * so a crafted form can't link an editor (or unknown id) as a driver. */
-const parseAssignedUserIds = async (form: FormParams): Promise<number[]> => {
-  const valid = new Set((await loadAgentUserOptions()).map((o) => o.id));
-  return form.getNumberArray("user_ids").filter((id) => valid.has(id));
-};
+const parseAssignedUserIds = async (form: FormParams): Promise<number[]> =>
+  selectedIdsFromForm(form, "user_ids", await loadAgentUserOptions());
 
 /** GET /admin/logistics/:id/edit — agent details plus its assigned users. */
 const handleAgentEditGet: IdRouteHandler = (request, { id }) =>

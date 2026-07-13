@@ -371,6 +371,15 @@ export const withEntries =
   (extra: Record<string, V>): Record<string, V> => ({ ...base, ...extra });
 
 /**
+ * The mirror of {@link withEntries}: fixes the `extra` entries and takes the
+ * `base` per call, so a constant overlay (a fixed content type, a default set)
+ * can extend whatever record it is given.
+ */
+export const extendedBy =
+  <V>(extra: Record<string, V>) =>
+  (base: Record<string, V>): Record<string, V> => ({ ...base, ...extra });
+
+/**
  * Split an array into chunks of a given size.
  * Curried adapter over `@std/collections.chunk` (which throws for size < 1).
  */

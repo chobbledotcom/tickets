@@ -1,8 +1,8 @@
 import {
   commandValue,
-  isInsideWorkTree,
   type RunCommand,
   runGit,
+  withinWorkTree,
 } from "./git.ts";
 import { getOriginUrl } from "./merge-warning.ts";
 
@@ -55,35 +55,34 @@ const getUnpushedCommitCount = async (
   return 1;
 };
 
-export const getPushPromptContext = async (
+export const getPushPromptContext = (
   run: RunCommand,
-): Promise<PushPromptContext | undefined> => {
-  if (!(await isInsideWorkTree(run))) return;
+): Promise<PushPromptContext | undefined> =>
+  withinWorkTree(run, async () => {
+    const status = await runGit(run, ["status", "--porcelain"]);
+    if (!status.success || status.stdout.trim()) return;
 
-  const status = await runGit(run, ["status", "--porcelain"]);
-  if (!status.success || status.stdout.trim()) return;
+    const commitMessage = await commandValue(run, ["log", "-1", "--format=%B"]);
+    if (!commitMessage) return;
 
-  const commitMessage = await commandValue(run, ["log", "-1", "--format=%B"]);
-  if (!commitMessage) return;
+    const unpushedCommits = await getUnpushedCommitCount(run);
+    if (!unpushedCommits || unpushedCommits < 1) return;
 
-  const unpushedCommits = await getUnpushedCommitCount(run);
-  if (!unpushedCommits || unpushedCommits < 1) return;
+    const originUrl = await getOriginUrl(run);
+    const branchName = await commandValue(run, [
+      "rev-parse",
+      "--abbrev-ref",
+      "HEAD",
+    ]);
+    if (!originUrl || !branchName || branchName === "HEAD") return;
 
-  const originUrl = await getOriginUrl(run);
-  const branchName = await commandValue(run, [
-    "rev-parse",
-    "--abbrev-ref",
-    "HEAD",
-  ]);
-  if (!originUrl || !branchName || branchName === "HEAD") return;
-
-  return {
-    branchName,
-    commitMessage,
-    originUrl,
-    unpushedCommits,
-  };
-};
+    return {
+      branchName,
+      commitMessage,
+      originUrl,
+      unpushedCommits,
+    };
+  });
 
 export const formatPushPrompt = (context: PushPromptContext): string => {
   const subject = context.commitMessage.split(/\r?\n/)[0]!.trim();

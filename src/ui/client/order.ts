@@ -23,7 +23,7 @@ import type {
   Catalog,
   CatalogListing as CatalogEntry,
 } from "#shared/external-order.ts";
-import { createButton } from "./dom.ts";
+import { createButton, forEachAnchor } from "./dom.ts";
 
 // Injected by the server immediately above this module body.
 declare const CATALOG: Catalog;
@@ -86,14 +86,18 @@ const catalogEntry = (slug: string): CatalogEntry | undefined =>
 /** The `/ticket/<slug>` slug of a single-listing-or-package URL on the tickets
  * origin, or null if `raw` is not such a URL (cross-origin, multi-slug, or
  * malformed — all fall through to the link's normal navigation). */
-const ticketSlug = (raw: string): string | null => {
-  let url: URL;
+/** Parse `raw` as a URL, or null when it is not a valid one. */
+const parseUrl = (raw: string): URL | null => {
   try {
-    url = new URL(raw);
+    return new URL(raw);
   } catch {
     return null;
   }
-  if (url.origin !== CATALOG.origin) return null;
+};
+
+const ticketSlug = (raw: string): string | null => {
+  const url = parseUrl(raw);
+  if (!url || url.origin !== CATALOG.origin) return null;
   return url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1] ?? null;
 };
 
@@ -117,12 +121,8 @@ const resolvePackageSlug = (raw: string): string | null => {
  * `ticketSlug`/`resolveListing`/`resolvePackageSlug`. */
 const skipReason = (raw: string): string => {
   if (!raw) return "no data-add-listing value";
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return "not a valid URL";
-  }
+  const url = parseUrl(raw);
+  if (!url) return "not a valid URL";
   if (url.origin !== CATALOG.origin)
     return `origin ${url.origin} is not the tickets origin ${CATALOG.origin}`;
   const slug = url.pathname.match(/^\/ticket\/([^/+]+)$/)?.[1];
@@ -490,13 +490,7 @@ const init = (): void => {
     });
   };
 
-  const scan = (): void => {
-    for (const link of document.querySelectorAll<HTMLAnchorElement>(
-      "a[data-add-listing]",
-    )) {
-      enhance(link);
-    }
-  };
+  const scan = (): void => forEachAnchor("a[data-add-listing]", enhance);
 
   scan();
   new MutationObserver(scan).observe(document.body, {

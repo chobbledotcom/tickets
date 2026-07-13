@@ -5,6 +5,7 @@
  * enforced via settingsRoute.
  */
 
+/* jscpd:ignore-start */
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -20,6 +21,8 @@ import {
   getSuperuserState,
   sendSuperuserCredentialsEmail,
 } from "#shared/superuser.ts";
+
+/* jscpd:ignore-end */
 
 /** Roll back a created superuser after email failure and return error page */
 const rollbackSuperuser = async (

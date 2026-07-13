@@ -555,12 +555,20 @@ export const checkBatchAvailabilityImpl = async (
  * the same shape the batch check uses. `ListingWithCount` satisfies it. */
 export type ListingCapacityRow = ListingRow;
 
+/** Loads a per-id map (keyed by listing or group id) from an id list and the
+ * days to cover — the shape the overlapping-rows and per-day-remaining lookups
+ * both have. */
+type PerIdDayLoader<Value> = (
+  ids: number[],
+  days: string[],
+) => Promise<Map<number, Value>>;
+
 /** All overlapping interval rows for several listings in one query, grouped by
  * listing id — so per-day loads come from one round trip, not one per listing. */
-const overlappingRowsByListing = async (
-  listingIds: number[],
-  days: string[],
-): Promise<Map<number, IntervalRow[]>> => {
+const overlappingRowsByListing: PerIdDayLoader<IntervalRow[]> = async (
+  listingIds,
+  days,
+) => {
   if (listingIds.length === 0) return new Map();
   const { startAt, endAt } = daySpan(days);
   const rows = await queryAll<IntervalRow & { listing_id: number }>(
@@ -576,10 +584,10 @@ const overlappingRowsByListing = async (
 /** Per-day group remaining for several groups in two queries (caps + occupancy
  * rows), keyed by group id. Uncapped/absent groups are omitted, matching
  * `getGroupRemainingByGroupId`. */
-const groupPerDayRemainingByGroup = async (
-  groupIds: number[],
-  days: string[],
-): Promise<Map<number, Map<string, number>>> => {
+const groupPerDayRemainingByGroup: PerIdDayLoader<Map<string, number>> = async (
+  groupIds,
+  days,
+) => {
   const result = new Map<number, Map<string, number>>();
   const ids = uniquePositiveGroupIds(groupIds);
   if (ids.length === 0) return result;

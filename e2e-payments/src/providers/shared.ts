@@ -4,11 +4,14 @@ import { config } from "../config.ts";
 import { log } from "../log.ts";
 import type { ConfigureProvider } from "./types.ts";
 
-/** Select the active payment provider via the radio form on /admin/settings. */
-export const selectProvider = async (
+/** A step that acts on the settings page for one named payment provider. */
+type ProviderStep = (
   session: BrowserSession,
   provider: ProviderName,
-): Promise<void> => {
+) => Promise<void>;
+
+/** Select the active payment provider via the radio form on /admin/settings. */
+export const selectProvider: ProviderStep = async (session, provider) => {
   await session.goto("/admin/settings");
   await session.check("payment_provider", provider);
   await session.clickButton("Save Payment Provider");
@@ -19,10 +22,7 @@ export const selectProvider = async (
  * Confirm the credentials saved: each provider renders a "Test Connection"
  * button (id `<provider>-test-btn`) only once its key/token is configured.
  */
-export const assertConfigured = async (
-  session: BrowserSession,
-  provider: ProviderName,
-): Promise<void> => {
+export const assertConfigured: ProviderStep = async (session, provider) => {
   const marker = session.page.locator(`#${provider}-test-btn`);
   try {
     await marker.waitFor({ state: "visible", timeout: config.navTimeoutMs });

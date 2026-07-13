@@ -22,6 +22,7 @@ import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -319,36 +320,44 @@ const resendEntries = async (
   );
 };
 
+/** Re-send an attendee's booking notification (its whole package, if any),
+ * refusing on a no-quantity ghost row. The verified-action wrapper below runs
+ * this after confirming the typed attendee name. */
+const resendNotification = async (
+  data: AttendeeWithListing,
+  form: FormParams,
+): Promise<Response> => {
+  const attendeeId = data.attendee.id;
+  const actionsTab = `/admin/attendees/${attendeeId}/actions`;
+  // Refuse on a no-quantity ghost row: the customer email/webhook is built
+  // from the home listing, so it must not fire for a non-booking.
+  const noLineRedirect = await redirectIfNoActiveBookingLine(
+    attendeeId,
+    data.listing.id,
+    actionsTab,
+    "Cannot re-send a notification for a no-quantity line",
+    { form },
+  );
+  if (noLineRedirect) return noLineRedirect;
+
+  await Promise.all([
+    logAndNotifyRegistration(await resendEntries(data)),
+    logActivity(
+      `Notification re-sent for attendee '${data.attendee.name}'`,
+      data.listing.id,
+      attendeeId,
+    ),
+  ]);
+  return redirect(actionsTab, t("success.notification_resent"), true, {
+    form,
+  });
+};
+
 /** Handle POST /admin/attendees/:attendeeId/resend-notification */
 const handleResendNotification = verifiedAttendeeAction(
   "resend-notification",
   undefined,
-  async (data, form) => {
-    const attendeeId = data.attendee.id;
-    const actionsTab = `/admin/attendees/${attendeeId}/actions`;
-    // Refuse on a no-quantity ghost row: the customer email/webhook is built
-    // from the home listing, so it must not fire for a non-booking.
-    const noLineRedirect = await redirectIfNoActiveBookingLine(
-      attendeeId,
-      data.listing.id,
-      actionsTab,
-      "Cannot re-send a notification for a no-quantity line",
-      { form },
-    );
-    if (noLineRedirect) return noLineRedirect;
-
-    await Promise.all([
-      logAndNotifyRegistration(await resendEntries(data)),
-      logActivity(
-        `Notification re-sent for attendee '${data.attendee.name}'`,
-        data.listing.id,
-        attendeeId,
-      ),
-    ]);
-    return redirect(actionsTab, t("success.notification_resent"), true, {
-      form,
-    });
-  },
+  resendNotification,
 );
 
 /**

@@ -18,7 +18,10 @@ import {
   emptyCustomCssResponse,
   isCssResponse,
 } from "#routes/public/custom-css.ts";
-import { bufferRequestBody } from "#routes/request-body.ts";
+import {
+  bufferRequestBody,
+  type RequestTransform,
+} from "#routes/request-body.ts";
 import {
   databaseBusyResponse,
   htmlResponse,
@@ -36,7 +39,7 @@ import {
   type RouteHandlerFn,
 } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
-import type { ServerContext } from "#routes/types.ts";
+import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 import { getClientIp, parseCookies, parseRequest } from "#routes/url.ts";
 import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
 import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
@@ -482,10 +485,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
  * Uses path-based lazy loading to minimize cold start time
  */
 const handleRequestInternal = async (
-  request: Request,
-  path: string,
-  method: string,
-  server?: ServerContext,
+  ...[request, path, method, server]: Parameters<PathMethodRoute>
 ): Promise<Response> => {
   // Setup routes - only load for /setup paths
   if (isSetupPath(path)) {
@@ -572,7 +572,7 @@ const BUFFERED_POST_CONTENT_TYPES = [
  * unnecessary read. The caller runs this inside the routed `try`, so a failed
  * read is classified by `handleRoutingError` like any other.
  */
-const bufferRequestIfNeeded = async (request: Request): Promise<Request> => {
+const bufferRequestIfNeeded: RequestTransform = async (request) => {
   if (request.method !== "POST") return request;
   // Content-Type is case-insensitive (HTTP). Lowercase before matching so the
   // buffer gate accepts the same casings `isValidContentType` does — otherwise a

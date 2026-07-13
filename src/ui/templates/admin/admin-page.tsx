@@ -85,6 +85,15 @@ export const AdminListingLink = ({
   listing: { id: number; name: string };
 }): JSX.Element => <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>;
 
+/** Render an <AdminPage> to an HTML string from its props and body — the one
+ *  `String(<AdminPage …>{body}</AdminPage>)` wrapper every admin opener below
+ *  shares, so the props each opener sets (flash+actions, theme, or none) are the
+ *  only difference between them. */
+const stringifyAdminPage = (
+  props: Omit<AdminPageProps, "children">,
+  children: Child,
+): string => String(<AdminPage {...props}>{children}</AdminPage>);
+
 /** Render an admin page to an HTML string with no flash — the plain
  *  `String(<AdminPage active session title>…</AdminPage>)` wrapper shared by
  *  the bulk-email pages, the Site-tab collection pages, and the API-keys pages. */
@@ -93,12 +102,7 @@ export const renderAdminPage = (
   session: AdminSession,
   title: string,
   children: Child,
-): string =>
-  String(
-    <AdminPage active={active} session={session} title={title}>
-      {children}
-    </AdminPage>,
-  );
+): string => stringifyAdminPage({ active, session, title }, children);
 
 /** An admin page whose whole body is one CSRF form headed by an `<h1>{title}</h1>`
  *  and an error/success Flash — the shape the recalculate pages and the
@@ -184,16 +188,9 @@ const curriedAdminPage =
   ) =>
   (session: AdminSession, ...flashArgs: FlashArgs) =>
   (body: Child, actions?: Child): string =>
-    String(
-      <AdminPage
-        actions={actions}
-        active={active}
-        flash={flash(...flashArgs)}
-        session={session}
-        title={title}
-      >
-        {body}
-      </AdminPage>,
+    stringifyAdminPage(
+      { actions, active, flash: flash(...flashArgs), session, title },
+      body,
     );
 
 /** Themed admin opener for the settings/debug pages, which preview the site's
@@ -206,11 +203,7 @@ export const themedAdminPage =
   (title: string, active = "/admin/settings") =>
   (session: AdminSession, theme: Theme) =>
   (body: Child): string =>
-    String(
-      <AdminPage active={active} session={session} theme={theme} title={title}>
-        {body}
-      </AdminPage>,
-    );
+    stringifyAdminPage({ active, session, theme, title }, body);
 
 /** Build a titled admin opener from just its `flash` builder — the shared
  *  `(title, active?) => curriedAdminPage(title, active, flash)` shape the three
@@ -247,6 +240,39 @@ export const flashAdminPage = adminOpenerFor(
     ),
 );
 
+/** Bind a dashboard page to its title/nav highlight and a body built from the
+ *  loaded data, giving back a `(session, data, error?, success?) => string`
+ *  page. This is the shared shape behind the backup, builder, and update pages:
+ *  each differs only in its title, nav path, and how it renders its data — never
+ *  in the `(session, …, error?, success?) => flashAdminPage(…)` wrapper. Pass
+ *  `undefined` for `active` to fall back to the settings nav highlight. */
+export const flashDataPage =
+  <D,>(
+    title: string,
+    active: string | undefined,
+    renderBody: (data: D) => Child,
+  ) =>
+  (session: AdminSession, data: D, error?: string, success?: string): string =>
+    flashAdminPage(title, active)(session, error, success)(renderBody(data));
+
+/** Curried opener for pages that carry their error/success notices inside a
+ *  single `opts` object (the users list and per-user manage pages). Binds the
+ *  title and nav highlight, then takes the session plus that opts object, and
+ *  returns the page-body receiver — so both pages share the one
+ *  `flashAdminPage(...)(session, opts.error, opts.success)(body)` wiring. */
+/** The error/success notices a page carries in one bag, so a page function can
+ *  take a single `opts` argument instead of positional notice params. */
+export type FlashOpts = {
+  error?: string | undefined;
+  success?: string | undefined;
+};
+
+export const flashOptsPage =
+  (title: string, active: string) =>
+  (session: AdminSession, opts: FlashOpts) =>
+  (body: Child): string =>
+    flashAdminPage(title, active)(session, opts.error, opts.success)(body);
+
 /** Bind a collection page to its title and nav highlight once. The returned
  *  function renders the whole page from the items it lists, the viewer's
  *  session, and an optional success notice — the exact signature the
@@ -265,6 +291,20 @@ export const successListPage =
     successAdminPage(t(titleKey), active)(session, successMessage)(
       body(items, session),
     );
+
+/** A page that edits a many-to-many assignment: given the record, the list of
+ *  things it can be assigned to, the currently-selected ids, the viewer's
+ *  session and an optional error, it renders the edit page. Shared by the
+ *  logistics-agent editor (which users drive an agent) and the user-agents
+ *  editor (which agents a user drives) so their identical shape lives in one
+ *  type rather than being re-declared per page. */
+export type AssignmentEditPage<Record, Item> = (
+  record: Record,
+  items: Item[],
+  selectedIds: ReadonlySet<number>,
+  session: AdminSession,
+  error?: string,
+) => string;
 
 /** The render function a flash-carrying admin page exposes: given the viewer's
  *  session and optional error/success notices, it returns the page HTML. Shared

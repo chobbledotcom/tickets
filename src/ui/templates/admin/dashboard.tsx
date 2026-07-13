@@ -81,6 +81,34 @@ const MultiBookingCheckbox = ({ e }: { e: ListingWithCount }): string =>
     </li>,
   );
 
+/** One read-only, click-to-select field in the multi-booking box: its label,
+ * then an input the client script fills in. `marker` is the data attribute the
+ * script finds the input by; only the URL field also carries the site domain. */
+const MultiBookingField = ({
+  id,
+  label,
+  marker,
+  domain,
+}: {
+  id: string;
+  label: string;
+  marker: string;
+  domain?: string;
+}): JSX.Element => (
+  <>
+    <label for={id}>{label}</label>
+    <input
+      data-domain={domain}
+      {...{ [marker]: true }}
+      data-select-on-click
+      id={id}
+      placeholder={t("admin.dashboard.select_two_or_more")}
+      readonly
+      type="text"
+    />
+  </>
+);
+
 /** Multi-booking link builder section (only rendered when 2+ selectable
  * listings). The caller has already excluded every listing with no standalone
  * public page — a child and a hidden package's member both 404
@@ -101,33 +129,21 @@ const multiBookingSection = (
       <ul class="multi-booking-list">
         <Raw html={checkboxes} />
       </ul>
-      <label for="multi-booking-url">{t("admin.dashboard.booking_link")}</label>
-      <input
-        data-domain={getEffectiveDomain()}
-        data-multi-booking-url
-        data-select-on-click
+      <MultiBookingField
+        domain={getEffectiveDomain()}
         id="multi-booking-url"
-        placeholder={t("admin.dashboard.select_two_or_more")}
-        readonly
-        type="text"
+        label={t("admin.dashboard.booking_link")}
+        marker="data-multi-booking-url"
       />
-      <label for="multi-booking-embed-script">{t("common.embed_script")}</label>
-      <input
-        data-multi-booking-embed-script
-        data-select-on-click
+      <MultiBookingField
         id="multi-booking-embed-script"
-        placeholder={t("admin.dashboard.select_two_or_more")}
-        readonly
-        type="text"
+        label={t("common.embed_script")}
+        marker="data-multi-booking-embed-script"
       />
-      <label for="multi-booking-embed-iframe">{t("common.embed_iframe")}</label>
-      <input
-        data-multi-booking-embed-iframe
-        data-select-on-click
+      <MultiBookingField
         id="multi-booking-embed-iframe"
-        placeholder={t("admin.dashboard.select_two_or_more")}
-        readonly
-        type="text"
+        label={t("common.embed_iframe")}
+        marker="data-multi-booking-embed-iframe"
       />
     </details>,
   );

@@ -5,12 +5,12 @@ import {
   checkBookingRateLimit,
   checkoutFailedResponse,
   checkoutResponse,
-  parseApiJsonBody,
   resolveCustomPrice,
   resolvePositiveQuantity,
   soldOutResponse,
   toFormParams,
   withActiveListing,
+  withApiBody,
 } from "#routes/api/helpers.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { parentRequiresChild } from "#routes/public/ticket-payment.ts";
@@ -89,56 +89,55 @@ export const handleBook = withActiveListing(
       return apiError("Registration is closed");
     }
 
-    const body = await parseApiJsonBody(request);
-    if (body instanceof Response) return body;
+    return withApiBody(request, async (body) => {
+      // Resolve the booking quantity + date once, shared by the parent and standalone
+      // paths so neither re-derives it (and the JSON contract reads one way).
+      const qtyAndDate = await resolveQuantityAndDate(listing, body);
+      if (qtyAndDate instanceof Response) return qtyAndDate;
+      const { quantity, date } = qtyAndDate;
 
-    // Resolve the booking quantity + date once, shared by the parent and standalone
-    // paths so neither re-derives it (and the JSON contract reads one way).
-    const qtyAndDate = await resolveQuantityAndDate(listing, body);
-    if (qtyAndDate instanceof Response) return qtyAndDate;
-    const { quantity, date } = qtyAndDate;
+      // A parent requires the buyer to choose its children: fold the
+      // submitted `children` into a multi-item order rather than booking the parent
+      // alone, which would bypass the gate.
+      if (await parentRequiresChild(listing.id)) {
+        return processParentApiBooking(request, listing, body, quantity, date);
+      }
 
-    // A parent requires the buyer to choose its children: fold the
-    // submitted `children` into a multi-item order rather than booking the parent
-    // alone, which would bypass the gate.
-    if (await parentRequiresChild(listing.id)) {
-      return processParentApiBooking(request, listing, body, quantity, date);
-    }
+      // Customisable-days listings are priced by a chosen day count, which this
+      // endpoint doesn't accept — booking them here would charge the wrong amount,
+      // so they must be booked through the website form.
+      if (listing.customisable_days) {
+        return apiError("This listing must be booked through the website.");
+      }
 
-    // Customisable-days listings are priced by a chosen day count, which this
-    // endpoint doesn't accept — booking them here would charge the wrong amount,
-    // so they must be booked through the website form.
-    if (listing.customisable_days) {
-      return apiError("This listing must be booked through the website.");
-    }
+      const form = toFormParams(body);
 
-    const form = toFormParams(body);
+      // Validate fields using the same form validation as the web
+      const paid = isPaidListing(listing);
+      const valResult = tryValidateTicketFields(
+        form,
+        listing.fields,
+        (msg) => apiError(msg),
+        paid,
+      );
+      if (valResult instanceof Response) return valResult;
+      const values = valResult;
 
-    // Validate fields using the same form validation as the web
-    const paid = isPaidListing(listing);
-    const valResult = tryValidateTicketFields(
-      form,
-      listing.fields,
-      (msg) => apiError(msg),
-      paid,
-    );
-    if (valResult instanceof Response) return valResult;
-    const values = valResult;
+      // Parse custom price for pay-more listings
+      const customUnitPrice = resolveCustomPrice(listing, form);
+      if (customUnitPrice instanceof Response) return customUnitPrice;
 
-    // Parse custom price for pay-more listings
-    const customUnitPrice = resolveCustomPrice(listing, form);
-    if (customUnitPrice instanceof Response) return customUnitPrice;
-
-    const contact = extractContact(values);
-    return bookingResultToResponse(
-      await processBooking(
-        listing,
-        contact,
-        quantity,
-        date,
-        getBaseUrl(request),
-        customUnitPrice,
-      ),
-    );
+      const contact = extractContact(values);
+      return bookingResultToResponse(
+        await processBooking(
+          listing,
+          contact,
+          quantity,
+          date,
+          getBaseUrl(request),
+          customUnitPrice,
+        ),
+      );
+    });
   },
 );

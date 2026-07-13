@@ -178,12 +178,17 @@ const queryGroupListings = (
     [groupId],
   );
 
+/** One group's members with attendee counts; `activeOnly` gates the public
+ * liveness view (active members only) from the full list (active + inactive). */
+const listingsInGroup =
+  (activeOnly: boolean) =>
+  (groupId: number): Promise<ListingWithCount[]> =>
+    queryGroupListings(groupId, activeOnly);
+
 /**
  * Get active listings in a group with attendee counts.
  */
-export const getActiveListingsByGroupId = (
-  groupId: number,
-): Promise<ListingWithCount[]> => queryGroupListings(groupId, true);
+export const getActiveListingsByGroupId = listingsInGroup(true);
 
 /**
  * Members of SEVERAL groups at once, keyed by group id — the batched form of the
@@ -247,9 +252,7 @@ export const groupExists = async (id: number): Promise<boolean> =>
 /**
  * Get all listings in a group with attendee counts (including inactive).
  */
-export const getListingsByGroupId = (
-  groupId: number,
-): Promise<ListingWithCount[]> => queryGroupListings(groupId, false);
+export const getListingsByGroupId = listingsInGroup(false);
 
 /**
  * Validate that a listing is compatible with a group's existing listings.

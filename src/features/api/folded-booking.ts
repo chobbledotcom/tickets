@@ -192,6 +192,31 @@ export const foldChildrenOrError = async (
   return fold.ok ? fold : apiError(fold.error);
 };
 
+/** Fold the selected children (bailing with the fold's own error Response), then
+ * build the per-path order lines from the tree with the given node quantities.
+ * The standalone parent and package book flows share this fold-then-build seam. */
+export const foldAndBuildOrderLines = async (
+  ctx: TicketCtx,
+  form: FormParams,
+  base: FoldBase,
+  tree: BookingTree,
+  nodeQuantities: Map<string, number>,
+): Promise<
+  | { fold: Extract<FoldChildrenResult, { ok: true }>; items: CheckoutItem[] }
+  | Response
+> => {
+  const fold = await foldChildrenOrError(ctx, form, base, tree);
+  if (fold instanceof Response) return fold;
+  const items = buildOrderLines(
+    tree,
+    nodeQuantities,
+    fold.quantities,
+    fold.customPrices,
+    fold.dayCount,
+  );
+  return { fold, items };
+};
+
 /** Validate a folded order's contact fields against the merged parent+child
  * field requirements, mapping a validation failure to a 400 response. The paid
  * flag is the caller's: the parent path reads paid-ness from the folded
@@ -358,7 +383,7 @@ export const processParentApiBooking = async (
   }
 
   const tree = buildBookingTree(ctxToBuildTreeInput(ctx));
-  const fold = await foldChildrenOrError(
+  const built = await foldAndBuildOrderLines(
     ctx,
     form,
     {
@@ -369,16 +394,10 @@ export const processParentApiBooking = async (
       quantities: new Map([[listing.id, quantity]]),
     },
     tree,
-  );
-  if (fold instanceof Response) return fold;
-
-  const items = buildOrderLines(
-    tree,
     nodeQuantitiesFor(tree, new Map([[listing.id, quantity]]), new Map()),
-    fold.quantities,
-    fold.customPrices,
-    fold.dayCount,
   );
+  if (built instanceof Response) return built;
+  const { fold, items } = built;
   // Contact fields validate against the MERGED parent+child requirements and the
   // folded paid-ness (a free parent with a paid child still needs Square's email).
   return finishFoldedBooking(

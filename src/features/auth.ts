@@ -5,6 +5,7 @@
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import { lowerContentType } from "#routes/middleware.ts";
+import { readJsonBody } from "#routes/read-json-body.ts";
 import {
   htmlResponse,
   jsonResponse,
@@ -496,19 +497,26 @@ export const sitePage = authPage(requireSiteOr);
  * render HTML. */
 export const deliveryPage = authPage(requireDeliveryOr);
 
+/** Look up the current session (or null) and hand it to `handler`. The single
+ * place a request's session is fetched for a branch on present/absent — callers
+ * decide what each case means (fail, redirect, render). */
+export const withOptionalSession = async (
+  request: Request,
+  handler: (session: AuthSession | null) => Response | Promise<Response>,
+): Promise<Response> => handler(await getAuthenticatedSession(request));
+
 /** Require any authenticated user (owner, manager or agent). Used for pages
  * that staff and delivery agents alike must reach, like the deliveries run
  * sheet — agents are sent here, staff opt in via the Calendar submenu. Every
  * valid session already holds one of the three roles, so authentication is the
  * only gate. */
-export const requireAnyUserOr = async (
+export const requireAnyUserOr = (
   request: Request,
   handler: SessionHandler,
-): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) return authFailure("html", "not-authenticated");
-  return handler(session);
-};
+): Promise<Response> =>
+  withOptionalSession(request, (session) =>
+    session ? handler(session) : authFailure("html", "not-authenticated"),
+  );
 
 /** Any-authenticated-user GET page: authenticate, apply flash, render HTML */
 export const anyUserPage = authPage(requireAnyUserOr);
@@ -565,16 +573,15 @@ const parseJsonBody: JsonBodyReader = async (request) => {
     }
     return {};
   }
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch {
+  const body = await readJsonBody(request);
+  if (!body.ok) {
     logError({
       code: ErrorCode.VALIDATION_FORM,
       detail: "Malformed JSON body",
     });
     return jsonResponse({ error: "Invalid request body" }, 400);
   }
+  const parsed = body.value;
   if (!isRecord(parsed)) {
     return jsonResponse({ error: "Invalid request body" }, 400);
   }

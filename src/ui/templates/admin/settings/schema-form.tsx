@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -6,6 +7,8 @@ import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { settingsSectionWith } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 import { YesNoRadios } from "#templates/components/yes-no-radios.tsx";
+
+/* jscpd:ignore-end */
 
 const stateValue = (state: object, field: string): unknown =>
   (state as Record<string, unknown>)[field];

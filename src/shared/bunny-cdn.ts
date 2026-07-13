@@ -145,15 +145,7 @@ const pullZonePost = async (
   const suffix = action ? `/${action}` : "";
   const url = `${BUNNY_API_BASE}/pullzone/${pullZoneId}${suffix}`;
 
-  const response = await fetchText(url, {
-    body: JSON.stringify(body),
-    headers: {
-      AccessKey: getBunnyApiKey(),
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
+  const response = await bunnyJsonRequest(url, JSON.stringify(body), "POST");
   return okOrError(response, label);
 };
 
@@ -162,6 +154,22 @@ const pullZonePost = async (
 const bunnyKeyRequest = (url: string, method: string): Promise<FetchResult> =>
   fetchText(url, {
     headers: { AccessKey: getBunnyApiKey() },
+    method,
+  });
+
+/** A Bunny API request that carries the AccessKey header and a JSON body — the
+ *  shared shape of every POST/PUT call. `body` is already-serialized JSON. */
+const bunnyJsonRequest = (
+  url: string,
+  body: string,
+  method: string,
+): Promise<FetchResult> =>
+  fetchText(url, {
+    body,
+    headers: {
+      AccessKey: getBunnyApiKey(),
+      "Content-Type": "application/json",
+    },
     method,
   });
 
@@ -267,17 +275,24 @@ const getDnsZoneImpl = async (): Promise<
 export const buildSubdomainRecordName = (subdomain: string): string =>
   `${subdomain}${getBunnyDnsSubdomainSuffix()}`;
 
+/** A Bunny domain call that resolves a full domain on success, or gives an
+ * error message on failure. */
+type DomainFailure = { ok: false; error: string };
+type DomainResult = { ok: true; fullDomain: string } | DomainFailure;
+
+/** A {@link DomainResult} that also says whether the checked subdomain is
+ * still free. */
+type SubdomainAvailability =
+  | { ok: true; available: boolean; fullDomain: string }
+  | DomainFailure;
+
 /**
  * Check whether a subdomain is available in the DNS zone.
  * Looks for any existing record with the same name.
  */
 const checkSubdomainAvailableImpl = async (
   subdomain: string,
-): Promise<
-  | { ok: true; available: true; fullDomain: string }
-  | { ok: true; available: false; fullDomain: string }
-  | { ok: false; error: string }
-> => {
+): Promise<SubdomainAvailability> => {
   const zoneResult = await bunnyCdnApi.getDnsZone();
   if (!zoneResult.ok) return zoneResult;
 
@@ -300,7 +315,7 @@ const certRetryDelay = (attempt: number): number => (attempt + 1) * 5000;
  */
 const registerBunnySubdomainImpl = async (
   subdomain: string,
-): Promise<{ ok: true; fullDomain: string } | { ok: false; error: string }> => {
+): Promise<DomainResult> => {
   // 1. Check availability
   const availCheck = await bunnyCdnApi.checkSubdomainAvailable(subdomain);
   if (!availCheck.ok) return availCheck;
@@ -332,14 +347,11 @@ const registerBunnySubdomainImpl = async (
     "Domain",
     `Adding DNS CNAME: url=${dnsUrl} name=${recordName} value=${target} fullDomain=${fullDomain}`,
   );
-  const addResponse = await fetchText(dnsUrl, {
-    body: JSON.stringify(dnsRecordBody),
-    headers: {
-      AccessKey: getBunnyApiKey(),
-      "Content-Type": "application/json",
-    },
-    method: "PUT",
-  });
+  const addResponse = await bunnyJsonRequest(
+    dnsUrl,
+    JSON.stringify(dnsRecordBody),
+    "PUT",
+  );
 
   if (!addResponse.ok) {
     const err = parseBunnyError(addResponse, "Add DNS CNAME record");
@@ -414,14 +426,7 @@ const computeScriptRequest = (
   method: string,
   body: string,
 ): Promise<FetchResult> =>
-  fetchText(`${BUNNY_API_BASE}${path}`, {
-    body,
-    headers: {
-      AccessKey: getBunnyApiKey(),
-      "Content-Type": "application/json",
-    },
-    method,
-  });
+  bunnyJsonRequest(`${BUNNY_API_BASE}${path}`, body, method);
 
 /** POST/PUT to /compute/script/{id}/{action} */
 const scriptAction = (

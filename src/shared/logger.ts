@@ -345,6 +345,11 @@ export const logError = (context: ErrorContext): void => {
  * nor block the refund. The failure is still surfaced to the error log so the
  * underlying data can be repaired.
  */
+/** Log a failed database operation under the standard DB_QUERY code. */
+export const logDbError = (detail: string, error: unknown): void => {
+  logError({ code: ErrorCode.DB_QUERY, detail, error });
+};
+
 export const bestEffort = async (
   detail: string,
   op: () => Promise<void>,
@@ -352,11 +357,7 @@ export const bestEffort = async (
   try {
     await op();
   } catch (error) {
-    logError({
-      code: ErrorCode.DB_QUERY,
-      detail: `${detail}: ${error}`,
-      error,
-    });
+    logDbError(`${detail}: ${error}`, error);
   }
 };
 

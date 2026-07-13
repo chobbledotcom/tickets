@@ -19,7 +19,7 @@ import {
 import { idAndEncryptedName } from "#shared/db/id-and-name-columns.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { ListingOption } from "#shared/db/listings/records.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
+import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 /* jscpd:ignore-end */
 
@@ -307,20 +307,9 @@ export const getAttributeListingUse = async (
   };
 };
 
-export const assignNextAttributeSortOrder = async (
+export const assignNextAttributeSortOrder = (
   attributeId: number,
-): Promise<void> => {
-  await executeBatch([
-    {
-      args: [attributeId, attributeId],
-      sql: `UPDATE attributes
-            SET sort_order = COALESCE(
-              (SELECT MAX(sort_order) FROM attributes WHERE id != ?), 0
-            ) + 1
-            WHERE id = ?`,
-    },
-  ]);
-};
+): Promise<void> => assignNextSortOrder("attributes", attributeId);
 
 export const getNextAttributeOptionSortOrder = (
   attributeId: number,

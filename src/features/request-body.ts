@@ -2,6 +2,10 @@
  * Request body buffering for the Bunny Edge runtime.
  */
 
+/** A step that returns a request, possibly a fresh one backed by buffered bytes
+ * (see `bufferRequestBody`). The shared shape of the request-buffering helpers. */
+export type RequestTransform = (request: Request) => Promise<Request>;
+
 /**
  * Read a body-bearing request's body into memory up front and return a fresh
  * Request backed by those bytes, so any later `request.text()` /
@@ -24,7 +28,7 @@
  *
  * GET/HEAD requests carry no body and are returned unchanged.
  */
-export const bufferRequestBody = async (request: Request): Promise<Request> => {
+export const bufferRequestBody: RequestTransform = async (request) => {
   if (request.method === "GET" || request.method === "HEAD") return request;
   const body = await request.arrayBuffer();
   return new Request(request.url, {

@@ -21,6 +21,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { isMaskSentinel } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { mapValidationError } from "#shared/optional-validate.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
@@ -90,16 +91,15 @@ const getWebhookUrl = (): string =>
   `https://${getEffectiveDomain()}/payment/webhook`;
 
 /** Run an optional async validator; return error response or null */
-const runValidate = async <T>(
+const runValidate = <T>(
   validate: ValidateFn<T> | undefined,
   value: T,
   errorPage: ErrorPageFn,
   formId: string,
-): Promise<Response | null> => {
-  if (!validate) return null;
-  const error = await validate(value);
-  return error ? errorPage(error, 400, formId) : null;
-};
+): Promise<Response | null> =>
+  mapValidationError(validate && (() => validate(value)), (error) =>
+    errorPage(error, 400, formId),
+  );
 
 /** Wrap a SettingsFormHandler as a complete route handler with auth */
 const asRoute = (
@@ -159,12 +159,16 @@ const settingsHandler = <T>(cfg: SettingsHandlerConfig<T>): RequestRoute =>
 
 // ── Specialization: toggleHandler ───────────────────────────────────
 
-type ToggleConfig = RedirectOpts & {
+/** The base every settings field-save config shares: where to redirect, the
+ * flash form id, the form field name, its label, and how to persist the value. */
+type SavableFieldConfig<T> = RedirectOpts & {
   formId?: string | undefined;
   field: string;
   label: string;
-  save: (value: boolean) => Promise<void> | void;
+  save: (value: T) => Promise<void> | void;
 };
+
+type ToggleConfig = SavableFieldConfig<boolean>;
 
 const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
   createSettingsHandler<boolean>({
@@ -179,12 +183,8 @@ const settingsToggle: (cfg: ToggleConfig) => RequestRoute =
 
 // ── Shared field config base ─────────────────────────────────────────
 
-type FieldConfig = RedirectOpts & {
-  formId?: string | undefined;
-  field: string;
-  label: string;
+type FieldConfig = SavableFieldConfig<string> & {
   validate?: ValidateFn<string> | undefined;
-  save: (value: string) => Promise<void> | void;
 };
 
 // ── Specialization: clearableFieldHandler ───────────────────────────

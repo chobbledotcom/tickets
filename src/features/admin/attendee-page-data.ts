@@ -554,6 +554,14 @@ export const buildTemplateData = async (
  * attendee's booked listings. The request's private key is only derived when
  * there are questions whose free-text answers need decrypting, so an attendee
  * with no questions never forces a key unwrap. */
+/** The empty question/answer set: no questions and nothing picked. A fresh
+ * object each call, so callers can safely hold their own copy. */
+export const emptySelectedQuestionAnswers = (): SelectedQuestionAnswers => ({
+  questions: [],
+  selectedAnswerIds: [],
+  selectedTextAnswers: new Map(),
+});
+
 export const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
@@ -561,11 +569,7 @@ export const loadQuestionsForExisting = async (
   const listingIds = unique(existing.map((e) => e.booking.listing_id));
   const data = await loadAttendeeQuestionData(listingIds, [attendeeId]);
   if (!data) {
-    return {
-      questions: [],
-      selectedAnswerIds: [],
-      selectedTextAnswers: new Map(),
-    };
+    return emptySelectedQuestionAnswers();
   }
   return {
     questions: data.questions,

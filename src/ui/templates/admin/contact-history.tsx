@@ -17,6 +17,7 @@ import { AttendeesPage } from "#templates/admin/attendee-form.tsx";
 import { ContactNotes } from "#templates/admin/attendee-page.tsx";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
+import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 
 export type ContactHistoryPageData = {
@@ -40,10 +41,14 @@ const CountField = ({
   name: string;
   value: number;
 }): JSX.Element => (
-  <label>
-    {label}
-    <input min="0" name={name} step="1" type="number" value={String(value)} />
-  </label>
+  <TextField
+    label={label}
+    min="0"
+    name={name}
+    step="1"
+    type="number"
+    value={String(value)}
+  />
 );
 
 export const contactHistoryPage = ({

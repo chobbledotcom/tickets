@@ -99,6 +99,7 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
+/* jscpd:ignore-start */
 import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
@@ -109,6 +110,7 @@ import type {
   TicketCtx,
   TicketSharedContext,
 } from "./types.ts";
+/* jscpd:ignore-end */
 
 /** Redirect to checkout, or return the handler's error.
  * In iframe mode returns a popup page instead of a redirect: Stripe cannot run in iframes. */

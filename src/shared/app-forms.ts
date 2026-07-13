@@ -2,11 +2,12 @@ import {
   AUTH_FORM,
   type AuthPolicy,
   type AuthSession,
+  OWNER_FORM,
   withAuth,
 } from "#routes/auth.ts";
-import { applyFlash, requireCsrfForm } from "#routes/csrf.ts";
+import { applyFlash, requireCsrfFormWithMessage } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
-import { csrfInvalidFormMessage, signCsrfToken } from "#shared/csrf.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
@@ -81,6 +82,14 @@ export type AuthedRoute<TParams> = (
   request: Request,
   params: TParams,
 ) => Promise<Response>;
+
+/** An owner-only authed form route with no params or loaded context:
+ * {@link createAuthedHandler} with the owner policy already applied, so callers
+ * pass only their `handle` step. */
+export const ownerFormHandler = (
+  handle: AuthedHandleStep<Record<string, never>, void>,
+): AuthedRoute<Record<string, never>> =>
+  createAuthedHandler({ auth: OWNER_FORM, handle });
 
 /** Build an authed route from the shared auth/load config plus its own
  * handling step. The factories that layer more behaviour on top of
@@ -195,8 +204,8 @@ export const createFormRoute =
     config: PublicFormRouteConfig<TValues, TParams>,
   ) =>
   async (request: Request, params: TParams): Promise<Response> => {
-    const csrf = await requireCsrfForm(request, () =>
-      config.onInvalid({ error: csrfInvalidFormMessage(), params }),
+    const csrf = await requireCsrfFormWithMessage(request, (error) =>
+      config.onInvalid({ error, params }),
     );
     if (!csrf.ok) return csrf.response;
 

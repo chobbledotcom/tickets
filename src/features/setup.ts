@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { applyFlash, parseFormData } from "#routes/csrf.ts";
+import { applyFlash, parseFormWithCsrf } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -16,7 +16,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { ErrorCode, logDbError, logDebug, logError } from "#shared/logger.ts";
 import { getSetupFields } from "#templates/fields/admin.ts";
 import type { SetupFormValues } from "#templates/fields/types.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
@@ -88,13 +88,16 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
 /** Setup completion check callback type */
 type SetupCheck = () => Promise<boolean>;
 
+/** A setup route handler: the request plus the completion check it guards on. */
+type SetupHandler = (
+  request: Request,
+  isSetupComplete: SetupCheck,
+) => Promise<Response>;
+
 /**
  * Handle GET /setup/
  */
-const handleSetupGet = async (
-  request: Request,
-  isSetupComplete: SetupCheck,
-): Promise<Response> => {
+const handleSetupGet: SetupHandler = async (request, isSetupComplete) => {
   if (await isSetupComplete()) return redirectResponse("/");
   await signCsrfToken();
   const flash = applyFlash(request);
@@ -105,10 +108,7 @@ const handleSetupGet = async (
  * Handle POST /setup/
  * Validates CSRF token using signed token pattern
  */
-const handleSetupPost = async (
-  request: Request,
-  isSetupComplete: SetupCheck,
-): Promise<Response> => {
+const handleSetupPost: SetupHandler = async (request, isSetupComplete) => {
   logDebug("Setup", "POST request received");
 
   if (await isSetupComplete()) {
@@ -117,8 +117,7 @@ const handleSetupPost = async (
   }
 
   // Validate signed CSRF token
-  const form = await parseFormData(request);
-  const formCsrf = form.getString("csrf_token");
+  const { form, formCsrf } = await parseFormWithCsrf(request);
   logDebug(
     "Setup",
     `CSRF form present: ${!!formCsrf} length: ${formCsrf.length}`,
@@ -150,7 +149,7 @@ const handleSetupPost = async (
     logDebug("Setup", "Setup completed successfully!");
     return redirectResponse("/setup/complete");
   } catch (error) {
-    logError({ code: ErrorCode.DB_QUERY, detail: "setup completion" });
+    logDbError("setup completion", error);
     throw error;
   }
 };

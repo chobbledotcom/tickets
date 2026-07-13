@@ -12,6 +12,7 @@ import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import type { ChildProps } from "#templates/components/child-props.ts";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
   ReorderLinkRow,
@@ -23,11 +24,9 @@ import { colClass } from "#templates/components/table-columns.ts";
 
 /** A right-aligned quantity/count table cell — the `quantity`-classed `<td>`
  * the reorderable admin tables use for their trailing count column. */
-export const QuantityCell = ({
-  children,
-}: {
-  children: Child;
-}): JSX.Element => <td class={colClass("quantity")}>{children}</td>;
+export const QuantityCell = ({ children }: ChildProps): JSX.Element => (
+  <td class={colClass("quantity")}>{children}</td>
+);
 
 /** Show the table (or whatever `whenPresent` builds) for a non-empty list, or
  * the plain "nothing yet" note the admin tables share when the list is empty. */

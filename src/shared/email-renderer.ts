@@ -117,12 +117,14 @@ const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
 };
 
 /** The buyer's summed price (minor units) across an order's entries. */
-export const sumEntryPrices = (entries: EmailEntry[]): number =>
-  sumOf((e: EmailEntry) => Number(e.attendee.price_paid))(entries);
+export const sumEntryPrices = sumOf((entry: EmailEntry) =>
+  Number(entry.attendee.price_paid),
+);
 
 /** The bundle's summed booked quantity across an order's entries. */
-export const sumEntryQuantities = (entries: EmailEntry[]): number =>
-  sumOf((e: EmailEntry) => e.attendee.quantity)(entries);
+export const sumEntryQuantities = sumOf(
+  (entry: EmailEntry) => entry.attendee.quantity,
+);
 
 /** The single-row summary a hidden package collapses to for buyers: the
  * bundle's summed price and quantity plus the widest member's dated stay
@@ -150,6 +152,13 @@ export type BuyerEntryGroup = {
 /** One walked group: a collapsed package's rows carry its display; a row that
  * stands alone carries none. */
 type EntryGroup = { entries: EmailEntry[]; display?: PackageDisplay };
+
+/** A projection over an order's entries and their package displays — the shared
+ * shape of the buyer grouping and the heading-names reads. */
+type FromOrderEntries<T> = (
+  entries: EmailEntry[],
+  displays: ReadonlyMap<number, PackageDisplay>,
+) => T;
 
 /** Walk an order's entries once, gathering every package that `collapses` into
  * one group sitting where its first row was; every other row stands alone. The
@@ -184,10 +193,10 @@ const entryGroupsBy = (
  * and its SVG tickets): each hidden package's rows collapse into one group
  * sitting where its first row was, so a mixed order conceals every hidden
  * bundle while its other rows render normally. */
-export const buyerEntryGroups = (
-  entries: EmailEntry[],
-  displays: ReadonlyMap<number, PackageDisplay>,
-): BuyerEntryGroup[] =>
+export const buyerEntryGroups: FromOrderEntries<BuyerEntryGroup[]> = (
+  entries,
+  displays,
+) =>
   map(
     (group: EntryGroup): BuyerEntryGroup =>
       group.display === undefined
@@ -197,10 +206,7 @@ export const buyerEntryGroups = (
 
 /** The names heading the email: each package once (by its display name, in
  * first-booked order — hidden or not) beside the plain rows' listing names. */
-const orderDisplayNames = (
-  entries: EmailEntry[],
-  displays: ReadonlyMap<number, PackageDisplay>,
-): string =>
+const orderDisplayNames: FromOrderEntries<string> = (entries, displays) =>
   nameList(
     map((group: EntryGroup) =>
       group.display === undefined

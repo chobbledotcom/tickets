@@ -8,7 +8,7 @@
 /* jscpd:ignore-start */
 import type { FormGuard } from "#routes/admin/confirmation.ts";
 import { formPost, requireSiteOr, SITE_FORM, withAuth } from "#routes/auth.ts";
-import { gatedEntityRoute } from "#routes/entity.ts";
+import { type EntityLoader, gatedEntityRoute } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -37,7 +37,7 @@ export const siteContentPost = formPost(SITE_FORM);
 /** Curried POST `:id` route: Site form gate, then load the entity (404 when
  * missing) and hand it to the mutation. */
 export const siteEntityPost =
-  <T>(load: (id: number) => Promise<T | null>) =>
+  <T>(load: EntityLoader<T>) =>
   (handler: (item: T, form: FormParams) => Promise<Response>) =>
     gatedEntityRoute<FormParams>((request, h) =>
       formPost(SITE_FORM)(h)(request),

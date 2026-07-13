@@ -9,6 +9,7 @@ import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import type { SessionEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -54,7 +55,7 @@ const withOwnerData =
   <T>(load: (session: AuthSession) => Promise<T>) =>
   (
     request: Request,
-    handle: (session: AdminSession, data: T) => Response | Promise<Response>,
+    handle: SessionEntityHandler<AdminSession, T>,
   ): Promise<Response> =>
     requireOwnerOr(request, async (session) =>
       handle(session, await load(session)),

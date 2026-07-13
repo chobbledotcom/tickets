@@ -1,5 +1,6 @@
 /** Form tables: questions, answers, attributes, built sites, notes. */
 
+import { createdColumn, sortOrderColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 
 export const questionTables: [name: string, table: Table][] = [
@@ -9,7 +10,7 @@ export const questionTables: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["text", "TEXT NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        sortOrderColumn,
         [
           "display_type",
           "TEXT NOT NULL DEFAULT 'radio' CHECK (display_type IN ('radio', 'select', 'free_text'))",
@@ -46,7 +47,7 @@ export const questionTables: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["question_id", "INTEGER NOT NULL"],
         ["text", "TEXT NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        sortOrderColumn,
         // The price modifier this answer triggers (an "answer"-trigger
         // modifier), or NULL for an answer with no price effect. Many answers
         // may point at one "pricing tier" modifier; an answer has at most one.
@@ -76,7 +77,7 @@ export const questionTables: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["listing_id", "INTEGER NOT NULL"],
         ["question_id", "INTEGER NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        sortOrderColumn,
       ],
       indexes: [
         { columns: ["listing_id"], name: "idx_listing_questions_listing_id" },
@@ -98,7 +99,7 @@ export const questionTables: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["name", "TEXT NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        sortOrderColumn,
       ],
       indexes: [{ columns: ["sort_order"], name: "idx_attributes_sort_order" }],
     },
@@ -111,7 +112,7 @@ export const questionTables: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["attribute_id", "INTEGER NOT NULL"],
         ["text", "TEXT NOT NULL"],
-        ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        sortOrderColumn,
       ],
       indexes: [
         { columns: ["attribute_id"], name: "idx_attribute_options_attribute" },
@@ -152,7 +153,7 @@ export const questionTables: [name: string, table: Table][] = [
         ["assignable", "INTEGER NOT NULL DEFAULT 0"],
         ["assigned_attendee_id", "INTEGER DEFAULT NULL"],
         ["assigned_listing_id", "INTEGER DEFAULT NULL"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
         ["renewal_token_index", "TEXT DEFAULT NULL"],
         ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
         // ISO timestamp of the last time the master poked this site to trigger
@@ -231,7 +232,7 @@ export const questionTables: [name: string, table: Table][] = [
           "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
         ],
         ["note", "TEXT NOT NULL"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
       ],
       indexes: [
         { columns: ["attendee_id"], name: "idx_system_notes_attendee_id" },

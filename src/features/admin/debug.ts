@@ -19,6 +19,7 @@ import {
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
   isPaymentsEnabled,
+  providerValue,
 } from "#shared/config.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -108,12 +109,12 @@ const validateGooglePrivateKey = async (
 };
 
 /** Whether the configured payment provider has its webhook config set. */
-const webhookConfiguredFor = (provider: string | null): boolean => {
-  if (provider === "stripe") return settings.stripe.webhookEndpointId !== "";
-  if (provider === "square") return settings.square.webhookSignatureKey !== "";
-  if (provider === "sumup") return settings.sumup.hasKey;
-  return false;
-};
+const webhookConfiguredFor = (provider: string | null): boolean =>
+  providerValue(provider, {
+    square: settings.square.webhookSignatureKey !== "",
+    stripe: settings.stripe.webhookEndpointId !== "",
+    sumup: settings.sumup.hasKey,
+  }) ?? false;
 
 /** Map a `sk_test_`/`sk_live_` key mode to a display label; "" if unrecognized. */
 const paymentModeLabel = (mode: "test" | "live" | null): string =>

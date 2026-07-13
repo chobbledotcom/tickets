@@ -51,6 +51,27 @@ export const formDataToParams = (formData: FormData): FormParams => {
   return params;
 };
 
+/** Parse a submitted form and pull out its CSRF token field in one step. */
+export const parseFormWithCsrf = async (
+  request: Request,
+): Promise<{ form: FormParams; formCsrf: string }> => {
+  const form = await parseFormData(request);
+  return { form, formCsrf: form.getString("csrf_token") };
+};
+
+/**
+ * Read a required uploaded file from a multipart form. Returns the file, or the
+ * caller's error response when the field is missing or empty.
+ */
+export const requireUploadedFile = (
+  formData: FormData,
+  field: string,
+  onMissing: () => Response,
+): File | Response => {
+  const file = formData.get(field);
+  return file instanceof File && file.size > 0 ? file : onMissing();
+};
+
 /** CSRF form result type */
 export type CsrfFormResult =
   | { ok: true; form: FormParams }
@@ -65,8 +86,7 @@ export const requireCsrfForm = async (
   request: Request,
   onInvalid: () => Response,
 ): Promise<CsrfFormResult> => {
-  const form = await parseFormData(request);
-  const formCsrf = form.getString("csrf_token");
+  const { form, formCsrf } = await parseFormWithCsrf(request);
 
   // Always save form data so validation errors can restore user input.
   // This clears any stale data from a prior request and makes the current
@@ -91,11 +111,22 @@ export const withCsrfForm = async (
   onInvalid: (message: string, status: number) => Response,
   handler: (form: FormParams) => Response | Promise<Response>,
 ): Promise<Response> => {
-  const csrf = await requireCsrfForm(request, () =>
-    onInvalid(csrfInvalidFormMessage(), 403),
+  const csrf = await requireCsrfFormWithMessage(request, (message) =>
+    onInvalid(message, 403),
   );
   return csrf.ok ? handler(csrf.form) : csrf.response;
 };
+
+/**
+ * Parse a CSRF form, building the failure response from the standard
+ * invalid/expired token message. The message-to-Response step stays the
+ * caller's, so each surface can pick its own status and shape.
+ */
+export const requireCsrfFormWithMessage = (
+  request: Request,
+  onInvalid: (message: string) => Response,
+): Promise<CsrfFormResult> =>
+  requireCsrfForm(request, () => onInvalid(csrfInvalidFormMessage()));
 
 /**
  * Record the form a redirect targeted (`?form=`) so a matching CsrfForm renders

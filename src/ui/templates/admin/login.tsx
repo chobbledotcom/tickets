@@ -10,15 +10,16 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { getLoginFields } from "#templates/fields/admin.ts";
-import { Layout } from "#templates/layout.tsx";
+import { layoutPage } from "#templates/layout-page.tsx";
 /* jscpd:ignore-end */
 
 /**
  * Admin login page
  */
 export const adminLoginPage = (error?: string): string =>
-  String(
-    <Layout title={t("login.title")}>
+  layoutPage(
+    t("login.title"),
+    <>
       <Flash {...flashProps(error)} />
       <CsrfForm action="/admin/login">
         <Raw html={renderFields(getLoginFields())} />
@@ -29,5 +30,5 @@ export const adminLoginPage = (error?: string): string =>
           <a href="/demo/reset">{t("login.reset_database")}</a>
         </p>
       )}
-    </Layout>,
+    </>,
   );

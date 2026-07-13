@@ -7,6 +7,7 @@
  * template needs to render the selectors (pre-filled from saved assignments).
  */
 
+/* jscpd:ignore-start */
 import { uniqueBy } from "#fp";
 import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
 import {
@@ -22,6 +23,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, LogisticsAgent } from "#shared/types.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
+/* jscpd:ignore-end */
 
 /** Checkbox field: when "1", each logistics listing carries its own agents. */
 export const SPLIT_AGENTS_FIELD = "split_logistics_agents";

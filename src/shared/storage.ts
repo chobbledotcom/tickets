@@ -525,11 +525,24 @@ export const ATTACHMENT_ERROR_MESSAGES: Record<
 export const getBasename = (name: string): string =>
   name.split(/[/\\]/).pop() as string;
 
-/** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */
-const sanitizeFilename = (name: string): string => {
-  const basename = getBasename(name);
-  return basename.replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
+/** Strip a path's basename down with each `[pattern, replacement]` rule in
+ * turn, falling back to "file" when nothing is left. Shared by every filename
+ * sanitiser — each supplies its own character rules. */
+export const sanitizeBasename = (
+  name: string,
+  ...rules: [RegExp, string][]
+): string => {
+  const cleaned = rules.reduce(
+    (basename, [pattern, replacement]) =>
+      basename.replace(pattern, replacement),
+    getBasename(name),
+  );
+  return cleaned || "file";
 };
+
+/** Sanitize a filename for use in CDN storage (strip path, collapse whitespace) */
+const sanitizeFilename = (name: string): string =>
+  sanitizeBasename(name, [/[^a-zA-Z0-9._-]/g, "_"]);
 
 /** Generate a random CDN filename preserving the original name for readability */
 export const generateAttachmentFilename = (originalName: string): string =>

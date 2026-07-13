@@ -67,6 +67,18 @@ export type ConfirmPageProps = {
   children?: Child;
 };
 
+/** Curried builder for the many admin "delete this X" confirmation pages that
+ *  all share the `(entity, session, error?) => ConfirmPage({...})` shape. Pass a
+ *  function that turns the entity into the page-specific ConfirmPage props (its
+ *  action URL, labels, confirm copy); the returned function binds the viewer's
+ *  session and error notice. Keeps the one shared wrapper in one place. */
+export const entityDeletePage =
+  <Entity,>(
+    build: (entity: Entity) => Omit<ConfirmPageProps, "session" | "error">,
+  ): ((entity: Entity, session: AdminSession, error?: string) => string) =>
+  (entity, session, error) =>
+    ConfirmPage({ ...build(entity), error, session });
+
 export const ConfirmPage = ({
   title,
   active,

@@ -6,9 +6,8 @@
 import { t } from "#i18n";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 /* jscpd:ignore-end */
@@ -89,17 +88,10 @@ const UpToDate = ({
   </ProseSection>
 );
 
-export const adminUpdatePage = (
-  session: AdminSession,
-  state: UpdatePageState,
-  error?: string,
-  success?: string,
-): string =>
-  flashAdminPage(t("update.page_title"), "/admin/update")(
-    session,
-    error,
-    success,
-  )(
+export const adminUpdatePage = flashDataPage<UpdatePageState>(
+  t("update.page_title"),
+  "/admin/update",
+  (state) => (
     <>
       <h2>{t("update.software_update")}</h2>
 
@@ -120,5 +112,6 @@ export const adminUpdatePage = (
       <GuideFooter href="/admin/guide#software-updates">
         {t("update.guide_link")}
       </GuideFooter>
-    </>,
-  );
+    </>
+  ),
+);

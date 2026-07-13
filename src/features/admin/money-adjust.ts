@@ -19,7 +19,7 @@
  */
 
 /* jscpd:ignore-start */
-import { OWNER_FORM, withAuth } from "#routes/auth.ts";
+import { withOwnerForm } from "#routes/admin/owner-form-handler.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -68,6 +68,4 @@ const applyMoneyAdjust = async <Entity>(
 export const makeMoneyAdjustHandler =
   <Entity>(config: MoneyAdjustConfig<Entity>) =>
   (request: Request, id: number): Promise<Response> =>
-    withAuth(request, OWNER_FORM, (_session, form) =>
-      applyMoneyAdjust(config, id, form),
-    );
+    withOwnerForm(request, (form) => applyMoneyAdjust(config, id, form));

@@ -2,14 +2,14 @@ import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
   finishFoldedBooking,
-  foldChildrenOrError,
+  foldAndBuildOrderLines,
   parseApiChildSelections,
 } from "#routes/api/folded-booking.ts";
 import {
   checkBookingRateLimit,
-  parseApiJsonBody,
   resolvePositiveQuantity,
   toFormParams,
+  withApiBody,
   withSlugLoaded,
 } from "#routes/api/helpers.ts";
 import { resolvedToPublicListing } from "#routes/api/public-listing.ts";
@@ -33,10 +33,7 @@ import type { TicketCtx } from "#routes/public/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { bookableChildIds, pageDayCounts } from "#shared/booking/model.ts";
-import {
-  buildOrderLines,
-  nodeQuantitiesFor,
-} from "#shared/booking/order-lines.ts";
+import { nodeQuantitiesFor } from "#shared/booking/order-lines.ts";
 import {
   packageBundleLimit,
   packageLimitInfo,
@@ -286,62 +283,54 @@ export const handleBookPackage = async (
   if (pkg instanceof Response) return pkg;
   const { ctx, group, limit, tree } = pkg;
 
-  const body = await parseApiJsonBody(request);
-  if (body instanceof Response) return body;
-
-  const standIns = ctxStandInNames(ctx);
-  const order = await resolvePackageOrder(
-    body,
-    ctx,
-    tree,
-    limit,
-    standIns.byListingId,
-  );
-  if (order instanceof Response) return order;
-  const { date, dayCount, form, packageQty, quantities } = order;
-
-  const selections = parseApiChildSelections(body, PackageChildrenSchema);
-  if (selections === null) {
-    return apiError(
-      "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
+  return withApiBody(request, async (body) => {
+    const standIns = ctxStandInNames(ctx);
+    const order = await resolvePackageOrder(
+      body,
+      ctx,
+      tree,
+      limit,
+      standIns.byListingId,
     );
-  }
-  const selectionError = applyPackageChildSelections(form, ctx, selections);
-  if (selectionError) return selectionError;
+    if (order instanceof Response) return order;
+    const { date, dayCount, form, packageQty, quantities } = order;
 
-  const fold = await foldChildrenOrError(
-    ctx,
-    form,
-    {
-      customPrices: new Map(),
-      date,
-      dayCount,
-      hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
-      quantities,
-    },
-    tree,
-  );
-  if (fold instanceof Response) return fold;
+    const selections = parseApiChildSelections(body, PackageChildrenSchema);
+    if (selections === null) {
+      return apiError(
+        "Provide a `children` array of { parent, slug, quantity } choosing each member's add-ons.",
+      );
+    }
+    const selectionError = applyPackageChildSelections(form, ctx, selections);
+    if (selectionError) return selectionError;
 
-  // Per-path lines from the tree: each member line carries its group id and
-  // its override price; a HIDDEN package's member names are concealed before
-  // the lines reach the provider. Paid-ness must come from these lines, not
-  // `isPaidListing`: a package override can make a free member paid (and a
-  // paid member free).
-  const items = concealLineNames(
-    buildOrderLines(
+    const built = await foldAndBuildOrderLines(
+      ctx,
+      form,
+      {
+        customPrices: new Map(),
+        date,
+        dayCount,
+        hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+        quantities,
+      },
       tree,
       nodeQuantitiesFor(tree, new Map(), new Map([[group.id, packageQty]])),
-      fold.quantities,
-      fold.customPrices,
-      fold.dayCount,
-    ),
-    standIns,
-  );
-  return finishFoldedBooking(
-    request,
-    form,
-    items.some((item) => item.unitPrice > 0),
-    { date, fold, items },
-  );
+    );
+    if (built instanceof Response) return built;
+    const { fold } = built;
+
+    // Per-path lines from the tree: each member line carries its group id and
+    // its override price; a HIDDEN package's member names are concealed before
+    // the lines reach the provider. Paid-ness must come from these lines, not
+    // `isPaidListing`: a package override can make a free member paid (and a
+    // paid member free).
+    const items = concealLineNames(built.items, standIns);
+    return finishFoldedBooking(
+      request,
+      form,
+      items.some((item) => item.unitPrice > 0),
+      { date, fold, items },
+    );
+  });
 };

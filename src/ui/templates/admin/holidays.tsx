@@ -8,6 +8,7 @@
  * dashboard renders it outside the resource list shell.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -22,6 +23,8 @@ import {
   dataTable,
 } from "#templates/components/data-table.tsx";
 import { getHolidayFields } from "#templates/fields/admin.ts";
+
+/* jscpd:ignore-end */
 
 /** Columns for the holidays table — declared once so the header order and
  *  cell order can't drift apart. */

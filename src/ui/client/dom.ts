@@ -12,3 +12,13 @@ export const createButton = (className: string): HTMLButtonElement => {
   button.className = className;
   return button;
 };
+
+/** Run `fn` for every `<a>` in the document that matches `selector`. */
+export const forEachAnchor = (
+  selector: string,
+  fn: (link: HTMLAnchorElement) => void,
+): void => {
+  for (const link of document.querySelectorAll<HTMLAnchorElement>(selector)) {
+    fn(link);
+  }
+};

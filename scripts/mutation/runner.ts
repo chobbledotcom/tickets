@@ -21,6 +21,7 @@
 
 import { resolve } from "@std/path";
 import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
+import { commandExitCode } from "../deno-command.ts";
 import { dim, green, red, yellow } from "../precommit/colors.ts";
 import { write } from "../precommit/write.ts";
 import { projectRoot } from "../project-root.ts";
@@ -152,8 +153,8 @@ interface StaticGate {
 const createLinter = async (): Promise<StaticGate> => {
   const { bin, pre } = await resolveBiome();
   return {
-    exit: async (file: string): Promise<number> => {
-      const { code } = await new Deno.Command(bin, {
+    exit: (file: string): Promise<number> =>
+      commandExitCode(bin, {
         // --no-errors-on-unmatched: a source deliberately outside Biome's
         // includes (e.g. src/ui/client/scanner.js) is still a mutation target
         // via src/**/*.js, and linting an excluded path exits non-zero for
@@ -164,9 +165,7 @@ const createLinter = async (): Promise<StaticGate> => {
         cwd: projectRoot,
         stderr: "null",
         stdout: "null",
-      }).output();
-      return code;
-    },
+      }),
     label: "lint",
     remedy: [
       "The mutation lint gate needs a lint-clean target and a working Biome.",

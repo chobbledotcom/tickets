@@ -8,13 +8,12 @@ import {
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
-  type AdminSession,
   availableDayCounts,
   dayPriceFor,
   type Group,
   type ListingWithCount,
 } from "#shared/types.ts";
-import { errorAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { SaveChangesButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
@@ -35,18 +34,18 @@ const groupToFieldValues = (
   });
 
 /** Admin group create page. */
-export const adminGroupNewPage = (
-  session: AdminSession,
-  error?: string,
-): string =>
-  errorAdminPage(t("groups.add.heading"), "/admin/groups/new")(session, error)(
+export const adminGroupNewPage = flashFormPage(
+  "groups.add.heading",
+  "/admin/groups/new",
+  () => (
     <NewResourceForm
       action="/admin/groups"
       fieldsHtml={renderFields(getGroupCreateFields(), groupToFieldValues())}
       submitLabel={t("groups.add.submit")}
       title={t("groups.add.heading")}
-    />,
-  );
+    />
+  ),
+);
 
 /** A package member's saved price and quantity values, keyed by listing id. */
 export type PackageMemberValues = ReadonlyMap<
@@ -85,13 +84,17 @@ const MemberDayPriceInputs = ({
   </div>
 );
 
+/** A package group's member listings plus their saved price/quantity values —
+ *  the pair the members table and the edit panel both work from. */
+type PackageMembersProps = {
+  listings: ListingWithCount[];
+  members: PackageMemberValues;
+};
+
 const PackageMembersTable = ({
   listings,
   members,
-}: {
-  listings: ListingWithCount[];
-  members: PackageMemberValues;
-}): JSX.Element => (
+}: PackageMembersProps): JSX.Element => (
   <div class="package-prices">
     <h2>{t("groups.package_prices.heading")}</h2>
     <p>{t("groups.package_prices.hint")}</p>
@@ -143,11 +146,7 @@ export const GroupEditPanel = ({
   group,
   listings,
   members,
-}: {
-  group: Group;
-  listings: ListingWithCount[];
-  members: PackageMemberValues;
-}): JSX.Element => (
+}: PackageMembersProps & { group: Group }): JSX.Element => (
   <CsrfForm action={`/admin/groups/${group.id}/edit`}>
     <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
     <PackageMembersTable listings={listings} members={members} />

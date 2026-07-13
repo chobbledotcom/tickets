@@ -2,6 +2,7 @@
  * Admin bulk email templates — compose and preview pages.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   type BulkEmailDraft,
@@ -24,6 +25,8 @@ import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { ProsePanel } from "#templates/components/prose-panel.tsx";
 import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
+
+/* jscpd:ignore-end */
 
 const NAV_ACTIVE = "/admin/emails";
 

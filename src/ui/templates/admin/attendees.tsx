@@ -21,7 +21,10 @@ import {
   hasBookingConflicts,
   nonConflictAnswerLabel,
 } from "#shared/merge/attendee-merge.ts";
-import type { AttendeeMergeDiff } from "#shared/merge/attendee-merge-types.ts";
+import type {
+  AttendeeMergeDiff,
+  AttendeeMergeDiffBookingItem,
+} from "#shared/merge/attendee-merge-types.ts";
 import { paymentDashboardUrl } from "#shared/payment-dashboard.ts";
 import type {
   AdminSession,
@@ -548,18 +551,16 @@ const BreakRadio = ({
 const BookingDecisionRow = ({
   children,
   dateStr,
-  listingId,
-  sourceQty,
+  item,
 }: {
   children: Child;
   dateStr: string;
-  listingId: number;
-  sourceQty: number;
+  item: AttendeeMergeDiffBookingItem;
 }): JSX.Element => (
   <tr>
-    <td>Listing #{listingId}</td>
+    <td>Listing #{item.listingId}</td>
     <td>{dateStr}</td>
-    <td>{sourceQty}</td>
+    <td>{item.sourceBooking.quantity}</td>
     {children}
   </tr>
 );
@@ -599,11 +600,7 @@ const MergeBookingsDecisionTable = ({
 
         if (item.conflictClass === "moveable") {
           return (
-            <BookingDecisionRow
-              dateStr={dateStr}
-              listingId={item.listingId}
-              sourceQty={item.sourceBooking.quantity}
-            >
+            <BookingDecisionRow dateStr={dateStr} item={item}>
               <td>
                 <span class="muted">Will be moved</span>
               </td>
@@ -623,11 +620,7 @@ const MergeBookingsDecisionTable = ({
         );
 
         return (
-          <BookingDecisionRow
-            dateStr={dateStr}
-            listingId={item.listingId}
-            sourceQty={sourceQty}
-          >
+          <BookingDecisionRow dateStr={dateStr} item={item}>
             <td>
               <strong>{conflictLabel}</strong>
               {item.targetBooking &&

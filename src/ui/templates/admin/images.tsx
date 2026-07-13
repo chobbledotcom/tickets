@@ -16,9 +16,10 @@ import {
 } from "#shared/types.ts";
 import {
   errorAdminPage,
+  flashFormPage,
   successAdminPage,
 } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
   ActionButton,
   GuideFooter,
@@ -182,15 +183,14 @@ export const adminImagesPage = (
   );
 };
 
-export const adminImageNewPage = (
-  session: AdminSession,
-  error?: string,
-): string =>
-  errorAdminPage(t("images.new.heading"), "/admin/images")(session, error)(
+export const adminImageNewPage = flashFormPage(
+  "images.new.heading",
+  "/admin/images",
+  () =>
     isStorageEnabled()
       ? imageUploadForm("/admin/images", "save", t("images.new.submit"))
       : storageDisabledNotice(),
-  );
+);
 
 export const adminImageEditPage = ({
   image,
@@ -243,22 +243,15 @@ export const adminImageEditPage = ({
     </>,
   );
 
-export const adminImageDeletePage = (
-  image: Image,
-  session: AdminSession,
-  error?: string,
-): string =>
-  ConfirmPage({
-    action: `/admin/images/${image.id}/delete`,
-    active: { section: "/admin/images" },
-    buttonText: t("images.delete.submit"),
-    danger: true,
-    error,
-    label: t("images.delete.confirm_label"),
-    name: image.name,
-    session,
-    title: t("images.delete.heading", { name: image.name }),
-  });
+export const adminImageDeletePage = entityDeletePage((image: Image) => ({
+  action: `/admin/images/${image.id}/delete`,
+  active: { section: "/admin/images" },
+  buttonText: t("images.delete.submit"),
+  danger: true,
+  label: t("images.delete.confirm_label"),
+  name: image.name,
+  title: t("images.delete.heading", { name: image.name }),
+}));
 
 const itemImageCheckboxes = (
   images: readonly Image[],
@@ -280,11 +273,16 @@ const itemImageCheckboxes = (
   </fieldset>
 );
 
+/** The set of image ids in a list — used to test membership when merging linked
+ *  and unlinked images. */
+const imageIdSet = (images: readonly Image[]): Set<number> =>
+  new Set(images.map((image) => image.id));
+
 const itemImageOptions = (
   allImages: readonly Image[],
   linkedImages: readonly Image[],
 ): Image[] => {
-  const linkedIds = new Set(linkedImages.map((image) => image.id));
+  const linkedIds = imageIdSet(linkedImages);
   return [
     ...linkedImages,
     ...allImages.filter((image) => !linkedIds.has(image.id)),
@@ -306,7 +304,7 @@ export const ItemImagesPanel = ({
       </>
     );
   }
-  const selectedIds = new Set(linkedImages.map((image) => image.id));
+  const selectedIds = imageIdSet(linkedImages);
   return (
     <>
       <Flash error={error} />

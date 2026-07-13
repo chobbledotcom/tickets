@@ -13,6 +13,7 @@
 
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { SaveForm } from "#templates/components/save-form.tsx";
+import type { TitledBlock } from "#templates/components/titled-block.ts";
 
 /**
  * Derive a settings form's id from its POST target, since each settings
@@ -42,9 +43,7 @@ export const SettingsSection = ({
    */
   id?: string;
   submitLabel: string;
-  title: string;
-  children?: Child;
-}): JSX.Element => (
+} & TitledBlock): JSX.Element => (
   <SaveForm
     action={action}
     enctype={enctype}

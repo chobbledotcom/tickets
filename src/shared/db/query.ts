@@ -5,6 +5,7 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
+  executeBatch,
   inPlaceholders,
   queryAll,
   resultRows,
@@ -75,6 +76,27 @@ export const swapSortOrder = (
       await tx.execute(update(table, { sort_order: order1 }, { id: id2 }));
     },
   );
+
+/**
+ * Give a freshly-created row the next `sort_order`: one more than the largest
+ * among its siblings (always >= 1, so a new row never collides with legacy rows
+ * still sat at 0). `table` is always an internal constant, never user input.
+ */
+export const assignNextSortOrder = async (
+  table: string,
+  id: number,
+): Promise<void> => {
+  await executeBatch([
+    {
+      args: [id, id],
+      sql: `UPDATE ${table}
+            SET sort_order = COALESCE(
+              (SELECT MAX(sort_order) FROM ${table} WHERE id != ?), 0
+            ) + 1
+            WHERE id = ?`,
+    },
+  ]);
+};
 
 /** Collapse a result's rows to the set of one column's values, as strings —
  * the shared tail of the "which names/ids already exist" reads (applied
@@ -204,6 +226,10 @@ export const decryptNameSlug = async <Raw>(
  * alias and qualifies the selected columns. `table`, `alias`, `column` and
  * `where` are always internal constants, never user input.
  */
+/** A batch loader: takes a list of ids and returns, for each id, the list of
+ * related numbers found for it. Ids with no matches are absent from the map. */
+export type ListsByIds = (ids: number[]) => Promise<Map<number, number[]>>;
+
 export const columnMapByIds = <Value extends InValue = number>(
   table: string,
   alias: string,

@@ -69,6 +69,7 @@ import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import type { MaybePromise } from "#shared/maybe-promise.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
@@ -324,7 +325,7 @@ const answerRoute =
       question: QuestionWithAnswers,
       answer: Answer,
       session: AdminSession,
-    ) => Response | Promise<Response>,
+    ) => MaybePromise<Response>,
   ) =>
   (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
     requireOwnerOr(request, async (session) => {

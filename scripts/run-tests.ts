@@ -290,21 +290,24 @@ const reportCoverageFailures = async (
 const checkCoverage = async (): Promise<void> => {
   console.log("\nChecking coverage...");
 
-  const tableCmd = new Deno.Command(Deno.execPath(), {
-    args: ["coverage", COVERAGE_OUTPUT_DIR],
-    cwd: projectRoot,
-    stderr: "inherit",
+  const coverageCommand = (
+    extraArgs: string[],
+    io: Partial<Deno.CommandOptions>,
+  ): Deno.Command =>
+    new Deno.Command(Deno.execPath(), {
+      args: ["coverage", COVERAGE_OUTPUT_DIR, ...extraArgs],
+      cwd: projectRoot,
+      stderr: "inherit",
+      ...io,
+    });
+
+  const tableCmd = coverageCommand([], {
     stdin: "inherit",
     stdout: Deno.env.get("CI") ? "null" : "inherit",
   });
   await tableCmd.output();
 
-  const lcovCmd = new Deno.Command(Deno.execPath(), {
-    args: ["coverage", COVERAGE_OUTPUT_DIR, "--lcov"],
-    cwd: projectRoot,
-    stderr: "inherit",
-    stdout: "piped",
-  });
+  const lcovCmd = coverageCommand(["--lcov"], { stdout: "piped" });
   const lcovResult = await lcovCmd.output();
   const lcov = new TextDecoder().decode(lcovResult.stdout);
 

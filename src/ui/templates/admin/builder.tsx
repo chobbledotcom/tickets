@@ -7,8 +7,7 @@ import { builderForm } from "#routes/admin/builder.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
-import { flashAdminPage } from "#templates/admin/admin-page.tsx";
+import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
@@ -70,13 +69,10 @@ const BuiltSitesTable = ({
     />
   );
 
-export const adminBuilderPage = (
-  session: AdminSession,
-  sites: BuiltSiteDisplay[],
-  error?: string,
-  success?: string,
-): string =>
-  flashAdminPage(t("builder.site_builder_title"))(session, error, success)(
+export const adminBuilderPage = flashDataPage<BuiltSiteDisplay[]>(
+  t("builder.site_builder_title"),
+  undefined,
+  (sites) => (
     <>
       <h2>{t("builder.site_builder_title")}</h2>
 
@@ -88,5 +84,6 @@ export const adminBuilderPage = (
       />
 
       <BuiltSitesGuideFooter />
-    </>,
-  );
+    </>
+  ),
+);

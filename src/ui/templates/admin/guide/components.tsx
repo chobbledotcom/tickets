@@ -13,6 +13,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import type { TitledBlock } from "#templates/components/titled-block.ts";
 /* jscpd:ignore-end */
 
 /** Host-level configuration info passed from the route */
@@ -29,11 +30,7 @@ export const Section = ({
   id,
   title,
   children,
-}: {
-  id?: string | undefined;
-  title: string;
-  children?: Child;
-}): JSX.Element => (
+}: { id?: string | undefined } & TitledBlock): JSX.Element => (
   <PageBlock>
     <h3 id={id}>{title}</h3>
     {children}

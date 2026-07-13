@@ -21,6 +21,7 @@ import {
   bookingAssignmentKey,
   type LogisticsAssignment,
 } from "#shared/db/logistics.ts";
+import { listingDetails } from "#shared/listing-details.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
 import { formatDatetimeShortInTz } from "#shared/timezone.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone-default.ts";
@@ -62,12 +63,7 @@ export const toCalendarAttendees = <
   const listingById = byId(listings);
   return attendees.map((a) => {
     const listing = listingById.get(a.listing_id)!;
-    return {
-      ...a,
-      listingDate: listing.date,
-      listingLocation: listing.location,
-      listingName: listing.name,
-    };
+    return { ...a, ...listingDetails(listing) };
   });
 };
 
