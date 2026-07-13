@@ -193,6 +193,22 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(body).toContain("(1 option: Yes)");
     });
 
+    test("shows no error box on a plain page load", async () => {
+      const listing = await createTestListing({ name: "Calm listing" });
+      await createQuestion("Any allergies?");
+
+      const body = await expectHtmlResponse(
+        await adminGet(`/admin/listing/${listing.id}/questions`),
+        200,
+        "Any allergies?",
+      );
+      // The tab loader once received the framework's page-context object in
+      // its `error` parameter, so every load showed an error box reading
+      // "[object Object]".
+      expect(body).not.toContain("[object Object]");
+      expect(body).not.toContain('class="error"');
+    });
+
     test("shows assigned questions as checked", async () => {
       const listing = await createTestListing({ name: "Assigned Listing" });
       const qId = await createQuestion("Shirt size?");

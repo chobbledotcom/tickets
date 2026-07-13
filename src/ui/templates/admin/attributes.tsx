@@ -330,10 +330,9 @@ type ListingAttributesPanelProps = ListingPanelProps & {
 export const ListingAttributesPanel = (
   props: ListingAttributesPanelProps,
 ): JSX.Element => {
-  const { attributes, error, listing, selectedOptionIds } = props;
+  const { attributes, listing, selectedOptionIds } = props;
   return listingChoicePanel(
     t("attributes.listing.heading", { listing: listing.name }),
-    error,
     <p>
       <BackButton href="/admin/attributes">
         {t("attributes.listing.manage")}
