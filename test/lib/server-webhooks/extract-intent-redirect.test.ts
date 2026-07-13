@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

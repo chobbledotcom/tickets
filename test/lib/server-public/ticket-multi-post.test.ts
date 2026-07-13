@@ -12,6 +12,7 @@ import { getTicketCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { expectBothReservedAtTwoAndOne } from "./_shared-multi.ts";
 
 // jscpd:ignore-end
 

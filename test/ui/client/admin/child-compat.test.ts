@@ -54,6 +54,29 @@ const expectChildQty101202Enabled = (
   expect(byName(roots, "child_qty_101_202").value).toBe(value);
 };
 
+/** date=2026-06-08, day_count=2, an in-cart parent 101 and one child 202
+ *  whose per-span availability is `config` — the shared arrange for the
+ *  customisable-parent span cases. */
+const day2ChildSetup = (config: Parameters<typeof childQty>[4]) =>
+  installFakeDom([
+    date("2026-06-08"),
+    dayCount("2"),
+    quantity("101", "1"),
+    childSelector("101"),
+    childQty("101", "202", "1", false, config),
+  ]);
+
+/** Switch to the sole child's compatible date and assert the parent quantity
+ *  re-enables, ending at `value`. */
+const expectParentRestoredOnCompatibleDate = (
+  roots: FakeElement[],
+  value: string,
+): void => {
+  switchDate(roots, "2026-06-01");
+  expect(byName(roots, "quantity_101").disabled).toBe(false);
+  expect(byName(roots, "quantity_101").value).toBe(value);
+};
+
 describe("child date/span compatibility", () => {
   afterEach(restoreDocument);
 
@@ -191,16 +214,10 @@ describe("child date/span compatibility", () => {
     // 2026-06-09 for a 2-day span. With day_count=2 chosen, selecting 2026-06-08
     // (valid for a 1-day span but NOT a 2-day span) must disable the child; a
     // span/date it can serve (day_count=1, 2026-06-08) keeps it enabled.
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      dayCount("2"),
-      quantity("101", "1"),
-      childSelector("101"),
-      childQty("101", "202", "1", false, {
-        dates: { "1": ["2026-06-08", "2026-06-09"], "2": ["2026-06-09"] },
-        spans: [1, 2],
-      }),
-    ]);
+    const roots = day2ChildSetup({
+      dates: { "1": ["2026-06-08", "2026-06-09"], "2": ["2026-06-09"] },
+      spans: [1, 2],
+    });
 
     initChildCompat();
     // day_count=2 + 2026-06-08: the 2-day span can't start that day → disabled.
@@ -256,10 +273,7 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "quantity_101").value).toBe("0");
 
     // Switch to a date the sole child serves: parent re-enabled AND restored to 1.
-    switchDate(roots, "2026-06-01");
-
-    expect(byName(roots, "quantity_101").disabled).toBe(false);
-    expect(byName(roots, "quantity_101").value).toBe("1");
+    expectParentRestoredOnCompatibleDate(roots, "1");
   });
 
   test("dispatches a change event after restoring the auto-hidden parent quantity", () => {
@@ -292,10 +306,7 @@ describe("child date/span compatibility", () => {
     initChildCompat();
     expect(byName(roots, "quantity_101").value).toBe("0");
 
-    switchDate(roots, "2026-06-01");
-
-    expect(byName(roots, "quantity_101").disabled).toBe(false);
-    expect(byName(roots, "quantity_101").value).toBe("0");
+    expectParentRestoredOnCompatibleDate(roots, "0");
   });
 
   test("leaves a date/span-constrained child enabled until a date and day-count are chosen", () => {
@@ -320,15 +331,9 @@ describe("child date/span compatibility", () => {
   test("disables a child whose selected span serves no date (empty per-span set)", () => {
     // The child serves the 8th for a 1-day span, but its 2-day span serves no
     // date at all (encoded `2:`); with day_count=2 chosen it can't be booked.
-    const roots = installFakeDom([
-      date("2026-06-08"),
-      dayCount("2"),
-      quantity("101", "1"),
-      childSelector("101"),
-      childQty("101", "202", "1", false, {
-        dates: { "1": ["2026-06-08"], "2": [] },
-      }),
-    ]);
+    const roots = day2ChildSetup({
+      dates: { "1": ["2026-06-08"], "2": [] },
+    });
 
     initChildCompat();
 
