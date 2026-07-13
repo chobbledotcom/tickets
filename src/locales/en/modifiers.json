@@ -36,7 +36,7 @@
   "modifiers.adjust_revenue": "Adjust revenue",
   "modifiers.adjust_revenue_current": "Current revenue",
   "modifiers.adjust_revenue_new_label": "Corrected revenue",
-  "modifiers.adjust_revenue_warning": "This adds a correction to Money history. It records the difference from the current income.",
+  "modifiers.adjust_revenue_warning": "This adds a correction to Money. It records the difference from the current income.",
   "modifiers.adjust_revenue_submit": "Save income correction",
   "modifiers.adjust_revenue_success": "Option income corrected.",
   "modifiers.delete.heading": "Delete Modifier",

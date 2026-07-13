@@ -258,19 +258,20 @@ describeWithEnv("AdminNav", {}, () => {
     }
   });
 
-  test("AdminNav shows Money history to owners but not managers", () => {
+  test("AdminNav shows Money to owners but not managers", () => {
     const ownerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
     );
     expect(ownerHtml).toContain('href="/admin/ledger"');
-    expect(ownerHtml).toContain("Money history");
+    expect(ownerHtml).toContain("Money");
+    expect(ownerHtml).not.toContain("Money history");
     const managerHtml = String(
       AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
     );
     expect(managerHtml).not.toContain('href="/admin/ledger"');
   });
 
-  test("AdminNav marks Money history active on its page", () => {
+  test("AdminNav marks Money active on its page", () => {
     const html = String(
       AdminNav({
         active: "/admin/ledger",

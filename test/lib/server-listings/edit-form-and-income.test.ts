@@ -58,7 +58,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       );
     });
 
-    test("shows the income-correction form with its money-history warning", async () => {
+    test("shows the income-correction form with its Money warning", async () => {
       await setupListingAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -69,7 +69,7 @@ describeWithEnv("server listings > edit form and income", { db: true }, () => {
       expect(html).toContain("Adjust income");
       expect(html).toContain('action="/admin/listing/1/income"');
       expect(html).toContain('name="income"');
-      expect(html).toContain("This adds a correction to Money history.");
+      expect(html).toContain("This adds a correction to Money.");
     });
   });
   describe("POST /admin/listing/:id/income", () => {

@@ -305,7 +305,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expectStatus(404)(response);
     });
 
-    test("shows the income-correction form with its money-history warning", async () => {
+    test("shows the income-correction form with its Money warning", async () => {
       await adminFormPost(
         "/admin/modifiers",
         createData({ name: "Surcharge" }),
@@ -316,7 +316,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(html).toContain("Adjust revenue");
       expect(html).toContain(`action="/admin/modifiers/${id}/revenue"`);
       expect(html).toContain('name="total_revenue"');
-      expect(html).toContain("This adds a correction to Money history.");
+      expect(html).toContain("This adds a correction to Money.");
     });
 
     test("shows the owner-only modifier ledger section", async () => {
@@ -327,7 +327,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await response.text();
-      expect(html).toContain("Money history");
+      expect(html).toContain("Money");
+      expect(html).not.toContain("Money history");
       expect(html).toContain("Add money change");
       expect(html).toContain(
         `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,
@@ -346,7 +347,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const html = await response.text();
       expect(response.status).toBe(200);
       expect(html).toContain("Manager visible");
-      expect(html).not.toContain("<h2>Money history</h2>");
+      expect(html).not.toContain("<h2>Money</h2>");
       expect(html).not.toContain(`/admin/ledger/modifier/${id}/add`);
     });
   });

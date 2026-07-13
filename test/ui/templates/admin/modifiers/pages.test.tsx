@@ -130,7 +130,7 @@ describe("adminModifierEditPage", () => {
     expect(html).toContain("<h2>Adjust revenue</h2>");
     expect(html).toContain('action="/admin/modifiers/1/revenue"');
     expect(html).toContain('name="total_revenue"');
-    expect(html).toContain("This adds a correction to Money history.");
+    expect(html).toContain("This adds a correction to Money.");
   });
 
   test("shows a modifier ledger add-entry action only when a ledger is passed", () => {

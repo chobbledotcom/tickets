@@ -194,7 +194,7 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       await submitRefreshPayment(
         attendee,
         () => Promise.resolve(true),
-        expect.stringContaining("Money history could not record it"),
+        "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
         false,
       );
     });

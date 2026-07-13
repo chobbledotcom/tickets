@@ -27,7 +27,8 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     const response = await adminGet("/admin/ledger?view=dual");
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("Money history");
+    expect(html).toContain("Money");
+    expect(html).not.toContain("Money history");
     // The sale leg credits the listing's revenue account, linked by its name.
     expect(html).toContain("Summer Concert");
     expect(html).toContain("/admin/ledger?listing=");
@@ -67,7 +68,7 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
     expect(html).not.toContain("<td>sale</td>");
   });
 
-  test("resolves a real modifier's name and links its leg to its money history", async () => {
+  test("resolves a real modifier's name and links its leg to its Money page", async () => {
     // A real modifier row exists, so the historical list resolves its name and
     // links the modifier leg to /admin/modifiers/<id>/edit.
     const modifier = await modifiersTable.insert({
