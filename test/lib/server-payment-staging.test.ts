@@ -130,6 +130,21 @@ const expectStage = async (
   ]);
 };
 
+/** Assert a still-pending staged session's attendee carries no payment
+ * reference — a failed money post threw before stamping one, so the Actions tab
+ * has no charge to offer an in-app refund against while it stays unrecorded. */
+const expectNoStampedPayment = async (sessionId: string): Promise<void> => {
+  const stage = await getCheckoutStageOrNull(sessionId);
+  if (!stage) throw new Error(`Expected a pending stage for ${sessionId}`);
+  const attendee = await getAttendeeRaw(stage.attendeeId);
+  if (!attendee)
+    throw new Error(`Expected the staged attendee for ${sessionId}`);
+  expect(
+    (await decryptAttendeeFields(attendee, await getTestPrivateKey(), true))
+      .payment_id,
+  ).toBe("");
+};
+
 describeWithEnv("paid checkout staging", { db: true }, () => {
   // Spy console.error for the block's other tests; the dangling-stage test now
   // throws (asserted directly) rather than logging, so its return is unused.
@@ -731,6 +746,10 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
       ).rejects.toThrow("money in the ledger");
       await expectStage("cs_staged_blocked", "pending", 1);
       expect(refund.calls.length).toBe(0);
+      // The failed post threw BEFORE stamping the payment reference, so the
+      // still-pending record exposes no charge for the Actions tab to offer an
+      // in-app refund against while the money is unrecorded.
+      await expectNoStampedPayment("cs_staged_blocked");
 
       // The colliding event is repaired and the provider redelivers after the
       // reservation goes stale: this time the held payment is recorded and
@@ -746,6 +765,54 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
       const legs = await getDb().execute("SELECT kind FROM transfers");
       expect(legs.rows.map((row) => row.kind)).toEqual(["payment"]);
       expect(refund.calls.length).toBe(0);
+    } finally {
+      checkout.restore();
+    }
+  });
+
+  test("retries a kept-and-refunded staged order when its ledger post fails", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 1,
+      unitPrice: 1000,
+    });
+    const { checkout, getCaptured } = stubCheckout("cs_staged_kept_blocked");
+    using _refund = stubSuccessfulRefund("re_staged_kept_blocked");
+
+    try {
+      await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "kept-blocked@example.com",
+        name: "Kept Blocked Buyer",
+      });
+      // Fill the one seat so the paid activation fails on capacity and routes to
+      // the keep-and-refund placeholder path (storeRefundedBooking).
+      const filler = await bookAttendee(listing, {
+        email: "kept-filler@example.com",
+        name: "Kept Filler",
+      });
+      if (!filler.success) throw new Error("Expected filler booking");
+      const intent = getCaptured();
+      if (!intent) throw new Error("Expected captured checkout intent");
+
+      // The placeholder ledger post can't be written (its payment reference is
+      // pre-claimed). A staged keep-and-refund must NOT go terminal with the
+      // money missing from the books: it throws and the stage stays pending.
+      await blockSessionPaymentLeg("cs_staged_kept_blocked");
+      await expect(
+        paidReturn("cs_staged_kept_blocked", intent, 1000),
+      ).rejects.toThrow("placeholder money in the ledger");
+      await expectStage("cs_staged_kept_blocked", "pending", 0);
+      await expectNoStampedPayment("cs_staged_kept_blocked");
+
+      // The collision is repaired and the provider redelivers: the money
+      // round-trip is recorded and the order resolves at quantity 0.
+      await unblockSessionPaymentLeg("cs_staged_kept_blocked");
+      await ageReservation("cs_staged_kept_blocked");
+      const retry = await paidReturn("cs_staged_kept_blocked", intent, 1000);
+      expect(await retry.text()).toContain("automatically refunded");
+      await expectStage("cs_staged_kept_blocked", "failed", 0);
+      await expectRefundRoundTripLegs();
     } finally {
       checkout.restore();
     }

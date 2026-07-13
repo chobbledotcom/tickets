@@ -147,7 +147,6 @@ const recordHeldStagedMoney = async (
   memo: string,
   refunded: boolean,
 ): Promise<void> => {
-  await stampStagedPaymentId(stage, session, intent);
   const { posted } = await recordPlaceholderRefund(
     placeholderFacts(session, stage.attendeeId, listingId),
     memo,
@@ -158,6 +157,10 @@ const recordHeldStagedMoney = async (
       `Could not record session ${session.id}'s money in the ledger`,
     );
   }
+  // Stamp the payment reference only AFTER the money is in the ledger: a failed
+  // post throws above, leaving the still-pending stage with no reference for the
+  // Actions tab to expose a mid-flight refund against.
+  await stampStagedPaymentId(stage, session, intent);
 };
 
 /**
@@ -256,13 +259,26 @@ export const storeRefundedBooking = async (
           bookings,
         })) as CreateAttendeeSuccess
       ).attendees[0]!.id;
-  if (stage) await stampStagedPaymentId(stage, session, intent);
   const refunded = await tryRefund(session.paymentReference, listingId);
-  await recordPlaceholderRefund(
+  const { posted } = await recordPlaceholderRefund(
     placeholderFacts(session, attendeeId, listingId),
     spec.code,
     refunded,
   );
+  // A failed ledger post on a STAGED order must retry, not resolve: throw so the
+  // stage stays pending and the provider's next delivery re-posts (tryRefund
+  // reads the settled refund back as success, so it never refunds twice). The
+  // no-stage path can't retry without minting a duplicate placeholder, so it
+  // proceeds — postWithoutThrowing has already logged the miss.
+  if (!posted && stage) {
+    throw new Error(
+      `Could not record session ${session.id}'s placeholder money in the ledger`,
+    );
+  }
+  // Stamp the payment reference only AFTER the money is recorded, so a failed
+  // post never leaves a refundable reference on a still-pending stage — the
+  // Actions tab would otherwise offer to refund a charge the ledger hasn't seen.
+  if (stage) await stampStagedPaymentId(stage, session, intent);
   if (refunded) {
     await logActivity(
       `Automatic refund (${spec.code}); booking kept at quantity 0`,
