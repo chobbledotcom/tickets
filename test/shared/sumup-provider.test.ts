@@ -129,6 +129,21 @@ describe("sumup-provider", () => {
         },
       );
     });
+
+    test("maps EXPIRED to failed (lapsed checkout)", async () => {
+      await stageCheckout();
+      // SumUp hosted checkouts lapse after ~30 minutes. EXPIRED is terminal:
+      // mapping it to "failed" routes the redirect through the same
+      // discard-and-cancel-page path a declined card takes, so the staged
+      // details are removed the moment the checkout can no longer be paid.
+      await withFetched(
+        checkout({ status: "EXPIRED", transactionId: "" }),
+        async () => {
+          const result = await sumupPaymentProvider.retrieveSession("ref");
+          expect(result!.paymentStatus).toBe("failed");
+        },
+      );
+    });
   });
 
   describe("isPaymentRefunded", () => {

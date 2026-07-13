@@ -186,6 +186,14 @@ type StripeCheckoutLineItem = NonNullable<
   Stripe.Checkout.SessionCreateParams["line_items"]
 >[number];
 
+/** Every webhook endpoint on the account (one page — far more than any real
+ * account holds). Shared by the setup reconcile and the settings health check;
+ * each caller handles a failed list its own way. */
+const listWebhookEndpoints = async (
+  client: Stripe,
+): Promise<Stripe.WebhookEndpoint[]> =>
+  (await client.webhookEndpoints.list({ limit: 100 })).data;
+
 /**
  * Internal implementation of webhook endpoint setup.
  * Defined before stripeApi so it can be assigned directly.
@@ -198,13 +206,26 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   try {
     const client = await createStripeClient(secretKey);
 
-    // If we have an existing endpoint ID, try to delete it so we can recreate
-    // (update doesn't return the secret, so we need to recreate to get a fresh one)
-    if (existingEndpointId) {
+    // Recreate rather than update: an update never returns the secret, so a
+    // fresh endpoint is the only way to mint one. First remove every endpoint
+    // that would double-deliver: the recorded one (which may point at an OLD
+    // url after a domain change), plus any stray already on THIS url — left by
+    // a setup whose id was lost (e.g. a database restore). A stray's deliveries
+    // fail verification against the new secret on every event, forever.
+    const staleIds = new Set(existingEndpointId ? [existingEndpointId] : []);
+    try {
+      for (const endpoint of await listWebhookEndpoints(client)) {
+        if (endpoint.url === webhookUrl) staleIds.add(endpoint.id);
+      }
+    } catch {
+      // Listing is stray cleanup only: without it setup still deletes the
+      // recorded endpoint and creates the new one.
+    }
+    for (const staleId of staleIds) {
       try {
-        await client.webhookEndpoints.del(existingEndpointId);
+        await client.webhookEndpoints.del(staleId);
       } catch {
-        // Endpoint doesn't exist or can't be deleted, will create new one
+        // Endpoint already gone (or undeletable) — creating still proceeds.
       }
     }
 
@@ -413,8 +434,7 @@ export const stripeApi: {
     result.ownEndpointId = settings.stripe.webhookEndpointId;
 
     try {
-      const endpoints = await client.webhookEndpoints.list({ limit: 100 });
-      result.webhooks = endpoints.data.map((ep) => ({
+      result.webhooks = (await listWebhookEndpoints(client)).map((ep) => ({
         enabledEvents: ep.enabled_events,
         endpointId: ep.id,
         status: ep.status,

@@ -75,12 +75,28 @@ the operator UI. Server-side blocks exist; the UI still renders dead controls:
   (recorded in TODO.md — a deleted-listing booking row currently disappears
   from the table while its data stays intact).
 
-### #9 provider lifecycle
+### #9 provider lifecycle — resolved
 
-- Expire the remote provider session before a local discard.
-- Handle SumUp EXPIRED.
-- Reconcile existing Stripe webhook endpoints.
-- A queryable stage relation for operator visibility.
+- **Remote expiry on local discard: in place, and the order is deliberate.**
+  The cancel path discards locally FIRST (the discard's "no payment claimed
+  this session" guard is what makes closing the remote session safe), then
+  best-effort `expireCheckoutSession` (Stripe implements it). Every gap — a
+  failed expire, a provider with no expiry API, a pruned stage paid weeks
+  later (Square links never lapse) — lands on the designed no-stage
+  fresh-booking path. Reordering would lose the claim guard for no safety
+  gain, so this stays as is.
+- **SumUp EXPIRED: handled.** EXPIRED maps to the terminal `failed` status,
+  which the redirect/validate path answers with discard-the-staged-details +
+  the friendly cancel page (same as a declined card). Locked with a direct
+  provider-mapping test.
+- **Stripe webhook endpoints: reconciled on setup.** Setup now lists the
+  account's endpoints and removes every one on OUR webhook url (plus the
+  recorded id, which may point at an old url) before recreating — a stray
+  left by a lost-id setup (e.g. a database restore) would otherwise fail
+  verification on every delivery forever.
+- **Queryable stage relation: shipped with #8** (`pending_checkout` per-row
+  projection, `attendeeIdsWithPendingStage`, `listingHasPendingCheckout`,
+  `hasPendingCheckout`).
 
 ### #10 repo cleanup
 

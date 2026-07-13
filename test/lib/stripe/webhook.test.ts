@@ -61,6 +61,44 @@ const expectFetchThrowGivesStringError = async (
   }
 };
 
+/** A fetch handler standing in for Stripe's webhook-endpoint API: the list
+ * answers with one stray on OUR url (a setup whose id was lost) and one
+ * endpoint on another url (someone else's — must survive), DELETE records the
+ * removed id into `deleted`, and create answers with a fresh endpoint+secret. */
+const webhookEndpointsApi = (
+  webhookUrl: string,
+  deleted: string[],
+): ((url: string, init?: RequestInit) => Promise<Response> | null) => {
+  const list = {
+    data: [
+      { id: "we_stray", object: "webhook_endpoint", url: webhookUrl },
+      {
+        id: "we_other",
+        object: "webhook_endpoint",
+        url: "https://other.example/webhook",
+      },
+    ],
+    has_more: false,
+    object: "list",
+  };
+  const created = {
+    id: "we_new",
+    object: "webhook_endpoint",
+    secret: "whsec_new",
+    status: "enabled",
+    url: webhookUrl,
+  };
+  return (url, init) => {
+    if (!url.includes("/v1/webhook_endpoints")) return null;
+    const method = init?.method ?? "GET";
+    if (method === "DELETE") {
+      deleted.push(url.split("/").pop()!);
+      return Promise.resolve(Response.json({ deleted: true }));
+    }
+    return Promise.resolve(Response.json(method === "GET" ? list : created));
+  };
+};
+
 describeStripe("stripe", () => {
   describe("setupWebhookEndpointImpl", () => {
     // setupWebhookEndpointImpl creates its own client via createStripeClient(secretKey),
@@ -90,6 +128,31 @@ describeStripe("stripe", () => {
       // The API call goes through - deletion of non-existent endpoint is caught
       expect(result).toBeDefined();
       expect(typeof result.success).toBe("boolean");
+    });
+
+    test("removes the recorded endpoint and same-url strays before recreating", async () => {
+      const webhookUrl = "https://example.com/payment/webhook";
+      const deleted: string[] = [];
+      const result = await withFetchMock(async () => {
+        installUrlHandler(
+          globalThis.fetch,
+          webhookEndpointsApi(webhookUrl, deleted),
+        );
+        return await setupWebhookEndpoint(
+          "sk_test_mock",
+          webhookUrl,
+          "we_recorded",
+        );
+      });
+
+      expect(result).toEqual({
+        endpointId: "we_new",
+        secret: "whsec_new",
+        success: true,
+      });
+      // Both the recorded endpoint (possibly on an old url) and the same-url
+      // stray are removed — never the endpoint on another url.
+      expect(deleted.toSorted()).toEqual(["we_recorded", "we_stray"]);
     });
 
     test("succeeds when mocked via stripeApi", async () => {
