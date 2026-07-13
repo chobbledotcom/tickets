@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { flashConsumed, runWithFlashContext } from "#shared/flash-context.ts";
-import { ConfirmForm, Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms.tsx";
+import { ConfirmForm } from "#templates/components/save-form.tsx";
 
 describe("Flash", () => {
   // Rendering any banner must mark the request's flash consumed so the Layout

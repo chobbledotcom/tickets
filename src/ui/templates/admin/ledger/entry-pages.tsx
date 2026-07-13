@@ -1,6 +1,6 @@
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import { ConfirmForm, CsrfForm, hiddenInputs } from "#shared/forms.tsx";
+import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -17,6 +17,7 @@ import {
   type LedgerNames,
 } from "#templates/admin/ledger.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import { ConfirmForm } from "#templates/components/save-form.tsx";
 
 type LedgerEntryFormValues = {
   amount: string;
