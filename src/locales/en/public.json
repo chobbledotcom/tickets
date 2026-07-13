@@ -15,6 +15,7 @@
   "public.buy_now": "Buy now",
   "public.unavailable": "Unavailable",
   "public.currently_unavailable": "Currently Unavailable",
+  "public.checkout_unavailable": "Sorry, this can no longer be booked. It may have sold out or been taken off sale while you were booking.",
   "public.date_filter.label": "Have a date in mind? Check availability:",
   "public.date_filter.search": "Search",
   "public.date_filter.show_all": "Show all",

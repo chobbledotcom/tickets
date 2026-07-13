@@ -2,12 +2,16 @@
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { unique } from "#fp";
-import { orderBookings } from "#shared/booking-lines.ts";
+import { t } from "#i18n";
+import { type OrderBooking, orderBookings } from "#shared/booking-lines.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type { CreateAttendeeSuccess } from "#shared/db/attendee-types.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import {
+  checkBatchAvailability,
+  createAttendeeAtomic,
+} from "#shared/db/attendees/api.ts";
 import { DEPENDENT_ROW_TARGETS } from "#shared/db/attendees/delete.ts";
 import {
   execute,
@@ -27,6 +31,7 @@ import { nowIso } from "#shared/now.ts";
 import { toBookingItems } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
+  CheckoutSessionResult,
   PaymentProvider,
   PaymentProviderType,
 } from "#shared/payments.ts";
@@ -48,7 +53,12 @@ export type CheckoutStage = {
   ticketToken: string;
 };
 
-const stagedBookings = async (intent: CheckoutIntent) => {
+/** The order's real-quantity bookings from the signed intent — the single
+ * source both the availability preflight and the quantity-0 staging derive
+ * from, so what we check is exactly what we stage. */
+const orderedBookings = async (
+  intent: CheckoutIntent,
+): Promise<OrderBooking[]> => {
   const items = toBookingItems(intent);
   const listings = await getListingsWithCountsByIds(
     unique(items.map((item) => item.e)),
@@ -59,10 +69,37 @@ const stagedBookings = async (intent: CheckoutIntent) => {
     if (!listing) throw new Error(`Listing ${item.e} vanished before checkout`);
     return { item, listing };
   });
-  return orderBookings(lines, { ...intent, items }).map((booking) => ({
+  return orderBookings(lines, { ...intent, items });
+};
+
+const stagedBookings = async (
+  intent: CheckoutIntent,
+): Promise<OrderBooking[]> =>
+  (await orderedBookings(intent)).map((booking) => ({
     ...booking,
     quantity: 0,
   }));
+
+/** Refuse a checkout whose order provably can't be booked — no room for its real
+ * quantities, or a listing that's off sale — BEFORE the provider session is
+ * created, so the customer is told up front instead of paying and being
+ * refunded. The staged rows themselves claim nothing (quantity 0), so the
+ * authoritative capacity claim still runs at activation with the real
+ * quantities; this only stops a checkout that cannot succeed. Returns the error
+ * to show, or null when the order is bookable. */
+const stageableRefusal = async (
+  intent: CheckoutIntent,
+): Promise<{ error: string } | null> => {
+  const bookings = await orderedBookings(intent);
+  const available = await checkBatchAvailability(
+    bookings.map((booking) => ({
+      durationDays: booking.durationDays,
+      listingId: booking.listingId,
+      quantity: booking.quantity,
+    })),
+    intent.date,
+  );
+  return available ? null : { error: t("public.checkout_unavailable") };
 };
 
 const stageInsert = async (
@@ -121,16 +158,22 @@ export const stageCheckout = async (
   };
 };
 
-/** Create the provider session, then stage it before exposing the checkout URL. */
+/** Check the order is bookable, create the provider session, then stage it
+ * before exposing the checkout URL. The order is refused up front when its
+ * listings can't fit the real quantities or are off sale, so no unbookable order
+ * ever reaches the provider. Only NEW bookings run through here — a balance
+ * payment settles an existing booking and goes straight to the provider
+ * (`balance.ts`), never staging a fresh attendee — so this always validates and
+ * stages. */
 export const createStagedCheckout = async (
   provider: PaymentProvider,
   intent: CheckoutIntent,
   baseUrl: string,
-) => {
+): Promise<CheckoutSessionResult> => {
+  const refusal = await stageableRefusal(intent);
+  if (refusal) return refusal;
   const result = await provider.createCheckoutSession(intent, baseUrl);
-  if (!result || "error" in result || intent.balanceAttendeeId !== undefined) {
-    return result;
-  }
+  if (!result || "error" in result) return result;
   await stageCheckout(result.sessionId, provider.type, intent);
   return result;
 };

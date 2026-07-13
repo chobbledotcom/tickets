@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   attendeeIdsWithPendingStage,
@@ -30,6 +31,25 @@ const intentFor = (listing: { id: number; name: string; slug: string }) =>
       }),
     ],
   });
+
+/** Assert a checkout for `listing` is refused up front: the provider is stubbed
+ * to throw (so a checkout that reached it fails loudly with `reason`), the
+ * result is the unavailable error, and no stage was written. */
+const expectStagedCheckoutRefused = async (
+  listing: { id: number; name: string; slug: string },
+  reason: string,
+): Promise<void> => {
+  using _checkout = stub(stripePaymentProvider, "createCheckoutSession", () => {
+    throw new Error(`provider reached for ${reason}`);
+  });
+  const result = await createStagedCheckout(
+    stripePaymentProvider,
+    intentFor(listing),
+    "https://example.com",
+  );
+  expect(result).toEqual({ error: t("public.checkout_unavailable") });
+  expect(await listingHasPendingCheckout(listing.id)).toBe(false);
+};
 
 describeWithEnv("db > checkout stages", { db: true }, () => {
   test("fails loudly when the listing vanishes before local staging", async () => {
@@ -73,9 +93,11 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
       },
     );
 
-    // The quantity-0 stage claims nothing, so it writes regardless; the
-    // activation capacity check (which requires an active listing) is the
-    // gate, and its refusal refunds the customer rather than crashing here.
+    // The preflight sees the listing still active (deactivation happens inside
+    // the provider stub, after the check passes), so the checkout starts. The
+    // quantity-0 stage then claims nothing and writes regardless; the activation
+    // capacity check (which requires an active listing) is the gate, and its
+    // refusal refunds the customer rather than crashing here.
     await createStagedCheckout(
       stripePaymentProvider,
       intentFor(listing),
@@ -86,15 +108,15 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     );
   });
 
-  test("stages a checkout for an already-overbooked listing", async () => {
+  test("refuses a checkout for an already-overbooked listing", async () => {
     const listing = await createTestListing({
       maxAttendees: 1,
       unitPrice: 1000,
     });
-    // Admin overbooking is a supported state: two attendees on a one-spot
-    // listing (the second added the way an admin manual add does, with the
-    // overbook flag). Starting a checkout must still work — the staged rows
-    // claim nothing, and the post-payment activation is where capacity decides.
+    // Fill the one seat, then admin-overbook a second (a supported admin state,
+    // added the way a manual admin add does, with the overbook flag). A new
+    // public checkout for its real quantity (1) cannot fit, so it is refused up
+    // front — before the provider session — instead of after the customer pays.
     await createTestAttendeeDirect(listing.id, "First", "first@example.com");
     const overbooked = await createAttendeeAtomic({
       allowOverbook: true,
@@ -105,14 +127,19 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     });
     if (!overbooked.success) throw new Error("Expected admin overbook to save");
 
-    const stage = await stageCheckout(
-      "cs_stage_overbooked",
-      "stripe",
-      intentFor(listing),
-    );
-    expect(
-      (await getCheckoutStageOrNull("cs_stage_overbooked"))?.attendeeId,
-    ).toBe(stage.attendeeId);
+    await expectStagedCheckoutRefused(listing, "an unbookable order");
+  });
+
+  test("refuses a checkout for an off-sale listing", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    // Take the listing off sale before the customer starts paying. It has room,
+    // but an inactive listing can't be booked, so the checkout is refused up
+    // front rather than after payment.
+    await getDb().execute("UPDATE listings SET active = 0 WHERE id = ?", [
+      listing.id,
+    ]);
+
+    await expectStagedCheckoutRefused(listing, "an off-sale listing");
   });
 
   test("fails loudly when a staged ticket token is missing", async () => {
