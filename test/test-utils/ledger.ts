@@ -103,6 +103,35 @@ export const postListingSale = async ({
 };
 
 /**
+ * Post a payment leg with NO sale — the "held cash" a stage_active conflict
+ * leaves: world funds the attendee for `amount`, and with `gross` 0 mapBooking
+ * drops the sale leg, so the attendee account ends with a positive balance
+ * (cash we hold but never applied to a booking). Used to set up the state the
+ * no-quantity guard must refuse to strand.
+ */
+export const postHeldPayment = async ({
+  listingId,
+  attendeeId,
+  amount,
+  eventId = `held-${listingId}-${attendeeId}`,
+}: {
+  listingId: number;
+  attendeeId: number;
+  amount: number;
+  eventId?: string;
+}): Promise<void> => {
+  await postTransfers(
+    await oneListingBookingLegs({
+      amountPaid: amount,
+      attendeeId,
+      eventId,
+      gross: 0,
+      listingId,
+    }),
+  );
+};
+
+/**
  * Post a booking whose only money is one modifier leg, so `balanceOf(modifier:M)`
  * — which a modifier's projected `total_revenue` reads directly — reflects that
  * modifier's net effect. `delta` is the modifier's signed amount: positive bills

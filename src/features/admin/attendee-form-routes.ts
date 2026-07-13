@@ -65,7 +65,10 @@ import {
   createAttendeeAtomic,
 } from "#shared/db/attendees/api.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { hasPaidLine } from "#shared/db/attendees/queries.ts";
+import {
+  attendeeHoldsUnreturnedCash,
+  hasPaidLine,
+} from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
 import { hasPendingCheckout } from "#shared/db/checkout-stages.ts";
@@ -420,6 +423,17 @@ const applyEdit = async (
   // Block marking a paid line no-quantity, even when a stale form key hid the
   // existing booking from the per-line model guard.
   if (await anyNoQuantityLineMatches(attendeeId, parsed.lines, hasPaidLine)) {
+    return { ok: false, saveError: t("attendee_form.error_paid_no_qty") };
+  }
+  // Block removing the last active line while the attendee still holds provider
+  // cash that was never applied to a sale (a stage_active conflict's held
+  // payment). That cash has no sale leg, so the price_paid and hasPaidLine
+  // guards above miss it — but the in-app refund needs an active booking line,
+  // so marking the line no-quantity would strand it. Refund it first.
+  if (
+    parsed.lines.some(isNoQuantityLine) &&
+    (await attendeeHoldsUnreturnedCash(attendeeId))
+  ) {
     return { ok: false, saveError: t("attendee_form.error_paid_no_qty") };
   }
 

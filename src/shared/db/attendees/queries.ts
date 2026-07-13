@@ -4,7 +4,11 @@
 
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
-import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
+import { ATTENDEE } from "#shared/accounting/accounts.ts";
+import {
+  accountBalanceSubquery,
+  saleLegPredicate,
+} from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
@@ -352,6 +356,27 @@ export const hasPaidLine = rowExistsForIdList(
          )}
        ) LIMIT 1`,
 );
+
+/**
+ * True when the attendee holds provider cash the ledger has not returned or
+ * applied to a sale — a POSITIVE account balance (money paid in, nothing owed
+ * against it). The only source is a stage_active conflict's held `payment` leg
+ * (a charge the operator must reconcile), which posts no `sale`, so
+ * {@link hasPaidLine} (sale-scoped) and the price_paid guard (0 without a sale)
+ * both miss it. Read from the live ledger, no decryption. A fully-paid booking
+ * nets to 0, a deposit is negative (owed), and a refunded record nets back to 0,
+ * so none of them read as held cash.
+ */
+export const attendeeHoldsUnreturnedCash = (
+  attendeeId: number,
+): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM attendees AS attendee
+      WHERE attendee.id = ?
+        AND ${accountBalanceSubquery(ATTENDEE, "attendee.id")} > 0
+      LIMIT 1`,
+    [attendeeId],
+  );
 
 /**
  * The id of the attendee whose booking owns this ledger event group, or null

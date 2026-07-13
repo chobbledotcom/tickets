@@ -12,7 +12,7 @@ import {
   createTestAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
+import { postHeldPayment, postListingSale } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -256,6 +256,34 @@ describeWithEnv(
         // The paid line is untouched (not dropped/replaced by a ghost).
         expect(await readLine(attendeeId, listing.id)).toMatchObject({
           price_paid: 1500,
+          quantity: 1,
+        });
+      });
+
+      test("blocks no-quantity while the attendee holds unreturned conflict cash", async () => {
+        const listing = await createTestListing({ maxAttendees: 50 });
+        const attendee = await createTestAttendee(
+          listing.id,
+          listing.slug,
+          "Held",
+          "held@example.com",
+        );
+        // A stage_active conflict's held payment: cash received, NO sale leg, so
+        // price_paid is 0 and hasPaidLine sees nothing — yet the money is ours to
+        // return. Marking the only line no-quantity would remove the refund path.
+        await postHeldPayment({
+          amount: 1000,
+          attendeeId: attendee.id,
+          listingId: listing.id,
+        });
+
+        const response = await markNoQuantity(attendee.id, listing.id, "Held");
+
+        const html = await expectHtmlResponse(response, 200);
+        expect(html).toContain("Refund this booking's payment");
+        // The line is untouched, so the in-app refund path (which needs an
+        // active booking line) still reaches the held cash.
+        expect(await readLine(attendee.id, listing.id)).toMatchObject({
           quantity: 1,
         });
       });
