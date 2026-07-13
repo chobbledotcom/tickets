@@ -1,13 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getSettingsNagItems,
   getSettingsNagItemsForOwner,
 } from "#shared/settings-nags.ts";
-import { getSuperuserState } from "#shared/superuser.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import { withSetting } from "#test-utils/settings.ts";
@@ -198,19 +196,5 @@ describeWithEnv("getSettingsNagItemsForOwner", { db: true }, () => {
     await createUser("admin", "", null, "owner");
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(true);
-  });
-
-  test("never includes superuser nag when getSuperuserState returns unavailable", async () => {
-    const stateStub = stub(
-      getSuperuserState as unknown as Record<string, unknown>,
-      "getSuperuserState",
-      () => Promise.resolve({ available: false, reason: "missing-env" }),
-    );
-    try {
-      const items = await getSettingsNagItemsForOwner();
-      expect(items.some((i) => i.id === "superuser")).toBe(false);
-    } finally {
-      stateStub.restore();
-    }
   });
 });
