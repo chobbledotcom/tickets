@@ -41,6 +41,29 @@ const setLatestRelease = async (tag: string): Promise<void> => {
   await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
+/** Per-test scaffolding shared by the loadBuiltSiteUpdateState describes: a
+ *  restorable createClient stub, its afterEach cleanup, and stubbers that
+ *  point the site-db factory at a seeded client (or a throwing factory). Call
+ *  inside a describe so the hook registers on that suite. */
+const useStubbedSiteDb = (): {
+  stubSiteDb: (client: Client) => void;
+  stubSiteDbFactory: (factory: () => Client) => void;
+} => {
+  let createStub: Stub | null = null;
+  afterEach(() => {
+    createStub?.restore();
+    createStub = null;
+    settings.clearTestOverrides();
+  });
+  const stubSiteDbFactory = (factory: () => Client): void => {
+    createStub = stub(siteDbApi, "createClient", factory);
+  };
+  return {
+    stubSiteDb: (client) => stubSiteDbFactory(() => client),
+    stubSiteDbFactory,
+  };
+};
+
 describeWithEnv(
   "loadBuiltSiteUpdateState",
   { db: true, env: { BUNNY_API_KEY: "host-key" } },

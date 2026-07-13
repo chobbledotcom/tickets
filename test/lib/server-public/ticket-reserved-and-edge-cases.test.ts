@@ -280,13 +280,8 @@ describeWithEnv(
           },
         );
 
-        expectReservedRedirectWithTokens(response);
-
         // Verify attendees created for both listings
-        await expectAttendeeCounts([
-          { count: 1, listingId: listing1.id, quantity: 2 },
-          { count: 1, listingId: listing2.id, quantity: 1 },
-        ]);
+        await expectBothReservedAtTwoAndOne(response, listing1, listing2);
       });
     });
 

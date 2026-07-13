@@ -5,7 +5,6 @@ import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -20,6 +19,7 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
+import { fillSoldOutListing } from "./_shared-setup.ts";
 
 // jscpd:ignore-end
 

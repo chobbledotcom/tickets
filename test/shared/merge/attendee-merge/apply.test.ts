@@ -334,18 +334,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // posted to the attendee account, the `credited++` counter, and the
       // `delta: amount` sign — the kill for every line-specific mutant between
       // `let credited = 0` and `credited++`.
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const target = await createAttendee(listing.id, "Alice", "a@test.com");
-      const source = await createAttendee(listing.id, "Bob", "b@test.com");
-      await postPaidSale({
-        attendeeId: source.id,
-        eventGroup: "credit-grp",
-        listingId: listing.id,
-      });
-      await getDb().execute({
-        args: ["credit-grp", source.id, listing.id],
-        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
-      });
+      const { listing, source, target } =
+        await paidSourceConflict("credit-grp");
 
       const sourcePii = pii("Bob", "b@test.com");
       const targetPii = pii("Alice", "a@test.com");
@@ -601,19 +591,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // minor-unit) discarded booking — posting no reversal leg and keeping
       // the writtenOff counter at 0. A boundary-value £0.01 conflict is
       // what distinguishes `<= 0` from `<= 1`.
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const target = await createAttendee(listing.id, "Alice", "a@test.com");
-      const source = await createAttendee(listing.id, "Bob", "b@test.com");
-      await postPaidSale({
-        amount: 1,
-        attendeeId: source.id,
-        eventGroup: "evt-1p",
-        listingId: listing.id,
-      });
-      await getDb().execute({
-        args: ["evt-1p", source.id, listing.id],
-        sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
-      });
+      const { listing, source, target } = await paidSourceConflict("evt-1p", 1);
 
       const key = bookingKey(listing.id, null, 0, 0);
       const { result } = await runMerge({

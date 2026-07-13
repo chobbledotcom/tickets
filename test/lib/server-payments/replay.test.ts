@@ -19,6 +19,7 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
+import { fillSoldOutListing } from "./_shared-setup.ts";
 
 // jscpd:ignore-end
 
