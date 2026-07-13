@@ -1,17 +1,16 @@
 import { t } from "#i18n";
 import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
-import {
-  booleanToCheckbox,
-  CsrfForm,
-  Flash,
-  renderFields,
-} from "#shared/forms.tsx";
+import { booleanToCheckbox, CsrfForm, renderFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SiteSecretsView } from "#shared/site-secrets.ts";
 import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 /* jscpd:ignore-start */
-import { AdminPage, errorAdminPage } from "#templates/admin/admin-page.tsx";
+import {
+  errorAdminPage,
+  FormHeader,
+  renderAdminPage,
+} from "#templates/admin/admin-page.tsx";
 /* jscpd:ignore-end */
 import {
   BuiltSitesGuideFooter,
@@ -100,15 +99,17 @@ export const adminBuiltSiteEditPage = (
   secretsView?: SiteSecretsView,
   updateState?: BuiltSiteUpdateState,
 ): string =>
-  String(
-    <AdminPage
-      active="/admin/built-sites"
-      session={session}
-      title={t("built_sites.edit_site_title")}
-    >
+  renderAdminPage(
+    "/admin/built-sites",
+    session,
+    t("built_sites.edit_site_title"),
+    <>
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
-        <h1>{t("built_sites.edit_site_title")}</h1>
-        <Flash error={error} success={success} />
+        <FormHeader
+          error={error}
+          success={success}
+          title={t("built_sites.edit_site_title")}
+        />
         <Raw
           html={renderFields(
             getBuiltSiteFields(),
@@ -141,7 +142,7 @@ export const adminBuiltSiteEditPage = (
           {t("built_sites.delete_this_site")}
         </ActionButton>
       </p>
-    </AdminPage>,
+    </>,
   );
 
 export const adminBuiltSiteDeletePage = (

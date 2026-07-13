@@ -105,15 +105,32 @@ export const adminFormPage = ({
   success?: string | undefined;
   children: Child;
 }): string =>
-  String(
-    <AdminPage active={active} session={session} title={title}>
-      <CsrfForm action={action}>
-        <h1>{title}</h1>
-        <Flash error={error} success={success} />
-        {children}
-      </CsrfForm>
-    </AdminPage>,
+  renderAdminPage(
+    active,
+    session,
+    title,
+    <CsrfForm action={action}>
+      <FormHeader error={error} success={success} title={title} />
+      {children}
+    </CsrfForm>,
   );
+
+/** The `<h1>` heading plus error/success Flash notice that opens most admin
+ *  forms. Shared so the heading-then-flash pair is authored once. */
+export const FormHeader = ({
+  title,
+  error,
+  success,
+}: {
+  title: string;
+  error?: string | undefined;
+  success?: string | undefined;
+}): JSX.Element => (
+  <>
+    <h1>{title}</h1>
+    <Flash error={error} success={success} />
+  </>
+);
 
 /** Build the props for an optional error/success Flash notice. The dashboards
  *  and landing pages share the
