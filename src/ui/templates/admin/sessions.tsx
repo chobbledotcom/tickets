@@ -6,11 +6,11 @@
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession, Session } from "#shared/types.ts";
 import { successAdminPage } from "#templates/admin/admin-page.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable, textCol } from "#templates/components/data-table.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -70,11 +70,15 @@ export const adminSessionsPage = (
         <>
           <br />
 
-          <CsrfForm action="/admin/sessions" class="one-button">
-            <SubmitButton class="danger" icon="log-out">
-              {t("sessions.logout_others", { count: otherSessionCount })}
-            </SubmitButton>
-          </CsrfForm>
+          <SaveForm
+            action="/admin/sessions"
+            class="one-button"
+            submitClass="danger"
+            submitIcon="log-out"
+            submitLabel={t("sessions.logout_others", {
+              count: otherSessionCount,
+            })}
+          />
         </>
       )}
 

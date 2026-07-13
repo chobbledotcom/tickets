@@ -24,6 +24,10 @@ describeWithEnv("shared > session private key", { db: true }, () => {
     );
   });
 
+  test("SessionKeyError reports its own name, not the generic Error", () => {
+    expect(new SessionKeyError().name).toBe("SessionKeyError");
+  });
+
   test("resolves the current request's key, which decrypts owner-key data", async () => {
     const sealed = await encryptWithOwnerKey("top secret", settings.publicKey);
 

@@ -9,6 +9,7 @@ import { DomainPaymentWebhookWarning } from "#templates/admin/settings/domain-pa
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
 /* jscpd:ignore-end */
 
@@ -44,9 +45,11 @@ export const CustomDomainForm = (
       </CsrfForm>
 
       {s.customDomain && (
-        <CsrfForm
+        <SaveForm
           action="/admin/settings/custom-domain/validate"
           id="settings-custom-domain-validate"
+          submitIcon="check"
+          submitLabel={t("settings.advanced.validate_custom_domain")}
         >
           {!s.customDomainLastValidated && (
             <article>
@@ -87,10 +90,7 @@ export const CustomDomainForm = (
               <small>Last validated: {s.customDomainLastValidated}</small>
             </p>
           )}
-          <SubmitButton icon="check">
-            {t("settings.advanced.validate_custom_domain")}
-          </SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       )}
     </PageBlock>
   ) : null;

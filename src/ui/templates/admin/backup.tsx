@@ -4,14 +4,14 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 export type BackupEntry = {
@@ -92,15 +92,13 @@ export const adminBackupPage = flashDataPage<BackupPageState>(
               <h2>{t("backup.create_backup_heading")}</h2>
               <p>{t("backup.create_backup_description")}</p>
             </div>
-            <CsrfForm
+            <SaveForm
               action="/admin/backup/create"
               class="no-bg"
               id="backup-create"
-            >
-              <SubmitButton icon="plus">
-                {t("backup.create_button")}
-              </SubmitButton>
-            </CsrfForm>
+              submitIcon="plus"
+              submitLabel={t("backup.create_button")}
+            />
           </section>
 
           <section>
@@ -142,19 +140,18 @@ export const adminBackupPage = flashDataPage<BackupPageState>(
                 <Raw html={t("backup.restore_warning")} />
               </p>
             </div>
-            <CsrfForm
+            <SaveForm
               action="/admin/backup/restore"
               enctype="multipart/form-data"
               id="backup-restore"
+              submitIcon="rotate-ccw"
+              submitLabel={t("backup.upload_button")}
             >
               <label>
                 {t("backup.backup_file_label")}
                 <input accept=".zip" name="backup_file" required type="file" />
               </label>
-              <SubmitButton icon="rotate-ccw">
-                {t("backup.upload_button")}
-              </SubmitButton>
-            </CsrfForm>
+            </SaveForm>
           </section>
         </>
       )}

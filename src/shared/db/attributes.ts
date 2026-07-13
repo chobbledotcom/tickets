@@ -6,7 +6,16 @@
  */
 
 /* jscpd:ignore-start */
-import { filter, map, mapParallel, reduce, sort, unique, uniqueBy } from "#fp";
+import {
+  filter,
+  groupToMap,
+  map,
+  mapParallel,
+  reduce,
+  sort,
+  unique,
+  uniqueBy,
+} from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
@@ -174,18 +183,6 @@ const decryptAttributeRows = async (
 
 const known = <T>(items: Map<number, T>, id: number): T => items.get(id)!;
 
-/** Group rows into a Map keyed by `key(row)`, keeping one `value(row)` per
- * row in query order — the shared shape behind every "rows → id-keyed lists"
- * read in this module. */
-const groupRows =
-  <R, V>(key: (row: R) => number, value: (row: R) => V) =>
-  (rows: R[]): Map<number, V[]> =>
-    reduce((acc: Map<number, V[]>, row: R) => {
-      const values = acc.get(key(row)) ?? [];
-      values.push(value(row));
-      return acc.set(key(row), values);
-    }, new Map<number, V[]>())(rows);
-
 const buildAttributeGroups = (
   rows: JoinedAttributeRow[],
   decrypted: DecryptedAttributeRows,
@@ -296,7 +293,7 @@ export const getAttributeListingUse = async (
     (a: OptionListingRow, b: OptionListingRow) => a.listing_id - b.listing_id,
   )(uniqueBy((row: OptionListingRow) => row.listing_id)(rows));
   return {
-    listingIdsByOption: groupRows(
+    listingIdsByOption: groupToMap(
       (row: OptionListingRow) => row.option_id,
       (row) => row.listing_id,
     )(rows),
@@ -366,8 +363,9 @@ const selectedOptionRows = (
         listingIds,
       );
 
-const selectedRowsForListing = groupRows<
+const selectedRowsForListing = groupToMap<
   SelectedAttributeRow,
+  number,
   JoinedAttributeRow
 >(
   (row) => row.listing_id,

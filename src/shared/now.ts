@@ -18,6 +18,13 @@ export const nowMs = (): number => Date.now();
 /** Current time in whole epoch seconds — the unit signed-token expiry uses. */
 export const nowSeconds = (): number => Math.floor(nowMs() / 1000);
 
+/**
+ * Epoch seconds `maxAgeSeconds` from now — the expiry (`e`) that signed tokens
+ * carry, kept in one place so every builder computes it the same way.
+ */
+export const expiresIn = (maxAgeSeconds: number): number =>
+  nowSeconds() + maxAgeSeconds;
+
 /** Resolve after `ms` milliseconds — for retry backoff and similar waits. */
 export const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));

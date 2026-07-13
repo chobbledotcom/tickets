@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { renderFields } from "#shared/forms.tsx";
 import type {
   AdminLevel,
   AdminSession,
@@ -21,7 +21,6 @@ import {
   ActionButton,
   DeleteSection,
   GuideFooter,
-  SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
@@ -31,6 +30,7 @@ import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { getInviteUserFields } from "#templates/fields/admin.ts";
 /* jscpd:ignore-end */
 
@@ -272,10 +272,12 @@ export const adminUserAgentsPage: AssignmentEditPage<
           </em>
         </p>
       ) : (
-        <CsrfForm action={`/admin/users/${user.id}/agents`}>
+        <SaveForm
+          action={`/admin/users/${user.id}/agents`}
+          submitLabel={t("users.agents.save")}
+        >
           <AgentSelector agents={agents} selected={selectedIds} />
-          <SubmitButton icon="save">{t("users.agents.save")}</SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       )}
     </>,
   );

@@ -7,7 +7,7 @@
  */
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute } from "#shared/db/client.ts";
+import { rowExists } from "#shared/db/client.ts";
 import type { SitePageItemType } from "#shared/types.ts";
 
 /** The slug-owning tables (plural form, one per {@link SitePageItemType}). */
@@ -47,6 +47,5 @@ export const isSlugTakenAnywhere = async (
       args.push(slugIndex);
     }
   }
-  const result = await execute(`SELECT 1 WHERE ${clauses.join(" OR ")}`, args);
-  return result.rows.length > 0;
+  return rowExists(`SELECT 1 WHERE ${clauses.join(" OR ")}`, args);
 };

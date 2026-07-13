@@ -1,4 +1,5 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
+import { planReorder } from "#shared/reorder.ts";
 /**
  * Admin routes for managing attendee statuses (owner-only).
  *
@@ -232,13 +233,12 @@ const deletePost = ownerFormById(async (id, _session, form) => {
 });
 
 /** Factory for move-up / move-down handlers (swap with the ordered neighbour). */
-const moveHandler = (direction: -1 | 1) =>
+const moveHandler = (dir: "up" | "down") =>
   ownerFormById(async (id) => {
-    const all = await attendeeStatuses.getAll();
-    const idx = all.findIndex((s) => s.id === id);
-    if (idx === -1) return notFoundResponse();
-    const neighbor = all[idx + direction];
-    if (neighbor) await swapAttendeeStatusOrder(id, neighbor.id);
+    const ids = (await attendeeStatuses.getAll()).map((s) => s.id);
+    if (!ids.includes(id)) return notFoundResponse();
+    const pair = planReorder(ids, id, dir);
+    if (pair) await swapAttendeeStatusOrder(pair[0], pair[1]);
     return redirect(LIST_PATH, "Status moved", true);
   });
 
@@ -250,6 +250,6 @@ export const adminHandlers = handlersFor("settingsStatuses")({
   postSettingsStatuses: createPost,
   postSettingsStatusesByIdDelete: deletePost,
   postSettingsStatusesByIdEdit: editPost,
-  postSettingsStatusesByIdMoveDown: moveHandler(1),
-  postSettingsStatusesByIdMoveUp: moveHandler(-1),
+  postSettingsStatusesByIdMoveDown: moveHandler("down"),
+  postSettingsStatusesByIdMoveUp: moveHandler("up"),
 });

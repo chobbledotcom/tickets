@@ -6,10 +6,10 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 export const adminCatalogImportPage = flashFormPage(
@@ -20,10 +20,11 @@ export const adminCatalogImportPage = flashFormPage(
       <ProseHeading heading={t("catalog_transfer.heading")}>
         <p>{t("catalog_transfer.description")}</p>
       </ProseHeading>
-      <CsrfForm
+      <SaveForm
         action="/admin/catalog/import"
         enctype="multipart/form-data"
         id="catalog-import"
+        submitLabel={t("catalog_transfer.upload_button")}
       >
         <label>
           {t("catalog_transfer.file_label")}
@@ -34,10 +35,7 @@ export const adminCatalogImportPage = flashFormPage(
             type="file"
           />
         </label>
-        <SubmitButton icon="save">
-          {t("catalog_transfer.upload_button")}
-        </SubmitButton>
-      </CsrfForm>
+      </SaveForm>
 
       <GuideFooter
         adminLevel={session.adminLevel}

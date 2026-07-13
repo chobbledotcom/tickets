@@ -1,6 +1,6 @@
 import { afterEach, beforeAll } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { attendeeNameMap } from "#shared/db/system-notes.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
@@ -50,7 +50,7 @@ export const renderListingDetail = (
       // The Overview now takes precomputed stats + note-author names instead of
       // the raw attendee list; derive them from the fixture's attendees so these
       // tests exercise the same rendered output the SQL path produces.
-      noteNames: attendeeNameMap(opts.attendees),
+      noteNames: idNameMap(opts.attendees),
       questionData: opts.questionData,
       stats: overviewStatsFromAttendees(
         opts.listing,

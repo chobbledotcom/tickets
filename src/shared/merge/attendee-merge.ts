@@ -6,7 +6,7 @@
  * 2. applyAttendeeMerge: apply explicit decisions from the admin
  */
 
-import { filter, map, mapParallel, reduce } from "#fp";
+import { filter, map, mapById, mapParallel, reduce } from "#fp";
 import {
   attendeeAccount,
   revenueAccount,
@@ -237,8 +237,9 @@ const buildAnswerDiffItems = (
   for (const [qid] of sourceAnswers) relevantQuestionIds.add(qid);
 
   // Build lookup for question text from the provided questions
-  const questionTextMap = new Map<number, string>();
-  for (const q of questions) questionTextMap.set(q.id, q.text);
+  const questionTextMap = mapById((q: QuestionWithAnswers) => q.text)(
+    questions,
+  );
 
   return reduce((acc: AttendeeMergeDiffAnswerItem[], qid: number) => {
     const ta = targetAnswers.get(qid) ?? null;

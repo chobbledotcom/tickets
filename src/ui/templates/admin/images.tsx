@@ -25,7 +25,6 @@ import {
   GuideFooter,
   type IconName,
   SaveChangesButton,
-  SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
   type DataColumn,
@@ -35,6 +34,7 @@ import {
   type LinkedItemGroup,
   LinkedItemsCheckboxes,
 } from "#templates/components/linked-items.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 // jscpd:ignore-end
 
 export type ImageItemOption = {
@@ -152,12 +152,16 @@ const imageUploadForm = (
   icon: IconName,
   label: string,
 ): JSX.Element => (
-  <CsrfForm action={action} enctype="multipart/form-data">
+  <SaveForm
+    action={action}
+    enctype="multipart/form-data"
+    submitIcon={icon}
+    submitLabel={label}
+  >
     <Raw
       html={renderFields([...imageFields(), imageUploadField()], imageValue())}
     />
-    <SubmitButton icon={icon}>{label}</SubmitButton>
-  </CsrfForm>
+  </SaveForm>
 );
 
 export const adminImagesPage = (

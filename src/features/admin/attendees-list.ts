@@ -28,10 +28,8 @@ import {
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  attendeeNameMap,
-  loadNotesForAttendees,
-} from "#shared/db/system-notes.ts";
+import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 import {
   type ListingFilter,
   listingCategory,
@@ -145,7 +143,7 @@ export const handleAttendeesListGet: TypedRouteHandler<
         hasNext,
         listingId,
         listings,
-        names: attendeeNameMap(decrypted),
+        names: idNameMap(decrypted),
         page,
         phonePrefix: settings.phonePrefix,
         rows: built,

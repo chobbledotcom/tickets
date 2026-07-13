@@ -4,10 +4,9 @@
 
 import { t } from "#i18n";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { MaskedInput } from "#templates/components/masked-input.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
@@ -59,11 +58,13 @@ export const EmailNotificationsForm = (
       />
     </SettingsSection>
     {s.emailProvider && (
-      <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
-        <SubmitButton class="secondary" icon="arrow-right">
-          {t("settings.advanced.send_test_email")}
-        </SubmitButton>
-      </CsrfForm>
+      <SaveForm
+        action="/admin/settings/email/test"
+        id="settings-email-test"
+        submitClass="secondary"
+        submitIcon="arrow-right"
+        submitLabel={t("settings.advanced.send_test_email")}
+      />
     )}
   </>
 );

@@ -16,10 +16,10 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
-  execute,
   executeBatch,
   queryAll,
   queryOne,
+  rowExists,
 } from "#shared/db/client.ts";
 // jscpd:ignore-end
 import {
@@ -93,16 +93,12 @@ export const isNewsSlugTaken = async (
   excludeId?: number,
 ): Promise<boolean> => {
   const slugIndex = await computeNewsSlugIndex(slug);
-  const result =
-    excludeId === undefined
-      ? await execute("SELECT 1 FROM news_posts WHERE slug_index = ? LIMIT 1", [
-          slugIndex,
-        ])
-      : await execute(
-          "SELECT 1 FROM news_posts WHERE slug_index = ? AND id != ? LIMIT 1",
-          [slugIndex, excludeId],
-        );
-  return result.rows.length > 0;
+  const excludeClause = excludeId === undefined ? "" : " AND id != ?";
+  const args = excludeId === undefined ? [slugIndex] : [slugIndex, excludeId];
+  return rowExists(
+    `SELECT 1 FROM news_posts WHERE slug_index = ?${excludeClause} LIMIT 1`,
+    args,
+  );
 };
 
 // The existence probe every public page's nav runs: one indexed LIMIT 1 read,

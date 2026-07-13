@@ -2,6 +2,7 @@
  * Atomic attendee creation across one or more listing bookings.
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { bookingLegBatchInsert } from "#shared/accounting/rows.ts";
 import { assertPostable } from "#shared/accounting/store.ts";
@@ -49,12 +50,14 @@ import {
 import { batchFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { bestEffort } from "#shared/logger.ts";
+import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   type Attendee,
   type ContactInfo,
   normalizeDurationDays,
 } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /**
  * Enforce all-or-nothing semantics on a (greedy) create result.
@@ -220,7 +223,7 @@ export type LedgerPoster = (tx: TxScope, attendeeId: number) => Promise<void>;
 
 /** Thrown to roll the transaction back when no booking could be created (the
  *  ledger-posting path has no final cleanup DELETE; it just rolls back). */
-class NoBookingsCreated extends Error {}
+class NoBookingsCreated extends namedError("NoBookingsCreated") {}
 
 /** Remove the just-inserted attendee when none of its capacity-checked booking
  *  inserts landed a row (the batch path's all-failed cleanup). */

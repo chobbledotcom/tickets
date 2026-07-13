@@ -1,4 +1,5 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
+import { namedError } from "#shared/named-error.ts";
 /**
  * Admin backup/restore routes — owner only
  *
@@ -57,7 +58,7 @@ const RESTORE_PENDING_PREFIX = "restore-pending-";
 /** Thrown by the restore execute block so onError can send post-reset failures
  *  (sessions and settings wiped) to /setup/, while pre-restore validation errors
  *  (DB intact) stay on /admin/backup. */
-class PostResetRestoreError extends Error {}
+class PostResetRestoreError extends namedError("PostResetRestoreError") {}
 
 /** A full git commit SHA (40 lowercase hex) — what restore-deploy requires and
  *  the only shape we echo back from restored (possibly untrusted) settings. */

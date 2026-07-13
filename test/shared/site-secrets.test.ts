@@ -259,17 +259,21 @@ describeWithEnv(
   },
 );
 
-describeWithEnv("loadSiteSecretsStatus without an API key", { env: {} }, () => {
-  test("refuses when BUNNY_API_KEY is not configured", async () => {
-    const view = await loadSiteSecretsStatus(buildSite());
-    expect(view.ok).toBe(false);
-    if (!view.ok) expect(view.error).toContain("BUNNY_API_KEY");
-  });
-});
+describeWithEnv(
+  "loadSiteSecretsStatus without an API key",
+  { env: { BUNNY_API_KEY: undefined } },
+  () => {
+    test("refuses when BUNNY_API_KEY is not configured", async () => {
+      const view = await loadSiteSecretsStatus(buildSite());
+      expect(view.ok).toBe(false);
+      if (!view.ok) expect(view.error).toContain("BUNNY_API_KEY");
+    });
+  },
+);
 
 describeWithEnv(
   "loadSiteSecretsStatus (Deno site, no token)",
-  { env: {} },
+  { env: { DENO_DEPLOY_TOKEN: undefined } },
   () => {
     test("refuses when DENO_DEPLOY_TOKEN is not configured", async () => {
       const view = await loadSiteSecretsStatus(

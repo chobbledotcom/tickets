@@ -10,7 +10,7 @@
  */
 
 import { defineSignedToken } from "#shared/crypto/define-signed-token.ts";
-import { nowMs } from "#shared/now.ts";
+import { expiresIn } from "#shared/now.ts";
 
 /** QR token expiry in seconds from generation */
 export const QR_TOKEN_MAX_AGE_S = 300;
@@ -58,7 +58,7 @@ export const buildQrBookPayload = (input: {
   const maxAge = input.maxAgeSeconds ?? QR_TOKEN_MAX_AGE_S;
   return {
     d: input.date ?? "",
-    e: Math.floor(nowMs() / 1000) + maxAge,
+    e: expiresIn(maxAge),
     n: input.name ?? "",
     q: input.quantity ?? 1,
     v: input.value ?? -1,

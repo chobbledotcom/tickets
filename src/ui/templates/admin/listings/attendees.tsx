@@ -22,9 +22,9 @@ import type {
   AttendeeTableRow,
   TableQuestionData,
 } from "#templates/attendee-table.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { quantityHeader } from "#templates/components/header-row.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { TableScroll } from "#templates/components/table-scroll.tsx";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
@@ -296,7 +296,11 @@ export const AddAttendeeSection = ({
         })}
       </p>
     )}
-    <CsrfForm action={`/admin/listing/${listing.id}/attendee`}>
+    <SaveForm
+      action={`/admin/listing/${listing.id}/attendee`}
+      submitIcon="plus"
+      submitLabel={t("listings_table.add_attendee")}
+    >
       <Raw
         html={renderFields(
           getAddAttendeeFields(
@@ -308,10 +312,7 @@ export const AddAttendeeSection = ({
           ),
         )}
       />
-      <SubmitButton icon="plus">
-        {t("listings_table.add_attendee")}
-      </SubmitButton>
-    </CsrfForm>
+    </SaveForm>
   </article>
 );
 

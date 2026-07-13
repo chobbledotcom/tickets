@@ -3,10 +3,9 @@
  */
 
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { staffAdminPage } from "#templates/admin/admin-page.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 
 export const adminLogoutPage = (session: AdminSession): string =>
   staffAdminPage({
@@ -15,11 +14,13 @@ export const adminLogoutPage = (session: AdminSession): string =>
       <section aria-labelledby="logout-confirm-heading">
         <h2 id="logout-confirm-heading">{t("logout.confirm_heading")}</h2>
         <p>{t("logout.confirm_body")}</p>
-        <CsrfForm action="/admin/logout" class="one-button">
-          <SubmitButton class="secondary" icon="log-out">
-            {t("nav.logout")}
-          </SubmitButton>
-        </CsrfForm>
+        <SaveForm
+          action="/admin/logout"
+          class="one-button"
+          submitClass="secondary"
+          submitIcon="log-out"
+          submitLabel={t("nav.logout")}
+        />
       </section>
     ),
     session,

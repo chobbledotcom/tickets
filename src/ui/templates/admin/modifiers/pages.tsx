@@ -22,9 +22,9 @@ import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
 import {
   GuideFooter,
   SaveChangesButton,
-  SubmitButton,
 } from "#templates/components/actions.tsx";
 import { CollectionTable } from "#templates/components/data-table.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { getModifierFields } from "#templates/fields/modifier.ts";
 import {
   ModifierRunningTotalsSection,
@@ -129,11 +129,14 @@ export const adminModifierNewPage = flashFormPage(
   "/admin/modifiers/new",
   () => (
     <>
-      <CsrfForm action="/admin/modifiers">
+      <SaveForm
+        action="/admin/modifiers"
+        submitIcon="plus"
+        submitLabel={t("modifiers.add.submit")}
+      >
         <h1>{t("modifiers.add.heading")}</h1>
         <Raw html={renderModifierFormFields()} />
-        <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
-      </CsrfForm>
+      </SaveForm>
       <ModifiersGuideFooter />
     </>
   ),

@@ -13,7 +13,7 @@ import type {
   AnswerAggregateRecalculation,
 } from "#shared/db/questions/aggregates.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { renderFields } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
@@ -45,6 +45,7 @@ import {
   reorderableListPage,
   reorderCountTable,
 } from "#templates/components/reorder-list.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields/aggregate.ts";
@@ -115,9 +116,10 @@ const QuestionListingAssignment = ({
     return <p>{listingText}</p>;
   }
   return (
-    <CsrfForm
+    <SaveForm
       action={`/admin/questions/${question.id}/listings`}
       id="question-listings"
+      submitLabel={t("questions.save_listings")}
     >
       <LinkedItemsCheckboxes
         groups={[
@@ -140,8 +142,7 @@ const QuestionListingAssignment = ({
         }
         name="listing_ids"
       />
-      <SubmitButton icon="save">{t("questions.save_listings")}</SubmitButton>
-    </CsrfForm>
+    </SaveForm>
   );
 };
 
@@ -208,7 +209,10 @@ export const adminQuestionPage = (
       <h1>{questionTextFlat(question.text)}</h1>
 
       <WritableOnly>
-        <CsrfForm action={`/admin/questions/${question.id}/edit`}>
+        <SaveForm
+          action={`/admin/questions/${question.id}/edit`}
+          submitLabel={t("questions.edit.update")}
+        >
           <Raw html={questionTextForm.field("text").render(question.text)} />
           {question.display_type === "free_text" ? (
             // Free-text questions can't become choice questions (it would orphan
@@ -227,8 +231,7 @@ export const adminQuestionPage = (
               />
             </label>
           )}
-          <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       </WritableOnly>
 
       {question.display_type === "free_text" ? (
@@ -244,15 +247,14 @@ export const adminQuestionPage = (
         <>
           <h2>{t("questions.edit.answers_heading")}</h2>
           <WritableOnly>
-            <CsrfForm
+            <SaveForm
               action={`/admin/questions/${question.id}/answers`}
               id="add-answer"
+              submitIcon="plus"
+              submitLabel={t("questions.edit.add_answer")}
             >
               <Raw html={answerTextForm.render()} />
-              <SubmitButton icon="plus">
-                {t("questions.edit.add_answer")}
-              </SubmitButton>
-            </CsrfForm>
+            </SaveForm>
           </WritableOnly>
 
           {reorderCountTable({

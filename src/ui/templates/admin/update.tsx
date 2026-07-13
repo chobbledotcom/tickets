@@ -4,12 +4,12 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
-import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 export type UpdatePageState = {
@@ -37,11 +37,12 @@ const CurrentVersion = ({ state }: { state: UpdatePageState }): JSX.Element => (
 
 /** Check for updates form */
 const CheckForUpdates = (): JSX.Element => (
-  <CsrfForm action="/admin/update/check" id="update-check">
-    <SubmitButton icon="rotate-ccw">
-      {t("update.check_for_updates")}
-    </SubmitButton>
-  </CsrfForm>
+  <SaveForm
+    action="/admin/update/check"
+    id="update-check"
+    submitIcon="rotate-ccw"
+    submitLabel={t("update.check_for_updates")}
+  />
 );
 
 /** Update available section with deploy button */
@@ -53,11 +54,13 @@ const UpdateAvailable = ({
   <ProseSection
     footer={
       state.providerConfigured ? (
-        <CsrfForm action="/admin/update" class="no-bg" id="update-deploy">
-          <SubmitButton icon="rotate-ccw">
-            {t("update.update_now")}
-          </SubmitButton>
-        </CsrfForm>
+        <SaveForm
+          action="/admin/update"
+          class="no-bg"
+          id="update-deploy"
+          submitIcon="rotate-ccw"
+          submitLabel={t("update.update_now")}
+        />
       ) : (
         <p>
           <em>{t("update.cannot_update_automatically")}</em>

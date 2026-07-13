@@ -12,7 +12,6 @@ import type {
   AttributeOption,
   AttributeWithOptions,
 } from "#shared/db/attributes.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";
@@ -31,6 +30,7 @@ import {
   reorderableListPage,
   reorderCountTable,
 } from "#templates/components/reorder-list.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -131,21 +131,24 @@ export const adminAttributePage = (
       <h1>{attributeNameFlat(attribute.name)}</h1>
 
       <WritableOnly>
-        <CsrfForm action={`/admin/attributes/${attribute.id}/edit`}>
+        <SaveForm
+          action={`/admin/attributes/${attribute.id}/edit`}
+          submitLabel={t("attributes.update")}
+        >
           <Raw html={attributeNameForm.render({ name: attribute.name })} />
-          <SubmitButton icon="save">{t("attributes.update")}</SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       </WritableOnly>
 
       <h2>{t("attributes.options_heading")}</h2>
       <WritableOnly>
-        <CsrfForm
+        <SaveForm
           action={`/admin/attributes/${attribute.id}/options`}
           id="new-attribute-option"
+          submitIcon="plus"
+          submitLabel={t("attributes.add_option")}
         >
           <Raw html={attributeOptionForm.render()} />
-          <SubmitButton icon="plus">{t("attributes.add_option")}</SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       </WritableOnly>
 
       {reorderCountTable({
@@ -347,7 +350,10 @@ export const ListingAttributesPanel = (
       </p>
     ),
     (availableAttributes) => (
-      <CsrfForm action={`/admin/listing/${listing.id}/attributes`}>
+      <SaveForm
+        action={`/admin/listing/${listing.id}/attributes`}
+        submitLabel={t("common.save")}
+      >
         <FormSections
           sections={availableAttributes.map((attribute) => ({
             children:
@@ -372,8 +378,7 @@ export const ListingAttributesPanel = (
             legend: attribute.name,
           }))}
         />
-        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
-      </CsrfForm>
+      </SaveForm>
     ),
   );
 };

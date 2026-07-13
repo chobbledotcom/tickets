@@ -15,7 +15,7 @@ import { t } from "#i18n";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { jsonResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getClientIp } from "#routes/url.ts";
+import { getClientIp, getSearchParam } from "#routes/url.ts";
 import { activeAddressLookupProvider } from "#shared/address-lookup/providers.ts";
 import { lookupAddresses } from "#shared/address-lookup/service.ts";
 import { makeIpRateLimiter } from "#shared/db/login-attempts.ts";
@@ -47,7 +47,7 @@ export const handleAddressLookupGet: TypedRouteHandler<
     await limiter.record(ip);
   }
 
-  const search = new URL(request.url).searchParams.get("search") ?? "";
+  const search = getSearchParam(request, "search");
   const outcome = await lookupAddresses(provider, search);
   if (!outcome.ok) return jsonResponse({ error: outcome.error }, 400);
   // `addresses` is the lines-only list the public booking form reads.

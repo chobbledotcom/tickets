@@ -9,7 +9,6 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type Attendee,
@@ -38,7 +37,6 @@ import {
   UnavailablePublicUrlRow,
 } from "#templates/admin/share-rows.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { GroupCapacityMeter } from "#templates/components/capacity.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
@@ -50,6 +48,7 @@ import {
   PageBlock,
   PageRegions,
 } from "#templates/components/page-structure.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { TableScroll } from "#templates/components/table-scroll.tsx";
 
 const totalAttendeeCount = sumOf(
@@ -279,7 +278,11 @@ export const GroupOverviewPanel = ({
       </PageBlock>
 
       {!isReadOnly() && ungroupedListings.length > 0 && (
-        <CsrfForm action={`/admin/groups/${group.id}/add-listings`}>
+        <SaveForm
+          action={`/admin/groups/${group.id}/add-listings`}
+          submitIcon="plus"
+          submitLabel={t("groups.detail.add_listings_submit")}
+        >
           <LinkedItemsCheckboxes
             groups={[
               {
@@ -290,10 +293,7 @@ export const GroupOverviewPanel = ({
             heading={({ type }) => t("linked_items.heading_add", { type })}
             name="listing_ids"
           />
-          <SubmitButton icon="plus">
-            {t("groups.detail.add_listings_submit")}
-          </SubmitButton>
-        </CsrfForm>
+        </SaveForm>
       )}
     </PageRegions>
   );

@@ -6,22 +6,25 @@
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { seedsForm } from "#routes/admin/seeds.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
-import { BackButton, SubmitButton } from "#templates/components/actions.tsx";
+import { BackButton } from "#templates/components/actions.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
 /** Seed data admin page */
 export const adminSeedsPage = flashFormPage("admin.seeds.title", "", () => (
   <>
-    <CsrfForm action="/admin/seeds">
+    <SaveForm
+      action="/admin/seeds"
+      submitIcon="plus"
+      submitLabel={t("admin.seeds.submit")}
+    >
       <ProseHeading heading={t("admin.seeds.heading")}>
         <p>{t("admin.seeds.intro")}</p>
       </ProseHeading>
       <Raw html={seedsForm.render()} />
-      <SubmitButton icon="plus">{t("admin.seeds.submit")}</SubmitButton>
-    </CsrfForm>
+    </SaveForm>
 
     <p>
       <BackButton href="/admin">{t("admin.seeds.back")}</BackButton>

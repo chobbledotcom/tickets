@@ -210,17 +210,6 @@ export const groupNotesByAttendee = (
   notes: SystemNote[],
 ): Map<number, SystemNote[]> => Map.groupBy(notes, (note) => note.attendee_id);
 
-/**
- * Build the attendee id → display name map that {@link AttendeeNotesSummary}
- * labels each grouped note with. Accepts any attendee-shaped row, so the
- * listing and global attendee lists can both pass their decrypted rows
- * without each rebuilding the same `Map` literal at the call site.
- */
-export const attendeeNameMap = (
-  attendees: ReadonlyArray<{ id: number; name: string }>,
-): Map<number, string> =>
-  new Map(attendees.map((a) => [a.id, a.name] as const));
-
 /** Load one decrypted note scoped to its attendee, or null when it doesn't exist. */
 export const getAttendeeNote = async (
   attendeeId: number,

@@ -3,12 +3,11 @@
  */
 
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import { formatBytes, MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
@@ -21,14 +20,12 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
             class="listing-image-preview"
             src={getImageProxyUrl(s.headerImageUrl)}
           />
-          <CsrfForm
+          <SaveForm
             action="/admin/settings/header-image/delete"
             id="settings-header-image-delete"
-          >
-            <SubmitButton icon="trash-2">
-              {t("admin.listings.remove_image")}
-            </SubmitButton>
-          </CsrfForm>
+            submitIcon="trash-2"
+            submitLabel={t("admin.listings.remove_image")}
+          />
         </div>
       )}
       <SettingsSection
