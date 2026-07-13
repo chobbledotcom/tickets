@@ -11,6 +11,7 @@ import {
   groupToMap,
   lazyRef,
   map,
+  mapById,
   once,
   partition,
   pipe,
@@ -525,6 +526,33 @@ describe("fp", () => {
 
     test("empty input gives an empty map", () => {
       expect(byId([])).toEqual(new Map());
+    });
+  });
+
+  describe("mapById", () => {
+    const toName = mapById((item: { id: number; name: string }) => item.name);
+
+    test("indexes each item's id to the chosen value", () => {
+      const map = toName([
+        { id: 1, name: "a" },
+        { id: 2, name: "b" },
+      ]);
+      expect(map.get(1)).toBe("a");
+      expect(map.get(2)).toBe("b");
+      expect(map.size).toBe(2);
+    });
+
+    test("later items with the same id win", () => {
+      expect(
+        toName([
+          { id: 1, name: "first" },
+          { id: 1, name: "second" },
+        ]).get(1),
+      ).toBe("second");
+    });
+
+    test("empty input gives an empty map", () => {
+      expect(toName([])).toEqual(new Map());
     });
   });
 });

@@ -9,6 +9,7 @@
 
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
@@ -173,7 +174,7 @@ export const handleQrBookGet = async (
   params: { slug: string },
 ): Promise<Response> => {
   const { slug } = params;
-  const token = new URL(request.url).searchParams.get("t") ?? "";
+  const token = getSearchParam(request, "t");
   if (!token) return errorResponse(slug, 400);
   const payload = await verifyQrBookToken(slug, token);
   if (!payload) return errorResponse(slug, 400);

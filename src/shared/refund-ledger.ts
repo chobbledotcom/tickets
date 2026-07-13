@@ -31,6 +31,7 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import { sameAccount } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -44,11 +45,6 @@ type ComputedRefund = {
 
 const isRefundLeg = (kind: string | undefined): boolean =>
   kind?.startsWith("refund_") ?? false;
-
-const sameAccount = (
-  left: Transfer["source"],
-  right: Transfer["source"],
-): boolean => left.type === right.type && left.id === right.id;
 
 const isProviderPaymentLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.payment && sameAccount(leg.source, WORLD);

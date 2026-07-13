@@ -10,6 +10,7 @@
  */
 
 import * as v from "valibot";
+import { asString } from "#fp";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -76,16 +77,13 @@ const tryDecrypt = async (
   }
 };
 
-const str = (value: unknown): string =>
-  typeof value === "string" ? value : "";
-
 /** Run `fn` with the row a status event refers to, if it exists. */
 const withReferencedRow = async (
   payload: Record<string, unknown>,
   fn: (row: SmsMessageRow) => Promise<void>,
 ): Promise<void> => {
   const row = await getSmsMessageByProviderId(
-    str(payload.messageId) || str(payload.id),
+    asString(payload.messageId) || asString(payload.id),
   );
   if (row) await fn(row);
 };
@@ -102,15 +100,15 @@ const handleStatus =
     });
 
 const inboundWebhookId = (payload: Record<string, unknown>): string =>
-  str(payload.messageId) || str(payload.id);
+  asString(payload.messageId) || asString(payload.id);
 
 const handleReceived = async (
   payload: Record<string, unknown>,
 ): Promise<void> => {
   const passphrase = settings.smsGatewayPassphrase;
   if (!(await claimProcessedSmsInbound(inboundWebhookId(payload)))) return;
-  const message = await tryDecrypt(str(payload.message), passphrase);
-  const sender = await tryDecrypt(str(payload.sender), passphrase);
+  const message = await tryDecrypt(asString(payload.message), passphrase);
+  const sender = await tryDecrypt(asString(payload.sender), passphrase);
   const attendeeId = await findAttendeeIdByPhoneIndex(
     await computePhoneIndex(sender),
   );
@@ -127,7 +125,7 @@ const smsEventHandlers: Record<
 > = {
   "sms:delivered": handleStatus(() => "SMS delivered"),
   "sms:failed": handleStatus(
-    (payload) => `SMS failed: ${str(payload.reason) || "unknown"}`,
+    (payload) => `SMS failed: ${asString(payload.reason) || "unknown"}`,
   ),
   "sms:received": handleReceived,
 };

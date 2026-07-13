@@ -1,3 +1,5 @@
+import { mapById } from "#fp";
+
 /**
  * Build a lookup from each item's id to its name. Used wherever a list of
  * records (listings, agents, pages, …) needs a quick id → name map for
@@ -5,4 +7,4 @@
  */
 export const idNameMap = <T extends { id: number; name: string }>(
   items: readonly T[],
-): Map<number, string> => new Map(items.map((item) => [item.id, item.name]));
+): Map<number, string> => mapById((item: T) => item.name)(items);

@@ -362,6 +362,21 @@ export const byId = <T extends { id: number }>(
 };
 
 /**
+ * Index items by their `id`, keeping one chosen value per item — the value
+ * form of {@link byId}. Curried so the value-picker is fixed once, e.g.
+ *   const idNameMap = mapById((item) => item.name)
+ * When two items share an id the later one wins, as building the Map by hand
+ * would.
+ */
+export const mapById =
+  <T extends { id: number }, V>(valueFrom: (item: T) => V) =>
+  (items: Iterable<T>): Map<number, V> => {
+    const map = new Map<number, V>();
+    for (const item of items) map.set(item.id, valueFrom(item));
+    return map;
+  };
+
+/**
  * A copy of `base` with `extra` entries merged on top (an `extra` key wins over
  * the same key in `base`). Curried so a fixed base — an auth header set, the
  * process environment — can be extended per call.

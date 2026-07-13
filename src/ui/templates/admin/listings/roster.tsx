@@ -1,7 +1,7 @@
 import { map, pipe } from "#fp";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
-import { attendeeNameMap } from "#shared/db/system-notes.ts";
 import { isReadOnly } from "#shared/env.ts";
+import { idNameMap } from "#shared/id-name-map.ts";
 import { type Attendee, isPaidListing } from "#shared/types.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import {
@@ -104,10 +104,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         ),
         sharedRowsHtml: renderDetailRows(v.sharedRows),
       })}
-      <AttendeeNotesSummary
-        names={attendeeNameMap(attendees)}
-        notes={systemNotes}
-      />
+      <AttendeeNotesSummary names={idNameMap(attendees)} notes={systemNotes} />
       <AttendeesSection
         activeFilter={v.activeFilter}
         allowedDomain={allowedDomain}

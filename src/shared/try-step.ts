@@ -1,3 +1,5 @@
+import { errorMessage } from "#shared/error-message.ts";
+
 /**
  * Run a step that already reports success or failure as an `ok` outcome, and
  * turn a thrown exception into that same failure shape instead of crashing:
@@ -12,7 +14,6 @@ export const tryStep = async <Value extends { ok: boolean }>(
   try {
     return await step();
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return { error: `${label}: ${message}`, ok: false };
+    return { error: `${label}: ${errorMessage(e)}`, ok: false };
   }
 };
