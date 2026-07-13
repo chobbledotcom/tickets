@@ -1,20 +1,17 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { col, defineTable, type Table } from "#shared/db/table.ts";
+import type { Table } from "#shared/db/table.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createIdNameTable,
+  type IdNameInput as Input,
+  makeIdNameTable,
+  type IdNameRow as Row,
+} from "#test-utils/rest-fixtures.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
 
-type Row = { id: number; name: string };
-type Input = { name: string };
-
-const makeTable = (): Table<Row, Input> =>
-  defineTable<Row, Input>({
-    name: "widgets",
-    primaryKey: "id",
-    schema: { id: col.generated<number>(), name: col.simple<string>() },
-  });
+const makeTable = (): Table<Row, Input> => makeIdNameTable("widgets");
 
 const makeRoutes = (table: Table<Row, Input>): Record<string, unknown> =>
   defineCrudApi<Row, Input>({
@@ -31,11 +28,7 @@ const makeRoutes = (table: Table<Row, Input>): Record<string, unknown> =>
   });
 
 describeWithEnv("defineCrudApi write not-found", { db: true }, () => {
-  beforeEach(async () => {
-    await getDb().execute(
-      "CREATE TABLE IF NOT EXISTS widgets (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)",
-    );
-  });
+  beforeEach(() => createIdNameTable("widgets"));
 
   test("PUT returns 404 when the row vanishes before its write reads back", async () => {
     const table = makeTable();

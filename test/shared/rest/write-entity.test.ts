@@ -1,25 +1,17 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import { col, defineTable, type Table } from "#shared/db/table.ts";
+import type { Table } from "#shared/db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import {
+  createIdNameTable,
+  type IdNameInput as Input,
+  makeIdNameTable,
+  type IdNameRow as Row,
+} from "#test-utils/rest-fixtures.ts";
 
-type Row = { id: number; name: string };
-type Input = { name: string };
-
-const makeTable = (): Table<Row, Input> =>
-  defineTable<Row, Input>({
-    name: "we_items",
-    primaryKey: "id",
-    schema: { id: col.generated<number>(), name: col.simple<string>() },
-  });
-
-const createTable = async (): Promise<void> => {
-  await getDb().execute(
-    "CREATE TABLE IF NOT EXISTS we_items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)",
-  );
-};
+const makeTable = (): Table<Row, Input> => makeIdNameTable("we_items");
+const createTable = (): Promise<void> => createIdNameTable("we_items");
 
 const reject = (what: string) => () =>
   Promise.reject(new Error(`${what} must not run`));
