@@ -42,6 +42,7 @@ describe("adminLedgerPage", () => {
   test("renders the money heading, nav, stats, filters, and simple list", () => {
     const html = adminLedgerPage(pageData(), SESSION);
     expect(html).toContain("Money");
+    expect(html).not.toContain("Money history");
     expect(html).toContain('href="/admin/ledger"');
     expect(html).toContain("<th>Activity</th>");
     expect(html).toContain("Simple view");

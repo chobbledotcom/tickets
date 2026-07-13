@@ -125,7 +125,7 @@
   "listings_table.income_ledger_external_costs": "Costs paid outside checkout",
   "listings_table.income_ledger_net_balance": "Net after refunds and costs",
   "listings_table.income_ledger_recognised_note": "Income is what this listing earned before refunds. Profit subtracts service event costs. Net also subtracts refunds and other costs. Every change stays visible in Money.",
-  "listings_table.income_ledger_view_full": "View full money",
+  "listings_table.income_ledger_view_full": "View all money changes",
   "listings_table.income_ledger_link": "Money in and out →",
   "listings_table.duration_warning_message": "Changing booking duration will update existing bookings for this listing.",
   "listings_table.i_understand": "I understand",

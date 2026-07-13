@@ -45,5 +45,5 @@
   "groups.money.external_costs": "Costs paid outside checkout",
   "groups.money.net": "Net after refunds and costs",
   "groups.money.note": "These totals combine the group's current listings. View every change in the group's money.",
-  "groups.money.view_ledger": "View group money"
+  "groups.money.view_ledger": "View this group's money changes"
 }
