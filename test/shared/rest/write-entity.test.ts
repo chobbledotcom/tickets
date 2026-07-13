@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -68,14 +69,17 @@ describe("writeEntity", () => {
   test("runs every join write in order, all inside the one transaction", async () => {
     const table = makeTable();
     const order: string[] = [];
+    const scopes: TxScope[] = [];
 
     await writeWith(table, {
       joinWrites: [
-        (_tx, id) => {
+        (tx, id) => {
+          scopes.push(tx);
           order.push(`first:${id}`);
           return Promise.resolve();
         },
-        (_tx, id) => {
+        (tx, id) => {
+          scopes.push(tx);
           order.push(`second:${id}`);
           return Promise.resolve();
         },
@@ -84,6 +88,9 @@ describe("writeEntity", () => {
     });
 
     expect(order).toEqual(["first:1", "second:1"]);
+    // Both join writes share the one transaction scope — not two separate ones.
+    expect(scopes).toHaveLength(2);
+    expect(scopes[0]).toBe(scopes[1]);
   });
 
   test("transactional path rolls the row back when a join write throws", async () => {
