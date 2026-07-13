@@ -17,7 +17,10 @@ import type {
   ItemImageProjection,
   ListingWithCount,
 } from "#shared/types.ts";
-import type { BookingPrefill } from "#templates/public/reservations/types.ts";
+import type {
+  BookingPrefill,
+  GroupAvailability,
+} from "#templates/public/reservations/types.ts";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
@@ -78,24 +81,15 @@ export type TicketSharedContext = {
 };
 
 /** Shared rendering context for ticket pages */
-export type TicketCtx = TicketSharedContext & {
-  slugs: string[];
-  listings: TicketListing[];
-  /** Each GROUP id → its remaining spots (uncapped groups omitted), set on the
-   * render path so a parent sharing a capped group with its child clamps its
-   * quantity by the combined parent+child demand against the SPECIFIC shared
-   * group. Omitted on submit/quote (the fold's
-   * authoritative date-specific check runs there instead). */
-  groupRemainingByGroupId?: ReadonlyMap<number, number>;
-  /** Each listing id → the ids of the groups it belongs to, set on the render
-   * path alongside groupRemainingByGroupId so the shared-group quantity clamps
-   * resolve the group a parent and child actually share. Omitted on submit/quote. */
-  groupIdsByListingId?: ReadonlyMap<number, number[]>;
-  /** Selected listing attributes for display. Present on render paths only. */
-  attributesByListing?: ListingAttributesById;
-  baseUrl?: string;
-  prefill?: BookingPrefill | undefined;
-};
+export type TicketCtx = TicketSharedContext &
+  GroupAvailability & {
+    slugs: string[];
+    listings: TicketListing[];
+    /** Selected listing attributes for display. Present on render paths only. */
+    attributesByListing?: ListingAttributesById;
+    baseUrl?: string;
+    prefill?: BookingPrefill | undefined;
+  };
 
 /** Possibly-async response handler */
 export type AsyncHandler<T extends unknown[]> = (

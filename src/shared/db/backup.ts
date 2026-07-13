@@ -22,6 +22,7 @@ import {
   SCHEMA_HASH,
   SCHEMA_TABLE_NAMES,
 } from "#shared/db/migrations.ts";
+import { queryColumnSet } from "#shared/db/query.ts";
 import {
   dumpMigrationState,
   legacyColumnRestores,
@@ -41,8 +42,6 @@ import {
 export class PostResetError extends Error {}
 
 // ─── Types ──────────────────────────────────────────────────────
-
-type TableNameRow = { name: string };
 
 /** A single table's backup: table name, the SQL to repopulate it, and row count */
 export type TableBackup = {
@@ -65,12 +64,8 @@ export type BackupManifest = {
 const quoteId = (name: string): string => `"${name}"`;
 
 /** Get existing table names in one round-trip. */
-const getExistingTableNames = async (): Promise<Set<string>> => {
-  const rows = await queryAll<TableNameRow>(
-    "SELECT name FROM sqlite_master WHERE type = 'table'",
-  );
-  return new Set(rows.map((row) => row.name));
-};
+const getExistingTableNames = (): Promise<Set<string>> =>
+  queryColumnSet("SELECT name FROM sqlite_master WHERE type = 'table'", "name");
 
 /**
  * The schema's tables that currently exist, in SCHEMA (FK-dependency) order.

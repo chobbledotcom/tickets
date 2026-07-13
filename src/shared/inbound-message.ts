@@ -14,6 +14,7 @@
  */
 
 import type { EmailConfig } from "#shared/email.ts";
+import { sendEmailOk } from "#shared/email-ok.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -92,14 +93,11 @@ export const deliverMessage = async (
     intro: string;
     body: MessageBody;
   },
-): Promise<boolean> => {
-  const { sendEmail } = await import("#shared/email.ts");
-  const status = await sendEmail(config, {
+): Promise<boolean> =>
+  sendEmailOk(config, {
     html: buildMessageHtml(opts.body, opts.intro),
     replyTo: opts.replyTo,
     subject: opts.subject,
     text: buildMessageText(opts.body, opts.intro),
     to: opts.to,
   });
-  return status !== undefined && status < 300;
-};

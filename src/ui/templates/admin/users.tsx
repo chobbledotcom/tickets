@@ -28,6 +28,7 @@ import {
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, textCol } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { getInviteUserFields } from "#templates/fields/admin.ts";
 /* jscpd:ignore-end */
@@ -168,19 +169,12 @@ export const adminUserManagePage = (
       <h1>{user.username}</h1>
 
       <DetailTable>
-        <tr>
-          <th>{t("users.col.role")}</th>
-          <td>{user.adminLevel}</td>
-        </tr>
-        <tr>
-          <th>{t("common.status")}</th>
-          <td>{userStatus(user)}</td>
-        </tr>
+        <LabelledRow label={t("users.col.role")}>{user.adminLevel}</LabelledRow>
+        <LabelledRow label={t("common.status")}>{userStatus(user)}</LabelledRow>
         {user.adminLevel === "agent" && (
-          <tr>
-            <th>{t("users.agents.legend")}</th>
-            <td>{agentNamesDisplay(user)}</td>
-          </tr>
+          <LabelledRow label={t("users.agents.legend")}>
+            {agentNamesDisplay(user)}
+          </LabelledRow>
         )}
       </DetailTable>
 

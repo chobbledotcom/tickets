@@ -23,6 +23,7 @@ import {
   clearImageUsesForItemStatement,
   deleteByItemStatement,
 } from "#shared/db/images.ts";
+import { swapSortOrders } from "#shared/db/query.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   pageParentMapFromEdges,
@@ -156,30 +157,29 @@ export const swapPageItemOrder = (
   a: ItemRef,
   b: ItemRef,
 ): Promise<void> =>
-  // Read the two orders and write the swap in one transaction, so concurrent
-  // reorders serialise instead of applying stale snapshots and duplicating
-  // orders (there is no (page_id, sort_order) constraint to repair drift).
-  withTransaction(async (tx) => {
-    const rows = resultRows<{
-      item_id: number;
-      item_type: SitePageItemType;
-      sort_order: number;
-    }>(
-      await tx.execute({
-        args: [pageId, a.type, a.id, b.type, b.id],
-        sql: `SELECT item_type, item_id, sort_order FROM site_page_items
+  swapSortOrders(
+    async (tx) => {
+      const rows = resultRows<{
+        item_id: number;
+        item_type: SitePageItemType;
+        sort_order: number;
+      }>(
+        await tx.execute({
+          args: [pageId, a.type, a.id, b.type, b.id],
+          sql: `SELECT item_type, item_id, sort_order FROM site_page_items
       WHERE page_id = ? AND ((item_type = ? AND item_id = ?) OR (item_type = ? AND item_id = ?))`,
-      }),
-    );
-    const orderOf = (ref: ItemRef): number | undefined =>
-      rows.find((r) => r.item_type === ref.type && r.item_id === ref.id)
-        ?.sort_order;
-    const oa = orderOf(a);
-    const ob = orderOf(b);
-    if (oa === undefined || ob === undefined) return;
-    await tx.execute(setOrderStatement(pageId, a, ob));
-    await tx.execute(setOrderStatement(pageId, b, oa));
-  });
+        }),
+      );
+      const orderOf = (ref: ItemRef): number | undefined =>
+        rows.find((r) => r.item_type === ref.type && r.item_id === ref.id)
+          ?.sort_order;
+      return [orderOf(a), orderOf(b)];
+    },
+    async (tx, oa, ob) => {
+      await tx.execute(setOrderStatement(pageId, a, ob));
+      await tx.execute(setOrderStatement(pageId, b, oa));
+    },
+  );
 
 const setOrderStatement = (
   pageId: number,

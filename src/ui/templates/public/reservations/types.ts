@@ -67,8 +67,18 @@ export type BookingPrefill = {
   token?: string;
 };
 
+/** The render-path group-availability inputs shared by the ticket page options
+ * and the render context: each capped group's remaining spots, and the group
+ * ids each listing belongs to. Both are set only on the render path (so a parent
+ * sharing a capped group with its child can clamp by the combined demand against
+ * the specific shared group) and omitted on submit/quote. */
+export type GroupAvailability = {
+  groupRemainingByGroupId?: ReadonlyMap<number, number>;
+  groupIdsByListingId?: ReadonlyMap<number, number[]>;
+};
+
 /** Options for the ticket page */
-export type TicketPageOptions = {
+export type TicketPageOptions = GroupAvailability & {
   listings: TicketListing[];
   slugs: string[];
   error?: string;
@@ -97,10 +107,6 @@ export type TicketPageOptions = {
   childrenByParentId?: Map<number, TicketListing[]>;
   /** Daily-child start dates for each parent day count. */
   childDatesById?: ReadonlyMap<string, ChildDatesByDayCount>;
-  /** Remaining spots for limited groups. */
-  groupRemainingByGroupId?: ReadonlyMap<number, number>;
-  /** Groups each listing belongs to. */
-  groupIdsByListingId?: ReadonlyMap<number, number[]>;
   /** The package bundles sold on this page, in page order. Each package's
    * members render under its own count selector instead of per-member
    * quantities; listings outside every package keep their own controls. */

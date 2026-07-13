@@ -21,3 +21,16 @@ export const HeadingLayout = ({
     {children}
   </Layout>
 );
+
+/** Curried page builder: give it the heading and title, then the body, and get
+ *  the finished HTML string. Shared by the pages that render a {@link
+ *  HeadingLayout} straight to a string (the ticket confirmation and the "flow
+ *  complete" page). */
+export const headingLayoutPage =
+  (heading: string, title: string) =>
+  (body: Child): string =>
+    String(
+      <HeadingLayout heading={heading} title={title}>
+        {body}
+      </HeadingLayout>,
+    );

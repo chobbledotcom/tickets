@@ -143,20 +143,14 @@ export const AccountStatementSection = ({
 
 export const EmbeddedAccountStatementSection = ({
   id,
-  ledger,
-  returnUrl,
-  fullLedgerHref,
+  ...statement
 }: {
   id?: string;
   ledger: AccountLedgerData;
 } & StatementLinks): JSX.Element => (
   <PageBlock id={id}>
     <h2>{t("admin.ledger.statement_heading")}</h2>
-    <AccountStatementSection
-      fullLedgerHref={fullLedgerHref}
-      ledger={ledger}
-      returnUrl={returnUrl}
-    />
+    <AccountStatementSection {...statement} />
   </PageBlock>
 );
 

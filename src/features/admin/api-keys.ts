@@ -15,7 +15,7 @@ import {
   ADMIN_API_ENDPOINTS,
   PUBLIC_API_ENDPOINTS,
 } from "#shared/admin-api-example.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import {
   createApiKey,
@@ -101,15 +101,8 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
         throw new Error("Name must be under 100 characters");
       }
 
-      if (!session.wrappedDataKey) {
-        throw new Error("Session key unavailable");
-      }
-
       // Unwrap the DATA_KEY from the current session
-      const dataKey = await unwrapKeyWithToken(
-        session.wrappedDataKey,
-        session.token,
-      );
+      const dataKey = await unwrapSessionDataKey(session);
 
       const { apiKey } = await createApiKey(
         session.userId,

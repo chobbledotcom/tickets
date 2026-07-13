@@ -13,7 +13,7 @@ import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.t
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 /* jscpd:ignore-start */
-import { NewTabLink } from "#templates/components/new-tab-link.tsx";
+import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 /* jscpd:ignore-end */
 
@@ -64,7 +64,7 @@ const BuiltSitesTable = ({
       columns={namedColumns("builder.table_url", "builder.table_built")}
       rows={sites.map((site) => [
         site.name,
-        <NewTabLink href={site.siteUrl}>{site.siteUrl}</NewTabLink>,
+        <NewTabUrl url={site.siteUrl} />,
         site.created,
       ])}
     />

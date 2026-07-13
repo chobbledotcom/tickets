@@ -27,6 +27,7 @@ import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
+import { failure } from "#shared/result.ts";
 import { withSiteDb } from "#shared/site-db.ts";
 import { tryStep } from "#shared/try-step.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
@@ -124,7 +125,7 @@ export const testDbConnection = async (
   const result = await withSiteDb({ dbToken, dbUrl }, (client) =>
     client.execute("SELECT 1"),
   );
-  return result.ok ? { ok: true } : { error: result.error, ok: false };
+  return result.ok ? { ok: true } : failure(result.error);
 };
 
 /**

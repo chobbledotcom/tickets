@@ -6,7 +6,7 @@
  */
 
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { deleteUser } from "#shared/db/users.ts";
@@ -95,10 +95,7 @@ export const handleSuperuserPost = settingsRoute(
       );
     }
 
-    const dataKey = await unwrapKeyWithToken(
-      session.wrappedDataKey,
-      session.token,
-    );
+    const dataKey = await unwrapSessionDataKey(session);
     const password = generateSuperuserPassword(12);
     const user = await createActivatedSuperuser({
       dataKey,

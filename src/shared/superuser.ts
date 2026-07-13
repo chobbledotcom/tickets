@@ -9,6 +9,7 @@ import {
   onUsersInvalidated,
 } from "#shared/db/users.ts";
 import type { EmailConfig } from "#shared/email.ts";
+import { sendEmailOk } from "#shared/email-ok.ts";
 import { getEnv } from "#shared/env.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -184,12 +185,8 @@ export const sendSuperuserCredentialsEmail = async (
     password: string;
   },
 ): Promise<boolean> => {
-  // Loaded on demand: this module sits on the every-request auth path (via the
-  // settings nags), and a static email.ts import would drag the whole email
-  // rendering stack into the eager cold-start graph.
-  const { sendEmail } = await import("#shared/email.ts");
   const domain = getEffectiveDomain();
-  const status = await sendEmail(config, {
+  return sendEmailOk(config, {
     html: `<p>A superuser account has been enabled for this ticket platform.</p>
 <p>Login URL: https://${escapeHtmlEmail(domain)}/admin/</p>
 <p>Username: <strong>${escapeHtmlEmail(opts.username)}</strong></p>
@@ -204,5 +201,4 @@ export const sendSuperuserCredentialsEmail = async (
       "Store this password securely. This account can decrypt attendee data and invite replacement owner accounts.",
     to: opts.email,
   });
-  return status !== undefined && status >= 200 && status < 300;
 };

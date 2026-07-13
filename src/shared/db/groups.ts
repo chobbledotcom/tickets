@@ -6,7 +6,7 @@
 import { byId, groupBy, groupToMap, mapNotNullish } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import {
   execute,
   executeBatch,
@@ -36,7 +36,7 @@ import {
   getListingsWithCountsByIds,
   queryListingsWithCounts,
 } from "#shared/db/listings/records.ts";
-import { nameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
+import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import {
@@ -140,9 +140,7 @@ export const getGroupsById = async (): Promise<Map<number, Group>> =>
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
 export const getAllGroupNames = (): Promise<Map<number, string>> =>
-  nameSource("groups", "groupRecord", "name", (raw: EnvKeyEncrypted) =>
-    decrypt(raw),
-  ).all();
+  envNameSource("groups", "groupRecord").all();
 
 /**
  * Get a single group by slug_index (from cache)
