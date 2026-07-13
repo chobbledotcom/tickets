@@ -24,14 +24,19 @@ const RUNS = 7;
 
 const log = console.log.bind(console);
 
+/** A `buildEdgeBundle` emit callback that writes the bundle straight to `path`. */
+const emitTo =
+  (path: string) =>
+  async ({ content }: { content: string }): Promise<void> => {
+    await Deno.writeTextFile(path, content);
+  };
+
 const buildVariants = async (): Promise<void> => {
   await Deno.mkdir(OUT_DIR, { recursive: true });
 
   // Real production pipeline; only the entry differs, so no server starts.
   await buildEdgeBundle({
-    emit: async ({ content }) => {
-      await Deno.writeTextFile(FULL, content);
-    },
+    emit: emitTo(FULL),
     entryPoint: "./src/serve-app.ts",
     label: "Bench",
     // esbuild names the output after the entry basename under ./dist.
@@ -40,9 +45,7 @@ const buildVariants = async (): Promise<void> => {
 
   // Same contents behind await import(): isolates the parse/compile share.
   await buildEdgeBundle({
-    emit: async ({ content }) => {
-      await Deno.writeTextFile(LAZY, content);
-    },
+    emit: emitTo(LAZY),
     entryPoint: "./scripts/bench/cold-start/lazy-entry.ts",
     label: "Bench",
     outfile: "lazy-entry.js",

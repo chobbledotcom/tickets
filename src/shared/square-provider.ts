@@ -100,9 +100,14 @@ export const squarePaymentProvider: PaymentProvider = {
     return session ?? "skip";
   },
 
+  /* jscpd:ignore-start -- PaymentProvider interface conformance, not
+     duplication: every provider must write this exact member signature, but
+     the bodies share no logic (SumUp reads its locally staged checkout;
+     Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
   ): Promise<ValidatedPaymentSession | null> {
+    /* jscpd:ignore-end */
     // sessionId is the Square order ID
     const order = await retrieveOrder(sessionId);
     if (!order?.id) {

@@ -340,6 +340,17 @@ const buildActivationSecrets = async (
   return { encryptedEmpty, encryptedHash, passwordHash };
 };
 
+/** Run a single-use guarded UPDATE and report whether it changed a row. Zero
+ * rows means the guard already fired (a replay or race), so the caller treats
+ * it as a no-op rather than an error. */
+const executeChangedRow = async (
+  sql: string,
+  args: Parameters<typeof execute>[1],
+): Promise<boolean> => {
+  const result = await execute(sql, args);
+  return result.rowsAffected > 0;
+};
+
 export const acceptInvite = async (
   userId: number,
   inviteWrappedDataKey: WrappedKey,
@@ -354,11 +365,10 @@ export const acceptInvite = async (
     password,
     passwordHash,
   );
-  const result = await execute(
+  return executeChangedRow(
     "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND invite_wrapped_data_key IS NOT NULL",
     [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, userId],
   );
-  return result.rowsAffected > 0;
 };
 
 /**
@@ -380,11 +390,10 @@ export const activateKeylessUser = async (
 ): Promise<boolean> => {
   const { encryptedHash, encryptedEmpty } =
     await buildActivationSecrets(password);
-  const result = await execute(
+  return executeChangedRow(
     "UPDATE users SET password_hash = ?, kek_version = 2, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND password_hash = ''",
     [encryptedHash, encryptedEmpty, encryptedEmpty, userId],
   );
-  return result.rowsAffected > 0;
 };
 
 /**

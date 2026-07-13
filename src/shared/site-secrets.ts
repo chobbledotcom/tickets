@@ -129,24 +129,20 @@ export type AddMissingSecretsResult =
  * Re-verify the site's live secrets, then set only the ones still missing from
  * the expected set. Never overwrites a secret that already exists.
  */
-export const addMissingSiteSecrets = async (
+export const addMissingSiteSecrets = (
   site: BuiltSite,
-): Promise<AddMissingSecretsResult> => {
+): Promise<AddMissingSecretsResult> =>
   // Re-verify against the live list in case more secrets exist by now.
-  const resolved = await resolveSiteSecrets(site);
-  if (!resolved.ok) return resolved;
+  withResolvedSite(site, async ({ present, hostingId }) => {
+    const toAdd = expectedSiteSecrets(site).filter(
+      ([name]) => !present.has(name),
+    );
 
-  const { present, hostingId } = resolved.data;
-  const toAdd = expectedSiteSecrets(site).filter(
-    ([name]) => !present.has(name),
-  );
+    if (toAdd.length === 0) return { added: [], ok: true };
 
-  if (toAdd.length === 0) return { added: [], ok: true };
-
-  const result = await resolveHostingProvider(site.hostingProvider).setSecrets(
-    hostingId,
-    toAdd,
-  );
-  if (!result.ok) return result;
-  return { added: toAdd.map(([name]) => name), ok: true };
-};
+    const result = await resolveHostingProvider(
+      site.hostingProvider,
+    ).setSecrets(hostingId, toAdd);
+    if (!result.ok) return result;
+    return { added: toAdd.map(([name]) => name), ok: true };
+  });
