@@ -66,7 +66,10 @@ const qrBookPage = (
   body: Child,
   slug: string | null,
 ): string =>
-  simplePublicPage(t(titleKey), t(headingKey))(
+  simplePublicPage(
+    t(titleKey),
+    t(headingKey),
+  )(
     <>
       <p>{body}</p>
       {qrBookBookingLink(slug)}
