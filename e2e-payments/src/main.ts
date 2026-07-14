@@ -47,9 +47,11 @@ const dumpServerLog = (logPath: string, lines = 20): void => {
     const RELEVANT =
       /error|declin|fail|invalid|\[payment\]|\[stripe\]|\[square\]|\[sumup\]/i;
     const IGNORE = /\[SQL\]|\[Request\]/i;
-    const _signal = all.filter((l) => RELEVANT.test(l) && !IGNORE.test(l));
+    const signal = all.filter((l) => RELEVANT.test(l) && !IGNORE.test(l));
     warn(`----- app server log: relevant lines (${logPath}) -----`);
+    console.error((signal.length ? signal : all.slice(-lines)).join("\n"));
     warn(`----- app server log: last ${lines} lines -----`);
+    console.error(all.slice(-lines).join("\n"));
     warn("----- end app server log -----");
   } catch (err) {
     warn(`could not read app server log ${logPath}: ${String(err)}`);

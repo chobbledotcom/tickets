@@ -53,6 +53,26 @@ const qrBookBookingLink = (slug: string | null): JSX.Element | false =>
     </p>
   );
 
+/** Shared renderer for a QR-book error page: a titled/headed simple page whose
+ *  body is one `<p>` (the explanation) followed by the fallback booking link
+ *  when the listing has a standalone page. Both the token-error and the
+ *  checkout-error pages render through this, so their body markup exists once.
+ *  `slug` is `null` for a listing with no standalone `/ticket/<slug>` page
+ *  (a non-standalone child, a hidden package member), so the dead-link case
+ *  is impossible. */
+const qrBookPage = (
+  titleKey: string,
+  headingKey: string,
+  body: Child,
+  slug: string | null,
+): string =>
+  simplePublicPage(t(titleKey), t(headingKey))(
+    <>
+      <p>{body}</p>
+      {qrBookBookingLink(slug)}
+    </>,
+  );
+
 /**
  * QR booking link error page shown when a signed link is invalid or expired.
  * Includes a fallback link to the listing's normal booking page — but only when
@@ -61,14 +81,11 @@ const qrBookBookingLink = (slug: string | null): JSX.Element | false =>
  * renders the error without a dead link to offer.
  */
 export const qrBookErrorPage = (slug: string | null): string =>
-  simplePublicPage(
-    t("public.qr_book_error.title"),
-    t("public.qr_book_error.heading"),
-  )(
-    <>
-      <p>{t("public.qr_book_error.message")}</p>
-      {qrBookBookingLink(slug)}
-    </>,
+  qrBookPage(
+    "public.qr_book_error.title",
+    "public.qr_book_error.heading",
+    t("public.qr_book_error.message"),
+    slug,
   );
 
 /**
@@ -84,14 +101,11 @@ export const qrBookCheckoutErrorPage = (
   slug: string,
   message: string,
 ): string =>
-  simplePublicPage(
-    t("public.qr_book_checkout_error.title"),
-    t("public.qr_book_checkout_error.heading"),
-  )(
-    <>
-      <p>{message}</p>
-      {qrBookBookingLink(slug)}
-    </>,
+  qrBookPage(
+    "public.qr_book_checkout_error.title",
+    "public.qr_book_checkout_error.heading",
+    message,
+    slug,
   );
 
 /**

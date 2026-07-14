@@ -132,20 +132,15 @@ const scanWithCheckoutResult = async (
   listing: { slug: string },
   result: CheckoutSessionResult,
 ): Promise<Response> => {
-  const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
+  using _providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
     mockProviderType("stripe"),
   );
-  const checkoutStub = stub(
+  using _checkoutStub = stub(
     stripePaymentProvider,
     "createCheckoutSession",
     () => Promise.resolve(result),
   );
-  try {
-    return await scanRequest(listing);
-  } finally {
-    checkoutStub.restore();
-    providerStub.restore();
-  }
+  return await scanRequest(listing);
 };
 
 describeWithEnv("qr-book scan handler", { db: true }, () => {
