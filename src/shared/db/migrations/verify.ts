@@ -35,16 +35,17 @@ const assertMembership =
     expected: "present" | "absent",
   ) =>
   (live: LiveSchema, names: readonly string[] | undefined): void => {
-    for (const name of names ?? []) {
+    const violates = (name: string): boolean => {
       const isPresent = liveSet(live).has(name);
-      if (expected === "present" ? !isPresent : isPresent) {
-        throw new Error(
-          expected === "present"
-            ? `Migration verification failed: missing ${noun} ${name}`
-            : `Migration verification failed: legacy ${noun} ${name} still present`,
-        );
-      }
-    }
+      return expected === "present" ? !isPresent : isPresent;
+    };
+    const failing = (names ?? []).find(violates);
+    if (failing === undefined) return;
+    throw new Error(
+      expected === "present"
+        ? `Migration verification failed: missing ${noun} ${failing}`
+        : `Migration verification failed: legacy ${noun} ${failing} still present`,
+    );
   };
 
 const assertRequiredIndexes = assertMembership(
