@@ -7,6 +7,7 @@ import { asString } from "#fp";
 import type { AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
+  type Guard,
   OWNER_FORM,
   requireOwnerOr,
   requireSessionOr,
@@ -21,6 +22,7 @@ import {
 } from "#routes/response.ts";
 import {
   type AuthedBase,
+  type AuthedHandleStep,
   type AuthedRoute,
   authedHandlerWithStep,
 } from "#shared/app-forms.ts";
@@ -29,13 +31,7 @@ import type { FormParams } from "#shared/form-data.ts";
 /* jscpd:ignore-end */
 
 /** Form guard: require auth + CSRF, call handler with session and form */
-export type FormGuard<TSession> = (
-  request: Request,
-  handler: (
-    session: TSession,
-    form: FormParams,
-  ) => Response | Promise<Response>,
-) => Promise<Response>;
+export type FormGuard<TSession> = Guard<[TSession, FormParams]>;
 
 /** Verify identifier matches for confirmation (case-insensitive, trimmed) */
 export const verifyIdentifier = (expected: string, provided: string): boolean =>
@@ -96,12 +92,7 @@ type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
   /** Where to redirect on identifier mismatch */
   mismatchRedirect: (context: TContext, params: TParams) => string;
   /** Run after identifier verifies */
-  onConfirm: (args: {
-    context: TContext;
-    form: FormParams;
-    params: TParams;
-    session: AuthSession;
-  }) => Response | Promise<Response>;
+  onConfirm: AuthedHandleStep<TParams, TContext>;
 };
 
 /**
