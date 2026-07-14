@@ -45,6 +45,31 @@ export const stageMidPaymentAttendee = (
     }),
   );
 
+/** A kept record whose listing was deleted mid-payment and whose checkout has
+ *  since resolved: stage a checkout, delete the listing (the staged rows
+ *  survive the race), then mark the stage failed. Returns the attendee id,
+ *  the deleted listing's id, and the surviving row's line key — the state the
+ *  deleted-listing editor tests all start from. */
+export const resolvedDeletedListingAttendee = async (
+  sessionId: string,
+): Promise<{ attendeeId: number; listingId: number; key: string }> => {
+  const listing = await createTestListing({ unitPrice: 1000 });
+  const stage = await stageMidPaymentAttendee(listing, sessionId);
+  const { deleteListing } = await import("#shared/db/listings/delete.ts");
+  await deleteListing(listing.id);
+  const { markCheckoutStage } = await import("#shared/db/checkout-stages.ts");
+  await markCheckoutStage(sessionId, "failed");
+  const { loadExistingLines } = await import(
+    "#shared/db/attendees/atomic-update.ts"
+  );
+  const lines = await loadExistingLines(stage.attendeeId);
+  return {
+    attendeeId: stage.attendeeId,
+    key: lines[0]!.key,
+    listingId: listing.id,
+  };
+};
+
 /** A listing (100 spots by default) plus one attendee booked onto it ("John
  *  Doe" by default). The single most repeated setup across the attendee admin
  *  tests — pulled here so every delete/checkin/edit/resend test shares it. */

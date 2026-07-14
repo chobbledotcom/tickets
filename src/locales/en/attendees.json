@@ -151,6 +151,7 @@
   "attendee_form.error_pending_checkout": "This booking is mid-payment. Wait for the payment to finish or expire.",
   "attendee_form.pending_checkout_banner": "Checkout pending: the customer may still be paying. This record is locked until the payment finishes or expires.",
   "attendee_form.deleted_listing": "Deleted listing",
+  "attendee_form.deleted_listing_locked": "This record has a booking for a deleted listing. That line is locked and cannot be changed.",
   "attendee_form.error_held_cash": "This booking holds a payment that was not refunded. Refund it before you delete this record.",
   "attendee_form.error_capacity": "Not enough spots available for one or more selected listings — nothing was saved. Please review the quantities and try again.",
   "attendee_form.saved_added": "Added {value}",

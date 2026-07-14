@@ -165,6 +165,76 @@ const lineRowClass = (line: AttendeeFormLine, booked: boolean): string => {
     : "attendee-line attendee-line-empty";
 };
 
+/** One editor line plus its position in the rendered editor (the index every
+ * per-line form field is keyed by). */
+type LinePosition = { line: AttendeeFormLine; index: number };
+
+/** Check-in / refunded badges from the line's stored row (none when new). */
+const lineBadges = (line: AttendeeFormLine): JSX.Element | null =>
+  BookingStatusBadges({
+    checkedIn: Boolean(line.existingBooking?.checked_in),
+    refunded: Boolean(line.existingBooking?.refunded),
+  });
+
+/** The stored row's saved date range, or null when it has none. */
+const StoredRangeLabel = ({
+  line,
+}: {
+  line: AttendeeFormLine;
+}): JSX.Element | null =>
+  line.existingBooking?.start_at ? (
+    <div class="muted small">
+      {formatDateRangeLabel(
+        line.existingBooking.start_at,
+        line.existingBooking.end_at,
+      )}
+    </div>
+  ) : null;
+
+/** The hidden fields that identify a line on submit: its listing id, its
+ * existing row's key, and (for a new package-path line) the package it books
+ * through. */
+const LineIdentityInputs = ({ line, index }: LinePosition): JSX.Element => (
+  <>
+    <input
+      name={`${LINE_LISTING_PREFIX}${index}`}
+      type="hidden"
+      value={String(line.listingId)}
+    />
+    <input name={`${LINE_KEY_PREFIX}${index}`} type="hidden" value={line.key} />
+    {line.packageGroupId > 0 ? (
+      <input
+        name={`${LINE_PACKAGE_PREFIX}${index}`}
+        type="hidden"
+        value={String(line.packageGroupId)}
+      />
+    ) : null}
+  </>
+);
+
+/** A locked row for a stored booking whose listing no longer exists — a
+ * delete racing a mid-payment checkout keeps the rows. It submits itself
+ * unchanged (its identity fields plus a hidden no-quantity tick) and offers
+ * no controls: a deleted listing can't be re-booked, and a save deletes any
+ * row its form leaves out, so the row must always be submitted, locked. */
+const DeletedListingRow = ({ line, index }: LinePosition): JSX.Element => (
+  <tr class="attendee-line">
+    <td>
+      <span class="muted">{t("attendee_form.deleted_listing")}</span>
+      {lineBadges(line)}
+    </td>
+    <td />
+    <td class="attendee-line-qty">
+      <span class="muted small">{t("attendee_form.no_quantity")}</span>
+      <input name={`${NO_QUANTITY_PREFIX}${index}`} type="hidden" value="1" />
+      <LineIdentityInputs index={index} line={line} />
+    </td>
+    <td>
+      <StoredRangeLabel line={line} />
+    </td>
+  </tr>
+);
+
 /** One row of the listing editor — one booking path and its quantity box. */
 const ListingRow = ({
   line,
@@ -177,7 +247,10 @@ const ListingRow = ({
   warnings: string[];
   data: AttendeeFormTemplateData;
 }): JSX.Element => {
-  const listing = line.listing!;
+  if (line.listing === null) {
+    return <DeletedListingRow index={index} line={line} />;
+  }
+  const listing = line.listing;
   const booked = isRetainedLine(line) || Boolean(line.existingBooking);
   const isDaily = listing.listing_type === "daily";
   const label = pathLabel(line, data);
@@ -190,10 +263,7 @@ const ListingRow = ({
         <AdminListingLink listing={listing} />
         {label ? <span class="muted small booking-path"> {label}</span> : null}
         <InactiveNote active={listing.active} />
-        {BookingStatusBadges({
-          checkedIn: Boolean(line.existingBooking?.checked_in),
-          refunded: Boolean(line.existingBooking?.refunded),
-        })}
+        {lineBadges(line)}
       </td>
       <td>
         <span class="muted small">
@@ -229,33 +299,10 @@ const ListingRow = ({
           />
           {t("attendee_form.no_quantity")}
         </label>
-        <input
-          name={`${LINE_LISTING_PREFIX}${index}`}
-          type="hidden"
-          value={String(line.listingId)}
-        />
-        <input
-          name={`${LINE_KEY_PREFIX}${index}`}
-          type="hidden"
-          value={line.key}
-        />
-        {line.packageGroupId > 0 ? (
-          <input
-            name={`${LINE_PACKAGE_PREFIX}${index}`}
-            type="hidden"
-            value={String(line.packageGroupId)}
-          />
-        ) : null}
+        <LineIdentityInputs index={index} line={line} />
       </td>
       <td>
-        {line.existingBooking?.start_at ? (
-          <div class="muted small">
-            {formatDateRangeLabel(
-              line.existingBooking.start_at,
-              line.existingBooking.end_at,
-            )}
-          </div>
-        ) : null}
+        <StoredRangeLabel line={line} />
         {line.error ? <ErrorAlert>{line.error}</ErrorAlert> : null}
         {warnings.map((w) => (
           <div class="warning small" role="alert">

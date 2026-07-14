@@ -30,6 +30,7 @@ import {
   dualPackageRows,
   expectFlashPage,
   firstAttendee,
+  resolvedDeletedListingAttendee,
   setupListingAndAttendee,
   stageMidPaymentAttendee,
   submitAttendeeEdit,
@@ -142,6 +143,52 @@ describeWithEnv(
         );
         // The staged rows the payment will claim are untouched.
         expect(await getAttendeeQuantities(stage.attendeeId)).toEqual([
+          { quantity: 0 },
+        ]);
+      });
+
+      test("renders the edit form for a record whose listing was deleted", async () => {
+        const { attendeeId } = await resolvedDeletedListingAttendee(
+          "cs_edit_deleted_render",
+        );
+        const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
+        const html = await expectHtmlResponse(response, 200);
+        // The kept row renders locked: a placeholder name, a hidden
+        // no-quantity tick, and no quantity box — a deleted listing can't be
+        // re-booked, and the save deletes any row the form leaves out.
+        expect(html).toContain("Deleted listing");
+        expect(html).toContain('name="noqty_0" type="hidden"');
+        expect(html).not.toContain('name="qty_0"');
+      });
+
+      test("keeps the deleted-listing row when saving an unrelated edit", async () => {
+        const { attendeeId, key, listingId } =
+          await resolvedDeletedListingAttendee("cs_edit_deleted_keep");
+        // The locked row submits itself unchanged (as the rendered form does).
+        const response = await submitAttendeeEdit(attendeeId, {
+          lines: [{ eventId: listingId, key, noQuantity: true, quantity: 0 }],
+          name: "Renamed Keeper",
+        });
+        expect(response.status).toBe(302);
+        // The stored row survives the save exactly as it was.
+        expect(await getAttendeeQuantities(attendeeId)).toEqual([
+          { quantity: 0 },
+        ]);
+      });
+
+      test("refuses un-locking a deleted-listing line", async () => {
+        const { attendeeId, key, listingId } =
+          await resolvedDeletedListingAttendee("cs_edit_deleted_unlock");
+        // A hand-crafted submission un-ticks the locked line's no-quantity
+        // box and tries to book the deleted listing.
+        const response = await submitAttendeeEdit(attendeeId, {
+          lines: [{ eventId: listingId, key, quantity: 1 }],
+          name: "Hand Crafted",
+        });
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("That line is locked");
+        expect(await getAttendeeQuantities(attendeeId)).toEqual([
           { quantity: 0 },
         ]);
       });

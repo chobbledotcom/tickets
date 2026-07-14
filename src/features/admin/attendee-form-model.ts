@@ -196,10 +196,14 @@ type SharedDates = {
 export const isBookedLine = (line: AttendeeFormLine): boolean =>
   line.quantity !== null && line.quantity >= 1 && line.listing !== null;
 
-/** True when the "no quantity" box is ticked for a resolvable listing: a
- * deliberate quantity-0 sentinel line to keep, not a real booking. */
+/** True when the "no quantity" box is ticked for a line worth keeping: a
+ * deliberate quantity-0 sentinel, not a real booking. The listing must
+ * resolve OR the line must carry a stored row — a stored row can outlive its
+ * listing (a delete racing a mid-payment checkout keeps the rows), and the
+ * editor locks that row as a permanent no-quantity line so a save never
+ * silently drops it. */
 export const isNoQuantityLine = (line: AttendeeFormLine): boolean =>
-  line.noQuantity && line.listing !== null;
+  line.noQuantity && (line.listing !== null || line.existingBooking !== null);
 
 /** True when a line carries a captured payment (price_paid > 0 on its existing
  * booking). Such a line can't be marked no-quantity until the charge is
@@ -483,6 +487,23 @@ const validatePaidNoQuantity = (parsed: ParsedAttendeeForm): string | null =>
     ? PAID_NO_QUANTITY_MESSAGE()
     : null;
 
+/** Form-wide guard: a row whose listing was deleted can only be kept as-is.
+ * The editor renders it locked (a hidden no-quantity tick, no controls), so
+ * this only fires on a hand-crafted submission that un-ticks the box —
+ * accepting it would book a listing that no longer exists (quantity ≥ 1) or
+ * silently drop the kept row on save (quantity 0). */
+const validateDeletedListingLocked = (
+  parsed: ParsedAttendeeForm,
+): string | null =>
+  parsed.lines.some(
+    (line) =>
+      line.existingBooking !== null &&
+      line.listing === null &&
+      !line.noQuantity,
+  )
+    ? t("attendee_form.deleted_listing_locked")
+    : null;
+
 /**
  * Validate the attendee block, the shared date, and each booked line. A daily
  * booking requires a valid shared start date; everything date- or
@@ -497,7 +518,8 @@ export const validateParsedForm = (
     hasDailyBooking && !isIsoDate(parsed.startDate)
       ? t("attendee_form.date_required")
       : null;
-  const formError = validatePaidNoQuantity(parsed);
+  const formError =
+    validatePaidNoQuantity(parsed) ?? validateDeletedListingLocked(parsed);
 
   const lineErrors = new Map<number, string>();
   for (let i = 0; i < parsed.lines.length; i++) {
@@ -523,12 +545,30 @@ export const validateParsedForm = (
 // Mutation adapters — convert parsed form into the DB-layer input shapes
 // ---------------------------------------------------------------------------
 
+/** A line's booking range: the start date (null = no date) and its length. */
+type LineDateRange = { date: string | null; durationDays: number };
+
 /** Booking date/duration for a line: the shared range for daily listings, none
- * for standard listings. */
-const lineDate = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) =>
-  line.listing!.listing_type === "daily"
+ * for standard listings. A deleted listing's locked row keeps its stored range
+ * unchanged — the shared date fields only apply to listings that still exist,
+ * and only a line with a stored row is retained when its listing is gone
+ * ({@link isNoQuantityLine}), so the row is always there to read. */
+const lineDate = (
+  line: AttendeeFormLine,
+  parsed: ParsedAttendeeForm,
+): LineDateRange => {
+  if (line.listing === null) {
+    const booking = line.existingBooking!;
+    return {
+      // A stored row without a range stays range-less.
+      date: booking.start_at?.slice(0, 10) ?? null,
+      durationDays: bookingDurationDays(booking) ?? 1,
+    };
+  }
+  return line.listing.listing_type === "daily"
     ? { date: parsed.startDate, durationDays: parsed.dayCount }
     : { date: null, durationDays: 1 };
+};
 
 /** The booking fields every persisted line carries — its date range, its own
  * booking path, and its quantity. Shared by the create and edit adapters so
@@ -536,9 +576,7 @@ const lineDate = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) =>
 const lineBookingFields = (
   line: AttendeeFormLine,
   parsed: ParsedAttendeeForm,
-): {
-  date: string | null;
-  durationDays: number;
+): LineDateRange & {
   listingId: number;
   packageGroupId: number;
   quantity: number;

@@ -57,10 +57,15 @@ describeWithEnv(
         expect(html).not.toContain(`href="${base}/edit"`);
         expect(html).not.toContain(`href="${base}/logistics"`);
         expect(html).not.toContain(`href="${base}/actions"`);
+        // The Ledger tab embeds manual charge/payment forms, so it hides too:
+        // a manual leg posted mid-payment would combine with activation's own
+        // legs and show a fully-paid ticket with a surprise balance.
+        expect(html).not.toContain(`href="${base}/ledger"`);
 
         // A hidden tab's URL is a 404, so `visible` IS the authorization.
         expect((await adminGet(`${base}/edit`)).status).toBe(404);
         expect((await adminGet(`${base}/actions`)).status).toBe(404);
+        expect((await adminGet(`${base}/ledger`)).status).toBe(404);
       });
 
       test("shows a raced-delete staged order as a deleted-listing line", async () => {
@@ -98,6 +103,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(await adminGet(base), 200);
         expect(html).toContain(`href="${base}/edit"`);
         expect(html).toContain(`href="${base}/actions"`);
+        expect(html).toContain(`href="${base}/ledger"`);
         expect(html).not.toContain("Checkout pending");
       });
 

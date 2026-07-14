@@ -253,8 +253,13 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
       ],
       slug: "ledger",
       // The ledger exposes money movements and the customer pay link, so it is
-      // owner-only — matching the standalone /admin/ledger* routes.
-      visible: (_entity, session) => session.adminLevel === "owner",
+      // owner-only — matching the standalone /admin/ledger* routes. It also
+      // hides while a checkout is pending: it embeds manual charge/payment
+      // forms, and a manual leg posted mid-payment would combine with
+      // activation's own legs into a surprise balance (a pending stage has
+      // zero legs, so the tab has nothing to show anyway).
+      visible: (entity, session) =>
+        session.adminLevel === "owner" && notMidPayment(entity),
     },
     {
       labelKey: "entity.tab.activity",
