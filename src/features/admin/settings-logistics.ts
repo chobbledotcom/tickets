@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
+/* jscpd:ignore-end */
 /**
  * Admin logistics settings + logistics-agent management — owner only.
  *
@@ -8,6 +9,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * shared owner-CRUD handlers with the logistics page itself as the list view.
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { settingsToggle } from "#routes/admin/settings-helpers.ts";

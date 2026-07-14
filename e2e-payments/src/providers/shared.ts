@@ -1,10 +1,10 @@
 /* jscpd:ignore-start */
-import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import type { ProviderName } from "../config.ts";
 import { config } from "../config.ts";
 import { log } from "../log.ts";
-import type { ConfigureProvider, HostedCheckoutContext } from "./types.ts";
+import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
+
 /* jscpd:ignore-end */
 
 /** A step that acts on the settings page for one named payment provider. */
@@ -64,11 +64,8 @@ export const configureProvider =
  * repeated per provider, so each provider only writes its own driving step.
  */
 export const hostedCheckout =
-  (
-    message: string,
-    drive: (page: Page, ctx: HostedCheckoutContext) => Promise<void>,
-  ) =>
-  async (page: Page, ctx: HostedCheckoutContext): Promise<void> => {
+  (message: string, drive: PayHostedCheckout): PayHostedCheckout =>
+  async (page, ctx) => {
     log(message);
     await page.waitForLoadState("domcontentloaded");
     await drive(page, ctx);
