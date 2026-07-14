@@ -1,8 +1,7 @@
 /* jscpd:ignore-start */
-import type { Page } from "playwright";
 import { log, warn } from "../log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
-import { configureProvider } from "./shared.ts";
+import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 /* jscpd:ignore-end */
 
@@ -40,7 +39,7 @@ export const stripe: PaymentProvider = {
         data?: { id: string; url?: string }[];
       };
       const stale = (body.data ?? []).filter((e) =>
-        e.url?.includes("trycloudflare.com")
+        e.url?.includes("trycloudflare.com"),
       );
       for (const endpoint of stale) {
         await fetch(
@@ -63,61 +62,67 @@ export const stripe: PaymentProvider = {
   }),
   name: "stripe",
 
-  payHostedCheckout: async (page: Page): Promise<void> => {
-    log("Filling Stripe Checkout hosted page…");
-    await page.waitForLoadState("domcontentloaded");
-    // Stripe Checkout renders the card fields at the top level with stable ids
-    // (#cardNumber/#cardExpiry/#cardCvc/#billingName/#billingPostalCode). Email
-    // is prefilled from the booking. US ZIP (42424) to match the account's
-    // billing country — a UK postcode gets its letters stripped to a too-short
-    // ZIP ("SW1A 1AA" → "11", "incomplete").
-    await fillFirst(
-      page,
-      "card number",
-      ["#cardNumber", 'input[name="cardNumber"]'],
-      "4242424242424242",
-    );
-    await fillFirst(
-      page,
-      "expiry",
-      ["#cardExpiry", 'input[name="cardExpiry"]'],
-      "12 / 34",
-    );
-    await fillFirst(page, "cvc", ["#cardCvc", 'input[name="cardCvc"]'], "123");
-    await fillFirst(
-      page,
-      "name on card",
-      ["#billingName", 'input[name="billingName"]'],
-      "E2E Tester",
-      { required: false },
-    );
-    await fillFirst(
-      page,
-      "postal code",
-      ["#billingPostalCode", 'input[name="billingPostalCode"]'],
-      "42424",
-      { required: false },
-    );
-    // Stripe pre-checks "Save my information for faster checkout" (Link), which
-    // makes the phone number field required — leaving it empty blocks Pay with a
-    // "Required" error and the submit button stuck "incomplete". Uncheck it so
-    // no phone number is needed.
-    const linkOptIn = page
-      .locator('#enableStripePass, input[name="enableStripePass"]')
-      .first();
-    try {
-      if (await linkOptIn.isChecked({ timeout: 3_000 })) {
-        await linkOptIn.uncheck({ timeout: 5_000 });
-        log("  unchecked Link 'save my information' opt-in");
+  payHostedCheckout: hostedCheckout(
+    "Filling Stripe Checkout hosted page…",
+    async (page) => {
+      // Stripe Checkout renders the card fields at the top level with stable ids
+      // (#cardNumber/#cardExpiry/#cardCvc/#billingName/#billingPostalCode). Email
+      // is prefilled from the booking. US ZIP (42424) to match the account's
+      // billing country — a UK postcode gets its letters stripped to a too-short
+      // ZIP ("SW1A 1AA" → "11", "incomplete").
+      await fillFirst(
+        page,
+        "card number",
+        ["#cardNumber", 'input[name="cardNumber"]'],
+        "4242424242424242",
+      );
+      await fillFirst(
+        page,
+        "expiry",
+        ["#cardExpiry", 'input[name="cardExpiry"]'],
+        "12 / 34",
+      );
+      await fillFirst(
+        page,
+        "cvc",
+        ["#cardCvc", 'input[name="cardCvc"]'],
+        "123",
+      );
+      await fillFirst(
+        page,
+        "name on card",
+        ["#billingName", 'input[name="billingName"]'],
+        "E2E Tester",
+        { required: false },
+      );
+      await fillFirst(
+        page,
+        "postal code",
+        ["#billingPostalCode", 'input[name="billingPostalCode"]'],
+        "42424",
+        { required: false },
+      );
+      // Stripe pre-checks "Save my information for faster checkout" (Link), which
+      // makes the phone number field required — leaving it empty blocks Pay with a
+      // "Required" error and the submit button stuck "incomplete". Uncheck it so
+      // no phone number is needed.
+      const linkOptIn = page
+        .locator('#enableStripePass, input[name="enableStripePass"]')
+        .first();
+      try {
+        if (await linkOptIn.isChecked({ timeout: 3_000 })) {
+          await linkOptIn.uncheck({ timeout: 5_000 });
+          log("  unchecked Link 'save my information' opt-in");
+        }
+      } catch {
+        // opt-in not shown on this variant — nothing to do
       }
-    } catch {
-      // opt-in not shown on this variant — nothing to do
-    }
-    await clickFirst(page, "pay button", [
-      'button[data-testid="hosted-payment-submit-button"]',
-      ".SubmitButton",
-      'button:has-text("Pay")',
-    ]);
-  },
+      await clickFirst(page, "pay button", [
+        'button[data-testid="hosted-payment-submit-button"]',
+        ".SubmitButton",
+        'button:has-text("Pay")',
+      ]);
+    },
+  ),
   setupCountry: "US",
 };

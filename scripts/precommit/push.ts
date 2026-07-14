@@ -2,6 +2,7 @@ import {
   commandValue,
   type RunCommand,
   runGit,
+  verifyRef,
   withinWorkTree,
 } from "./git.ts";
 import { getOriginUrl } from "./merge-warning.ts";
@@ -43,11 +44,7 @@ const getUnpushedCommitCount = async (
     return commandNumber(run, ["rev-list", "--count", `${upstream}..HEAD`]);
   }
 
-  const originMain = await commandValue(run, [
-    "rev-parse",
-    "--verify",
-    "origin/main",
-  ]);
+  const originMain = await verifyRef(run, "origin/main");
   if (originMain) {
     return commandNumber(run, ["rev-list", "--count", "origin/main..HEAD"]);
   }
