@@ -55,6 +55,21 @@ describeWithEnv(
         return response;
       };
 
+      /** POST the edit form and assert it was refused in place (200) with the
+       *  shared "refund first" message — a paid line, or held conflict cash the
+       *  save would strand. */
+      const postEditExpectRefundFirst = async (
+        attendeeId: number,
+        form: Record<string, string>,
+      ): Promise<void> => {
+        const { response } = await adminFormPost(
+          `/admin/attendees/${attendeeId}`,
+          form,
+        );
+        const html = await expectHtmlResponse(response, 200);
+        expect(html).toContain("Refund this booking's payment");
+      };
+
       /** Book a paid attendee on `listingId` and recognise a £15 sale leg in the
        *  ledger, so hasPaidLine's DB guard sees a gross sale (not a price_paid
        *  column). Returns the new attendee id. */
@@ -246,13 +261,7 @@ describeWithEnv(
           ],
           name: "Stale",
         });
-        const { response } = await adminFormPost(
-          `/admin/attendees/${attendeeId}`,
-          form,
-        );
-
-        const html = await expectHtmlResponse(response, 200);
-        expect(html).toContain("Refund this booking's payment");
+        await postEditExpectRefundFirst(attendeeId, form);
         // The paid line is untouched (not dropped/replaced by a ghost).
         expect(await readLine(attendeeId, listing.id)).toMatchObject({
           price_paid: 1500,
@@ -284,6 +293,95 @@ describeWithEnv(
         // The line is untouched, so the in-app refund path (which needs an
         // active booking line) still reaches the held cash.
         expect(await readLine(attendee.id, listing.id)).toMatchObject({
+          quantity: 1,
+        });
+      });
+
+      /** Book an attendee on two listings (both quantity 1) and give it a held
+       *  conflict payment (positive account balance, no sale). The first listing
+       *  is the home listing the refund route keys on. Returns the ids + a key
+       *  lookup for the edit form. */
+      const heldCashOnTwoListings = async (email: string, name: string) => {
+        const home = await createTestListing({ maxAttendees: 50 });
+        const other = await createTestListing({ maxAttendees: 50 });
+        const created = await createAttendeeAtomic({
+          bookings: [
+            { listingId: home.id, quantity: 1 },
+            { listingId: other.id, quantity: 1 },
+          ],
+          email,
+          name,
+        });
+        if (!created.success) throw new Error("setup");
+        const attendeeId = created.attendees[0]!.id;
+        await postHeldPayment({ amount: 1000, attendeeId, listingId: home.id });
+        const { loadExistingLines } = await import(
+          "#shared/db/attendees/atomic-update.ts"
+        );
+        const lines = await loadExistingLines(attendeeId);
+        const keyOf = (listingId: number) =>
+          lines.find((e) => e.booking.listing_id === listingId)!.key;
+        return { attendeeId, home, keyOf, other };
+      };
+
+      test("allows a no-quantity edit that keeps the active home line while cash is held", async () => {
+        const { attendeeId, home, keyOf, other } = await heldCashOnTwoListings(
+          "held-keep@example.com",
+          "Held Keep",
+        );
+        // Keep the home line active; mark only the OTHER line no-quantity. The
+        // refund route (an active home line) survives, so the save is allowed —
+        // the operator can still fix the quantities the conflict note asks about.
+        const form = await buildAttendeeEditForm(attendeeId, {
+          lines: [
+            { eventId: home.id, key: keyOf(home.id), quantity: 1 },
+            {
+              eventId: other.id,
+              key: keyOf(other.id),
+              noQuantity: true,
+              quantity: 1,
+            },
+          ],
+          name: "Held Keep",
+        });
+        const { response } = await adminFormPost(
+          `/admin/attendees/${attendeeId}`,
+          form,
+        );
+
+        expect(response.status).toBe(302);
+        // The home line stays active (refund path intact); the other becomes a
+        // quantity-0 sentinel.
+        expect(await readLine(attendeeId, home.id)).toMatchObject({
+          quantity: 1,
+        });
+        expect(await readLine(attendeeId, other.id)).toMatchObject({
+          quantity: 0,
+        });
+      });
+
+      test("still blocks removing the active home line while cash is held, even if another line stays", async () => {
+        const { attendeeId, home, keyOf, other } = await heldCashOnTwoListings(
+          "held-home@example.com",
+          "Held Home",
+        );
+        // Mark the HOME line no-quantity but keep the other active. The refund
+        // route is home-scoped, so this would strand the held cash — blocked.
+        const form = await buildAttendeeEditForm(attendeeId, {
+          lines: [
+            {
+              eventId: home.id,
+              key: keyOf(home.id),
+              noQuantity: true,
+              quantity: 1,
+            },
+            { eventId: other.id, key: keyOf(other.id), quantity: 1 },
+          ],
+          name: "Held Home",
+        });
+        await postEditExpectRefundFirst(attendeeId, form);
+        // The home line is untouched, so the in-app refund still reaches.
+        expect(await readLine(attendeeId, home.id)).toMatchObject({
           quantity: 1,
         });
       });

@@ -42,7 +42,10 @@ import {
   packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
-import { getAllListings } from "#shared/db/listings/records.ts";
+import {
+  getAllListings,
+  getListingWithCount,
+} from "#shared/db/listings/records.ts";
 import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
 import type {
   QuestionWithAnswers,
@@ -69,6 +72,11 @@ export type LoadedAttendee = {
   attendee: Attendee;
   canRefund: boolean;
   existing: ExistingLine[];
+  /** True when the attendee's home listing still exists. False for a record
+   * whose listing was deleted mid-payment (the staged rows are kept): the
+   * attendee-scoped action routes all load the home listing and 404 when it is
+   * gone, so the Actions tab hides rather than offer links that only 404. */
+  homeListingExists: boolean;
   /** True while this record's checkout is staged and the customer may still be
    * paying. The write tabs and actions hide behind it — every mutation is also
    * blocked server-side, so the page must not offer controls that only fail. */
@@ -88,12 +96,20 @@ export const loadAttendeeForEdit: (
   attendeeId: number,
 ) => Promise<LoadedAttendee | null> = withDecryptedAttendee(
   async (attendee) => {
-    const [canRefund, existing, pendingCheckout] = await Promise.all([
-      canRefundAttendee(attendee),
-      loadExistingLines(attendee.id),
-      hasPendingCheckout(attendee.id),
-    ]);
-    return { attendee, canRefund, existing, pendingCheckout };
+    const [canRefund, existing, pendingCheckout, homeListing] =
+      await Promise.all([
+        canRefundAttendee(attendee),
+        loadExistingLines(attendee.id),
+        hasPendingCheckout(attendee.id),
+        getListingWithCount(attendee.listing_id),
+      ]);
+    return {
+      attendee,
+      canRefund,
+      existing,
+      homeListingExists: homeListing !== null,
+      pendingCheckout,
+    };
   },
 );
 

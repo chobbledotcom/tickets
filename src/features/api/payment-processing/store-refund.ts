@@ -233,10 +233,14 @@ export const settleBalanceSession = async (
  * carrying the reason and the provider's payment reference. The customer is told
  * their details were saved and the payment refunded; no ticket is issued.
  *
- * We never report `refunded: false`. The booking now exists, so a retry must NOT
- * re-create it — an un-refunded payment is recorded as a terminal, operator-
- * resolved outcome (the note's manual-refund instruction stands) rather than
- * released for re-processing.
+ * A refund that FAILED splits by whether the order was staged. A NO-STAGE
+ * placeholder was just created here, so a retry would mint a duplicate — its
+ * un-refunded payment is a terminal, operator-resolved outcome (the note's
+ * manual-refund instruction stands), reported with `refunded` absent. A STAGED
+ * order reuses its existing quantity-0 record, so a retry is safe and better:
+ * it stays retryable (`refunded: false`, no ledger legs, stage left pending) so
+ * the provider's next delivery re-attempts the refund — the same design as
+ * {@link failStagedValidation}.
  */
 export const storeRefundedBooking = async (
   session: ValidatedPaymentSession,
@@ -262,6 +266,31 @@ export const storeRefundedBooking = async (
         })) as CreateAttendeeSuccess
       ).attendees[0]!.id;
   const refunded = await tryRefund(session.paymentReference, listingId);
+  // A STAGED order whose provider refund FAILED must stay retryable, not go
+  // terminal: leave the stage pending with NO ledger legs so the next delivery
+  // re-runs the whole path and re-attempts tryRefund (a settled refund reads
+  // back as success, so a retry never refunds twice). Posting the placeholder
+  // payment leg now would make the ledger preflight (bookingLedgerDisposition)
+  // answer "already handled" — the leg exists but the quantity-0 record owns no
+  // live booking, so it reads as orphaned money — and never re-refund. Reporting
+  // refunded:false releases the reservation and returns 503 to the provider so it
+  // redelivers. The no-stage path below can't retry (its placeholder is already
+  // created and a retry would mint a duplicate), so it records the miss
+  // terminally instead. This mirrors failStagedValidation's retryable design.
+  if (stage && !refunded) {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Staged refund not settled for ${attendeeId} (${spec.code}); leaving stage pending to retry: ${spec.detail}`,
+      listingId,
+    });
+    return {
+      detail: spec.detail,
+      error: BOOKING_SAVED_MESSAGE,
+      refunded: false,
+      status: 200,
+      success: false,
+    };
+  }
   const { posted } = await recordPlaceholderRefund(
     placeholderFacts(session, attendeeId, listingId),
     spec.code,

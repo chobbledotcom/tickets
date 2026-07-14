@@ -71,6 +71,13 @@ const actionBase = ({ attendee }: LoadedAttendee): string =>
 const notMidPayment = ({ pendingCheckout }: LoadedAttendee): boolean =>
   !pendingCheckout;
 
+/** The visibility gate for the Actions tab: no pending checkout AND the home
+ * listing still exists. Every attendee-scoped action route (delete, refund,
+ * resend, send-text) loads the home listing and 404s when it is gone, so a
+ * deleted-listing record must not render links that only 404. */
+const canActOnRecord = (entity: LoadedAttendee): boolean =>
+  notMidPayment(entity) && entity.homeListingExists;
+
 /** Thread the current tab back through a sub-action's confirm page. */
 const withReturn = (href: string, ctx: PageCtx): string =>
   `${href}?return_url=${encodeURIComponent(ctx.returnUrl)}`;
@@ -287,7 +294,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         },
       ],
       slug: "actions",
-      visible: notMidPayment,
+      visible: canActOnRecord,
     },
   ],
   titleOf: ({ attendee }) =>

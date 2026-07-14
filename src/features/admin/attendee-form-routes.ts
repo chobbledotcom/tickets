@@ -425,19 +425,26 @@ const applyEdit = async (
       saveError: t("attendee_form.error_built_site_no_qty"),
     };
   }
-  // Block marking a paid line no-quantity, even when a stale form key hid the
-  // existing booking from the per-line model guard.
-  if (await anyNoQuantityLineMatches(attendeeId, parsed.lines, hasPaidLine)) {
-    return { ok: false, saveError: t("attendee_form.error_paid_no_qty") };
-  }
-  // Block removing the last active line while the attendee still holds provider
-  // cash that was never applied to a sale (a stage_active conflict's held
-  // payment). That cash has no sale leg, so the price_paid and hasPaidLine
-  // guards above miss it — but the in-app refund needs an active booking line,
-  // so marking the line no-quantity would strand it. Refund it first.
+  // A save can't strip the in-app refund path while money is still ours to
+  // return — refund first. Two ways it would, both refused with the same message:
+  //  - marking a SALE-backed line no-quantity (hasPaidLine, even when a stale
+  //    form key hid the existing booking from the per-line model guard); or
+  //  - removing the active home line while the attendee holds a stage_active
+  //    conflict's un-refunded cash. That cash has no sale leg, so hasPaidLine
+  //    misses it, and the refund route needs an active home line
+  //    (canRefundAttendee → hasActiveBookingLine). Only a save that REMOVES that
+  //    line (marks it no-quantity, zeroes it, or omits it) strands the cash; a
+  //    save that keeps an active home line leaves the refund path intact, so the
+  //    operator can still fix the quantities the conflict note asks about.
+  const keepsHomeRefundLine = parsed.lines.some(
+    (line) =>
+      line.listingId === attendee.listing_id &&
+      line.quantity !== null &&
+      line.quantity >= 1,
+  );
   if (
-    parsed.lines.some(isNoQuantityLine) &&
-    (await attendeeHoldsUnreturnedCash(attendeeId))
+    (await anyNoQuantityLineMatches(attendeeId, parsed.lines, hasPaidLine)) ||
+    (!keepsHomeRefundLine && (await attendeeHoldsUnreturnedCash(attendeeId)))
   ) {
     return { ok: false, saveError: t("attendee_form.error_paid_no_qty") };
   }
