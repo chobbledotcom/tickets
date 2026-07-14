@@ -89,6 +89,7 @@ export const ListingOverviewPanel = (
     isChild = false,
     isHiddenPackageMember = false,
     systemNotes = [],
+    isOwner = false,
   } = opts;
   const links = listingLinksFor(listing, allowedDomain);
   const isDaily = listing.listing_type === "daily";
@@ -130,7 +131,11 @@ export const ListingOverviewPanel = (
           listing={listing}
         />
       )}
-      <AttendeeNotesSummary names={noteNames} notes={systemNotes} />
+      <AttendeeNotesSummary
+        isOwner={isOwner}
+        names={noteNames}
+        notes={systemNotes}
+      />
     </PageRegions>
   );
 };

@@ -14,11 +14,13 @@ import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
-import type { SystemNote } from "#shared/db/system-notes.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { Attendee } from "#shared/types.ts";
-import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
+import {
+  AttendeeNotesSection,
+  type NotesViewProps,
+} from "#templates/admin/attendee-notes.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
 import { dataTable } from "#templates/components/data-table.tsx";
@@ -323,11 +325,11 @@ export const attendeeBanner = ({
   attendee,
   statuses,
   notes,
+  isOwner,
 }: {
   attendee: Attendee;
   statuses: AttendeeStatus[];
-  notes: SystemNote[];
-}): JSX.Element | null => {
+} & NotesViewProps): JSX.Element | null => {
   const showStatus = statuses.length > 1;
   if (!showStatus && notes.length === 0) return null;
   const status = statuses.find((s) => s.id === attendee.status_id);
@@ -342,7 +344,7 @@ export const attendeeBanner = ({
           </h2>
         </div>
       )}
-      <AttendeeNotesSection notes={notes} />
+      <AttendeeNotesSection isOwner={isOwner} notes={notes} />
     </PageBlock>
   );
 };
