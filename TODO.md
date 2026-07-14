@@ -989,6 +989,39 @@ doing next time this file is touched.
 
 ---
 
+## Placeholder refund — replay marker gap when the atomic ledger batch fails
+
+*Origin: Codex review on PR #1822 (atomic placeholder payment + refund ledger).*
+
+`recordPlaceholderRefund` (`src/shared/refund-ledger.ts`) posts the payment
+and completed-refund legs as one atomic `postTransferGroups` batch, so a
+refund-leg conflict rolls the payment back too (the PR's core requirement).
+When that batch fails outright, NO ledger legs land for the booking event
+group. The payment flow's durable replay guard is the ledger preflight
+(`replaySessionFromLedger` → `bookingLedgerDisposition`: `unrecorded` when
+no legs exist), and the primary guard (`markSessionFailed`'s `failure_data`
+row) is pruned by `prunePayments` once it ages past retention. So after
+pruning, a late webhook/redirect for the same already-refunded session
+re-enters `processReservedSession`, sees `unrecorded`, and re-creates a
+placeholder attendee + re-calls `tryRefund` (idempotent, so no double payout)
+instead of acknowledging the session as already handled.
+
+This is NOT fully new: on main before PR #1822 the same gap existed for a
+payment-post failure (the first `postTransfers` threw → no legs). PR #1822
+widens the failure surface from "payment-post failure only" to "payment-post
+OR refund-post failure" (because both are now one atomic batch). Closing it
+properly needs a durable handled marker that survives idempotency-row pruning
+without breaking the atomic rollback — e.g. a ledger leg that survives even
+when the refund leg conflicts (which would violate #1822's acceptance
+criterion: "a refund-reference collision proves neither transfer group is
+committed"), or a separate replay-state row outside the prunable
+`processed_payments` table. The staged-checkout runtime (deferred
+foundations item 6 in `PR_SPLIT_PLAN.md`) carries the proper replay/activation
+machinery to resolve this. Starting point: the preflight in
+`src/features/api/payment-processing/index.ts` (`replaySessionFromLedger`),
+the pruner in `src/shared/db/prune.ts` (`prunePayments`), and the
+classification in `src/shared/session-ledger.ts`.
+
 ## Localise the confirmation-email template-variable reference table
 
 *Origin: CodeRabbit review on PR #1800.*
