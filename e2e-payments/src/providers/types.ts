@@ -14,6 +14,15 @@ export type ConfigureProvider = (
 ) => Promise<void>;
 
 /**
+ * Drive a provider's *hosted* checkout page: enter the sandbox test card and
+ * submit. See `PaymentProvider.payHostedCheckout` for the full contract.
+ */
+export type PayHostedCheckout = (
+  page: Page,
+  ctx: HostedCheckoutContext,
+) => Promise<void>;
+
+/**
  * Runtime context handed to `payHostedCheckout` alongside the browser page.
  * Most providers just drive the page and ignore this, but a provider whose
  * sandbox has no browser-drivable hosted card page (Square) needs the app's
@@ -50,7 +59,7 @@ export interface PaymentProvider {
    * second argument; it exists for sandboxes with no automatable hosted card
    * page (see HostedCheckoutContext).
    */
-  payHostedCheckout: (page: Page, ctx: HostedCheckoutContext) => Promise<void>;
+  payHostedCheckout: PayHostedCheckout;
   /**
    * The site currency the provider sandbox expects, as an ISO country code for
    * the setup wizard (GB→GBP, US→USD). Sandbox account currency must match.
