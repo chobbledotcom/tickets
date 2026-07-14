@@ -12,6 +12,7 @@ import type {
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { parseDateMs } from "#shared/dates.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
 import { logDebug, logError } from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -50,8 +51,8 @@ export const toCanonicalIso = (
   value: string | undefined,
 ): string | undefined => {
   if (value === undefined) return;
-  const ms = Date.parse(value);
-  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
+  const ms = parseDateMs(value);
+  return ms === null ? undefined : new Date(ms).toISOString();
 };
 
 /** Shared shape for a provider credential check in connection-test results. */
