@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+import { byId, requiredMapValue } from "#fp";
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Bulk actions for groups.
@@ -43,7 +44,7 @@ import {
   syncListingPricesForIds,
 } from "#shared/db/listing-prices.ts";
 import {
-  getStoredListingWithCount,
+  getStoredListingsWithCountsByIds,
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
@@ -190,6 +191,11 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const dayOffset = computeDayOffset(dateFind, dateReplace);
 
   const listings = await getListingsByGroupId(group.id);
+  const storedById = byId(
+    await getStoredListingsWithCountsByIds(
+      listings.map((listing) => listing.id),
+    ),
+  );
   const { slug, slugIndex } = await generateUniqueGroupSlug();
   // Build every clone's input up front — the reads (stored re-read + a fresh
   // random slug) don't belong inside the write transaction, and the clone is
@@ -198,7 +204,11 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   // new row (matching the single-listing edit/duplicate path).
   const cloneInputs = await Promise.all(
     listings.map(async (listing) => {
-      const stored = (await getStoredListingWithCount(listing.id))!;
+      const stored = requiredMapValue(
+        storedById,
+        listing.id,
+        `Stored listing missing for ${listing.id}`,
+      );
       return {
         input: await buildDuplicateListingInput(stored, {
           closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),

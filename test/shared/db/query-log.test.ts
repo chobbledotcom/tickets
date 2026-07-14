@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
   addQueryLogEntry,
+  countDatabaseRoundTrip,
   enableFooterDebug,
   enableQueryLog,
   enforceTransactionRoundTripGuard,
@@ -22,6 +23,7 @@ import {
 // mirror is a cache hit — keeping their fire-and-forget flush deterministic
 // rather than time-dependent.
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog", () => {
@@ -368,6 +370,44 @@ describe("query-log", () => {
         call.args.some((arg) => String(arg).includes("N+1 query detected")),
       );
       expect(reported).toBe(true);
+    });
+  });
+
+  describe("database round-trip guard", () => {
+    const countRoundTrips = (count: number, operation = "test"): void => {
+      for (let current = 0; current < count; current++) {
+        countDatabaseRoundTrip(operation);
+      }
+    };
+
+    test("allows exactly the Bunny subrequest limit", async () => {
+      await runWithQueryLogContext(async () => {
+        expect(() => countRoundTrips(BUNNY_SUBREQUEST_LIMIT)).not.toThrow();
+      });
+    });
+
+    test("blocks every call beyond the Bunny subrequest limit", async () => {
+      await runWithQueryLogContext(async () => {
+        countRoundTrips(BUNNY_SUBREQUEST_LIMIT);
+        expect(() => countDatabaseRoundTrip("call 51")).toThrow(
+          /51 calls.*limit 50.*call 51/,
+        );
+        expect(() => countDatabaseRoundTrip("call 52")).toThrow(
+          /52 calls.*limit 50.*call 52/,
+        );
+      });
+    });
+
+    test("starts a fresh count for each request", async () => {
+      const fillBudget = (): void => countRoundTrips(BUNNY_SUBREQUEST_LIMIT);
+      await runWithQueryLogContext(fillBudget);
+      expect(() => runWithQueryLogContext(fillBudget)).not.toThrow();
+    });
+
+    test("does not restrict database work outside a request", () => {
+      expect(() =>
+        countRoundTrips(BUNNY_SUBREQUEST_LIMIT + 1, "startup"),
+      ).not.toThrow();
     });
   });
 

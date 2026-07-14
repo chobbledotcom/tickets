@@ -1,5 +1,7 @@
-import type { InArgs, InStatement, ResultSet } from "@libsql/client";
+import type { InStatement, ResultSet } from "@libsql/client";
 import { getDb, setDb } from "#shared/db/client.ts";
+import { wrapExecute } from "#shared/db/libsql-call.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 
 /** The SQL text of a statement in either InStatement form. */
 export const statementSql = (statement: InStatement | string): string =>
@@ -18,24 +20,15 @@ export type DbCallHooks = {
 export const wrapDbClient = (hooks: DbCallHooks): (() => void) => {
   const real = getDb();
   setDb(
-    new Proxy(real, {
-      get(target, prop, receiver) {
-        if (prop === "execute") {
-          return (statement: InStatement | string, args?: InArgs) =>
-            hooks.execute(statement) ??
-            (typeof statement === "string" && args !== undefined
-              ? target.execute(statement, args)
-              : target.execute(statement as InStatement));
-        }
-        if (prop === "batch") {
-          return (statements: InStatement[], mode?: "write" | "read") => {
-            hooks.batch(statements);
-            return target.batch(statements, mode);
-          };
-        }
-        const value = Reflect.get(target, prop, receiver);
-        return typeof value === "function" ? value.bind(target) : value;
+    proxyMembers(real, {
+      batch: (statements: InStatement[], mode?: "write" | "read") => {
+        hooks.batch(statements);
+        return real.batch(statements, mode);
       },
+      execute: wrapExecute(
+        real,
+        (statement, execute) => hooks.execute(statement) ?? execute(),
+      ),
     }),
   );
   return () => setDb(real);

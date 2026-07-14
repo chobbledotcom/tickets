@@ -27,7 +27,7 @@ import {
   samplesFor,
 } from "./support.ts";
 
-const LATENCIES_MS = [0, 25, 50, 100];
+const LATENCIES_MS = [0, 5, 10, 20];
 const RUNS = 8;
 // Fake deploy markers so recordScriptVersion() takes its steady-state path.
 const BUILD_ISO = "2026-01-01T00:00:00.000Z";

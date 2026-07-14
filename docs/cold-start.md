@@ -86,7 +86,8 @@ artifact.
 regular groups, two packages, and one active listing in each. It stamps one-off
 housekeeping before measurement. For each simulated latency it then starts eight
 fresh child processes. The balanced forward/reverse rotation puts each of the
-four latency levels in each run position twice and balances pair order.
+four latency levels in each run position twice and balances pair order. The
+levels stop at 20 ms, the expected worst case for a replicated database.
 
 Every child serves `/listings` twice. A valid sample must return status 200 and
 contain every seeded group and listing name, so a partial page, redirect, or
@@ -105,39 +106,39 @@ Cold request:
 
 | Simulated latency | Before | After | Round trips before | Round trips after |
 | --- | ---: | ---: | ---: | ---: |
-| 0 ms | 62 ms | **43 ms** | 119 | **30** |
-| 25 ms | 423 ms | **354 ms** | 119 | **30** |
-| 50 ms | 770 ms | **655 ms** | 119 | **30** |
-| 100 ms | 1,473 ms | **1,255 ms** | 119 | **30** |
+| 0 ms | 86 ms | **48 ms** | 119 | **30** |
+| 5 ms | 167 ms | **114 ms** | 119 | **30** |
+| 10 ms | 238 ms | **176 ms** | 119 | **30** |
+| 20 ms | 378 ms | **297 ms** | 119 | **30** |
 
 Second request in the same process:
 
 | Simulated latency | Before | After | Round trips before | Round trips after |
 | --- | ---: | ---: | ---: | ---: |
-| 0 ms | 17 ms | **7 ms** | 114 | **25** |
-| 25 ms | 328 ms | **271 ms** | 114 | **25** |
-| 50 ms | 627 ms | **521 ms** | 114 | **25** |
-| 100 ms | 1,228 ms | **1,021 ms** | 114 | **25** |
+| 0 ms | 24 ms | **8 ms** | 114 | **25** |
+| 5 ms | 97 ms | **71 ms** | 114 | **25** |
+| 10 ms | 154 ms | **121 ms** | 114 | **25** |
+| 20 ms | 273 ms | **221 ms** | 114 | **25** |
 
-The median balanced-cycle four-point slope fell from about 14.0 to 12.1
-sequential round trips cold, and from 12.1 to 10.1 warm. This proves the change removed
+The median balanced-cycle four-point slope fell from about 14.9 to 12.1
+sequential round trips cold, and from 12.4 to 10.5 warm. This proves the change removed
 latency-critical stages rather than only collapsing calls that were already
-parallel. At zero fake latency, the cold median fell by 19 ms (30%). At 100 ms,
-it fell by 218 ms (15%). Median absolute deviations were at most 3.2 ms for the
-baseline cold samples and 1.6 ms for the optimized cold samples.
+parallel. At zero fake latency, the cold median fell by 38 ms (44%). At 20 ms,
+it fell by 81 ms (21%). Median absolute deviations were at most 9.1 ms for the
+baseline cold samples and 2.3 ms for the optimized cold samples.
 
 <details>
 <summary>Raw cold / warm request samples in milliseconds</summary>
 
 ```text
-baseline 0ms:   62.1/17.1 62.0/16.6 63.6/17.3 120.8/16.8 61.9/15.8 61.3/15.9 61.7/16.9 61.3/16.6
-baseline 25ms:  423.0/326.4 426.0/324.4 422.7/328.3 419.7/327.8 422.6/325.8 417.6/329.8 424.8/329.2 419.9/328.4
-baseline 50ms:  770.6/626.1 772.8/625.0 770.2/627.7 767.2/625.7 767.7/626.9 768.4/630.3 781.9/670.8 771.1/627.7
-baseline 100ms: 1473.2/1227.1 1468.7/1227.8 1472.9/1228.2 1469.5/1226.5 1468.1/1224.6 1473.2/1227.9 1476.5/1227.7 1476.0/1229.7
-after 0ms:      43.4/6.9 42.9/7.0 44.5/7.8 41.7/7.1 43.1/6.9 43.9/7.5 43.6/8.3 43.3/7.8
-after 25ms:     357.2/271.8 353.7/269.1 353.6/270.1 351.1/269.5 354.0/271.0 355.6/273.6 354.9/271.6 355.0/271.6
-after 50ms:     653.4/519.5 654.2/521.0 650.2/519.6 655.4/520.0 655.7/521.2 655.3/521.4 660.8/520.3 658.3/521.3
-after 100ms:    1249.1/1021.1 1252.0/1020.2 1255.0/1021.0 1260.6/1020.4 1256.1/1019.9 1256.3/1021.6 1253.9/1022.0 1254.6/1020.8
+baseline 0ms:  78.2/21.5 96.6/27.3 89.3/24.5 88.7/26.0 82.0/22.9 83.1/19.7 94.1/26.1 78.2/20.6
+baseline 5ms:  203.5/97.5 177.3/98.1 185.1/94.7 166.0/98.9 159.8/92.2 158.3/95.7 162.3/88.9 167.5/102.8
+baseline 10ms: 237.3/154.0 232.7/153.5 240.2/163.2 239.6/159.3 232.2/149.8 242.3/151.8 221.5/150.0 242.6/154.2
+baseline 20ms: 379.8/272.9 367.9/274.3 404.4/278.3 377.0/274.0 372.3/272.4 460.0/270.4 386.1/273.8 356.5/272.3
+after 0ms:     47.5/8.9 48.1/8.5 46.8/8.2 52.8/8.0 47.3/7.6 47.9/8.3 45.8/7.7 47.9/7.3
+after 5ms:     114.9/69.1 113.7/69.1 116.0/72.0 113.8/71.1 113.3/68.2 115.8/70.4 114.0/71.0 245.1/103.4
+after 10ms:    177.0/119.8 176.9/122.7 178.5/120.4 174.4/120.5 172.2/121.1 175.0/121.3 174.5/122.1 205.1/156.7
+after 20ms:    295.3/221.9 301.2/220.1 296.0/221.3 297.5/221.2 298.9/222.2 294.3/221.0 300.1/219.3 293.6/221.6
 ```
 
 </details>

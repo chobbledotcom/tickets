@@ -8,16 +8,16 @@
 import {
   type Client,
   createClient,
-  type InArgs,
   type InStatement,
-  type ResultSet,
   type Transaction,
   type TransactionMode,
 } from "@libsql/client";
 import { setDb } from "#shared/db/client.ts";
+import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { setSuppressRequestLogs } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
@@ -69,32 +69,10 @@ const statementSql = (statement: InStatement): string =>
 
 /** The `execute` override for a wrapped client or transaction — runs either
  * overload through the delay + timeline. */
-const recordedExecute =
-  (target: Pick<Client, "execute">) =>
-  (statement: InStatement | string, args?: InArgs): Promise<ResultSet> =>
-    record(
-      statementSql(statement),
-      (): Promise<ResultSet> =>
-        typeof statement === "string" && args !== undefined
-          ? target.execute(statement, args)
-          : target.execute(statement as InStatement),
-    );
-
-/** Proxy `target`, overriding the given members; everything else forwards
- *  (methods bound so they keep working). */
-const proxyMembers = <T extends object>(
-  target: T,
-  overrides: Record<string, unknown>,
-): T =>
-  new Proxy(target, {
-    get(t, prop, receiver) {
-      if (typeof prop === "string" && prop in overrides) {
-        return overrides[prop];
-      }
-      const value = Reflect.get(t, prop, receiver);
-      return typeof value === "function" ? value.bind(t) : value;
-    },
-  });
+const recordedExecute = (target: Pick<Client, "execute">) =>
+  wrapExecute(target, (statement, execute) =>
+    record(statementSql(statement), execute),
+  );
 
 /** Wrap a transaction so each statement inside it also pays the delay. */
 const wrapTransaction = (tx: Transaction): Transaction =>
@@ -116,9 +94,7 @@ const wrapClient = (client: Client): Client =>
     execute: recordedExecute(client),
     transaction: async (mode?: TransactionMode) =>
       wrapTransaction(
-        await record("BEGIN", () =>
-          mode === undefined ? client.transaction() : client.transaction(mode),
-        ),
+        await record("BEGIN", () => beginTransaction(client, mode)),
       ),
   });
 

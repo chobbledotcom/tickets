@@ -452,6 +452,15 @@ reference implementations:
   `src/shared/limits.ts` (one SELECT plus one batch regardless of batch
   size), `UPDATE … RETURNING` instead of update-then-select
   (`src/shared/db/table.ts`), and `queryBatch` for multi-read round-trips.
+  Bunny has a hard limit of 50 subrequests per request. One libsql `execute`,
+  batch, transaction begin/statement/commit/rollback, or external fetch counts
+  as one; statements inside one batch still count as one. The client guard
+  blocks database call 51, but routes that also call providers or storage must
+  target at most 40 database calls so those other fetches still fit.
+- **Model realistic database latency.** The request benchmark uses 0, 5, 10,
+  and 20 ms per libsql round trip. Treat 20 ms as the expected worst case for a
+  replicated database; do not publish 50 or 100 ms projections as realistic
+  production measurements without evidence from production.
 
 A new feature that adds a top-level `await`, an import-time SDK load, or a
 per-request whole-table read is a cold-start regression even if it works.

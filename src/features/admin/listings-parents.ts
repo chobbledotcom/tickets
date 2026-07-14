@@ -18,6 +18,7 @@ import {
 } from "#shared/db/groups.ts";
 import {
   getChildrenForParents,
+  getParentsForChildren,
   getParentsOf,
   listingChildren,
   listingParents,
@@ -329,13 +330,23 @@ const addChildrenToParent = async (
  * caller warn the operator instead of silently producing a gateless standalone
  * clone. An empty array means every edge copied cleanly.
  */
+const listingIdsAt = (
+  listingsById: ReadonlyMap<number, ListingWithCount[]>,
+  id: number,
+): number[] => (listingsById.get(id) ?? []).map((listing) => listing.id);
+
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
 ): Promise<string[]> => {
   const errors: string[] = [];
+  const sourceIds = [...idMap.keys()];
+  const [childrenByParent, parentsByChild] = await Promise.all([
+    getChildrenForParents(sourceIds),
+    getParentsForChildren(sourceIds),
+  ]);
   // Direction 1: outgoing edges of each cloned parent.
   for (const [sourceId, newId] of idMap) {
-    const sourceChildIds = await listingChildren.getIds(sourceId);
+    const sourceChildIds = listingIdsAt(childrenByParent, sourceId);
     if (sourceChildIds.length === 0) continue;
     const remapped = sourceChildIds.map(
       (childId) => idMap.get(childId) ?? childId,
@@ -352,7 +363,7 @@ export const remapDuplicatedGroupEdges = async (
   // preserved).
   const outsidePairs: { parentId: number; cloneId: number }[] = [];
   for (const [sourceId, cloneId] of idMap) {
-    const parentIds = await listingParents.getIds(sourceId);
+    const parentIds = listingIdsAt(parentsByChild, sourceId);
     for (const parentId of parentIds) {
       if (!idMap.has(parentId)) outsidePairs.push({ cloneId, parentId });
     }
