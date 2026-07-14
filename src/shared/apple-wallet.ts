@@ -179,12 +179,14 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
   return fields;
 };
 
+type PemValidator = (pem: string) => boolean;
+
 /** Builds a "does this PEM string parse?" check from the forge parser for one
  *  PEM kind — the shared try/parse/catch behind the certificate and private-key
  *  checks below. */
 const isValidPem =
-  (parse: (pem: string) => unknown) =>
-  (pem: string): boolean => {
+  (parse: (pem: string) => unknown): PemValidator =>
+  (pem) => {
     try {
       parse(pem);
       return true;
@@ -194,10 +196,14 @@ const isValidPem =
   };
 
 /** Validate that a string is a parseable PEM certificate */
-export const isValidPemCertificate = isValidPem(forge.pki.certificateFromPem);
+export const isValidPemCertificate: PemValidator = isValidPem(
+  forge.pki.certificateFromPem,
+);
 
 /** Validate that a string is a parseable PEM private key */
-export const isValidPemPrivateKey = isValidPem(forge.pki.privateKeyFromPem);
+export const isValidPemPrivateKey: PemValidator = isValidPem(
+  forge.pki.privateKeyFromPem,
+);
 
 /** Compute SHA-1 hex digest of a Uint8Array */
 export const sha1Hex = (data: Uint8Array): string => {
