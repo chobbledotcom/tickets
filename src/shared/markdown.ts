@@ -7,7 +7,6 @@
  *     `javascript:`/`data:` URLs can't smuggle script execution past step 1.
  */
 
-import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -95,8 +94,10 @@ const linkMatches = (matcher: LinkMatcher, href: string): boolean =>
  * text. Used to strip links the viewer isn't allowed to open (e.g. owner-only
  * admin pages) before rendering — a rendered link is a promise that it works,
  * so a viewer who can't follow it gets the words without the link. */
-export const withoutLinksTo = (markdown: string, matcher: LinkMatcher): string =>
-  rewriteTokens(Lexer.lex(markdown), matcher);
+export const withoutLinksTo = (
+  markdown: string,
+  matcher: LinkMatcher,
+): string => rewriteTokens(Lexer.lex(markdown), matcher);
 
 /** Replace child token source in order while preserving every byte between
  * children (markers, whitespace, table pipes, list bullets, and safe markdown). */
@@ -191,7 +192,6 @@ const leafTokens = (token: Token): Token[] => {
 const rewriteToken = (token: Token, matcher: LinkMatcher): string => {
   if (token.type === "link") {
     if (!linkMatches(matcher, token.href)) return token.raw;
-    assert(token.tokens, "Markdown link has no parsed text");
     return rewriteChildren(token.text, token.tokens, matcher);
   }
   if (isTableToken(token)) return rewriteTable(token, matcher);
@@ -204,5 +204,7 @@ const rewriteToken = (token: Token, matcher: LinkMatcher): string => {
   return token.raw;
 };
 
-const rewriteTokens = (tokens: readonly Token[], matcher: LinkMatcher): string =>
-  tokens.map((token) => rewriteToken(token, matcher)).join("");
+const rewriteTokens = (
+  tokens: readonly Token[],
+  matcher: LinkMatcher,
+): string => tokens.map((token) => rewriteToken(token, matcher)).join("");

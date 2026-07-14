@@ -186,7 +186,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
         return ContactHistory({
           attendee,
           contactRecords,
-      isOwner: isOwnerRole(ctx.session.adminLevel),
+          isOwner: isOwnerRole(ctx.session.adminLevel),
           previousBookings,
         });
       },

@@ -21,7 +21,7 @@ import { CsrfForm, Flash, hiddenInputs, renderField } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown, withoutLinksTo } from "#shared/markdown.ts";
-import { isOwnerRole, type AdminSession } from "#shared/types.ts";
+import { type AdminSession, isOwnerRole } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";

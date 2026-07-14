@@ -315,11 +315,7 @@ describe("markdown", () => {
 
       const filtered = withoutLinksTo(markdown, "/admin/ledger");
       expect(filtered).toBe(
-        [
-          "| Link | Note |",
-          "| --- | --- |",
-          "| money | a\\|b |",
-        ].join("\n"),
+        ["| Link | Note |", "| --- | --- |", "| money | a\\|b |"].join("\n"),
       );
     });
 

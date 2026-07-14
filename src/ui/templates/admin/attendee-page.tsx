@@ -326,7 +326,10 @@ export const attendeeBanner = ({
   statuses,
   notes,
   isOwner,
-}: { attendee: Attendee; statuses: AttendeeStatus[] } & NotesViewProps): JSX.Element | null => {
+}: {
+  attendee: Attendee;
+  statuses: AttendeeStatus[];
+} & NotesViewProps): JSX.Element | null => {
   const showStatus = statuses.length > 1;
   if (!showStatus && notes.length === 0) return null;
   const status = statuses.find((s) => s.id === attendee.status_id);
