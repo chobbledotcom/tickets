@@ -52,7 +52,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
   async refundPayment(paymentReference: string): Promise<boolean> {
     const result = await stripeRefund(paymentReference);
-    return result !== null;
+    return result?.status === "succeeded";
   },
   requiresWebhookSignature: true,
 

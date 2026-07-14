@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -15,6 +14,7 @@ import {
   expectSessionFailed,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
+  stubRefundPayment,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -68,13 +68,7 @@ describeWithEnv(
         }),
       );
 
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve(
-          true as unknown as Awaited<
-            ReturnType<typeof stripeApi.refundPayment>
-          >,
-        ),
-      );
+      const mockRefund = stubRefundPayment("re_multi_cap");
 
       await postWebhookAndAssert(
         () => {

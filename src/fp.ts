@@ -209,6 +209,18 @@ export const groupToMap =
       ]),
     );
 
+/** Read a required map entry, failing where a broken completeness invariant is
+ * first observed instead of passing an undefined value onward. */
+export const requiredMapValue = <Key, Value>(
+  values: ReadonlyMap<Key, Value>,
+  key: Key,
+  errorMessage: string,
+): Value => {
+  const value = values.get(key);
+  if (value === undefined) throw new Error(errorMessage);
+  return value;
+};
+
 /**
  * Remove null and undefined values from array
  */

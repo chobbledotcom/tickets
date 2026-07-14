@@ -13,6 +13,7 @@ import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
+import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -125,7 +126,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       expect(remaining?.c).toBe(0);
     });
 
-    test("removes the orphan's dependent answer and payment rows", async () => {
+    test("removes the orphan's dependent rows", async () => {
       const id = await insertOrphan(daysAgoIso(365));
       await getDb().execute(
         insert("attendee_answers", {
@@ -141,11 +142,13 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
           processed_at: nowIso(),
         }),
       );
+      await createSystemNote(id, "orphan note");
 
       await purgeOrphanedAttendees(nowIso());
 
       expect(await childCount("attendee_answers", id)).toBe(0);
       expect(await childCount("processed_payments", id)).toBe(0);
+      expect(await getNoteRows([id])).toEqual([]);
     });
   });
 });

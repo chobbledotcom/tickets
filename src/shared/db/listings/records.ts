@@ -65,17 +65,23 @@ export const decryptListingWithCount = async (
     settings.hasLogistics,
   );
 
+/** Read requested listings' stored values without overlaying inherited defaults. */
+export const getStoredListingsWithCountsByIds = async (
+  ids: readonly number[],
+): Promise<ListingWithCount[]> => {
+  if (ids.length === 0) return [];
+  const rows = await queryAll<ListingProjectionRow>(
+    `${LISTING_COUNT_SELECT} WHERE listing.id IN (${inPlaceholders(ids)})`,
+    [...ids],
+  );
+  return mapParallel(decryptStoredListingWithCount)(rows);
+};
+
 /** Read one listing's stored values without overlaying inherited defaults. */
 export const getStoredListingWithCount = async (
   id: number,
-): Promise<ListingWithCount | null> => {
-  const rows = await queryAll<ListingProjectionRow>(
-    `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
-    [id],
-  );
-  const row = rows[0];
-  return row ? decryptStoredListingWithCount(row) : null;
-};
+): Promise<ListingWithCount | null> =>
+  (await getStoredListingsWithCountsByIds([id]))[0] ?? null;
 
 /** Query projected listings in newest-first order. */
 export const queryListingsWithCounts = async (

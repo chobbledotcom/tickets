@@ -15,6 +15,7 @@ import {
   once,
   partition,
   pipe,
+  requiredMapValue,
   sumByKey,
   ttlCache,
 } from "#fp";
@@ -95,6 +96,20 @@ const expectRefetched = async (tc: ReturnType<typeof trackedCollection>) => {
 };
 
 describe("fp", () => {
+  describe("requiredMapValue", () => {
+    test("returns a stored value", () => {
+      expect(requiredMapValue(new Map([[4, "four"]]), 4, "missing")).toBe(
+        "four",
+      );
+    });
+
+    test("throws the supplied error when the key is missing", () => {
+      expect(() => requiredMapValue(new Map(), 4, "Number 4 missing")).toThrow(
+        "Number 4 missing",
+      );
+    });
+  });
+
   describe("asString", () => {
     test("returns string values unchanged", () => {
       expect(asString("hello")).toBe("hello");

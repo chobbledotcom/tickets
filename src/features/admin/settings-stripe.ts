@@ -9,6 +9,7 @@ import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
+  cleanupOldWebhookEndpoints,
   detectStripeKeyMode,
   setupWebhookEndpoint,
   testStripeConnection,
@@ -18,15 +19,25 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   // Provision the Stripe webhook before the key is persisted, so a setup
   // failure aborts the save leaving nothing configured.
   afterSave: async (value) => {
+    const webhookUrl = getPaymentWebhookUrl();
     const result = await setupWebhookEndpoint(
       value,
-      getPaymentWebhookUrl(),
+      webhookUrl,
       settings.stripe.webhookEndpointId,
     );
     if (!result.success) {
       return `Failed to set up Stripe webhook: ${result.error}`;
     }
+    // Save the new endpoint ID + secret to the DB FIRST. If this fails, the
+    // old endpoint (whose secret matches the DB) stays in place — webhooks
+    // keep delivering with the old config instead of losing the only signed
+    // endpoint mid-replacement.
     await settings.update.stripe.webhookConfig(result);
+    // Now that the new credentials are saved, delete old same-URL endpoints
+    // so the new endpoint is the only one pointed at this URL. Cleanup is
+    // best-effort: a failure here doesn't unwind the save (the new endpoint
+    // is live and the DB points at it).
+    await cleanupOldWebhookEndpoints(value, webhookUrl, result.endpointId);
     return null;
   },
   formId: "settings-stripe",

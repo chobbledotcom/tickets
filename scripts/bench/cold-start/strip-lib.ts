@@ -44,5 +44,18 @@ export const strippedChars = (result: StripResult): number =>
 /** Middle value of a sorted copy — the stable summary for noisy timings. */
 export const median = (values: readonly number[]): number => {
   const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN;
+  const upper = sorted[Math.floor(sorted.length / 2)];
+  if (upper === undefined) return Number.NaN;
+  if (sorted.length % 2 === 1) return upper;
+  return (
+    sorted
+      .slice(sorted.length / 2 - 1, sorted.length / 2 + 1)
+      .reduce((sum, value) => sum + value, 0) / 2
+  );
+};
+
+/** Median distance from the median, a robust spread summary for timings. */
+export const medianAbsoluteDeviation = (values: readonly number[]): number => {
+  const middle = median(values);
+  return median(values.map((value) => Math.abs(value - middle)));
 };
