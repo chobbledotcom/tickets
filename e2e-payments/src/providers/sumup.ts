@@ -2,7 +2,7 @@
 import type { Page } from "playwright";
 import { log, warn } from "../log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
-import { configureProvider } from "./shared.ts";
+import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
 
 /* jscpd:ignore-end */
@@ -39,88 +39,88 @@ export const sumup: PaymentProvider = {
   }),
   name: "sumup",
 
-  payHostedCheckout: async (page: Page): Promise<void> => {
-    log("Filling SumUp hosted checkout…");
-    await page.waitForLoadState("domcontentloaded");
-
-    // Braintree hosted fields: each card field is its own iframe titled
-    // "Secure Credit Card Frame - <field>", holding a single <input>.
-    const usedBraintree = await fillFrameInput(
-      page,
-      "card number",
-      ["Card Number", "Credit Card Number"],
-      "input",
-      CARD.number,
-      10_000,
-    );
-
-    if (usedBraintree) {
-      // Once the card-number Braintree iframe is present, expiry and CVV are
-      // REQUIRED to submit. If either can't be filled (its iframe title changed,
-      // or it loaded late), fail fast here with the specific missing field —
-      // otherwise Pay is clicked with an incomplete card and the run dies as a
-      // misleading checkout/confirmation timeout that hides the real cause.
-      const filledExpiry = await fillFrameInput(
+  payHostedCheckout: hostedCheckout(
+    "Filling SumUp hosted checkout…",
+    async (page) => {
+      // Braintree hosted fields: each card field is its own iframe titled
+      // "Secure Credit Card Frame - <field>", holding a single <input>.
+      const usedBraintree = await fillFrameInput(
         page,
-        "expiry",
-        ["Expiration"],
+        "card number",
+        ["Card Number", "Credit Card Number"],
         "input",
-        CARD.expiry,
+        CARD.number,
+        10_000,
       );
-      const filledCvc = await fillFrameInput(
-        page,
-        "cvc",
-        ["CVV", "CVC"],
-        "input",
-        CARD.cvc,
-      );
-      if (!filledExpiry || !filledCvc) {
-        const missing = [
-          ...(filledExpiry ? [] : ["expiry"]),
-          ...(filledCvc ? [] : ["cvc"]),
-        ].join(" and ");
-        throw new Error(
-          `SumUp: filled the Braintree card number but could not fill the ${missing} ` +
-            "hosted field(s) — the iframe title likely changed. Refusing to submit an " +
-            "incomplete card.",
+
+      if (usedBraintree) {
+        // Once the card-number Braintree iframe is present, expiry and CVV are
+        // REQUIRED to submit. If either can't be filled (its iframe title changed,
+        // or it loaded late), fail fast here with the specific missing field —
+        // otherwise Pay is clicked with an incomplete card and the run dies as a
+        // misleading checkout/confirmation timeout that hides the real cause.
+        const filledExpiry = await fillFrameInput(
+          page,
+          "expiry",
+          ["Expiration"],
+          "input",
+          CARD.expiry,
         );
+        const filledCvc = await fillFrameInput(
+          page,
+          "cvc",
+          ["CVV", "CVC"],
+          "input",
+          CARD.cvc,
+        );
+        if (!filledExpiry || !filledCvc) {
+          const missing = [
+            ...(filledExpiry ? [] : ["expiry"]),
+            ...(filledCvc ? [] : ["cvc"]),
+          ].join(" and ");
+          throw new Error(
+            `SumUp: filled the Braintree card number but could not fill the ${missing} ` +
+              "hosted field(s) — the iframe title likely changed. Refusing to submit an " +
+              "incomplete card.",
+          );
+        }
+        // Cardholder name is required on SumUp's page and renders slightly after
+        // the hosted card fields, so poll for it (across the top level and any
+        // frame) rather than a one-shot presence check — otherwise Pay is blocked
+        // by "Please enter the cardholder name" and the booking never redirects.
+        await fillFirst(
+          page,
+          "cardholder name",
+          [
+            'input[name="card-holder-name"]',
+            'input[name="cardHolder"]',
+            'input[autocomplete="cc-name"]',
+            'input[id*="cardholder" i]',
+            'input[placeholder*="name" i]',
+            'input[aria-label*="name" i]',
+          ],
+          CARD.name,
+        );
+      } else {
+        warn("  Braintree hosted fields not found — trying generic card fill");
+        await fillCard(page, {
+          cvc: CARD.cvc,
+          expiry: CARD.expiry,
+          name: CARD.name,
+          number: CARD.number,
+        });
       }
-      // Cardholder name is required on SumUp's page and renders slightly after
-      // the hosted card fields, so poll for it (across the top level and any
-      // frame) rather than a one-shot presence check — otherwise Pay is blocked
-      // by "Please enter the cardholder name" and the booking never redirects.
-      await fillFirst(
-        page,
-        "cardholder name",
-        [
-          'input[name="card-holder-name"]',
-          'input[name="cardHolder"]',
-          'input[autocomplete="cc-name"]',
-          'input[id*="cardholder" i]',
-          'input[placeholder*="name" i]',
-          'input[aria-label*="name" i]',
-        ],
-        CARD.name,
-      );
-    } else {
-      warn("  Braintree hosted fields not found — trying generic card fill");
-      await fillCard(page, {
-        cvc: CARD.cvc,
-        expiry: CARD.expiry,
-        name: CARD.name,
-        number: CARD.number,
-      });
-    }
 
-    await clickFirst(page, "pay button", [
-      '[data-testid="widget-pay-button"]',
-      'button[data-testid*="pay" i]',
-      'button:has-text("Pay")',
-      'button[type="submit"]',
-    ]);
+      await clickFirst(page, "pay button", [
+        '[data-testid="widget-pay-button"]',
+        'button[data-testid*="pay" i]',
+        'button:has-text("Pay")',
+        'button[type="submit"]',
+      ]);
 
-    await returnToMerchant(page);
-  },
+      await returnToMerchant(page);
+    },
+  ),
   setupCountry: "GB",
 };
 
