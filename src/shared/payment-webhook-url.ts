@@ -12,7 +12,7 @@
 import { getEffectiveDomain } from "#shared/config.ts";
 
 /** The fixed path under the effective domain that receives payment callbacks. */
-export const PAYMENT_WEBHOOK_PATH = "/payment/webhook";
+const PAYMENT_WEBHOOK_PATH = "/payment/webhook";
 
 /** Build the public payment webhook URL for the given domain. */
 export const paymentWebhookUrl = (domain: string): string =>

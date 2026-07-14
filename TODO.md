@@ -1006,3 +1006,50 @@ Follow-up: give each variable's description its own locale key under a new
 (these are developer/operator reference docs for a technical feature, and the
 i18n-coverage gate doesn't flag them), but worth doing when this settings surface
 is next touched. Keep the copy plain per the Simple-Language rules.
+
+---
+
+## Stripe webhook setup hardening — deferred edges (from PR #1827)
+
+*Origin: CodeRabbit and Codex review of PR #1827 (the same-URL cleanup +
+atomic credentials + shared URL helper PR). The create-first refactor was
+applied in that PR; the two edges below were judged out of scope for a
+review-fix commit and recorded here.*
+
+`setupWebhookEndpointImpl` in `src/shared/stripe.ts` now creates the new
+endpoint first, then lists existing same-URL endpoints and deletes the
+recorded one plus any strays. The recorded endpoint is always deleted (it is
+referenced by ID directly, not via the listing), and listing is best-effort
+(a list failure still lets the recorded endpoint be deleted and the new
+endpoint is already live by that point). Two narrow edges remain:
+
+- **Same-URL stray listing doesn't paginate.** `fetchWebhookEndpoints` calls
+  `client.webhookEndpoints.list({ limit: 100 })` once and returns `.data`
+  without following Stripe's `has_more` cursor. A site that has accumulated
+  more than 100 webhook endpoints (rare — would require many failed setups
+  or a long-running test environment) would leave strays beyond the first
+  page un-deleted. Impact is limited: the new endpoint is already live, the
+  recorded endpoint is deleted by ID, and the leftover strays are
+  duplicate-delivery-only, not a signing-secret mismatch. Fix direction:
+  follow the `has_more`/cursor loop in `fetchWebhookEndpoints` so the
+  same-URL filter sees every endpoint. Starting point:
+  `src/shared/stripe.ts` lines 191-196 (the `fetchWebhookEndpoints` helper)
+  and `listSameUrlEndpointIds` directly below it.
+
+- **Endpoint-limit error doesn't auto-clean up.** The PR's create-first
+  ordering (suggested by the Codex P2 on #1827) keeps working endpoints
+  alive when a create fails for transient reasons (Stripe error, missing
+  secret, network blip). But Stripe caps the number of webhook endpoints
+  per account (~16 by default); if the operator hits that limit, the create
+  call returns a limit-reached error and no cleanup runs — they see the
+  error and must manually delete old endpoints in the Stripe dashboard
+  before retrying. The reviewer's alternative phrasing was "only
+  pre-delete same-URL endpoints when Stripe rejects the create because the
+  endpoint limit was reached", which would auto-recover. Fix direction:
+  detect the limit-reached error (stripe error code `resource_missing` /
+  `invalid_request_error` with a limit indicator) and retry the
+  delete-strays-then-create path. Out of scope for #1827 because the
+  create-first change resolved the signing-secret-loss case (the higher
+  impact of the two), and the limit-reached case is rare and operator-
+  recoverable. Starting point: `setupWebhookEndpointImpl`'s `catch (err)`
+  in `src/shared/stripe.ts` and `sanitizeErrorDetail` for the error shape.
