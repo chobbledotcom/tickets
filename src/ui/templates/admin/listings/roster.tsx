@@ -104,7 +104,11 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
         ),
         sharedRowsHtml: renderDetailRows(v.sharedRows),
       })}
-      <AttendeeNotesSummary names={idNameMap(attendees)} notes={systemNotes} />
+      <AttendeeNotesSummary
+        isOwner={opts.isOwner ?? false}
+        names={idNameMap(attendees)}
+        notes={systemNotes}
+      />
       <AttendeesSection
         activeFilter={v.activeFilter}
         allowedDomain={allowedDomain}
