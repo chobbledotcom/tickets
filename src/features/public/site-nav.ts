@@ -106,9 +106,8 @@ const resolveTargets = async (
   // groupBookable gate: a regular group needs one standalone-bookable visible
   // member, a package needs the whole bundle to fit. Matches what the /listings
   // group card and the group QR advertise, so the nav can't link to a dead page.
-  // Members for every group are loaded in one batch so a page with many group
-  // leaves does not run a member query per group (a package's own bundle-cap
-  // read still runs per group inside groupBookable — that is per-package work).
+  // Members and package booking facts are loaded in batches, so a page with
+  // many group leaves does not add one query for each group.
   const bookableGroupIds = await loadBookableGroupIds(referencedGroups);
   for (const group of referencedGroups) {
     setLeaf("group", group, bookableGroupIds.has(group.id));

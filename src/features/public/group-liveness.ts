@@ -1,7 +1,7 @@
 /** Loads public group members and decides which group booking links work. */
 
 /* jscpd:ignore-start */
-import { unique, uniqueBy } from "#fp";
+import { requiredMapValue, unique, uniqueBy } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
@@ -32,12 +32,13 @@ import {
   type DiscoveryClassification,
   dropHiddenPackageMembers,
 } from "./discovery.ts";
+
 /* jscpd:ignore-end */
 
 /** A group's members as buyers may see them on that group's own surfaces. A
  * package keeps its full membership; a regular group drops hidden-package
  * members, which belong only to that package. */
-export const visibleGroupMembers = <T extends { id: number }>(
+const visibleGroupMembers = <T extends { id: number }>(
   group: { is_package: boolean },
   members: T[],
 ): Promise<T[]> =>
@@ -65,11 +66,12 @@ type LoadGroupMembers = (
 const membersOf = (
   group: Group,
   membersByGroup: MembersByGroup,
-): readonly ListingWithCount[] => {
-  const members = membersByGroup.get(group.id);
-  if (!members) throw new Error(`Members missing for group ${group.id}`);
-  return members;
-};
+): readonly ListingWithCount[] =>
+  requiredMapValue(
+    membersByGroup,
+    group.id,
+    `Members missing for group ${group.id}`,
+  );
 
 const activeMembersByGroup: LoadGroupMembers = (groupList) =>
   getActiveListingsByGroupIds(groupList.map((group) => group.id));
@@ -210,9 +212,10 @@ const bookablePackageIds = async (
 
 /** Decide several groups from one shared member load and one classification of
  * all regular members. Package-specific trees share their database facts. */
-export const getBookableGroupIds: GroupMemberOperation<
-  ReadonlySet<number>
-> = async (groupList, membersByGroup) => {
+const getBookableGroupIds: GroupMemberOperation<ReadonlySet<number>> = async (
+  groupList,
+  membersByGroup,
+) => {
   const { packages, regular } = groupKinds(groupList);
   const regularMembers = uniqueMembersFor(regular, membersByGroup);
   const [classification, packageIds] = await Promise.all([

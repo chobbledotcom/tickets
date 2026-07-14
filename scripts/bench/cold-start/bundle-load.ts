@@ -1,7 +1,8 @@
 /**
- * Cold-start benchmark 1: the CPU cost of loading the production bundle
+ * Cold-start benchmark 1: the CPU cost of loading the production-shaped app
+ * core bundle
  * (parse + compile + top-level eval), timed as fresh `--no-code-cache`
- * `deno run` imports of the real bundle plus variants: `hello` (process
+ * `deno run` imports of the bundle plus variants: `hello` (dynamic-import
  * floor), `full`, `no-wasm` (base64 blobs emptied), `no-big-strings`
  * (inlined client assets emptied too). "Request" mode also serves
  * /robots.txt once to time lazy evaluation + boot checks.
@@ -13,7 +14,7 @@ import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { buildEdgeBundle } from "../../edge-bundle-lib.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, stripBase64Payloads, strippedChars } from "./strip-lib.ts";
-import { sampleMap, samplesFor } from "./support.ts";
+import { balancedRotation, sampleMap, samplesFor } from "./support.ts";
 
 const OUT_DIR = "./dist/bench-cold-start";
 const FULL = `${OUT_DIR}/serve-app.js`;
@@ -21,7 +22,7 @@ const LAZY = `${OUT_DIR}/lazy-entry.js`;
 const NO_WASM = `${OUT_DIR}/serve-app-no-wasm.js`;
 const NO_BIG_STRINGS = `${OUT_DIR}/serve-app-no-big-strings.js`;
 const HELLO = `${OUT_DIR}/hello.js`;
-const RUNS = 7;
+const RUNS = 10;
 
 const log = console.log.bind(console);
 
@@ -35,7 +36,8 @@ const emitTo =
 const buildVariants = async (): Promise<void> => {
   await Deno.mkdir(OUT_DIR, { recursive: true });
 
-  // Real production pipeline; only the entry differs, so no server starts.
+  // Production build pipeline with the shared app core as the entry, so no
+  // platform wrapper registers a server.
   await buildEdgeBundle({
     emit: emitTo(FULL),
     entryPoint: "./src/serve-app.ts",
@@ -76,7 +78,7 @@ const buildVariants = async (): Promise<void> => {
 
   await Deno.writeTextFile(
     HELLO,
-    'export const serveHandler = () => new Response("ok");\n',
+    'export const serveHandler = () => new Response("User-agent: *\\nAllow: /listings/\\nDisallow: /\\n", { headers: { "content-type": "text/plain; charset=utf-8" } });\n',
   );
 
   log(
@@ -91,7 +93,6 @@ const buildVariants = async (): Promise<void> => {
 type ChildTimings = {
   firstRequestMs: number | null;
   importMs: number;
-  runtimeBootMs: number;
 };
 
 const measureOnce = async (
@@ -128,7 +129,6 @@ type VariantReport = {
   firstRequestMs: number | null;
   importMs: number;
   name: string;
-  runtimeBootMs: number;
   sizeBytes: number;
 };
 
@@ -145,7 +145,6 @@ const summarizeVariant = async (
     firstRequestMs: firstRequestRuns.length ? median(firstRequestRuns) : null,
     importMs: median(runs.map((r) => r.importMs)),
     name,
-    runtimeBootMs: median(runs.map((r) => r.runtimeBootMs)),
     sizeBytes: (await Deno.stat(bundle)).size,
   };
 };
@@ -156,37 +155,74 @@ type Variant = {
   name: string;
 };
 
-/** Interleave variants so host load cannot systematically favour one block. */
+type VariantMeasurements = {
+  reports: VariantReport[];
+  samples: ReadonlyMap<string, ChildTimings[]>;
+};
+
+/** Balanced interleaving puts each variant in each measurement position twice. */
 const measureVariants = async (
   variants: readonly Variant[],
-): Promise<VariantReport[]> => {
+): Promise<VariantMeasurements> => {
+  // Prime filesystem pages once for every equally sized candidate. These are
+  // separate fresh processes and stay outside the reported samples; Deno's
+  // module code cache remains disabled in every child.
+  for (const variant of variants) {
+    await measureOnce(variant.bundle, variant.mode);
+  }
   const samples = sampleMap<string, ChildTimings>(
     variants.map((variant) => variant.name),
   );
   for (let run = 0; run < RUNS; run++) {
-    const rotated = [
-      ...variants.slice(run % variants.length),
-      ...variants.slice(0, run % variants.length),
-    ];
-    for (const variant of rotated) {
+    for (const variant of balancedRotation(variants, run)) {
       samplesFor(samples, variant.name).push(
         await measureOnce(variant.bundle, variant.mode),
       );
     }
   }
-  return Promise.all(
-    variants.map((variant) =>
-      summarizeVariant(
-        variant.name,
-        variant.bundle,
-        samplesFor(samples, variant.name),
+  return {
+    reports: await Promise.all(
+      variants.map((variant) =>
+        summarizeVariant(
+          variant.name,
+          variant.bundle,
+          samplesFor(samples, variant.name),
+        ),
       ),
     ),
-  );
+    samples,
+  };
 };
 
-const printReport = (reports: VariantReport[]): void => {
+const pairedImportDifferences = (
+  samples: ReadonlyMap<string, ChildTimings[]>,
+  leftName: string,
+  rightName: string,
+): number[] => {
+  const left = samplesFor(samples, leftName);
+  const right = samplesFor(samples, rightName);
+  if (left.length !== right.length) {
+    throw new Error(`Run count differs for ${leftName} and ${rightName}`);
+  }
+  return left.map((timing, index) => {
+    const paired = right[index];
+    if (!paired)
+      throw new Error(`Paired run ${index} missing for ${rightName}`);
+    return timing.importMs - paired.importMs;
+  });
+};
+
+const pairedImportMedian =
+  (samples: ReadonlyMap<string, ChildTimings[]>) =>
+  (leftName: string, rightName: string): number =>
+    median(pairedImportDifferences(samples, leftName, rightName));
+
+const printReport = (
+  reports: VariantReport[],
+  samples: ReadonlyMap<string, ChildTimings[]>,
+): void => {
   const pad = (value: string, width: number): string => value.padStart(width);
+  const pairedMedian = pairedImportMedian(samples);
   log(`\nMedians of ${RUNS} fresh-process runs (--no-code-cache):\n`);
   log(
     `${"variant".padEnd(16)}${pad("size", 10)}${pad("import", 12)}${pad(
@@ -205,38 +241,54 @@ const printReport = (reports: VariantReport[]): void => {
       )}`,
     );
   }
-  const hello = reports.find((r) => r.name === "hello");
-  const full = reports.find((r) => r.name === "full");
-  const lazy = reports.find((r) => r.name === "lazy-entry");
-  const noWasm = reports.find((r) => r.name === "no-wasm");
-  const noBig = reports.find((r) => r.name === "no-big-strings");
-  if (!(hello && full && lazy && noWasm && noBig)) return;
-  log("\nAttribution (import medians):");
+  log("\nAttribution (median paired import differences):");
   log(
-    `  bundle load over baseline:        ${(full.importMs - hello.importMs).toFixed(1)}ms`,
+    `  app-core load over import floor:   ${pairedMedian("full", "hello").toFixed(1)}ms`,
   );
   log(
-    `  ...of which eager top-level eval: ${(full.importMs - lazy.importMs).toFixed(1)}ms (lazy-entry defers it to first request)`,
+    `  ...of which eager top-level eval: ${pairedMedian("full", "lazy-entry").toFixed(1)}ms (lazy-entry defers it to first request)`,
   );
   log(
-    `  ...of which WASM base64 parse:    ${(full.importMs - noWasm.importMs).toFixed(1)}ms`,
+    `  ...of which inlined WASM literals and eager decoding: ${pairedMedian("full", "no-wasm").toFixed(1)}ms`,
   );
   log(
-    `  ...of which other big strings:    ${(noWasm.importMs - noBig.importMs).toFixed(1)}ms`,
+    `  ...of which other big strings:    ${pairedMedian("no-wasm", "no-big-strings").toFixed(1)}ms`,
   );
+  log("\nRaw import samples (ms):");
+  for (const report of reports) {
+    log(
+      `  ${report.name}: ${samplesFor(samples, report.name)
+        .map((timing) => timing.importMs.toFixed(1))
+        .join(", ")}`,
+    );
+  }
+  log("\nRaw paired import differences (ms):");
+  const comparisons: ReadonlyArray<readonly [string, string]> = [
+    ["full", "hello"],
+    ["full", "lazy-entry"],
+    ["full", "no-wasm"],
+    ["no-wasm", "no-big-strings"],
+  ];
+  for (const [left, right] of comparisons) {
+    log(
+      `  ${left} - ${right}: ${pairedImportDifferences(samples, left, right)
+        .map((difference) => difference.toFixed(1))
+        .join(", ")}`,
+    );
+  }
 };
 
 const main = async (): Promise<void> => {
   if (!Deno.args.includes("--skip-build")) await buildVariants();
 
-  const reports = await measureVariants([
+  const { reports, samples } = await measureVariants([
     { bundle: HELLO, mode: "request", name: "hello" },
     { bundle: FULL, mode: "request", name: "full" },
     { bundle: LAZY, mode: "request", name: "lazy-entry" },
     { bundle: NO_WASM, mode: "import", name: "no-wasm" },
     { bundle: NO_BIG_STRINGS, mode: "import", name: "no-big-strings" },
   ]);
-  printReport(reports);
+  printReport(reports, samples);
 };
 
 await main();

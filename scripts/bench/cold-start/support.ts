@@ -1,5 +1,62 @@
 /** Shared state helpers for fresh-process cold-start benchmarks. */
 
+export const BENCHMARK_REGULAR_GROUPS = 12;
+export const BENCHMARK_PACKAGE_GROUPS = 2;
+
+const numberedName = (kind: string, number: number): string =>
+  `Benchmark ${kind} ${String(number).padStart(2, "0")}`;
+
+export const benchmarkGroupName = (
+  number: number,
+  isPackage: boolean,
+): string => numberedName(isPackage ? "package" : "group", number);
+
+export const benchmarkListingName = (number: number): string =>
+  numberedName("listing", number);
+
+export const benchmarkCatalogueMarkers = (): string[] => [
+  ...Array.from({ length: BENCHMARK_REGULAR_GROUPS }, (_, index) =>
+    benchmarkGroupName(index + 1, false),
+  ),
+  ...Array.from({ length: BENCHMARK_PACKAGE_GROUPS }, (_, index) =>
+    benchmarkGroupName(BENCHMARK_REGULAR_GROUPS + index + 1, true),
+  ),
+  ...Array.from(
+    { length: BENCHMARK_REGULAR_GROUPS + BENCHMARK_PACKAGE_GROUPS },
+    (_, index) => benchmarkListingName(index + 1),
+  ),
+];
+
+/** Require every seeded group and listing, so a faster partial page cannot
+ * count as a valid benchmark sample. */
+export const requireBenchmarkCatalogue = (
+  response: { body: string; status: number },
+  what: string,
+): void => {
+  if (response.status !== 200) {
+    throw new Error(`${what} failed with status ${response.status}`);
+  }
+  const missing = benchmarkCatalogueMarkers().filter(
+    (marker) => !response.body.includes(marker),
+  );
+  if (missing.length > 0) {
+    throw new Error(`${what} did not render ${missing.join(", ")}`);
+  }
+};
+
+const rotate = <T>(items: readonly T[], offset: number): T[] => [
+  ...items.slice(offset),
+  ...items.slice(0, offset),
+];
+
+/** Rotate one full cycle forward and the next in reverse. With two cycles,
+ * every item occupies every position twice and every pair's order is balanced. */
+export const balancedRotation = <T>(items: readonly T[], run: number): T[] => {
+  const cycle = Math.floor(run / items.length);
+  const order = cycle % 2 === 0 ? items : items.toReversed();
+  return rotate(order, run % items.length);
+};
+
 export const requiredEnv = (key: string): string => {
   const value = Deno.env.get(key);
   if (!value) throw new Error(`${key} is required`);

@@ -12,10 +12,6 @@ if (!target) {
   Deno.exit(1);
 }
 
-// performance.now() counts from process start, so this first reading is the
-// Deno runtime's own startup cost (before any app code ran).
-const runtimeBootMs = performance.now();
-
 // The bundle logs its own startup lines (console.log/debug both go to
 // stdout); keep stdout clean for the JSON result the driver parses.
 const realLog = console.log.bind(console);
@@ -32,7 +28,7 @@ if (mode === "request") {
   const response: Response = await module.serveHandler(
     new Request("http://localhost/robots.txt"),
   );
-  await response.text();
+  const body = await response.text();
   firstRequestMs = performance.now() - requestStart;
   // A boot or routing error comes back as an error page, and timing an error
   // page is not a benchmark result — fail the run instead.
@@ -40,6 +36,15 @@ if (mode === "request") {
     console.error(`first request failed with status ${response.status}`);
     Deno.exit(1);
   }
+  const expectedBody = "User-agent: *\nAllow: /listings/\nDisallow: /\n";
+  if (body !== expectedBody) {
+    console.error("first request did not return the exact robots.txt body");
+    Deno.exit(1);
+  }
+  if (response.headers.get("content-type") !== "text/plain; charset=utf-8") {
+    console.error("first request did not return the robots.txt content type");
+    Deno.exit(1);
+  }
 }
 
-realLog(JSON.stringify({ firstRequestMs, importMs, runtimeBootMs }));
+realLog(JSON.stringify({ firstRequestMs, importMs }));

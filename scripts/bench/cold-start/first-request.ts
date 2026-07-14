@@ -13,14 +13,21 @@
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { serveAndDrain } from "./serve-request.ts";
 import { spawnChildJson } from "./spawn-child.ts";
-import { median } from "./strip-lib.ts";
-import { requiredEnv, sampleMap, samplesFor } from "./support.ts";
+import { median, medianAbsoluteDeviation } from "./strip-lib.ts";
+import {
+  BENCHMARK_PACKAGE_GROUPS,
+  BENCHMARK_REGULAR_GROUPS,
+  balancedRotation,
+  benchmarkGroupName,
+  benchmarkListingName,
+  requireBenchmarkCatalogue,
+  requiredEnv,
+  sampleMap,
+  samplesFor,
+} from "./support.ts";
 
 const LATENCIES_MS = [0, 25, 50, 100];
-const RUNS = 5;
-const REGULAR_GROUPS = 12;
-const PACKAGE_GROUPS = 2;
-const BODY_SENTINEL = "Benchmark listing 1";
+const RUNS = 8;
 // Fake deploy markers so recordScriptVersion() takes its steady-state path.
 const BUILD_ISO = "2026-01-01T00:00:00.000Z";
 const BUILD_COMMIT = "benchmark0";
@@ -43,7 +50,7 @@ const seedCatalogue = async (): Promise<void> => {
     const slug = `benchmark-${kind}-${number}`;
     const group = await groups.table.insert({
       isPackage,
-      name: `Benchmark ${kind} ${number}`,
+      name: benchmarkGroupName(number, isPackage),
       slug,
       slugIndex: await computeGroupSlugIndex(slug),
     });
@@ -51,18 +58,18 @@ const seedCatalogue = async (): Promise<void> => {
     const listing = await listingsTable.insert({
       maxAttendees: 100,
       maxPrice: 0,
-      name: `Benchmark listing ${number}`,
+      name: benchmarkListingName(number),
       slug: listingSlug,
       slugIndex: await computeSlugIndex(listingSlug),
     });
     await setListingGroups(listing.id, [group.id]);
   };
 
-  for (let number = 1; number <= REGULAR_GROUPS; number++) {
+  for (let number = 1; number <= BENCHMARK_REGULAR_GROUPS; number++) {
     await addGroupWithListing(number, false);
   }
-  for (let number = 1; number <= PACKAGE_GROUPS; number++) {
-    await addGroupWithListing(REGULAR_GROUPS + number, true);
+  for (let number = 1; number <= BENCHMARK_PACKAGE_GROUPS; number++) {
+    await addGroupWithListing(BENCHMARK_REGULAR_GROUPS + number, true);
   }
 };
 
@@ -103,24 +110,7 @@ const prepareDatabase = async (): Promise<void> => {
   // markers) lands in prep, not in a measured child.
   const { serveHandler } = await import("#src/serve-app.ts");
   const response = await serveAndDrain(serveHandler, "/listings");
-  requireListingsResponse(response, "database preparation request");
-};
-
-/**
- * A broken site must fail the benchmark, not produce plausible timings —
- * require the intended page and one seeded listing rather than accepting a
- * fast redirect or error page.
- */
-const requireListingsResponse = (
-  response: { body: string; status: number },
-  what: string,
-): void => {
-  if (response.status !== 200) {
-    throw new Error(`${what} failed with status ${response.status}`);
-  }
-  if (!response.body.includes(BODY_SENTINEL)) {
-    throw new Error(`${what} did not render ${BODY_SENTINEL}`);
-  }
+  requireBenchmarkCatalogue(response, "database preparation request");
 };
 
 type QueryEvent = { ms: number; sql: string; startOffsetMs: number };
@@ -189,33 +179,91 @@ const printTimeline = (report: ChildReport): void => {
   }
 };
 
-const printReport = (reports: ChildReport[]): void => {
+const meanOf = <T>(
+  values: readonly T[],
+  numberFrom: (value: T) => number,
+): number =>
+  values.reduce((sum, value) => sum + numberFrom(value), 0) / values.length;
+
+const requestSlope = (
+  reports: readonly ChildReport[],
+  durationOf: (report: ChildReport) => number,
+): number => {
+  const meanLatency = meanOf(reports, (report) => report.latencyMs);
+  const meanDuration = meanOf(reports, durationOf);
+  const covariance = meanOf(
+    reports,
+    (report) =>
+      (report.latencyMs - meanLatency) * (durationOf(report) - meanDuration),
+  );
+  const latencyVariance = meanOf(
+    reports,
+    (report) => (report.latencyMs - meanLatency) ** 2,
+  );
+  return covariance / latencyVariance;
+};
+
+const balancedRequestSlope = (
+  runs: readonly ChildReport[][],
+  durationOf: (report: ChildReport) => number,
+): number =>
+  median(
+    Array.from({ length: runs.length / LATENCIES_MS.length }, (_, cycle) => {
+      const slopes = runs
+        .slice(cycle * LATENCIES_MS.length, (cycle + 1) * LATENCIES_MS.length)
+        .map((run) => requestSlope(run, durationOf));
+      return meanOf(slopes, (slope) => slope);
+    }),
+  );
+
+const printReport = (
+  reports: ChildReport[],
+  runs: readonly ChildReport[][],
+): void => {
   log(
     `\nGET /listings medians of ${RUNS} fresh processes per latency ` +
-      `(${REGULAR_GROUPS} regular groups, ${PACKAGE_GROUPS} packages):\n`,
+      `(${BENCHMARK_REGULAR_GROUPS} regular groups, ${BENCHMARK_PACKAGE_GROUPS} packages):\n`,
   );
   log(
     `${"latency".padEnd(10)}${"first req".padStart(12)}${"round trips".padStart(13)}` +
       `${"second req".padStart(13)}${"round trips".padStart(13)}`,
   );
   for (const r of reports) {
+    const latencyIndex = LATENCIES_MS.indexOf(r.latencyMs);
+    const completeSamples = runs.map((run) => {
+      const sample = run[latencyIndex];
+      if (!sample) throw new Error(`Samples missing for ${r.latencyMs}ms`);
+      return sample;
+    });
     log(
       `${`${r.latencyMs}ms`.padEnd(10)}${`${r.firstMs.toFixed(0)}ms`.padStart(12)}` +
         `${String(r.firstRoundTrips).padStart(13)}` +
         `${`${r.secondMs.toFixed(0)}ms`.padStart(13)}` +
         `${String(r.secondRoundTrips).padStart(13)}` +
-        `   (status ${r.firstStatus}/${r.secondStatus})`,
+        `   (MAD ${medianAbsoluteDeviation(completeSamples.map((sample) => sample.firstMs)).toFixed(1)}` +
+        `/${medianAbsoluteDeviation(completeSamples.map((sample) => sample.secondMs)).toFixed(1)}ms)`,
     );
   }
-  const zero = reports.find((r) => r.latencyMs === 0);
   const worst = reports[reports.length - 1];
-  if (!zero || !worst || worst.latencyMs === 0) return;
-  const coldDepth = (worst.firstMs - zero.firstMs) / worst.latencyMs;
-  const warmDepth = (worst.secondMs - zero.secondMs) / worst.latencyMs;
+  if (!worst) return;
+  const coldDepth = balancedRequestSlope(runs, (report) => report.firstMs);
+  const warmDepth = balancedRequestSlope(runs, (report) => report.secondMs);
   log(
-    "\nSequential round trips implied by the slope: " +
+    "\nMedian balanced-cycle sequential round trips from four-point slopes: " +
       `~${coldDepth.toFixed(1)} cold, ~${warmDepth.toFixed(1)} warm`,
   );
+  log("\nRaw request samples (cold / warm ms):");
+  for (const [index, latency] of LATENCIES_MS.entries()) {
+    log(
+      `  ${latency}ms: ${runs
+        .map((run) => {
+          const report = run[index];
+          if (!report) throw new Error(`Report missing for ${latency}ms`);
+          return `${report.firstMs.toFixed(1)} / ${report.secondMs.toFixed(1)}`;
+        })
+        .join(", ")}`,
+    );
+  }
   printTimeline(worst);
 };
 
@@ -238,14 +286,26 @@ const main = async (): Promise<void> => {
     await prepareDatabase();
 
     const samples = sampleMap<number, ChildReport>(LATENCIES_MS);
-    // Interleave latencies so machine load cannot systematically favour one.
+    const runs: ChildReport[][] = [];
+    // Balanced rotation: every latency occupies every position twice.
     for (let run = 0; run < RUNS; run++) {
-      for (const latency of LATENCIES_MS) {
-        samplesFor(samples, latency).push(await runChild(latency, env));
+      const reportsByLatency = new Map<number, ChildReport>();
+      for (const latency of balancedRotation(LATENCIES_MS, run)) {
+        const report = await runChild(latency, env);
+        samplesFor(samples, latency).push(report);
+        reportsByLatency.set(latency, report);
       }
+      runs.push(
+        LATENCIES_MS.map((latency) => {
+          const report = reportsByLatency.get(latency);
+          if (!report) throw new Error(`Report missing for ${latency}ms`);
+          return report;
+        }),
+      );
     }
     printReport(
       LATENCIES_MS.map((latency) => medianReport(samplesFor(samples, latency))),
+      runs,
     );
   } finally {
     await Deno.remove(dir, { recursive: true });

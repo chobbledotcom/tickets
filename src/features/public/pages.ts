@@ -159,7 +159,7 @@ const memberUnavailableOn = (
 
 /** Package groups where ANY member is unavailable on the searched date: a
  * package is bought as one whole bundle (every member together — see
- * {@link packageGroupBookable}, the date-less version of this same rule), so
+ * the shared group liveness loader, the date-less version of this rule), so
  * one member that can't be booked on the chosen date makes the whole bundle
  * unbookable, and the package must read as sold out rather than advertise a
  * Book link that can only fail. Members are loaded fresh (not reused from the

@@ -3,7 +3,15 @@
  */
 
 /* jscpd:ignore-start */
-import { byId, groupBy, groupToMap, mapNotNullish, mapParallel } from "#fp";
+import * as v from "valibot";
+import {
+  byId,
+  flatMap,
+  groupBy,
+  groupToMap,
+  mapNotNullish,
+  mapParallel,
+} from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
@@ -213,26 +221,30 @@ export const getListingsByGroupIds = async (
   activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
   if (groupIds.length === 0) return new Map();
-  type GroupListingRow = ListingProjectionRow & { group_id: number };
+  type GroupListingRow = ListingProjectionRow & { group_ids: string };
+  type ListingGroups = { groupIds: number[]; member: ListingWithCount };
   const rows = await queryAll<GroupListingRow>(
-    `SELECT groupListing.group_id, ${listingProjectionSql("listing")},
+    `SELECT json_group_array(groupListing.group_id) AS group_ids,
+            ${listingProjectionSql("listing")},
             listing.booked_quantity AS attendee_count
        FROM group_listings AS groupListing
        JOIN listings AS listing ON listing.id = groupListing.listing_id
       WHERE groupListing.group_id IN (${inPlaceholders(groupIds)})
         ${activeOnly ? "AND listing.active = 1" : ""}
+      GROUP BY listing.id
       ORDER BY listing.created DESC, listing.id DESC`,
     [...groupIds],
   );
-  const decryptedById = new Map<number, Promise<ListingWithCount>>();
-  const entries = await mapParallel(async (row: GroupListingRow) => {
-    let member = decryptedById.get(row.id);
-    if (!member) {
-      member = decryptListingWithCount(row);
-      decryptedById.set(row.id, member);
-    }
-    return [row.group_id, await member] as const;
-  })(rows);
+  const listingsWithGroups: ListingGroups[] = await mapParallel(
+    async (row: GroupListingRow): Promise<ListingGroups> => ({
+      groupIds: v.parse(v.array(v.number()), JSON.parse(row.group_ids)),
+      member: await decryptListingWithCount(row),
+    }),
+  )(rows);
+  const entries: Array<readonly [number, ListingWithCount]> = flatMap(
+    ({ groupIds, member }: ListingGroups) =>
+      groupIds.map((groupId) => [groupId, member] as const),
+  )(listingsWithGroups);
   const entriesByGroup = Map.groupBy(entries, ([groupId]) => groupId);
   return new Map(
     groupIds.map((groupId) => [

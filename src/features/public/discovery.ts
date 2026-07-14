@@ -47,7 +47,7 @@ import {
  * the members must not appear as standalone cards/links/feed items on any
  * public surface. A no-op (and no query) when none of the listings are
  * hidden-package members. The package group itself is unaffected — its CTA is
- * gated separately by {@link packageGroupBookable}.
+ * gated separately by the shared group liveness loader.
  */
 export const dropHiddenPackageMembers = async <T extends { id: number }>(
   listings: T[],

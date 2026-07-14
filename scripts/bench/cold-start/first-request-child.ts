@@ -25,7 +25,7 @@ import {
 import { serveHandler } from "#src/serve-app.ts";
 import { timedRunner } from "../../timed-run.ts";
 import { serveAndDrain } from "./serve-request.ts";
-import { requiredEnv } from "./support.ts";
+import { requireBenchmarkCatalogue, requiredEnv } from "./support.ts";
 
 // Keep stdout clean for the JSON result line the parent parses.
 setSuppressDebugLogs(true);
@@ -127,10 +127,9 @@ setDb(wrapClient(createClient({ url: requiredEnv("DB_URL") })));
 const timedRequest = async (): Promise<{ ms: number; status: number }> => {
   requestStart = performance.now();
   const response = await serveAndDrain(serveHandler, "/listings");
-  if (!response.body.includes("Benchmark listing 1")) {
-    throw new Error("GET /listings did not render the benchmark catalogue");
-  }
-  return { ms: performance.now() - requestStart, status: response.status };
+  const ms = performance.now() - requestStart;
+  requireBenchmarkCatalogue(response, "GET /listings");
+  return { ms, status: response.status };
 };
 
 const first = await timedRequest();
