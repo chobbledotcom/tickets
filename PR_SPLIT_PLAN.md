@@ -12,6 +12,25 @@ Rebuild the work as small semantic changes from current `origin/main`. Do not
 cherry-pick the broad branch commits. Each job below has its own persistent git
 worktree, branch, agent, and pull request.
 
+## Current state
+
+The monolithic branch remains a committed reference. Do not merge it into
+`main`: the prerequisite work was rebuilt independently, and a trial merge
+against current `main` produces conflicts across about thirty files. New work
+must start from current `main` and port only the behavior in its named scope.
+
+Five prerequisite pull requests are merged:
+
+- #1821: stage-neutral attendee purge unification.
+- #1822: atomic placeholder refund ledger.
+- #1823: QR checkout error propagation.
+- #1824: Stripe refund status correctness.
+- #1826: owner-safe links in attendee notes.
+
+#1827, Stripe webhook setup hardening, is the final prerequisite. At the latest
+audit, local `main` and `origin/main` point at `31417124`; start the next branch
+only after #1827 has merged and `main` has been fast-forwarded again.
+
 The agents must preserve newer work already on main, especially:
 
 - Use `legMatches` from `src/shared/ledger/legs.ts`; do not restore a parallel
@@ -207,19 +226,65 @@ this order when several become ready at once:
 Rebase each open PR after earlier ones merge, resolving toward one shared
 mechanism rather than preserving parallel implementations.
 
-## Deferred foundations
+## Next pull request
 
-After these six PRs are reviewed and merged, reconvene before splitting the
-foundational work:
+### Canonical paid booking rows and date fields
 
-1. Canonical booking lines and booking date fields.
-2. Shared SQL, capacity, modifier, and batch-write primitives.
-3. Atomic ordinary booking and payment recovery.
-4. Behavior-preserving backup module split.
-5. Dormant checkout-stage schema, rollback fences, and certified backups.
-6. One coherent staged-checkout runtime PR containing stage creation,
-   activation, refund lifecycle, cleanup, expiry handling, and admin mutation
-   guards.
+**Branch:** `split/booking-lines`
+
+**Worktree:** `.pi-worktrees/booking-lines`
+
+Build one canonical representation of the signed paid booking rows that both
+ordinary payment completion and the later staged runtime can use. Move booking
+date and duration rules into a pure shared helper at the same time: the row
+builder depends directly on those rules, so splitting them would add ordering
+without isolating meaningful risk.
+
+Primary scope:
+
+- Add `src/shared/booking-date-fields.ts`.
+- Add `src/shared/booking-lines.ts`.
+- Replace only the paid-row construction in
+  `src/features/api/payment-processing/create.ts`.
+- Move the existing public and refund callers to the shared date helper without
+  changing their behavior.
+- Make the existing order-parent allocation helpers preserve the full input
+  row type.
+- Add focused pure tests for dates, package paths, allocations, order tokens,
+  and exact paid-price conservation.
+
+Preserve current `main` behavior, especially its modular capacity imports,
+shared response handler, atomic placeholder refund ledger, QR errors, and
+owner-safe Markdown. Do not copy whole reference versions of payment or public
+route files.
+
+Acceptance:
+
+- Existing paid bookings produce the same listing, quantity, date, duration,
+  package, allocation, and price rows as before.
+- A zero paid price remains different from a missing paid price.
+- Child allocations preserve total quantity and exact total paid price.
+- Parent package stamping happens only when the parent has one unambiguous
+  package path.
+- Legacy payment metadata without `day_count` still means one day.
+- The PR has no checkout-stage schema, activation, refund, cleanup, backup, or
+  admin-lock changes.
+
+## Remaining foundations
+
+After the canonical booking-row PR, continue in this order:
+
+1. Make ordinary booking writes all-or-nothing and recover completed payments
+   when the database result is lost. Add only the shared primary-read, SQL,
+   modifier, token, and batch-write mechanisms this production path uses; do
+   not ship a separate primitives-only API with no caller.
+2. Split the backup modules without changing behavior. Preserve current main's
+   batched reads and `parseDateMs`.
+3. Add dormant checkout-stage tables, revision triggers, rollback fences, and
+   certified backup snapshots.
+4. Add one coherent staged-checkout runtime containing stage creation,
+   activation, refund lifecycle, cleanup, expiry handling, provider event
+   reconciliation, admin mutation guards, and matching UI/CSV projections.
 
 Do not enable stage creation across separate deployments from its payment,
 refund, cleanup, and mutation protections.
@@ -232,3 +297,7 @@ split review:
 - Old `refunding` stages have no bounded reconciliation path.
 - Admin table/CSV pending projection must use the same open-state definition as
   mutation guards, including `refunding`.
+- A paid unresolved stage must not be purged merely because it is seven days
+  old while the provider may still hold the money.
+- Product policy must explicitly confirm what happens when a cancelled local
+  checkout later receives a provider payment that could not be expired.
