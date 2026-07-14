@@ -34,27 +34,15 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     // keep delivering with the old config instead of losing the only signed
     // endpoint mid-replacement.
     await settings.update.stripe.webhookConfig(result);
-    // Re-read the current DB endpoint ID from the in-memory snapshot. The
-    // webhookConfig write mirrors the new value into `data` synchronously,
-    // and a concurrent owner save's write would also mirror its own
-    // endpoint ID into `data` before we reach this line. If the value
-    // here differs from our new endpoint, a concurrent save wrote its own
-    // endpoint — pass it as an alsoKeepId so cleanup doesn't delete it.
-    const currentDbEndpointId = settings.stripe.webhookEndpointId;
-    const alsoKeepIds =
-      currentDbEndpointId && currentDbEndpointId !== result.endpointId
-        ? [currentDbEndpointId]
-        : [];
-    // Now that the new credentials are saved, delete old endpoints. Pass
-    // the previous endpoint ID explicitly — after a domain change it points
-    // at the old URL, so the same-URL listing won't find it. Cleanup is
+    // Now that the new credentials are saved, delete old endpoints. Pass the
+    // previous endpoint ID explicitly — after a domain change it points at
+    // the old URL, so the same-URL listing won't find it. Cleanup is
     // best-effort: a failure here doesn't unwind the save.
     await cleanupOldWebhookEndpoints(
       value,
       webhookUrl,
       result.endpointId,
       previousEndpointId ? [previousEndpointId] : [],
-      alsoKeepIds,
     );
     return null;
   },

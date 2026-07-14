@@ -12,8 +12,8 @@ import { withFetchMock } from "#test-utils/mocks.ts";
 import { describeStripe } from "./harness.ts";
 import {
   newWebhookApiCalls,
-  requireCreatedBody,
   setupWithWebhookApi,
+  webhookEndpointsApi,
 } from "./webhook-mocks.ts";
 
 const withStripeClient = async (
@@ -190,7 +190,7 @@ describeStripe("Stripe webhook setup", () => {
 
       await setupWithWebhookApi(webhookUrl, calls);
 
-      expect([...requireCreatedBody(calls).entries()]).toEqual([
+      expect([...calls.createdBody!.entries()]).toEqual([
         ["enabled_events[0]", "checkout.session.completed"],
         ["url", webhookUrl],
       ]);
@@ -269,6 +269,38 @@ describeStripe("Stripe webhook setup", () => {
       await withStripeClient(
         { STRIPE_MOCK_HOST: "localhost", STRIPE_MOCK_PORT: undefined },
         (client) => expect(client).not.toBeNull(),
+      );
+    });
+  });
+
+  describe("mock helper", () => {
+    test("returns null for non-webhook URLs", async () => {
+      const calls = newWebhookApiCalls();
+      const api = webhookEndpointsApi(
+        "https://example.com/payment/webhook",
+        calls,
+      );
+      expect(await api("https://example.com/other", {})).toBeNull();
+    });
+
+    test("records the created body on a successful POST", async () => {
+      const calls = newWebhookApiCalls();
+      const api = webhookEndpointsApi(
+        "https://example.com/payment/webhook",
+        calls,
+      );
+      const response = await api(
+        "https://api.stripe.com/v1/webhook_endpoints",
+        {
+          body: "enabled_events[0]=checkout.session.completed&url=https://example.com/payment/webhook",
+          method: "POST",
+        },
+      );
+      const body = await response!.json();
+      expect(body.id).toBe("we_new");
+      expect(calls.createdBody).not.toBeNull();
+      expect(calls.createdBody!.get("url")).toBe(
+        "https://example.com/payment/webhook",
       );
     });
   });

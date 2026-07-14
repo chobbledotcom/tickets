@@ -243,10 +243,10 @@ const createCheckoutWebhook = (
   });
 
 /** Check if a Stripe error looks like the webhook endpoint cap was reached.
- *  The Stripe SDK always wraps fetch errors in a StripeConnectionError (an
- *  Error subclass), so `err` is always an Error here. */
+ *  The Stripe SDK always wraps fetch errors in an Error subclass, so a
+ *  non-Error can't reach this point. */
 const isEndpointLimitError = (err: unknown): boolean => {
-  const message = err instanceof Error ? err.message.toLowerCase() : "";
+  const message = (err as Error)?.message?.toLowerCase() ?? "";
   return (
     message.includes("webhook") &&
     (message.includes("limit") || message.includes("maximum"))
@@ -324,18 +324,15 @@ const cleanupOldWebhookEndpointsImpl = async (
   webhookUrl: string,
   keepEndpointId: string,
   alsoDeleteIds: readonly string[] = [],
-  alsoKeepIds: readonly string[] = [],
 ): Promise<void> => {
   const client = await createStripeClient(secretKey);
-  const keepIds = new Set([keepEndpointId, ...alsoKeepIds]);
   const sameUrlStaleIds = (
     await listSameUrlEndpointIds(client, webhookUrl)
-  ).filter((id) => !keepIds.has(id));
+  ).filter((id) => id !== keepEndpointId);
   // Merge same-URL strays with explicit IDs to delete (e.g. the old
   // recorded endpoint after a domain change, which is at a different URL).
-  // Deduplicate and exclude every endpoint we want to keep.
   const allIds = [...new Set([...sameUrlStaleIds, ...alsoDeleteIds])].filter(
-    (id) => !keepIds.has(id),
+    (id) => id !== keepEndpointId,
   );
   await deleteEndpointsBestEffort(client, allIds);
 };
@@ -350,7 +347,6 @@ export const stripeApi: {
     webhookUrl: string,
     keepEndpointId: string,
     alsoDeleteIds?: readonly string[],
-    alsoKeepIds?: readonly string[],
   ) => Promise<void>;
   getStripeClient: () => Promise<Stripe | null>;
   resetStripeClient: () => void;

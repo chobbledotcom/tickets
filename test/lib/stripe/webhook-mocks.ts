@@ -174,10 +174,3 @@ export const newWebhookApiCalls = (): WebhookApiCalls => ({
   createdBody: null,
   deleted: [],
 });
-
-export const requireCreatedBody = (calls: WebhookApiCalls): URLSearchParams => {
-  if (calls.createdBody === null) {
-    throw new Error("Stripe webhook endpoint was not created");
-  }
-  return calls.createdBody;
-};
