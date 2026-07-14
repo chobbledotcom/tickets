@@ -28,8 +28,7 @@ import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { checkLinesCapacity } from "#shared/db/attendees/capacity.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
-  getContactRecord,
-  getRepairFallbackRecord,
+  getContactRecordOrRepair,
   hashEmail,
   hashPhone,
   toContactHashParam,
@@ -51,7 +50,6 @@ import {
   getAttendeeTextAnswers,
   loadAttendeeQuestionData,
 } from "#shared/db/questions/attendee-answers/reads.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
@@ -588,7 +586,13 @@ export const EMPTY_CONTACT_RECORDS: ContactRecordsByChannel = {
 };
 
 /** Load and decrypt one channel's contact record (null when no value on file).
- * Notes are owner-encrypted, so this needs the session private key. */
+ * Notes are owner-encrypted, so this needs the session private key. A corrupt/
+ * undecryptable stats_blob for one contact must not take down the whole
+ * attendee page: `getContactRecordOrRepair` surfaces it for repair and keeps
+ * the channel with its surviving counts and (crucially) its /admin/history
+ * link, so the operator can still open the editor and overwrite the bad row —
+ * dropping the channel here would hide the only path to fix it. */
+const loadChannelRecordOrRepair = getContactRecordOrRepair("contact history");
 const loadChannelRecord = async (
   value: string,
   hashOf: (value: string) => Promise<string>,
@@ -596,26 +600,10 @@ const loadChannelRecord = async (
 ): Promise<ContactChannelData | null> => {
   if (!value.trim()) return null;
   const hash = await hashOf(value);
-  try {
-    return {
-      hashParam: toContactHashParam(hash),
-      record: await getContactRecord(hash, privateKey),
-    };
-  } catch (error) {
-    // A corrupt/undecryptable stats_blob for one contact must not take down
-    // the whole attendee page. Surface it for repair and keep the channel
-    // with its surviving counts and (crucially) its /admin/history link, so the
-    // operator can still open the editor and overwrite the bad row — dropping
-    // the channel here would hide the only path to fix it.
-    logError({
-      code: ErrorCode.DECRYPT_FAILED,
-      detail: `contact history ${toContactHashParam(hash)}: ${error}`,
-    });
-    return {
-      hashParam: toContactHashParam(hash),
-      record: await getRepairFallbackRecord(hash),
-    };
-  }
+  return {
+    hashParam: toContactHashParam(hash),
+    record: await loadChannelRecordOrRepair(hash, privateKey),
+  };
 };
 
 /** Read the attendee's per-channel contact history for the read-only panel.

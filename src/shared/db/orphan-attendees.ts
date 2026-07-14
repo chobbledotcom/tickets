@@ -20,6 +20,7 @@
  * listing" when the underlying row is gone.
  */
 
+import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
 import { executeBatchWithResults, queryOne } from "#shared/db/client.ts";
 
 /**
@@ -34,16 +35,6 @@ const ORPHAN_IDS = `SELECT attendee.id
         SELECT 1 FROM listing_attendees AS booking
          WHERE booking.attendee_id = attendee.id
       )`;
-
-/** Dependent tables keyed by attendee_id, cleared before the attendees rows.
- * Mirrors the canonical deleteAttendee purge set (listing_attendees is empty
- * for a true orphan, but is included for exact parity and race safety). */
-const ORPHAN_DEPENDENT_TABLES = [
-  "processed_payments",
-  "attendee_answers",
-  "listing_attendees",
-  "system_notes",
-] as const;
 
 /** Count orphaned attendees whose `created` is before `cutoffIso`. */
 export const countOrphanedAttendees = async (
@@ -67,16 +58,10 @@ export const purgeOrphanedAttendees = async (
   cutoffIso: string,
 ): Promise<number> => {
   const statements = [
-    ...ORPHAN_DEPENDENT_TABLES.map((table) => ({
+    ...attendeeDependentDeleteStatements({
       args: [cutoffIso],
-      sql: `DELETE FROM ${table} WHERE attendee_id IN (${ORPHAN_IDS})`,
-    })),
-    // service_costs uses servicing_attendee_id (not attendee_id), so it cannot
-    // be in ORPHAN_DEPENDENT_TABLES; handle it separately to match deleteAttendee.
-    {
-      args: [cutoffIso],
-      sql: `DELETE FROM service_costs WHERE servicing_attendee_id IN (${ORPHAN_IDS})`,
-    },
+      sql: ORPHAN_IDS,
+    }),
     {
       args: [cutoffIso],
       sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,

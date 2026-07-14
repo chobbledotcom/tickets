@@ -8,10 +8,9 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
+  createRecalculateHandlers,
   createRecalculatePageRenderer,
-  runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -20,7 +19,6 @@ import {
   resetListingAggregateFields,
 } from "#shared/db/listings/aggregates.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import { adminListingRecalculatePage } from "#templates/admin/listings/aggregates.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
@@ -31,40 +29,26 @@ const renderListingRecalculatePage = createRecalculatePageRenderer(
   adminListingRecalculatePage,
 );
 
+const listingRecalculateHandlers = createRecalculateHandlers({
+  chooseMessage: t("listings_table.recalculate_choose"),
+  entityId: (listing) => listing.id,
+  fields: LISTING_AGGREGATE_FIELDS,
+  log: (listing) =>
+    logActivity(`Listing '${listing.name}' totals recalculated`, listing),
+  render: renderListingRecalculatePage,
+  reset: resetListingAggregateFields,
+  successMessage: t("listings_table.recalculate_success"),
+  successPath: (listing) => `/admin/listing/${listing.id}/edit`,
+  withEntity: (id: string | number | undefined) => (handler) =>
+    withEntityFromParam(id, getListingWithCount, handler),
+});
+
 export const handleListingRecalculateGet: TypedRouteHandler<
   "GET /admin/listings/recalculate/:listingId"
 > = (request, { listingId }) =>
-  requireSessionOr(request, (session) =>
-    withEntityFromParam(listingId, getListingWithCount, (listing) => {
-      const flash = getFlash();
-      return renderListingRecalculatePage(
-        listing,
-        session,
-        flash.error,
-        flash.success,
-      );
-    }),
-  );
+  listingRecalculateHandlers.get(request, listingId);
 
 export const handleListingRecalculatePost: TypedRouteHandler<
   "POST /admin/listings/recalculate/:listingId"
 > = (request, { listingId }) =>
-  withAuth(request, AUTH_FORM, (session, form) =>
-    withEntityFromParam(listingId, getListingWithCount, (listing) =>
-      runRecalculatePost({
-        fields: LISTING_AGGREGATE_FIELDS,
-        form,
-        log: () =>
-          logActivity(`Listing '${listing.name}' totals recalculated`, listing),
-        renderChoose: () =>
-          renderListingRecalculatePage(
-            listing,
-            session,
-            t("listings_table.recalculate_choose"),
-          ),
-        reset: (selected) => resetListingAggregateFields(listing.id, selected),
-        successMessage: t("listings_table.recalculate_success"),
-        successPath: `/admin/listing/${listing.id}/edit`,
-      }),
-    ),
-  );
+  listingRecalculateHandlers.post(request, listingId);

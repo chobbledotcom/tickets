@@ -21,7 +21,7 @@ import {
   listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings/records.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -100,15 +100,7 @@ const buildCheckoutIntent = (
   address: "",
   date: capacityDateFor(listing.listing_type, payload.d),
   email: "",
-  items: [
-    {
-      listingId: listing.id,
-      name: listing.name,
-      quantity: payload.q,
-      slug: listing.slug,
-      unitPrice: payload.v,
-    },
-  ],
+  items: [checkoutItem(listing, payload.q, payload.v)],
   name: payload.n,
   phone: "",
   special_instructions: "",

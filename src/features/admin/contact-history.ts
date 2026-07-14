@@ -17,37 +17,21 @@ import { htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   type ContactRecord,
-  type ContactRecordLoader,
   fromContactHashParam,
-  getContactRecord,
-  getRepairFallbackRecord,
+  getContactRecordOrRepair,
   saveContactRecord,
-  toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { contactHistoryPage } from "#templates/admin/contact-history.tsx";
 
 /* jscpd:ignore-end */
 
-/** Load the record for the editor, tolerating a corrupt stats blob. This editor
- * is the repair path, so a decryption failure must not lock the operator out:
- * keep the plaintext counts (read separately) and blank the unreadable note, so
- * the rendered form lets a save overwrite the bad ciphertext without losing the
- * real booking history. */
-const loadForRepair: ContactRecordLoader = async (hash, privateKey) => {
-  try {
-    return await getContactRecord(hash, privateKey);
-  } catch (error) {
-    logError({
-      code: ErrorCode.DECRYPT_FAILED,
-      detail: `contact history editor ${toContactHashParam(hash)}: ${error}`,
-    });
-    return getRepairFallbackRecord(hash);
-  }
-};
+/** Load the record for the editor, tolerating a corrupt stats blob — this
+ * editor is the repair path, so a decryption failure must not lock the
+ * operator out. */
+const loadForRepair = getContactRecordOrRepair("contact history editor");
 
 /** Read one editable counter as a non-negative integer (blank/garbage → 0). */
 const nonNegativeInt = (form: FormParams, field: string): number =>

@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { byId, requiredMapValue } from "#fp";
 import { handlersFor } from "#routes/admin/handlers.ts";
+/* jscpd:ignore-end */
 /**
  * Bulk actions for groups.
  *
@@ -11,6 +12,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * derived from two reference dates.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import {

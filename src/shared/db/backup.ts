@@ -12,6 +12,7 @@
 
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact, requiredMapValue } from "#fp";
+import { parseDateMs } from "#shared/dates.ts";
 import {
   executeBatch,
   queryAll,
@@ -329,8 +330,7 @@ const BACKUP_LEAF = new RegExp(`^backup-${BACKUP_TIMESTAMP}\\.zip$`);
 export const parseBackupTime = (filename: string): number | null => {
   const m = filename.match(BACKUP_TIME_TAIL);
   if (!m) return null;
-  const ms = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`);
-  return Number.isNaN(ms) ? null : ms;
+  return parseDateMs(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`);
 };
 
 /** True when a bare leaf name is exactly "backup-{timestamp}.zip". Anchored, so

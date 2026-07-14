@@ -6,7 +6,6 @@ import {
   bookedRangeLabel,
   bookedSpanDays,
   calendarGridDates,
-  DAY_NAMES,
   daysAgo,
   formatDateLabel,
   formatDateRangeLabel,
@@ -23,9 +22,9 @@ import {
   normalizeDatetime,
   parseIsoDateParam,
   shiftMonth,
-  VALID_DAY_NAMES,
   widestDatedEntry,
 } from "#shared/dates.ts";
+import { DAY_NAMES, VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { testHoliday, testListing } from "#test-utils/factories.ts";
 import { testWithSetting, useSetting } from "#test-utils/settings.ts";

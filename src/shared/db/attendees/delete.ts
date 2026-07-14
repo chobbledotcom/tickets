@@ -2,11 +2,11 @@
  * Deletion for attendees.
  */
 
-import type { InValue } from "@libsql/client";
 import {
   deleteByFieldStatement,
   executeBatch,
   queryAll,
+  type SqlStatement,
 } from "#shared/db/client.ts";
 import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
 
@@ -40,7 +40,7 @@ const attendeeListingContributions = (
 
 const restoreListingContributions = (
   contributions: ListingContribution[],
-): Array<{ sql: string; args: InValue[] }> =>
+): SqlStatement[] =>
   contributions.map((row) => ({
     args: [row.booked_quantity, row.tickets_count, row.listing_id],
     sql: `UPDATE listings
@@ -59,15 +59,22 @@ const DEPENDENT_ROW_TARGETS = [
   { field: "servicing_attendee_id", table: "service_costs" },
 ] as const;
 
+/** Build the common dependent-row deletes for one or many attendee ids. */
+export const attendeeDependentDeleteStatements = (
+  attendeeIds: SqlStatement,
+): SqlStatement[] =>
+  DEPENDENT_ROW_TARGETS.map(({ field, table }) => ({
+    args: attendeeIds.args,
+    sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
+  }));
+
 /** Delete an attendee and all dependent data tied to the attendee record. */
 const purgeAttendee = (
   attendeeId: number,
   contributions: ListingContribution[],
 ): Promise<void> =>
   executeBatch([
-    ...DEPENDENT_ROW_TARGETS.map((target) =>
-      deleteByFieldStatement({ ...target, value: attendeeId }),
-    ),
+    ...attendeeDependentDeleteStatements({ args: [attendeeId], sql: "?" }),
     ...restoreListingContributions(contributions),
     deleteByFieldStatement({
       field: "id",

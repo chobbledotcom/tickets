@@ -19,6 +19,13 @@ import {
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
 
+/** The "Default order: `<code>`" line a table-columns FAQ answer opens with. */
+const defaultOrderParagraph = (order: readonly string[]): JSX.Element => (
+  <p>
+    Default order: <code>{buildDefaultTemplate(order)}</code>
+  </p>
+);
+
 export const operationsSections = (): GuideSection[] => [
   {
     entries: [
@@ -132,20 +139,14 @@ export const operationsSections = (): GuideSection[] => [
       custom(
         "listing_table_columns",
         <>
-          <p>
-            Default order:{" "}
-            <code>{buildDefaultTemplate(LISTING_DEFAULT_ORDER)}</code>
-          </p>
+          {defaultOrderParagraph(LISTING_DEFAULT_ORDER)}
           <Raw html={columnReferenceTable(LISTING_TABLE_COLUMNS)} />
         </>,
       ),
       custom(
         "attendee_table_columns",
         <>
-          <p>
-            Default order:{" "}
-            <code>{buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER)}</code>
-          </p>
+          {defaultOrderParagraph(ATTENDEE_DEFAULT_ORDER)}
           <p>
             Columns referencing absent data (e.g. <code>{"{{email}}"}</code>{" "}
             when no attendees have an email) are hidden automatically even when

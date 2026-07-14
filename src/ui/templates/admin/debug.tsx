@@ -177,6 +177,15 @@ const HeadedTable = ({
   </>
 );
 
+/** A `HeadedTable` whose body is one row per item, built by `renderRow`. */
+const rowsTable = <T,>(
+  headers: readonly Child[],
+  items: readonly T[],
+  renderRow: (item: T) => JSX.Element,
+): JSX.Element => (
+  <HeadedTable headers={headers}>{items.map(renderRow)}</HeadedTable>
+);
+
 /** The three config-source rows shared by both wallet sections. */
 const walletConfigRows = (w: {
   dbConfigured: boolean;
@@ -439,15 +448,15 @@ const LimitsSection = ({
     t("debug.section.limits"),
     t("debug.limits_hint"),
   )(
-    <HeadedTable
-      headers={[
+    rowsTable(
+      [
         t("debug.col.setting"),
         t("debug.col.env_var"),
         t("debug.col.default"),
         t("debug.col.current"),
-      ]}
-    >
-      {limits.map((l) => (
+      ],
+      limits,
+      (l) => (
         <tr>
           <td>{l.label}</td>
           <td>
@@ -458,9 +467,22 @@ const LimitsSection = ({
             <LimitValueCell limit={l} />
           </td>
         </tr>
-      ))}
-    </HeadedTable>,
+      ),
+    ),
   );
+
+/** Every pruned table, named as it appears in the schema, paired with the
+ * `DebugPageState["prune"]` field that carries its last-pruned time. */
+const PRUNE_ROWS: readonly [
+  table: string,
+  field: keyof DebugPageState["prune"],
+][] = [
+  ["processed_payments", "payments"],
+  ["sessions", "sessions"],
+  ["strings", "strings"],
+  ["login_attempts", "logins"],
+  ["address_cache", "addresses"],
+];
 
 const PruneSection = ({
   prune,
@@ -474,30 +496,16 @@ const PruneSection = ({
       requests; frequency controlled by <code>PRUNE_INTERVAL_HOURS</code>.
     </>,
   )(
-    <HeadedTable
-      headers={[t("debug.field.table"), t("debug.field.last_pruned_utc")]}
-    >
-      <tr>
-        <td>processed_payments</td>
-        <td>{prune.payments}</td>
-      </tr>
-      <tr>
-        <td>sessions</td>
-        <td>{prune.sessions}</td>
-      </tr>
-      <tr>
-        <td>strings</td>
-        <td>{prune.strings}</td>
-      </tr>
-      <tr>
-        <td>login_attempts</td>
-        <td>{prune.logins}</td>
-      </tr>
-      <tr>
-        <td>address_cache</td>
-        <td>{prune.addresses}</td>
-      </tr>
-    </HeadedTable>,
+    rowsTable(
+      [t("debug.field.table"), t("debug.field.last_pruned_utc")],
+      PRUNE_ROWS,
+      ([table, field]) => (
+        <tr>
+          <td>{table}</td>
+          <td>{prune[field]}</td>
+        </tr>
+      ),
+    ),
   );
 
 /**

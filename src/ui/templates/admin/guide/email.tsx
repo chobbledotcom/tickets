@@ -2,12 +2,14 @@
  * Admin guide — Email sections.
  */
 
+/* jscpd:ignore-start */
 import {
   custom,
   faq,
   type GuideHostConfig,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+/* jscpd:ignore-end */
 
 export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
   {

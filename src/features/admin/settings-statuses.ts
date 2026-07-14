@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
 import { planReorder } from "#shared/reorder.ts";
+/* jscpd:ignore-end */
 /**
  * Admin routes for managing attendee statuses (owner-only).
  *
@@ -9,6 +10,7 @@ import { planReorder } from "#shared/reorder.ts";
  * valid, and the last/in-use/default statuses can't be deleted.
  */
 
+/* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";

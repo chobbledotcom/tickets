@@ -12,7 +12,8 @@
     "**/package-lock.json",
     "**/deno.lock",
     "**/fp.ts",
-    "**/db/migrations/2*.ts"
+    "**/db/migrations/2*.ts",
+    "**/db/migrations/schema/columns.ts"
   ],
   "format": [
     "javascript",
