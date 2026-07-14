@@ -86,6 +86,15 @@ const loadAuthUserFields = async (
   return null;
 };
 
+/** Drop the cached session (and, when the caller has a token, the stored
+ *  session row) — the one "this session is no longer valid" step every bail-out
+ *  below shares. Always resolves to null so callers can `return invalidateSession(...)`. */
+const invalidateSession = async (token?: string): Promise<null> => {
+  if (token) await deleteSession(token);
+  setCachedSession(null);
+  return null;
+};
+
 /**
  * Get authenticated session if valid
  * Returns null if not authenticated
@@ -103,33 +112,19 @@ export const getAuthenticatedSession = async (
 
   const cookies = parseCookies(request);
   const token = cookies.get(getSessionCookieName());
-  if (!token) {
-    setCachedSession(null);
-    return null;
-  }
+  if (!token) return invalidateSession();
 
   const session = await getSession(token);
-  if (!session) {
-    setCachedSession(null);
-    return null;
-  }
+  if (!session) return invalidateSession();
 
-  if (session.expires < nowMs()) {
-    await deleteSession(token);
-    setCachedSession(null);
-    return null;
-  }
+  if (session.expires < nowMs()) return invalidateSession(token);
 
   // Load user and decrypt admin level
   const user = await loadAuthUserFields(
     session.user_id,
     "Session references non-existent user, invalidating",
   );
-  if (!user) {
-    await deleteSession(token);
-    setCachedSession(null);
-    return null;
-  }
+  if (!user) return invalidateSession(token);
 
   const adminLevel = await decryptAdminLevel(user);
   await signCsrfToken();

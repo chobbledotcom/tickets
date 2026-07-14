@@ -1,9 +1,12 @@
+/* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
+/* jscpd:ignore-end */
 /**
  * Admin debug route - shows configuration status for troubleshooting
  * Owner-only access enforced via requireOwnerOr
  */
 
+/* jscpd:ignore-start */
 import { ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -40,6 +43,8 @@ import {
   adminDebugPage,
   type DebugPageState,
 } from "#templates/admin/debug.tsx";
+
+/* jscpd:ignore-end */
 
 type CertValidation = {
   signingCert: string;
