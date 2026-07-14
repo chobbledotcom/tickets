@@ -1,7 +1,10 @@
 /** Catalog tables: groups, modifiers, listing hierarchy, holidays, api keys. */
 
-import { slugNamedEntityColumns } from "./columns.ts";
+/* jscpd:ignore-start */
+import { idUserIdColumns, slugNamedEntityColumns } from "./columns.ts";
+import { createdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+/* jscpd:ignore-end */
 
 export const catalogTables: [name: string, table: Table][] = [
   [
@@ -180,12 +183,11 @@ export const catalogTables: [name: string, table: Table][] = [
     "api_keys",
     {
       columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["user_id", "INTEGER NOT NULL"],
+        ...idUserIdColumns,
         ["key_index", "TEXT NOT NULL"],
         ["wrapped_data_key", "TEXT NOT NULL"],
         ["name", "TEXT NOT NULL"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
         ["last_used", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [

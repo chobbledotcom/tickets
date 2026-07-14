@@ -1,7 +1,10 @@
 /** Attendee, booking, payment, and activity tables. */
 
+/* jscpd:ignore-start */
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { createdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
+/* jscpd:ignore-end */
 
 export const attendeeTables: [name: string, table: Table][] = [
   [
@@ -30,7 +33,7 @@ export const attendeeTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
         [
           "kind",
           `TEXT NOT NULL DEFAULT '${ATTENDEE_KIND}' CHECK (kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}'))`,
@@ -195,7 +198,7 @@ export const attendeeTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
         ["listing_id", "INTEGER"],
         ["message", "TEXT NOT NULL"],
         ["attendee_id", "INTEGER"],

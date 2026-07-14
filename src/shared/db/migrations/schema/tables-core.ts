@@ -1,8 +1,11 @@
 /** Core schema tables: system config, auth, listings, assets, rate limits. */
 
-import { itemLinkColumns } from "./columns.ts";
+/* jscpd:ignore-start */
+import { idUserIdColumns, itemLinkColumns } from "./columns.ts";
+import { createdColumn } from "./scalar-columns.ts";
 import type { Table } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
+/* jscpd:ignore-end */
 
 export const coreTables: [name: string, table: Table][] = [
   [
@@ -31,7 +34,7 @@ export const coreTables: [name: string, table: Table][] = [
     {
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["created", "TEXT NOT NULL"],
+        createdColumn,
         ["max_attendees", "INTEGER NOT NULL"],
         ["thank_you_url", "TEXT"],
         ["unit_price", "INTEGER"],
@@ -229,11 +232,7 @@ export const coreTables: [name: string, table: Table][] = [
     // and both deleteUser and logistics-agent deletion prune their rows.
     "user_logistics_agents",
     {
-      columns: [
-        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-        ["user_id", "INTEGER NOT NULL"],
-        ["agent_id", "INTEGER NOT NULL"],
-      ],
+      columns: [...idUserIdColumns, ["agent_id", "INTEGER NOT NULL"]],
       indexes: [
         {
           columns: ["user_id", "agent_id"],
