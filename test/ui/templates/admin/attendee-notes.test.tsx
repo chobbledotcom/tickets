@@ -51,6 +51,25 @@ describe("AttendeeNotesSection", () => {
     expect(html).not.toContain('href="/admin/ledger?attendee=5"');
   });
 
+  test("demotes the attendee ledger-tab link too, not just standalone /admin/ledger", () => {
+    // The attendee page's ledger tab (/admin/attendees/:id/ledger) is also
+    // owner-only — PaymentDetails links to it, and an operator could paste it
+    // into a note. Without catching it, a non-owner would see a dead link.
+    const ledgerTabNote = note({
+      note: "Check the [ledger](/admin/attendees/5/ledger).",
+    });
+    const staffHtml = String(
+      <AttendeeNotesSection isOwner={false} notes={[ledgerTabNote]} />,
+    );
+    expect(staffHtml).toContain("Check the ledger");
+    expect(staffHtml).not.toContain('href="/admin/attendees/5/ledger"');
+
+    const ownerHtml = String(
+      <AttendeeNotesSection isOwner notes={[ledgerTabNote]} />,
+    );
+    expect(ownerHtml).toContain('href="/admin/attendees/5/ledger"');
+  });
+
   test("renders an owner note without the alert styling", () => {
     const html = String(
       <AttendeeNotesSection
