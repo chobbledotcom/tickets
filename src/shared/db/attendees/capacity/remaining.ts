@@ -25,11 +25,11 @@ const overlappingRowsByListing: PerIdDayLoader<IntervalRow[]> = async (
   if (listingIds.length === 0) return new Map();
   const { startAt, endAt } = daySpan(days);
   const rows = await queryAll<IntervalRow & { listing_id: number }>(
-    `SELECT listing_id, start_at, end_at, quantity
-       FROM listing_attendees
-      WHERE listing_id IN (${inPlaceholders(
+    `SELECT attendee.listing_id, attendee.start_at, attendee.end_at, attendee.quantity
+       FROM listing_attendees AS attendee
+      WHERE attendee.listing_id IN (${inPlaceholders(
         listingIds,
-      )}) AND start_at < ? AND end_at > ?`,
+      )}) AND attendee.start_at < ? AND attendee.end_at > ?`,
     [...listingIds, endAt, startAt],
   );
   return Map.groupBy(rows, (row) => row.listing_id);

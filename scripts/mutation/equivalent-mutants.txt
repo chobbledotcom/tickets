@@ -179,6 +179,13 @@ src/shared/booking/fold-tree.ts:444:41  ?? → ||    # dayCount: customisableDur
 src/shared/booking/capacity-tree.ts:45:66  ?? → ||    # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/booking/capacity-tree.ts:47:61  ?? → ||    # demandByGroup.get(): undefined (first member) or a running per-package demand ≥1, never 0, so ?? and || coincide
 
+# Attendee group-capacity lookups: Map values are arrays (always truthy), and
+# duration normalization clamps both a default of 0 and 1 to one day.
+src/shared/db/attendees/capacity/groups.ts:136:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/groups.ts:147:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
+src/shared/db/attendees/capacity/groups.ts:169:55  ?? → ||   # membership.get(): number[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/groups.ts:181:39  ?? → ||   # membership.get(): number[]|undefined — an array is always truthy
+
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 

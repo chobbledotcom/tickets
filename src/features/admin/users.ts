@@ -295,7 +295,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
 });
 
 /** Re-renders the users list with a flash error at the given status. */
-type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
+type UserErrorPageFn = ResponseHandler<[error: string, status: number]>;
 
 /** Owner-route helper: build the error-page renderer, load the user by id, and
  * 404 when missing — the shared front half of every per-user owner route. */

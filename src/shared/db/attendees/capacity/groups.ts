@@ -62,11 +62,14 @@ export const getGroupRemainingByGroupId: RemainingLookup<number> = (
            AND attendee.start_at < ? AND attendee.end_at > ?
       ), 0)`
       : `COALESCE((
-        SELECT SUM(listing.booked_quantity)
-          FROM listings AS listing
-          JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-         WHERE groupListing.group_id = groupRow.id
-      ), 0)`;
+         SELECT SUM(listing.booked_quantity)
+           FROM listings AS listing
+           JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
+          WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
+            "dateLessCap",
+            "listing.listing_type",
+          )}
+       ), 0)`;
     const countArgs = range ? [range.endAt, range.startAt] : [];
     const rows = await queryAll<{
       group_id: number;
@@ -91,9 +94,8 @@ export const getGroupRemainingByGroupId: RemainingLookup<number> = (
 export const getGroupPerDayRemaining: PerIdDayLoader<
   Map<string, number>
 > = async (groupIds, days) => {
-  const result = new Map<number, Map<string, number>>();
   const ids = uniquePositiveGroupIds(groupIds);
-  if (ids.length === 0) return result;
+  if (ids.length === 0) return new Map();
   const caps = await queryAll<{
     id: number;
     max_attendees: number;
@@ -115,7 +117,7 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
       )}) AND groupRow.max_attendees > 0`,
     ids,
   );
-  if (caps.length === 0) return result;
+  if (caps.length === 0) return new Map();
   const cappedIds = caps.map((cap) => cap.id);
   const { startAt, endAt } = daySpan(days);
   type GroupRow = IntervalRow & { group_id: number };
@@ -130,14 +132,12 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
     [...cappedIds, endAt, startAt],
   );
   const rowsByGroup = Map.groupBy(rows, (row) => row.group_id);
-  for (const { id, max_attendees, base } of caps) {
+  return mapBy("id", ({ id, max_attendees, base }: (typeof caps)[number]) => {
     const loads = perDayLoads(rowsByGroup.get(id) ?? [], days);
-    result.set(
-      id,
-      new Map(days.map((day) => [day, max_attendees - base - loads.get(day)!])),
+    return new Map(
+      days.map((day) => [day, max_attendees - base - loads.get(day)!]),
     );
-  }
-  return result;
+  })(caps);
 };
 
 /** Tightest remaining group capacity over a whole daily span. */
