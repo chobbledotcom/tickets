@@ -138,7 +138,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
       const refund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_1" } as never),
+        Promise.resolve({ id: "re_1", status: "succeeded" } as never),
       );
       // Expected total is 200 (deposit 100 + fee 100); charge a wrong 150.
       const session = stubPaidSession(

@@ -310,9 +310,10 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       "drift-kit-pkg",
     );
     const mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_drift" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
+      Promise.resolve({
+        id: "re_drift",
+        status: "succeeded",
+      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
     );
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve(
@@ -373,9 +374,10 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       unitPrice: 300,
     });
     const mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_grown" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
+      Promise.resolve({
+        id: "re_grown",
+        status: "succeeded",
+      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
     );
     const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
