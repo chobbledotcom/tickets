@@ -11,9 +11,15 @@
  */
 
 import { unzipSync, zipSync } from "fflate";
-import { chunk, compact } from "#fp";
+import { chunk, compact, requiredMapValue } from "#fp";
 import { parseDateMs } from "#shared/dates.ts";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  queryAll,
+  queryBatch,
+  resultRows,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   clearAllCaches,
@@ -147,6 +153,19 @@ const DEFAULT_BACKUP_PAGE_SIZE = 500;
 /** Result-set key carrying the keyset cursor (rowid); stripped from the dump. */
 const ROWID_ALIAS = "__backup_rowid__";
 
+type BackupRow = Record<string, unknown>;
+
+const tablePageStatement = (
+  table: string,
+  cursor: number,
+  pageSize: number,
+): SqlStatement => ({
+  args: [cursor, pageSize],
+  sql:
+    `SELECT rowid AS ${ROWID_ALIAS}, * FROM ${quoteId(table)} ` +
+    "WHERE rowid > ? ORDER BY rowid LIMIT ?",
+});
+
 /** Export a single table as multi-row INSERT statements (deterministic order).
  *  Reads are keyset-paginated by rowid so no single response exceeds libsqld's
  *  payload cap. Column names come from the row keys (minus the cursor alias),
@@ -154,6 +173,7 @@ const ROWID_ALIAS = "__backup_rowid__";
 export const exportTable = async (
   table: string,
   pageSize: number = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE),
+  firstPage?: BackupRow[],
 ): Promise<{ sql: string; rowCount: number }> => {
   const quoted = quoteId(table);
   const statements: string[] = [];
@@ -165,13 +185,16 @@ export const exportTable = async (
   // App invariant: every table's rowids are positive autoincrement ids, so a
   // cursor starting below 1 reads the whole table.
   let cursor = 0;
+  let suppliedPage = firstPage;
 
   for (;;) {
-    const rows = await queryAll<Record<string, unknown>>(
-      `SELECT rowid AS ${ROWID_ALIAS}, * FROM ${quoted} ` +
-        "WHERE rowid > ? ORDER BY rowid LIMIT ?",
-      [cursor, pageSize],
-    );
+    const rows =
+      suppliedPage ??
+      (await queryAll<BackupRow>(
+        tablePageStatement(table, cursor, pageSize).sql,
+        [cursor, pageSize],
+      ));
+    suppliedPage = undefined;
     if (rows.length === 0) break;
     if (rowCount === 0) {
       cols = Object.keys(rows[0]!).filter((c) => c !== ROWID_ALIAS);
@@ -195,21 +218,27 @@ export const exportTable = async (
  *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */
 export const createBackup = async (): Promise<TableBackup[]> => {
   const tables = await existingSchemaTables();
-  const backups: TableBackup[] = [];
-
-  const concurrency = 4;
-  for (let i = 0; i < tables.length; i += concurrency) {
-    const batch = tables.slice(i, i + concurrency);
-    backups.push(
-      ...(await Promise.all(
-        batch.map(async (table) => ({
-          table,
-          ...(await exportTable(table)),
-        })),
+  const pageSize = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE);
+  const firstPages = await queryBatch(
+    tables.map((table) => tablePageStatement(table, 0, pageSize)),
+  );
+  const pagesByIndex = new Map(firstPages.entries());
+  return Promise.all(
+    tables.map(async (table, index) => ({
+      table,
+      ...(await exportTable(
+        table,
+        pageSize,
+        resultRows<BackupRow>(
+          requiredMapValue(
+            pagesByIndex,
+            index,
+            `Backup page missing for ${table}`,
+          ),
+        ),
       )),
-    );
-  }
-  return backups;
+    })),
+  );
 };
 
 /**

@@ -13,7 +13,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
+import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 
 /** A group resolved with its buyer-visible active listings. */

@@ -10,10 +10,25 @@ import {
   mapById,
   partition,
   pipe,
+  requiredMapValue,
   sumByKey,
 } from "#fp";
 
 describe("fp collections", () => {
+  describe("requiredMapValue", () => {
+    test("returns a stored value", () => {
+      expect(requiredMapValue(new Map([[4, "four"]]), 4, "missing")).toBe(
+        "four",
+      );
+    });
+
+    test("throws the supplied error when the key is missing", () => {
+      expect(() => requiredMapValue(new Map(), 4, "Number 4 missing")).toThrow(
+        "Number 4 missing",
+      );
+    });
+  });
+
   describe("partition", () => {
     test("splits into matching and remaining items in order", () => {
       const [evens, odds] = partition((number: number) => number % 2 === 0)([

@@ -22,13 +22,16 @@ export const stubRetrieveSession = (fields: StripeCheckoutFields): Stub =>
 
 /** Stub `stripeApi.refundPayment` to resolve `result` (default: success). */
 export const stubRefundPayment = (
-  result: { id: string } | null = { id: "re_test" },
+  result: { id: string; status: "succeeded" } | null = {
+    id: "re_test",
+    status: "succeeded",
+  },
 ): Stub =>
   stub(stripeApi, "refundPayment", () => Promise.resolve(result as never));
 
 interface StripeMockOptions {
-  /** The refund result `refundPayment` returns (default: `{ id: "re_test" }`). */
-  refundResult?: { id: string } | null;
+  /** The completed refund that `refundPayment` returns. */
+  refundResult?: { id: string; status: "succeeded" } | null;
   /** The checkout session `retrieveCheckoutSession` returns. */
   session: StripeCheckoutFields;
 }

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
+import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -238,23 +239,29 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       });
     });
 
-    test("caps refunds at 30 per request and shows continuation message", async () => {
+    test("caps refunds to preserve the edge subrequest budget", async () => {
       const listing = await createPaidListing({ maxAttendees: 500 });
       await seedBatchAttendees(listing, "pi_batch_");
       await withRefundMock(true, async (mockRefund) => {
         const response = await postRefundAll(listing);
-        expect(mockRefund.calls.length).toBe(30);
+        expect(mockRefund.calls.length).toBe(BULK_REFUND_LIMIT);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          expect.stringContaining("30 attendee(s) refunded"),
+          expect.stringContaining(`${BULK_REFUND_LIMIT} attendee(s) refunded`),
         )(response);
-        expectFlash(response, expect.stringContaining("2 remaining"), true);
+        expectFlash(
+          response,
+          expect.stringContaining(`${32 - BULK_REFUND_LIMIT} remaining`),
+          true,
+        );
       });
 
       const log = (await getListingActivityLog(listing.id)).find((entry) =>
-        entry.message.includes("Bulk refund: 30 of"),
+        entry.message.includes(`Bulk refund: ${BULK_REFUND_LIMIT} of`),
       );
-      expect(log?.message).toContain("Bulk refund: 30 of 32 refunded");
+      expect(log?.message).toContain(
+        `Bulk refund: ${BULK_REFUND_LIMIT} of 32 refunded`,
+      );
     });
 
     test("reports failures with remaining count when batch has errors", async () => {
@@ -264,10 +271,14 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         const response = await postRefundAll(listing);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          expect.stringContaining("30 failed"),
+          expect.stringContaining(`${BULK_REFUND_LIMIT} failed`),
           false,
         )(response);
-        expectFlash(response, expect.stringContaining("2 remaining"), false);
+        expectFlash(
+          response,
+          expect.stringContaining(`${32 - BULK_REFUND_LIMIT} remaining`),
+          false,
+        );
       });
     });
 

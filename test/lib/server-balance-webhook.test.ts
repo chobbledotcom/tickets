@@ -23,7 +23,7 @@ import {
 // Stubs the Stripe refund call to report a refund with the given id.
 const stubRefund = (id: string) =>
   stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id } as unknown as Awaited<
+    Promise.resolve({ id, status: "succeeded" } as unknown as Awaited<
       ReturnType<typeof stripeApi.refundPayment>
     >),
   );

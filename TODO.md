@@ -265,18 +265,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
 - No outstanding items — the row-identity fix (per-parent attendee rows, paid
   mapping by listing id, remainder rows) and the `bookable_alone` flag shipped.
 
-## Public nav / group liveness
-
-- **Batch package bundle-cap evaluation across group leaves.** A site page's
-  group nav links now load their members in one batch
-  (`getVisibleGroupMembersByGroupIds`), but each PACKAGE group still evaluates its
-  own whole-bundle cap independently in `packageGroupBookable` (membership,
-  per-member capacity, prices, booking tree), and each regular group runs its own
-  `classifyForDiscovery`. So a page with many group links still issues O(groups)
-  liveness reads beyond the shared member batch. Fully batching would mean
-  computing bundle caps for several packages in one pass over shared capacity
-  maps — worthwhile only if a page with many package links shows up hot.
-
 ## Test-suite speed — remaining opportunities
 
 *Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,
@@ -989,6 +977,39 @@ doing next time this file is touched.
 
 ---
 
+## Placeholder refund — replay marker gap when the atomic ledger batch fails
+
+*Origin: Codex review on PR #1822 (atomic placeholder payment + refund ledger).*
+
+`recordPlaceholderRefund` (`src/shared/refund-ledger.ts`) posts the payment
+and completed-refund legs as one atomic `postTransferGroups` batch, so a
+refund-leg conflict rolls the payment back too (the PR's core requirement).
+When that batch fails outright, NO ledger legs land for the booking event
+group. The payment flow's durable replay guard is the ledger preflight
+(`replaySessionFromLedger` → `bookingLedgerDisposition`: `unrecorded` when
+no legs exist), and the primary guard (`markSessionFailed`'s `failure_data`
+row) is pruned by `prunePayments` once it ages past retention. So after
+pruning, a late webhook/redirect for the same already-refunded session
+re-enters `processReservedSession`, sees `unrecorded`, and re-creates a
+placeholder attendee + re-calls `tryRefund` (idempotent, so no double payout)
+instead of acknowledging the session as already handled.
+
+This is NOT fully new: on main before PR #1822 the same gap existed for a
+payment-post failure (the first `postTransfers` threw → no legs). PR #1822
+widens the failure surface from "payment-post failure only" to "payment-post
+OR refund-post failure" (because both are now one atomic batch). Closing it
+properly needs a durable handled marker that survives idempotency-row pruning
+without breaking the atomic rollback — e.g. a ledger leg that survives even
+when the refund leg conflicts (which would violate #1822's acceptance
+criterion: "a refund-reference collision proves neither transfer group is
+committed"), or a separate replay-state row outside the prunable
+`processed_payments` table. The staged-checkout runtime (deferred
+foundations item 6 in `PR_SPLIT_PLAN.md`) carries the proper replay/activation
+machinery to resolve this. Starting point: the preflight in
+`src/features/api/payment-processing/index.ts` (`replaySessionFromLedger`),
+the pruner in `src/shared/db/prune.ts` (`prunePayments`), and the
+classification in `src/shared/session-ledger.ts`.
+
 ## Localise the confirmation-email template-variable reference table
 
 *Origin: CodeRabbit review on PR #1800.*
@@ -1006,3 +1027,73 @@ Follow-up: give each variable's description its own locale key under a new
 (these are developer/operator reference docs for a technical feature, and the
 i18n-coverage gate doesn't flag them), but worth doing when this settings surface
 is next touched. Keep the copy plain per the Simple-Language rules.
+
+---
+
+## Bunny subrequest budget follow-ups
+
+*Origin: request-fan-out audit for PR #1820.*
+
+Bunny stops an edge request after 50 subrequests. PR #1820 adds a request-scoped
+database guard that blocks libsql call 51 and fixes the concrete failures found
+in fresh setup, group duplication, ordinary backups, reset/restore, and bulk
+refunds. The paths below still have data-dependent fan-out. The guard makes the
+database-only cases fail loudly, but it cannot count provider or storage calls.
+
+- **Package carts and payment completion.** `resolveCartSlugs` and
+  `handleCartBySlugs` in `src/features/public/cart.ts` do four package reads per
+  slug, so 13 packages can make 52 calls. `loadPackagePricingByGroup` in
+  `src/features/api/payment-processing/package-pricing.ts` does three reads per
+  group, so 17 groups can make 51. `getPackageDisplaysByIds` in
+  `src/shared/db/groups.ts` also reads displays one group at a time. Batch group
+  resolution, member/day prices, and displays for all package ids.
+- **Registration logs and outgoing webhooks.** `logAndNotifyRegistration` and
+  `sendRegistrationWebhooks` in `src/shared/webhook.ts` can insert one activity
+  row per booking, load two overrides per package, and fetch every distinct
+  webhook URL. Add one bulk log insert and one batched override read. Persist
+  outbound webhook jobs for bounded out-of-band delivery.
+- **Multi-entry check-in.** `handleCheckinPost` in
+  `src/features/checkin.ts` calls `updateCheckedIn` once per eligible booking
+  line. A token set with 51 lines therefore makes 51 updates. Replace it with
+  one set-based update over all attendee/listing pairs.
+- **Order availability by duration.** `poolBySpan`, `remainingBySpan`, and
+  `groupRemainingBySpan` in `src/features/public/order.ts` run six capacity
+  reads per distinct duration/group combination; nine distinct durations can
+  make 54 calls. Load one capacity snapshot for the widest span and derive each
+  duration in memory.
+- **Automatic built-site assignment.** `assignSitesForEntries` and
+  `assignSiteWithRenewal` in `src/shared/site-assignment.ts` mix per-unit DB
+  writes with provider calls. Eleven Deno site units, or nine Bunny site units,
+  can exceed 50. Reserve assignments in one batch, queue provider provisioning,
+  and batch-persist the successful renewal states.
+- **Old database migration.** `runPendingMigrations` in
+  `src/shared/db/migrations.ts` uses at least two marker calls per migration;
+  25 pending migrations exceed the limit before their own work.
+  `applySchemaChanges` in `src/shared/db/migrations/schema-sync.ts` also runs
+  each missing-column ALTER separately. Move long migrations out of band or
+  make progress resumable in bounded request-sized steps, and batch safe ALTERs.
+- **Large in-app backups and storage cleanup.** After the first-page batch,
+  `exportTable` in `src/shared/db/backup.ts` still needs one call per later page;
+  a 25,000-row table at the default page size needs about 50 pages by itself.
+  `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
+  `pruneOldBackups` make one storage delete per stale object. Send large backups
+  through the existing out-of-band workflow and cap cleanup work per request.
+- **Bulk email.** `sendBulkEmails` in `src/shared/email.ts` can create more than
+  50 provider batches for very large audiences. Queue bulk sends out of band or
+  stop at a fixed aggregate request budget and resume the remainder later.
+- **Attendee CSV export.** `allAttendeeBookings` in
+  `src/features/admin/attendees-list.ts` reads 100 attendees per page; 5,001
+  matches need 51 calls. Generate large exports out of band and give the
+  synchronous route a strict cap.
+- **Admin seed generation.** `createSeeds` in `src/shared/seeds.ts` uses one
+  attendee batch per 50 rows; 2,501 attendees exceed 50 calls, while the form
+  permits far more. Move seed generation to CLI/background work or cap the
+  total from the request budget.
+- **Remaining group admin reads.** `validateListingTypesForGroup` in
+  `src/features/admin/groups.ts` reloads siblings per listing, and
+  `loadGroupContext` in `src/features/admin/listings-view.ts` loads each group
+  and capacity separately. Load siblings once and batch all group/capacity rows.
+
+The `scripts/backup.ts` command and fleet loops in GitHub Actions run outside
+Bunny and are not subject to this per-request limit. Restore replay and catalog
+import already use bounded batches.

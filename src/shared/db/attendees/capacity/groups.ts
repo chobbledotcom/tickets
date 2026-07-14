@@ -168,10 +168,10 @@ export const getDatelessGroupRemaining = (
   ]);
 
 /** Tightest capped-group value for each listing. */
-const minByListingOverGroups = (
-  listingIds: number[],
-  membership: Map<number, number[]>,
-  byGroup: RemainingMap,
+export const remainingByListingOverGroups = (
+  listingIds: readonly number[],
+  membership: ReadonlyMap<number, number[]>,
+  byGroup: ReadonlyMap<number, number>,
 ): RemainingMap => {
   const result: RemainingMap = new Map();
   for (const id of listingIds) {
@@ -200,7 +200,7 @@ export const getGroupRemainingByListingId: RemainingLookup<
     : listings.filter((listing) => !countsPerDate(listing.listing_type));
   const { membership, groupIds } = await loadMembershipWithGroupIds(candidates);
   const groupMap = await getGroupRemainingByGroupId(groupIds, date);
-  return minByListingOverGroups(
+  return remainingByListingOverGroups(
     candidates.map((listing) => listing.id),
     membership,
     groupMap,

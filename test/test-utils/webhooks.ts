@@ -131,7 +131,7 @@ export const expectWebhookKeptAndRefunded = async (
 ) => {
   const mockVerify = await stubWebhookVerify(event);
   const mockRefund = stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: refundId } as unknown as Awaited<
+    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
       ReturnType<typeof stripeApi.refundPayment>
     >),
   );
@@ -361,7 +361,7 @@ export const expectAttendeeCreatedWithPiiBlob = async (
  *  `expectWebhookKeptAndRefunded`. */
 export const stubRefundPayment = (refundId = "re_test") =>
   stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: refundId } as unknown as Awaited<
+    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
       ReturnType<typeof stripeApi.refundPayment>
     >),
   );

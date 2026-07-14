@@ -111,7 +111,7 @@ describeWithEnv(
       });
       const addOn = await createProgrammeCharge();
       const refund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_free_addon" } as never),
+        Promise.resolve({ id: "re_free_addon", status: "succeeded" } as never),
       );
       const session = stubPaidSession(
         "cs_free_addon_bad",

@@ -30,7 +30,7 @@ import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import {
-  type Group,
+  type GroupWithMembers,
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
@@ -49,9 +49,8 @@ import {
   applyParentSoldOut,
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  getVisibleGroupMembersByGroupIds,
-  loadPublicGroups,
 } from "./discovery.ts";
+import { loadPublicGroups } from "./group-liveness.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
@@ -157,13 +156,14 @@ const memberUnavailableOn = (
 
 /** Package groups where ANY member is unavailable on the searched date: a
  * package is bought as one whole bundle (every member together — see
- * {@link packageGroupBookable}, the date-less version of this same rule), so
+ * the shared group liveness loader, the date-less version of this rule), so
  * one member that can't be booked on the chosen date makes the whole bundle
  * unbookable, and the package must read as sold out rather than advertise a
- * Book link that can only fail. Members are loaded fresh (not reused from the
- * page's own listing set) because a hidden package's members never join that
- * set, yet still decide whether their package is sold out. A `null` requested
- * date means no search is in play, so nothing is projected sold out here.
+ * Book link that can only fail. Members come from the group liveness load, not
+ * the page's own listing set, because a hidden package's members never join
+ * that set yet still decide whether their package is sold out. A `null`
+ * requested date means no search is in play, so nothing is projected sold out
+ * here.
  *
  * This is a projection of the booking page's date rules, not a re-run of
  * them: each direct member is judged on having any spot left for the date.
@@ -173,14 +173,13 @@ const memberUnavailableOn = (
  * The booking page stays the real gate either way; re-running its full
  * bundle-and-children date logic per package here isn't worth the cost yet. */
 const soldOutPackageIds = async (
-  groups: readonly Group[],
+  groups: readonly GroupWithMembers[],
   requestedDate: string | null,
 ): Promise<ReadonlySet<number>> => {
-  const packages = groups.filter((g) => g.is_package);
+  const packages = groups.filter(({ group }) => group.is_package);
   if (requestedDate === null || packages.length === 0) return new Set();
-  const membersByGroup = await getVisibleGroupMembersByGroupIds(packages);
   const soldOutIds = await Promise.all(
-    [...membersByGroup].map(async ([groupId, members]) => {
+    packages.map(async ({ group, members }) => {
       const daily = members.filter((m) => m.listing_type === "daily");
       const [ticketListings, dailyUnavailableIds] = await Promise.all([
         buildTicketListingsWithGroupCapacity(members),
@@ -189,7 +188,7 @@ const soldOutPackageIds = async (
       const anyUnavailable = ticketListings.some((info) =>
         memberUnavailableOn(info, dailyUnavailableIds),
       );
-      return anyUnavailable ? groupId : null;
+      return anyUnavailable ? group.id : null;
     }),
   );
   return new Set(compact(soldOutIds));
@@ -204,7 +203,7 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
   request,
 ) =>
   requirePublicSite(async () => {
-    const [groups, { listings: allListings }, nav] = await Promise.all([
+    const [publicGroups, { listings: allListings }, nav] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
       publicNavProps(null),
@@ -218,11 +217,12 @@ export const handlePublicListings: ResponseHandler<[request: Request]> = (
     const requestedDate = parseIsoDateParam(
       new URL(request.url).searchParams.get("date"),
     );
+    const groups = publicGroups.map(({ group }) => group);
     const [ticketListings, dateFilter, soldOutPackages, attributesByListing] =
       await Promise.all([
         buildTicketListingsWithGroupCapacity(listings),
         buildDailyDateFilter(listings, requestedDate),
-        soldOutPackageIds(groups, requestedDate),
+        soldOutPackageIds(publicGroups, requestedDate),
         getSelectedAttributesForListings(listings.map((listing) => listing.id)),
       ]);
     return htmlResponse(

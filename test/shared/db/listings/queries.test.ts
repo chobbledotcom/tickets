@@ -10,6 +10,7 @@ import {
   getListingNamesByIds,
   getListingsBySlugsBatch,
   getListingWithCount,
+  getStoredListingsWithCountsByIds,
   getStoredListingWithCount,
 } from "#shared/db/listings/records.ts";
 import {
@@ -130,6 +131,10 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     test("getListingsBySlugsBatch returns empty array for empty slugs", async () => {
       const result = await getListingsBySlugsBatch([]);
       expect(result).toEqual([]);
+    });
+
+    test("getStoredListingsWithCountsByIds returns no listings for no ids", async () => {
+      expect(await getStoredListingsWithCountsByIds([])).toEqual([]);
     });
 
     test("getListingsBySlugsBatch returns listings in slug order", async () => {

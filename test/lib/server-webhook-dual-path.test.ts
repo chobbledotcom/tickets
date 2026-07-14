@@ -66,9 +66,10 @@ const paidSession = async (
     type: "checkout.session.completed",
   });
   const mockRefund = stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: `re_${ref}` } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
+    Promise.resolve({
+      id: `re_${ref}`,
+      status: "succeeded",
+    } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
   );
   return { mockRefund, mockVerify };
 };
