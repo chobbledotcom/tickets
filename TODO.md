@@ -1072,3 +1072,25 @@ scoped to the confirmed bugs.*
   is kept and operator-actionable (the held-cash model, already guarded). The
   prune's existing `NOT EXISTS processed_payments` guard is unchanged.
   (Raised by Codex on PR #1802; decision by owner.)
+- **Gate the Ledger tab's write controls while a checkout is pending.** The
+  attendee page hides Edit/Logistics/Actions while a stage is pending, but the
+  owner-only Ledger tab stays visible and embeds AccountStatementActions
+  (manual charge/payment entries). An owner posting a manual leg mid-payment
+  combines with activation's own legs, so a fully-paid ticket can show a
+  surprise balance. Fix: AND the tab's `visible` with the same `notMidPayment`
+  gate in `src/features/admin/attendee-page.ts` (a pending stage has zero
+  ledger legs, so the tab shows nothing useful anyway) and extend the
+  hides-write-tabs test to cover `/ledger`. (Raised by Codex on PR #1802.)
+- **The Edit tab throws for a kept record whose listing was deleted.** The
+  read-only bookings table now shows a deleted-listing placeholder
+  (`listing: null` line), but once the stage resolves the operator can open
+  the Edit tab, whose renderer and validators dereference `line.listing!`
+  (`attendee-form.tsx:180`, `attendee-page-data.ts:337/357/377/430/441`,
+  `attendee-form-model.ts:461/471/529`) — the page throws. Note the save path
+  DELETES rows not represented in the submitted lines (atomic-update.ts
+  "removed" diff), so simply filtering the line out of the form would silently
+  drop the kept row on any save. Fix shape: render a deleted-listing line as a
+  LOCKED row (hidden listingId/key/noqty inputs + read-only "Deleted listing"
+  text, no editable controls) and make validation refuse un-ticking
+  no-quantity on a line whose listing is unknown, so the row is always
+  retained unchanged. (Raised by Codex on PR #1802.)
