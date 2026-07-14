@@ -15,10 +15,11 @@ import {
   listingFilterLabel,
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
-import type {
-  AdminSession,
-  AttendeeTableRow,
-  ListingWithCount,
+import {
+  type AdminSession,
+  type AttendeeTableRow,
+  isOwnerRole,
+  type ListingWithCount,
 } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
@@ -214,6 +215,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
         />
 
         <AttendeeNotesSummary
+          isOwner={isOwnerRole(props.session.adminLevel)}
           names={props.names ?? new Map()}
           notes={props.systemNotes ?? []}
         />

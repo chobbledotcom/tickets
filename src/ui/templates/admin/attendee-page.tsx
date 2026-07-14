@@ -323,10 +323,14 @@ export const attendeeBanner = ({
   attendee,
   statuses,
   notes,
+  isOwner,
 }: {
   attendee: Attendee;
   statuses: AttendeeStatus[];
   notes: SystemNote[];
+  /** Only owners may open the ledger pages, so a note's ledger link renders as
+   * plain text for everyone else. */
+  isOwner: boolean;
 }): JSX.Element | null => {
   const showStatus = statuses.length > 1;
   if (!showStatus && notes.length === 0) return null;
@@ -342,7 +346,7 @@ export const attendeeBanner = ({
           </h2>
         </div>
       )}
-      <AttendeeNotesSection notes={notes} />
+      <AttendeeNotesSection isOwner={isOwner} notes={notes} />
     </PageBlock>
   );
 };

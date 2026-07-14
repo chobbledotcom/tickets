@@ -46,6 +46,7 @@ import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type Attendee,
+  isOwnerRole,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
@@ -221,6 +222,7 @@ export const loadListingOverviewPanel = async (
     isChild,
     isHiddenPackageMember,
     ...(canViewLedger ? { ledgerHref: listingLedgerHref(listing.id) } : {}),
+    isOwner: canViewLedger,
     listing,
     noteNames,
     ...(questionData !== undefined ? { questionData } : {}),
@@ -281,6 +283,7 @@ export const loadListingRosterPanel = async (
     ),
     dateFilter,
     groupContext,
+    isOwner: isOwnerRole(ctx.session.adminLevel),
     listing,
     paymentReferenceAttendeeIds,
     phonePrefix: settings.phonePrefix,

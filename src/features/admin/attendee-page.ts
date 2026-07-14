@@ -196,9 +196,10 @@ const overviewTab: TabDef<LoadedAttendee> = {
 
 /** The tabbed attendee page. */
 export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
-  banner: async ({ attendee }) =>
+  banner: async ({ attendee }, ctx) =>
     attendeeBanner({
       attendee,
+      isOwner: ctx.session.adminLevel === "owner",
       notes: await getNotesForAttendee(
         attendee.id,
         await requireRequestPrivateKey(),

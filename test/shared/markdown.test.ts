@@ -4,6 +4,7 @@ import {
   isSafeUrl,
   isSimpleMarkdown,
   renderMarkdown,
+  withoutLinksTo,
 } from "#shared/markdown.ts";
 
 describe("markdown", () => {
@@ -169,6 +170,136 @@ describe("markdown", () => {
 
     test("false for raw HTML", () => {
       expect(isSimpleMarkdown("text <b>bold</b> more")).toBe(false);
+    });
+  });
+  describe("withoutLinksTo", () => {
+    test("demotes a link matching the prefix to its plain text", () => {
+      expect(
+        withoutLinksTo(
+          "Check the [ledger](/admin/ledger/attendee/5).",
+          "/admin/ledger",
+        ),
+      ).toBe("Check the ledger.");
+    });
+
+    test("keeps links to other targets untouched", () => {
+      const text = "See [the guide](/admin/guide) for details.";
+      expect(withoutLinksTo(text, "/admin/ledger")).toBe(text);
+    });
+
+    test("handles several links, demoting only the matching ones", () => {
+      expect(
+        withoutLinksTo(
+          "[a](/admin/ledger/x) then [b](/admin/guide) then [c](/admin/ledger)",
+          "/admin/ledger",
+        ),
+      ).toBe("a then [b](/admin/guide) then c");
+    });
+
+    test("leaves plain text without links unchanged", () => {
+      expect(withoutLinksTo("no links here", "/admin/ledger")).toBe(
+        "no links here",
+      );
+    });
+
+    test("demotes every reference link form without changing safe markdown", () => {
+      const markdown = [
+        "**Money links:** [inline](/admin/ledger/inline), [full][money], [collapsed][], and [shortcut].",
+        "",
+        "Safe [guide](/admin/guide) and *formatting* stay unchanged.",
+        "",
+        '[money]: /admin/ledger/full "Money"',
+        "[collapsed]: /admin/ledger/collapsed",
+        "[shortcut]: /admin/ledger/shortcut",
+      ].join("\n");
+
+      const filtered = withoutLinksTo(markdown, "/admin/ledger");
+
+      expect(filtered).toBe(
+        [
+          "**Money links:** inline, full, collapsed, and shortcut.",
+          "",
+          "Safe [guide](/admin/guide) and *formatting* stay unchanged.",
+          "",
+          '[money]: /admin/ledger/full "Money"',
+          "[collapsed]: /admin/ledger/collapsed",
+          "[shortcut]: /admin/ledger/shortcut",
+        ].join("\n"),
+      );
+      const rendered = renderMarkdown(filtered);
+      expect(rendered).not.toContain('href="/admin/ledger');
+      expect(rendered).toContain('<a href="/admin/guide">guide</a>');
+      expect(rendered).toContain("<strong>Money links:</strong>");
+      expect(rendered).toContain("<em>formatting</em>");
+    });
+
+    test("demotes automatic links to a forbidden absolute prefix", () => {
+      expect(
+        withoutLinksTo(
+          "<https://private.example/one> and https://private.example/two",
+          "https://private.example",
+        ),
+      ).toBe("https://private.example/one and https://private.example/two");
+    });
+
+    test("demotes forbidden links inside other markdown structures", () => {
+      const markdown = [
+        "- **See [money](/admin/ledger/list).**",
+        "",
+        "> [Account](/admin/ledger/account)",
+        "",
+        "| Page | Link |",
+        "| --- | --- |",
+        "| Money | [Open](/admin/ledger/table) |",
+      ].join("\n");
+
+      expect(withoutLinksTo(markdown, "/admin/ledger")).toBe(
+        [
+          "- **See money.**",
+          "",
+          "> Account",
+          "",
+          "| Page | Link |",
+          "| --- | --- |",
+          "| Money | Open |",
+        ].join("\n"),
+      );
+    });
+
+    test("preserves multiline quote and list syntax around forbidden links", () => {
+      const markdown = [
+        "> `[money](/admin/ledger/code)` stays code.",
+        ">",
+        "> [Money](/admin/ledger/quote) is restricted.",
+        "",
+        "- `[money](/admin/ledger/list-code)` stays code.",
+        "  [Money](/admin/ledger/list) is restricted.",
+      ].join("\n");
+
+      expect(withoutLinksTo(markdown, "/admin/ledger")).toBe(
+        [
+          "> `[money](/admin/ledger/code)` stays code.",
+          ">",
+          "> Money is restricted.",
+          "",
+          "- `[money](/admin/ledger/list-code)` stays code.",
+          "  Money is restricted.",
+        ].join("\n"),
+      );
+    });
+
+    test("preserves quoted table and list structure", () => {
+      const markdown = [
+        "> - [Money](/admin/ledger/list)",
+        "",
+        "> | Page |",
+        "> | --- |",
+        "> | [Money](/admin/ledger/table) |",
+      ].join("\n");
+
+      expect(withoutLinksTo(markdown, "/admin/ledger")).toBe(
+        ["> - Money", "", "> | Page |", "> | --- |", "> | Money |"].join("\n"),
+      );
     });
   });
 });

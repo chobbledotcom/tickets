@@ -7,6 +7,7 @@
  *     `javascript:`/`data:` URLs can't smuggle script execution past step 1.
  */
 
+import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -79,3 +80,116 @@ export const isSimpleMarkdown = (text: string): boolean => {
     (PLAIN_INLINE_TYPES as readonly string[]).includes(tok.type),
   );
 };
+
+/** Replace each markdown link whose target starts with `prefix` with its plain
+ * text. Used to strip links the viewer isn't allowed to open (e.g. owner-only
+ * admin pages) before rendering — a rendered link is a promise that it works,
+ * so a viewer who can't follow it gets the words without the link. */
+export const withoutLinksTo = (markdown: string, prefix: string): string =>
+  rewriteTokens(Lexer.lex(markdown), prefix);
+
+/** Replace child token source in order while preserving every byte between
+ * children (markers, whitespace, table pipes, list bullets, and safe markdown). */
+type LocatedSourcePart<Part> = {
+  index: number;
+  part: Part;
+  source: string;
+};
+
+const locateSourceParts = <Part>(
+  raw: string,
+  parts: readonly Part[],
+  sourceOf: (part: Part) => string,
+): LocatedSourcePart<Part>[] => {
+  let cursor = 0;
+  return parts.map((part) => {
+    const source = sourceOf(part);
+    const index = raw.indexOf(source, cursor);
+    if (index >= 0) cursor = index + source.length;
+    return { index, part, source };
+  });
+};
+
+const rewriteSourceParts = <Part>(
+  raw: string,
+  parts: readonly LocatedSourcePart<Part>[],
+  rewrite: (part: Part) => string,
+): string => {
+  let cursor = 0;
+  return (
+    parts.reduce((result, { index, part, source }) => {
+      const before = raw.slice(cursor, index);
+      cursor = index + source.length;
+      return result + before + rewrite(part);
+    }, "") + raw.slice(cursor)
+  );
+};
+
+const rewriteChildren = (
+  raw: string,
+  children: readonly Token[],
+  prefix: string,
+  flattenMissing = true,
+): string => {
+  const parts = locateSourceParts(raw, children, (child) => child.raw);
+  if (flattenMissing && parts.some(({ index }) => index < 0)) {
+    return rewriteChildren(raw, children.flatMap(leafTokens), prefix, false);
+  }
+  return rewriteSourceParts(
+    raw,
+    parts.filter(({ index }) => index >= 0),
+    (child) => rewriteToken(child, prefix),
+  );
+};
+
+const rewriteTable = (token: Tokens.Table, prefix: string): string => {
+  const cells = [...token.header, ...token.rows.flat()];
+  const parts = locateSourceParts(token.raw, cells, (cell) => cell.text);
+  assert(
+    parts.every(({ index }) => index >= 0),
+    "Markdown table cell not found",
+  );
+  return rewriteSourceParts(token.raw, parts, (cell) =>
+    rewriteChildren(cell.text, cell.tokens, prefix),
+  );
+};
+
+const isTableToken = (token: Token): token is Tokens.Table =>
+  token.type === "table" && "header" in token && "rows" in token;
+
+const childTokens = (token: Token): readonly Token[] => {
+  if (isTableToken(token)) {
+    return [...token.header, ...token.rows.flat()].flatMap(
+      (cell) => cell.tokens,
+    );
+  }
+  return "tokens" in token && Array.isArray(token.tokens) ? token.tokens : [];
+};
+
+/** Deepest parsed tokens in source order. Links stay whole so their complete
+ * spelling is replaced; code tokens stay whole so link-looking code advances
+ * the source cursor without being changed. */
+const leafTokens = (token: Token): Token[] => {
+  if (token.type === "link") return [token];
+  const children = childTokens(token);
+  return children.length > 0 ? children.flatMap(leafTokens) : [token];
+};
+
+const rewriteToken = (token: Token, prefix: string): string => {
+  if (token.type === "link") {
+    if (!token.href.startsWith(prefix)) return token.raw;
+    assert(token.tokens, "Markdown link has no parsed text");
+    return rewriteChildren(token.text, token.tokens, prefix);
+  }
+  if (isTableToken(token)) return rewriteTable(token, prefix);
+  if (token.type === "list") {
+    return rewriteChildren(token.raw, token.items, prefix);
+  }
+  if ("tokens" in token && Array.isArray(token.tokens)) {
+    return rewriteChildren(token.raw, token.tokens, prefix);
+  }
+  return token.raw;
+};
+
+const rewriteTokens = (tokens: readonly Token[], prefix: string): string =>
+  tokens.map((token) => rewriteToken(token, prefix)).join("");
