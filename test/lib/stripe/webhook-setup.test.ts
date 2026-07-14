@@ -83,17 +83,7 @@ const webhookEndpointsApi = (
       throw "not an error";
     }
     if (createThrowsMaximum && calls.createAttempts === 1) {
-      return Promise.resolve(
-        Response.json(
-          {
-            error: {
-              message: "Maximum number of webhook endpoints reached",
-              type: "invalid_request_error",
-            },
-          },
-          { status: 400 },
-        ),
-      );
+      throw new Error("Maximum number of webhook endpoints reached");
     }
     if (createLimitError && calls.createAttempts === 1) {
       return Promise.resolve(limitErrorResponse);
@@ -442,10 +432,9 @@ describeStripe("Stripe webhook setup", () => {
       expect(result).toBeUndefined();
     });
 
-    test("swallows errors from the cleanup itself", async () => {
-      // If createStripeClient or the listing throws inside cleanup, the
-      // error is caught — the new endpoint is already live and the DB
-      // points at it, so a cleanup failure is non-fatal.
+    test("swallows listing errors from the cleanup path", async () => {
+      // If fetch throws inside the listing call, listSameUrlEndpointIds
+      // catches it and returns [] — cleanup is a no-op, not a crash.
       const result = await withFetchMock(async () => {
         globalThis.fetch = () => {
           throw new Error("Cleanup network failure");

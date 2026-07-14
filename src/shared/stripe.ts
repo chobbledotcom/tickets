@@ -320,26 +320,25 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   }
 };
 
-/** Implementation of {@link cleanupOldWebhookEndpoints}. */
+/** Implementation of {@link cleanupOldWebhookEndpoints}.
+ *
+ *  Neither the listing nor the per-delete path can throw out of this function:
+ *  `listSameUrlEndpointIds` catches its own errors and returns `[]`, and
+ *  `deleteEndpointsBestEffort` catches per-delete errors. If `createStripeClient`
+ *  itself throws, the Stripe SDK is already broken — that propagates loudly
+ *  rather than being silently swallowed. */
 const cleanupOldWebhookEndpointsImpl = async (
   secretKey: string,
   webhookUrl: string,
   keepEndpointId: string,
 ): Promise<void> => {
-  try {
-    const client = await createStripeClient(secretKey);
-    const staleIds = await sameUrlEndpointIdsExcept(
-      client,
-      webhookUrl,
-      keepEndpointId,
-    );
-    await deleteEndpointsBestEffort(client, staleIds);
-  } catch (err) {
-    // Cleanup is best-effort: the new endpoint is live and the DB points at
-    // it, so stale endpoints are a duplicate-delivery nuisance, not a
-    // signing-secret mismatch.
-    logDebug("Stripe", `Webhook cleanup failed: ${sanitizeErrorDetail(err)}`);
-  }
+  const client = await createStripeClient(secretKey);
+  const staleIds = await sameUrlEndpointIdsExcept(
+    client,
+    webhookUrl,
+    keepEndpointId,
+  );
+  await deleteEndpointsBestEffort(client, staleIds);
 };
 
 /**
