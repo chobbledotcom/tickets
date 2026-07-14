@@ -3,6 +3,7 @@
  */
 
 import { filter, once } from "#fp";
+import { DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   formatDatetimeInTz,
@@ -16,23 +17,6 @@ import {
   type Listing,
   normalizeDurationDays,
 } from "#shared/types.ts";
-
-/** Day name lookup from Date.getUTCDay() index (Sunday=0) */
-export const DAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-] as const;
-
-/** Valid day names for bookable_days (Monday-first for display) */
-export const VALID_DAY_NAMES: readonly string[] = [
-  ...DAY_NAMES.slice(1),
-  DAY_NAMES[0]!,
-];
 
 /** Month names for display */
 const MONTH_NAMES = [

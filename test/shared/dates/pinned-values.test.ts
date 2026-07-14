@@ -13,13 +13,12 @@ import {
   bookedRangeLabel,
   bookedSpanDays,
   calendarGridDates,
-  DAY_NAMES,
   formatDateLabel,
   getBookableStartDates,
   startOfHour,
-  VALID_DAY_NAMES,
   widestDatedEntry,
 } from "#shared/dates.ts";
+import { DAY_NAMES, VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
 

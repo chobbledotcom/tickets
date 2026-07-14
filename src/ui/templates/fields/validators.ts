@@ -10,7 +10,7 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import { t } from "#i18n";
-import { VALID_DAY_NAMES } from "#shared/dates.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { isUpdateTier } from "#shared/db/built-sites.ts";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";

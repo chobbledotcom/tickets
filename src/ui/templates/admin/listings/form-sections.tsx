@@ -2,7 +2,7 @@
 import { map, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { VALID_DAY_NAMES } from "#shared/dates.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type Field, type FieldValues, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";

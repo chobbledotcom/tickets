@@ -3,7 +3,7 @@
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { VALID_DAY_NAMES } from "#shared/dates.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
