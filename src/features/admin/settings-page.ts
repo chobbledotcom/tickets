@@ -5,7 +5,6 @@
  */
 
 /* jscpd:ignore-start */
-import { getWebhookUrl } from "#routes/admin/settings-helpers.ts";
 import { type AuthSession, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
@@ -17,6 +16,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { getSuperuserState } from "#shared/superuser.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
@@ -51,7 +51,7 @@ const getSettingsPageState = async () => {
     termsAndConditions: settings.terms,
     theme: settings.theme,
     underlineLinks: settings.underlineLinks,
-    webhookUrl: getWebhookUrl(),
+    webhookUrl: getPaymentWebhookUrl(),
   };
 };
 

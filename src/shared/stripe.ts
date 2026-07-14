@@ -4,7 +4,7 @@
  */
 
 import type Stripe from "stripe";
-import { lazyRef, once } from "#fp";
+import { lazyRef, once, unique } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
@@ -186,6 +186,38 @@ type StripeCheckoutLineItem = NonNullable<
 >[number];
 
 /**
+ * Fetch the site's webhook endpoint records from Stripe (one page, max 100).
+ */
+const fetchWebhookEndpoints = async (
+  client: Stripe,
+): Promise<Stripe.WebhookEndpoint[]> => {
+  const endpoints = await client.webhookEndpoints.list({ limit: 100 });
+  return endpoints.data;
+};
+
+/**
+ * List the IDs of webhook endpoints pointing at the given URL, best-effort.
+ * Returns an empty list when listing fails (permissions, rate limit, …) so
+ * the recorded endpoint can still be replaced. Never includes endpoints for
+ * another URL.
+ */
+const listSameUrlEndpointIds = async (
+  client: Stripe,
+  webhookUrl: string,
+): Promise<string[]> => {
+  try {
+    const endpoints = await fetchWebhookEndpoints(client);
+    return endpoints.filter((ep) => ep.url === webhookUrl).map((ep) => ep.id);
+  } catch (err) {
+    logDebug(
+      "Stripe",
+      `Webhook endpoint listing failed: ${sanitizeErrorDetail(err)}`,
+    );
+    return [];
+  }
+};
+
+/**
  * Internal implementation of webhook endpoint setup.
  * Defined before stripeApi so it can be assigned directly.
  */
@@ -197,17 +229,25 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   try {
     const client = await createStripeClient(secretKey);
 
-    // If we have an existing endpoint ID, try to delete it so we can recreate
-    // (update doesn't return the secret, so we need to recreate to get a fresh one)
-    if (existingEndpointId) {
+    // Delete the recorded endpoint and any stray endpoints pointing at the
+    // same URL so the new endpoint replaces them cleanly. Listing is
+    // best-effort: if it fails, we still delete the recorded endpoint.
+    const strayIds = await listSameUrlEndpointIds(client, webhookUrl);
+    const idsToDelete = unique(
+      [existingEndpointId, ...strayIds].filter((id): id is string =>
+        Boolean(id),
+      ),
+    );
+
+    for (const id of idsToDelete) {
       try {
-        await client.webhookEndpoints.del(existingEndpointId);
+        await client.webhookEndpoints.del(id);
       } catch {
-        // Endpoint doesn't exist or can't be deleted, will create new one
+        // A stray may already be gone; the create below still proceeds.
       }
     }
 
-    // Create new webhook endpoint (preserves any existing webhooks)
+    // Create new webhook endpoint
     const endpoint = await client.webhookEndpoints.create({
       enabled_events: ["checkout.session.completed"],
       url: webhookUrl,
@@ -389,8 +429,8 @@ export const stripeApi: {
     result.ownEndpointId = settings.stripe.webhookEndpointId;
 
     try {
-      const endpoints = await client.webhookEndpoints.list({ limit: 100 });
-      result.webhooks = endpoints.data.map((ep) => ({
+      const endpoints = await fetchWebhookEndpoints(client);
+      result.webhooks = endpoints.map((ep) => ({
         enabledEvents: ep.enabled_events,
         endpointId: ep.id,
         status: ep.status,

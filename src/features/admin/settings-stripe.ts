@@ -4,12 +4,10 @@
  */
 
 import { t } from "#i18n";
-import {
-  defineProviderCredentialsRoute,
-  getWebhookUrl,
-} from "#routes/admin/settings-helpers.ts";
+import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   detectStripeKeyMode,
   setupWebhookEndpoint,
@@ -22,7 +20,7 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   afterSave: async (value) => {
     const result = await setupWebhookEndpoint(
       value,
-      getWebhookUrl(),
+      getPaymentWebhookUrl(),
       settings.stripe.webhookEndpointId,
     );
     if (!result.success) {

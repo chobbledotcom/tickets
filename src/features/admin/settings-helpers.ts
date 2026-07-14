@@ -17,7 +17,6 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { errorRedirect, jsonResponse, redirect } from "#routes/response.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { isMaskSentinel } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -87,11 +86,6 @@ const testRoute =
   (testFn: () => Promise<unknown>) =>
   (request: Request): Promise<Response> =>
     withAuth(request, OWNER_FORM, async () => jsonResponse(await testFn()));
-
-/** Build the payment webhook URL from the configured domain.
- * Shared by the settings page (display) and the Stripe handler (setup). */
-const getWebhookUrl = (): string =>
-  `https://${getEffectiveDomain()}/payment/webhook`;
 
 /** Run an optional async validator; return error response or null */
 const runValidate = <T>(
@@ -416,7 +410,6 @@ export {
   clearableFieldHandler,
   createSettingsHandler,
   defineProviderCredentialsRoute,
-  getWebhookUrl,
   processSecretField,
   saveSecret,
   secretFieldHandler,
