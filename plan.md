@@ -53,6 +53,22 @@ before the fix (repo rule) and a green `deno task precommit`.
   provider and the operator is alerted on every failing delivery, so they
   reconcile long before the prune. Documented with the future hard-fix paths
   in TODO.md.
+- **Codex: deleted-listing + held-cash + refund-retry round** (ecb5f81,
+  db71893, 0ffd541). Seven more findings from the delete/mid-payment race and
+  the held-cash model, all with fail-before regression tests:
+  - The owner-only Ledger tab and the standalone `/admin/ledger/:type/:ref/add`
+    write both hide/refuse while a checkout is pending, so a manual leg can't
+    combine with activation's own legs into a surprise balance.
+  - The Edit tab renders a locked "Deleted listing" row (never throws) for a
+    kept record whose listing was deleted mid-payment, and the Actions tab
+    hides for it (its routes 404 when the home listing is gone).
+  - Deleting a listing is refused while any attendee on it holds unreturned
+    conflict cash (the delete would cascade the booking line the refund needs).
+  - The held-cash no-quantity guard only blocks a save that removes the active
+    home line the in-app refund needs, not every no-quantity edit.
+  - A staged order whose provider refund fails stays retryable (no ledger
+    legs, stage pending) so the next delivery re-attempts it, instead of going
+    terminal and stranding the money.
 
 Every Codex review thread on the PR is answered.
 
