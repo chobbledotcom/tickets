@@ -22,10 +22,9 @@ const PKPASS_CONTENT_TYPE = "application/vnd.apple.pkpass";
 const PKPASS_EXT = ".pkpass";
 
 /** Handle GET /wallet/:token.pkpass — generate and return .pkpass */
-const handleWalletGet = (
-  _request: Request,
-  tokens: string[],
-): Response | Promise<Response> => {
+const handleWalletGet: ResponseHandler<
+  [_request: Request, tokens: string[]]
+> = (_request, tokens) => {
   const raw = tokens[0];
   if (!raw || tokens.length > 1) return notFoundResponse();
 

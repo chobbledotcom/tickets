@@ -45,7 +45,10 @@ export {
   loadExistingLines,
   type UpdateAttendeeAtomicResult,
 } from "#shared/db/attendees/atomic-update.ts";
-export * from "#shared/db/attendees/capacity.ts";
+export * from "#shared/db/attendees/capacity/checks.ts";
+export * from "#shared/db/attendees/capacity/groups.ts";
+export * from "#shared/db/attendees/capacity/range.ts";
+export * from "#shared/db/attendees/capacity/remaining.ts";
 export {
   type BookingBatchPlan,
   buildAttendeeInsert,

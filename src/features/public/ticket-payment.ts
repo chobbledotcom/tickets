@@ -51,7 +51,7 @@ import {
   createAttendeeAtomic,
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
-import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
+import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity/groups.ts";
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {

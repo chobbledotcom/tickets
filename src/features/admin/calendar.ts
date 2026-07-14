@@ -26,7 +26,7 @@ import {
   listingDateToCalendarDate,
 } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {

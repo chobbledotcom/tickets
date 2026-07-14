@@ -22,7 +22,7 @@ import { parseIsoDateParam } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/groups.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";

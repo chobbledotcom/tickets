@@ -18,5 +18,5 @@ export type FeatureGate = ResponseHandler<[action: ResponseHandler]>;
  * outside demo mode, a "storage is off" redirect, and so on). */
 export const featureGate =
   (isOn: () => boolean, blocked: () => Response): FeatureGate =>
-  (action: ResponseHandler): Response | Promise<Response> =>
+  (action: ResponseHandler) =>
     isOn() ? action() : blocked();

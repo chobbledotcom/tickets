@@ -3,7 +3,7 @@ import {
   buildTicketListing,
   type TicketListing,
 } from "#shared/booking/model.ts";
-import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity.ts";
+import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity/groups.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 export const buildTicketListingsWithGroupCapacity = async (

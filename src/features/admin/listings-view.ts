@@ -10,7 +10,7 @@ import { compact, filter, map, pipe, sort, unique } from "#fp";
 import { getDateFilter } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
+import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity/groups.ts";
 import { getGroupIdsByListingId, groups } from "#shared/db/groups.ts";
 import {
   type AttendeeQuestionData,
