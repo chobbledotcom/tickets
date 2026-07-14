@@ -5,7 +5,7 @@
 
 import { t } from "#i18n";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
-import { VALID_DAY_NAMES } from "#shared/dates.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { Field } from "#shared/forms.tsx";
 import { formatBytes, MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
