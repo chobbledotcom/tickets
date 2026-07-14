@@ -2,189 +2,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import {
-  cleanupOldWebhookEndpoints,
   getStripeClient,
   resetStripeClient,
   setupWebhookEndpoint,
   stripeApi,
 } from "#shared/stripe.ts";
 import { setTestEnv } from "#test-utils/env.ts";
-import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
+import { withFetchMock } from "#test-utils/mocks.ts";
 import { describeStripe } from "./harness.ts";
-
-type WebhookApiCalls = {
-  createAttempts: number;
-  createdBody: URLSearchParams | null;
-  deleted: string[];
-};
-
-const webhookEndpointsApi = (
-  webhookUrl: string,
-  calls: WebhookApiCalls,
-  options: {
-    createFails?: boolean;
-    createLimitError?: boolean;
-    createThrowsMaximum?: boolean;
-    createThrowsNonError?: boolean;
-    deleteFails?: boolean;
-    listFails?: boolean;
-    recordedInListing?: boolean;
-  } = {},
-): ((url: string, init?: RequestInit) => Promise<Response> | null) => {
-  const {
-    createFails = false,
-    createLimitError = false,
-    createThrowsMaximum = false,
-    createThrowsNonError = false,
-    deleteFails = false,
-    listFails = false,
-    recordedInListing = false,
-  } = options;
-  const listed = {
-    data: [
-      { id: "we_stray", object: "webhook_endpoint", url: webhookUrl },
-      {
-        id: "we_other",
-        object: "webhook_endpoint",
-        url: "https://other.example/webhook",
-      },
-      ...(recordedInListing
-        ? [{ id: "we_recorded", object: "webhook_endpoint", url: webhookUrl }]
-        : []),
-    ],
-    has_more: false,
-    object: "list",
-  };
-  const created = {
-    id: "we_new",
-    object: "webhook_endpoint",
-    secret: "whsec_new",
-    status: "enabled",
-    url: webhookUrl,
-  };
-
-  const limitErrorResponse = Response.json(
-    {
-      error: {
-        message: "You have reached the webhook endpoint limit",
-        type: "invalid_request_error",
-      },
-    },
-    { status: 400 },
-  );
-  const createErrorResponse = Response.json(
-    { error: { message: "Create failed", type: "api_error" } },
-    { status: 500 },
-  );
-
-  const handleCreatePost = (init?: RequestInit): Promise<Response> => {
-    calls.createAttempts++;
-    if (createThrowsNonError && calls.createAttempts === 1) {
-      throw "not an error";
-    }
-    if (createThrowsMaximum && calls.createAttempts === 1) {
-      return Promise.resolve(
-        Response.json(
-          {
-            error: {
-              message: "Maximum number of webhook endpoints reached",
-              type: "invalid_request_error",
-            },
-          },
-          { status: 400 },
-        ),
-      );
-    }
-    if (createLimitError && calls.createAttempts === 1) {
-      return Promise.resolve(limitErrorResponse);
-    }
-    if (createFails) return Promise.resolve(createErrorResponse);
-    calls.createdBody = new URLSearchParams(String(init?.body ?? ""));
-    return Promise.resolve(Response.json(created));
-  };
-
-  return (url, init) => {
-    if (!url.includes("/v1/webhook_endpoints")) return null;
-    const method = init?.method ?? "GET";
-    if (method === "GET") {
-      return listFails
-        ? Promise.resolve(
-            Response.json(
-              { error: { message: "List failed", type: "api_error" } },
-              { status: 500 },
-            ),
-          )
-        : Promise.resolve(Response.json(listed));
-    }
-    if (method === "DELETE") {
-      if (deleteFails) throw new Error("Delete failed");
-      calls.deleted.push(new URL(url).pathname.split("/").pop()!);
-      return Promise.resolve(Response.json({ deleted: true }));
-    }
-    return handleCreatePost(init);
-  };
-};
-
-const setupWithWebhookApi = (
-  webhookUrl: string,
-  calls: WebhookApiCalls,
-  existingEndpointId?: string,
-  options: {
-    createFails?: boolean;
-    createLimitError?: boolean;
-    createThrowsMaximum?: boolean;
-    createThrowsNonError?: boolean;
-    deleteFails?: boolean;
-    listFails?: boolean;
-    recordedInListing?: boolean;
-  } = {},
-) =>
-  withFetchMock(async (originalFetch) => {
-    installUrlHandler(
-      originalFetch,
-      webhookEndpointsApi(webhookUrl, calls, options),
-    );
-    return await setupWebhookEndpoint(
-      "sk_test_mock",
-      webhookUrl,
-      existingEndpointId,
-    );
-  });
-
-const cleanupWithWebhookApi = (
-  webhookUrl: string,
-  calls: WebhookApiCalls,
-  keepEndpointId: string,
-  options: {
-    deleteFails?: boolean;
-    listFails?: boolean;
-    recordedInListing?: boolean;
-  } = {},
-) =>
-  withFetchMock(async (originalFetch) => {
-    installUrlHandler(
-      originalFetch,
-      webhookEndpointsApi(webhookUrl, calls, options),
-    );
-    return await cleanupOldWebhookEndpoints(
-      "sk_test_mock",
-      webhookUrl,
-      keepEndpointId,
-    );
-  });
-
-const newWebhookApiCalls = (): WebhookApiCalls => ({
-  createAttempts: 0,
-  createdBody: null,
-  deleted: [],
-});
-
-const requireCreatedBody = (calls: WebhookApiCalls): URLSearchParams => {
-  if (calls.createdBody === null) {
-    throw new Error("Stripe webhook endpoint was not created");
-  }
-  return calls.createdBody;
-};
+import {
+  newWebhookApiCalls,
+  requireCreatedBody,
+  setupWithWebhookApi,
+} from "./webhook-mocks.ts";
 
 const withStripeClient = async (
   env: Record<string, string | undefined>,
@@ -221,12 +51,17 @@ const expectFetchThrowGivesStringError = async (
   }
 };
 
+const expectFailedResultWithNoDeletes = (
+  result: Awaited<ReturnType<typeof setupWebhookEndpoint>>,
+  calls: { deleted: string[] },
+): void => {
+  expect(result).toEqual({ error: expect.any(String), success: false });
+  expect(calls.deleted).toEqual([]);
+};
+
 describeStripe("Stripe webhook setup", () => {
   describe("endpoint setup", () => {
     test("creates the new endpoint and does not delete any old ones", async () => {
-      // Setup creates the new endpoint only — old endpoints are deleted later
-      // by cleanupOldWebhookEndpoints AFTER the DB save, so a DB-save
-      // failure leaves the old endpoint (whose secret matches the DB) alive.
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -234,7 +69,9 @@ describeStripe("Stripe webhook setup", () => {
         webhookUrl,
         calls,
         "we_recorded",
-        { recordedInListing: true },
+        {
+          recordedInListing: true,
+        },
       );
 
       expect(result).toEqual({
@@ -253,18 +90,19 @@ describeStripe("Stripe webhook setup", () => {
         webhookUrl,
         calls,
         "we_recorded",
-        { createFails: true },
+        {
+          createFails: true,
+        },
       );
 
-      expect(result).toEqual({ error: expect.any(String), success: false });
-      expect(calls.deleted).toEqual([]);
+      expectFailedResultWithNoDeletes(result, calls);
     });
 
-    test("falls back to deleting strays when create hits endpoint limit", async () => {
+    test("deletes old recorded endpoint on limit error, then retries", async () => {
       // When Stripe rejects the create because the account is at its webhook
-      // endpoint cap, setup deletes same-URL strays (keeping the recorded
-      // endpoint intact so webhooks keep delivering if the retry also fails)
-      // and retries the create.
+      // endpoint cap, setup deletes the OLD RECORDED endpoint by ID (not
+      // same-URL strays) to free a slot, then retries. Same-URL strays are
+      // preserved — the main cleanup (after DB save) deletes them.
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -272,7 +110,9 @@ describeStripe("Stripe webhook setup", () => {
         webhookUrl,
         calls,
         "we_recorded",
-        { createLimitError: true },
+        {
+          createLimitError: true,
+        },
       );
 
       expect(result).toEqual({
@@ -281,13 +121,11 @@ describeStripe("Stripe webhook setup", () => {
         success: true,
       });
       expect(calls.createAttempts).toBe(2);
-      // Strays are deleted to free up a slot; the recorded endpoint survives.
-      expect(calls.deleted.toSorted()).toEqual(["we_stray"]);
+      // Only the recorded endpoint is deleted; strays survive.
+      expect(calls.deleted).toEqual(["we_recorded"]);
     });
 
     test("falls back when create error message says maximum", async () => {
-      // The limit detector also matches "maximum" so it covers Stripe's
-      // alternative error wording.
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -295,7 +133,9 @@ describeStripe("Stripe webhook setup", () => {
         webhookUrl,
         calls,
         "we_recorded",
-        { createThrowsMaximum: true },
+        {
+          createThrowsMaximum: true,
+        },
       );
 
       expect(result).toEqual({
@@ -306,9 +146,9 @@ describeStripe("Stripe webhook setup", () => {
       expect(calls.createAttempts).toBe(2);
     });
 
-    test("re-throws create error when non-Error is thrown", async () => {
-      // A thrown non-Error isn't a limit error, so it must re-throw to the
-      // outer catch and return a string error.
+    test("re-throws when error is webhook but not limit or maximum", async () => {
+      // A webhook error that doesn't mention "limit" or "maximum" is not a
+      // cap error — it must re-throw to the outer catch and return an error.
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -316,7 +156,25 @@ describeStripe("Stripe webhook setup", () => {
         webhookUrl,
         calls,
         "we_recorded",
-        { createThrowsNonError: true },
+        {
+          createThrowsWebhookOnly: true,
+        },
+      );
+
+      expectFailedResultWithNoDeletes(result, calls);
+    });
+
+    test("re-throws create error when non-Error is thrown", async () => {
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
+
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        calls,
+        "we_recorded",
+        {
+          createThrowsNonError: true,
+        },
       );
 
       expect(result).toEqual({ error: expect.any(String), success: false });
@@ -392,71 +250,6 @@ describeStripe("Stripe webhook setup", () => {
         "string_error",
         "https://example.com/webhook/non-error-throw",
       );
-    });
-  });
-
-  describe("endpoint cleanup", () => {
-    test("deletes old same-URL endpoints, keeping the new one", async () => {
-      const webhookUrl = "https://example.com/payment/webhook";
-      const calls = newWebhookApiCalls();
-
-      await cleanupWithWebhookApi(webhookUrl, calls, "we_new");
-
-      expect(calls.deleted.toSorted()).toEqual(["we_stray"]);
-    });
-
-    test("deletes the recorded endpoint when it appears in listing", async () => {
-      // The recorded endpoint normally points at the same webhook URL, so it
-      // reappears in the same-URL listing alongside the strays. The recorded
-      // endpoint must be deleted exactly once.
-      const webhookUrl = "https://example.com/payment/webhook";
-      const calls = newWebhookApiCalls();
-
-      await cleanupWithWebhookApi(webhookUrl, calls, "we_new", {
-        recordedInListing: true,
-      });
-
-      expect(calls.deleted.toSorted()).toEqual(["we_recorded", "we_stray"]);
-    });
-
-    test("continues when endpoint listing fails", async () => {
-      const webhookUrl = "https://example.com/payment/webhook";
-      const calls = newWebhookApiCalls();
-
-      await cleanupWithWebhookApi(webhookUrl, calls, "we_new", {
-        listFails: true,
-      });
-
-      expect(calls.deleted).toEqual([]);
-    });
-
-    test("continues when a delete fails", async () => {
-      // A DELETE that throws must not abort the cleanup batch.
-      const webhookUrl = "https://example.com/payment/webhook";
-      const calls = newWebhookApiCalls();
-
-      const result = await cleanupWithWebhookApi(webhookUrl, calls, "we_new", {
-        deleteFails: true,
-      });
-
-      expect(result).toBeUndefined();
-    });
-
-    test("swallows listing errors from the cleanup path", async () => {
-      // If fetch throws inside the listing call, listSameUrlEndpointIds
-      // catches it and returns [] — cleanup is a no-op, not a crash.
-      const result = await withFetchMock(async () => {
-        globalThis.fetch = () => {
-          throw new Error("Cleanup network failure");
-        };
-        return await cleanupOldWebhookEndpoints(
-          "sk_test_mock",
-          "https://example.com/payment/webhook",
-          "we_new",
-        );
-      });
-
-      expect(result).toBeUndefined();
     });
   });
 

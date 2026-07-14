@@ -20,10 +20,11 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   // failure aborts the save leaving nothing configured.
   afterSave: async (value) => {
     const webhookUrl = getPaymentWebhookUrl();
+    const previousEndpointId = settings.stripe.webhookEndpointId;
     const result = await setupWebhookEndpoint(
       value,
       webhookUrl,
-      settings.stripe.webhookEndpointId,
+      previousEndpointId,
     );
     if (!result.success) {
       return `Failed to set up Stripe webhook: ${result.error}`;
@@ -33,11 +34,16 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     // keep delivering with the old config instead of losing the only signed
     // endpoint mid-replacement.
     await settings.update.stripe.webhookConfig(result);
-    // Now that the new credentials are saved, delete old same-URL endpoints
-    // so the new endpoint is the only one pointed at this URL. Cleanup is
-    // best-effort: a failure here doesn't unwind the save (the new endpoint
-    // is live and the DB points at it).
-    await cleanupOldWebhookEndpoints(value, webhookUrl, result.endpointId);
+    // Now that the new credentials are saved, delete old endpoints. Pass the
+    // previous endpoint ID explicitly — after a domain change it points at
+    // the old URL, so the same-URL listing won't find it. Cleanup is
+    // best-effort: a failure here doesn't unwind the save.
+    await cleanupOldWebhookEndpoints(
+      value,
+      webhookUrl,
+      result.endpointId,
+      previousEndpointId ? [previousEndpointId] : [],
+    );
     return null;
   },
   formId: "settings-stripe",

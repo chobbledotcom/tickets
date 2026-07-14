@@ -272,9 +272,10 @@ const isEndpointLimitError = (err: unknown): boolean => {
  * secret matches the DB) in place, so webhooks keep delivering.
  *
  * If Stripe rejects the create because the account is at its webhook-endpoint
- * cap, falls back to deleting same-URL strays (keeping the recorded endpoint
- * intact so webhooks keep delivering if the retry also fails) and retries the
- * create.
+ * cap, deletes the old recorded endpoint by ID to free a slot (it may be at
+ * a different URL after a domain move, so it is deleted by ID, not via the
+ * same-URL listing), then retries the create. Same-URL strays are preserved
+ * until the retry succeeds — the main cleanup (after DB save) deletes them.
  */
 const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   secretKey,
@@ -288,17 +289,17 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
     try {
       endpoint = await createCheckoutWebhook(client, webhookUrl);
     } catch (err) {
-      // If Stripe rejects the create because the account is at its webhook
-      // endpoint cap, delete same-URL strays (keeping the recorded endpoint
-      // intact so webhooks keep delivering if the retry also fails) and retry.
       if (!isEndpointLimitError(err)) throw err;
 
-      const strayIds = await sameUrlEndpointIdsExcept(
-        client,
-        webhookUrl,
-        existingEndpointId ?? "",
-      );
-      await deleteEndpointsBestEffort(client, strayIds);
+      // Free the slot the old recorded endpoint is consuming, then retry.
+      // Delete by ID because it may be at a different URL after a domain
+      // move. Same-URL strays are preserved — if the retry also fails, one
+      // of them may still match the DB's stored secret, so webhooks keep
+      // delivering. The main cleanup (after DB save) deletes remaining
+      // strays once the new endpoint is durably recorded.
+      if (existingEndpointId) {
+        await deleteEndpointsBestEffort(client, [existingEndpointId]);
+      }
       endpoint = await createCheckoutWebhook(client, webhookUrl);
     }
 
@@ -331,14 +332,21 @@ const cleanupOldWebhookEndpointsImpl = async (
   secretKey: string,
   webhookUrl: string,
   keepEndpointId: string,
+  alsoDeleteIds: readonly string[] = [],
 ): Promise<void> => {
   const client = await createStripeClient(secretKey);
-  const staleIds = await sameUrlEndpointIdsExcept(
+  const sameUrlStaleIds = await sameUrlEndpointIdsExcept(
     client,
     webhookUrl,
     keepEndpointId,
   );
-  await deleteEndpointsBestEffort(client, staleIds);
+  // Merge same-URL strays with explicit IDs to delete (e.g. the old
+  // recorded endpoint after a domain change, which is at a different URL).
+  // Deduplicate and exclude the endpoint we want to keep.
+  const allIds = [...new Set([...sameUrlStaleIds, ...alsoDeleteIds])].filter(
+    (id) => id !== keepEndpointId,
+  );
+  await deleteEndpointsBestEffort(client, allIds);
 };
 
 /**
@@ -350,6 +358,7 @@ export const stripeApi: {
     secretKey: string,
     webhookUrl: string,
     keepEndpointId: string,
+    alsoDeleteIds?: readonly string[],
   ) => Promise<void>;
   getStripeClient: () => Promise<Stripe | null>;
   resetStripeClient: () => void;
