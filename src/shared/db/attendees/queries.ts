@@ -28,6 +28,7 @@ import {
   inPlaceholders,
   primaryMatchingIdSet,
   queryAll,
+  queryAllPrimary,
   queryOne,
   rowExists,
   rowExistsForIdList,
@@ -386,6 +387,25 @@ export const attendeeHoldsUnreturnedCash = async (
   attendeeId: number,
 ): Promise<boolean> =>
   (await attendeeIdsHoldingUnreturnedCash([attendeeId])).has(attendeeId);
+
+/** Whether any attendee booked on this listing holds unreturned conflict cash
+ * — the listing-scoped form of {@link attendeeIdsHoldingUnreturnedCash}, for
+ * the listing delete guard: deleting the listing cascades its booking rows,
+ * and the in-app refund needs an active booking line, so the delete would
+ * strand the held charge with no refund path. Primary-pinned like the other
+ * cash guards. */
+export const listingHoldsUnreturnedCash = async (
+  listingId: number,
+): Promise<boolean> => {
+  const rows = await queryAllPrimary<{ attendee_id: number }>(
+    "SELECT DISTINCT attendee_id FROM listing_attendees WHERE listing_id = ?",
+    [listingId],
+  );
+  const held = await attendeeIdsHoldingUnreturnedCash(
+    rows.map((row) => row.attendee_id),
+  );
+  return held.size > 0;
+};
 
 /**
  * The id of the attendee whose booking owns this ledger event group, or null

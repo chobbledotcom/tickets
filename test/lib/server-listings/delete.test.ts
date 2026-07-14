@@ -134,6 +134,40 @@ describeWithEnv("server listings > delete", { db: true }, () => {
       expect(await getListingWithCount(listing.id)).not.toBeNull();
     });
 
+    test("refuses to delete a listing whose attendee holds unreturned cash", async () => {
+      // A free listing keeps the booking's sale at 0, so the held payment
+      // below projects as a positive balance (cash in, nothing owed).
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Held Cash Listing",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Held Buyer",
+        "held-listing-delete@example.com",
+      );
+      // A stage_active conflict leaves a held provider payment (no sale) on
+      // the attendee. Deleting the listing would cascade the booking line the
+      // in-app refund needs, stranding that charge — so the delete is refused
+      // until the cash is refunded.
+      const { postHeldPayment } = await import("#test-utils/ledger.ts");
+      await postHeldPayment({
+        amount: 1000,
+        attendeeId: attendee.id,
+        listingId: listing.id,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/delete`,
+        { confirm_identifier: listing.name },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("not refunded"), false);
+      // The listing (and the refund path) survive the refused delete.
+      expect(await getListingWithCount(listing.id)).not.toBeNull();
+    });
+
     test("displays error on confirmation page after failed attempt", async () => {
       await setupListingAndLogin({
         maxAttendees: 100,

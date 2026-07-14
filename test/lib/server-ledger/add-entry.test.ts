@@ -12,7 +12,7 @@ import {
 import { allTransfers } from "#shared/accounting/queries.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { expectFlash, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
@@ -92,6 +92,31 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     expect(entry?.occurredAt).toBe("2026-06-22T09:30:00.000Z");
     expect(entry?.source).toEqual(account("external", "world"));
     expect(entry?.destination).toEqual(account("attendee", attendeeId));
+  });
+
+  test("refuses a manual attendee entry while a checkout is pending", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      unitPrice: 1000,
+    });
+    const { stageMidPaymentAttendee } = await import(
+      "../server-attendees/helpers.ts"
+    );
+    const stage = await stageMidPaymentAttendee(listing, "cs_ledger_add");
+    // The checkout's activation posts its own sale/payment legs when the
+    // payment lands; a manual entry added mid-payment would combine with
+    // them into a surprise balance, so the write is refused.
+    const { response } = await adminFormPost(
+      `/admin/ledger/attendee/${stage.attendeeId}/add`,
+      {
+        amount: "12.34",
+        entry_type: MANUAL_ATTENDEE_PAYMENT,
+        occurred_at: "2026-06-22T09:30",
+      },
+    );
+    expect(response.status).toBe(302);
+    expectFlash(response, expect.stringContaining("mid-payment"), false);
+    expect(await allTransfers()).toEqual([]);
   });
 
   test("posts a listing cost against the listing revenue account", async () => {

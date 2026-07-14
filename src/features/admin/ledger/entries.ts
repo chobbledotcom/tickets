@@ -16,7 +16,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import type { IdParam } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { isRowAccountType } from "#shared/accounting/accounts.ts";
+import { ATTENDEE, isRowAccountType } from "#shared/accounting/accounts.ts";
 import {
   deleteManualLedgerEntry,
   getTransferById,
@@ -27,6 +27,7 @@ import {
 } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { hasPendingCheckout } from "#shared/db/checkout-stages.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
@@ -205,6 +206,20 @@ export const handleLedgerEntryAddPost: TypedRouteHandler<
       accountStatementPath(loaded.account),
     );
     const redirectUrl = addEntryPath(loaded.account, returnUrl);
+    // A staged checkout's activation posts its own sale/payment legs when the
+    // payment lands, so a manual entry added mid-payment would combine with
+    // them into a surprise balance. This is the write route behind both the
+    // attendee page's Ledger tab (hidden while pending) and the standalone
+    // statement page, so the freeze is enforced here, where the money moves.
+    if (
+      loaded.account.type === ATTENDEE &&
+      (await hasPendingCheckout(Number(loaded.account.id)))
+    ) {
+      return errorRedirect(
+        redirectUrl,
+        t("attendee_form.error_pending_checkout"),
+      );
+    }
     const parsed = defineLedgerEntryAddForm(loaded.options).validate(form);
     if (!parsed.valid) return errorRedirect(redirectUrl, parsed.error);
     await postManualLedgerEntry({
