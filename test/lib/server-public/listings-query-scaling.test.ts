@@ -162,11 +162,9 @@ describeWithEnv(
       });
 
       const seen = await recordListingsPage(names);
-      const memberQuery = seen.find((sql) =>
-        sql.startsWith(
-          "SELECT json_group_array(groupListing.group_id) AS group_ids,",
-        ),
-      );
+      const memberQueries = batchedMemberQueries(seen);
+      expect(memberQueries.length).toBe(1);
+      const [memberQuery] = memberQueries;
       expect(memberQuery).toContain("GROUP BY listing.id");
       expect(memberQuery).not.toContain("GROUP BY listing.id,");
       expect(memberQuery).toContain(
