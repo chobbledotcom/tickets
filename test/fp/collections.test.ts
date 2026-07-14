@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   byId,
+  compact,
   filter,
   flatMap,
   groupToMap,
+  joinStrings,
   map,
   mapBy,
   mapById,
@@ -15,6 +17,18 @@ import {
 } from "#fp";
 
 describe("fp collections", () => {
+  describe("compact", () => {
+    test("removes null and undefined while keeping other falsy values", () => {
+      expect(compact([0, null, "", undefined, false])).toEqual([0, "", false]);
+    });
+  });
+
+  describe("joinStrings", () => {
+    test("joins every string without adding text", () => {
+      expect(joinStrings(["first", "", "second"])).toBe("firstsecond");
+    });
+  });
+
   describe("requiredMapValue", () => {
     test("returns a stored value", () => {
       expect(requiredMapValue(new Map([[4, "four"]]), 4, "missing")).toBe(
@@ -184,6 +198,17 @@ describe("fp collections", () => {
           () => 1,
         )([]),
       ).toEqual(new Map());
+    });
+
+    test("keeps a NaN total", () => {
+      const totals = sumByKey(
+        (item: { amount: number; key: string }) => item.key,
+        (item) => item.amount,
+      )([
+        { amount: Number.NaN, key: "a" },
+        { amount: 2, key: "a" },
+      ]);
+      expect(totals.get("a")).toBe(Number.NaN);
     });
   });
 
