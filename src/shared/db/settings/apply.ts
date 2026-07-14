@@ -11,6 +11,7 @@
  * setting loaded.
  */
 
+/* jscpd:ignore-start */
 import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
@@ -24,9 +25,6 @@ import {
   type SettingsData,
   setSnapshotField,
 } from "#shared/db/settings/snapshot.ts";
-/* jscpd:ignore-start — the orphan-retention → CONFIG_KEYS → registry key lists
-   are the same triad snapshot.ts loads; shared infrastructure, not code that
-   changes per file. */
 import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
@@ -37,13 +35,14 @@ import {
   PLAINTEXT_KEYS,
   type StringSettingKey,
 } from "#shared/settings/registry.ts";
-/* jscpd:ignore-end */
 import {
   type EmailTemplateFormat,
   type EmailTemplateType,
   isPaymentProvider,
   isPaymentProviderSetting,
 } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 /** Template type:format → config key */
 type TemplateKeyMap = `${EmailTemplateType}:${EmailTemplateFormat}`;

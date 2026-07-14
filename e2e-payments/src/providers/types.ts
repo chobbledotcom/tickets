@@ -1,6 +1,8 @@
+/* jscpd:ignore-start */
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import type { ProviderName } from "../config.ts";
+/* jscpd:ignore-end */
 
 /**
  * Set a provider up through the admin UI, using the browser session and the

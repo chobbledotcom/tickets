@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Bulk actions for groups.
@@ -16,11 +17,9 @@ import {
   groupFormPost,
   withGroup,
 } from "#routes/admin/groups.ts";
-/* jscpd:ignore-start */
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-/* jscpd:ignore-end */
 import {
   applyNameReplacement,
   computeDayOffset,
@@ -66,6 +65,8 @@ import {
   adminReactivateGroupPage,
 } from "#templates/admin/bulk-actions.tsx";
 import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
+
+/* jscpd:ignore-end */
 
 /** Render a bulk-actions sub-page for an authenticated group detail view. */
 const groupListingsPage =

@@ -1,5 +1,13 @@
 import nodeProcess from "node:process";
 
+/** Wire a child process's three stdio streams straight to the parent's — for
+ *  interactive or inherited runs where the child shares the same terminal. */
+export const INHERIT_STDIO = {
+  stderr: "inherit",
+  stdin: "inherit",
+  stdout: "inherit",
+} as const;
+
 const beforeTimeout = async (
   status: Promise<unknown>,
   timeoutMs: number,

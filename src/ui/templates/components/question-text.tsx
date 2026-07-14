@@ -4,10 +4,13 @@
  * enough to need a `<div class="prose">` block above the control.
  */
 
+/* jscpd:ignore-start */
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isSimpleMarkdown, renderMarkdown } from "#shared/markdown.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * Stable id for a question's rendered prose block. A complex-markdown question

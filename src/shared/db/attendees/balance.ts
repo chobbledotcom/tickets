@@ -8,12 +8,11 @@
  * balance is cleared is a no-op.
  */
 
-import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
+import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
-/* jscpd:ignore-end */
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
@@ -33,6 +32,7 @@ import {
   queryOne,
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
+/* jscpd:ignore-end */
 
 /**
  * The event group a balance settlement's payment leg posts under, keyed on the

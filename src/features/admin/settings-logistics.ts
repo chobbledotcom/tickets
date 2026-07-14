@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin logistics settings + logistics-agent management — owner only.
@@ -10,7 +11,6 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import type { InValue } from "@libsql/client";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { settingsToggle } from "#routes/admin/settings-helpers.ts";
-/* jscpd:ignore-start */
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
@@ -21,7 +21,6 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-/* jscpd:ignore-end */
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
@@ -46,6 +45,8 @@ import {
   logisticsAgentPages,
 } from "#templates/admin/logistics.tsx";
 import { logisticsAgentFields } from "#templates/fields/listing.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * Disabling logistics also clears any saved logistics default, so a later

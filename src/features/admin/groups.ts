@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin group management routes - accessible to owners and managers
@@ -57,6 +58,7 @@ import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
 import { createItemImageHandlers } from "./item-images.ts";
+/* jscpd:ignore-end */
 
 /** Generate a unique group slug, retrying on collision */
 export const generateUniqueGroupSlug = () =>

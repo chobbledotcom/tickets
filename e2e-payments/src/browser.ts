@@ -12,24 +12,37 @@ import { log } from "./log.ts";
 import { repoRoot } from "./server.ts";
 
 export interface BrowserSession {
-  browser: Browser;
-  page: Page;
   /** Absolute base the page navigates against (tunnel or local). */
   baseUrl: string;
-  goto: (path: string) => Promise<void>;
-  fill: (name: string, value: string) => Promise<void>;
-  select: (name: string, value: string) => Promise<void>;
+  bodyText: () => Promise<string>;
+  browser: Browser;
   check: (name: string, value?: string) => Promise<void>;
   clickButton: (text: string) => Promise<void>;
-  /** Robustly submit the form owning an arbitrary button locator. */
-  submitLocator: (locator: Locator) => Promise<void>;
   clickLink: (text: string) => Promise<void>;
-  bodyText: () => Promise<string>;
-  screenshot: (label: string) => Promise<void>;
   /** Save a screenshot AND the page HTML to the artifacts dir. */
   dumpPage: (label: string) => Promise<void>;
+  fill: (name: string, value: string) => Promise<void>;
+  goto: (path: string) => Promise<void>;
+  page: Page;
+  screenshot: (label: string) => Promise<void>;
+  select: (name: string, value: string) => Promise<void>;
   stop: () => Promise<void>;
+  /** Robustly submit the form owning an arbitrary button locator. */
+  submitLocator: (locator: Locator) => Promise<void>;
 }
+
+/** Read a link's href, failing loudly (with `whatFor`) when the link isn't
+ *  there — so a missing nav target stops the run at the cause, not later. */
+export const hrefOf = async (
+  link: Locator,
+  whatFor: string,
+): Promise<string> => {
+  const href = await link.getAttribute("href", {
+    timeout: config.navTimeoutMs,
+  });
+  if (!href) throw new Error(whatFor);
+  return href;
+};
 
 export const launchBrowser = async (
   baseUrl: string,
@@ -108,6 +121,21 @@ export const launchBrowser = async (
     await logWhere("submit");
   };
 
+  // Set a form control by its `name`: log what's happening, then run the given
+  // action on the first matching field. force: bypass the visible/enabled/stable
+  // actionability wait — the app's form controls are styled/validated in ways
+  // that make Playwright's default actionability hang in the CI Chromium. We
+  // assert real outcomes elsewhere.
+  const forceInput =
+    (
+      label: (name: string, value: string) => string,
+      apply: (field: Locator, value: string) => Promise<unknown>,
+    ) =>
+    async (name: string, value: string): Promise<void> => {
+      log(label(name, value));
+      await apply(page.locator(sel(name)).first(), value);
+    };
+
   return {
     baseUrl,
     bodyText: () => page.locator("body").innerText({ timeout: T }),
@@ -143,16 +171,10 @@ export const launchBrowser = async (
       await logWhere(`link "${text}"`);
     },
     dumpPage,
-    // force: bypass the visible/enabled/stable actionability wait — the app's
-    // form controls are styled/validated in ways that make Playwright's default
-    // actionability hang in the CI Chromium. We assert real outcomes elsewhere.
-    fill: async (name, value) => {
-      log(`  fill ${name}`);
-      await page
-        .locator(sel(name))
-        .first()
-        .fill(value, { force: true, timeout: T });
-    },
+    fill: forceInput(
+      (name) => `  fill ${name}`,
+      (field, value) => field.fill(value, { force: true, timeout: T }),
+    ),
     goto: async (path) => {
       log(`  goto ${path}`);
       await page.goto(path, { waitUntil: "domcontentloaded" });
@@ -160,13 +182,10 @@ export const launchBrowser = async (
     },
     page,
     screenshot: (label) => dumpPage(label),
-    select: async (name, value) => {
-      log(`  select ${name}=${value}`);
-      await page
-        .locator(sel(name))
-        .first()
-        .selectOption(value, { force: true, timeout: T });
-    },
+    select: forceInput(
+      (name, value) => `  select ${name}=${value}`,
+      (field, value) => field.selectOption(value, { force: true, timeout: T }),
+    ),
     stop: async () => {
       await browser.close();
     },

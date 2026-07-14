@@ -2,6 +2,7 @@
  * Public pages - home, listings, terms, contact
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
@@ -52,6 +53,8 @@ import {
 } from "./discovery.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+
+/* jscpd:ignore-end */
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;

@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin attendee management routes
@@ -60,6 +61,8 @@ import {
   attendeeFormAction,
   verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
+
+/* jscpd:ignore-end */
 
 /** Handle GET /admin/attendees/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeActionPage(

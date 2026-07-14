@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { sumByKey, sumOf, unique } from "#fp";
 import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
@@ -56,6 +57,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** An answer chosen for a service event's custom question. Only the `answerId`
  *  is needed — `saveAttendeeAnswers` resolves each answer's question itself, so

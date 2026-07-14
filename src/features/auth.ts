@@ -2,6 +2,7 @@
  * Authentication and session utilities
  */
 
+/* jscpd:ignore-start */
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import { lowerContentType } from "#routes/middleware.ts";
@@ -32,12 +33,10 @@ import {
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms.tsx";
-/* jscpd:ignore-start */
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-/* jscpd:ignore-end */
 import type { MakeResponse, RequestRoute } from "#shared/response-steps.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
@@ -51,6 +50,8 @@ import {
   type NagItem,
   SITE_ADMIN_LEVELS,
 } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 // SessionKeyError and the session→private-key derivation live in #shared so
 // shared-layer modules (e.g. the activity log) can reach them without importing

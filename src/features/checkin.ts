@@ -4,6 +4,7 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
+/* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import { AUTH_FORM, getAuthenticatedSession, withAuth } from "#routes/auth.ts";
 import {
@@ -26,6 +27,8 @@ import { settings } from "#shared/db/settings.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
+
+/* jscpd:ignore-end */
 
 const formatTicketCount = (count: number): string => {
   const suffix = count === 1 ? "" : "s";

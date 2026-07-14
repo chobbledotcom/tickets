@@ -6,11 +6,13 @@
  * records, the delete link).
  */
 
+/* jscpd:ignore-start */
 import { CsrfForm } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
+/* jscpd:ignore-end */
 
 export type ChildEditFrame = {
   /** The nav item to mark active, e.g. "/admin/questions". */
