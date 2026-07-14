@@ -56,9 +56,11 @@ describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
     const legs = await transfersByAccount(
       attendeeAccount(PLACEHOLDER.attendeeId),
     );
-    expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
-    expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
     const cash = legs.filter((leg) => leg.kind === "refund_cash");
+    expect(legs.map((leg) => leg.kind).sort()).toEqual([
+      "payment",
+      "refund_cash",
+    ]);
     expect(cash.length).toBe(1);
     expect(cash[0]!.amount).toBe(PLACEHOLDER.amount);
     expect(cash[0]!.memo).toBe("price_changed");
