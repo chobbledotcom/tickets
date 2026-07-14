@@ -15,7 +15,7 @@ import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleCartBySlugs } from "./cart.ts";
-import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
+import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
 import { lacksStandalonePublicPage } from "./ticket-payment.ts";

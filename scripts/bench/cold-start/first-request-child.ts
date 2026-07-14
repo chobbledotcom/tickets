@@ -1,30 +1,31 @@
 /**
  * Child for the first-request benchmark: one freshly booted isolate against
  * the parent's prepared database, every statement paying a fake network
- * delay. Serves `GET /` twice (cold, warm) and prints timings + a per-query
- * timeline as one JSON line. Usage: first-request-child.ts <latencyMs>
+ * delay. Serves `GET /listings` twice (cold, warm) and prints timings + a
+ * per-query timeline as one JSON line. Usage: first-request-child.ts <latencyMs>
  */
 
 import {
   type Client,
   createClient,
-  type InArgs,
   type InStatement,
-  type ResultSet,
   type Transaction,
   type TransactionMode,
 } from "@libsql/client";
 import { setDb } from "#shared/db/client.ts";
+import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { setSuppressRequestLogs } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import {
   setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
 import { serveHandler } from "#src/serve-app.ts";
 import { timedRunner } from "../../timed-run.ts";
-import { serveAndDrainRoot } from "./serve-root.ts";
+import { serveAndDrain } from "./serve-request.ts";
+import { requireBenchmarkCatalogue, requiredEnv } from "./support.ts";
 
 // Keep stdout clean for the JSON result line the parent parses.
 setSuppressDebugLogs(true);
@@ -58,7 +59,9 @@ const pushEvent = (sql: string, start: number): void => {
 /** Pay the fake latency, run the query, land it on the timeline. */
 const record = timedRunner({
   after: (sql, startedAt) => pushEvent(sql, startedAt),
-  before: () => delay(latencyMs),
+  before: async () => {
+    if (latencyMs > 0) await delay(latencyMs);
+  },
 });
 
 const statementSql = (statement: InStatement): string =>
@@ -66,32 +69,10 @@ const statementSql = (statement: InStatement): string =>
 
 /** The `execute` override for a wrapped client or transaction — runs either
  * overload through the delay + timeline. */
-const recordedExecute =
-  (target: Pick<Client, "execute">) =>
-  (statement: InStatement | string, args?: InArgs): Promise<ResultSet> =>
-    record(
-      statementSql(statement),
-      (): Promise<ResultSet> =>
-        typeof statement === "string" && args !== undefined
-          ? target.execute(statement, args)
-          : target.execute(statement as InStatement),
-    );
-
-/** Proxy `target`, overriding the given members; everything else forwards
- *  (methods bound so they keep working). */
-const proxyMembers = <T extends object>(
-  target: T,
-  overrides: Record<string, unknown>,
-): T =>
-  new Proxy(target, {
-    get(t, prop, receiver) {
-      if (typeof prop === "string" && prop in overrides) {
-        return overrides[prop];
-      }
-      const value = Reflect.get(t, prop, receiver);
-      return typeof value === "function" ? value.bind(t) : value;
-    },
-  });
+const recordedExecute = (target: Pick<Client, "execute">) =>
+  wrapExecute(target, (statement, execute) =>
+    record(statementSql(statement), execute),
+  );
 
 /** Wrap a transaction so each statement inside it also pays the delay. */
 const wrapTransaction = (tx: Transaction): Transaction =>
@@ -113,20 +94,18 @@ const wrapClient = (client: Client): Client =>
     execute: recordedExecute(client),
     transaction: async (mode?: TransactionMode) =>
       wrapTransaction(
-        await record("BEGIN", () =>
-          mode === undefined ? client.transaction() : client.transaction(mode),
-        ),
+        await record("BEGIN", () => beginTransaction(client, mode)),
       ),
   });
 
-const dbUrl = Deno.env.get("DB_URL");
-if (!dbUrl) throw new Error("DB_URL is required");
-setDb(wrapClient(createClient({ url: dbUrl })));
+setDb(wrapClient(createClient({ url: requiredEnv("DB_URL") })));
 
 const timedRequest = async (): Promise<{ ms: number; status: number }> => {
   requestStart = performance.now();
-  const response = await serveAndDrainRoot(serveHandler);
-  return { ms: performance.now() - requestStart, status: response.status };
+  const response = await serveAndDrain(serveHandler, "/listings");
+  const ms = performance.now() - requestStart;
+  requireBenchmarkCatalogue(response, "GET /listings");
+  return { ms, status: response.status };
 };
 
 const first = await timedRequest();
@@ -137,12 +116,12 @@ const second = await timedRequest();
 console.log(
   JSON.stringify({
     firstMs: first.ms,
-    firstQueryCount: firstTimeline.length,
+    firstRoundTrips: firstTimeline.length,
     firstStatus: first.status,
     firstTimeline,
     latencyMs,
     secondMs: second.ms,
-    secondQueryCount: timeline.length,
+    secondRoundTrips: timeline.length,
     secondStatus: second.status,
     secondTimeline: timeline,
   }),

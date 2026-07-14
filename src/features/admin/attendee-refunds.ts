@@ -24,6 +24,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   adminRefundAllAttendeesPage,
@@ -45,9 +46,6 @@ import {
 import { requirePaymentProvider } from "./require-provider.ts";
 
 /* jscpd:ignore-end */
-
-/** Max refunds per request to stay within Bunny Edge fetch limits */
-const REFUND_BATCH_LIMIT = 30;
 
 /** Render refund error redirect for a single attendee, keeping the caller's
  * return_url threaded through so a retry still lands back where it started. */
@@ -279,7 +277,7 @@ const processRefundAll = async (
   );
   if (provider instanceof Response) return provider;
 
-  const batch = refundable.slice(0, REFUND_BATCH_LIMIT);
+  const batch = refundable.slice(0, BULK_REFUND_LIMIT);
   const remaining = refundable.length - batch.length;
   const counts = await processRefundBatch(provider, batch, listing.id);
   return buildRefundAllResponse({

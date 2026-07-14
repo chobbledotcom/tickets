@@ -11,8 +11,11 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  loadBookablePackages,
 } from "#routes/public/discovery.ts";
+import {
+  loadBookablePackages,
+  publicGroupSummary,
+} from "#routes/public/group-liveness.ts";
 /* jscpd:ignore-end */
 import {
   icsResponse,
@@ -37,7 +40,7 @@ import {
   type ListingWithCount,
   loadSortedListings,
 } from "#shared/sort-listings.ts";
-import type { Attendee, Group, NewsPostSummary } from "#shared/types.ts";
+import type { Attendee, NewsPostSummary } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
@@ -105,14 +108,12 @@ const loadFeedData = async (): Promise<FeedData> => {
   const { nonStandaloneChildIds, soldOutParentIds } =
     await classifyForDiscovery(listings);
   const packages = (await loadBookablePackages()).map(
-    (g: Group): FeedItem => ({
+    (loaded): FeedItem => ({
       created: null,
       date: null,
-      description: g.description,
       location: "",
-      name: g.name,
-      slug: g.slug,
-      uid: `package-${g.id}`,
+      ...publicGroupSummary(loaded),
+      uid: `package-${loaded.group.id}`,
     }),
   );
   return {

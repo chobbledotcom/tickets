@@ -620,7 +620,10 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
     const recheck = await probeDbState();
     if (await finishIfUpToDate(recheck)) return;
 
-    if (recheck.state === "missing_settings") {
+    if (
+      recheck.state === "missing_settings" ||
+      recheck.state === "uninitialized_settings"
+    ) {
       await initializeFreshSchema();
       return;
     }
@@ -675,11 +678,13 @@ export const clearAllCaches = (): void => {
  * Reset the database by dropping all tables (reverse order for FK safety)
  */
 export const resetDatabase = async (): Promise<void> => {
-  const client = getDb();
   try {
-    for (const [name] of [...SCHEMA].reverse()) {
-      await client.execute(`DROP TABLE IF EXISTS ${name}`);
-    }
+    await executeBatch(
+      [...SCHEMA].reverse().map(([name]) => ({
+        args: [],
+        sql: `DROP TABLE IF EXISTS ${name}`,
+      })),
+    );
   } finally {
     clearAllCaches();
   }

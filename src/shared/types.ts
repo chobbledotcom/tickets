@@ -687,6 +687,12 @@ export interface Group {
   terms_and_conditions: string;
 }
 
+/** A group paired with the active member listings used to decide and render it. */
+export interface GroupWithMembers {
+  group: Group;
+  members: ListingWithCount[];
+}
+
 /** A membership of `listing_id` in `group_id`, hydrated for the package editor
  * and booking flow. A listing may belong to several groups. `package_price`
  * (minor units) is the per-listing override when the group is a package, read
