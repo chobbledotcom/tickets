@@ -165,6 +165,10 @@ describeStripe("Stripe webhook setup", () => {
     });
 
     test("re-throws create error when non-Error is thrown", async () => {
+      // A thrown non-Error (string) propagates through fetch to the Stripe
+      // SDK, which wraps it. isEndpointLimitError checks instanceof Error,
+      // so a non-Error can't match the limit path — it re-throws to the
+      // outer catch and returns a string error.
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -177,7 +181,7 @@ describeStripe("Stripe webhook setup", () => {
         },
       );
 
-      expect(result).toEqual({ error: expect.any(String), success: false });
+      expectFailedResultWithNoDeletes(result, calls);
     });
 
     test("subscribes only to completed checkouts", async () => {
