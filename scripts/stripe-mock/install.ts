@@ -190,8 +190,10 @@ const removeStaleInstallLock = async (
     await Deno.remove(lockPath);
     return true;
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return true;
-    throw error;
+    // NotFound: another runner already cleared the stale lock — it's gone
+    // either way, which is exactly what this returns true for.
+    rethrowUnlessNotFound(error);
+    return true;
   }
 };
 

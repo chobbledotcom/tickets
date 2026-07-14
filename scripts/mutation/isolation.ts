@@ -7,7 +7,12 @@
 
 import { relative } from "@std/path";
 import { errorMessage } from "#shared/error-message.ts";
-import { processExists, stopProcess, stopProcessNow } from "../process.ts";
+import {
+  INHERIT_STDIO,
+  processExists,
+  stopProcess,
+  stopProcessNow,
+} from "../process.ts";
 import { projectRoot } from "../project-root.ts";
 import {
   envWith,
@@ -206,9 +211,7 @@ export const runMutationInSnapshot: MutationCommandRunner = async (
         args: childArgs(root, record.workRoot, args),
         cwd: record.workRoot,
         env: childEnv(id, record.root, record.workRoot),
-        stderr: "inherit",
-        stdin: "inherit",
-        stdout: "inherit",
+        ...INHERIT_STDIO,
       }).spawn();
       child = spawned;
       record = markRunning(record, spawned.pid);

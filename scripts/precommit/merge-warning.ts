@@ -2,6 +2,7 @@ import {
   commandValue,
   type RunCommand,
   runGit,
+  verifyRef,
   withinWorkTree,
 } from "./git.ts";
 
@@ -26,12 +27,8 @@ export const getMergeConflictWarning = (
 ): Promise<string | undefined> =>
   withinWorkTree(run, async () => {
     const originUrl = await getOriginUrl(run);
-    const head = await commandValue(run, ["rev-parse", "--verify", "HEAD"]);
-    const originMain = await commandValue(run, [
-      "rev-parse",
-      "--verify",
-      "origin/main",
-    ]);
+    const head = await verifyRef(run, "HEAD");
+    const originMain = await verifyRef(run, "origin/main");
     const mergeBase = await commandValue(run, [
       "merge-base",
       "HEAD",

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
 
 export const COVERAGE_OUTPUT_DIR = join(projectRoot, "coverage");
@@ -9,7 +10,6 @@ export const removeOldCoverageOutput = async (
   try {
     await Deno.remove(coverageDir, { recursive: true });
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return;
-    throw error;
+    rethrowUnlessNotFound(error);
   }
 };
