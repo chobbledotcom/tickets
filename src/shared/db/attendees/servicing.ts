@@ -21,7 +21,7 @@ import {
   type ExistingLine,
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
-import { dateToStartEnd } from "#shared/db/attendees/capacity.ts";
+import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
 import {
   createAttendeeAtomicImpl as createAttendeeAtomic,
   ensureAllBookings,

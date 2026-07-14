@@ -26,7 +26,7 @@ import {
   listingDateToCalendarDate,
 } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -48,6 +48,7 @@ import {
   assignmentMatchesAgentFilter,
   parseAgentFilter,
 } from "#shared/logistics-filter.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
@@ -213,10 +214,12 @@ const sortAttendeesByCreatedDesc = (attendees: Attendee[]): Attendee[] =>
 /** Auth + parse date filter from request, then call handler */
 const withCalendarSession = (
   request: Request,
-  handler: (
-    session: Parameters<Parameters<typeof requireSessionOr>[1]>[0],
-    dateFilter: string | null,
-  ) => Response | Promise<Response>,
+  handler: ResponseHandler<
+    [
+      session: Parameters<Parameters<typeof requireSessionOr>[1]>[0],
+      dateFilter: string | null,
+    ]
+  >,
 ) =>
   requireSessionOr(request, (session) =>
     handler(session, getDateFilter(request)),

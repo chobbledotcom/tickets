@@ -9,7 +9,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -184,7 +184,7 @@ describeWithEnv(
         quantity: 2,
       });
       const { getGroupRemainingForListing } = await import(
-        "#shared/db/attendees/capacity.ts"
+        "#shared/db/attendees/capacity/groups.ts"
       );
       expect(await getGroupRemainingForListing(daily.id, "2026-07-01")).toBe(1);
     });

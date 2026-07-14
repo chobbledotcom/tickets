@@ -13,7 +13,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
+import { getGroupRemainingForListing } from "#shared/db/attendees/capacity/groups.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -25,7 +25,10 @@ import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { qrBookErrorPage } from "#templates/public/errors.tsx";
+import {
+  qrBookCheckoutErrorPage,
+  qrBookErrorPage,
+} from "#templates/public/errors.tsx";
 import type {
   BookingPrefill,
   TicketPrefill,
@@ -106,15 +109,22 @@ const buildCheckoutIntent = (
   special_instructions: "",
 });
 
-/** Redirect directly to Stripe checkout using the signed values */
+/** Redirect directly to Stripe checkout using the signed values. The payment
+ * flow's error (a provider validation refusal at 400, or a null/failed session
+ * at 500 with a generic message) is passed straight through to the page rather
+ * than replaced with a generic 500, so the visitor sees why it failed. */
 const skipToCheckout = (
   request: Request,
   listing: ListingWithCount,
   payload: QrBookPayload,
 ): Promise<Response> => {
   const intent = buildCheckoutIntent(listing, payload);
-  return runCheckoutFlow(`qr-book listing=${listing.id}`, request, intent, () =>
-    errorResponse(listing.slug, 500),
+  return runCheckoutFlow(
+    `qr-book listing=${listing.id}`,
+    request,
+    intent,
+    (msg, status) =>
+      htmlResponse(qrBookCheckoutErrorPage(listing.slug, msg), status),
   );
 };
 

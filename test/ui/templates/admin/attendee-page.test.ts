@@ -34,9 +34,11 @@ const OWNER_NOTE: SystemNote = {
 const renderBanner = (
   statuses: AttendeeStatus[],
   notes: SystemNote[] = [],
+  isOwner = false,
 ): JSX.Element | null =>
   attendeeBanner({
     attendee: testAttendee({ status_id: 1 }),
+    isOwner,
     notes,
     statuses,
   });
@@ -106,6 +108,24 @@ describe("attendee page blocks", () => {
       /^<div class="page-block attendee-banner"><section class="attendee-notes">[\s\S]*<p>Bring identification<\/p>[\s\S]*<\/section><\/div>$/,
     );
     expect(html).not.toContain("attendee-status");
+  });
+
+  test("keeps a note's ledger link for owners but demotes it for other admins", () => {
+    const ledgerNote: SystemNote = {
+      ...OWNER_NOTE,
+      note: "Refunded. Please check the [ledger](/admin/ledger/attendee/1).",
+      type: "system",
+    };
+    // The ledger pages are owner-only, so a non-owner's note renders the
+    // words without the link — a rendered link is a promise that it works.
+    const staffHtml = String(renderBanner([attendeeStatus()], [ledgerNote]));
+    expect(staffHtml).toContain("check the ledger");
+    expect(staffHtml).not.toContain('href="/admin/ledger/attendee/1"');
+
+    const ownerHtml = String(
+      renderBanner([attendeeStatus()], [ledgerNote], true),
+    );
+    expect(ownerHtml).toContain('href="/admin/ledger/attendee/1"');
   });
 
   test("omits the payment block when the attendee has no payment", () => {

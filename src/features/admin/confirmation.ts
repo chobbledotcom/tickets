@@ -28,6 +28,7 @@ import {
 } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
 
 /** Form guard: require auth + CSRF, call handler with session and form */
@@ -172,7 +173,7 @@ export type ConfirmedHandlerConfig<T, TSession = AuthSession> = {
     session: TSession,
   ) => Promise<string | null>;
   /** Optional custom not-found handler (defaults to 404 page) */
-  onNotFound?: (id: number, session: TSession) => Response | Promise<Response>;
+  onNotFound?: ResponseHandler<[id: number, session: TSession]>;
 };
 
 /** Return type of createConfirmedHandlers */
@@ -194,10 +195,7 @@ const resolveAuth = <TSession>(
     requireSession: (isOwner
       ? requireOwnerOr
       : requireSessionOr) as SessionGuard<TSession>,
-    withForm: ((
-      r: Request,
-      h: (...args: never[]) => Response | Promise<Response>,
-    ) =>
+    withForm: ((r: Request, h: ResponseHandler<never[]>) =>
       withAuth(
         r,
         isOwner ? OWNER_FORM : AUTH_FORM,

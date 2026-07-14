@@ -39,6 +39,7 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import type { AdminSession, DayPrices, Group } from "#shared/types.ts";
@@ -339,7 +340,7 @@ export const withGroup = withEntityLoader(groups.table.findById);
  * missing group short-circuits with the appropriate response.
  */
 export const groupFormPost = (
-  handler: (group: Group, form: FormParams) => Response | Promise<Response>,
+  handler: ResponseHandler<[group: Group, form: FormParams]>,
 ): TypedRouteHandler<"POST /admin/groups/:id"> =>
   createAuthedHandler<{ id: number }, Group>({
     handle: ({ context, form }) => handler(context, form),

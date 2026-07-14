@@ -21,7 +21,7 @@ import {
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/ticket-payment.ts";
 import { listingHasSpots } from "#shared/booking.ts";
 import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity.ts";
+import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { sortListings } from "#shared/sort-listings.ts";

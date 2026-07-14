@@ -86,6 +86,8 @@
   "public.qr_book_error.heading": "QR code expired or invalid",
   "public.qr_book_error.message": "This QR code has expired or the link has been tampered with. Ask the organiser to generate a new one, or use the normal booking page below.",
   "public.qr_book_error.booking_link": "Go to booking page",
+  "public.qr_book_checkout_error.title": "Could not start payment",
+  "public.qr_book_checkout_error.heading": "Could not start your payment",
   "public.rate_limited.title": "Too Many Requests",
   "public.rate_limited.heading": "Too Many Requests",
   "public.rate_limited.message": "You've hit too many invalid ticket links. Please wait a few minutes and try again.",

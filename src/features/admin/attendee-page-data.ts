@@ -25,7 +25,7 @@ import {
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
-import { checkLinesCapacity } from "#shared/db/attendees/capacity.ts";
+import { checkLinesCapacity } from "#shared/db/attendees/capacity/checks.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import {
   getContactRecordOrRepair,

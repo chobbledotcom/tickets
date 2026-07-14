@@ -22,7 +22,7 @@ import { getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/groups.ts";
 import {
   getGroupIdsByListingIds,
   getHiddenPackageMemberIds,

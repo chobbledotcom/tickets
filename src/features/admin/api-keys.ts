@@ -7,9 +7,9 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
-import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
+import { withOwnerData } from "#routes/admin/owner-route.ts";
+import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import type { SessionEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -25,7 +25,6 @@ import {
   getApiKeysForUser,
 } from "#shared/db/api-keys.ts";
 import { defineForm } from "#shared/forms/definition.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import {
   adminApiDocsPage,
@@ -48,18 +47,6 @@ export const apiKeyForm = defineForm({
   ] as const,
   id: "apiKey",
 });
-
-/** Owner-guarded handler that loads some data for the session up front, then
- * hands the session and that data to `handle`. */
-const withOwnerData =
-  <T>(load: (session: AuthSession) => Promise<T>) =>
-  (
-    request: Request,
-    handle: SessionEntityHandler<AdminSession, T>,
-  ): Promise<Response> =>
-    requireOwnerOr(request, async (session) =>
-      handle(session, await load(session)),
-    );
 
 /** Owner-guarded handler that loads the caller's API keys up front. */
 const withOwnerApiKeys = withOwnerData((session) =>

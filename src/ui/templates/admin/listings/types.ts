@@ -28,6 +28,9 @@ type ListingPanelSharedOptions = {
   isChild?: boolean | undefined;
   isHiddenPackageMember?: boolean | undefined;
   systemNotes?: SystemNote[] | undefined;
+  /** Only owners may open the ledger pages, so a note's ledger link renders
+   * as plain text for everyone else. */
+  isOwner?: boolean | undefined;
 };
 
 export type ListingPanelOptions = ListingPanelSharedOptions & {
