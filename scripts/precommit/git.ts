@@ -1,3 +1,5 @@
+import { INHERIT_STDIO } from "../process.ts";
+
 export interface CommandResult {
   code: number;
   stderr: string;
@@ -49,11 +51,7 @@ export const runCommand: RunCommand = async (cmd, options = {}) => {
 
 /** Run a command wired to the parent's stdio (for interactive steps). */
 export const runInteractiveCommand: RunCommand = async (cmd) => {
-  const status = await buildCommand(cmd, {
-    stderr: "inherit",
-    stdin: "inherit",
-    stdout: "inherit",
-  }).spawn().status;
+  const status = await buildCommand(cmd, { ...INHERIT_STDIO }).spawn().status;
 
   return {
     code: status.code,
@@ -79,6 +77,14 @@ export const commandValue = async (
   const value = result.stdout.trim();
   return value || undefined;
 };
+
+/** The commit a ref resolves to, verified to exist — or undefined when it
+ *  doesn't (an unfetched `origin/main`, a missing `HEAD`). */
+export const verifyRef = (
+  run: RunCommand,
+  ref: string,
+): Promise<string | undefined> =>
+  commandValue(run, ["rev-parse", "--verify", ref]);
 
 /** True when `run` executes inside a git work tree. */
 export const isInsideWorkTree = async (run: RunCommand): Promise<boolean> =>
