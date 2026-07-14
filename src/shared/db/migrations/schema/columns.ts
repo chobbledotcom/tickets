@@ -30,13 +30,3 @@ export const itemLinkColumns: Column[] = [
   ["item_id", "INTEGER NOT NULL"],
   ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
 ];
-
-/**
- * Columns shared by tables keyed by an auto-increment id whose first real
- * column is the owning user: api_keys, user_logistics_agents. Callers spread
- * this then append their own columns.
- */
-export const idUserIdColumns: Column[] = [
-  ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
-  ["user_id", "INTEGER NOT NULL"],
-];
