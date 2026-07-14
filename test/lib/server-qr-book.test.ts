@@ -17,7 +17,7 @@ import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
-import { paymentsApi } from "#shared/payments.ts";
+import { type CheckoutSessionResult, paymentsApi } from "#shared/payments.ts";
 import {
   buildQrBookPayload,
   QR_TOKEN_MAX_AGE_S,
@@ -125,6 +125,22 @@ const scanWithStripe = async (
     const response = await awaitTestRequest(qrBookPath(listing.slug, token));
     await body({ response, stripe });
   });
+};
+
+/** Scan a direct-checkout QR with a fixed provider result. */
+const scanWithCheckoutResult = async (
+  listing: { slug: string },
+  result: CheckoutSessionResult,
+): Promise<Response> => {
+  using _providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
+    mockProviderType("stripe"),
+  );
+  using _checkoutStub = stub(
+    stripePaymentProvider,
+    "createCheckoutSession",
+    () => Promise.resolve(result),
+  );
+  return await scanRequest(listing);
 };
 
 describeWithEnv("qr-book scan handler", { db: true }, () => {
@@ -340,26 +356,26 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const token = await bookToken(listing.slug);
-      const providerStub = stub(paymentsApi, "getConfiguredProvider", () =>
-        mockProviderType("stripe"),
+      const response = await scanWithCheckoutResult(listing, null);
+      expect(response.status).toBe(500);
+      expect(await response.text()).toContain(
+        "Failed to create payment session. Please try again.",
       );
-      const checkoutStub = stub(
-        stripePaymentProvider,
-        "createCheckoutSession",
-        () => Promise.resolve(null),
-      );
-      try {
-        const response = await awaitTestRequest(
-          qrBookPath(listing.slug, token),
-        );
-        expect(response.status).toBe(500);
-        const body = await response.text();
-        expect(body).toContain("expired or invalid");
-      } finally {
-        checkoutStub.restore();
-        providerStub.restore();
-      }
+    });
+
+    test("returns a provider validation refusal with its HTTP 400 status", async () => {
+      const listing = await createTestListing({
+        fields: "",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const refusal =
+        "The payment processor rejected the phone number as invalid. Please correct it and try again.";
+      const response = await scanWithCheckoutResult(listing, {
+        error: refusal,
+      });
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain(refusal);
     });
 
     test("falls through to the form when the listing requires email", async () => {
