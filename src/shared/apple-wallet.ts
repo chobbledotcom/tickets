@@ -179,11 +179,14 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
   return fields;
 };
 
+/** Checks whether a string is a parseable PEM value. */
+type PemValidator = (pem: string) => boolean;
+
 /** Build a check for whether a string is a parseable PEM value — true when
  * `parse` reads it without throwing. */
 const isValidPem =
-  (parse: (pem: string) => unknown) =>
-  (pem: string): boolean => {
+  (parse: (pem: string) => unknown): PemValidator =>
+  (pem) => {
     try {
       parse(pem);
       return true;
@@ -193,10 +196,14 @@ const isValidPem =
   };
 
 /** Validate that a string is a parseable PEM certificate */
-export const isValidPemCertificate = isValidPem(forge.pki.certificateFromPem);
+export const isValidPemCertificate: PemValidator = isValidPem(
+  forge.pki.certificateFromPem,
+);
 
 /** Validate that a string is a parseable PEM private key */
-export const isValidPemPrivateKey = isValidPem(forge.pki.privateKeyFromPem);
+export const isValidPemPrivateKey: PemValidator = isValidPem(
+  forge.pki.privateKeyFromPem,
+);
 
 /** Compute SHA-1 hex digest of a Uint8Array */
 export const sha1Hex = (data: Uint8Array): string => {

@@ -18,7 +18,7 @@
  */
 
 import * as v from "valibot";
-import { VALID_DAY_NAMES } from "#shared/dates.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   isContactField,
   ListingTypeSchema,
