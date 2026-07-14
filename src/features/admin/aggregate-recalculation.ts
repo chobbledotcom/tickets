@@ -1,9 +1,15 @@
+/* jscpd:ignore-start */
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
+import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
 import { type ValidationResult, validateForm } from "#shared/forms.tsx";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import { failure } from "#shared/result.ts";
+import type { AdminSession } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 type AggregateParseResult<T> =
   | { input: T | null; ok: true }
@@ -79,3 +85,58 @@ export const createRecalculatePageRenderer =
       page(entity, await snapshot(entity), session, error, success),
       error ? 400 : 200,
     );
+
+/**
+ * Build the GET + POST route handlers for one entity's aggregate-recalculation
+ * page — identical for listings and modifiers: GET loads the entity and renders
+ * the page with the current flash; POST runs {@link runRecalculatePost} against
+ * it. Each caller supplies its own id-keyed loader (404 when the id is missing
+ * or unknown), field set, reset step, and the bits that vary by entity kind
+ * (the logged line, the success redirect).
+ */
+export const createRecalculateHandlers = <T, F extends string, ID>(config: {
+  withEntity: (
+    id: ID,
+  ) => (
+    handler: (entity: T) => Response | Promise<Response>,
+  ) => Promise<Response>;
+  render: (
+    entity: T,
+    session: AdminSession,
+    error?: string,
+    success?: string,
+  ) => Promise<Response>;
+  fields: readonly F[];
+  entityId: (entity: T) => number;
+  reset: (entityId: number, selected: F[]) => Promise<unknown>;
+  log: (entity: T) => Promise<unknown>;
+  successPath: (entity: T) => string;
+  successMessage: string;
+  chooseMessage: string;
+}): {
+  get: (request: Request, id: ID) => Promise<Response>;
+  post: (request: Request, id: ID) => Promise<Response>;
+} => ({
+  get: (request, id) =>
+    requireSessionOr(request, (session) =>
+      config.withEntity(id)((entity) => {
+        const flash = getFlash();
+        return config.render(entity, session, flash.error, flash.success);
+      }),
+    ),
+  post: (request, id) =>
+    withAuth(request, AUTH_FORM, (session, form) =>
+      config.withEntity(id)((entity) =>
+        runRecalculatePost({
+          fields: config.fields,
+          form,
+          log: () => config.log(entity),
+          renderChoose: () =>
+            config.render(entity, session, config.chooseMessage),
+          reset: (selected) => config.reset(config.entityId(entity), selected),
+          successMessage: config.successMessage,
+          successPath: config.successPath(entity),
+        }),
+      ),
+    ),
+});
