@@ -94,7 +94,7 @@ const setupWithWebhookApi = (
   options: {
     createFails?: boolean;
     listFails?: boolean;
-    recordedListing?: boolean;
+    recordedInListing?: boolean;
   } = {},
 ) =>
   withFetchMock(async (originalFetch) => {
