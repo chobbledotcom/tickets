@@ -314,5 +314,20 @@ describeStripe("Stripe webhook setup", () => {
         "https://example.com/payment/webhook",
       );
     });
+
+    test("handles POST without init body (defaults to empty string)", async () => {
+      const calls = newWebhookApiCalls();
+      const api = webhookEndpointsApi(
+        "https://example.com/payment/webhook",
+        calls,
+      );
+      const response = await api(
+        "https://api.stripe.com/v1/webhook_endpoints",
+        { method: "POST" },
+      );
+      const body = await response!.json();
+      expect(body.id).toBe("we_new");
+      expect(calls.createdBody).not.toBeNull();
+    });
   });
 });
