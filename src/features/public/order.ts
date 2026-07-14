@@ -64,6 +64,7 @@ import {
   orderedSelectionKeys,
   selectedStartDate,
 } from "#shared/order-select.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
@@ -381,10 +382,9 @@ const bookingUrlFor = (
  * loaded catalog and the request's evaluation handed to the handler body. */
 const withEvaluatedOrder =
   (
-    handle: (
-      catalog: OrderCatalog,
-      evaluation: OrderEvaluation,
-    ) => Promise<Response> | Response,
+    handle: ResponseHandler<
+      [catalog: OrderCatalog, evaluation: OrderEvaluation]
+    >,
   ) =>
   async (request: Request): Promise<Response> => {
     const blocked = orderUnavailable();

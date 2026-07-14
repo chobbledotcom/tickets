@@ -2,12 +2,14 @@
  * Entity loading patterns for admin route handlers
  */
 
-import type { AuthSession } from "#routes/auth.ts";
+/* jscpd:ignore-start */
+import type { AuthSession, AuthSessionHandler } from "#routes/auth.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import type { EntityHandler } from "#routes/entity.ts";
 import { withEntity } from "#routes/entity.ts";
 import { notFoundResponse } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
+/* jscpd:ignore-end */
 
 /**
  * Curried factory: creates a wrapper that takes load params, then a handler.
@@ -16,22 +18,16 @@ import type { FormParams } from "#shared/form-data.ts";
 export const withEntityLoader =
   <T, P extends unknown[]>(load: (...args: P) => Promise<T | null>) =>
   (...args: P) =>
-  (handler: EntityHandler<T>): Promise<Response> =>
+  (handler: ResponseHandler<[entity: T]>): Promise<Response> =>
     withEntity(handler)(() => load(...args));
 
-type GetEntityHandler<T> = (
-  request: Request,
-  session: AuthSession,
-  entity: T,
-) => Response | Promise<Response>;
+type GetEntityHandler<T> = ResponseHandler<
+  [request: Request, session: AuthSession, entity: T]
+>;
 
-type PostEntityHandler<T> = (
-  session: AuthSession,
-  form: FormParams,
-  entity: T,
-) => Response | Promise<Response>;
-
-type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+type PostEntityHandler<T> = ResponseHandler<
+  [session: AuthSession, form: FormParams, entity: T]
+>;
 
 /**
  * Generic factory: combine an auth wrapper with entity loading.
@@ -41,16 +37,13 @@ const createEntityHandler =
   <T, H extends GetEntityHandler<T> | PostEntityHandler<T>>(
     authWrapper: (
       request: Request,
-      cb: (
-        session: AuthSession,
-        ...rest: unknown[]
-      ) => Response | Promise<Response>,
+      cb: ResponseHandler<[session: AuthSession, ...rest: unknown[]]>,
     ) => Promise<Response>,
     adaptHandler: (
       handler: H,
       request: Request,
       ...rest: unknown[]
-    ) => (session: AuthSession, entity: T) => Response | Promise<Response>,
+    ) => ResponseHandler<[session: AuthSession, entity: T]>,
   ) =>
   (loader: (id: number) => Promise<T | null>) =>
   (request: Request, id: number) =>
@@ -70,7 +63,7 @@ export const withSessionAndEntity = <T>(
   loader: (id: number) => Promise<T | null>,
 ) =>
   createEntityHandler<T, GetEntityHandler<T>>(
-    (request, cb) => requireSessionOr(request, cb as SessionHandler),
+    (request, cb) => requireSessionOr(request, cb as AuthSessionHandler),
     (handler, request) => (session, entity) =>
       handler(request, session, entity),
   )(loader);
@@ -120,20 +113,10 @@ export const createEntityRouteHandlers = <
       wrapper(loader)(request, getId(params))(handler);
 
   return {
-    get: (
-      handler: (
-        request: Request,
-        session: AuthSession,
-        entity: T,
-      ) => Response | Promise<Response>,
-    ) => routeHandler(withSessionAndEntity, handler),
-    post: (
-      handler: (
-        session: AuthSession,
-        form: FormParams,
-        entity: T,
-      ) => Response | Promise<Response>,
-    ) => routeHandler(withAuthAndEntity, handler),
+    get: (handler: GetEntityHandler<T>) =>
+      routeHandler(withSessionAndEntity, handler),
+    post: (handler: PostEntityHandler<T>) =>
+      routeHandler(withAuthAndEntity, handler),
   };
 };
 /* jscpd:ignore-end */
@@ -145,7 +128,7 @@ export const createEntityRouteHandlers = <
 export const withEntityFromParam = <T>(
   paramValue: string | number | undefined,
   load: (id: number) => Promise<T | null>,
-  handler: EntityHandler<T>,
+  handler: ResponseHandler<[entity: T]>,
 ): Promise<Response> => {
   const id =
     typeof paramValue === "string"

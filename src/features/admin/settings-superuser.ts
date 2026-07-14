@@ -15,6 +15,7 @@ import { getActiveEmailConfig } from "#shared/email.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { ok } from "#shared/response.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   createActivatedSuperuser,
   generateSuperuserPassword,
@@ -27,11 +28,7 @@ import {
 /** Roll back a created superuser after email failure and return error page */
 const rollbackSuperuser = async (
   userId: number,
-  errorPage: (
-    msg: string,
-    status: number,
-    id: string,
-  ) => Response | Promise<Response>,
+  errorPage: ResponseHandler<[msg: string, status: number, id: string]>,
 ): Promise<Response> => {
   try {
     await deleteUser(userId);

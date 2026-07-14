@@ -1,6 +1,7 @@
 import type { AuthSession } from "#routes/auth.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { notFoundResponse } from "#routes/response.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 
 /**
  * Owner-gate a request, look a value up, and 404 when it is absent — otherwise
@@ -11,7 +12,7 @@ import { notFoundResponse } from "#routes/response.ts";
 export const ownerFoundOr404 = <T>(
   request: Request,
   find: (session: AuthSession) => Promise<T | null>,
-  whenFound: (found: T, session: AuthSession) => Response | Promise<Response>,
+  whenFound: ResponseHandler<[found: T, session: AuthSession]>,
 ): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const found = await find(session);

@@ -37,7 +37,7 @@ import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import type { MakeResponse, RequestRoute } from "#shared/response-steps.ts";
+import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
 import {
@@ -375,7 +375,8 @@ const requireSessionFor = async (
 
 const isResponse = (v: unknown): v is Response => v instanceof Response;
 
-type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+/** A response callback that receives the signed-in session. */
+export type AuthSessionHandler = ResponseHandler<[session: AuthSession]>;
 
 /**
  * Low-level session gate with custom no-session fallback (used by dashboard login page).
@@ -384,8 +385,8 @@ type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
  */
 export const withSession = async (
   request: Request,
-  handler: SessionHandler,
-  onNoSession: MakeResponse,
+  handler: AuthSessionHandler,
+  onNoSession: ResponseHandler,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   return session ? handler(session) : onNoSession();
@@ -394,7 +395,7 @@ export const withSession = async (
 /** Require session — redirect if not authenticated, 403 if role check fails */
 export const requireSessionOr = async (
   request: Request,
-  handler: SessionHandler,
+  handler: AuthSessionHandler,
   role?: AdminLevel,
 ): Promise<Response> => {
   const result = await requireSessionFor(request, "html", role);
@@ -404,7 +405,7 @@ export const requireSessionOr = async (
 /** Build a session guard that requires an exact role. */
 const requireRoleOr =
   (role: AdminLevel) =>
-  (request: Request, handler: SessionHandler): Promise<Response> =>
+  (request: Request, handler: AuthSessionHandler): Promise<Response> =>
     requireSessionOr(request, handler, role);
 
 /** Require owner session — shorthand for requireSessionOr with owner role */
@@ -413,7 +414,7 @@ export const requireOwnerOr = requireRoleOr("owner");
 /** Build a session guard that admits any of the given roles. */
 const requireRolesOr =
   (roles: readonly AdminLevel[]) =>
-  async (request: Request, handler: SessionHandler): Promise<Response> => {
+  async (request: Request, handler: AuthSessionHandler): Promise<Response> => {
     const result = await requireSessionFor(request, "html", undefined, roles);
     return isResponse(result) ? result : handler(result);
   };
@@ -435,7 +436,7 @@ export const requireDeliveryOr = requireRolesOr(DELIVERY_ADMIN_LEVELS);
  * itself (a redirect, a 403) without ever calling it. */
 export type Guard<TArgs extends unknown[]> = (
   request: Request,
-  handler: (...args: TArgs) => Response | Promise<Response>,
+  handler: ResponseHandler<TArgs>,
 ) => Promise<Response>;
 
 /** Session guard: require auth and call handler with session */
@@ -447,11 +448,7 @@ export type SessionGuard<TSession> = Guard<[TSession]>;
 export const authResponsePage =
   <TSession>(requireSession: SessionGuard<TSession>) =>
   (
-    build: (
-      session: TSession,
-      request: Request,
-      flash: Flash,
-    ) => Response | Promise<Response>,
+    build: ResponseHandler<[session: TSession, request: Request, flash: Flash]>,
   ): RequestRoute =>
   (request) =>
     requireSession(request, (session) =>
@@ -503,7 +500,7 @@ export const deliveryPage = authPage(requireDeliveryOr);
  * decide what each case means (fail, redirect, render). */
 export const withOptionalSession = async (
   request: Request,
-  handler: (session: AuthSession | null) => Response | Promise<Response>,
+  handler: ResponseHandler<[session: AuthSession | null]>,
 ): Promise<Response> => handler(await getAuthenticatedSession(request));
 
 /** Require any authenticated user (owner, manager or agent). Used for pages
@@ -513,7 +510,7 @@ export const withOptionalSession = async (
  * only gate. */
 export const requireAnyUserOr = (
   request: Request,
-  handler: SessionHandler,
+  handler: AuthSessionHandler,
 ): Promise<Response> =>
   withOptionalSession(request, (session) =>
     session ? handler(session) : authFailure("html", "not-authenticated"),
@@ -668,11 +665,9 @@ const resolveSession = async (
 export async function withAuth<T extends BodyMode>(
   request: Request,
   policy: AuthPolicy<T>,
-  handler: (
-    session: AuthSession,
-    body: ParsedBody<T>,
-    authKind: AuthKind,
-  ) => Response | Promise<Response>,
+  handler: ResponseHandler<
+    [session: AuthSession, body: ParsedBody<T>, authKind: AuthKind]
+  >,
 ): Promise<Response> {
   const channel = channelFor(policy.body);
   const auth = await resolveSession(request, channel, policy.allowApiKey);
@@ -696,12 +691,7 @@ export async function withAuth<T extends BodyMode>(
  * the authenticate-then-delegate shape lives in one place. */
 export const gatedPost =
   <T extends BodyMode>(policy: AuthPolicy<T>) =>
-  (
-    handle: (
-      session: AuthSession,
-      body: ParsedBody<T>,
-    ) => Response | Promise<Response>,
-  ) =>
+  (handle: ResponseHandler<[session: AuthSession, body: ParsedBody<T>]>) =>
   (request: Request): Promise<Response> =>
     withAuth(request, policy, handle);
 
@@ -709,5 +699,5 @@ export const gatedPost =
  * routes that act on the form alone and never read the session. */
 export const formPost =
   (policy: AuthPolicy<"form">) =>
-  (handle: (form: FormParams) => Response | Promise<Response>): RequestRoute =>
+  (handle: ResponseHandler<[form: FormParams]>): RequestRoute =>
     gatedPost(policy)((_session, form) => handle(form));

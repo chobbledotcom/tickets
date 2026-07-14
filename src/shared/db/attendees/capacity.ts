@@ -12,7 +12,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { byId, filter, groupBy, map, pipe, sumOf, unique } from "#fp";
+import { byId, filter, groupBy, map, mapBy, pipe, sumOf, unique } from "#fp";
 import {
   capacityDateFor,
   capacityRuleTypeSql,
@@ -52,6 +52,11 @@ export const dateToStartEnd = (
 
 type RemainingMap = Map<number, number>;
 
+type RemainingLookup<Input> = (
+  inputs: Input[],
+  date?: string | null,
+) => Promise<RemainingMap>;
+
 /** Distinct group ids worth a cap lookup — positive only (0 = ungrouped). */
 const uniquePositiveGroupIds = (groupIds: number[]): number[] =>
   unique(groupIds.filter((id) => id > 0));
@@ -73,10 +78,10 @@ const cappedGroupQuery = async <T>(
  * editable booked_quantity running total; with a date, non-daily listings still
  * use booked_quantity while daily listings count overlapping attendee rows.
  */
-export const getGroupRemainingByGroupId = (
-  groupIds: number[],
-  date: string | null = null,
-): Promise<RemainingMap> =>
+export const getGroupRemainingByGroupId: RemainingLookup<number> = (
+  groupIds,
+  date = null,
+) =>
   cappedGroupQuery(groupIds, async (ids) => {
     const range = date ? dateToRange(date) : null;
     const datedCount = date
@@ -84,7 +89,10 @@ export const getGroupRemainingByGroupId = (
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
           JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-         WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql("dateLessCap", "listing.listing_type")}
+         WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
+           "dateLessCap",
+           "listing.listing_type",
+         )}
       ), 0) + COALESCE((
         SELECT SUM(attendee.quantity)
           FROM listing_attendees AS attendee
@@ -109,13 +117,15 @@ export const getGroupRemainingByGroupId = (
       `SELECT groupRow.id as group_id, groupRow.max_attendees,
             ${datedCount} as count
      FROM groups AS groupRow
-     WHERE groupRow.id IN (${inPlaceholders(ids)}) AND groupRow.max_attendees > 0
+     WHERE groupRow.id IN (${inPlaceholders(
+       ids,
+     )}) AND groupRow.max_attendees > 0
      GROUP BY groupRow.id`,
       [...countArgs, ...ids],
     );
-    return new Map(
-      rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
-    );
+    return mapBy("group_id", (row: (typeof rows)[number]) =>
+      Math.max(0, row.max_attendees - row.count),
+    )(rows);
   });
 
 /** Per-group remaining over a whole daily span: the tightest day in
@@ -200,10 +210,9 @@ const loadMembershipWithGroupIds = async (
  * would misreport spots that other dates still have. A listing in multiple
  * capped groups reports the tightest group's remaining.
  */
-export const getGroupRemainingByListingId = async (
-  listings: ListingForGroupLookup[],
-  date: string | null = null,
-): Promise<RemainingMap> => {
+export const getGroupRemainingByListingId: RemainingLookup<
+  ListingForGroupLookup
+> = async (listings, date = null) => {
   const candidates = date
     ? listings
     : listings.filter((e) => !countsPerDate(e.listing_type));
@@ -269,25 +278,17 @@ export const getSharedGroupCapacities = async (
  * map-producing remaining lookup — `undefined` when the listing doesn't exist.
  * The shared singular path behind the array-or-id lookups below (a single
  * listing is just an array of one). */
-const remainingForListingId = async (
+const useListingById = async <Result>(
   listingId: number,
-  lookup: (listing: ListingWithCount) => Promise<Map<number, number>>,
-): Promise<number | undefined> => {
+  missing: Result,
+  useListing: (listing: ListingWithCount) => Promise<Result>,
+): Promise<Result> => {
   const listing = await getListingWithCount(listingId);
-  if (!listing) return;
-  return (await lookup(listing)).get(listingId);
+  return listing ? useListing(listing) : missing;
 };
 
 /** Returns `undefined` when no group cap applies: ungrouped, uncapped
  * group, or daily listing without a `date`. */
-export function getGroupRemainingForListing(
-  listing: ListingForGroupLookup,
-  date?: string | null,
-): Promise<number | undefined>;
-export function getGroupRemainingForListing(
-  listingId: number,
-  date?: string | null,
-): Promise<number | undefined>;
 export async function getGroupRemainingForListing(
   listingOrId: ListingForGroupLookup | number,
   date: string | null = null,
@@ -295,7 +296,9 @@ export async function getGroupRemainingForListing(
   const lookup = (listing: ListingForGroupLookup): Promise<RemainingMap> =>
     getGroupRemainingByListingId([listing], date);
   return typeof listingOrId === "number"
-    ? remainingForListingId(listingOrId, lookup)
+    ? useListingById(listingOrId, undefined, async (listing) =>
+        (await lookup(listing)).get(listingOrId),
+      )
     : (await lookup(listingOrId)).get(listingOrId.id);
 }
 
@@ -416,16 +419,16 @@ export const checkListingAvailability = async (
   date?: string | null,
   durationDays = 1,
 ): Promise<boolean> => {
-  const listing = await getListingWithCount(listingId);
-  if (!listing) return false;
-  // A dateLessCap listing's rows carry no booking range, so they'd never match
-  // a date overlap — capacityDateFor drops the date to count the running total.
-  const checkDate = capacityDateFor(listing.listing_type, date);
-  return (
-    await checkLinesCapacity([
-      { date: checkDate, durationDays, listingId, quantity },
-    ])
-  )[0]!;
+  return useListingById(listingId, false, async (listing) => {
+    // A dateLessCap listing's rows carry no booking range, so they'd never match
+    // a date overlap — capacityDateFor drops the date to count the running total.
+    const checkDate = capacityDateFor(listing.listing_type, date);
+    return (
+      await checkLinesCapacity([
+        { date: checkDate, durationDays, listingId, quantity },
+      ])
+    )[0]!;
+  });
 };
 
 type ListingRow = {
@@ -601,10 +604,15 @@ const groupPerDayRemainingByGroup: PerIdDayLoader<Map<string, number>> = async (
               SELECT SUM(listing.booked_quantity)
                 FROM listings AS listing
                 JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-               WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql("dateLessCap", "listing.listing_type")}
+               WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
+                 "dateLessCap",
+                 "listing.listing_type",
+               )}
             ), 0) AS base
        FROM groups AS groupRow
-     WHERE groupRow.id IN (${inPlaceholders(ids)}) AND groupRow.max_attendees > 0`,
+     WHERE groupRow.id IN (${inPlaceholders(
+       ids,
+     )}) AND groupRow.max_attendees > 0`,
     ids,
   );
   if (caps.length === 0) return result;
@@ -664,8 +672,10 @@ export async function getListingRemainingForRange(
   durationDays = 1,
 ): Promise<Map<number, number> | number | undefined> {
   if (typeof listingsOrId === "number") {
-    return remainingForListingId(listingsOrId, (listing) =>
-      getListingRemainingForRange([listing], date, durationDays),
+    return useListingById(listingsOrId, undefined, async (listing) =>
+      (await getListingRemainingForRange([listing], date, durationDays)).get(
+        listingsOrId,
+      ),
     );
   }
   const listings = listingsOrId;
@@ -689,15 +699,14 @@ export async function getListingRemainingForRange(
       groupPerDayRemainingByGroup(daily.flatMap(groupsOf), days),
     ]);
 
-  const result = new Map<number, number>();
-  for (const l of totals) {
+  const totalRemaining = totals.map((l): [number, number] => {
     const base = l.max_attendees - l.attendee_count;
     const groupRemainings = groupsOf(l)
       .map((g) => totalGroupRemaining.get(g))
       .filter((r): r is number => r !== undefined);
-    result.set(l.id, Math.min(base, ...groupRemainings));
-  }
-  for (const l of daily) {
+    return [l.id, Math.min(base, ...groupRemainings)];
+  });
+  const dailyRemaining = daily.map((l): [number, number] => {
     const loads = perDayLoads(overlapByListing.get(l.id) ?? [], days);
     // perDayLoads and dailyGroupPerDay both key every day in `days`, so the
     // loads.get(day)!/m.get(day)! lookups below are never undefined.
@@ -708,9 +717,9 @@ export async function getListingRemainingForRange(
       .map((g) => dailyGroupPerDay.get(g))
       .filter((m): m is Map<string, number> => m !== undefined)
       .map((m) => Math.min(...days.map((day) => m.get(day)!)));
-    result.set(l.id, Math.min(listingRemaining, ...groupPerDayMins));
-  }
-  return result;
+    return [l.id, Math.min(listingRemaining, ...groupPerDayMins)];
+  });
+  return new Map([...totalRemaining, ...dailyRemaining]);
 }
 
 /**

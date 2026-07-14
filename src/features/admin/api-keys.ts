@@ -9,7 +9,6 @@ import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import type { SessionEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -25,6 +24,7 @@ import {
   getApiKeysForUser,
 } from "#shared/db/api-keys.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import {
@@ -55,7 +55,7 @@ const withOwnerData =
   <T>(load: (session: AuthSession) => Promise<T>) =>
   (
     request: Request,
-    handle: SessionEntityHandler<AdminSession, T>,
+    handle: ResponseHandler<[session: AdminSession, data: T]>,
   ): Promise<Response> =>
     requireOwnerOr(request, async (session) =>
       handle(session, await load(session)),

@@ -13,6 +13,7 @@ import {
 import { buildPkpass, type SigningCredentials } from "#shared/apple-wallet.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 
 /** MIME type for Apple Wallet passes */
 const PKPASS_CONTENT_TYPE = "application/vnd.apple.pkpass";
@@ -51,7 +52,7 @@ type SingleTokenPassData = Extract<
  */
 export const withPassData = async (
   tokens: string[],
-  build: (passData: SingleTokenPassData) => Response | Promise<Response>,
+  build: ResponseHandler<[passData: SingleTokenPassData]>,
 ): Promise<Response> => {
   const result = await lookupSingleTokenPassData(tokens);
   return result.ok ? build(result.passData) : result.response;

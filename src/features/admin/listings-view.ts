@@ -17,6 +17,7 @@ import {
   getAttendeeAnswersBatch,
 } from "#shared/db/questions/attendee-answers/reads.ts";
 import { getQuestionsForListing } from "#shared/db/questions/queries.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import type { GroupContext } from "#templates/admin/listings/types.ts";
@@ -75,10 +76,7 @@ type FilteredAttendees = {
  * actions (e.g. emailing) that target every date, not just the filtered view.
  */
 export const filteredAttendeesHandler =
-  (
-    request: Request,
-    inner: (ctx: FilteredAttendees) => Response | Promise<Response>,
-  ) =>
+  (request: Request, inner: ResponseHandler<[ctx: FilteredAttendees]>) =>
   (listing: ListingWithCount, attendees: Attendee[], session: AuthSession) =>
     inner({
       attendees,

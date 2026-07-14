@@ -25,7 +25,7 @@
   "gitignore": true,
   "exitCode": 1,
   "minLines": 1,
-  "minTokens": 19,
+  "minTokens": 18,
   "path": [
     "src",
     "e2e-payments",

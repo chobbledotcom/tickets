@@ -28,6 +28,7 @@ import {
   deleteAttendeeNote,
   getAttendeeNote,
 } from "#shared/db/system-notes.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { AdminSession, Attendee } from "#shared/types.ts";
 import {
@@ -59,7 +60,7 @@ const loadAttendeeOr404 = async (
  * Response when it doesn't exist. */
 const withLoadedAttendee = async (
   attendeeId: number,
-  then: (attendee: Attendee) => Response | Promise<Response>,
+  then: ResponseHandler<[attendee: Attendee]>,
 ): Promise<Response> => {
   const attendee = await loadAttendeeOr404(attendeeId);
   return attendee instanceof Response ? attendee : then(attendee);

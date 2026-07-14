@@ -91,11 +91,6 @@ export type TicketCtx = TicketSharedContext &
     prefill?: BookingPrefill | undefined;
   };
 
-/** Possibly-async response handler */
-export type AsyncHandler<T extends unknown[]> = (
-  ...args: T
-) => Response | Promise<Response>;
-
 /** Shared context provider for ticket pages */
 export type TicketContextProvider = (
   listings: TicketListing[],

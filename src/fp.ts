@@ -346,20 +346,23 @@ export const sumByKey =
     return totals;
   };
 
+/** Index items by one field and chosen value. Later matching keys win. */
+export const mapBy =
+  <T, Key extends keyof T, V>(key: Key, valueFrom: (item: T) => V) =>
+  (items: Iterable<T>): Map<T[Key], V> => {
+    const result = new Map<T[Key], V>();
+    for (const item of items) result.set(item[key], valueFrom(item));
+    return result;
+  };
+
 /**
  * Index items by their `id`, so a caller can look one up without scanning the
  * whole list each time. Replaces the common pattern:
  *   new Map(items.map((item) => [item.id, item]))
- * When two items share an id the later one wins, exactly as building the Map
- * by hand would.
  */
 export const byId = <T extends { id: number }>(
   items: Iterable<T>,
-): Map<number, T> => {
-  const map = new Map<number, T>();
-  for (const item of items) map.set(item.id, item);
-  return map;
-};
+): Map<number, T> => mapBy("id", (item: T) => item)(items);
 
 /**
  * Index items by their `id`, keeping one chosen value per item — the value
@@ -370,11 +373,8 @@ export const byId = <T extends { id: number }>(
  */
 export const mapById =
   <T extends { id: number }, V>(valueFrom: (item: T) => V) =>
-  (items: Iterable<T>): Map<number, V> => {
-    const map = new Map<number, V>();
-    for (const item of items) map.set(item.id, valueFrom(item));
-    return map;
-  };
+  (items: Iterable<T>): Map<number, V> =>
+    mapBy("id", valueFrom)(items);
 
 /**
  * A copy of `base` with `extra` entries merged on top (an `extra` key wins over

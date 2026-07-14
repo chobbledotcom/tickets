@@ -30,7 +30,7 @@ import { getAllListingOptions } from "#shared/db/listings/records.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { featureGate } from "#shared/response-steps.ts";
+import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
 import {
   deleteImageStorageFilesStrict,
   isStorageEnabled,
@@ -169,11 +169,9 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
 const withStorageImageForm = (
   request: Request,
   id: number,
-  action: (
-    image: Image,
-    form: FormParams,
-    adminLevel: AdminLevel,
-  ) => Response | Promise<Response>,
+  action: ResponseHandler<
+    [image: Image, form: FormParams, adminLevel: AdminLevel]
+  >,
 ): Promise<Response> =>
   withAuth(request, CONTENT_FORM, (session, form) =>
     withEntityFromParam(id, getImageById, (image) =>

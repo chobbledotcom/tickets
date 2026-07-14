@@ -41,8 +41,8 @@ import {
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
-import type { MaybePromise } from "#shared/maybe-promise.ts";
 import { nowMs } from "#shared/now.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import type { LogisticsAgent, User } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
@@ -209,11 +209,9 @@ const toDisplayUserWithAgents = async (user: User): Promise<DisplayUser> =>
 /** Owner-guarded GET handler that loads the target user (or 404s), then renders. */
 const ownerUserPage =
   (
-    handler: (
-      user: User,
-      session: AuthSession,
-      errorPage: UserErrorPageFn,
-    ) => MaybePromise<Response>,
+    handler: ResponseHandler<
+      [user: User, session: AuthSession, errorPage: UserErrorPageFn]
+    >,
   ) =>
   (request: Request, { id }: { id: number }): Promise<Response> =>
     requireOwnerOr(request, (session) =>
@@ -304,10 +302,7 @@ type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
 const withLoadedUser = async (
   session: AuthSession,
   userId: number,
-  found: (
-    user: User,
-    errorPage: UserErrorPageFn,
-  ) => Response | Promise<Response>,
+  found: ResponseHandler<[user: User, errorPage: UserErrorPageFn]>,
 ): Promise<Response> => {
   const errorPage: UserErrorPageFn = (error, status) =>
     usersErrorResponse(session, error, status);

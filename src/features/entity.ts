@@ -2,6 +2,7 @@
  * Entity loading patterns for route handlers
  */
 
+/* jscpd:ignore-start */
 import {
   type AuthSession,
   type Guard,
@@ -10,6 +11,8 @@ import {
 } from "#routes/auth.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
+/* jscpd:ignore-end */
 
 /**
  * Resolve a nullable promise, calling handler if found or returning 404.
@@ -17,7 +20,7 @@ import type { FormParams } from "#shared/form-data.ts";
  */
 export const orNotFound = async <T>(
   load: Promise<T | null>,
-  handler: (data: T) => Response | Promise<Response>,
+  handler: ResponseHandler<[data: T]>,
 ): Promise<Response> => {
   const data = await load;
   return data
@@ -29,29 +32,17 @@ export const orNotFound = async <T>(
  *  every gated `:id` route (and the Site-tab editors) is built on. */
 export type EntityLoader<T> = (id: number) => Promise<T | null>;
 
-/** Handler that receives a loaded entity */
-export type EntityHandler<T> = (entity: T) => Response | Promise<Response>;
-
-/** Handler given the auth session plus a loaded value — the owner-guarded,
- *  data-preloaded shape the API-keys pages use. */
-export type SessionEntityHandler<S, T> = (
-  session: S,
-  entity: T,
-) => Response | Promise<Response>;
-
 /** Handler for a POST that carries a record id, the session, and the form. */
-export type IdFormHandler = (
-  id: number,
-  session: AuthSession,
-  form: FormParams,
-) => Response | Promise<Response>;
+export type IdFormHandler = ResponseHandler<
+  [id: number, session: AuthSession, form: FormParams]
+>;
 
 /**
  * Generic wrapper: load entity, return 404 if missing, otherwise call handler.
  * Curried so the handler is specified first, then the load function.
  */
 export const withEntity =
-  <T>(handler: EntityHandler<T>) =>
+  <T>(handler: ResponseHandler<[entity: T]>) =>
   (load: () => Promise<T | null>): Promise<Response> =>
     orNotFound(load(), handler);
 
@@ -93,7 +84,7 @@ export const gatedEntityRoute =
   <C>(gate: EntityGate<C>) =>
   <T>(
     load: EntityLoader<T>,
-    use: (entity: T, ctx: C) => Response | Promise<Response>,
+    use: ResponseHandler<[entity: T, ctx: C]>,
   ): IdRouteHandler =>
   (request, params) => {
     const loadEntity = () => load(params.id);
@@ -109,7 +100,7 @@ export const gatedEntityRoute =
  */
 export const ownerGetById = <T>(
   load: EntityLoader<T>,
-  render: (entity: T, session: AuthSession) => Response | Promise<Response>,
+  render: ResponseHandler<[entity: T, session: AuthSession]>,
 ): IdRouteHandler =>
   gatedEntityRoute<AuthSession>((request, handler) =>
     requireSessionOr(request, handler, "owner"),

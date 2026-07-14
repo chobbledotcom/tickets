@@ -45,6 +45,7 @@ import {
 } from "#shared/db/attributes.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   adminAttributeDeletePage,
@@ -234,14 +235,16 @@ const loadAttributeOption = async ({
   return attribute && option ? { attribute, option } : null;
 };
 
-type OptionRouteHandler = (
-  attribute: AttributeWithOptions,
-  option: AttributeOption,
-  session: AdminSession,
-) => Response | Promise<Response>;
-
 const optionRoute =
-  (handler: OptionRouteHandler) =>
+  (
+    handler: ResponseHandler<
+      [
+        attribute: AttributeWithOptions,
+        option: AttributeOption,
+        session: AdminSession,
+      ]
+    >,
+  ) =>
   (request: Request, params: AttributeOptionParams): Promise<Response> =>
     requireOwnerOr(request, async (session) => {
       const context = await loadAttributeOption(params);
@@ -326,9 +329,9 @@ const handleEditOptionPost = createAuthedFormRoute<
 });
 
 const optionActionHandler = (
-  handle: (
-    args: AuthedHandlerArgs<AttributeOptionParams, AttributeOptionContext>,
-  ) => Response | Promise<Response>,
+  handle: ResponseHandler<
+    [args: AuthedHandlerArgs<AttributeOptionParams, AttributeOptionContext>]
+  >,
 ) =>
   createAuthedHandler<AttributeOptionParams, AttributeOptionContext>({
     auth: OWNER_FORM,
