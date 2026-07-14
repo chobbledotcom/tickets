@@ -283,6 +283,17 @@ describeStripe("Stripe webhook setup", () => {
       expect(await api("https://example.com/other", {})).toBeNull();
     });
 
+    test("handles GET without init (defaults to GET method)", async () => {
+      const calls = newWebhookApiCalls();
+      const api = webhookEndpointsApi(
+        "https://example.com/payment/webhook",
+        calls,
+      );
+      const response = await api("https://api.stripe.com/v1/webhook_endpoints");
+      const body = await response!.json();
+      expect(body.data).toHaveLength(2);
+    });
+
     test("records the created body on a successful POST", async () => {
       const calls = newWebhookApiCalls();
       const api = webhookEndpointsApi(

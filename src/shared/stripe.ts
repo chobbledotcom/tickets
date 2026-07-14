@@ -243,10 +243,10 @@ const createCheckoutWebhook = (
   });
 
 /** Check if a Stripe error looks like the webhook endpoint cap was reached.
- *  The Stripe SDK always wraps fetch errors in an Error subclass, so a
- *  non-Error can't reach this point. */
+ *  The Stripe SDK always wraps fetch errors in an Error subclass, so `err`
+ *  is always an Error with a `.message` string. */
 const isEndpointLimitError = (err: unknown): boolean => {
-  const message = (err as Error)?.message?.toLowerCase() ?? "";
+  const message = (err as Error).message.toLowerCase();
   return (
     message.includes("webhook") &&
     (message.includes("limit") || message.includes("maximum"))
