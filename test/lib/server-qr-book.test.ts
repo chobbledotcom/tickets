@@ -17,10 +17,7 @@ import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  type CheckoutSessionResult,
-  paymentsApi,
-} from "#shared/payments.ts";
+import { type CheckoutSessionResult, paymentsApi } from "#shared/payments.ts";
 import {
   buildQrBookPayload,
   QR_TOKEN_MAX_AGE_S,

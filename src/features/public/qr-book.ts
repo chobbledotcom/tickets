@@ -25,7 +25,10 @@ import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { qrBookCheckoutErrorPage, qrBookErrorPage } from "#templates/public/errors.tsx";
+import {
+  qrBookCheckoutErrorPage,
+  qrBookErrorPage,
+} from "#templates/public/errors.tsx";
 import type {
   BookingPrefill,
   TicketPrefill,
@@ -120,7 +123,8 @@ const skipToCheckout = (
     `qr-book listing=${listing.id}`,
     request,
     intent,
-    (msg, status) => htmlResponse(qrBookCheckoutErrorPage(listing.slug, msg), status),
+    (msg, status) =>
+      htmlResponse(qrBookCheckoutErrorPage(listing.slug, msg), status),
   );
 };
 

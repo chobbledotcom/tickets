@@ -55,8 +55,8 @@ export const config = {
   cloudflaredBin: env("CLOUDFLARED_BIN") ?? "cloudflared",
 
   /** 32-byte base64 key. Defaults to the repo's well-known test key. */
-  dbEncryptionKey: env("DB_ENCRYPTION_KEY") ??
-    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+  dbEncryptionKey:
+    env("DB_ENCRYPTION_KEY") ?? "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
   /** Deno binary used to boot the app server. */
   denoBin: env("DENO_BIN") ?? "deno",
 

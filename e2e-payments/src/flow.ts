@@ -10,6 +10,7 @@ import type { Locator } from "playwright";
 import { type BrowserSession, hrefOf } from "./browser.ts";
 import { config } from "./config.ts";
 import { log, step } from "./log.ts";
+
 /* jscpd:ignore-end */
 
 const LISTING_NAME = "E2E Payment Concert";
