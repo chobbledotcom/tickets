@@ -215,6 +215,9 @@ const REFUND_REASONS = {
   price_changed: {
     reason: "the listing price changed while they were paying",
   },
+  refund_retry: {
+    reason: "an earlier automatic refund had already started",
+  },
   sold_out: {
     reason: "an add-on or extra they chose sold out while they were paying",
   },

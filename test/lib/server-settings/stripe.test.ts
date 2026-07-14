@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import { type StripeConnectionTestResult, stripeApi } from "#shared/stripe.ts";
+import { STRIPE_WEBHOOK_EVENTS_VERSION } from "#shared/stripe-webhook-events.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,
@@ -149,6 +150,9 @@ describeAdminSettings(() => {
           // persisted, not just acknowledged in the flash.
           expect(settings.stripe.webhookSecret).toBe("whsec_test_secret");
           expect(settings.stripe.webhookEndpointId).toBe("we_test_123");
+          expect(settings.stripe.webhookEventsVersion).toBe(
+            STRIPE_WEBHOOK_EVENTS_VERSION,
+          );
         },
       );
     });

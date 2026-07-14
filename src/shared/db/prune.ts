@@ -3,6 +3,9 @@
  * but whose contents are only useful for a short window.
  *
  * Tables pruned:
+ * - checkout_stages: abandoned pending attendees are removed after stale claims
+ *   are released atomically; booked/failed replay guards are retained for the
+ *   payment replay window, then removed without deleting the attendee.
  * - processed_payments: payment-session replay records. Failed rows and rows
  *   that no longer hold a useful refund reference are pruned after the retry
  *   window; unrefunded attendees keep their stored charge references.
@@ -34,7 +37,7 @@
  * pruned only when PRUNE_INTERVAL_MS has elapsed since its last run.
  */
 
-import { prunePendingCheckoutStages } from "#shared/db/checkout-stages.ts";
+import { pruneCheckoutStageRows } from "#shared/db/checkout-stage-cleanup.ts";
 import { execute } from "#shared/db/client.ts";
 import { purgeOrphanedAttendees } from "#shared/db/orphan-attendees.ts";
 import { writeRawBatch } from "#shared/db/settings/raw-writes.ts";
@@ -53,6 +56,7 @@ import {
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
+  STALE_RESERVATION_MS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
@@ -112,10 +116,14 @@ export const pruneSumupCheckouts = isoAgePruner(
   PRUNE_SUMUP_RETENTION_MS,
 );
 
-/** Delete old unpaid checkout attendees. A claimed payment row blocks cleanup. */
+/** Delete old unpaid checkout attendees after atomically releasing only stale
+ * unresolved claims. Terminal stage replay guards use the processed-payment
+ * retention window, which outlives provider retries. */
 export const pruneCheckoutStages = (): Promise<number> =>
-  prunePendingCheckoutStages(
+  pruneCheckoutStageRows(
     new Date(nowMs() - PRUNE_CHECKOUT_STAGES_RETENTION_MS).toISOString(),
+    new Date(nowMs() - STALE_RESERVATION_MS).toISOString(),
+    new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS).toISOString(),
   );
 
 /** Delete unreferenced encrypted free-text strings older than retention. */

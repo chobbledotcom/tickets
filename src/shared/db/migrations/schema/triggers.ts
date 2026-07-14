@@ -1,5 +1,6 @@
 /** Triggers that keep precomputed aggregates in step with their source tables. */
 
+import { CHECKOUT_STAGE_TRIGGERS } from "./checkout-stage-triggers.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   ticketCountPredicateFor,
@@ -37,6 +38,12 @@ const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
  * nothing); tickets_count counts only quantity > 0 rows, so the sentinel keeps
  * its attendee↔listing link without inflating the ticket total.
  */
+const LISTING_AGGREGATE_DEPENDENCIES = {
+  attendees: ["kind"],
+  listing_attendees: ["attendee_id", "listing_id", "quantity"],
+  listings: ["booked_quantity", "tickets_count"],
+};
+
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_listing_attendees_aggregates_insert",
@@ -83,7 +90,10 @@ BEGIN
 END`,
     table: "listing_attendees",
   },
-];
+].map((trigger) => ({
+  ...trigger,
+  dependencies: LISTING_AGGREGATE_DEPENDENCIES,
+}));
 
 /**
  * Modifier aggregate triggers keep modifiers.total_uses and modifiers.usage_count
@@ -267,4 +277,5 @@ export const TRIGGERS: Trigger[] = [
   ...ANSWER_AGGREGATE_TRIGGERS,
   ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
   ...STRING_AGGREGATE_TRIGGERS,
+  ...CHECKOUT_STAGE_TRIGGERS,
 ];

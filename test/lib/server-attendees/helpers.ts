@@ -30,18 +30,19 @@ import { adminFormPost } from "#test-utils/session.ts";
 export const stageMidPaymentAttendee = (
   listing: { id: number; name: string; slug: string },
   sessionId: string,
+  otherListings: Array<{ id: number; name: string; slug: string }> = [],
 ): ReturnType<typeof stageCheckout> =>
   stageCheckout(
     sessionId,
     "stripe",
     checkoutIntent({
-      items: [
+      items: [listing, ...otherListings].map((item) =>
         checkoutItem({
-          listingId: listing.id,
-          name: listing.name,
-          slug: listing.slug,
+          listingId: item.id,
+          name: item.name,
+          slug: item.slug,
         }),
-      ],
+      ),
     }),
   );
 
@@ -52,9 +53,14 @@ export const stageMidPaymentAttendee = (
  *  deleted-listing editor tests all start from. */
 export const resolvedDeletedListingAttendee = async (
   sessionId: string,
+  otherListings: Array<{ id: number; name: string; slug: string }> = [],
 ): Promise<{ attendeeId: number; listingId: number; key: string }> => {
   const listing = await createTestListing({ unitPrice: 1000 });
-  const stage = await stageMidPaymentAttendee(listing, sessionId);
+  const stage = await stageMidPaymentAttendee(
+    listing,
+    sessionId,
+    otherListings,
+  );
   const { deleteListing } = await import("#shared/db/listings/delete.ts");
   await deleteListing(listing.id);
   const { markCheckoutStage } = await import("#shared/db/checkout-stages.ts");

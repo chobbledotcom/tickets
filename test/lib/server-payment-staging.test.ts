@@ -206,7 +206,7 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
     }
   });
 
-  test("leaves a staged capacity-loss order pending and retryable when the refund fails, then resolves on retry", async () => {
+  test("leaves a staged capacity-loss order refunding when the refund fails, then resolves on retry", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 1,
@@ -234,9 +234,9 @@ describeWithEnv("paid checkout staging", { db: true }, () => {
         const response = await paidReturn("cs_staged_retry", intent, 1000);
         expect(await response.text()).toContain("saved your details");
       }
-      // The stage stays pending with NO ledger legs and no stamped reference, so
+      // The stage stays refunding with NO ledger legs and no stamped reference, so
       // the released reservation's next delivery re-runs the whole refund path.
-      await expectStage("cs_staged_retry", "pending", 0);
+      await expectStage("cs_staged_retry", "refunding", 0);
       expect(
         (await getDb().execute("SELECT kind FROM transfers")).rows,
       ).toEqual([]);

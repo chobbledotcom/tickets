@@ -849,6 +849,8 @@ export type AdminListing = Omit<ListingWithCount, "slug_index">;
 
 /** One listing shown in an attendee row's Listings cell */
 export type AttendeeRowListing = {
+  /** A deleted listing is shown as plain text because its detail route is gone. */
+  deleted?: true;
   id: number;
   name: string;
 };

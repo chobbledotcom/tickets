@@ -4,17 +4,16 @@
  */
 
 import { t } from "#i18n";
-import {
-  defineProviderCredentialsRoute,
-  getWebhookUrl,
-} from "#routes/admin/settings-helpers.ts";
+import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   detectStripeKeyMode,
   setupWebhookEndpoint,
   testStripeConnection,
 } from "#shared/stripe.ts";
+import { STRIPE_WEBHOOK_EVENTS_VERSION } from "#shared/stripe-webhook-events.ts";
 
 export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   // Provision the Stripe webhook before the key is persisted, so a setup
@@ -22,13 +21,16 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   afterSave: async (value) => {
     const result = await setupWebhookEndpoint(
       value,
-      getWebhookUrl(),
+      getPaymentWebhookUrl(),
       settings.stripe.webhookEndpointId,
     );
     if (!result.success) {
       return `Failed to set up Stripe webhook: ${result.error}`;
     }
     await settings.update.stripe.webhookConfig(result);
+    await settings.update.stripe.webhookEventsVersion(
+      STRIPE_WEBHOOK_EVENTS_VERSION,
+    );
     return null;
   },
   formId: "settings-stripe",

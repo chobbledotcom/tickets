@@ -127,7 +127,7 @@ export const expectRefundRoundTripLegs = async (): Promise<void> => {
 
 export const stubSuccessfulRefund = (refundId: string) =>
   stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: refundId } as unknown as Awaited<
+    Promise.resolve({ id: refundId, status: "succeeded" } as unknown as Awaited<
       ReturnType<typeof stripeApi.refundPayment>
     >),
   );
@@ -150,7 +150,7 @@ export const expectStage = async (
   ]);
 };
 
-/** Assert a still-pending staged session's attendee carries no payment
+/** Assert a still-open staged session's attendee carries no payment
  * reference — a failed money post threw before stamping one, so the Actions tab
  * has no charge to offer an in-app refund against while it stays unrecorded. */
 export const expectNoStampedPayment = async (

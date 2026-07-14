@@ -120,7 +120,7 @@ describeWithEnv("paid checkout staging — recovery", { db: true }, () => {
     }
   });
 
-  test("keeps the stage pending when the refund attempt dies mid-path", async () => {
+  test("keeps the stage refunding when the refund attempt dies mid-path", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 1,
@@ -153,7 +153,7 @@ describeWithEnv("paid checkout staging — recovery", { db: true }, () => {
           paidReturn("cs_staged_refund_down", intent, 1000),
         ).rejects.toThrow("refund transport down");
       }
-      await expectStage("cs_staged_refund_down", "pending", 0);
+      await expectStage("cs_staged_refund_down", "refunding", 0);
 
       // The provider redelivers after the reservation goes stale, and this
       // time the refund lands: the booking is kept, refunded, and resolved.
@@ -168,7 +168,7 @@ describeWithEnv("paid checkout staging — recovery", { db: true }, () => {
     }
   });
 
-  test("leaves the stage pending when the closed-listing refund fails", async () => {
+  test("leaves the stage refunding when the closed-listing refund fails", async () => {
     await setupStripe();
     const listing = await createTestListing({ unitPrice: 1000 });
     const { checkout, getCaptured } = stubCheckout(
@@ -193,10 +193,10 @@ describeWithEnv("paid checkout staging — recovery", { db: true }, () => {
         1000,
       );
       expect(response.status).toBe(410);
-      // The stage stays pending so the released reservation's retry re-runs
+      // The stage stays refunding so the released reservation's retry re-runs
       // the whole refund path — resolving it now would answer "already
       // processed" with the customer still charged.
-      await expectStage("cs_staged_closed_unrefunded", "pending", 0);
+      await expectStage("cs_staged_closed_unrefunded", "refunding", 0);
       // Nothing was ledgered or noted either; the retry re-runs everything.
       const legs = await getDb().execute("SELECT kind FROM transfers");
       expect(legs.rows).toEqual([]);
@@ -344,12 +344,12 @@ describeWithEnv("paid checkout staging — recovery", { db: true }, () => {
 
       // The placeholder ledger post can't be written (its payment reference is
       // pre-claimed). A staged keep-and-refund must NOT go terminal with the
-      // money missing from the books: it throws and the stage stays pending.
+      // money missing from the books: it throws and the stage stays refunding.
       await blockSessionPaymentLeg("cs_staged_kept_blocked");
       await expect(
         paidReturn("cs_staged_kept_blocked", intent, 1000),
       ).rejects.toThrow("placeholder money in the ledger");
-      await expectStage("cs_staged_kept_blocked", "pending", 0);
+      await expectStage("cs_staged_kept_blocked", "refunding", 0);
       await expectNoStampedPayment("cs_staged_kept_blocked");
 
       // The collision is repaired and the provider redelivers: the money
@@ -382,12 +382,12 @@ describeWithEnv("paid checkout staging — recovery", { db: true }, () => {
 
       // The refund settles at the provider, but its ledger round-trip cannot
       // be written. The outcome must NOT go terminal with the money story
-      // missing: it throws and the stage stays pending for the redelivery.
+      // missing: it throws and the stage stays refunding for the redelivery.
       await blockSessionPaymentLeg("cs_staged_closed_blocked");
       await expect(
         paidReturn("cs_staged_closed_blocked", intent, 1000),
       ).rejects.toThrow("money in the ledger");
-      await expectStage("cs_staged_closed_blocked", "pending", 0);
+      await expectStage("cs_staged_closed_blocked", "refunding", 0);
 
       // The collision is repaired and the provider redelivers: the settled
       // refund reads back as refunded, the round-trip is recorded, and the
@@ -395,7 +395,7 @@ describeWithEnv("paid checkout staging — recovery", { db: true }, () => {
       await unblockSessionPaymentLeg("cs_staged_closed_blocked");
       await ageReservation("cs_staged_closed_blocked");
       const retry = await paidReturn("cs_staged_closed_blocked", intent, 1000);
-      expect(retry.status).toBe(410);
+      expect(retry.status).toBe(200);
       await expectStage("cs_staged_closed_blocked", "failed", 0);
       await expectRefundRoundTripLegs();
     } finally {

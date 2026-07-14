@@ -47,12 +47,15 @@ const listings: AttendeeCol = {
   cell: (row) => {
     const fullList = escapeHtml(row.listings.map((l) => l.name).join(", "));
     const links = row.listings
-      .map((l) => `<a href="/admin/listing/${l.id}">${escapeHtml(l.name)}</a>`)
+      .map((l) =>
+        l.deleted
+          ? escapeHtml(l.name)
+          : `<a href="/admin/listing/${l.id}">${escapeHtml(l.name)}</a>`,
+      )
       .join(", ");
     return `<span class="listings-cell" title="${fullList}">${links}</span>`;
   },
-  description:
-    "The row's listings in display order, each linked to its detail page",
+  description: "The row's listings in display order, with live listings linked",
   isHtml: true,
   label: "Listings",
 };

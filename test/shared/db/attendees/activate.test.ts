@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import type { OrderBooking } from "#shared/booking-lines.ts";
 import { activateStagedBooking } from "#shared/db/attendees/activate.ts";
 import { refusalReason } from "#shared/db/attendees/activation-refusal.ts";
@@ -98,16 +100,20 @@ describeWithEnv("db > staged booking activation", { db: true }, () => {
 
     expect(await setup.run()).toEqual({ success: true });
     const row = await execute(
-      `SELECT stage.state, booking.quantity
+      `SELECT stage.state, stage.ticket_tokens, booking.quantity
        FROM checkout_stages AS stage
        JOIN listing_attendees AS booking
          ON booking.attendee_id = stage.attendee_id
        WHERE stage.payment_session_id = ?`,
       ["cs_activate_ok"],
     );
-    expect(row.rows.map((value) => [value.state, value.quantity])).toEqual([
-      ["booked", 1],
-    ]);
+    expect(
+      row.rows.map((value) => [
+        value.state,
+        value.ticket_tokens,
+        value.quantity,
+      ]),
+    ).toEqual([["booked", "", 1]]);
     const attendee = await getAttendeeRaw(setup.stage.attendeeId);
     if (!attendee) throw new Error("Expected activated attendee");
     expect(
@@ -277,6 +283,42 @@ describeWithEnv("db > staged booking activation", { db: true }, () => {
       reason: "stage_mismatch",
       success: false,
     });
+  });
+
+  test("refuses a negative activation quantity before opening the write batch", async () => {
+    const setup = await activate("cs_activate_negative");
+    setup.input.bookings[0]!.quantity = -1;
+
+    expect(await setup.run()).toEqual({
+      reason: "capacity_exceeded",
+      success: false,
+    });
+  });
+
+  test("propagates an unexpected batch failure and rolls activation back", async () => {
+    const setup = await activate("cs_activate_transfer_conflict");
+    const reference = "activate-transfer-conflict";
+    const occurredAt = "2026-07-14T12:00:00.000Z";
+    await postTransfers([
+      {
+        amount: 1,
+        destination: attendeeAccount(999),
+        eventGroup: "existing-transfer",
+        occurredAt,
+        reference,
+        source: WORLD,
+      },
+    ]);
+    setup.plan.legs.push({
+      amount: 1000,
+      destination: attendeeAccount(setup.stage.attendeeId),
+      eventGroup: "activation-transfer",
+      occurredAt,
+      reference,
+      source: WORLD,
+    });
+
+    await expectActivationRollback(setup, "transfers.reference");
   });
 
   test("leaves the stage at zero when capacity was taken", async () => {

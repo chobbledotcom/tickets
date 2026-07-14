@@ -6,7 +6,8 @@
  * these helpers only reshape them.
  */
 
-import { sumOf } from "#fp";
+import { sumOf, unique } from "#fp";
+import { t } from "#i18n";
 import type {
   AttendeeRowListing,
   AttendeeTableRow,
@@ -32,10 +33,9 @@ export const attendeeLineRow = (
  * each row's listings keep that order, so the Listings cell matches the
  * listings page. Quantities sum across the attendee's lines — the order's
  * total tickets. Attendee order follows first appearance in `attendees`.
- * A line whose listing is absent from `orderedListings` (the LEFT-JOIN
- * `listing_id = 0` broken-linkage sentinel) is dropped, and an attendee with
- * no surviving listing is omitted entirely — exactly which lines the
- * per-line tables skipped before grouping.
+ * A positive listing id absent from `orderedListings` is a retained booking for
+ * a deleted listing and stays visible as an unlinked placeholder. The LEFT-JOIN
+ * `listing_id = 0` broken-linkage sentinel is still dropped.
  */
 export const groupAttendeeRows = (
   attendees: DisplayAttendee[],
@@ -44,9 +44,20 @@ export const groupAttendeeRows = (
   const rows: AttendeeTableRow[] = [];
   for (const lines of Map.groupBy(attendees, (a) => a.id).values()) {
     const bookedIds = new Set(lines.map((line) => line.listing_id));
-    const listings = orderedListings
+    const liveListings = orderedListings
       .filter((listing) => bookedIds.has(listing.id))
       .map((listing) => ({ id: listing.id, name: listing.name }));
+    const liveIds = new Set(orderedListings.map((listing) => listing.id));
+    const deletedListings = unique(
+      lines
+        .map((line) => line.listing_id)
+        .filter((listingId) => listingId > 0 && !liveIds.has(listingId)),
+    ).map((id) => ({
+      deleted: true as const,
+      id,
+      name: t("attendee_form.deleted_listing"),
+    }));
+    const listings = [...liveListings, ...deletedListings];
     if (listings.length === 0) continue;
     const quantity = sumOf((line: DisplayAttendee) => line.quantity)(lines);
     rows.push({ attendee: { ...lines[0]!, quantity }, listings });

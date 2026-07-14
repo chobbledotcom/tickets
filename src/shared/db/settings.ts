@@ -60,6 +60,7 @@ import {
   writeEncrypted,
   writeOrDelete,
   writeRaw,
+  writeRawBatch,
 } from "#shared/db/settings/raw-writes.ts";
 import {
   clearSetupCompleteCache,
@@ -314,6 +315,9 @@ const settingsBase = {
       get webhookEndpointId(): string {
         return snap("stripe_webhook_endpoint_id");
       },
+      get webhookEventsVersion(): string {
+        return snap("stripe_webhook_events_version");
+      },
       get webhookSecret(): string {
         return snap("stripe_webhook_secret");
       },
@@ -460,17 +464,16 @@ const settingsBase = {
         secret: string;
         endpointId: string;
       }): Promise<void> => {
-        await writeRaw(
-          CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
-          await encrypt(config.secret),
-        );
-        await writeRaw(
-          CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
-          config.endpointId,
-        );
+        await writeRawBatch([
+          [CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, await encrypt(config.secret)],
+          [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.endpointId],
+        ]);
         data.stripe_webhook_secret = config.secret;
         data.stripe_webhook_endpoint_id = config.endpointId;
       },
+      webhookEventsVersion: plaintextUpdate(
+        CONFIG_KEYS.STRIPE_WEBHOOK_EVENTS_VERSION,
+      ),
     },
     // --- SumUp writes ---
     sumup: {

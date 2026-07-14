@@ -52,8 +52,8 @@ export type CalendarLogisticsCsv = {
 
 /**
  * Join attendees with their listings into calendar CSV rows, taking the listing
- * name and date/location from the attendee's `listing_id`. Callers guarantee
- * every attendee's listing is present in `listings`.
+ * name and date/location from the attendee's `listing_id`. A retained booking
+ * whose listing was deleted gets the same plain placeholder as the admin page.
  */
 export const toCalendarAttendees = <
   L extends { id: number; name: string; date: string; location: string },
@@ -63,8 +63,17 @@ export const toCalendarAttendees = <
 ): CalendarAttendee[] => {
   const listingById = byId(listings);
   return attendees.map((a) => {
-    const listing = listingById.get(a.listing_id)!;
-    return { ...a, ...listingDetails(listing) };
+    const listing = listingById.get(a.listing_id);
+    return {
+      ...a,
+      ...(listing
+        ? listingDetails(listing)
+        : {
+            listingDate: "",
+            listingLocation: "",
+            listingName: t("attendee_form.deleted_listing"),
+          }),
+    };
   });
 };
 

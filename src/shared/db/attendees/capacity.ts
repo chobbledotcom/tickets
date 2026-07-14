@@ -12,6 +12,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { assert } from "@std/assert";
 import { byId, filter, groupBy, map, pipe, sumOf, unique } from "#fp";
 import {
   capacityDateFor,
@@ -25,16 +26,27 @@ import type {
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import {
-  buildBatchCapacitySql,
+  buildBatchCapacityCondition,
   buildCapacityCondition,
   type CapacityBucket,
   dateToRange,
 } from "#shared/db/capacity.ts";
-import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  andConditions,
+  inPlaceholders,
+  type PrimaryReadOptions,
+  queryAll,
+  queryBatch,
+  queryBatchPrimary,
+  queryOne,
+  resultRows,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { columnMapByIds } from "#shared/db/query.ts";
 import {
+  ascending,
   type ListingType,
   type ListingWithCount,
   normalizeDurationDays,
@@ -55,6 +67,15 @@ export const bookingStartAt = (
   booking: Pick<ListingBooking, "date" | "durationDays">,
 ): string | null =>
   dateToStartEnd(booking.date ?? null, booking.durationDays ?? 1).startAt;
+
+/** The quantity, listing, and duration fields shared by booking capacity calls. */
+export const bookingCapacityFields = (
+  booking: Pick<LineBooking, "durationDays" | "listingId" | "quantity">,
+): Omit<BatchAvailabilityItem, "date"> => ({
+  durationDays: booking.durationDays,
+  listingId: booking.listingId,
+  quantity: booking.quantity,
+});
 
 type RemainingMap = Map<number, number>;
 
@@ -466,8 +487,9 @@ const addDemandToBucket = (
   item: BatchAvailabilityItem,
   date: string | null | undefined,
 ): void => {
-  if (countsPerDate(ev.listing_type) && date) {
-    for (const day of expandDailyRange(date, item.durationDays ?? 1)) {
+  const bookingDate = item.date === undefined ? date : item.date;
+  if (countsPerDate(ev.listing_type) && bookingDate) {
+    for (const day of expandDailyRange(bookingDate, item.durationDays ?? 1)) {
       bucket.perDay.set(day, (bucket.perDay.get(day) ?? 0) + item.quantity);
     }
   } else {
@@ -506,13 +528,124 @@ type BatchAvailabilityContext = {
   date: string | null | undefined;
 };
 
+type GroupMembershipRow = { group_id: number; listing_id: number };
+
+const membershipFor = (
+  membership: ReadonlyMap<number, number[]>,
+  listingId: number,
+): number[] => {
+  const groupIds = membership.get(listingId);
+  assert(groupIds, `Missing capacity membership for listing ${listingId}`);
+  return groupIds;
+};
+
+/** Pin the listing types and group memberships used to prepare cart demand.
+ * Activation prepares on the primary before opening its write batch; this
+ * predicate makes a catalogue edit in that narrow gap refuse the claim rather
+ * than apply demand calculated from stale metadata. */
+const capacityMetadataCondition = (
+  listings: ListingRow[],
+  membership: ReadonlyMap<number, number[]>,
+): SqlStatement => ({
+  args: [
+    JSON.stringify(
+      listings.map((listing) => ({
+        groupIds: membershipFor(membership, listing.id).toSorted(ascending),
+        id: listing.id,
+        listingType: listing.listing_type,
+      })),
+    ),
+  ],
+  sql: `NOT EXISTS (
+    SELECT 1
+      FROM json_each(?) AS expectedListing
+      LEFT JOIN listings AS listing
+        ON listing.id = json_extract(expectedListing.value, '$.id')
+     WHERE listing.id IS NULL
+        OR listing.listing_type != json_extract(expectedListing.value, '$.listingType')
+        OR EXISTS (
+          SELECT 1 FROM group_listings AS liveGroup
+           WHERE liveGroup.listing_id = json_extract(expectedListing.value, '$.id')
+             AND liveGroup.group_id NOT IN (
+               SELECT CAST(expectedGroup.value AS INTEGER)
+                 FROM json_each(expectedListing.value, '$.groupIds') AS expectedGroup
+             )
+        )
+        OR EXISTS (
+          SELECT 1
+            FROM json_each(expectedListing.value, '$.groupIds') AS expectedGroup
+           WHERE NOT EXISTS (
+             SELECT 1 FROM group_listings AS liveGroup
+              WHERE liveGroup.listing_id = json_extract(expectedListing.value, '$.id')
+                AND liveGroup.group_id = CAST(expectedGroup.value AS INTEGER)
+           )
+        )
+  )`,
+});
+
+/** Prepare the live whole-cart capacity condition. Missing listings and
+ * negative quantities are expected availability refusals and return null.
+ * Primary mode is for a condition that gates a following write. */
+export const currentBatchCapacityCondition = async (
+  items: BatchAvailabilityItem[],
+  date?: string | null,
+  options: PrimaryReadOptions = {},
+): Promise<SqlStatement | null> => {
+  const { primary = false } = options;
+  if (items.length === 0) return { args: [], sql: "1 = 1" };
+  if (items.some((item) => item.quantity < 0)) return null;
+  const listingIds = unique(items.map((item) => item.listingId));
+  const placeholders = inPlaceholders(listingIds);
+  const statements = [
+    {
+      args: listingIds,
+      sql: `SELECT listing.id, listing.max_attendees, listing.listing_type,
+                   listing.booked_quantity AS attendee_count
+              FROM listings AS listing
+             WHERE listing.id IN (${placeholders})`,
+    },
+    {
+      args: listingIds,
+      sql: `SELECT groupListing.listing_id, groupListing.group_id
+              FROM group_listings AS groupListing
+             WHERE groupListing.listing_id IN (${placeholders})`,
+    },
+  ];
+  const [listingResult, membershipResult] = await (primary
+    ? queryBatchPrimary(statements)
+    : queryBatch(statements));
+  const listings = resultRows<ListingRow>(listingResult!);
+  if (listings.length !== listingIds.length) return null;
+  const membershipRows = resultRows<GroupMembershipRow>(membershipResult!);
+  const membershipRowsByListing = groupBy(
+    membershipRows,
+    (row) => row.listing_id,
+  );
+  const membership = new Map(
+    listingIds.map((listingId) => [
+      listingId,
+      (membershipRowsByListing.get(listingId) ?? []).map((row) => row.group_id),
+    ]),
+  );
+  const listingsById = byId(listings);
+  const ctx: BatchAvailabilityContext = { date, items, listingsById };
+  const listingDemand = aggregateDemand(ctx, (listing) => [listing.id]);
+  const groupDemand = aggregateDemand(ctx, (_listing, item) =>
+    membershipFor(membership, item.listingId),
+  );
+  return andConditions([
+    buildBatchCapacityCondition(listingDemand, groupDemand),
+    capacityMetadataCondition(listings, membership),
+  ]);
+};
+
 /**
  * Check availability for multiple listings in a single preflight pass.
  *
  * Aggregates the cart's combined demand per listing and per group (per-day for
  * dated daily listings), then evaluates it with ONE SELECT built from the SAME
  * count subqueries the atomic write predicate uses ({@link
- * buildBatchCapacitySql}). Reusing the write's counting is what keeps this
+ * buildBatchCapacityCondition}). Reusing the write's counting is what keeps this
  * read-time preflight and the write-time guard from ever disagreeing about
  * capacity — a single round trip, no per-listing or per-group fan-out.
  */
@@ -521,35 +654,12 @@ export const checkBatchAvailabilityImpl = async (
   date?: string | null,
 ): Promise<boolean> => {
   if (items.length === 0) return true;
-  // Reject negative quantities outright — would otherwise offset positive
-  // rows and bypass the cap. Form validation clamps upstream; defensive.
-  if (items.some((i) => i.quantity < 0)) return false;
-  const listingIds = map((i: BatchAvailabilityItem) => i.listingId)(items);
-
-  // The listing_type per item drives per-day vs total demand bucketing; the
-  // cap comparison itself is left to the SQL (which also enforces active = 1).
-  const listingRows = await queryAll<ListingRow>(
-    `SELECT listing.id, listing.max_attendees, listing.listing_type,
-            listing.booked_quantity as attendee_count
-     FROM listings AS listing
-     WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-    listingIds,
-  );
-  const listingsById = byId(listingRows);
-
-  // Every item must reference a known listing.
-  if (items.some((i) => !listingsById.has(i.listingId))) return false;
-
-  const membership = await getGroupIdsByListingIds(listingIds);
-  const ctx: BatchAvailabilityContext = { date, items, listingsById };
-  const listingDemand = aggregateDemand(ctx, (ev) => [ev.id]);
-  const groupDemand = aggregateDemand(
-    ctx,
-    (_ev, item) => membership.get(item.listingId) ?? [],
-  );
-
-  const { sql, args } = buildBatchCapacitySql(listingDemand, groupDemand);
-  const row = (await queryOne<{ fits: number }>(sql, args))!;
+  const condition = await currentBatchCapacityCondition(items, date);
+  if (!condition) return false;
+  const row = (await queryOne<{ fits: number }>(
+    `SELECT CASE WHEN ${condition.sql} THEN 1 ELSE 0 END AS fits`,
+    condition.args,
+  ))!;
   return row.fits === 1;
 };
 

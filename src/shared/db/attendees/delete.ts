@@ -7,6 +7,7 @@ import {
   executeBatch,
   executeBatchWithResults,
   queryAll,
+  type SqlStatement,
 } from "#shared/db/client.ts";
 import { ticketCountSumExpr } from "#shared/db/migrations/schema/listing-aggregates.ts";
 
@@ -92,7 +93,10 @@ const dependentRowDelete = (
 const attendeePurgeStatements = (
   idsSelect: string,
   args: InValue[],
-  { stagesLast = false }: { stagesLast?: boolean } = {},
+  {
+    leading = [],
+    stagesLast = false,
+  }: { leading?: SqlStatement[]; stagesLast?: boolean } = {},
 ): { sql: string; args: InValue[] }[] => {
   const [stages, others] = [
     DEPENDENT_ROW_TARGETS.filter((t) => t.table === "checkout_stages"),
@@ -101,6 +105,7 @@ const attendeePurgeStatements = (
   const early = stagesLast ? others : [...stages, ...others];
   const late = stagesLast ? stages : [];
   return [
+    ...leading,
     ...early.map((target) => dependentRowDelete(target, idsSelect, args)),
     { args, sql: `DELETE FROM attendees WHERE id IN (${idsSelect})` },
     ...late.map((target) => dependentRowDelete(target, idsSelect, args)),
@@ -114,7 +119,7 @@ const attendeePurgeStatements = (
 export const runAttendeePurge = async (
   idsSelect: string,
   args: InValue[],
-  opts?: { stagesLast?: boolean },
+  opts?: { leading?: SqlStatement[]; stagesLast?: boolean },
 ): Promise<number> => {
   const results = await executeBatchWithResults(
     attendeePurgeStatements(idsSelect, args, opts),

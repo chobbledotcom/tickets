@@ -16,6 +16,7 @@
  */
 
 import { t } from "#i18n";
+import { loadAttendeeActionState } from "#routes/admin/attendee-action-state.ts";
 import { attendeeBookingsFromLines } from "#routes/admin/attendee-form-model.ts";
 import { loadAttendeeLedgerPanel } from "#routes/admin/attendee-ledger-panel.ts";
 import { loadLogisticsPanel } from "#routes/admin/attendee-logistics-tab.ts";
@@ -71,13 +72,6 @@ const actionBase = ({ attendee }: LoadedAttendee): string =>
 const notMidPayment = ({ pendingCheckout }: LoadedAttendee): boolean =>
   !pendingCheckout;
 
-/** The visibility gate for the Actions tab: no pending checkout AND the home
- * listing still exists. Every attendee-scoped action route (delete, refund,
- * resend, send-text) loads the home listing and 404s when it is gone, so a
- * deleted-listing record must not render links that only 404. */
-const canActOnRecord = (entity: LoadedAttendee): boolean =>
-  notMidPayment(entity) && entity.homeListingExists;
-
 /** Thread the current tab back through a sub-action's confirm page. */
 const withReturn = (href: string, ctx: PageCtx): string =>
   `${href}?return_url=${encodeURIComponent(ctx.returnUrl)}`;
@@ -95,18 +89,21 @@ const ATTENDEE_ACTIONS: readonly ActionDef<LoadedAttendee>[] = [
       withReturn(`${actionBase(entity)}/resend-notification`, ctx),
     icon: "rotate-ccw",
     labelKey: "attendee_form.action_resend",
+    visible: ({ homeListingExists }) => homeListingExists,
   },
   {
     href: ({ attendee }) =>
       `/admin/sms?listing=${attendee.listing_id}&attendee=${attendee.id}`,
     icon: "arrow-right",
     labelKey: "attendee_form.action_send_text",
+    visible: ({ homeListingExists }) => homeListingExists,
   },
   {
     danger: true,
     href: (entity) => `${actionBase(entity)}/delete`,
     icon: "trash-2",
     labelKey: "attendee_form.action_delete",
+    visible: ({ canDelete }) => canDelete === true,
   },
 ];
 
@@ -285,6 +282,15 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         {
           actions: ATTENDEE_ACTIONS,
           kind: "actions",
+          prepare: async (entity) => ({
+            ...entity,
+            canDelete: (
+              await loadAttendeeActionState(
+                entity.attendee.id,
+                entity.pendingCheckout,
+              )
+            ).canDelete,
+          }),
           titleKey: "entity.tab.actions",
         },
         {
@@ -294,7 +300,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
         },
       ],
       slug: "actions",
-      visible: canActOnRecord,
+      visible: notMidPayment,
     },
   ],
   titleOf: ({ attendee }) =>

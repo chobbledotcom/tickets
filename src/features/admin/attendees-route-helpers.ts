@@ -11,7 +11,7 @@ import {
 import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import type { IdFormHandler } from "#routes/entity.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
@@ -32,6 +32,12 @@ import type {
 export type AttendeeWithListing = {
   attendee: Attendee;
   listing: ListingWithCount;
+};
+
+/** A retained attendee record whose home listing may have been deleted. */
+export type AttendeeRecord = {
+  attendee: Attendee;
+  listing: ListingWithCount | null;
 };
 
 /** No payment provider configured error (shared with attendee-refunds) */
@@ -88,17 +94,30 @@ export const loadAttendeeWithHomeListing: (
   },
 );
 
+/** Load a record that still has a booking row, even when that row's listing is
+ * gone. A true orphan has the left-join sentinel listing id 0 and stays outside
+ * this action path. */
+const loadAttendeeRecord: (
+  attendeeId: number,
+) => Promise<AttendeeRecord | null> = withDecryptedAttendee(async (attendee) =>
+  attendee.listing_id > 0
+    ? {
+        attendee,
+        listing: await getListingWithCount(attendee.listing_id),
+      }
+    : null,
+);
+
 /** Route params for listing-scoped routes */
 export type ListingRouteParams = { id: number };
 
 /** Route params for listing-scoped attendee routes */
 type AttendeeRouteParams = { listingId: number; attendeeId: number };
 
-/** GET/POST handler pair for the attendee-scoped action routes. */
-const attendeeActionHandlers = createEntityRouteHandlers(
-  loadAttendeeWithHomeListing,
-  ({ attendeeId }: { attendeeId: number }) => attendeeId,
-);
+type AttendeeActionRoute = (
+  request: Request,
+  params: { attendeeId: number },
+) => Promise<Response>;
 
 /** The canonical URL of an attendee-scoped action (confirm page + POST). */
 export const attendeeActionUrl = (attendeeId: number, action: string): string =>
@@ -117,30 +136,81 @@ export const attendeeActionUrlWithReturn = (
   }`;
 
 /** An attendee-action confirm page renderer's shape. */
-type AttendeeActionRenderer = (
-  data: AttendeeWithListing,
+type AttendeeActionRenderer<T> = (
+  data: T,
   session: AdminSession,
   returnUrl?: string,
   error?: string,
 ) => string;
+
+/** Build the confirm and verified POST handlers over one attendee loader. */
+const defineAttendeeActionRoutes = <T extends { attendee: Attendee }>(
+  load: (attendeeId: number) => Promise<T | null>,
+) => {
+  const handlers = createEntityRouteHandlers(
+    load,
+    ({ attendeeId }: { attendeeId: number }) => attendeeId,
+  );
+  return {
+    page: (
+      render: AttendeeActionRenderer<T>,
+      guard?: (data: T) => Promise<string | null>,
+      available?: (data: T) => Promise<boolean>,
+    ): AttendeeActionRoute =>
+      handlers.get(async (request, session, data) => {
+        if (available && !(await available(data))) return notFoundResponse();
+        const returnUrl = getReturnUrl(request);
+        const blocked = guard ? await guard(data) : null;
+        if (blocked !== null) {
+          return htmlResponse(render(data, session, returnUrl, blocked), 400);
+        }
+        const flash = applyFlash(request);
+        return htmlResponse(render(data, session, returnUrl, flash.error));
+      }),
+    verified: (
+      action: string,
+      actionLabel: string | undefined,
+      handler: (data: T, form: FormParams) => Response | Promise<Response>,
+    ): AttendeeActionRoute =>
+      handlers.post((_session, form, data) => {
+        const error = verifyOrRedirect(
+          form,
+          data.attendee.name,
+          attendeeActionUrlWithReturn(
+            data.attendee.id,
+            action,
+            form.getString("return_url"),
+          ),
+          "Attendee name",
+          actionLabel,
+        );
+        if (error) return error;
+        return handler(data, form);
+      }),
+  };
+};
+
+const listingAttendeeActions = defineAttendeeActionRoutes(
+  loadAttendeeWithHomeListing,
+);
+const attendeeRecordActions = defineAttendeeActionRoutes(loadAttendeeRecord);
 
 /** GET handler for an attendee-action confirm page: auth, load the attendee +
  * home listing, render with the flashed error and threaded return_url. An
  * optional guard can block the action up front — its message renders in the
  * page at HTTP 400 (the refund page's no-payment/already-refunded states). */
 export const attendeeActionPage = (
-  render: AttendeeActionRenderer,
+  render: AttendeeActionRenderer<AttendeeWithListing>,
   guard?: (data: AttendeeWithListing) => Promise<string | null>,
-) =>
-  attendeeActionHandlers.get(async (request, session, data) => {
-    const returnUrl = getReturnUrl(request);
-    const blocked = guard ? await guard(data) : null;
-    if (blocked !== null) {
-      return htmlResponse(render(data, session, returnUrl, blocked), 400);
-    }
-    const flash = applyFlash(request);
-    return htmlResponse(render(data, session, returnUrl, flash.error));
-  });
+): AttendeeActionRoute => listingAttendeeActions.page(render, guard);
+
+/** Confirm page for deleting a retained attendee record. Unlike listing-based
+ * actions, this works when the home listing is gone. */
+export const attendeeRecordActionPage = (
+  render: AttendeeActionRenderer<AttendeeRecord>,
+  available: (data: AttendeeRecord) => Promise<boolean>,
+): AttendeeActionRoute =>
+  attendeeRecordActions.page(render, undefined, available);
 
 /** POST handler for an attendee-scoped action that first verifies the typed
  * attendee name, bouncing back to the action's own confirm page on mismatch. */
@@ -151,22 +221,19 @@ export const verifiedAttendeeAction = (
     data: AttendeeWithListing,
     form: FormParams,
   ) => Response | Promise<Response>,
-) =>
-  attendeeActionHandlers.post((_session, form, data) => {
-    const error = verifyOrRedirect(
-      form,
-      data.attendee.name,
-      attendeeActionUrlWithReturn(
-        data.attendee.id,
-        action,
-        form.getString("return_url"),
-      ),
-      "Attendee name",
-      actionLabel,
-    );
-    if (error) return error;
-    return handler(data, form);
-  });
+): AttendeeActionRoute =>
+  listingAttendeeActions.verified(action, actionLabel, handler);
+
+/** Verified POST for record deletion, with no live-listing requirement. */
+export const verifiedAttendeeRecordAction = (
+  action: string,
+  actionLabel: string | undefined,
+  handler: (
+    data: AttendeeRecord,
+    form: FormParams,
+  ) => Response | Promise<Response>,
+): AttendeeActionRoute =>
+  attendeeRecordActions.verified(action, actionLabel, handler);
 
 /** Route params for a POST scoped to one attendee by its id alone. */
 type AttendeeIdRouteParams = { attendeeId: number };

@@ -1,5 +1,6 @@
 /** Listing deletion and owned-row cleanup. */
 
+import { OPEN_CHECKOUT_STAGE_SQL } from "#shared/db/checkout-stage-state.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
@@ -19,7 +20,8 @@ export const deleteListing = async (listingId: number): Promise<void> => {
       sql: `DELETE FROM listing_attendees
              WHERE listing_id = ?
                AND attendee_id NOT IN (
-                 SELECT attendee_id FROM checkout_stages WHERE state = 'pending'
+                  SELECT attendee_id FROM checkout_stages
+                   WHERE state ${OPEN_CHECKOUT_STAGE_SQL}
                )`,
     },
     {

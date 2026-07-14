@@ -329,9 +329,10 @@ export const assertPaymentsRetentionSafe = (days: number): number => {
   return days;
 };
 
-/** Retention (days) for resolved processed_payments rows (default: 90). Floored
- * at WEBHOOK_RETRY_WINDOW_DAYS so payment replay rows always outlive the provider
- * webhook-retry window (a too-short value throws at startup). */
+/** Retention (days) for payment replay state (default: 90): resolved
+ * processed_payments rows and booked/failed checkout-stage guards share this
+ * window. Floored at WEBHOOK_RETRY_WINDOW_DAYS so both replay rails outlive the
+ * provider webhook-retry window (a too-short value throws at startup). */
 export const PRUNE_PAYMENTS_RETENTION_DAYS = computedLimit(
   assertPaymentsRetentionSafe(readLimit("PRUNE_PAYMENTS_RETENTION_DAYS", 90)),
   90,

@@ -4,13 +4,17 @@ import { stub } from "@std/testing/mock";
 import { t } from "#i18n";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
-  attendeeIdsWithPendingStage,
-  createStagedCheckout,
   discardPendingCheckoutSessions,
+  pruneCheckoutStageRows,
+} from "#shared/db/checkout-stage-cleanup.ts";
+import {
+  attendeeIdsWithPendingStage,
+  beginCheckoutStageRefund,
+  createStagedCheckout,
   getCheckoutStageOrNull,
   listingHasPendingCheckout,
   markCheckoutStage,
-  prunePendingCheckoutStages,
+  resolvePendingStage,
   stageCheckout,
 } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -52,6 +56,12 @@ const expectStagedCheckoutRefused = async (
 };
 
 describeWithEnv("db > checkout stages", { db: true }, () => {
+  test("refuses to begin a refund for a missing stage", async () => {
+    await expect(beginCheckoutStageRefund("cs_missing_refund")).rejects.toThrow(
+      "did not enter refunding",
+    );
+  });
+
   test("fails loudly when the listing vanishes before local staging", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     using _checkout = stub(
@@ -180,12 +190,39 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     );
 
     await markCheckoutStage("cs_stage_states", "booked");
+    const bookedRow = await getDb().execute(
+      "SELECT ticket_tokens FROM checkout_stages WHERE payment_session_id = ?",
+      ["cs_stage_states"],
+    );
+    expect(bookedRow.rows[0]!.ticket_tokens).toBe("");
     expect((await getCheckoutStageOrNull("cs_stage_states"))?.state).toBe(
       "booked",
     );
     await markCheckoutStage("cs_stage_states", "failed");
     expect((await getCheckoutStageOrNull("cs_stage_states"))?.state).toBe(
       "failed",
+    );
+  });
+
+  test("indexes stage state and age for pruning and pending guards", async () => {
+    const index = await getDb().execute(
+      "PRAGMA index_info(idx_checkout_stages_state_created_at)",
+    );
+    expect(index.rows.map((row) => row.name)).toEqual(["state", "created_at"]);
+  });
+
+  test("scrubs the ticket token when healing an open stage", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    await stageCheckout("cs_stage_healed", "stripe", intentFor(listing));
+
+    await resolvePendingStage("cs_stage_healed");
+
+    const row = await getDb().execute(
+      "SELECT state, ticket_tokens FROM checkout_stages WHERE payment_session_id = ?",
+      ["cs_stage_healed"],
+    );
+    expect(row.rows.map((value) => [value.state, value.ticket_tokens])).toEqual(
+      [["failed", ""]],
     );
   });
 
@@ -239,9 +276,13 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     );
     await markCheckoutStage("cs_stage_failed", "failed");
 
-    expect(await prunePendingCheckoutStages("2020-01-01T00:00:00.000Z")).toBe(
-      1,
-    );
+    expect(
+      await pruneCheckoutStageRows(
+        "2020-01-01T00:00:00.000Z",
+        "1990-01-01T00:00:00.000Z",
+        "1990-01-01T00:00:00.000Z",
+      ),
+    ).toBe(1);
     expect(await getCheckoutStageOrNull("cs_stage_old")).toBeNull();
     expect((await getCheckoutStageOrNull("cs_stage_recent"))?.state).toBe(
       "pending",
@@ -296,7 +337,7 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     ).toBe("failed");
   });
 
-  test("names only attendees whose stage is still pending", async () => {
+  test("names attendees whose stage is pending or refunding", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     const pending = await stageCheckout(
       "cs_stage_pending_ids",
@@ -308,17 +349,24 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
       "stripe",
       intentFor(listing),
     );
+    const refunding = await stageCheckout(
+      "cs_stage_refunding_ids",
+      "stripe",
+      intentFor(listing),
+    );
+    await beginCheckoutStageRefund("cs_stage_refunding_ids");
     await markCheckoutStage("cs_stage_failed_ids", "failed");
 
-    // A resolved (failed) stage and an unknown id are both out: only the
-    // still-being-paid checkout blocks admin mutations.
+    // Both open states block admin mutations. A resolved stage and an unknown
+    // id are out.
     expect(
       await attendeeIdsWithPendingStage([
         pending.attendeeId,
+        refunding.attendeeId,
         failed.attendeeId,
         999999,
       ]),
-    ).toEqual(new Set([pending.attendeeId]));
+    ).toEqual(new Set([pending.attendeeId, refunding.attendeeId]));
     expect(await attendeeIdsWithPendingStage([])).toEqual(new Set());
   });
 
@@ -334,6 +382,9 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     // The staged listing has a mid-payment booking; an unrelated listing does not.
     expect(await listingHasPendingCheckout(listing.id)).toBe(true);
     expect(await listingHasPendingCheckout(other.id)).toBe(false);
+
+    await beginCheckoutStageRefund("cs_stage_listing_pending");
+    expect(await listingHasPendingCheckout(listing.id)).toBe(true);
 
     // Resolving the stage clears the listing, so it can be deleted again.
     await markCheckoutStage("cs_stage_listing_pending", "failed");

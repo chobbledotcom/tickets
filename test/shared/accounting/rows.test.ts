@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   bookingLegBatchInsert,
   fromDb,
+  insertManyStatement,
   insertStatement,
   selectTransfers,
 } from "#shared/accounting/rows.ts";
@@ -49,6 +50,12 @@ describe("accounting > rows > insertStatement", () => {
     const absent = insertStatement(base, recordedAt);
     expect(boundValue(absent, "posted_by")).toBe("system");
     expect(boundValue(absent, "reverses_id")).toBe(null);
+  });
+
+  test("refuses to build an insert without transfer legs", () => {
+    expect(() => insertManyStatement([], recordedAt)).toThrow(
+      "Cannot build a transfer insert with no rows",
+    );
   });
 });
 

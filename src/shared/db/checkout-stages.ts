@@ -1,5 +1,4 @@
 /* jscpd:ignore-start */
-import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { unique } from "#fp";
 import { t } from "#i18n";
@@ -12,10 +11,15 @@ import {
   checkBatchAvailability,
   createAttendeeAtomic,
 } from "#shared/db/attendees/api.ts";
-import { runAttendeePurge } from "#shared/db/attendees/delete.ts";
+import { bookingCapacityFields } from "#shared/db/attendees/capacity.ts";
+import {
+  type CheckoutStageState,
+  CheckoutStageStateSchema,
+  isOpenCheckoutStage,
+  OPEN_CHECKOUT_STAGE_SQL,
+} from "#shared/db/checkout-stage-state.ts";
 import {
   execute,
-  inPlaceholders,
   insert,
   primaryMatchingIdSet,
   queryOnePrimary,
@@ -37,9 +41,6 @@ import type {
 
 /* jscpd:ignore-end */
 
-const CheckoutStageStateSchema = v.picklist(["pending", "booked", "failed"]);
-export type CheckoutStageState = v.InferOutput<typeof CheckoutStageStateSchema>;
-
 type CheckoutStageRow = {
   attendee_id: number;
   state: CheckoutStageState;
@@ -51,6 +52,11 @@ export type CheckoutStage = {
   state: CheckoutStageState;
   ticketToken: string;
 };
+
+type TerminalCheckoutStageState = Extract<
+  CheckoutStageState,
+  "booked" | "failed"
+>;
 
 /** The order's real-quantity bookings from the signed intent — the single
  * source both the availability preflight and the quantity-0 staging derive
@@ -91,11 +97,7 @@ const stageableRefusal = async (
 ): Promise<{ error: string } | null> => {
   const bookings = await orderedBookings(intent);
   const available = await checkBatchAvailability(
-    bookings.map((booking) => ({
-      durationDays: booking.durationDays,
-      listingId: booking.listingId,
-      quantity: booking.quantity,
-    })),
+    bookings.map(bookingCapacityFields),
     intent.date,
   );
   return available ? null : { error: t("public.checkout_unavailable") };
@@ -199,18 +201,27 @@ export const getCheckoutStageOrNull = async (
   );
   if (!row) return null;
   const parsedState = v.parse(CheckoutStageStateSchema, row.state);
-  // A PENDING stage whose attendee is gone is an IMPOSSIBLE state: every
+  // An OPEN stage whose attendee is gone is an IMPOSSIBLE state: every
   // deletion path removes the stage with the attendee (deleteAttendee cascades
   // it; the prune deletes both), admin edits/merges/deletes are blocked while
-  // pending, and a listing can't be deleted while it has a pending checkout. So
-  // a dangling pending stage means a delete skipped the stage cascade — surface
+  // open, and a listing can't be deleted while it has an open checkout. So
+  // a dangling open stage means a delete skipped the stage cascade — surface
   // the bug, don't silently book fresh around it. (A RESOLVED (booked/failed)
   // dangling stage is returned as-is, so the resolved-stage guard still refuses
   // to re-process money already handled.)
-  if (row.attendee_exists === null && parsedState === "pending") {
+  if (row.attendee_exists === null && isOpenCheckoutStage(parsedState)) {
     throw new Error(
-      `Checkout stage for session ${sessionId} points at deleted attendee ${row.attendee_id} while still pending — a pending stage must never outlive its attendee`,
+      `Checkout stage for session ${sessionId} points at deleted attendee ${row.attendee_id} while still open — an open stage must never outlive its attendee`,
     );
+  }
+  // Terminal rows survive briefly as replay guards, but no longer need the
+  // bearer credential. Return their state without decrypting an empty field.
+  if (!isOpenCheckoutStage(parsedState)) {
+    return {
+      attendeeId: row.attendee_id,
+      state: parsedState,
+      ticketToken: "",
+    };
   }
   const ticketToken = await decryptSessionTokens(row.ticket_tokens);
   if (!ticketToken) throw new Error(`Checkout stage ${sessionId} has no token`);
@@ -222,23 +233,23 @@ export const getCheckoutStageOrNull = async (
 };
 
 /**
- * Which of these attendees are mid-payment: their checkout is staged and the
- * customer may still be paying. Admin mutations (edits, merges, deletes) must
- * leave such records alone — the payment claims the exact staged rows when it
- * lands, so changing OR removing them strands the paid order. Array in, set out
- * — call with one id for the single case.
+ * Which of these attendees are mid-payment: the customer may still be paying,
+ * or a paid order is finishing its refund. Admin mutations (edits, merges,
+ * deletes) must leave either state alone. Array in, set out — call with one id
+ * for the single case.
  */
 // Pinned to the primary: this gates mutations, and a replica lagging the
 // just-staged insert would let an edit slip through the guard.
 export const attendeeIdsWithPendingStage = primaryMatchingIdSet(
   (placeholders) =>
     `SELECT attendee_id AS id FROM checkout_stages
-      WHERE state = 'pending' AND attendee_id IN (${placeholders})`,
+      WHERE state ${OPEN_CHECKOUT_STAGE_SQL}
+        AND attendee_id IN (${placeholders})`,
 );
 
-/** Does this listing have any attendee mid-payment (a pending staged checkout)?
+/** Does this listing have any attendee mid-payment (an open staged checkout)?
  * Gates listing deletion: deleting a listing removes its booking rows but leaves
- * the attendee behind, which would strand a pending stage's payment (its rows
+ * the attendee behind, which would strand an open stage's payment (its rows
  * vanish, so the claim can never land). Primary-pinned, like the mutation guard
  * above — a replica lagging a just-staged insert must not let the delete slip. */
 export const listingHasPendingCheckout = async (
@@ -248,13 +259,13 @@ export const listingHasPendingCheckout = async (
     `SELECT 1 AS one
        FROM checkout_stages AS stage
        JOIN listing_attendees AS booking ON booking.attendee_id = stage.attendee_id
-      WHERE stage.state = 'pending' AND booking.listing_id = ?
+       WHERE stage.state ${OPEN_CHECKOUT_STAGE_SQL} AND booking.listing_id = ?
       LIMIT 1`,
     [listingId],
   )) !== null;
 
-/** Whether this one attendee is mid-payment — a pending staged checkout the
- * payment may still claim. Single-id form of {@link attendeeIdsWithPendingStage}
+/** Whether this one attendee is mid-payment — an open staged checkout the
+ * payment may still claim or refund. Single-id form of {@link attendeeIdsWithPendingStage}
  * for the admin-edit guards that block a save while the payment is in flight. */
 export const hasPendingCheckout = async (
   attendeeId: number,
@@ -263,64 +274,58 @@ export const hasPendingCheckout = async (
 
 export const markCheckoutStage = async (
   sessionId: string,
-  state: CheckoutStageState = "failed",
+  state: TerminalCheckoutStageState = "failed",
 ): Promise<void> => {
   await execute(
-    "UPDATE checkout_stages SET state = ? WHERE payment_session_id = ?",
+    "UPDATE checkout_stages SET state = ?, ticket_tokens = '' WHERE payment_session_id = ?",
     [state, sessionId],
   );
 };
 
-/** Resolve a stage a crash left pending after its money was already recorded.
- * Guarded to pending so a booked stage is never downgraded, and a session with
+/** Permanently route a paid stage away from activation before asking the
+ * provider for a refund. A retry may continue refunding, but can never book. */
+export const beginCheckoutStageRefund = async (
+  sessionId: string,
+): Promise<void> => {
+  const result = await execute(
+    `UPDATE checkout_stages SET state = 'refunding'
+      WHERE payment_session_id = ? AND state = 'pending'`,
+    [sessionId],
+  );
+  if (result.rowsAffected !== 1) {
+    throw new Error(
+      `Checkout stage for session ${sessionId} did not enter refunding`,
+    );
+  }
+};
+
+/** Resolve a stage a crash left open after its money was already recorded.
+ * Guarded to open states so a booked stage is never downgraded, and a session with
  * no stage is a no-op. Called when the ledger preflight answers "already
  * handled": the outcome is known, so the record must not read as mid-payment
- * forever — a pending stage blocks edits and merges and holds the staged
+ * forever — an open stage blocks edits and merges and holds the staged
  * details unprunable. */
 export const resolvePendingStage = async (sessionId: string): Promise<void> => {
   await execute(
-    `UPDATE checkout_stages SET state = 'failed'
-      WHERE payment_session_id = ? AND state = 'pending'`,
+    `UPDATE checkout_stages SET state = 'failed', ticket_tokens = ''
+      WHERE payment_session_id = ? AND state ${OPEN_CHECKOUT_STAGE_SQL}`,
     [sessionId],
   );
 };
 
-const pendingStageAttendees = (where: string): string =>
-  `SELECT stage.attendee_id
-     FROM checkout_stages AS stage
-    WHERE stage.state = 'pending'
-      AND ${where}
-      AND NOT EXISTS (
-        SELECT 1
-          FROM processed_payments AS payment
-         WHERE payment.payment_session_id = stage.payment_session_id
-      )`;
-
-/** Delete pending checkout PII only while no payment request has claimed it.
- * Built on the one shared purge mechanism (delete.ts), so a future dependent
- * table cannot leak rows through the discard. The stage rows go LAST: every
- * statement finds its attendees through the still-present checkout_stages rows
- * (the id-select reads only checkout_stages and processed_payments, so
- * deleting attendees first does not disturb it). */
-const discardPendingCheckoutsWhere = (
-  where: string,
-  args: InValue[],
-): Promise<number> =>
-  runAttendeePurge(pendingStageAttendees(where), args, { stagesLast: true });
-
-/** Discard one or more cancelled sessions through the same atomic path. */
-export const discardPendingCheckoutSessions = (
-  sessionIds: string[],
-): Promise<number> =>
-  sessionIds.length === 0
-    ? Promise.resolve(0)
-    : discardPendingCheckoutsWhere(
-        `stage.payment_session_id IN (${inPlaceholders(sessionIds)})`,
-        sessionIds,
-      );
-
-/** Remove abandoned pending checkouts older than the retention cutoff. */
-export const prunePendingCheckoutStages = (
-  cutoffIso: string,
-): Promise<number> =>
-  discardPendingCheckoutsWhere("stage.created_at < ?", [cutoffIso]);
+/** Heal an open stage from the attendee that already owns the durable payment
+ * outcome. The staged attendee was booked only when it is that same owner; a
+ * different owner means rollback-era code booked a second attendee, so the
+ * untouched quantity-zero stage failed. Neither case moves bookings or money. */
+export const resolveOpenStageFromOwner = async (
+  sessionId: string,
+  ownerAttendeeId: number,
+): Promise<void> => {
+  await execute(
+    `UPDATE checkout_stages
+        SET state = CASE WHEN attendee_id = ? THEN 'booked' ELSE 'failed' END,
+            ticket_tokens = ''
+      WHERE payment_session_id = ? AND state ${OPEN_CHECKOUT_STAGE_SQL}`,
+    [ownerAttendeeId, sessionId],
+  );
+};

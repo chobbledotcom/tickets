@@ -102,9 +102,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
       const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_stale_refund" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
+        Promise.resolve({
+          id: "re_stale_refund",
+          status: "succeeded",
+        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
       );
       try {
         const response = await handleRequest(
@@ -163,9 +164,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
       const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_stale_pkg_refund" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
+        Promise.resolve({
+          id: "re_stale_pkg_refund",
+          status: "succeeded",
+        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
       );
       try {
         const response = await handleRequest(
@@ -212,9 +214,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_inactive_refund" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
+        Promise.resolve({
+          id: "re_inactive_refund",
+          status: "succeeded",
+        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
       );
 
       try {
@@ -342,9 +345,10 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_rollback_refund" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
+        Promise.resolve({
+          id: "re_rollback_refund",
+          status: "succeeded",
+        } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
       );
 
       try {

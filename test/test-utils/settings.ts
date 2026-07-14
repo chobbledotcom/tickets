@@ -3,6 +3,7 @@ import { stub } from "@std/testing/mock";
 import type { SettingsData } from "#shared/db/settings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { STRIPE_WEBHOOK_EVENTS_VERSION } from "#shared/stripe-webhook-events.ts";
 import { describeWithEnv } from "./db.ts";
 
 /** The standard outer describe for admin-settings tests: scoped to
@@ -67,6 +68,7 @@ export const testWithSetting = (
 export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
   const { settings: s } = await import("#shared/db/settings.ts");
   await s.update.stripe.secretKey(key);
+  await s.update.stripe.webhookEventsVersion(STRIPE_WEBHOOK_EVENTS_VERSION);
   await s.update.paymentProvider("stripe");
 };
 

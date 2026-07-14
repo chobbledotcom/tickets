@@ -9,8 +9,8 @@
  */
 
 import type { InValue } from "@libsql/client";
-import type { SqlStatement } from "#shared/db/client.ts";
-import { columnMapByIds, mapByIds } from "#shared/db/query.ts";
+import { queryOnePrimary, type SqlStatement } from "#shared/db/client.ts";
+import { mapByIds } from "#shared/db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
@@ -97,6 +97,28 @@ export const usageInsert = (
         WHERE ${guard.sql}`,
 });
 
+/** Insert every chosen modifier use in one statement for a guarded booking
+ * batch. Stock was checked by the batch verdict under the same write lock. */
+export const usageBatchInsert = (
+  usages: ModifierUsage[],
+  attendeeId: number,
+): SqlStatement => {
+  if (usages.length === 0) {
+    throw new Error("Cannot build a modifier usage insert with no rows");
+  }
+  return {
+    args: [attendeeId, nowIso(), JSON.stringify(usages)],
+    sql: `INSERT INTO modifier_usages
+            (modifier_id, attendee_id, quantity, amount_applied, created)
+          SELECT CAST(json_extract(usage.value, '$.modifierId') AS INTEGER),
+                 ?,
+                 CAST(json_extract(usage.value, '$.quantity') AS INTEGER),
+                 CAST(json_extract(usage.value, '$.amountApplied') AS INTEGER),
+                 ?
+            FROM json_each(?) AS usage`,
+  };
+};
+
 /**
  * Whether any of these modifiers no longer has stock for its quantity — the
  * post-failure probe that tells a booking that failed to land *why*: a sold-out
@@ -106,18 +128,21 @@ export const usageInsert = (
 export const anyModifierSoldOut = async (
   usages: ModifierUsage[],
 ): Promise<boolean> => {
-  const ids = usages.map((u) => u.modifierId);
-  if (ids.length === 0) return false;
-  const used = await modifierUsedQuantities(ids);
-  const stockById = await columnMapByIds<number | null>(
-    "modifiers",
-    "modifier",
-    "stock",
-    ids,
-  );
-  return usages.some((u) => {
-    const stock = stockById.get(u.modifierId);
-    if (stock === null || stock === undefined) return false;
-    return stock - (used.get(u.modifierId) ?? 0) < u.quantity;
-  });
+  if (usages.length === 0) return false;
+  const row = (await queryOnePrimary<{ sold_out: number }>(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM json_each(?) AS requestedUsage
+         JOIN modifiers AS modifier
+           ON modifier.id = json_extract(requestedUsage.value, '$.modifierId')
+        WHERE modifier.stock IS NOT NULL
+          AND modifier.stock - COALESCE((
+            SELECT SUM(storedUsage.quantity)
+              FROM modifier_usages AS storedUsage
+             WHERE storedUsage.modifier_id = modifier.id
+          ), 0) < CAST(json_extract(requestedUsage.value, '$.quantity') AS INTEGER)
+     ) AS sold_out`,
+    [JSON.stringify(usages)],
+  ))!;
+  return row.sold_out === 1;
 };

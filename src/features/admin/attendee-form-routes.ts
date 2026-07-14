@@ -249,7 +249,12 @@ const handleSubmitInner = async (
     selectedTextAnswers,
   };
 
-  const result = validateParsedForm(parsed);
+  const lockedDeletedBookings = new Map(
+    [...existingByKey].filter(
+      ([, booking]) => !listingsById.has(booking.listing_id),
+    ),
+  );
+  const result = validateParsedForm(parsed, lockedDeletedBookings);
   // Re-render the submitted form in place with the given errors merged onto
   // the render options — the validation and save failure paths share this.
   const showErrors = async (

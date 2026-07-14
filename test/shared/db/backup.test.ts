@@ -4,28 +4,29 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { unzipSync, zipSync } from "fflate";
 import {
-  BACKUP_REQUIRED_WITHIN_MS,
   type BackupManifest,
+  countZipStatements,
+  createBackupZip,
+  readManifest,
+  restoreFromSql,
+  restoreFromZip,
+  splitStatements,
+} from "#shared/db/backup.ts";
+import { captureBackup, exportTable } from "#shared/db/backup-snapshot.ts";
+import {
+  BACKUP_REQUIRED_WITHIN_MS,
   backupDir,
   backupKey,
   backupLeaf,
   backupTimestamp,
-  countZipStatements,
-  createBackup,
-  createBackupZip,
   dbName,
-  exportTable,
   hasRecentBackup,
   isBackupLeaf,
   isBackupPath,
   isRemoteDatabase,
   parseBackupTime,
   pruneOldBackups,
-  readManifest,
-  restoreFromSql,
-  restoreFromZip,
-  splitStatements,
-} from "#shared/db/backup.ts";
+} from "#shared/db/backup-storage.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
@@ -117,14 +118,14 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("createBackup", () => {
     test("returns tables in SCHEMA order", async () => {
-      const backups = await createBackup();
+      const backups = (await captureBackup()).tables;
       expect(backups.map((b) => b.table)).toEqual(SCHEMA_TABLE_NAMES);
     });
 
     test("skips tables that do not exist", async () => {
       await getDb().execute("DROP TABLE IF EXISTS holidays");
       try {
-        const backups = await createBackup();
+        const backups = (await captureBackup()).tables;
         const names = backups.map((b) => b.table);
         expect(names).not.toContain("holidays");
         expect(names.length).toBe(SCHEMA_TABLE_NAMES.length - 1);

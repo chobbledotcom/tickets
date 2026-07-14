@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
+  andConditions,
   deleteByFieldStatement,
   execute,
   executeUpdate,
@@ -28,6 +29,12 @@ const emptyResultSet = (): ResultSet => ({
   rows: [],
   rowsAffected: 0,
   toJSON: () => ({}),
+});
+
+describe("andConditions", () => {
+  test("an empty condition list is always true", () => {
+    expect(andConditions([])).toEqual({ args: [], sql: "1 = 1" });
+  });
 });
 
 describe("extractUpdateColumns", () => {

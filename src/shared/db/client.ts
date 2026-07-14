@@ -302,11 +302,15 @@ export const rowExistsForIdList =
 const idSetFromRows = (rows: readonly { id: number }[]): Set<number> =>
   new Set(rows.map((row) => row.id));
 
+/** Select whether a read that can gate a write must use the primary. */
+export type PrimaryReadOptions = { primary?: boolean };
+
 export const matchingIdSet = async (
   ids: readonly number[],
   buildSql: (idsPlaceholders: string) => string,
-  { primary = false }: { primary?: boolean } = {},
+  options: PrimaryReadOptions = {},
 ): Promise<Set<number>> => {
+  const { primary = false } = options;
   if (ids.length === 0) return new Set();
   const sql = buildSql(inPlaceholders(ids));
   const args = [...ids];
@@ -432,6 +436,21 @@ export const joinStatements = (
   args: statements.flatMap((statement) => statement.args),
   sql: statements.map((statement) => statement.sql).join(joiner),
 });
+
+/** Join SQL conditions with AND, keeping each fragment grouped and its bound
+ * args in fragment order. An empty condition list is always true. */
+export const andConditions = (
+  conditions: readonly SqlStatement[],
+): SqlStatement =>
+  conditions.length === 0
+    ? { args: [], sql: "1 = 1" }
+    : joinStatements(
+        conditions.map((condition) => ({
+          args: condition.args,
+          sql: `(${condition.sql})`,
+        })),
+        " AND ",
+      );
 
 /**
  * Execute a batch with optional query logging, then invalidate caches for every

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   anyModifierSoldOut,
   modifierUsedQuantities,
+  usageBatchInsert,
 } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,6 +28,12 @@ const usage = (modifierId: number, quantity = 1) => ({
 });
 
 describeWithEnv("db > modifier-usage", { db: true }, () => {
+  test("refuses to build a batch insert without modifier uses", () => {
+    expect(() => usageBatchInsert([], 1)).toThrow(
+      "Cannot build a modifier usage insert with no rows",
+    );
+  });
+
   describe("consumeModifierStock", () => {
     test("returns true for no usages", async () => {
       expect(await consumeModifierStock(1, [])).toBe(true);

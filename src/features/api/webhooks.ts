@@ -42,14 +42,14 @@ import {
   verifyTokensWithRealLine,
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 /* jscpd:ignore-end */
-import { discardPendingCheckoutSessions } from "#shared/db/checkout-stages.ts";
+import { discardPendingCheckoutSessions } from "#shared/db/checkout-stage-cleanup.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   getActivePaymentProvider,
   type ValidatedPaymentSession,
@@ -354,7 +354,7 @@ const authenticateWebhook = async (
   // webhook using the exact notification URL from the subscription, which is the
   // public https:// URL. Deriving from request.url fails behind CDNs that
   // terminate TLS (the edge runtime sees http:// instead of https://).
-  const webhookUrl = `https://${getEffectiveDomain()}/payment/webhook`;
+  const webhookUrl = getPaymentWebhookUrl();
   const verification = await provider.verifyWebhookSignature(
     payload,
     signature,

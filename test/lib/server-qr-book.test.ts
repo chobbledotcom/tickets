@@ -12,6 +12,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
@@ -28,7 +29,10 @@ import { todayInTz } from "#shared/timezone.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { hasInputWithValue, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  getAttendeesRaw,
+} from "#test-utils/db-helpers/attendees.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -360,6 +364,23 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         checkoutStub.restore();
         providerStub.restore();
       }
+    });
+
+    test("returns the availability refusal when a direct QR listing has sold out", async () => {
+      const listing = await createTestListing({
+        fields: "",
+        maxAttendees: 1,
+        unitPrice: 500,
+      });
+      await bookTestAttendee([listing.id]);
+
+      await scanWithStripe(listing, async ({ response, stripe }) => {
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain(
+          t("public.checkout_unavailable"),
+        );
+        expect(stripe.calls()).toBe(0);
+      });
     });
 
     test("falls through to the form when the listing requires email", async () => {

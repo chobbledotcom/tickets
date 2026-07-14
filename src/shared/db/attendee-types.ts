@@ -168,6 +168,8 @@ export type AttendeeWithBookings = {
 export type BatchAvailabilityItem = {
   listingId: number;
   quantity: number;
+  /** Per-line date. When omitted, the batch's shared date is used. */
+  date?: string | null;
   /** Duration in days for multi-day bookings (defaults to 1 when absent). */
   durationDays?: number;
 };

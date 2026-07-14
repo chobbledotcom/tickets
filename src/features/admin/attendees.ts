@@ -1,48 +1,42 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin attendee management routes
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
+import { handlersFor } from "#routes/admin/handlers.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
-import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
-  attendeeHoldsUnreturnedCash,
   getAttendeePackageRowsRaw,
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { hasPendingCheckout } from "#shared/db/checkout-stages.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
-import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import {
-  availableDayCounts,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import { availableDayCounts, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
-import {
-  adminDeleteAttendeePage,
-  adminResendNotificationPage,
-} from "#templates/admin/attendees.tsx";
+import { adminResendNotificationPage } from "#templates/admin/attendees.tsx";
 import {
   type AddAttendeeFormValues,
   getAddAttendeeFields,
 } from "#templates/fields/add-attendee.ts";
+import {
+  handleAdminAttendeeDeleteGet,
+  handleAttendeeDelete,
+  handleDeleteIncomplete,
+} from "./attendee-delete.ts";
 import {
   handleAttendeeEditPost,
   handleAttendeeNewGet,
@@ -63,102 +57,7 @@ import {
   verifiedAttendeeAction,
 } from "./attendees-route-helpers.ts";
 
-/** Handle GET /admin/attendees/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = attendeeActionPage(
-  adminDeleteAttendeePage,
-);
-
-/** Delete an attendee, log the activity, and redirect. */
-const deleteAttendeeAndRedirect = async (
-  attendeeId: number,
-  listingId: number,
-  redirectTo: string,
-  activityMessage: string,
-  flashMessage: string,
-  opts?: Parameters<typeof redirect>[3],
-  releaseBookings = true,
-): Promise<Response> => {
-  // A pending staged checkout claims the exact rows when the payment lands, so
-  // deleting the record mid-payment would strand the paid order (its rows would
-  // vanish out from under the claim). Fail closed — the checkout clears itself
-  // when it finishes or expires.
-  if (await hasPendingCheckout(attendeeId)) {
-    return redirect(
-      redirectTo,
-      t("attendee_form.error_pending_checkout"),
-      false,
-      opts,
-    );
-  }
-  // A stage_active conflict resolves its stage to `failed` but leaves a held
-  // provider `payment` leg (no sale) the operator must still refund. Deleting
-  // the record would remove the note, the row, and the payment reference,
-  // leaving only orphaned ledger cash with no in-app refund path — so block it
-  // until the held cash is returned.
-  if (await attendeeHoldsUnreturnedCash(attendeeId)) {
-    return redirect(
-      redirectTo,
-      t("attendee_form.error_held_cash"),
-      false,
-      opts,
-    );
-  }
-  await deleteAttendee(attendeeId, { releaseBookings });
-  await logActivity(activityMessage, listingId, attendeeId);
-  return redirect(redirectTo, flashMessage, true, opts);
-};
-
-/** Handle POST /admin/attendees/:attendeeId/delete. The deleted attendee's
- * pages are gone, so the fallback landing is the attendees roster (a
- * submitted return_url still wins via the redirect's form option). */
-const handleAttendeeDelete = verifiedAttendeeAction(
-  "delete",
-  "deletion",
-  (data, form) =>
-    deleteAttendeeAndRedirect(
-      data.attendee.id,
-      data.listing.id,
-      "/admin/attendees",
-      `Attendee deleted from '${data.listing.name}'`,
-      t("success.attendee_deleted"),
-      { form },
-      form.getFlag("release_bookings"),
-    ),
-);
-
-/**
- * Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete
- * Deletes an attendee with an incomplete payment without requiring name confirmation.
- * Verifies the attendee is actually incomplete before deleting.
- */
-const handleDeleteIncomplete = attendeeFormAction(
-  async (data, _session, _form, listingId, attendeeId) => {
-    // The failed-payments delete form lives on the Attendees tab, so both
-    // outcomes return there — keeping the operator on the table they are
-    // clearing rather than bouncing them to Overview.
-    if (
-      !isIncompletePayment(
-        data.attendee,
-        isPaidListing(data.listing),
-        await hasAnyPaymentReference(data.attendee),
-      )
-    ) {
-      return redirect(
-        `/admin/listing/${listingId}/attendees`,
-        t("error.attendee_no_incomplete_payment"),
-        false,
-      );
-    }
-
-    return deleteAttendeeAndRedirect(
-      attendeeId,
-      listingId,
-      `/admin/listing/${listingId}/attendees`,
-      `Incomplete attendee deleted from '${data.listing.name}'`,
-      t("success.incomplete_removed"),
-    );
-  },
-);
+/* jscpd:ignore-end */
 
 /** Return a redirect response when the attendee has no active booking line, or null otherwise. */
 const redirectIfNoActiveBookingLine = async (

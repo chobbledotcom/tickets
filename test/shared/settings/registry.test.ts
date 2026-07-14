@@ -102,6 +102,7 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   SQUARE_WEBHOOK_SIGNATURE_KEY
   STRIPE_SECRET_KEY
   STRIPE_WEBHOOK_ENDPOINT_ID
+  STRIPE_WEBHOOK_EVENTS_VERSION
   STRIPE_WEBHOOK_SECRET
   SUMUP_API_KEY
   SUMUP_MERCHANT_CODE
@@ -134,6 +135,7 @@ const EXPECTED_SETTING_ROWS = [
   ["WRAPPED_PRIVATE_KEY", "plaintext", "wrappedPrivateKey", "readOnly"],
   ["SQUARE_LOCATION_ID", "plaintext", null],
   ["STRIPE_WEBHOOK_ENDPOINT_ID", "plaintext", null],
+  ["STRIPE_WEBHOOK_EVENTS_VERSION", "plaintext", null],
   ["SUMUP_MERCHANT_CODE", "plaintext", null],
   ["LATEST_SCRIPT_VERSION", "plaintext", "latestScriptVersion"],
   ["LATEST_SCRIPT_VERSION_NAME", "plaintext", "latestScriptVersionName"],

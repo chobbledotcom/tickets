@@ -489,20 +489,38 @@ const validatePaidNoQuantity = (parsed: ParsedAttendeeForm): string | null =>
 
 /** Form-wide guard: a row whose listing was deleted can only be kept as-is.
  * The editor renders it locked (a hidden no-quantity tick, no controls), so
- * this only fires on a hand-crafted submission that un-ticks the box —
- * accepting it would book a listing that no longer exists (quantity ≥ 1) or
- * silently drop the kept row on save (quantity 0). */
+ * this only fires on a hand-crafted submission that changes, duplicates, or
+ * omits the row. */
 const validateDeletedListingLocked = (
   parsed: ParsedAttendeeForm,
-): string | null =>
-  parsed.lines.some(
+  lockedBookings: ReadonlyMap<string, ListingAttendeeRow>,
+): string | null => {
+  const changesBooking = (
+    line: AttendeeFormLine,
+    booking: ListingAttendeeRow,
+  ): boolean =>
+    line.listing !== null ||
+    !line.noQuantity ||
+    line.listingId !== booking.listing_id ||
+    line.quantity !== booking.quantity;
+  const submittedByKey = Map.groupBy(parsed.lines, (line) => line.key);
+  const changedSubmittedLine = parsed.lines.some(
     (line) =>
       line.existingBooking !== null &&
       line.listing === null &&
-      !line.noQuantity,
-  )
+      changesBooking(line, line.existingBooking),
+  );
+  const changedLockedBooking = [...lockedBookings].some(([key, booking]) => {
+    const submitted = submittedByKey.get(key) ?? [];
+    return (
+      submitted.length !== 1 ||
+      submitted.some((line) => changesBooking(line, booking))
+    );
+  });
+  return changedSubmittedLine || changedLockedBooking
     ? t("attendee_form.deleted_listing_locked")
     : null;
+};
 
 /**
  * Validate the attendee block, the shared date, and each booked line. A daily
@@ -511,6 +529,7 @@ const validateDeletedListingLocked = (
  */
 export const validateParsedForm = (
   parsed: ParsedAttendeeForm,
+  lockedBookings: ReadonlyMap<string, ListingAttendeeRow> = new Map(),
 ): ValidationResult => {
   const attendeeError = validateAttendeeBlock(parsed);
   const hasDailyBooking = parsed.lines.some(isBookedDaily);
@@ -519,7 +538,8 @@ export const validateParsedForm = (
       ? t("attendee_form.date_required")
       : null;
   const formError =
-    validatePaidNoQuantity(parsed) ?? validateDeletedListingLocked(parsed);
+    validatePaidNoQuantity(parsed) ??
+    validateDeletedListingLocked(parsed, lockedBookings);
 
   const lineErrors = new Map<number, string>();
   for (let i = 0; i < parsed.lines.length; i++) {

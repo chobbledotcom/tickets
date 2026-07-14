@@ -39,6 +39,7 @@ import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/
 import {
   chargeMismatchSpec,
   deletedListingSpec,
+  refundSpec,
   refuseMismatch,
 } from "#routes/api/payment-processing/refunds.ts";
 import {
@@ -61,8 +62,10 @@ import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
+import { isOpenCheckoutStage } from "#shared/db/checkout-stage-state.ts";
 import {
   getCheckoutStageOrNull,
+  resolveOpenStageFromOwner,
   resolvePendingStage,
 } from "#shared/db/checkout-stages.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
@@ -88,6 +91,10 @@ const handleReservationConflict = async (
   existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
   if (existing.attendee_id !== null) {
+    await resolveOpenStageFromOwner(
+      existing.payment_session_id,
+      existing.attendee_id,
+    );
     return alreadyProcessedResult(intent.items[0]!.e, {
       ...existing,
       attendee_id: existing.attendee_id,
@@ -95,7 +102,10 @@ const handleReservationConflict = async (
   }
   // Replay an encrypted terminal outcome without revalidating or refunding.
   const failure = await parseSessionFailure(existing.failure_data);
-  if (failure) return { ...failure, success: false };
+  if (failure) {
+    await resolvePendingStage(existing.payment_session_id);
+    return { ...failure, success: false };
+  }
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",
     status: 409,
@@ -118,11 +128,15 @@ const replaySuccess = async ({
   paymentReference,
   sessionId,
 }: ReplaySuccessInput): Promise<PaymentResult> => {
+  // Resolve a rollback-era stage before pointing the recreated reservation at
+  // the ledger owner. The finalization trigger deliberately refuses a different
+  // attendee while the stage is open.
+  await resolveOpenStageFromOwner(sessionId, attendeeId);
   await finalizeSessionIfUnresolved(sessionId, attendeeId, paymentReference);
   return sessionSuccess(attendeeId, listingId);
 };
 
-/** The note left when the ledger answer heals a stage a crash left pending:
+/** The note left when the ledger answer heals a stage a crash left open:
  * the money is recorded, but the interrupted run never wrote its own note. */
 const healedStageNote = (paymentReference: string): string =>
   `This booking's payment was already handled, but an interruption left the record looking mid-payment. The money's story is in the ledger. Payment reference: ${paymentReference}.`;
@@ -164,11 +178,11 @@ const replaySessionFromLedgerOrNull = async (
       // The money is already accounted for. A stage still pending here is a
       // crash leftover — the keep-and-refund paths resolve their stage LAST,
       // so a crash after the ledger post can lose that flip. The outcome is
-      // known, so resolve it (a pending stage blocks edits and merges and
+      // known, so resolve it (an open stage blocks edits and merges and
       // holds the staged details unprunable) and leave the note the
       // interrupted run never wrote.
       const healedStage = await getCheckoutStageOrNull(sessionId);
-      if (healedStage?.state === "pending") {
+      if (healedStage && isOpenCheckoutStage(healedStage.state)) {
         // Stamp the payment reference the interrupted run never wrote — the
         // money legs post BEFORE stampStagedPaymentId, so a crash between them
         // leaves an empty payment_id, hiding the payment panel and refund path
@@ -257,12 +271,26 @@ const processReservedSession = async (
   // stage, so reading it earlier would waste a primary round-trip per replay.
   const stage = await getCheckoutStageOrNull(sessionId);
 
+  // Once any delivery starts refunding a staged order, every later delivery
+  // stays on that rail even if the original refusal disappears. Re-validating
+  // into activation here could issue a live ticket for money already returned.
+  if (stage?.state === "refunding") {
+    return storeRefundedBooking(
+      session,
+      intent,
+      datelessGhostBookings(intent.items),
+      refundSpec("refund_retry")(
+        `Continuing the refund already started for session ${sessionId}`,
+      ),
+    );
+  }
+
   // The ledger preflight above is the designed replay rail. Reaching here with
   // a stage that is already resolved means both the idempotency row and the
   // ledger trail for this session are gone (or were never written — e.g. a
   // swallowed placeholder-refund post). Fail closed: re-processing could book
   // rows for money that was already refunded months ago.
-  if (stage && stage.state !== "pending") {
+  if (stage && !isOpenCheckoutStage(stage.state)) {
     return alreadyHandledSession(sessionId, signedListingId);
   }
 
@@ -408,12 +436,12 @@ export const processPaymentSession: SessionProcessor = async (
   // that happen: a held reservation would make the redelivery collide with the
   // lock and return 409 until the row goes stale (~5 min), gating refund
   // recovery on a local timer instead of provider redelivery. Releasing lets
-  // the next delivery re-claim and re-refund immediately. This CANNOT
-  // double-pay: every provider refunds the full charge amount and rejects a
-  // refund that exceeds the already-refunded balance, and tryRefund treats an
-  // already-refunded payment as success — so a redelivery after a refund that
-  // actually went through (but reported failure) records success, not a second
-  // payout.
+  // the next delivery re-claim and re-refund immediately. A staged order has
+  // already entered its durable `refunding` state, so re-claiming can only
+  // finish that refund, never reconsider activation after the refusal changes.
+  // This cannot double-pay: every provider refunds the full charge amount and
+  // rejects a refund that exceeds the already-refunded balance, and tryRefund
+  // treats an already-refunded payment as success.
   if (!result.success && result.refunded === false) {
     await releaseReservation(sessionId);
     return result;
@@ -430,6 +458,10 @@ export const processPaymentSession: SessionProcessor = async (
       refunded: result.refunded,
       status: result.status,
     });
+    // A handled failure is terminal. Keep its replay guard, but release any
+    // staged attendee and scrub the copied bearer token even if the specific
+    // refusal path was interrupted before doing its own final stage update.
+    await resolvePendingStage(sessionId);
   }
 
   return result;

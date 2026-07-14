@@ -93,10 +93,12 @@ import {
   logRequest,
   runWithRequestId,
 } from "#shared/logger.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
+import { STRIPE_WEBHOOK_EVENTS_VERSION } from "#shared/stripe-webhook-events.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
 
@@ -619,6 +621,14 @@ const applyFlashFromCookie = (request: Request, url: URL): string | null => {
   return flash ? flashId : null;
 };
 
+/** Load the Stripe upgrade module only for an install whose event set is stale. */
+const reconcileStripeWebhook = async (): Promise<void> => {
+  const { reconcileStoredStripeWebhook } = await import(
+    "#shared/stripe-webhook-reconcile.ts"
+  );
+  await reconcileStoredStripeWebhook(getPaymentWebhookUrl());
+};
+
 /**
  * Run settings load, schedule pruning, resolve effective domain.
  * These are per-request setup tasks that must happen before routing.
@@ -656,6 +666,16 @@ const prepareRequestEnvironment = async (
 
   // Load effective domain (custom_domain from DB if set, else request hostname)
   loadEffectiveDomain(url);
+
+  // Existing Stripe installs gain newly-required events once per event-set
+  // version. The current marker costs no extra query (it is in the infra
+  // bundle); only a stale install loads Stripe and calls its API.
+  if (
+    settings.paymentProvider === "stripe" &&
+    settings.stripe.webhookEventsVersion !== STRIPE_WEBHOOK_EVENTS_VERSION
+  ) {
+    addPendingWork(reconcileStripeWebhook());
+  }
 };
 
 /** Route the request and attach security headers / flash cookie clearing */

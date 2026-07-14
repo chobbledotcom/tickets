@@ -36,6 +36,7 @@ import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import {
+  beginCheckoutStageRefund,
   type CheckoutStage,
   getCheckoutStageOrNull,
   markCheckoutStage,
@@ -141,7 +142,7 @@ type HeldStagedCharge = {
  * went back. Shared by both paid-but-not-ticketed terminal paths (a mid-payment
  * close and a mid-payment edit conflict) so neither can post one without the
  * other. A failed ledger write is a system fault, not part of the outcome: it
- * throws so the caller leaves the stage pending and the provider's next delivery
+ * throws so the caller leaves the stage open and the provider's next delivery
  * re-runs the whole path (a settled refund reads back as refunded, so a retry
  * never moves money twice). */
 const recordHeldStagedMoney = async (
@@ -160,7 +161,7 @@ const recordHeldStagedMoney = async (
     );
   }
   // Stamp the payment reference only AFTER the money is in the ledger: a failed
-  // post throws above, leaving the still-pending stage with no reference for the
+  // post throws above, leaving the still-open stage with no reference for the
   // Actions tab to expose a mid-flight refund against.
   await stampStagedPaymentId(stage, session, intent);
 };
@@ -238,7 +239,7 @@ export const settleBalanceSession = async (
  * un-refunded payment is a terminal, operator-resolved outcome (the note's
  * manual-refund instruction stands), reported with `refunded` absent. A STAGED
  * order reuses its existing quantity-0 record, so a retry is safe and better:
- * it stays retryable (`refunded: false`, no ledger legs, stage left pending) so
+ * it stays retryable (`refunded: false`, no ledger legs, stage left refunding) so
  * the provider's next delivery re-attempts the refund — the same design as
  * {@link failStagedValidation}.
  */
@@ -265,9 +266,12 @@ export const storeRefundedBooking = async (
           bookings,
         })) as CreateAttendeeSuccess
       ).attendees[0]!.id;
+  if (stage?.state === "pending") {
+    await beginCheckoutStageRefund(session.id);
+  }
   const refunded = await tryRefund(session.paymentReference, listingId);
   // A STAGED order whose provider refund FAILED must stay retryable, not go
-  // terminal: leave the stage pending with NO ledger legs so the next delivery
+  // terminal: leave the stage refunding with NO ledger legs so the next delivery
   // re-runs the whole path and re-attempts tryRefund (a settled refund reads
   // back as success, so a retry never refunds twice). Posting the placeholder
   // payment leg now would make the ledger preflight (bookingLedgerDisposition)
@@ -280,7 +284,7 @@ export const storeRefundedBooking = async (
   if (stage && !refunded) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Staged refund not settled for ${attendeeId} (${spec.code}); leaving stage pending to retry: ${spec.detail}`,
+      detail: `Staged refund not settled for ${attendeeId} (${spec.code}); leaving stage refunding to retry: ${spec.detail}`,
       listingId,
     });
     return {
@@ -297,7 +301,7 @@ export const storeRefundedBooking = async (
     refunded,
   );
   // A failed ledger post on a STAGED order must retry, not resolve: throw so the
-  // stage stays pending and the provider's next delivery re-posts (tryRefund
+  // stage stays refunding and the provider's next delivery re-posts (tryRefund
   // reads the settled refund back as success, so it never refunds twice). The
   // no-stage path can't retry without minting a duplicate placeholder, so it
   // proceeds — postWithoutThrowing has already logged the miss.
@@ -307,7 +311,7 @@ export const storeRefundedBooking = async (
     );
   }
   // Stamp the payment reference only AFTER the money is recorded, so a failed
-  // post never leaves a refundable reference on a still-pending stage — the
+  // post never leaves a refundable reference on a still-open stage — the
   // Actions tab would otherwise offer to refund a charge the ledger hasn't seen.
   if (stage) await stampStagedPaymentId(stage, session, intent);
   if (refunded) {
@@ -328,11 +332,11 @@ export const storeRefundedBooking = async (
     refundedNoteText(attendeeId, spec, refunded, session.paymentReference),
   );
   // The stage resolves LAST — after the refund attempt and the ledger/note
-  // writes — so a throw anywhere above leaves it pending and the redelivery
+  // writes — so a throw anywhere above leaves it refunding and the redelivery
   // re-runs the whole path (tryRefund reads an already-settled refund as
   // success, so a retry never refunds twice). A crash between the ledger post
   // and this line is healed by the next delivery's orphaned-ledger answer,
-  // which resolves the leftover pending stage (resolvePendingStage).
+  // which resolves the leftover open stage (resolvePendingStage).
   if (stage) await markCheckoutStage(session.id);
   // Status 200: a fully-handled terminal outcome (booking kept, money returned or
   // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
@@ -392,12 +396,18 @@ export const failStagedValidation = async (
 ): Promise<PaymentFailureResult> => {
   const stage = await getCheckoutStageOrNull(session.id);
   if (!stage) return result;
+  // The provider call already happened during listing validation. Persist the
+  // refund-only rail before any local outcome handling, so a failed ledger post
+  // or false provider result can never leave this stage eligible to activate.
+  await beginCheckoutStageRefund(session.id);
   // A refund that FAILED must stay retryable: the reservation is released and
   // the provider's next delivery re-attempts it. Resolving the stage here
   // would make that retry hit the resolved-stage guard and answer "already
   // processed" without ever refunding — so the stage only resolves once the
   // money is actually back.
-  if (result.refunded !== true) return result;
+  if (result.refunded !== true) {
+    return result;
+  }
   // The staged attendee is the operator's record of the order, so its ledger
   // must show the charge and the refund that actually happened — the same
   // payment + refund_cash round-trip every other kept-and-refunded booking
@@ -416,7 +426,7 @@ export const failStagedValidation = async (
       session.paymentReference,
     ),
   );
-  // Resolved last: a throw above leaves the stage pending, so the redelivery
+  // Resolved last: a throw above leaves the stage refunding, so the redelivery
   // re-runs this path (the settled refund reads back as refunded). A crash
   // between the ledger post and this line is healed by the next delivery's
   // orphaned-ledger answer (resolvePendingStage).

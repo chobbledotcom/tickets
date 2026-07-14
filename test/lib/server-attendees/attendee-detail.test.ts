@@ -10,14 +10,11 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setTestEnv } from "#test-utils/env.ts";
+import { postHeldPayment } from "#test-utils/ledger.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
-import {
-  resolvedDeletedListingAttendee,
-  setupListingAndAttendee,
-  stageMidPaymentAttendee,
-} from "./helpers.ts";
+import { setupListingAndAttendee, stageMidPaymentAttendee } from "./helpers.ts";
 
 describeWithEnv(
   "server (admin attendees) > attendee detail",
@@ -69,6 +66,7 @@ describeWithEnv(
         // A hidden tab's URL is a 404, so `visible` IS the authorization.
         expect((await adminGet(`${base}/edit`)).status).toBe(404);
         expect((await adminGet(`${base}/actions`)).status).toBe(404);
+        expect((await adminGet(`${base}/delete`)).status).toBe(404);
         expect((await adminGet(`${base}/ledger`)).status).toBe(404);
       });
 
@@ -92,21 +90,27 @@ describeWithEnv(
         expect(html).not.toContain(`href="/admin/listing/${listing.id}"`);
       });
 
-      test("hides the Actions tab for a resolved record whose listing was deleted", async () => {
-        const { attendeeId } = await resolvedDeletedListingAttendee(
-          "cs_detail_deleted_actions",
+      test("does not offer Delete while the attendee holds unreturned cash", async () => {
+        const listing = await createTestListing({ maxAttendees: 100 });
+        const attendee = await createTestAttendee(
+          listing.id,
+          listing.slug,
+          "Held Actions",
+          "held-actions@example.com",
         );
-        const base = `/admin/attendees/${attendeeId}`;
+        await postHeldPayment({
+          amount: 1000,
+          attendeeId: attendee.id,
+          listingId: listing.id,
+        });
+        const base = `/admin/attendees/${attendee.id}`;
 
-        const html = await expectHtmlResponse(await adminGet(base), 200);
-        // The checkout has resolved (no pending banner), so the write tabs are
-        // back — but every attendee-scoped action route loads the home listing
-        // and 404s now it is gone, so the Actions tab must not offer links that
-        // only 404.
-        expect(html).not.toContain("Checkout pending");
-        expect(html).toContain(`href="${base}/edit"`);
-        expect(html).not.toContain(`href="${base}/actions"`);
-        expect((await adminGet(`${base}/actions`)).status).toBe(404);
+        const html = await expectHtmlResponse(
+          await adminGet(`${base}/actions`),
+          200,
+        );
+        expect(html).not.toContain(`href="${base}/delete"`);
+        expect((await adminGet(`${base}/delete`)).status).toBe(404);
       });
 
       test("shows the write tabs again once the checkout resolves", async () => {

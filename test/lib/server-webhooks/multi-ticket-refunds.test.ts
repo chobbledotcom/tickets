@@ -1,20 +1,18 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
-import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
   expectMergedMultiListingAttendee,
   expectSessionFailed,
   expectWebhookKeptAndRefunded,
-  postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -48,7 +46,7 @@ describeWithEnv(
         quantity: 1,
       });
 
-      const mockVerify = await stubWebhookVerify(
+      const { mockRefund } = await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({
           amountTotal: 800,
           eventId: "evt_multi_cap",
@@ -66,28 +64,7 @@ describeWithEnv(
           paymentIntent: "pi_multi_cap",
           sessionId: "cs_multi_cap",
         }),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve(
-          true as unknown as Awaited<
-            ReturnType<typeof stripeApi.refundPayment>
-          >,
-        ),
-      );
-
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-          mockRefund.restore();
-        },
-        200,
-        (json) => {
-          expect(json.processed).toBe(false);
-          // The capacity reason now lives in the note; the customer sees the
-          // generic saved-details message.
-          expect(json.error).toContain("saved your details");
-        },
+        "re_multi_cap",
       );
 
       // Signed by us → the order is kept as a quantity-0 placeholder (one

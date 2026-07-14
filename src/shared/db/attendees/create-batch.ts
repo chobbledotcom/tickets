@@ -2,6 +2,7 @@ import { bookingLegBatchInsert } from "#shared/accounting/rows.ts";
 import { assertPostable } from "#shared/accounting/store.ts";
 import type { EncryptedAttendeeData } from "#shared/db/attendee-types.ts";
 import {
+  andConditions,
   executeBatchWithResults,
   inPlaceholders,
   type SqlStatement,
@@ -49,11 +50,11 @@ export const ATTENDEE_BY_TOKEN_SQL =
 /** Abort a whole libsql batch when the preceding guarded booking did not land.
  * The deliberate NOT NULL failure rolls the transaction back; no compensating
  * delete is needed and no partial attendee becomes visible. */
-const BOOKING_WRITE_GUARD: SqlStatement = {
-  args: [],
+export const bookingWriteGuard = (expectedChanges = 1): SqlStatement => ({
+  args: [expectedChanges],
   sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() = 0`,
-};
+        SELECT NULL, NULL, 1 WHERE changes() != ?`,
+});
 
 const MODIFIER_WRITE_GUARD: SqlStatement = {
   args: [],
@@ -62,16 +63,20 @@ const MODIFIER_WRITE_GUARD: SqlStatement = {
         SELECT NULL, NULL, 1, 0, '' WHERE changes() = 0`,
 };
 
-const isBookingWriteGuard = (error: unknown): boolean =>
-  error instanceof Error &&
-  error.message.includes(
-    "NOT NULL constraint failed: listing_attendees.listing_id",
-  );
+/** Match the deliberate missing-column failure used to abort a guarded batch. */
+export const isRequiredColumnFailure =
+  (column: string) =>
+  (error: unknown): boolean =>
+    error instanceof Error &&
+    error.message.includes(`NOT NULL constraint failed: ${column}`);
+
+export const isBookingWriteGuardFailure: (error: unknown) => boolean =
+  isRequiredColumnFailure("listing_attendees.listing_id");
 
 const guardedBookingStatements = (
   bookingStatements: SqlStatement[],
 ): SqlStatement[] =>
-  bookingStatements.flatMap((statement) => [statement, BOOKING_WRITE_GUARD]);
+  bookingStatements.flatMap((statement) => [statement, bookingWriteGuard()]);
 
 const runAtomicBatch = async (
   prepared: PreparedWrite,
@@ -94,7 +99,7 @@ const runAtomicBatch = async (
       insertId: Number(attendeeResult.rows[0]!.id),
     };
   } catch (error) {
-    if (isBookingWriteGuard(error)) return null;
+    if (isBookingWriteGuardFailure(error)) return null;
     throw error;
   }
 };
@@ -132,11 +137,6 @@ class ModifierStockFailure extends Error {}
 export const isModifierStockFailure = (
   error: unknown,
 ): error is ModifierStockFailure => error instanceof ModifierStockFailure;
-
-const andConditions = (conditions: SqlStatement[]): SqlStatement => ({
-  args: conditions.flatMap((condition) => condition.args),
-  sql: conditions.map((condition) => `(${condition.sql})`).join(" AND "),
-});
 
 const noExistingLedgerCondition = (legs: TransferInput[]): SqlStatement => {
   if (legs.length === 0) return { args: [], sql: "1 = 1" };
@@ -221,12 +221,7 @@ export const writeAsLedgerBatch = async (
       ...finalizeStatements,
     ]);
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes(
-        "NOT NULL constraint failed: modifier_usages.modifier_id",
-      )
-    ) {
+    if (isRequiredColumnFailure("modifier_usages.modifier_id")(error)) {
       throw new ModifierStockFailure();
     }
     throw error;

@@ -140,11 +140,34 @@ const renderInsert = (
   };
 };
 
+/** Render several transfer plans as one INSERT statement. The column plan stays
+ * shared with every single-row writer; only the VALUES groups are combined. */
+const renderManyInsert = (rows: LegColumn[][]): SqlStatement => {
+  if (rows.length === 0) {
+    throw new Error("Cannot build a transfer insert with no rows");
+  }
+  const first = rows[0]!;
+  return {
+    args: rows.flatMap((columns) => columns.flatMap((column) => column.args)),
+    sql: `INSERT INTO transfers (${first.map((column) => column.col).join(", ")}) VALUES ${rows
+      .map((columns) => `(${columns.map((column) => column.expr).join(", ")})`)
+      .join(", ")}`,
+  };
+};
+
 /** Build the INSERT for one transfer. `recordedAt` is the write-time clock. */
 export const insertStatement = (
   t: TransferInput,
   recordedAt: string,
 ): SqlStatement => renderInsert(legColumns(t, recordedAt));
+
+/** Build one INSERT containing every leg of an event. The caller guarantees a
+ * non-empty event and performs conflict checks before applying the statement. */
+export const insertManyStatement = (
+  inputs: TransferInput[],
+  recordedAt: string,
+): SqlStatement =>
+  renderManyInsert(inputs.map((input) => legColumns(input, recordedAt)));
 
 /**
  * Rewrite a built transfer INSERT as `INSERT OR IGNORE`, so a leg whose unique

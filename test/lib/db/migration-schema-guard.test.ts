@@ -86,7 +86,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-12_remove_broken_image_records",
         "2026-07-12_checkout_stages",
       ],
-      schemaHash: "17f1vns",
+      schemaHash: "17w72en",
     });
   });
 });

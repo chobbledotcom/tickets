@@ -39,7 +39,7 @@ const METADATA: Record<string, ColumnMetadata> = {
   email: { description: "Attendee email address", label: "Email" },
   listings: {
     description:
-      "The row's listings in display order, each linked to its detail page",
+      "The row's listings in display order, with live listings linked",
     isHtml: true,
     label: "Listings",
   },

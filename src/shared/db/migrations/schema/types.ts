@@ -22,6 +22,10 @@ export type Table = {
  * `sql` is the full idempotent `CREATE TRIGGER IF NOT EXISTS …` statement.
  */
 export type Trigger = {
+  /** Every table/column the trigger reads or writes. Trigger sync waits until
+   * all are live, so an earlier migration cannot install a trigger whose body
+   * refers to a table or column a later migration has not added yet. */
+  dependencies?: Record<string, readonly string[]>;
   name: string;
   table: string;
   sql: string;

@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
+import { currentBatchCapacityCondition } from "#shared/db/attendees/capacity.ts";
 import {
-  buildBatchCapacitySql,
+  buildBatchCapacityCondition,
   buildCapacityCondition,
   buildListingCountSql,
   type CapacityBucket,
@@ -53,6 +54,15 @@ describe("dateToRange", () => {
     expect(dateToRange(DAY).startAt).toBe("2026-05-01T00:00:00Z");
     expect(dateToRange(DAY).endAt).toBe("2026-05-02T00:00:00.000Z");
     expect(dateToRange(DAY, 3).endAt).toBe("2026-05-04T00:00:00.000Z");
+  });
+});
+
+describe("currentBatchCapacityCondition", () => {
+  test("an empty order needs no database reads", async () => {
+    expect(await currentBatchCapacityCondition([])).toEqual({
+      args: [],
+      sql: "1 = 1",
+    });
   });
 });
 
@@ -191,7 +201,7 @@ describe("buildCapacityCondition", () => {
   });
 });
 
-describe("buildBatchCapacitySql", () => {
+describe("buildBatchCapacityCondition", () => {
   const bucket = (
     perDay: [string, number][],
     total: number,
@@ -201,31 +211,33 @@ describe("buildBatchCapacitySql", () => {
   });
 
   test("no demand at all trivially fits", () => {
-    expect(buildBatchCapacitySql(new Map(), new Map())).toEqual({
+    expect(buildBatchCapacityCondition(new Map(), new Map())).toEqual({
       args: [],
-      sql: "SELECT 1 AS fits",
+      sql: "1 = 1",
     });
   });
 
   test("a zero-total bucket produces no clause", () => {
     expect(
-      buildBatchCapacitySql(new Map([[LISTING, bucket([], 0)]]), new Map()),
-    ).toEqual({ args: [], sql: "SELECT 1 AS fits" });
+      buildBatchCapacityCondition(
+        new Map([[LISTING, bucket([], 0)]]),
+        new Map(),
+      ),
+    ).toEqual({ args: [], sql: "1 = 1" });
   });
 
   test("date-less listing demand checks the running total against the cap", () => {
-    const { sql, args } = buildBatchCapacitySql(
+    const { sql, args } = buildBatchCapacityCondition(
       new Map([[LISTING, bucket([], QTY)]]),
       new Map(),
     );
     expect(args).toEqual([LISTING]);
     expect(sql).toContain(`+ ${QTY} <=`);
     expect(sql).toContain(`id = ${LISTING} AND active = 1`);
-    expect(sql).toContain("THEN 1 ELSE 0 END AS fits");
   });
 
   test("a single remaining unit of demand still gets its clause", () => {
-    const { sql } = buildBatchCapacitySql(
+    const { sql } = buildBatchCapacityCondition(
       new Map([[LISTING, bucket([], 1)]]),
       new Map(),
     );
@@ -234,7 +246,7 @@ describe("buildBatchCapacitySql", () => {
 
   test("per-day listing demand emits one clause per day", () => {
     const other = dateToRange("2026-05-02");
-    const { args, sql } = buildBatchCapacitySql(
+    const { args, sql } = buildBatchCapacityCondition(
       new Map([
         [
           LISTING,
@@ -266,7 +278,7 @@ describe("buildBatchCapacitySql", () => {
   });
 
   test("group demand folds the cart's date-less units into every day", () => {
-    const { args, sql } = buildBatchCapacitySql(
+    const { args, sql } = buildBatchCapacityCondition(
       new Map(),
       new Map([[9, bucket([[DAY, 2]], 3)]]),
     );
@@ -278,7 +290,7 @@ describe("buildBatchCapacitySql", () => {
   });
 
   test("date-less-only group demand emits a single total clause", () => {
-    const { args, sql } = buildBatchCapacitySql(
+    const { args, sql } = buildBatchCapacityCondition(
       new Map(),
       new Map([[9, bucket([], 3)]]),
     );

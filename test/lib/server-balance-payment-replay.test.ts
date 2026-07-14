@@ -53,9 +53,10 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
       ),
     );
     using mockRefund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_should_not_happen" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
+      Promise.resolve({
+        id: "re_should_not_happen",
+        status: "succeeded",
+      } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
     );
 
     const first = await handleRequest(

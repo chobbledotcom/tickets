@@ -28,13 +28,14 @@ export const insertUnfinalizedPayment = async (
   sessionId: string,
   processedAtIso: string,
 ): Promise<void> => {
-  await getDb().execute(
-    insert("processed_payments", {
-      attendee_id: null,
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
-    }),
-  );
+  await getDb().execute({
+    args: [sessionId, sessionId, processedAtIso],
+    sql: `INSERT INTO processed_payments
+            (payment_session_id, attendee_id, checkout_stage_attendee_id, processed_at)
+          VALUES (?, NULL, (
+            SELECT attendee_id FROM checkout_stages WHERE payment_session_id = ?
+          ), ?)`,
+  });
 };
 
 export const insertFailedPayment = async (
@@ -55,6 +56,16 @@ export const paymentExists = async (sessionId: string): Promise<boolean> => {
   const { rows } = await getDb().execute({
     args: [sessionId],
     sql: "SELECT 1 FROM processed_payments WHERE payment_session_id = ?",
+  });
+  return rows.length > 0;
+};
+
+export const checkoutStageExists = async (
+  sessionId: string,
+): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [sessionId],
+    sql: "SELECT 1 FROM checkout_stages WHERE payment_session_id = ?",
   });
   return rows.length > 0;
 };

@@ -103,7 +103,7 @@ const buildUndatedListingCountSql = (
 
 /** The count subquery for one listing — daily listings count overlapping rows
  * for the day, others read the running `booked_quantity`. Exported so the batch
- * read preflight ({@link buildBatchCapacitySql}) counts a listing the SAME way
+ * read preflight ({@link buildBatchCapacityCondition}) counts a listing the SAME way
  * the atomic write predicate does. */
 export const buildListingCountSql = (
   listingId: number,
@@ -367,14 +367,10 @@ const bucketClauses = (
   return bucket.total > 0 ? [clauseFor(null, bucket.total)] : [];
 };
 
-/**
- * One SELECT returning `fits` (1/0) for a whole cart's combined demand, built
- * from the SAME listing/group count subqueries the atomic write predicate uses
- * — so the read-time preflight and the write-time guard can never count
- * capacity differently. Listing demand is checked per listing; group demand is
- * checked per group with the cart's non-daily demand folded into each day.
- */
-export const buildBatchCapacitySql = (
+/** The whole-cart capacity predicate used by both the availability SELECT and
+ * staged activation's guarded write. Demand is already combined per listing,
+ * group, and occupied day, so one condition protects the complete cart. */
+export const buildBatchCapacityCondition = (
   listingDemand: Map<number, CapacityBucket>,
   groupDemand: Map<number, CapacityBucket>,
 ): SqlStatement => {
@@ -393,10 +389,7 @@ export const buildBatchCapacitySql = (
       ),
     );
   }
-  if (clauses.length === 0) return { args: [], sql: "SELECT 1 AS fits" };
+  if (clauses.length === 0) return { args: [], sql: "1 = 1" };
   const combined = joinStatements(clauses, " AND ");
-  return {
-    args: combined.args,
-    sql: `SELECT CASE WHEN ${combined.sql} THEN 1 ELSE 0 END AS fits`,
-  };
+  return combined;
 };

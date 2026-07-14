@@ -102,6 +102,10 @@ export const STRING_SETTING_DEFINITIONS = [
     key: CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
     storage: "plaintext",
   }),
+  setting({
+    key: CONFIG_KEYS.STRIPE_WEBHOOK_EVENTS_VERSION,
+    storage: "plaintext",
+  }),
   setting({ key: CONFIG_KEYS.SUMUP_MERCHANT_CODE, storage: "plaintext" }),
   setting({
     accessor: { name: "latestScriptVersion" },

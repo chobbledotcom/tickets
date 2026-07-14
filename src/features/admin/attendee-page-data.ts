@@ -70,12 +70,12 @@ import type {
  * loads once and every tab shares. */
 export type LoadedAttendee = {
   attendee: Attendee;
+  /** Loaded only for the Actions tab; null fails closed elsewhere. */
+  canDelete: boolean | null;
   canRefund: boolean;
   existing: ExistingLine[];
-  /** True when the attendee's home listing still exists. False for a record
-   * whose listing was deleted mid-payment (the staged rows are kept): the
-   * attendee-scoped action routes all load the home listing and 404 when it is
-   * gone, so the Actions tab hides rather than offer links that only 404. */
+  /** True when the attendee's home listing still exists. Listing-based actions
+   * hide when it is gone; record deletion remains available. */
   homeListingExists: boolean;
   /** True while this record's checkout is staged and the customer may still be
    * paying. The write tabs and actions hide behind it — every mutation is also
@@ -105,6 +105,7 @@ export const loadAttendeeForEdit: (
       ]);
     return {
       attendee,
+      canDelete: null,
       canRefund,
       existing,
       homeListingExists: homeListing !== null,

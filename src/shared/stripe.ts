@@ -29,6 +29,7 @@ import type {
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { REQUIRED_STRIPE_WEBHOOK_EVENTS } from "#shared/stripe-webhook-events.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /** Lazy-load Stripe SDK only when needed */
@@ -194,6 +195,20 @@ const listWebhookEndpoints = async (
 ): Promise<Stripe.WebhookEndpoint[]> =>
   (await client.webhookEndpoints.list({ limit: 100 })).data;
 
+/** Create the one webhook shape every Stripe setup uses and require its
+ * one-time signing secret before the endpoint can be stored. */
+export const createStripeWebhookEndpoint = async (
+  client: Stripe,
+  webhookUrl: string,
+): Promise<Stripe.WebhookEndpoint & { secret: string }> => {
+  const endpoint = await client.webhookEndpoints.create({
+    enabled_events: [...REQUIRED_STRIPE_WEBHOOK_EVENTS],
+    url: webhookUrl,
+  });
+  if (!endpoint.secret) throw new Error("Stripe did not return webhook secret");
+  return { ...endpoint, secret: endpoint.secret };
+};
+
 /**
  * Internal implementation of webhook endpoint setup.
  * Defined before stripeApi so it can be assigned directly.
@@ -232,17 +247,7 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
     // Create new webhook endpoint (preserves any existing webhooks). The
     // expired event lets an abandoned checkout's staged details be discarded
     // the moment it can no longer be paid, instead of waiting out the pruner.
-    const endpoint = await client.webhookEndpoints.create({
-      enabled_events: [
-        "checkout.session.completed",
-        "checkout.session.expired",
-      ],
-      url: webhookUrl,
-    });
-
-    if (!endpoint.secret) {
-      return { error: "Stripe did not return webhook secret", success: false };
-    }
+    const endpoint = await createStripeWebhookEndpoint(client, webhookUrl);
 
     return {
       endpointId: endpoint.id,

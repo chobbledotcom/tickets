@@ -206,7 +206,7 @@ describe("adminDashboardPage", () => {
     );
   });
 
-  test("newest attendees not shown when all attendees have unknown listing_id", () => {
+  test("newest attendees shows a retained booking for a deleted listing", () => {
     const listings = [testListingWithCount({ id: 1 })];
     const attendees = [testAttendee({ id: 1, listing_id: 999 })];
     const html = adminDashboardPage(
@@ -215,11 +215,12 @@ describe("adminDashboardPage", () => {
       undefined,
       attendees,
     );
-    expect(html).not.toContain("Newest");
-    expect(html).not.toContain("<details open");
+    expect(html).toContain("Newest 1 Attendee</summary>");
+    expect(html).toContain("Deleted listing");
+    expect(html).not.toContain('href="/admin/listing/999"');
   });
 
-  test("newest attendees skips attendees with unknown listing_id", () => {
+  test("newest attendees keeps live and deleted-listing bookings", () => {
     const listings = [testListingWithCount({ id: 1, name: "Known Listing" })];
     const attendees = [
       testAttendee({ id: 1, listing_id: 1, name: "Valid" }),
@@ -232,8 +233,9 @@ describe("adminDashboardPage", () => {
       attendees,
     );
     expect(html).toContain("Valid");
-    expect(html).not.toContain("Orphan");
-    expect(html).toContain("Newest 1 Attendee</summary>");
+    expect(html).toContain("Orphan");
+    expect(html).toContain("Deleted listing");
+    expect(html).toContain("Newest 2 Attendees</summary>");
   });
 });
 

@@ -85,7 +85,7 @@ export const redirectRequest = (id: string) =>
 /** Stub the provider refund to succeed (deterministic — no network). */
 export const stubRefundOk = () =>
   stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id: "re_ok" } as unknown as Awaited<
+    Promise.resolve({ id: "re_ok", status: "succeeded" } as unknown as Awaited<
       ReturnType<typeof stripeApi.refundPayment>
     >),
   );

@@ -23,12 +23,13 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 /* jscpd:ignore-end */
 import {
+  asOrderLegs,
   bookingEventGroup,
   mapBooking,
   mapRefund,
 } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
+import { postTransferGroups } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
@@ -277,7 +278,9 @@ export type PlaceholderRefundFacts = {
  * Record the cash round-trip of a stored-but-refunded placeholder booking — the
  * quantity-0 line we keep so a signed payment we can't honour is never lost from
  * the diary. Posts the `payment` we received and, when the provider refund
- * succeeded, the `refund_cash` returning it. Deliberately posts NO `sale` leg:
+ * succeeded, the `refund_cash` returning it. Both event groups are posted in one
+ * atomic batch, so the payment can never commit without its completed refund.
+ * Deliberately posts NO `sale` leg:
  * the booking was never honoured, so no revenue is recognised and the quantity-0
  * line's projected `price_paid` stays 0 (a sale leg would re-break that invariant
  * and read as still-paid). A failed refund posts only the payment, so the ledger
@@ -304,35 +307,29 @@ export const recordPlaceholderRefund = (
     "placeholder refund ledger post",
     facts.attendeeId,
     async () => {
-      // A booking whose only money fact is the cash received: gross 0 drops the
-      // sale leg, leaving just the `payment` leg (mapBooking omits zero-amount legs).
-      await postTransfers(
-        await mapBooking({
-          amountPaid: facts.amount,
-          attendeeId: facts.attendeeId,
-          bookingFee: 0,
-          eventId: facts.eventId,
-          lines: [{ gross: 0, listingId: facts.listingId }],
-          modifiers: [],
-          occurredAt: facts.occurredAt,
-        }),
-      );
-      // No refund: the payment leg alone is the complete record (we still hold
-      // the money), so this call posted everything it had to — report success.
-      if (!refunded) return true;
-      // Reverse the payment we just posted as refund_cash (read back so mapRefund
-      // gets the stored legs). This runs once per session — a redelivery replays the
-      // terminal outcome before reaching here — so there is never a prior reversal.
-      const payments = (
-        await transfersByAccount(attendeeAccount(facts.attendeeId))
-      ).filter((leg) => leg.kind === KIND.payment);
-      await postTransfers(
-        await mapRefund({
-          memo,
-          occurredAt: facts.occurredAt,
-          orderLegs: payments,
-        }),
-      );
+      // Gross 0 drops the sale leg, leaving just the payment. The refund mapper
+      // only needs the leg's money identity, so it can map the reversal before
+      // either group is stored and the batch can commit both or neither.
+      const payment = await mapBooking({
+        amountPaid: facts.amount,
+        attendeeId: facts.attendeeId,
+        bookingFee: 0,
+        eventId: facts.eventId,
+        lines: [{ gross: 0, listingId: facts.listingId }],
+        modifiers: [],
+        occurredAt: facts.occurredAt,
+      });
+      const groups = refunded
+        ? [
+            payment,
+            await mapRefund({
+              memo,
+              occurredAt: facts.occurredAt,
+              orderLegs: asOrderLegs(payment, facts.occurredAt),
+            }),
+          ]
+        : [payment];
+      await postTransferGroups(groups);
       return true;
     },
   );

@@ -367,11 +367,28 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("refundPayment delegation", () => {
-    test("returns true when refund succeeds", async () => {
-      await settings.update.stripe.secretKey("sk_test_mock");
-      const result = await stripePaymentProvider.refundPayment("pi_test_123");
-      expect(result).toBe(true);
-    });
+    for (const [status, completed] of [
+      ["succeeded", true],
+      ["pending", false],
+      ["requires_action", false],
+      ["failed", false],
+      ["canceled", false],
+    ] as const) {
+      test(`returns ${completed} when Stripe reports ${status}`, async () => {
+        const client = await stripeClient();
+        await withMocks(
+          () =>
+            stub(client.refunds, "create", () =>
+              Promise.resolve({ id: `re_${status}`, status } as never),
+            ),
+          async () => {
+            expect(
+              await stripePaymentProvider.refundPayment(`pi_${status}`),
+            ).toBe(completed);
+          },
+        );
+      });
+    }
 
     test("returns false when refund fails", async () => {
       const client = await stripeClient();

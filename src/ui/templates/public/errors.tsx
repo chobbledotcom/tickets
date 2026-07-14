@@ -43,13 +43,16 @@ export const notFoundPage = (): string =>
  * non-standalone child or a hidden package member whose `/ticket/<slug>` 404s)
  * renders the error without a dead link to offer.
  */
-export const qrBookErrorPage = (slug: string | null): string =>
+export const qrBookErrorPage = (
+  slug: string | null,
+  message = t("public.qr_book_error.message"),
+): string =>
   simplePublicPage(
     t("public.qr_book_error.title"),
     t("public.qr_book_error.heading"),
   )(
     <>
-      <p>{t("public.qr_book_error.message")}</p>
+      <p>{message}</p>
       {slug !== null && (
         <p>
           <a href={`/ticket/${escapeHtml(slug)}`}>

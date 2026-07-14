@@ -34,8 +34,11 @@ import type {
 import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 
-const errorResponse = (slug: string, status: number): Response =>
-  htmlResponse(qrBookErrorPage(slug), status);
+const errorResponse = (
+  slug: string,
+  status: number,
+  message?: string,
+): Response => htmlResponse(qrBookErrorPage(slug, message), status);
 
 /** QR error with NO fallback booking link — for a listing that has no standalone
  * `/ticket/<slug>` page (a non-standalone child or a hidden package member),
@@ -126,7 +129,7 @@ const skipToCheckout = (
     `qr-book listing=${listing.id}`,
     request,
     stagedSessionCreator(intent),
-    () => errorResponse(listing.slug, 500),
+    (message, status) => errorResponse(listing.slug, status, message),
   );
 };
 

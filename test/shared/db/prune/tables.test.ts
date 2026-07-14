@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import {
   pruneCheckoutStages,
   pruneContacts,
@@ -16,15 +17,18 @@ import {
   PRUNE_CHECKOUT_STAGES_RETENTION_MS,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
+  PRUNE_PAYMENTS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
+  STALE_RESERVATION_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
+  checkoutStageExists,
   contactPreferenceExists,
   insertContactPreference,
   insertLoginAttempt,
@@ -33,8 +37,10 @@ import {
   insertString,
   insertSumupCheckout,
   insertTokenAttempt,
+  insertUnfinalizedPayment,
   loginAttemptExists,
   oldOrphanIso,
+  paymentExists,
   stringExists,
   sumupCheckoutExists,
   tokenAttemptExists,
@@ -59,6 +65,76 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       );
 
       expect(await pruneCheckoutStages()).toBe(0);
+      expect(await attendeeExists(attendeeId)).toBe(true);
+    });
+
+    test("deletes an old stage after clearing its stale payment claim", async () => {
+      const oldStage = new Date(
+        nowMs() - PRUNE_CHECKOUT_STAGES_RETENTION_MS - 60_000,
+      ).toISOString();
+      const staleClaim = new Date(
+        nowMs() - STALE_RESERVATION_MS - 60_000,
+      ).toISOString();
+      const attendeeId = await insertPendingCheckoutStage(
+        "stage_stale_claim",
+        oldStage,
+      );
+      await insertUnfinalizedPayment("stage_stale_claim", staleClaim);
+
+      expect(await pruneCheckoutStages()).toBe(1);
+      expect(await attendeeExists(attendeeId)).toBe(false);
+      expect(await checkoutStageExists("stage_stale_claim")).toBe(false);
+      expect(await paymentExists("stage_stale_claim")).toBe(false);
+    });
+
+    test("keeps an old stage while its payment claim is fresh", async () => {
+      const oldStage = new Date(
+        nowMs() - PRUNE_CHECKOUT_STAGES_RETENTION_MS - 60_000,
+      ).toISOString();
+      const attendeeId = await insertPendingCheckoutStage(
+        "stage_fresh_claim",
+        oldStage,
+      );
+      await insertUnfinalizedPayment(
+        "stage_fresh_claim",
+        new Date(nowMs() - 1000).toISOString(),
+      );
+
+      expect(await pruneCheckoutStages()).toBe(0);
+      expect(await attendeeExists(attendeeId)).toBe(true);
+      expect(await checkoutStageExists("stage_fresh_claim")).toBe(true);
+    });
+
+    test("deletes resolved stage replay guards after payment retention", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+      ).toISOString();
+      const attendeeId = await insertPendingCheckoutStage(
+        "stage_old_resolved",
+        old,
+      );
+      await getDb().execute(
+        "UPDATE checkout_stages SET state = 'failed', ticket_tokens = '' WHERE payment_session_id = ?",
+        ["stage_old_resolved"],
+      );
+
+      expect(await pruneCheckoutStages()).toBe(1);
+      expect(await checkoutStageExists("stage_old_resolved")).toBe(false);
+      expect(await attendeeExists(attendeeId)).toBe(true);
+    });
+
+    test("keeps resolved stage replay guards within payment retention", async () => {
+      const attendeeId = await insertPendingCheckoutStage(
+        "stage_recent_resolved",
+        new Date(nowMs() - 1000).toISOString(),
+      );
+      await getDb().execute(
+        "UPDATE checkout_stages SET state = 'booked', ticket_tokens = '' WHERE payment_session_id = ?",
+        ["stage_recent_resolved"],
+      );
+
+      expect(await pruneCheckoutStages()).toBe(0);
+      expect(await checkoutStageExists("stage_recent_resolved")).toBe(true);
       expect(await attendeeExists(attendeeId)).toBe(true);
     });
   });
