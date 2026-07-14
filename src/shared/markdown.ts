@@ -7,6 +7,7 @@
  *     `javascript:`/`data:` URLs can't smuggle script execution past step 1.
  */
 
+import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -192,6 +193,10 @@ const leafTokens = (token: Token): Token[] => {
 const rewriteToken = (token: Token, matcher: LinkMatcher): string => {
   if (token.type === "link") {
     if (!linkMatches(matcher, token.href)) return token.raw;
+    // `Token` is `MarkedToken | Tokens.Generic`; Generic has `tokens?`
+    // optional and `type: string`, so narrowing on `type === "link"` still
+    // leaves `tokens` as `Token[] | undefined`. The assert narrows it.
+    assert(token.tokens, "Markdown link has no parsed text");
     return rewriteChildren(token.text, token.tokens, matcher);
   }
   if (isTableToken(token)) return rewriteTable(token, matcher);
