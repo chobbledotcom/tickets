@@ -1030,6 +1030,39 @@ is next touched. Keep the copy plain per the Simple-Language rules.
 
 ---
 
+---
+
+## Stripe webhook setup hardening — deferred edges (from PR #1827)
+
+*Origin: CodeRabbit and Codex review of PR #1827 (the same-URL cleanup +
+atomic credentials + shared URL helper PR). The create-first refactor and
+endpoint-limit fallback were applied in that PR; the one edge below was
+judged out of scope and recorded here.*
+
+`setupWebhookEndpointImpl` in `src/shared/stripe.ts` creates the new endpoint
+only — old same-URL endpoints are deleted by a separate
+`cleanupOldWebhookEndpoints` call that the settings route invokes AFTER
+`settings.update.stripe.webhookConfig` saves the new endpoint ID + secret to
+the DB. This ordering ensures a DB-save failure leaves the old endpoint
+(whose secret matches the DB) in place. If Stripe rejects the create because
+the account is at its webhook-endpoint cap, setup deletes same-URL strays
+(keeping the recorded endpoint intact) and retries the create. One edge
+remains:
+
+- **Same-URL stray listing doesn't paginate.** `fetchWebhookEndpoints` calls
+  `client.webhookEndpoints.list({ limit: 100 })` once and returns `.data`
+  without following Stripe's `has_more` cursor. A site that has accumulated
+  more than 100 webhook endpoints (rare — would require many failed setups
+  or a long-running test environment) would leave strays beyond the first
+  page un-deleted. Impact is limited: the new endpoint is already live and
+  the DB points at it, so leftover strays are duplicate-delivery-only, not
+  a signing-secret mismatch. Fix direction: follow the `has_more`/cursor
+  loop in `fetchWebhookEndpoints` so the same-URL filter sees every
+  endpoint. Starting point: `src/shared/stripe.ts` (`fetchWebhookEndpoints`
+  and `listSameUrlEndpointIds`).
+
+---
+
 ## Bunny subrequest budget follow-ups
 
 *Origin: request-fan-out audit for PR #1820.*
