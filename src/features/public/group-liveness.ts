@@ -17,7 +17,6 @@ import {
   remainingByListingOverGroups,
 } from "#shared/db/attendees/capacity.ts";
 import {
-  getActiveListingsByGroupId,
   getActiveListingsByGroupIds,
   getGroupIdsByListingIds,
   getGroupPackagePricesByGroupIds,
@@ -26,33 +25,29 @@ import {
   packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import type {
+  Group,
+  GroupWithMembers,
+  ListingWithCount,
+} from "#shared/types.ts";
 import {
   classifyForDiscovery,
   type DiscoveryClassification,
-  dropHiddenPackageMembers,
 } from "./discovery.ts";
 
 /* jscpd:ignore-end */
 
-/** A group's members as buyers may see them on that group's own surfaces. A
- * package keeps its full membership; a regular group drops hidden-package
- * members, which belong only to that package. */
-const visibleGroupMembers = <T extends { id: number }>(
-  group: { is_package: boolean },
-  members: T[],
-): Promise<T[]> =>
-  group.is_package
-    ? Promise.resolve(members)
-    : dropHiddenPackageMembers(members);
-
-/** Load one group's buyer-visible active members. */
-export const getVisibleGroupMembers = async (
-  group: Group,
-): Promise<ListingWithCount[]> =>
-  visibleGroupMembers(group, await getActiveListingsByGroupId(group.id));
-
 type MembersByGroup = ReadonlyMap<number, readonly ListingWithCount[]>;
+
+type PublicGroupSummary = Pick<Group, "description" | "name" | "slug">;
+
+export const publicGroupSummary = ({
+  group,
+}: GroupWithMembers): PublicGroupSummary => ({
+  description: group.description,
+  name: group.name,
+  slug: group.slug,
+});
 
 type GroupMemberOperation<Result> = (
   groupList: readonly Group[],
@@ -123,6 +118,12 @@ export const getVisibleGroupMembersByGroupIds: LoadGroupMembers = async (
   const membersByGroup = await activeMembersByGroup(groupList);
   return visibleGroupMembersFrom(groupList, membersByGroup);
 };
+
+/** Load one group's buyer-visible active members through the batch path. */
+export const getVisibleGroupMembers = async (
+  group: Group,
+): Promise<ListingWithCount[]> =>
+  membersOf(group, await getVisibleGroupMembersByGroupIds([group])).slice();
 
 const groupHasBookableMember = (
   members: readonly ListingWithCount[],
@@ -246,37 +247,62 @@ export const groupBookable = async (
     group.id,
   );
 
-const visibleBookableGroupIds: GroupMemberOperation<
-  ReadonlySet<number>
-> = async (groupList, membersByGroup) =>
-  getBookableGroupIds(
-    groupList,
-    await visibleGroupMembersFrom(groupList, membersByGroup),
-  );
+type LoadedBookableGroups = {
+  ids: ReadonlySet<number>;
+  membersByGroup: MembersByGroup;
+};
 
 /** Load and decide several groups while overlapping package checks with the
  * hidden-member lookup regular groups need. */
-export const loadBookableGroupIds = async (
+const loadBookableGroups = async (
   groupList: readonly Group[],
-): Promise<ReadonlySet<number>> => {
+): Promise<LoadedBookableGroups> => {
   const membersByGroup = await activeMembersByGroup(groupList);
   const { packages, regular } = groupKinds(groupList);
-  const [packageIds, regularIds] = await Promise.all([
+  const visibleRegularMembers = visibleGroupMembersFrom(
+    regular,
+    membersByGroup,
+  );
+  const getRegularIds = async (): Promise<ReadonlySet<number>> =>
+    getBookableGroupIds(regular, await visibleRegularMembers);
+  const [packageIds, regularIds, regularMembersByGroup] = await Promise.all([
     getBookableGroupIds(packages, membersByGroup),
-    visibleBookableGroupIds(regular, membersByGroup),
+    getRegularIds(),
+    visibleRegularMembers,
   ]);
-  return new Set([...packageIds, ...regularIds]);
+  const packageMembersByGroup = new Map(
+    packages.map((group) => [
+      group.id,
+      membersOf(group, membersByGroup).slice(),
+    ]),
+  );
+  return {
+    ids: new Set([...packageIds, ...regularIds]),
+    membersByGroup: new Map([
+      ...packageMembersByGroup,
+      ...regularMembersByGroup,
+    ]),
+  };
 };
 
+export const loadBookableGroupIds = async (
+  groupList: readonly Group[],
+): Promise<ReadonlySet<number>> => (await loadBookableGroups(groupList)).ids;
+
 /** Load non-hidden groups whose Book link leads to a bookable page. */
-export const loadPublicGroups = async (): Promise<Group[]> => {
+export const loadPublicGroups = async (): Promise<GroupWithMembers[]> => {
   const visibleGroups = (await groups.cache.getAll()).filter(
     (group) => !group.hidden,
   );
-  const bookableIds = await loadBookableGroupIds(visibleGroups);
-  return visibleGroups.filter((group) => bookableIds.has(group.id));
+  const loaded = await loadBookableGroups(visibleGroups);
+  return visibleGroups
+    .filter((group) => loaded.ids.has(group.id))
+    .map((group) => ({
+      group,
+      members: membersOf(group, loaded.membersByGroup).slice(),
+    }));
 };
 
 /** Packages a public surface can advertise as first-class products. */
-export const loadBookablePackages = async (): Promise<Group[]> =>
-  (await loadPublicGroups()).filter((group) => group.is_package);
+export const loadBookablePackages = async (): Promise<GroupWithMembers[]> =>
+  (await loadPublicGroups()).filter(({ group }) => group.is_package);

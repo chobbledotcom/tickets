@@ -13,7 +13,10 @@ import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
 } from "#routes/public/discovery.ts";
-import { loadBookablePackages } from "#routes/public/group-liveness.ts";
+import {
+  loadBookablePackages,
+  publicGroupSummary,
+} from "#routes/public/group-liveness.ts";
 /* jscpd:ignore-end */
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/ticket-payment.ts";
 import { listingHasSpots } from "#shared/booking.ts";
@@ -63,11 +66,9 @@ export const handleListListings = async (): Promise<Response> => {
   // Packages are first-class products: a bookable package bundle is listed by
   // name/slug (booked whole at /ticket/<group-slug>), so a hidden package stays
   // discoverable even though its member listings are dropped above.
-  const packages = (await loadBookablePackages()).map((g) => ({
-    description: g.description,
-    name: g.name,
-    slug: g.slug,
-    url: `/ticket/${g.slug}`,
+  const packages = (await loadBookablePackages()).map((loaded) => ({
+    ...publicGroupSummary(loaded),
+    url: `/ticket/${loaded.group.slug}`,
   }));
   return apiResponse({ listings, packages });
 };

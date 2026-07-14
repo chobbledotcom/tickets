@@ -2,6 +2,9 @@
 
 export const BENCHMARK_REGULAR_GROUPS = 12;
 export const BENCHMARK_PACKAGE_GROUPS = 2;
+export const BENCHMARK_ROBOTS_BODY =
+  "User-agent: *\nAllow: /listings/\nDisallow: /\n";
+export const BENCHMARK_ROBOTS_CONTENT_TYPE = "text/plain; charset=utf-8";
 
 const numberedName = (kind: string, number: number): string =>
   `Benchmark ${kind} ${String(number).padStart(2, "0")}`;
@@ -55,6 +58,20 @@ export const balancedRotation = <T>(items: readonly T[], run: number): T[] => {
   const cycle = Math.floor(run / items.length);
   const order = cycle % 2 === 0 ? items : items.toReversed();
   return rotate(order, run % items.length);
+};
+
+export const balancedCycles = <T>(
+  runs: readonly T[],
+  positionsPerCycle: number,
+): T[][] => {
+  if (runs.length % positionsPerCycle !== 0) {
+    throw new Error(
+      `Run count ${runs.length} must be a multiple of positions per cycle ${positionsPerCycle}`,
+    );
+  }
+  return Array.from({ length: runs.length / positionsPerCycle }, (_, cycle) =>
+    runs.slice(cycle * positionsPerCycle, (cycle + 1) * positionsPerCycle),
+  );
 };
 
 export const requiredEnv = (key: string): string => {

@@ -29,7 +29,7 @@
  * child pool read as available here and are refused at the form instead.
  */
 
-import { compact, groupBy, uniqueBy } from "#fp";
+import { compact, groupBy, requiredMapValue, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
   htmlResponse,
@@ -73,10 +73,7 @@ import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
 } from "./discovery.ts";
-import {
-  getVisibleGroupMembersByGroupIds,
-  loadPublicGroups,
-} from "./group-liveness.ts";
+import { loadBookablePackages } from "./group-liveness.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
@@ -121,20 +118,17 @@ type OrderCatalog = {
  * hidden-package members never appear standalone), the bookable packages with
  * their members, and the evaluator options for both. */
 const loadOrderCatalog = async (): Promise<OrderCatalog> => {
-  const [rawListings, publicGroups] = await Promise.all([
+  const [rawListings, packageGroups] = await Promise.all([
     loadOrderListings(),
-    loadPublicGroups(),
+    loadBookablePackages(),
   ]);
   // A hidden package's members never appear standalone — only the package name
   // is public — so drop them before classifying and building cards.
   const listings = await dropHiddenPackageMembers(rawListings);
-  const packageGroups = publicGroups.filter((group) => group.is_package);
-  const [classification, membersByGroupId, priceRowsByGroupId] =
-    await Promise.all([
-      classifyForDiscovery(listings),
-      getVisibleGroupMembersByGroupIds(packageGroups),
-      getGroupPackagePricesByGroupIds(packageGroups.map((group) => group.id)),
-    ]);
+  const [classification, priceRowsByGroupId] = await Promise.all([
+    classifyForDiscovery(listings),
+    getGroupPackagePricesByGroupIds(packageGroups.map(({ group }) => group.id)),
+  ]);
   // Drop non-standalone children (not selectable), then build cards and project
   // child-derived sold-out onto the surviving parents. A `bookable_alone` child
   // keeps its card and joins the cart like any listing; when its parent lands
@@ -147,18 +141,22 @@ const loadOrderCatalog = async (): Promise<OrderCatalog> => {
     await buildTicketListingsWithGroupCapacity(offered),
     classification,
   );
-  // Both maps carry every bookable package: the members map seeds an entry
-  // per requested group, and a bookable bundle always has membership rows.
+  // A bookable bundle always has membership price rows.
   const packages = packageGroups.map(
-    (group): OrderPackage => ({
+    ({ group, members }): OrderPackage => ({
       group,
-      members: membersByGroupId.get(group.id)!,
-      quantities: packageMemberMaps(priceRowsByGroupId.get(group.id)!)
-        .quantities,
+      members,
+      quantities: packageMemberMaps(
+        requiredMapValue(
+          priceRowsByGroupId,
+          group.id,
+          `Package prices missing for group ${group.id}`,
+        ),
+      ).quantities,
     }),
   );
   const options = [
-    // Bookable packages lead the gallery; the loadPublicGroups gate already
+    // Bookable packages lead the gallery; the shared package gate already
     // proved each whole bundle fits, so they are bookable alone.
     ...packages.map((pkg) =>
       packageOption(pkg.group, pkg.members, pkg.quantities, true),

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
 import {
+  balancedCycles,
   balancedRotation,
   benchmarkCatalogueMarkers,
   requireBenchmarkCatalogue,
@@ -13,6 +14,19 @@ const completeCatalogueBody = (): string =>
   benchmarkCatalogueMarkers().join("\n");
 
 describe("cold-start benchmark support", () => {
+  test("balancedCycles rejects a partial measurement cycle", () => {
+    expect(() => balancedCycles([1, 2, 3, 4, 5], 4)).toThrow(
+      "Run count 5 must be a multiple of positions per cycle 4",
+    );
+  });
+
+  test("balancedCycles keeps every complete measurement cycle", () => {
+    expect(balancedCycles([1, 2, 3, 4, 5, 6], 3)).toEqual([
+      [1, 2, 3],
+      [4, 5, 6],
+    ]);
+  });
+
   test("balancedRotation balances positions and pair order", () => {
     const items = ["a", "b", "c"];
     expect(

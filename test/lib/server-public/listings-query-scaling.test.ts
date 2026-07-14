@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getVisibleGroupMembers } from "#routes/public/group-liveness.ts";
 import { groups } from "#shared/db/groups.ts";
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -12,19 +13,32 @@ import { recordQueries } from "#test-utils/record-queries.ts";
 
 // jscpd:ignore-end
 
-const recordListingsPage = async (names: string[]): Promise<string[]> => {
+const recordPublicPage = async (
+  path: string,
+  names: string[],
+): Promise<string[]> => {
   await settings.update.showPublicSite(true);
   groups.cache.invalidate();
   invalidateListingsCache();
   const seen: string[] = [];
   const restore = recordQueries(seen);
   try {
-    await assertPublicHtml("/listings", ...names);
+    await assertPublicHtml(path, ...names);
   } finally {
     restore();
   }
   return seen;
 };
+
+const recordListingsPage = (names: string[]): Promise<string[]> =>
+  recordPublicPage("/listings", names);
+
+const batchedMemberQueries = (seen: readonly string[]): string[] =>
+  seen.filter((sql) =>
+    sql.startsWith(
+      "SELECT json_group_array(groupListing.group_id) AS group_ids,",
+    ),
+  );
 
 const addGroupPageFixtures = async (
   kind: "group" | "package",
@@ -71,11 +85,7 @@ describeWithEnv(
           "SELECT DISTINCT child_listing_id AS id FROM listing_parents",
         ),
       );
-      const batchedMembers = seen.filter((sql) =>
-        sql.startsWith(
-          "SELECT json_group_array(groupListing.group_id) AS group_ids,",
-        ),
-      );
+      const batchedMembers = batchedMemberQueries(seen);
       const singleGroupMembers = seen.filter((sql) =>
         sql.includes(
           "listing.id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
@@ -88,6 +98,52 @@ describeWithEnv(
       expect(batchedMembers.length).toBe(1);
       expect(singleGroupMembers.length).toBe(0);
       expect(seen.length).toBe(first.length);
+    });
+
+    test("loads one group's members through the grouped query", async () => {
+      const group = await createTestGroup({
+        name: "One grouped query",
+        slug: "one-grouped-query",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        name: "One grouped listing",
+      });
+      const seen: string[] = [];
+      const restore = recordQueries(seen);
+      let memberIds: number[] = [];
+      try {
+        memberIds = (await getVisibleGroupMembers(group)).map(
+          (member) => member.id,
+        );
+      } finally {
+        restore();
+      }
+
+      expect(memberIds).toEqual([listing.id]);
+      expect(batchedMemberQueries(seen).length).toBe(1);
+      expect(
+        seen.filter((sql) =>
+          sql.includes(
+            "listing.id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
+          ),
+        ).length,
+      ).toBe(0);
+    });
+
+    test("reuses package members on the order page", async () => {
+      await settings.update.orderEnabled(true);
+      const names = await addGroupPageFixtures("package", 20, 1);
+      const seen = await recordPublicPage("/order", names);
+
+      expect(batchedMemberQueries(seen).length).toBe(1);
+    });
+
+    test("reuses package members for a date-filtered listings page", async () => {
+      const names = await addGroupPageFixtures("package", 30, 1);
+      const seen = await recordPublicPage("/listings?date=2030-01-01", names);
+
+      expect(batchedMemberQueries(seen).length).toBe(1);
     });
 
     test("projects a shared listing once before mapping it to each group", async () => {

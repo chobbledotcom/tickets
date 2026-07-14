@@ -17,6 +17,7 @@ import { median, medianAbsoluteDeviation } from "./strip-lib.ts";
 import {
   BENCHMARK_PACKAGE_GROUPS,
   BENCHMARK_REGULAR_GROUPS,
+  balancedCycles,
   balancedRotation,
   benchmarkGroupName,
   benchmarkListingName,
@@ -208,10 +209,8 @@ const balancedRequestSlope = (
   durationOf: (report: ChildReport) => number,
 ): number =>
   median(
-    Array.from({ length: runs.length / LATENCIES_MS.length }, (_, cycle) => {
-      const slopes = runs
-        .slice(cycle * LATENCIES_MS.length, (cycle + 1) * LATENCIES_MS.length)
-        .map((run) => requestSlope(run, durationOf));
+    balancedCycles(runs, LATENCIES_MS.length).map((cycle) => {
+      const slopes = cycle.map((run) => requestSlope(run, durationOf));
       return meanOf(slopes, (slope) => slope);
     }),
   );

@@ -13,7 +13,7 @@ import {
   SELECT_PREFIX,
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
-import type { Group, ListingWithCount } from "#shared/types.ts";
+import type { GroupWithMembers } from "#shared/types.ts";
 import { Icon, type IconName } from "#templates/components/actions.tsx";
 import { CARD_GRID_CLASS, cardInner } from "#templates/components/card.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -54,12 +54,6 @@ export const OrderCartButtonBody = ({
 export type OrderGalleryStates = {
   anyNeedsDate: boolean;
   labelFor: (key: string) => string;
-};
-
-/** A package offered on the order gallery. */
-export type OrderGalleryPackage = {
-  group: Group;
-  members: ListingWithCount[];
 };
 
 /** The card body a selectable order card wraps: hidden checkbox, the shared
@@ -154,7 +148,7 @@ const renderOrderCard =
  */
 const renderOrderPackageCard =
   (states: OrderGalleryStates) =>
-  (pkg: OrderGalleryPackage): string => {
+  (pkg: GroupWithMembers): string => {
     if (isReadOnly()) {
       return unavailableCard(
         "",
@@ -199,7 +193,7 @@ const renderDateField = (): string =>
  */
 export const orderGalleryPage = (
   listings: TicketListing[],
-  packages: OrderGalleryPackage[],
+  packages: GroupWithMembers[],
   states: OrderGalleryStates,
   nav: PublicNavProps,
   websiteTitle: string,

@@ -5,6 +5,10 @@
  */
 
 import { toFileUrl } from "@std/path";
+import {
+  BENCHMARK_ROBOTS_BODY,
+  BENCHMARK_ROBOTS_CONTENT_TYPE,
+} from "./support.ts";
 
 const [target, mode] = Deno.args;
 if (!target) {
@@ -36,12 +40,11 @@ if (mode === "request") {
     console.error(`first request failed with status ${response.status}`);
     Deno.exit(1);
   }
-  const expectedBody = "User-agent: *\nAllow: /listings/\nDisallow: /\n";
-  if (body !== expectedBody) {
+  if (body !== BENCHMARK_ROBOTS_BODY) {
     console.error("first request did not return the exact robots.txt body");
     Deno.exit(1);
   }
-  if (response.headers.get("content-type") !== "text/plain; charset=utf-8") {
+  if (response.headers.get("content-type") !== BENCHMARK_ROBOTS_CONTENT_TYPE) {
     console.error("first request did not return the robots.txt content type");
     Deno.exit(1);
   }

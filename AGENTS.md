@@ -421,7 +421,7 @@ configuration, the returned function takes the data.
 Most production requests land on a freshly booted edge isolate with a
 ~500ms startup budget and a limited subrequest budget
 (`scripts/bench/cold-start/bundle-load.ts` measures single-file load and
-`first-request.ts` measures request round trips). The rules, with their
+`scripts/bench/cold-start/first-request.ts` measures request round trips). The rules, with their
 reference implementations:
 
 - **Nothing heavy at module load.** Entry points only register the handler

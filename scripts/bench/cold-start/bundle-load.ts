@@ -14,7 +14,13 @@ import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { buildEdgeBundle } from "../../edge-bundle-lib.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, stripBase64Payloads, strippedChars } from "./strip-lib.ts";
-import { balancedRotation, sampleMap, samplesFor } from "./support.ts";
+import {
+  BENCHMARK_ROBOTS_BODY,
+  BENCHMARK_ROBOTS_CONTENT_TYPE,
+  balancedRotation,
+  sampleMap,
+  samplesFor,
+} from "./support.ts";
 
 const OUT_DIR = "./dist/bench-cold-start";
 const FULL = `${OUT_DIR}/serve-app.js`;
@@ -78,7 +84,7 @@ const buildVariants = async (): Promise<void> => {
 
   await Deno.writeTextFile(
     HELLO,
-    'export const serveHandler = () => new Response("User-agent: *\\nAllow: /listings/\\nDisallow: /\\n", { headers: { "content-type": "text/plain; charset=utf-8" } });\n',
+    `export const serveHandler = () => new Response(${JSON.stringify(BENCHMARK_ROBOTS_BODY)}, { headers: { "content-type": ${JSON.stringify(BENCHMARK_ROBOTS_CONTENT_TYPE)} } });\n`,
   );
 
   log(
