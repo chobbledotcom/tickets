@@ -1,8 +1,8 @@
 /**
  * Child for the first-request benchmark: one freshly booted isolate against
  * the parent's prepared database, every statement paying a fake network
- * delay. Serves `GET /` twice (cold, warm) and prints timings + a per-query
- * timeline as one JSON line. Usage: first-request-child.ts <latencyMs>
+ * delay. Serves `GET /listings` twice (cold, warm) and prints timings + a
+ * per-query timeline as one JSON line. Usage: first-request-child.ts <latencyMs>
  */
 
 import {
@@ -24,7 +24,8 @@ import {
 } from "#shared/update.ts";
 import { serveHandler } from "#src/serve-app.ts";
 import { timedRunner } from "../../timed-run.ts";
-import { serveAndDrainRoot } from "./serve-root.ts";
+import { serveAndDrain } from "./serve-request.ts";
+import { requiredEnv } from "./support.ts";
 
 // Keep stdout clean for the JSON result line the parent parses.
 setSuppressDebugLogs(true);
@@ -58,7 +59,9 @@ const pushEvent = (sql: string, start: number): void => {
 /** Pay the fake latency, run the query, land it on the timeline. */
 const record = timedRunner({
   after: (sql, startedAt) => pushEvent(sql, startedAt),
-  before: () => delay(latencyMs),
+  before: async () => {
+    if (latencyMs > 0) await delay(latencyMs);
+  },
 });
 
 const statementSql = (statement: InStatement): string =>
@@ -119,13 +122,14 @@ const wrapClient = (client: Client): Client =>
       ),
   });
 
-const dbUrl = Deno.env.get("DB_URL");
-if (!dbUrl) throw new Error("DB_URL is required");
-setDb(wrapClient(createClient({ url: dbUrl })));
+setDb(wrapClient(createClient({ url: requiredEnv("DB_URL") })));
 
 const timedRequest = async (): Promise<{ ms: number; status: number }> => {
   requestStart = performance.now();
-  const response = await serveAndDrainRoot(serveHandler);
+  const response = await serveAndDrain(serveHandler, "/listings");
+  if (!response.body.includes("Benchmark listing 1")) {
+    throw new Error("GET /listings did not render the benchmark catalogue");
+  }
   return { ms: performance.now() - requestStart, status: response.status };
 };
 
@@ -137,12 +141,12 @@ const second = await timedRequest();
 console.log(
   JSON.stringify({
     firstMs: first.ms,
-    firstQueryCount: firstTimeline.length,
+    firstRoundTrips: firstTimeline.length,
     firstStatus: first.status,
     firstTimeline,
     latencyMs,
     secondMs: second.ms,
-    secondQueryCount: timeline.length,
+    secondRoundTrips: timeline.length,
     secondStatus: second.status,
     secondTimeline: timeline,
   }),

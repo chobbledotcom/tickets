@@ -26,7 +26,7 @@ import {
   serializeCatalog,
 } from "#shared/external-order.ts";
 import { nowIso } from "#shared/now.ts";
-import { loadPublicGroups } from "./discovery.ts";
+import { loadPublicGroups } from "./group-liveness.ts";
 
 const JS_CONTENT_TYPE = "application/javascript; charset=utf-8";
 

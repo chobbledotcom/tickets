@@ -169,10 +169,10 @@ type ListingForGroupLookup = {
  * with no capped group are omitted, matching the old single-group behaviour for
  * ungrouped/uncapped listings.
  */
-const minByListingOverGroups = (
-  listingIds: number[],
-  membership: Map<number, number[]>,
-  byGroup: RemainingMap,
+export const remainingByListingOverGroups = (
+  listingIds: readonly number[],
+  membership: ReadonlyMap<number, number[]>,
+  byGroup: ReadonlyMap<number, number>,
 ): RemainingMap => {
   const result: RemainingMap = new Map();
   for (const id of listingIds) {
@@ -209,7 +209,7 @@ export const getGroupRemainingByListingId = async (
     : listings.filter((e) => !countsPerDate(e.listing_type));
   const { membership, groupIds } = await loadMembershipWithGroupIds(candidates);
   const groupMap = await getGroupRemainingByGroupId(groupIds, date);
-  return minByListingOverGroups(
+  return remainingByListingOverGroups(
     candidates.map((e) => e.id),
     membership,
     groupMap,

@@ -13,6 +13,7 @@ import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { buildEdgeBundle } from "../../edge-bundle-lib.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, stripBase64Payloads, strippedChars } from "./strip-lib.ts";
+import { sampleMap, samplesFor } from "./support.ts";
 
 const OUT_DIR = "./dist/bench-cold-start";
 const FULL = `${OUT_DIR}/serve-app.js`;
@@ -131,13 +132,11 @@ type VariantReport = {
   sizeBytes: number;
 };
 
-const measureVariant = async (
+const summarizeVariant = async (
   name: string,
   bundle: string,
-  mode: "import" | "request",
+  runs: ChildTimings[],
 ): Promise<VariantReport> => {
-  const runs: ChildTimings[] = [];
-  for (let i = 0; i < RUNS; i++) runs.push(await measureOnce(bundle, mode));
   const firstRequestRuns = runs
     .map((r) => r.firstRequestMs)
     .filter((v): v is number => v !== null);
@@ -149,6 +148,41 @@ const measureVariant = async (
     runtimeBootMs: median(runs.map((r) => r.runtimeBootMs)),
     sizeBytes: (await Deno.stat(bundle)).size,
   };
+};
+
+type Variant = {
+  bundle: string;
+  mode: "import" | "request";
+  name: string;
+};
+
+/** Interleave variants so host load cannot systematically favour one block. */
+const measureVariants = async (
+  variants: readonly Variant[],
+): Promise<VariantReport[]> => {
+  const samples = sampleMap<string, ChildTimings>(
+    variants.map((variant) => variant.name),
+  );
+  for (let run = 0; run < RUNS; run++) {
+    const rotated = [
+      ...variants.slice(run % variants.length),
+      ...variants.slice(0, run % variants.length),
+    ];
+    for (const variant of rotated) {
+      samplesFor(samples, variant.name).push(
+        await measureOnce(variant.bundle, variant.mode),
+      );
+    }
+  }
+  return Promise.all(
+    variants.map((variant) =>
+      summarizeVariant(
+        variant.name,
+        variant.bundle,
+        samplesFor(samples, variant.name),
+      ),
+    ),
+  );
 };
 
 const printReport = (reports: VariantReport[]): void => {
@@ -195,13 +229,13 @@ const printReport = (reports: VariantReport[]): void => {
 const main = async (): Promise<void> => {
   if (!Deno.args.includes("--skip-build")) await buildVariants();
 
-  const reports: VariantReport[] = [
-    await measureVariant("hello", HELLO, "request"),
-    await measureVariant("full", FULL, "request"),
-    await measureVariant("lazy-entry", LAZY, "request"),
-    await measureVariant("no-wasm", NO_WASM, "import"),
-    await measureVariant("no-big-strings", NO_BIG_STRINGS, "import"),
-  ];
+  const reports = await measureVariants([
+    { bundle: HELLO, mode: "request", name: "hello" },
+    { bundle: FULL, mode: "request", name: "full" },
+    { bundle: LAZY, mode: "request", name: "lazy-entry" },
+    { bundle: NO_WASM, mode: "import", name: "no-wasm" },
+    { bundle: NO_BIG_STRINGS, mode: "import", name: "no-big-strings" },
+  ]);
   printReport(reports);
 };
 

@@ -12,8 +12,8 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import {
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  loadBookablePackages,
 } from "#routes/public/discovery.ts";
+import { loadBookablePackages } from "#routes/public/group-liveness.ts";
 /* jscpd:ignore-end */
 import { keepParentDailyDatesChildrenCanServe } from "#routes/public/ticket-payment.ts";
 import { listingHasSpots } from "#shared/booking.ts";

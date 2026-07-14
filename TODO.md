@@ -265,18 +265,6 @@ keeps the bundles honest by failing when a route reads a key it didn't declare.
 - No outstanding items — the row-identity fix (per-parent attendee rows, paid
   mapping by listing id, remainder rows) and the `bookable_alone` flag shipped.
 
-## Public nav / group liveness
-
-- **Batch package bundle-cap evaluation across group leaves.** A site page's
-  group nav links now load their members in one batch
-  (`getVisibleGroupMembersByGroupIds`), but each PACKAGE group still evaluates its
-  own whole-bundle cap independently in `packageGroupBookable` (membership,
-  per-member capacity, prices, booking tree), and each regular group runs its own
-  `classifyForDiscovery`. So a page with many group links still issues O(groups)
-  liveness reads beyond the shared member batch. Fully batching would mean
-  computing bundle caps for several packages in one pass over shared capacity
-  maps — worthwhile only if a page with many package links shows up hot.
-
 ## Test-suite speed — remaining opportunities
 
 *Origin: the test-suite performance pass (lazy Sentry, fast `toContain`,

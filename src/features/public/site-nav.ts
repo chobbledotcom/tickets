@@ -19,7 +19,7 @@
  * keeps its link (its page serves with noindex). Page targets are always live.
  */
 
-import { filter, map, mapParallel, pipe, unique } from "#fp";
+import { filter, map, pipe, unique } from "#fp";
 import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { hasNewsPosts } from "#shared/db/news-posts.ts";
@@ -32,13 +32,10 @@ import type {
   TargetKey,
   TargetMap,
 } from "#shared/site-pages/types.ts";
-import type { Group, SitePageItem, SitePageItemType } from "#shared/types.ts";
+import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 import { navFlags, type PublicNavProps } from "#templates/public/shared.tsx";
-import {
-  classifyForDiscovery,
-  getVisibleGroupMembersByGroupIds,
-  groupBookable,
-} from "./discovery.ts";
+import { classifyForDiscovery } from "./discovery.ts";
+import { loadBookableGroupIds } from "./group-liveness.ts";
 
 /** The distinct item ids of one leaf type among the loaded edges. */
 const leafIds = (
@@ -112,14 +109,9 @@ const resolveTargets = async (
   // Members for every group are loaded in one batch so a page with many group
   // leaves does not run a member query per group (a package's own bundle-cap
   // read still runs per group inside groupBookable — that is per-package work).
-  const membersByGroup =
-    await getVisibleGroupMembersByGroupIds(referencedGroups);
-  // getVisibleGroupMembersByGroupIds returns an entry for every group passed.
-  const groupLive = await mapParallel((group: Group) =>
-    groupBookable(group, membersByGroup.get(group.id)!),
-  )(referencedGroups);
-  for (const [index, group] of referencedGroups.entries()) {
-    setLeaf("group", group, groupLive[index]!);
+  const bookableGroupIds = await loadBookableGroupIds(referencedGroups);
+  for (const group of referencedGroups) {
+    setLeaf("group", group, bookableGroupIds.has(group.id));
   }
   return targets;
 };

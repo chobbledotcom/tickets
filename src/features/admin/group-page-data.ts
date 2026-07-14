@@ -10,7 +10,7 @@
 import {
   getVisibleGroupMembers,
   groupBookable,
-} from "#routes/public/discovery.ts";
+} from "#routes/public/group-liveness.ts";
 import { listingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
 import { emptyRange } from "#shared/accounting/range.ts";
 import { getEffectiveDomain } from "#shared/config.ts";

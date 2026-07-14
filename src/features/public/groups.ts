@@ -12,7 +12,7 @@ import {
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
+import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
 import type { AsyncHandler } from "./types.ts";
 

@@ -12,7 +12,7 @@ import { paymentErrorResponse } from "#routes/payment-response.ts";
 import {
   getVisibleGroupMembers,
   groupBookable,
-} from "#routes/public/discovery.ts";
+} from "#routes/public/group-liveness.ts";
 import { lacksStandalonePublicPage } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";

@@ -72,9 +72,11 @@ import {
   applyParentSoldOut,
   classifyForDiscovery,
   dropHiddenPackageMembers,
+} from "./discovery.ts";
+import {
   getVisibleGroupMembersByGroupIds,
   loadPublicGroups,
-} from "./discovery.ts";
+} from "./group-liveness.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
