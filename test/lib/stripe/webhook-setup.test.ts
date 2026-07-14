@@ -23,8 +23,17 @@ type WebhookApiCalls = {
 const webhookEndpointsApi = (
   webhookUrl: string,
   calls: WebhookApiCalls,
-  listFails = false,
+  options: {
+    createFails?: boolean;
+    listFails?: boolean;
+    recordedInListing?: boolean;
+  } = {},
 ): ((url: string, init?: RequestInit) => Promise<Response> | null) => {
+  const {
+    createFails = false,
+    listFails = false,
+    recordedInListing = false,
+  } = options;
   const listed = {
     data: [
       { id: "we_stray", object: "webhook_endpoint", url: webhookUrl },
@@ -33,6 +42,9 @@ const webhookEndpointsApi = (
         object: "webhook_endpoint",
         url: "https://other.example/webhook",
       },
+      ...(recordedInListing
+        ? [{ id: "we_recorded", object: "webhook_endpoint", url: webhookUrl }]
+        : []),
     ],
     has_more: false,
     object: "list",
@@ -62,6 +74,14 @@ const webhookEndpointsApi = (
       calls.deleted.push(new URL(url).pathname.split("/").pop()!);
       return Promise.resolve(Response.json({ deleted: true }));
     }
+    if (createFails) {
+      return Promise.resolve(
+        Response.json(
+          { error: { message: "Create failed", type: "api_error" } },
+          { status: 500 },
+        ),
+      );
+    }
     calls.createdBody = new URLSearchParams(String(init?.body ?? ""));
     return Promise.resolve(Response.json(created));
   };
@@ -71,12 +91,16 @@ const setupWithWebhookApi = (
   webhookUrl: string,
   calls: WebhookApiCalls,
   existingEndpointId?: string,
-  listFails = false,
+  options: {
+    createFails?: boolean;
+    listFails?: boolean;
+    recordedListing?: boolean;
+  } = {},
 ) =>
   withFetchMock(async (originalFetch) => {
     installUrlHandler(
       originalFetch,
-      webhookEndpointsApi(webhookUrl, calls, listFails),
+      webhookEndpointsApi(webhookUrl, calls, options),
     );
     return await setupWebhookEndpoint(
       "sk_test_mock",
@@ -135,6 +159,10 @@ const expectFetchThrowGivesStringError = async (
 describeStripe("Stripe webhook setup", () => {
   describe("endpoint replacement", () => {
     test("removes the recorded endpoint and same-URL strays only", async () => {
+      // The recorded endpoint normally points at the same webhook URL, so it
+      // reappears in the same-URL listing alongside the strays. The recorded
+      // endpoint must be deleted exactly once, not twice (once via the
+      // explicit id, once via the stray list).
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -142,6 +170,7 @@ describeStripe("Stripe webhook setup", () => {
         webhookUrl,
         calls,
         "we_recorded",
+        { recordedInListing: true },
       );
 
       expect(result).toEqual({
@@ -160,7 +189,9 @@ describeStripe("Stripe webhook setup", () => {
         webhookUrl,
         calls,
         "we_recorded",
-        true,
+        {
+          listFails: true,
+        },
       );
 
       expect(result).toEqual({
@@ -169,6 +200,24 @@ describeStripe("Stripe webhook setup", () => {
         success: true,
       });
       expect(calls.deleted).toEqual(["we_recorded"]);
+    });
+
+    test("creates the new endpoint before deleting any old ones", async () => {
+      // A failed create must leave the recorded endpoint and any same-URL
+      // strays untouched, so the site never loses its only signed endpoint
+      // mid-replacement.
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
+
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        calls,
+        "we_recorded",
+        { createFails: true },
+      );
+
+      expect(result).toEqual({ error: expect.any(String), success: false });
+      expect(calls.deleted).toEqual([]);
     });
 
     test("subscribes only to completed checkouts", async () => {

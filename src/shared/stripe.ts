@@ -4,7 +4,7 @@
  */
 
 import type Stripe from "stripe";
-import { lazyRef, once, unique } from "#fp";
+import { lazyRef, once } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
@@ -229,25 +229,12 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   try {
     const client = await createStripeClient(secretKey);
 
-    // Delete the recorded endpoint and any stray endpoints pointing at the
-    // same URL so the new endpoint replaces them cleanly. Listing is
-    // best-effort: if it fails, we still delete the recorded endpoint.
-    const strayIds = await listSameUrlEndpointIds(client, webhookUrl);
-    const idsToDelete = unique(
-      [existingEndpointId, ...strayIds].filter((id): id is string =>
-        Boolean(id),
-      ),
-    );
-
-    for (const id of idsToDelete) {
-      try {
-        await client.webhookEndpoints.del(id);
-      } catch {
-        // A stray may already be gone; the create below still proceeds.
-      }
-    }
-
-    // Create new webhook endpoint
+    // Create the new endpoint first. Stripe allows multiple endpoints for the
+    // same URL, so a create can succeed even while stale same-URL endpoints
+    // remain. Doing the create before any deletion means a setup failure
+    // (Stripe error, missing secret) leaves the existing webhook config
+    // untouched — the site keeps receiving webhooks instead of losing its
+    // only signed endpoint mid-replacement.
     const endpoint = await client.webhookEndpoints.create({
       enabled_events: ["checkout.session.completed"],
       url: webhookUrl,
@@ -255,6 +242,25 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
 
     if (!endpoint.secret) {
       return { error: "Stripe did not return webhook secret", success: false };
+    }
+
+    // The new endpoint is live. Now delete the recorded endpoint and any same-
+    // URL strays so the new endpoint is the only one pointed at this URL.
+    // Listing is best-effort: if it fails, we still delete the recorded
+    // endpoint and let the next setup retry clean up any remaining strays.
+    const strayIds = (await listSameUrlEndpointIds(client, webhookUrl)).filter(
+      (id) => id !== endpoint.id && id !== existingEndpointId,
+    );
+    const idsToDelete = [existingEndpointId, ...strayIds].filter(
+      (id): id is string => Boolean(id),
+    );
+
+    for (const id of idsToDelete) {
+      try {
+        await client.webhookEndpoints.del(id);
+      } catch {
+        // A stray may already be gone; the new endpoint is already in place.
+      }
     }
 
     return {
