@@ -62,7 +62,7 @@ const parseTarget = (): Target => {
   const raw = (
     process.argv[2] ??
     process.env.E2E_PROVIDER ??
-    "free"
+      "free"
   ).toLowerCase();
   if (
     raw === "free" ||
@@ -88,8 +88,7 @@ const run = async (): Promise<void> => {
     return; // exit 0 — a missing-secret leg is a skip, not a failure
   }
 
-  const country =
-    process.env.SETUP_COUNTRY?.trim() ||
+  const country = process.env.SETUP_COUNTRY?.trim() ||
     provider?.setupCountry ||
     config.setupCountry;
 
@@ -143,18 +142,18 @@ const run = async (): Promise<void> => {
       paid: provider !== null,
       ...(provider
         ? {
-            payHostedCheckout: async () => {
-              step(
-                `Paying the complex order on the ${provider.name} hosted checkout`,
-              );
-              await assertRedirectedToCheckout(activeSession);
-              await provider.payHostedCheckout(activeSession.page, {
-                baseUrl: activeTunnel.publicBaseUrl,
-                secrets: secrets!,
-                serverLogPath: activeServer.logPath,
-              });
-            },
-          }
+          payHostedCheckout: async () => {
+            step(
+              `Paying the complex order on the ${provider.name} hosted checkout`,
+            );
+            await assertRedirectedToCheckout(activeSession);
+            await provider.payHostedCheckout(activeSession.page, {
+              baseUrl: activeTunnel.publicBaseUrl,
+              secrets: secrets!,
+              serverLogPath: activeServer.logPath,
+            });
+          },
+        }
         : {}),
     });
 

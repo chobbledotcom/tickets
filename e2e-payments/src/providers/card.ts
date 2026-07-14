@@ -137,13 +137,13 @@ export const fillFrameInput = async (
 
 /** Sandbox card details to enter on a hosted checkout page. */
 export interface CardDetails {
-  cvc: string;
-  email?: string;
+  number: string;
   /** Expiry as digits or MM/YY — fields auto-format on input. */
   expiry: string;
+  cvc: string;
   name?: string;
-  number: string;
   postal?: string;
+  email?: string;
 }
 
 /**
