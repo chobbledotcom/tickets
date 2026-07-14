@@ -223,6 +223,7 @@ describe("fp caches and resources", () => {
       expect(cache.get("a")).toBe(1);
       setTime(101);
       expect(cache.get("a")).toBe(undefined);
+      expect(cache.size()).toBe(0);
     });
 
     test("clear empties the cache", () => {
