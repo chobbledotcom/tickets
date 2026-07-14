@@ -65,10 +65,7 @@ export const getGroupRemainingByGroupId: RemainingLookup<number> = (
          SELECT SUM(listing.booked_quantity)
            FROM listings AS listing
            JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-          WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
-            "dateLessCap",
-            "listing.listing_type",
-          )}
+          WHERE groupListing.group_id = groupRow.id
        ), 0)`;
     const countArgs = range ? [range.endAt, range.startAt] : [];
     const rows = await queryAll<{
