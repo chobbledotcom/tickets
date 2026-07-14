@@ -83,7 +83,17 @@ const webhookEndpointsApi = (
       throw "not an error";
     }
     if (createThrowsMaximum && calls.createAttempts === 1) {
-      throw new Error("Maximum number of webhook endpoints reached");
+      return Promise.resolve(
+        Response.json(
+          {
+            error: {
+              message: "Maximum number of webhook endpoints reached",
+              type: "invalid_request_error",
+            },
+          },
+          { status: 400 },
+        ),
+      );
     }
     if (createLimitError && calls.createAttempts === 1) {
       return Promise.resolve(limitErrorResponse);
