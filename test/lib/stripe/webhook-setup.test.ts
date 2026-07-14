@@ -9,11 +9,7 @@ import {
   stripeApi,
 } from "#shared/stripe.ts";
 import { setTestEnv } from "#test-utils/env.ts";
-import {
-  installUrlHandler,
-  urlFromFetchInput,
-  withFetchMock,
-} from "#test-utils/mocks.ts";
+import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
 import { describeStripe } from "./harness.ts";
 
 type WebhookApiCalls = {
@@ -28,6 +24,9 @@ const webhookEndpointsApi = (
   options: {
     createFails?: boolean;
     createLimitError?: boolean;
+    createThrowsMaximum?: boolean;
+    createThrowsNonError?: boolean;
+    deleteFails?: boolean;
     listFails?: boolean;
     recordedInListing?: boolean;
   } = {},
@@ -35,6 +34,9 @@ const webhookEndpointsApi = (
   const {
     createFails = false,
     createLimitError = false,
+    createThrowsMaximum = false,
+    createThrowsNonError = false,
+    deleteFails = false,
     listFails = false,
     recordedInListing = false,
   } = options;
@@ -77,6 +79,22 @@ const webhookEndpointsApi = (
 
   const handleCreatePost = (init?: RequestInit): Promise<Response> => {
     calls.createAttempts++;
+    if (createThrowsNonError && calls.createAttempts === 1) {
+      throw "not an error";
+    }
+    if (createThrowsMaximum && calls.createAttempts === 1) {
+      return Promise.resolve(
+        Response.json(
+          {
+            error: {
+              message: "Maximum number of webhook endpoints reached",
+              type: "invalid_request_error",
+            },
+          },
+          { status: 400 },
+        ),
+      );
+    }
     if (createLimitError && calls.createAttempts === 1) {
       return Promise.resolve(limitErrorResponse);
     }
@@ -99,6 +117,7 @@ const webhookEndpointsApi = (
         : Promise.resolve(Response.json(listed));
     }
     if (method === "DELETE") {
+      if (deleteFails) throw new Error("Delete failed");
       calls.deleted.push(new URL(url).pathname.split("/").pop()!);
       return Promise.resolve(Response.json({ deleted: true }));
     }
@@ -113,6 +132,9 @@ const setupWithWebhookApi = (
   options: {
     createFails?: boolean;
     createLimitError?: boolean;
+    createThrowsMaximum?: boolean;
+    createThrowsNonError?: boolean;
+    deleteFails?: boolean;
     listFails?: boolean;
     recordedInListing?: boolean;
   } = {},
@@ -134,6 +156,7 @@ const cleanupWithWebhookApi = (
   calls: WebhookApiCalls,
   keepEndpointId: string,
   options: {
+    deleteFails?: boolean;
     listFails?: boolean;
     recordedInListing?: boolean;
   } = {},
@@ -262,6 +285,43 @@ describeStripe("Stripe webhook setup", () => {
       expect(calls.deleted.toSorted()).toEqual(["we_stray"]);
     });
 
+    test("falls back when create error message says maximum", async () => {
+      // The limit detector also matches "maximum" so it covers Stripe's
+      // alternative error wording.
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
+
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        calls,
+        "we_recorded",
+        { createThrowsMaximum: true },
+      );
+
+      expect(result).toEqual({
+        endpointId: "we_new",
+        secret: "whsec_new",
+        success: true,
+      });
+      expect(calls.createAttempts).toBe(2);
+    });
+
+    test("re-throws create error when non-Error is thrown", async () => {
+      // A thrown non-Error isn't a limit error, so it must re-throw to the
+      // outer catch and return a string error.
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
+
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        calls,
+        "we_recorded",
+        { createThrowsNonError: true },
+      );
+
+      expect(result).toEqual({ error: expect.any(String), success: false });
+    });
+
     test("subscribes only to completed checkouts", async () => {
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
@@ -371,21 +431,28 @@ describeStripe("Stripe webhook setup", () => {
     });
 
     test("continues when a delete fails", async () => {
-      const result = await withFetchMock(async (originalFetch) => {
-        globalThis.fetch = async (
-          input: RequestInfo | URL,
-          init?: RequestInit,
-        ): Promise<Response> => {
-          const url = urlFromFetchInput(input as string | URL | Request);
-          if (init?.method === "DELETE" && url.includes("we_stray")) {
-            throw new Error("Delete failed");
-          }
-          return originalFetch(input, init);
-        };
+      // A DELETE that throws must not abort the cleanup batch.
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
 
+      const result = await cleanupWithWebhookApi(webhookUrl, calls, "we_new", {
+        deleteFails: true,
+      });
+
+      expect(result).toBeUndefined();
+    });
+
+    test("swallows errors from the cleanup itself", async () => {
+      // If createStripeClient or the listing throws inside cleanup, the
+      // error is caught — the new endpoint is already live and the DB
+      // points at it, so a cleanup failure is non-fatal.
+      const result = await withFetchMock(async () => {
+        globalThis.fetch = () => {
+          throw new Error("Cleanup network failure");
+        };
         return await cleanupOldWebhookEndpoints(
           "sk_test_mock",
-          "https://example.com/webhook/delete-error-test",
+          "https://example.com/payment/webhook",
           "we_new",
         );
       });
