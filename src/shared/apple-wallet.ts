@@ -179,25 +179,24 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
   return fields;
 };
 
+/** Build a check for whether a string is a parseable PEM value — true when
+ * `parse` reads it without throwing. */
+const isValidPem =
+  (parse: (pem: string) => unknown) =>
+  (pem: string): boolean => {
+    try {
+      parse(pem);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
 /** Validate that a string is a parseable PEM certificate */
-export const isValidPemCertificate = (pem: string): boolean => {
-  try {
-    forge.pki.certificateFromPem(pem);
-    return true;
-  } catch {
-    return false;
-  }
-};
+export const isValidPemCertificate = isValidPem(forge.pki.certificateFromPem);
 
 /** Validate that a string is a parseable PEM private key */
-export const isValidPemPrivateKey = (pem: string): boolean => {
-  try {
-    forge.pki.privateKeyFromPem(pem);
-    return true;
-  } catch {
-    return false;
-  }
-};
+export const isValidPemPrivateKey = isValidPem(forge.pki.privateKeyFromPem);
 
 /** Compute SHA-1 hex digest of a Uint8Array */
 export const sha1Hex = (data: Uint8Array): string => {

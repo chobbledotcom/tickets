@@ -95,6 +95,14 @@ const loadAuthUserFields = async (
  * Validates that wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY.
  * If unwrapping fails (e.g., after key rotation), the session is invalidated.
  */
+/** Drop a session's stored row and its request-scoped cache, then answer
+ * "not authenticated" — used everywhere a session token turns out unusable. */
+const invalidateSession = async (token: string): Promise<null> => {
+  await deleteSession(token);
+  setCachedSession(null);
+  return null;
+};
+
 export const getAuthenticatedSession = async (
   request: Request,
 ): Promise<AuthSession | null> => {
@@ -115,9 +123,7 @@ export const getAuthenticatedSession = async (
   }
 
   if (session.expires < nowMs()) {
-    await deleteSession(token);
-    setCachedSession(null);
-    return null;
+    return invalidateSession(token);
   }
 
   // Load user and decrypt admin level
@@ -126,9 +132,7 @@ export const getAuthenticatedSession = async (
     "Session references non-existent user, invalidating",
   );
   if (!user) {
-    await deleteSession(token);
-    setCachedSession(null);
-    return null;
+    return invalidateSession(token);
   }
 
   const adminLevel = await decryptAdminLevel(user);

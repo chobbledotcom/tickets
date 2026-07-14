@@ -18,6 +18,7 @@
  */
 
 import * as v from "valibot";
+import { VALID_DAY_NAMES } from "#shared/dates.ts";
 import {
   isContactField,
   ListingTypeSchema,
@@ -119,15 +120,7 @@ const FieldsSchema = v.pipe(
 );
 /** A bookable weekday name — validated so a typo ("Funday") is a field error
  * rather than a day that never matches an availability check. */
-const BookableDaySchema = v.picklist([
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-]);
+const BookableDaySchema = v.picklist(VALID_DAY_NAMES);
 /** A minor-unit price — a non-negative integer. */
 const PriceSchema = intAtLeast(0);
 /** A required, trimmed, non-empty name reference. */
