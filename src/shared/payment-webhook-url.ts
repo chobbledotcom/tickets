@@ -15,7 +15,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 const PAYMENT_WEBHOOK_PATH = "/payment/webhook";
 
 /** Build the public payment webhook URL for the given domain. */
-export const paymentWebhookUrl = (domain: string): string =>
+const paymentWebhookUrl = (domain: string): string =>
   `https://${domain}${PAYMENT_WEBHOOK_PATH}`;
 
 /** Build the payment webhook URL from the current effective domain. */

@@ -14,7 +14,6 @@ export type WebhookApiOptions = {
   createFails?: boolean;
   createLimitError?: boolean;
   createThrowsMaximum?: boolean;
-  createThrowsNonError?: boolean;
   createThrowsWebhookOnly?: boolean;
   deleteFails?: boolean;
   listFails?: boolean;
@@ -30,7 +29,6 @@ export const webhookEndpointsApi = (
     createFails = false,
     createLimitError = false,
     createThrowsMaximum = false,
-    createThrowsNonError = false,
     createThrowsWebhookOnly = false,
     deleteFails = false,
     listFails = false,
@@ -84,9 +82,6 @@ export const webhookEndpointsApi = (
 
   const handleCreatePost = (init?: RequestInit): Promise<Response> => {
     calls.createAttempts++;
-    if (createThrowsNonError && calls.createAttempts === 1) {
-      throw "not an error";
-    }
     if (createThrowsMaximum && calls.createAttempts === 1) {
       return Promise.resolve(
         Response.json(
@@ -174,10 +169,3 @@ export const newWebhookApiCalls = (): WebhookApiCalls => ({
   createdBody: null,
   deleted: [],
 });
-
-export const requireCreatedBody = (calls: WebhookApiCalls): URLSearchParams => {
-  if (calls.createdBody === null) {
-    throw new Error("Stripe webhook endpoint was not created");
-  }
-  return calls.createdBody;
-};

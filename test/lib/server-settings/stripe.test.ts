@@ -32,14 +32,18 @@ describeAdminSettings(() => {
     body: (response: Response) => Promise<void>,
   ): Promise<void> =>
     withMocks(
-      () =>
-        stub(stripeApi, "setupWebhookEndpoint", () =>
+      () => ({
+        cleanupStub: stub(stripeApi, "cleanupOldWebhookEndpoints", () =>
+          Promise.resolve(),
+        ),
+        setupStub: stub(stripeApi, "setupWebhookEndpoint", () =>
           Promise.resolve({
             endpointId: "we_test_123",
             secret: "whsec_test_secret",
             success: true,
           }),
         ),
+      }),
       async () => {
         const { response } = await adminFormPost("/admin/settings/stripe", {
           stripe_secret_key: secretKey,

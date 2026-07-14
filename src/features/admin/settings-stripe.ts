@@ -5,7 +5,7 @@
 
 import { t } from "#i18n";
 import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.ts";
-import { settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
@@ -34,15 +34,25 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     // keep delivering with the old config instead of losing the only signed
     // endpoint mid-replacement.
     await settings.update.stripe.webhookConfig(result);
+    // Re-read the current DB endpoint ID after invalidating the cache. If a
+    // concurrent owner save has written a different endpoint ID, we must
+    // not delete it — only delete endpoints known to be old.
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID]);
+    const currentDbEndpointId = settings.stripe.webhookEndpointId;
     // Now that the new credentials are saved, delete old endpoints. Pass the
     // previous endpoint ID explicitly — after a domain change it points at
-    // the old URL, so the same-URL listing won't find it. Cleanup is
-    // best-effort: a failure here doesn't unwind the save.
+    // the old URL, so the same-URL listing won't find it. Keep both our new
+    // endpoint and the current DB endpoint (may differ if a concurrent save
+    // wrote its own endpoint between our save and this cleanup).
     await cleanupOldWebhookEndpoints(
       value,
       webhookUrl,
       result.endpointId,
       previousEndpointId ? [previousEndpointId] : [],
+      currentDbEndpointId && currentDbEndpointId !== result.endpointId
+        ? [currentDbEndpointId]
+        : [],
     );
     return null;
   },
