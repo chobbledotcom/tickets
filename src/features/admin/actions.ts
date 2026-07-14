@@ -26,6 +26,7 @@ import {
 } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings/attendees.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate, isIsoMonth } from "#shared/validation/date.ts";
@@ -86,11 +87,9 @@ export const loadAttendeeLinkRefs = async (
 };
 
 /** Handler that receives a decrypted listing with its attendees */
-export type ListingAttendeesHandler = (
-  listing: ListingWithCount,
-  attendees: Attendee[],
-  session: AuthSession,
-) => Response | Promise<Response>;
+export type ListingAttendeesHandler = ResponseHandler<
+  [listing: ListingWithCount, attendees: Attendee[], session: AuthSession]
+>;
 
 /**
  * Load listing with decrypted attendees, returning 404 if not found.

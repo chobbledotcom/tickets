@@ -15,6 +15,7 @@ import {
   isInviteValid,
 } from "#shared/db/users.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { User } from "#shared/types.ts";
 import { joinCompletePage, joinErrorPage, joinPage } from "#templates/join.tsx";
 
@@ -70,18 +71,15 @@ const validateInvite = async (
 
 // Runs once an invite code has been checked, with the code, the invited user,
 // and their decrypted username.
-type InviteHandler = (
-  code: string,
-  user: User,
-  username: string,
-) => Response | Promise<Response>;
+type InviteHandler = ResponseHandler<
+  [code: string, user: User, username: string]
+>;
 
 // The same, for a route: the incoming request comes first, then the checked
 // invite details.
-type RequestInviteHandler = (
-  request: Request,
-  ...invite: Parameters<InviteHandler>
-) => ReturnType<InviteHandler>;
+type RequestInviteHandler = ResponseHandler<
+  [request: Request, ...invite: Parameters<InviteHandler>]
+>;
 
 /** Run handler with validated invite, returning error response if invalid */
 const withValidInvite = async (

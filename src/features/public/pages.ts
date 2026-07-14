@@ -21,12 +21,13 @@ import {
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getBookableStartDates, parseIsoDateParam } from "#shared/dates.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import {
   type GroupWithMembers,
@@ -63,10 +64,9 @@ export const requirePublicSite = <T>(fn: () => T): T | Response =>
   settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Render a public site page with website title and content */
-const renderPublicPage = (
-  pageType: PublicPageType,
-  getContent: () => string | null,
-): Response | Promise<Response> =>
+const renderPublicPage: ResponseHandler<
+  [pageType: PublicPageType, getContent: () => string | null]
+> = (pageType, getContent) =>
   requirePublicSite(async () => {
     const content = getContent();
     return htmlResponse(
@@ -80,7 +80,7 @@ const renderPublicPage = (
   });
 
 /** Handle GET / (home page) - redirect to admin or show public site */
-export const handleHome = (): Response | Promise<Response> =>
+export const handleHome: ResponseHandler = () =>
   renderPublicPage("home", () => settings.homepageText);
 
 /** The booked span a daily listing's card availability is judged over: a
@@ -199,9 +199,9 @@ const soldOutPackageIds = async (
  * listings dashboard, not the public page.) When daily listings are shown, a
  * `?date=` filter resolves their per-date availability (#51), and any package
  * with any member unavailable on that date reads as sold out too. */
-export const handlePublicListings = (
-  request: Request,
-): Response | Promise<Response> =>
+export const handlePublicListings: ResponseHandler<[request: Request]> = (
+  request,
+) =>
   requirePublicSite(async () => {
     const [publicGroups, { listings: allListings }, nav] = await Promise.all([
       loadPublicGroups(),
@@ -244,7 +244,7 @@ export const handlePublicListings = (
   });
 
 /** Handle GET /terms - public terms and conditions page (404 when empty) */
-export const handlePublicTerms = (): Response | Promise<Response> =>
+export const handlePublicTerms: ResponseHandler = () =>
   requirePublicSite(async () =>
     settings.terms
       ? htmlResponse(
@@ -280,10 +280,9 @@ const renderContactPage = async (request: Request): Promise<Response> => {
 };
 
 /** Handle GET /contact - public contact page (404 when empty and form off) */
-export const handlePublicContact = (
-  request: Request,
-): Response | Promise<Response> =>
-  requirePublicSite(() => renderContactPage(request));
+export const handlePublicContact: ResponseHandler<[request: Request]> = (
+  request,
+) => requirePublicSite(() => renderContactPage(request));
 
 /** Process a CSRF-checked contact form submission: validate, run Botpoison
  * verification, and only deliver to the owner when verification passes. */
@@ -318,9 +317,9 @@ const processContactSubmission = async (
 
 /** Handle POST /contact - contact form submission. 404 when the form is not
  * active so the endpoint only exists when the feature is fully configured. */
-export const handlePublicContactSubmit = (
-  request: Request,
-): Response | Promise<Response> => {
+export const handlePublicContactSubmit: ResponseHandler<[request: Request]> = (
+  request,
+) => {
   if (!isContactFormActive()) return notFoundResponse();
   return requirePublicSite(() =>
     withCsrfForm(

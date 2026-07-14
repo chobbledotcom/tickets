@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { extractFormEntries, TestBrowser } from "#test-utils/test-browser.ts";
 
 const paramsFromEntries = (html: string): URLSearchParams =>
@@ -7,7 +8,7 @@ const paramsFromEntries = (html: string): URLSearchParams =>
 
 const useHandler = (
   browser: TestBrowser,
-  handler: (request: Request) => Response | Promise<Response>,
+  handler: ResponseHandler<[request: Request]>,
 ): void => {
   (
     browser as unknown as {

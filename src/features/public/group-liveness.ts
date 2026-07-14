@@ -15,7 +15,7 @@ import {
 import {
   getDatelessGroupRemaining,
   remainingByListingOverGroups,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/groups.ts";
 import {
   getActiveListingsByGroupIds,
   getGroupIdsByListingIds,

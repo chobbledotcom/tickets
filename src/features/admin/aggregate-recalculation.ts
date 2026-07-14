@@ -6,6 +6,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
 import { type ValidationResult, validateForm } from "#shared/forms.tsx";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { failure } from "#shared/result.ts";
 import type { AdminSession } from "#shared/types.ts";
 
@@ -49,7 +50,7 @@ export const runRecalculatePost = async <T extends string>(config: {
   form: FormParams;
   fields: readonly T[];
   /** Re-render the recalculate page with the "choose a field" error. */
-  renderChoose: () => Response | Promise<Response>;
+  renderChoose: ResponseHandler;
   reset: (selected: T[]) => Promise<unknown>;
   log: () => Promise<unknown>;
   successPath: string;
@@ -97,9 +98,7 @@ export const createRecalculatePageRenderer =
 export const createRecalculateHandlers = <T, F extends string, ID>(config: {
   withEntity: (
     id: ID,
-  ) => (
-    handler: (entity: T) => Response | Promise<Response>,
-  ) => Promise<Response>;
+  ) => (handler: ResponseHandler<[entity: T]>) => Promise<Response>;
   render: (
     entity: T,
     session: AdminSession,

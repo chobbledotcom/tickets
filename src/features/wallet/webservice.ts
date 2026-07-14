@@ -12,6 +12,7 @@
  * so devices re-download the pass on every manual refresh.
  */
 
+/* jscpd:ignore-start */
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { buildPkpassForToken } from "#routes/wallet/index.ts";
 import {
@@ -20,14 +21,19 @@ import {
 } from "#shared/apple-wallet.ts";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
+
+/* jscpd:ignore-end */
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
 /** Verify passType matches config, then run handler. Returns failure status on mismatch. */
 const withVerifiedPass =
   (failStatus: number) =>
-  (handler: (config: SigningCredentials) => Response | Promise<Response>) =>
-  (passType: string): Response | Promise<Response> => {
+  (
+    handler: ResponseHandler<[config: SigningCredentials]>,
+  ): ResponseHandler<[passType: string]> =>
+  (passType) => {
     const config = settings.appleWallet.config;
     return config && passType === config.passTypeId
       ? handler(config)

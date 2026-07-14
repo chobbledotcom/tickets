@@ -9,7 +9,7 @@ import {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/groups.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   anyListingInPackageGroup,

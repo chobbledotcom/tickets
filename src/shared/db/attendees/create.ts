@@ -14,7 +14,7 @@ import type {
   EncryptedAttendeeData,
 } from "#shared/db/attendee-types.ts";
 import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
-import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
+import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";

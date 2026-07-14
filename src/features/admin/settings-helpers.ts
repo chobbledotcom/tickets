@@ -13,6 +13,7 @@
 import {
   type AuthPolicy,
   type AuthSession,
+  gatedPost,
   OWNER_FORM,
   withAuth,
 } from "#routes/auth.ts";
@@ -23,24 +24,20 @@ import { isMaskSentinel } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
-import type { RequestRoute } from "#shared/response-steps.ts";
+import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
 import type { PaymentProviderType } from "#shared/types.ts";
 
 /* jscpd:ignore-end */
 
 // ── Types ───────────────────────────────────────────────────────────
 
-type ErrorPageFn = (
-  error: string,
-  status: number,
-  formId: string,
-) => Response | Promise<Response>;
+type ErrorPageFn = ResponseHandler<
+  [error: string, status: number, formId: string]
+>;
 
-type SettingsFormHandler = (
-  form: FormParams,
-  errorPage: ErrorPageFn,
-  session: AuthSession,
-) => Response | Promise<Response>;
+type SettingsFormHandler = ResponseHandler<
+  [form: FormParams, errorPage: ErrorPageFn, session: AuthSession]
+>;
 
 type ValidateFn<T> = (value: T) => string | null | Promise<string | null>;
 
@@ -83,10 +80,8 @@ const advancedSettingsRoute = wrapRoute(ADVANCED_PATH);
 
 /** Owner auth POST that runs a "test connection" function and returns its
  * result as JSON. Shared by the Stripe/Square/SumUp settings test buttons. */
-const testRoute =
-  (testFn: () => Promise<unknown>) =>
-  (request: Request): Promise<Response> =>
-    withAuth(request, OWNER_FORM, async () => jsonResponse(await testFn()));
+const testRoute = (testFn: () => Promise<unknown>) =>
+  gatedPost(OWNER_FORM)(async () => jsonResponse(await testFn()));
 
 /** Build the payment webhook URL from the configured domain.
  * Shared by the settings page (display) and the Stripe handler (setup). */

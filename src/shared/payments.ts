@@ -6,6 +6,7 @@
  * this interface so they never depend on a specific provider.
  */
 
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -13,6 +14,7 @@ import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
+/* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {

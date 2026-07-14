@@ -7,6 +7,7 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 
 beforeAll(() => {
@@ -25,7 +26,7 @@ const SESSION: AuthSession = {
 /** A guard that always admits the fixture session (renderTab plumbing). */
 const passGuard = (
   _request: Request,
-  handler: (session: AuthSession) => Response | Promise<Response>,
+  handler: ResponseHandler<[session: AuthSession]>,
 ): Promise<Response> => Promise.resolve(handler(SESSION));
 
 const ACTIONS: readonly ActionDef<Fixture>[] = [

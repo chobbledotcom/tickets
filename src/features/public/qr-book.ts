@@ -13,7 +13,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
+import { getGroupRemainingForListing } from "#shared/db/attendees/capacity/groups.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {

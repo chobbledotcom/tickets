@@ -70,7 +70,7 @@ import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import type { MaybePromise } from "#shared/maybe-promise.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
@@ -322,11 +322,9 @@ const loadQuestionAndAnswer = async ({
 /** Owner GET route for answer-scoped pages */
 const answerRoute =
   (
-    handler: (
-      question: QuestionWithAnswers,
-      answer: Answer,
-      session: AdminSession,
-    ) => MaybePromise<Response>,
+    handler: ResponseHandler<
+      [question: QuestionWithAnswers, answer: Answer, session: AdminSession]
+    >,
   ) =>
   (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
     requireOwnerOr(request, async (session) => {
@@ -337,12 +335,14 @@ const answerRoute =
 
 /** Owner GET route for an answer-scoped page that shows the current flash. */
 const answerFlashRoute = (
-  render: (
-    question: QuestionWithAnswers,
-    answer: Answer,
-    session: AdminSession,
-    flash: ReturnType<typeof getFlash>,
-  ) => Response | Promise<Response>,
+  render: ResponseHandler<
+    [
+      question: QuestionWithAnswers,
+      answer: Answer,
+      session: AdminSession,
+      flash: ReturnType<typeof getFlash>,
+    ]
+  >,
 ): ReturnType<typeof answerRoute> =>
   answerRoute((question, answer, session) =>
     render(question, answer, session, getFlash()),
@@ -352,9 +352,9 @@ const answerFlashRoute = (
  * createAuthedHandler counterpart to {@link answerRoute}. Fixes the owner auth
  * policy and the question+answer loader so each action only supplies its body. */
 const answerActionHandler = (
-  handle: (
-    args: AuthedHandlerArgs<AnswerRouteParams, AnswerContext>,
-  ) => Response | Promise<Response>,
+  handle: ResponseHandler<
+    [args: AuthedHandlerArgs<AnswerRouteParams, AnswerContext>]
+  >,
 ) =>
   createAuthedHandler<AnswerRouteParams, AnswerContext>({
     auth: OWNER_FORM,

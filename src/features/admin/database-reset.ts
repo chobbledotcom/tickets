@@ -14,7 +14,7 @@ import { getAllListings } from "#shared/db/listings/records.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { defineForm } from "#shared/forms/definition.ts";
-import { featureGate } from "#shared/response-steps.ts";
+import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
 import {
   deleteAllImageStorageFiles,
   deleteAllListingAttachmentFiles,
@@ -50,8 +50,10 @@ export const demoResetForm = defineForm({
 
 /** Wrap a demo-reset handler behind the demo-mode gate (else 404). */
 const demoResetRoute =
-  (handle: (request: Request) => Response | Promise<Response>) =>
-  (request: Request): Response | Promise<Response> =>
+  (
+    handle: ResponseHandler<[request: Request]>,
+  ): ResponseHandler<[request: Request]> =>
+  (request) =>
     withDemoResetAccess(() => handle(request));
 
 /** Handle GET /demo/reset - show reset confirmation page */

@@ -51,7 +51,7 @@ import {
   createAttendeeAtomic,
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
-import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
+import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity/groups.ts";
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
@@ -89,6 +89,7 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   availableDayCounts,
   type ContactInfo,
@@ -104,7 +105,6 @@ import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
 import type {
-  AsyncHandler,
   ChildrenByParentId,
   ListingQty,
   TicketCtx,
@@ -572,7 +572,7 @@ export const parentRequiresChild = async (
  * package itself is reached via its group slug, not these listing slugs). */
 export const withActiveListings = async (
   slugs: string[],
-  handler: AsyncHandler<[TicketListing[]]>,
+  handler: ResponseHandler<[listings: TicketListing[]]>,
 ): Promise<Response> => {
   const listings = await getListingsBySlugsBatch(slugs);
   const active = compact(listings).filter((e) => e.active);
