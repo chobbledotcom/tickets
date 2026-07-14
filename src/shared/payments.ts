@@ -38,6 +38,21 @@ export type CheckoutItem = {
   packageGroupId?: number | undefined;
 };
 
+/** Build a standalone-line {@link CheckoutItem} for one listing — the shared
+ * shape every single-listing checkout (direct-to-provider QR booking, the
+ * plain public booking form) builds its one-item `items` array from. */
+export const checkoutItem = (
+  listing: Pick<CheckoutItem, "name" | "slug"> & { id: number },
+  quantity: number,
+  unitPrice: number,
+): CheckoutItem => ({
+  listingId: listing.id,
+  name: listing.name,
+  quantity,
+  slug: listing.slug,
+  unitPrice,
+});
+
 /**
  * A modifier resolved for a specific checkout — the input the pricing pipeline
  * applies. Eligibility (scope, stock, codes) is decided upstream; by the time a

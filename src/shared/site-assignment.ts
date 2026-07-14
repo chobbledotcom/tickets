@@ -10,7 +10,7 @@ import { builderApi, resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { addMonthsIso } from "#shared/dates.ts";
+import { addMonthsIso, parseDateMs } from "#shared/dates.ts";
 import {
   assignBuiltSite,
   type BuiltSite,
@@ -181,11 +181,7 @@ export const generateRenewalToken = async (): Promise<RenewalTokenData> => {
 /** Parse a site's stored read-only deadline as milliseconds, or null when empty/invalid. */
 export const parseReadOnlyFromMs = (
   site: Pick<BuiltSite, "readOnlyFrom">,
-): number | null => {
-  if (!site.readOnlyFrom) return null;
-  const ms = Date.parse(site.readOnlyFrom);
-  return Number.isNaN(ms) ? null : ms;
-};
+): number | null => (site.readOnlyFrom ? parseDateMs(site.readOnlyFrom) : null);
 
 /** Stack-forward base: max(now, existing deadline). Falls back to now when missing. */
 export const renewalDeadlineBaseMs = (
