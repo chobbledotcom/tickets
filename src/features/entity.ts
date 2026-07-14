@@ -4,6 +4,7 @@
 
 import {
   type AuthSession,
+  type Guard,
   OWNER_FORM,
   requireSessionOr,
 } from "#routes/auth.ts";
@@ -81,10 +82,7 @@ export type AttendeeListingRouteParams = {
 
 /** An auth gate a `:id` route runs before touching its entity: it yields the
  * gate's context (a session, a parsed form, …) to the inner handler. */
-type EntityGate<C> = (
-  request: Request,
-  handler: (ctx: C) => Response | Promise<Response>,
-) => Promise<Response>;
+type EntityGate<C> = Guard<[C]>;
 
 /**
  * Gated `:id` route factory — the one shape behind every "auth, load the

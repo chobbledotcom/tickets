@@ -430,11 +430,16 @@ export const requireSiteOr = requireRolesOr(SITE_ADMIN_LEVELS);
  * outside {@link DELIVERY_ADMIN_LEVELS}. */
 export const requireDeliveryOr = requireRolesOr(DELIVERY_ADMIN_LEVELS);
 
-/** Session guard: require auth and call handler with session */
-export type SessionGuard<TSession> = (
+/** A gate a route runs before its handler: it authenticates/loads whatever
+ * the handler needs, then calls it with that data — or answers the request
+ * itself (a redirect, a 403) without ever calling it. */
+export type Guard<TArgs extends unknown[]> = (
   request: Request,
-  handler: (session: TSession) => Response | Promise<Response>,
+  handler: (...args: TArgs) => Response | Promise<Response>,
 ) => Promise<Response>;
+
+/** Session guard: require auth and call handler with session */
+export type SessionGuard<TSession> = Guard<[TSession]>;
 
 /** Factory for authenticated GET routes whose builder returns the full
  * Response — for pages that may 404, redirect, or set headers. Applies any
