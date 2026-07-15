@@ -9,7 +9,7 @@ import {
 } from "#shared/stripe.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withFetchMock } from "#test-utils/mocks.ts";
-import { setStripeCredentials } from "#test-utils/settings.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 import { describeStripe } from "./harness.ts";
 import {
   newWebhookApiCalls,
@@ -128,7 +128,7 @@ describeStripe("Stripe webhook setup", () => {
     test("keeps the recorded endpoint live when the cap retry fails", async () => {
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
-      await setStripeCredentials("whsec_recorded", "we_recorded");
+      await activateStripe("whsec_recorded", "we_recorded");
 
       const result = await setupWithWebhookApi(
         webhookUrl,

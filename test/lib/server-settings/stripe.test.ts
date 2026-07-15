@@ -18,8 +18,8 @@ import {
 import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 import {
+  activateStripe,
   describeAdminSettings,
-  setStripeCredentials,
   withSuccessfulStripeWebhook,
 } from "#test-utils/settings.ts";
 
@@ -301,7 +301,8 @@ describeAdminSettings(() => {
     });
 
     test("surfaces cleanup failure after saving all new credentials", async () => {
-      await setStripeCredentials("whsec_old", "we_old", "sk_test_old_key");
+      await activateStripe("whsec_old", "we_old", "sk_test_old_key");
+      await settings.update.paymentProvider("square");
 
       await withMocks(
         () => ({
@@ -325,6 +326,7 @@ describeAdminSettings(() => {
           expect(settings.stripe.secretKey).toBe("sk_test_new_key");
           expect(settings.stripe.webhookEndpointId).toBe("we_new");
           expect(settings.stripe.webhookSecret).toBe("whsec_new");
+          expect(settings.paymentProvider).toBe("stripe");
         },
       );
     });
