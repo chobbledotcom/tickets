@@ -28,11 +28,11 @@ import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { bookingDateFields } from "#routes/public/ticket-payment.ts";
+import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
+import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -113,14 +113,12 @@ export const settleBalanceSession = async (
     attendeeId,
     expectedAmount,
     { id: sessionId, occurredAt: businessTime(session) },
-    [
-      await balanceFinalizeStatement(
-        sessionId,
-        attendeeId,
-        expectedAmount,
-        session.paymentReference,
-      ),
-    ],
+    await balanceFinalizeStatements(
+      sessionId,
+      attendeeId,
+      expectedAmount,
+      session.paymentReference,
+    ),
   );
   if (!settled.settled) {
     return refundAndFail(
@@ -225,6 +223,7 @@ const FAILURE_REFUND_CODES: Record<
   capacity_exceeded: "capacity_full",
   encryption_error: "capacity_full",
   sold_out: "sold_out",
+  unexpected_error: "unexpected_error",
 };
 
 /** The placeholder refund reason for a booking we tried but couldn't honour. */

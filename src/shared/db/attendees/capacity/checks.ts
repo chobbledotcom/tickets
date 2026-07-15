@@ -21,7 +21,7 @@ import type { ListingCapacityRow } from "./types.ts";
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
   attendeeIdExpr = "last_insert_rowid()",
-  attendeeIdArg?: number,
+  attendeeIdArg?: InValue,
   allowOverbook = false,
 ): { sql: string; args: InValue[] } => {
   const {

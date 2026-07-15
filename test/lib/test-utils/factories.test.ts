@@ -39,7 +39,7 @@ describe("test-utils — listing & attendee factories", () => {
 
       await expect(
         bookTestAttendee([open.id, full.id], "Partial"),
-      ).rejects.toThrow("Failed to book test attendee onto all 2 listing(s)");
+      ).rejects.toThrow("Failed to create attendee: capacity_exceeded");
 
       // The booking that DID land on `open` is rolled back, so no stray
       // attendee is left occupying capacity or skewing later assertions.

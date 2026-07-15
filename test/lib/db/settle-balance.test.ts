@@ -10,7 +10,7 @@ import {
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
-import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
+import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import {
   isSessionProcessed,
   reserveSession,
@@ -64,14 +64,17 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await reserveSession("balance-ref-ok");
 
-    await settleAttendeeBalance(attendeeId, 1500, settle("balance-ref-ok"), [
-      await balanceFinalizeStatement(
+    await settleAttendeeBalance(
+      attendeeId,
+      1500,
+      settle("balance-ref-ok"),
+      await balanceFinalizeStatements(
         "balance-ref-ok",
         attendeeId,
         1500,
         "pi_balance_ok",
       ),
-    ]);
+    );
 
     const row = await isSessionProcessed("balance-ref-ok");
     expect(row?.attendee_id).toBe(attendeeId);
@@ -87,14 +90,12 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       attendeeId,
       1000,
       settle("balance-ref-mismatch"),
-      [
-        await balanceFinalizeStatement(
-          "balance-ref-mismatch",
-          attendeeId,
-          1000,
-          "pi_balance_mismatch",
-        ),
-      ],
+      await balanceFinalizeStatements(
+        "balance-ref-mismatch",
+        attendeeId,
+        1000,
+        "pi_balance_mismatch",
+      ),
     );
 
     expect(result).toEqual({ reason: "amount_mismatch", settled: false });

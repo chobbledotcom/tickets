@@ -6,12 +6,12 @@
  * self-hosted Bugsink). When an error carries its original exception, Sentry
  * receives the real stack trace; otherwise it gets the formatted message.
  *
- * The SDK is a large module, so — like the Stripe SDK in `stripe.ts` — it is
- * dynamically imported on the first `initSentry` call with a DSN configured,
- * never at module load. A deployment without `SENTRY_URL` (and every test
- * file) therefore skips evaluating the SDK entirely, keeping cold boots inside
- * their startup budget. All default integrations are disabled
- * (`integrations: []`): they read Deno-specific globals and source files we
+ * The SDK is a large module, so — like the Stripe SDK in `stripe.ts` — a narrow
+ * named-import adapter is dynamically imported on the first `initSentry` call
+ * with a DSN configured, never at module load. The adapter lets the production
+ * build remove unused SDK exports while a deployment without `SENTRY_URL`
+ * skips evaluating the retained code entirely. All default integrations are
+ * disabled (`integrations: []`): they read Deno-specific globals and source files we
  * don't need, and turning them off keeps the SDK to its core capture + fetch
  * transport, which is exactly what the edge runtime supports.
  */
@@ -21,7 +21,7 @@ import { BUILD_COMMIT } from "#shared/build-info.ts";
 import { getEnv } from "#shared/env.ts";
 import { type ErrorContext, formatErrorMessage } from "#shared/logger.ts";
 
-type SentrySdk = typeof import("@sentry/deno");
+type SentrySdk = typeof import("#shared/sentry-sdk.ts")["sentrySdk"];
 
 /** The loaded SDK namespace; null until `initSentry` first loads it. */
 const [getSentrySdk, setSentrySdk] = lazyRef<SentrySdk | null>(() => null);
@@ -46,15 +46,14 @@ export const initSentry = async (): Promise<boolean> => {
   const dsn = getEnv("SENTRY_URL");
   if (!dsn) return false;
 
-  const Sentry = getSentrySdk() ?? (await import("@sentry/deno"));
+  const Sentry =
+    getSentrySdk() ?? (await import("#shared/sentry-sdk.ts")).sentrySdk;
   setSentrySdk(Sentry);
   if (Sentry.isInitialized()) return true;
 
   Sentry.init({
     dsn,
-    integrations: [],
     release: releaseFromCommit(BUILD_COMMIT),
-    tracesSampleRate: 0,
   });
   return true;
 };

@@ -38,7 +38,7 @@ const BUNNY_STORAGE_HOSTS = [
 ] as const;
 export const STATIC_CDN_REQUEST_TIMEOUT_MS = 30_000;
 
-const cleanCdnUrl = (raw: string): string => {
+export const cleanCdnUrl = (raw: string): string => {
   const url = new URL(raw);
   if (url.protocol !== "https:") throw new Error("CDN_URL must use HTTPS");
   if (url.username || url.password || url.search || url.hash) {

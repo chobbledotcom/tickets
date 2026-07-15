@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { hashPhone, recordVisit } from "#shared/db/contact-preferences.ts";
+import { hashPhone } from "#shared/db/contact-preferences.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -14,6 +14,7 @@ import {
   expectRedirect,
   expectReservedRedirectWithTokens,
 } from "#test-utils/assertions.ts";
+import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import {
   getTicketCsrfToken,
   submitMultiTicketForm,
@@ -32,7 +33,7 @@ import { setupStripe } from "#test-utils/settings.ts";
  * setup behind both returning-customer Square tests below (one records the
  * visit without an email configured, the other with). */
 const setupReturningCustomerFeeListing = async () => {
-  await recordVisit(await hashPhone("555-1234"));
+  await setContactVisits(await hashPhone("555-1234"), 1);
   const listing = await createTestListing({
     fields: "phone",
     maxAttendees: 50,

@@ -6,11 +6,10 @@
  * Each download increments the attendee's attachment_downloads counter.
  */
 
-import { typeByExtension } from "@std/media-types";
-import { extname } from "@std/path";
 import { notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { getAttachmentMediaType } from "#shared/attachment-media-type.ts";
 import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
 import { hasActiveBookingLine } from "#shared/db/attendees/queries.ts";
 import { incrementAttachmentDownloads } from "#shared/db/attendees/update.ts";
@@ -21,11 +20,6 @@ import {
   isStorageEnabled,
   sanitizeBasename,
 } from "#shared/storage.ts";
-
-/** Get MIME type from a filename's extension, defaulting to octet-stream */
-export const getMimeType = (filename: string): string =>
-  typeByExtension(extname(filename).slice(1).toLowerCase()) ??
-  "application/octet-stream";
 
 /** Return a 403 forbidden response */
 const forbiddenResponse = (): Response =>
@@ -105,7 +99,7 @@ const handleAttachmentDownload: TypedRouteHandler<
   await incrementAttachmentDownloads(attendeeId, id);
 
   // Serve with Content-Disposition for proper download filename
-  const contentType = getMimeType(listing.attachment_name);
+  const contentType = getAttachmentMediaType(listing.attachment_name);
   const disposition = buildContentDisposition(listing.attachment_name);
   return new Response(data.buffer as BodyInit, {
     headers: {

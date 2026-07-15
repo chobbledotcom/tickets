@@ -60,6 +60,7 @@ import {
   writeEncrypted,
   writeOrDelete,
   writeRaw,
+  writeRawBatch,
 } from "#shared/db/settings/raw-writes.ts";
 import {
   clearSetupCompleteCache,
@@ -460,14 +461,12 @@ const settingsBase = {
         secret: string;
         endpointId: string;
       }): Promise<void> => {
-        await writeRaw(
-          CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
-          await encrypt(config.secret),
-        );
-        await writeRaw(
-          CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
-          config.endpointId,
-        );
+        // Save both values in one atomic batch so a partial write can never
+        // leave a new secret paired with an old endpoint ID (or vice versa).
+        await writeRawBatch([
+          [CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, await encrypt(config.secret)],
+          [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.endpointId],
+        ]);
         data.stripe_webhook_secret = config.secret;
         data.stripe_webhook_endpoint_id = config.endpointId;
       },

@@ -19,7 +19,6 @@
 import type { CheckoutSuccess, Currency } from "@sumup/sdk";
 import { SumUp } from "@sumup/sdk";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import { toMajorUnits, toMinorUnits } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -33,6 +32,7 @@ import {
   type CredentialCheck,
   createWithClient,
 } from "#shared/payment-helpers.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 
 /* jscpd:ignore-end */
@@ -197,7 +197,7 @@ export const sumupApi: {
         hosted_checkout: { enabled: true },
         merchant_code: merchantCode,
         redirect_url: `${baseUrl}/payment/success?session_id=${reference}`,
-        return_url: `https://${getEffectiveDomain()}/payment/webhook`,
+        return_url: getPaymentWebhookUrl(),
       });
       const url = checkout.hosted_checkout_url;
       if (!checkout.id || !url) {

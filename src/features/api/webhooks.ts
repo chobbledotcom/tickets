@@ -42,13 +42,13 @@ import {
   verifyTokensWithRealLine,
 } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 /* jscpd:ignore-end */
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { clearSessionTokens } from "#shared/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   getActivePaymentProvider,
   type ValidatedPaymentSession,
@@ -123,15 +123,9 @@ const processSessionAndRedirect = async (
   // verified intent still holds it, rather than redirecting to the token path.
   const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
 
-  // Token persistence diverges by render path. The redirect path skips persisting
-  // (the tokens go in the URL, so storing them would leave them in the DB forever
-  // when the redirect wins the race). The direct-render path (explicit thank-you
-  // URL) does NOT put the tokens in a URL, so it MUST persist them — otherwise a
-  // reload hits the already-processed branch with no stored token and the buyer
-  // loses the ticket link.
-  const result = await processPaymentSession(sessionId, validation.data, {
-    storeTokens: explicitThankYou !== "",
-  });
+  // The ticket token is finalized atomically with the booking, so a racing
+  // webhook and redirect always resolve the same attendee and token.
+  const result = await processPaymentSession(sessionId, validation.data);
 
   if (!result.success) {
     // Log once at the redirect boundary
@@ -354,7 +348,7 @@ const authenticateWebhook = async (
   // webhook using the exact notification URL from the subscription, which is the
   // public https:// URL. Deriving from request.url fails behind CDNs that
   // terminate TLS (the edge runtime sees http:// instead of https://).
-  const webhookUrl = `https://${getEffectiveDomain()}/payment/webhook`;
+  const webhookUrl = getPaymentWebhookUrl();
   const verification = await provider.verifyWebhookSignature(
     payload,
     signature,

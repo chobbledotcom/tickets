@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getMimeType } from "#routes/attachments.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
@@ -17,37 +16,6 @@ import {
   withFetchMock,
   withStorageDisabled,
 } from "#test-utils/mocks.ts";
-
-describe("getMimeType", () => {
-  test("returns application/pdf for .pdf", () => {
-    expect(getMimeType("file.pdf")).toBe("application/pdf");
-  });
-
-  test("returns image/jpeg for .jpg", () => {
-    expect(getMimeType("photo.jpg")).toBe("image/jpeg");
-  });
-
-  test("returns text/plain for .txt", () => {
-    expect(getMimeType("readme.txt")).toBe("text/plain");
-  });
-
-  test("returns video/mp4 for .mp4", () => {
-    expect(getMimeType("video.mp4")).toBe("video/mp4");
-  });
-
-  test("returns application/octet-stream for unknown extension", () => {
-    expect(getMimeType("file.unknownext")).toBe("application/octet-stream");
-  });
-
-  test("returns application/octet-stream for no extension", () => {
-    expect(getMimeType("noextension")).toBe("application/octet-stream");
-  });
-
-  test("handles uppercase extensions", () => {
-    expect(getMimeType("FILE.PDF")).toBe("application/pdf");
-    expect(getMimeType("PHOTO.JPG")).toBe("image/jpeg");
-  });
-});
 
 describeWithEnv(
   "GET /attachment/:id",

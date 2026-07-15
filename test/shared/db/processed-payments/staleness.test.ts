@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
-  finalizeSession as finalizePaymentSession,
   isReservationStale,
   isSessionProcessed,
   releaseReservation,
@@ -12,18 +11,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-
-const finalizeSession = (
-  sessionId: string,
-  attendeeId: number,
-  ticketTokens: string[],
-) =>
-  finalizePaymentSession(
-    sessionId,
-    attendeeId,
-    ticketTokens,
-    `pi_${sessionId}`,
-  );
+import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("processed-payments / staleness", { db: true }, () => {
   const ctx = useProcessedPaymentsAttendee();
@@ -57,9 +45,7 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
 
     test("does not delete a finalized reservation", async () => {
       await reserveSession("cs_finalized_no_delete");
-      await finalizeSession("cs_finalized_no_delete", ctx.attendeeId, [
-        "tok-test",
-      ]);
+      await finalizeReservedPayment("cs_finalized_no_delete", ctx.attendeeId);
       await releaseReservation("cs_finalized_no_delete");
 
       const record = await isSessionProcessed("cs_finalized_no_delete");

@@ -189,8 +189,87 @@ type StripeCheckoutLineItem = NonNullable<
 >[number];
 
 /**
+ * Fetch the site's webhook endpoint records from Stripe (one page, max 100).
+ */
+const fetchWebhookEndpoints = async (
+  client: Stripe,
+): Promise<Stripe.WebhookEndpoint[]> => {
+  const endpoints = await client.webhookEndpoints.list({ limit: 100 });
+  return endpoints.data;
+};
+
+/**
+ * List the IDs of webhook endpoints pointing at the given URL, best-effort.
+ * Returns an empty list when listing fails (permissions, rate limit, …) so
+ * the recorded endpoint can still be replaced. Never includes endpoints for
+ * another URL.
+ */
+const listSameUrlEndpointIds = async (
+  client: Stripe,
+  webhookUrl: string,
+): Promise<string[]> => {
+  try {
+    const endpoints = await fetchWebhookEndpoints(client);
+    return endpoints.filter((ep) => ep.url === webhookUrl).map((ep) => ep.id);
+  } catch (err) {
+    logDebug(
+      "Stripe",
+      `Webhook endpoint listing failed: ${sanitizeErrorDetail(err)}`,
+    );
+    return [];
+  }
+};
+
+/** Delete the given endpoint IDs, swallowing per-delete errors. Each delete
+ *  is independent — a stray already being gone doesn't abort the batch. */
+const deleteEndpointsBestEffort = async (
+  client: Stripe,
+  ids: string[],
+): Promise<void> => {
+  for (const id of ids) {
+    try {
+      await client.webhookEndpoints.del(id);
+    } catch {
+      // A stray may already be gone; continue with the next.
+    }
+  }
+};
+
+/** Create the checkout-completion webhook endpoint at the given URL. */
+const createCheckoutWebhook = (
+  client: Stripe,
+  webhookUrl: string,
+): Promise<Stripe.WebhookEndpoint> =>
+  client.webhookEndpoints.create({
+    enabled_events: ["checkout.session.completed"],
+    url: webhookUrl,
+  });
+
+/** Check if a Stripe error looks like the webhook endpoint cap was reached.
+ *  The Stripe SDK always wraps fetch errors in an Error subclass, so `err`
+ *  is always an Error with a `.message` string. */
+const isEndpointLimitError = (err: unknown): boolean => {
+  const message = (err as Error).message.toLowerCase();
+  return (
+    message.includes("webhook") &&
+    (message.includes("limit") || message.includes("maximum"))
+  );
+};
+
+/**
  * Internal implementation of webhook endpoint setup.
- * Defined before stripeApi so it can be assigned directly.
+ *
+ * Creates the new endpoint but does NOT delete old ones — the caller must
+ * save the new endpoint ID + secret to the DB first, then call
+ * {@link cleanupOldWebhookEndpoints} to delete stale same-URL endpoints.
+ * This ordering ensures a DB-save failure leaves the old endpoint (whose
+ * secret matches the DB) in place, so webhooks keep delivering.
+ *
+ * If Stripe rejects the create because the account is at its webhook-endpoint
+ * cap, deletes the old recorded endpoint by ID to free a slot (it may be at
+ * a different URL after a domain move, so it is deleted by ID, not via the
+ * same-URL listing), then retries the create. Same-URL strays are preserved
+ * until the retry succeeds — the main cleanup (after DB save) deletes them.
  */
 const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   secretKey,
@@ -200,21 +279,23 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   try {
     const client = await createStripeClient(secretKey);
 
-    // If we have an existing endpoint ID, try to delete it so we can recreate
-    // (update doesn't return the secret, so we need to recreate to get a fresh one)
-    if (existingEndpointId) {
-      try {
-        await client.webhookEndpoints.del(existingEndpointId);
-      } catch {
-        // Endpoint doesn't exist or can't be deleted, will create new one
-      }
-    }
+    let endpoint: Stripe.WebhookEndpoint;
+    try {
+      endpoint = await createCheckoutWebhook(client, webhookUrl);
+    } catch (err) {
+      if (!isEndpointLimitError(err)) throw err;
 
-    // Create new webhook endpoint (preserves any existing webhooks)
-    const endpoint = await client.webhookEndpoints.create({
-      enabled_events: ["checkout.session.completed"],
-      url: webhookUrl,
-    });
+      // Free the slot the old recorded endpoint is consuming, then retry.
+      // Delete by ID because it may be at a different URL after a domain
+      // move. Same-URL strays are preserved — if the retry also fails, one
+      // of them may still match the DB's stored secret, so webhooks keep
+      // delivering. The main cleanup (after DB save) deletes remaining
+      // strays once the new endpoint is durably recorded.
+      if (existingEndpointId) {
+        await deleteEndpointsBestEffort(client, [existingEndpointId]);
+      }
+      endpoint = await createCheckoutWebhook(client, webhookUrl);
+    }
 
     if (!endpoint.secret) {
       return { error: "Stripe did not return webhook secret", success: false };
@@ -234,11 +315,42 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   }
 };
 
+/** Implementation of {@link cleanupOldWebhookEndpoints}.
+ *
+ *  Neither the listing nor the per-delete path can throw out of this function:
+ *  `listSameUrlEndpointIds` catches its own errors and returns `[]`, and
+ *  `deleteEndpointsBestEffort` catches per-delete errors. If `createStripeClient`
+ *  itself throws, the Stripe SDK is already broken — that propagates loudly
+ *  rather than being silently swallowed. */
+const cleanupOldWebhookEndpointsImpl = async (
+  secretKey: string,
+  webhookUrl: string,
+  keepEndpointId: string,
+  alsoDeleteIds: readonly string[] = [],
+): Promise<void> => {
+  const client = await createStripeClient(secretKey);
+  const sameUrlStaleIds = (
+    await listSameUrlEndpointIds(client, webhookUrl)
+  ).filter((id) => id !== keepEndpointId);
+  // Merge same-URL strays with explicit IDs to delete (e.g. the old
+  // recorded endpoint after a domain change, which is at a different URL).
+  const allIds = [...new Set([...sameUrlStaleIds, ...alsoDeleteIds])].filter(
+    (id) => id !== keepEndpointId,
+  );
+  await deleteEndpointsBestEffort(client, allIds);
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Production code uses stripeApi.method() to enable test mocking
  */
 export const stripeApi: {
+  cleanupOldWebhookEndpoints: (
+    secretKey: string,
+    webhookUrl: string,
+    keepEndpointId: string,
+    alsoDeleteIds?: readonly string[],
+  ) => Promise<void>;
   getStripeClient: () => Promise<Stripe | null>;
   resetStripeClient: () => void;
   retrieveCheckoutSession: (id: string) => Promise<StripeCheckoutFields | null>;
@@ -253,6 +365,11 @@ export const stripeApi: {
   setupWebhookEndpoint: SetupWebhookEndpoint;
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 } = {
+  /** Delete old webhook endpoints pointing at the same URL, keeping the one
+   *  with the given ID. Called by the settings route AFTER the new endpoint
+   *  ID + secret are saved to the DB, so a DB-save failure leaves the old
+   *  endpoint (whose secret matches the DB) in place. */
+  cleanupOldWebhookEndpoints: cleanupOldWebhookEndpointsImpl,
   /** Create checkout session for one or more listings */
   createCheckoutSession: async (
     intent: CheckoutIntent,
@@ -392,8 +509,8 @@ export const stripeApi: {
     result.ownEndpointId = settings.stripe.webhookEndpointId;
 
     try {
-      const endpoints = await client.webhookEndpoints.list({ limit: 100 });
-      result.webhooks = endpoints.data.map((ep) => ({
+      const endpoints = await fetchWebhookEndpoints(client);
+      result.webhooks = endpoints.map((ep) => ({
         enabledEvents: ep.enabled_events,
         endpointId: ep.id,
         status: ep.status,
@@ -422,6 +539,14 @@ export const stripeApi: {
 export const setupWebhookEndpoint = (
   ...args: Parameters<typeof setupWebhookEndpointImpl>
 ): Promise<WebhookSetupResult> => stripeApi.setupWebhookEndpoint(...args);
+
+/** Delete old webhook endpoints at the same URL, keeping the one with
+ *  `keepEndpointId`. Best-effort: per-delete and listing failures are caught.
+ *  Called by the settings route AFTER the DB save so a save failure leaves
+ *  the old endpoint in place. */
+export const cleanupOldWebhookEndpoints = (
+  ...args: Parameters<typeof cleanupOldWebhookEndpointsImpl>
+): Promise<void> => stripeApi.cleanupOldWebhookEndpoints(...args);
 
 // Wrapper functions that delegate to stripeApi at runtime (enables test mocking)
 export const getStripeClient = () => stripeApi.getStripeClient();

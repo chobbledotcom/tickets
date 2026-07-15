@@ -2,59 +2,79 @@ import type { InValue } from "@libsql/client";
 import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import type { SqlStatement } from "#shared/db/client.ts";
 import { encryptPaymentReference } from "#shared/db/payment-references.ts";
-import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
+import {
+  encryptTicketTokens,
+  UNRESOLVED_RESERVATION,
+} from "#shared/db/processed-payments.ts";
 
-const buildFinalizeStatement = async (
-  attendeeId: number,
-  sessionId: string,
-  paymentReference: string,
-  guard: string,
-  extraArgs: InValue[] = [],
-): Promise<SqlStatement> => ({
-  args: [
-    attendeeId,
-    await encryptPaymentReference(paymentReference),
-    sessionId,
-    ...extraArgs,
-  ],
-  sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '', payment_reference = ? WHERE payment_session_id = ? AND ${guard}`,
+/** Abort a batch unless the immediately preceding finalize updated one row.
+ * `requiredWhen` lets a conditional operation remain a normal no-op when its
+ * business precondition no longer holds. */
+const paymentFinalizeGuard = (
+  requiredWhen = "1 = 1",
+  requiredWhenArgs: InValue[] = [],
+): SqlStatement => ({
+  args: [1, ...requiredWhenArgs],
+  sql: `INSERT INTO processed_payments (payment_session_id, processed_at)
+        SELECT '', NULL WHERE changes() != ? AND ${requiredWhen}`,
 });
 
-/**
- * Build the finalize UPDATE for the single-batch booking path, where the attendee
- * row is inserted earlier in the same batch so its id isn't a literal yet.
- */
-export const batchFinalizeStatement = async (
+const buildFinalizeStatements = async (
+  attendeeIdSql: string,
+  attendeeIdArgs: InValue[],
+  sessionId: string,
+  paymentReference: string,
+  ticketTokens: string[],
+  guard: string,
+  guardArgs: InValue[] = [],
+): Promise<SqlStatement[]> => [
+  {
+    args: [
+      ...attendeeIdArgs,
+      await encryptTicketTokens(ticketTokens),
+      await encryptPaymentReference(paymentReference),
+      sessionId,
+      ...guardArgs,
+    ],
+    sql: `UPDATE processed_payments
+          SET attendee_id = ${attendeeIdSql}, ticket_tokens = ?, payment_reference = ?
+          WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard}`,
+  },
+  paymentFinalizeGuard(guard, guardArgs),
+];
+
+/** Finalize a newly-created attendee and persist its stable ticket token. The
+ * returned guard must stay immediately after the UPDATE in the batch. */
+export const batchFinalizeStatements = (
   sessionId: string,
   attendeeIdSql: string,
   attendeeIdArg: InValue,
-  guard: SqlStatement,
   paymentReference: string,
-): Promise<SqlStatement> => ({
-  args: [
-    attendeeIdArg,
-    await encryptPaymentReference(paymentReference),
+  ticketToken: string,
+): Promise<SqlStatement[]> =>
+  buildFinalizeStatements(
+    attendeeIdSql,
+    [attendeeIdArg],
     sessionId,
-    ...guard.args,
-  ],
-  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = '', payment_reference = ?
-        WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard.sql}`,
-});
+    paymentReference,
+    [ticketToken],
+    "1 = 1",
+  );
 
-/**
- * Build the finalize UPDATE for a balance-payment session, guarded so it only
- * applies while the attendee's balance still equals the amount being settled.
- */
-export const balanceFinalizeStatement = async (
+/** Finalize a balance payment only while the attendee still owes the expected
+ * amount. Missing and already-resolved sessions abort the whole settle batch. */
+export const balanceFinalizeStatements = (
   sessionId: string,
   attendeeId: number,
   expectedAmount: number,
   paymentReference: string,
-): Promise<SqlStatement> =>
-  buildFinalizeStatement(
-    attendeeId,
+): Promise<SqlStatement[]> =>
+  buildFinalizeStatements(
+    "?",
+    [attendeeId],
     sessionId,
     paymentReference,
+    [],
     `${attendeeOwedSubquery(String(attendeeId))} = ?`,
     [expectedAmount],
   );

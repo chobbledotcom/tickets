@@ -1,7 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { pairEntriesByListing } from "#routes/api/payment-processing/create.ts";
-import { testListingWithCount } from "#test-utils/factories.ts";
+import {
+  createAttendeeForSession,
+  pairEntriesByListing,
+} from "#routes/api/payment-processing/create.ts";
+import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
+import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import type {
+  BookingIntent,
+  CheckoutIntent,
+  ValidatedPaymentSession,
+} from "#shared/payments.ts";
+import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
 
 /** A validated item carries a listing (the only field the pairing reads). */
 const item = (id: number) => ({ listing: testListingWithCount({ id }) });
@@ -44,4 +54,64 @@ describe("pairEntriesByListing", () => {
     );
     expect(entries.map((e) => e.listing.id)).toEqual([10, 30, 30]);
   });
+});
+
+test("reports a preparation error before the atomic write starts", async () => {
+  const listing = testListingWithCount({ id: 1, unit_price: 1000 });
+  const bookingItem = { e: listing.id, p: 1000, q: 1 };
+  const checkoutItem = {
+    listingId: listing.id,
+    name: listing.name,
+    quantity: 1,
+    slug: listing.slug,
+    unitPrice: 1000,
+  };
+  const contact = {
+    address: "",
+    date: null,
+    email: "buyer@example.com",
+    name: "Buyer",
+    phone: "",
+    special_instructions: "",
+  };
+  const intent: BookingIntent = {
+    ...contact,
+    items: [bookingItem],
+    modifiers: [],
+  };
+  const pricingIntent: CheckoutIntent = {
+    ...contact,
+    items: [checkoutItem],
+  };
+  const pricedOrder: PricedOrder = {
+    extras: [],
+    fullSubtotal: 1000,
+    lines: [{ chargedUnitAmount: 1000, item: checkoutItem, quantity: 1 }],
+    modifierApplications: [],
+    total: Number.NaN,
+  };
+  const session: ValidatedPaymentSession = {
+    amountTotal: 1000,
+    id: "cs_preparation_failure",
+    metadata: webhookMeta({ name: "Buyer" }),
+    paymentReference: "pi_preparation_failure",
+    paymentStatus: "paid",
+  };
+
+  const result = await createAttendeeForSession(
+    session,
+    intent,
+    [{ expectedPrice: 1000, item: bookingItem, listing }],
+    pricingIntent,
+    pricedOrder,
+    "stable-ticket-token",
+  );
+  expect(result).toEqual({
+    detail:
+      "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
+    ok: false,
+    reason: "unexpected_error",
+  });
+  if (result.ok !== false) throw new Error("Expected preparation to fail");
+  expect(specForFailure(result).code).toBe("unexpected_error");
 });

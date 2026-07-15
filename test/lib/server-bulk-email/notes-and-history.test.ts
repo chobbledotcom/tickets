@@ -10,9 +10,9 @@ import {
   saveContactRecord,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
-import { recordBooking } from "#shared/db/contact-tokens.ts";
 import { settings } from "#shared/db/settings.ts";
 import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
+import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -163,8 +163,13 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
 
       // ...and we seed split booking counts plus a private markdown note on each
       // contact record (preserving the counts already recorded for the email).
-      await recordBooking(emailHash, "public", "tok-bulk-pub");
-      await recordBooking(emailHash, "admin", "tok-bulk-adm");
+      await seedOrderActivity(
+        "alice@example.com",
+        "",
+        "public",
+        "tok-bulk-pub",
+      );
+      await seedOrderActivity("alice@example.com", "", "admin", "tok-bulk-adm");
       await saveContactRecord(emailHash, {
         ...(await getContactRecord(emailHash, pk)),
         adminNotes: "**Email VIP** customer",

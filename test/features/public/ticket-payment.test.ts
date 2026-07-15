@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
-  bookingDateFields,
   computeSharedDates,
   createFreeReservation,
   foldSelectedChildren,
@@ -22,17 +21,7 @@ import {
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import {
-  ensureAllBookings,
-  reverseOrderActivity,
-} from "#shared/db/attendees/create.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { getDb } from "#shared/db/client.ts";
-import {
-  getContactRecord,
-  getVisits,
-  hashEmail,
-} from "#shared/db/contact-preferences.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { FormParams } from "#shared/form-data.ts";
@@ -40,6 +29,7 @@ import type { CheckoutItem } from "#shared/payments.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
@@ -106,100 +96,6 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
   });
 
-  describe("ensureAllBookings", () => {
-    test("ok when every booking in the cart succeeded", async () => {
-      const e1 = await createTestListing({ maxAttendees: 10, name: "ok-a" });
-      const e2 = await createTestListing({ maxAttendees: 10, name: "ok-b" });
-      const result = await attendeesApi.createAttendeeAtomic({
-        bookings: [
-          { listingId: e1.id, quantity: 1 },
-          { listingId: e2.id, quantity: 1 },
-        ],
-        email: contact.email,
-        name: contact.name,
-      });
-      const check = await ensureAllBookings(result, 2, "public");
-      expect(check.ok).toBe(true);
-      expect((await getAttendeesRaw(e1.id)).length).toBe(1);
-      expect((await getAttendeesRaw(e2.id)).length).toBe(1);
-      // A kept order leaves the recorded public booking in place.
-      const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
-      const record = await getContactRecord(
-        await hashEmail(contact.email),
-        await getTestPrivateKey(),
-      );
-      expect(record.publicBookingCount).toBe(1);
-    });
-
-    test("rolls back a partially-fulfilled cart and reports capacity_exceeded", async () => {
-      // Group cap 3 forces the second line to fail; createAttendeeAtomic books
-      // the first greedily, leaving a partial attendee. ensureAllBookings must
-      // delete it so the customer is never left with half a cart.
-      const group = await createTestGroup({
-        maxAttendees: 3,
-        name: "rollback",
-        slug: "rollback",
-      });
-      const e1 = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "rollback-a",
-      });
-      const e2 = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-        name: "rollback-b",
-      });
-      const result = await attendeesApi.createAttendeeAtomic({
-        bookings: [
-          { listingId: e1.id, quantity: 2 },
-          { listingId: e2.id, quantity: 2 },
-        ],
-        email: contact.email,
-        name: contact.name,
-      });
-      // Sanity: the atomic layer fulfilled only the first line.
-      expect(result.success).toBe(true);
-      if (result.success) expect(result.attendees.length).toBe(1);
-
-      const check = await ensureAllBookings(result, 2, "public");
-      expect(check.ok).toBe(false);
-      if (!check.ok) expect(check.reason).toBe("capacity_exceeded");
-      // Full rollback: even the first line's row is gone.
-      expect((await getAttendeesRaw(e1.id)).length).toBe(0);
-      expect((await getAttendeesRaw(e2.id)).length).toBe(0);
-      // ...and the visit + booking the greedy create recorded are undone, so a
-      // rolled-back order leaves no phantom history on the contact.
-      const emailHash = await hashEmail(contact.email);
-      expect(await getVisits(emailHash)).toBe(0);
-      const { getTestPrivateKey } = await import("#test-utils/crypto.ts");
-      const record = await getContactRecord(
-        emailHash,
-        await getTestPrivateKey(),
-      );
-      expect(record.publicBookingCount).toBe(0);
-    });
-
-    test("propagates the failure reason when the whole cart failed", async () => {
-      const failure = {
-        reason: "encryption_error" as const,
-        success: false as const,
-      };
-      const check = await ensureAllBookings(failure, 1, "public");
-      expect(check).toEqual({ ok: false, reason: "encryption_error" });
-    });
-
-    test("reverseOrderActivity is a no-op for a contact with no email or phone", async () => {
-      // An order with neither identity yields no contact hashes, so the
-      // compensation loop never runs and nothing is written or thrown.
-      await reverseOrderActivity("", "", "public");
-      const { rows } = await getDb().execute(
-        "SELECT COUNT(*) AS c FROM contact_preferences",
-      );
-      expect(Number(rows[0]!.c)).toBe(0);
-    });
-  });
-
   describe("createFreeReservation (all-or-nothing)", () => {
     test("rejects the whole cart and persists nothing when a group cap is partially exceeded", async () => {
       const group = await createTestGroup({
@@ -236,9 +132,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         modifierUsages: [],
       });
       expect(result.success).toBe(false);
-      // Nothing persists for either listing — the partial booking is rolled back.
-      expect((await getAttendeesRaw(e1.id)).length).toBe(0);
-      expect((await getAttendeesRaw(e2.id)).length).toBe(0);
+      await expectNoAttendeesForListings([e1.id, e2.id]);
     });
 
     test("books the whole cart when the combined order fits the group cap", async () => {
@@ -561,53 +455,6 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // Nothing persisted — no attendee, and no orphaned ledger legs.
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       expect((await allTransfers()).length).toBe(0);
-    });
-  });
-
-  describe("bookingDateFields", () => {
-    test("standard non-customisable booking spans a single dateless day", () => {
-      const listing = testListingWithCount({ listing_type: "standard" });
-      expect(bookingDateFields(listing, null, 3)).toEqual({
-        date: null,
-        durationDays: 1,
-      });
-    });
-
-    test("daily non-customisable booking uses the listing's fixed duration", () => {
-      const listing = testListingWithCount({
-        duration_days: 4,
-        listing_type: "daily",
-      });
-      expect(bookingDateFields(listing, "2026-07-01", 2)).toEqual({
-        date: "2026-07-01",
-        durationDays: 4,
-      });
-    });
-
-    test("customisable daily booking spans the chosen day count", () => {
-      const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000, 3: 2500 },
-        duration_days: 5,
-        listing_type: "daily",
-      });
-      expect(bookingDateFields(listing, "2026-07-01", 3)).toEqual({
-        date: "2026-07-01",
-        durationDays: 3,
-      });
-    });
-
-    test("customisable standard booking carries the day count but no date", () => {
-      const listing = testListingWithCount({
-        customisable_days: true,
-        day_prices: { 2: 1800 },
-        duration_days: 3,
-        listing_type: "standard",
-      });
-      expect(bookingDateFields(listing, null, 2)).toEqual({
-        date: null,
-        durationDays: 2,
-      });
     });
   });
 

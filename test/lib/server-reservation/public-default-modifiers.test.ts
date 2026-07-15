@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { hashEmail, recordVisit } from "#shared/db/contact-preferences.ts";
-import { recordBooking } from "#shared/db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -109,9 +108,10 @@ describeWithEnv(
 
     test("rolls back a zero-total modifier booking when stock sells out after pricing", async () => {
       await setupStripe();
-      const { listing, modifier } = await setupSoldOutModifierRace();
-
-      const response = await submitBuyerOrder(listing);
+      const { listing, modifier, race } = await setupSoldOutModifierRace();
+      const response = await submitBuyerOrder(listing).finally(() =>
+        race.restore(),
+      );
 
       expect(response.status).toBe(302);
       expect(response.headers.get("location") ?? "").toMatch(
@@ -139,13 +139,13 @@ describeWithEnv(
       await setupStripe();
       // A phone-only listing identifies the buyer by phone hash, exercising the
       // SMS-reachable contact path rather than email.
-      const { listing } = await setupSoldOutModifierRace("phone");
+      const { listing, race } = await setupSoldOutModifierRace("phone");
 
       const response = await submitTicketForm(listing.slug, {
         [`quantity_${listing.id}`]: "1",
         name: "Buyer",
         phone: "07700900123",
-      });
+      }).finally(() => race.restore());
 
       expectFlash(
         response,
@@ -161,12 +161,12 @@ describeWithEnv(
     test("keeps a returning contact's earlier booking when a later free order rolls back", async () => {
       await setupStripe();
       // This contact already has one genuine public booking + visit on record.
-      const emailHash = await hashEmail("buyer@example.com");
-      await recordVisit(emailHash);
-      await recordBooking(emailHash, "public", "tok-earlier");
+      await seedOrderActivity("buyer@example.com", "", "public", "tok-earlier");
 
-      const { listing } = await setupSoldOutModifierRace();
-      const response = await submitBuyerOrder(listing);
+      const { listing, race } = await setupSoldOutModifierRace();
+      const response = await submitBuyerOrder(listing).finally(() =>
+        race.restore(),
+      );
 
       expectFlash(
         response,

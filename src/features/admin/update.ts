@@ -8,7 +8,7 @@ import { OWNER_FORM, ownerPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { isBunnyCdnEnabled } from "#shared/config.ts";
-import { hasRecentBackup } from "#shared/db/backup.ts";
+import { hasRecentBackup } from "#shared/db/backup-storage.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { deployAndReport } from "#shared/site-update.ts";

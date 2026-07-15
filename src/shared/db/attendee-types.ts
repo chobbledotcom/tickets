@@ -114,6 +114,8 @@ export type AttendeeInput = ContactFields & {
    * checkout path can never be silently left uncounted; the admin manual-add
    * paths pass "admin" explicitly. */
   source?: BookingSource;
+  /** Stable token used to make a retried create identify the same attendee. */
+  ticketToken?: string;
 };
 
 /** Row from listing_attendees — per-listing booking data */
