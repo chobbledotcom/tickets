@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import checkoutStagesMigration from "#shared/db/migrations/2026-07-15_checkout_stages.ts";
+import { CHECKOUT_STAGE_REVISION_TRIGGERS } from "#shared/db/migrations/schema/checkout-stage-triggers.ts";
 import {
   applySchemaChanges,
   syncIndexes,
@@ -10,11 +11,9 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
-const TRIGGER_NAMES = [
-  "trg_checkout_stages_revision_insert",
-  "trg_checkout_stages_revision_update",
-  "trg_checkout_stages_revision_delete",
-];
+const triggerNames = CHECKOUT_STAGE_REVISION_TRIGGERS.map(
+  (trigger) => trigger.name,
+);
 
 const context = buildMigrationContext({
   applySchemaChanges,
@@ -47,12 +46,12 @@ describeWithEnv(
           "idx_checkout_stages_state_created_at",
         ],
         newTables: ["checkout_stage_revisions", "checkout_stages"],
-        triggers: TRIGGER_NAMES,
+        triggers: triggerNames,
       });
     });
 
     test("the migration creates the exact columns, indexes, and triggers", async () => {
-      for (const name of TRIGGER_NAMES) {
+      for (const name of triggerNames) {
         await getDb().execute(`DROP TRIGGER ${name}`);
       }
       await getDb().execute("DROP TABLE checkout_stages");
@@ -152,7 +151,7 @@ describeWithEnv(
         "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'checkout_stages' ORDER BY name",
       );
       expect(triggers.rows.map((row) => row.name)).toEqual(
-        [...TRIGGER_NAMES].sort(),
+        [...triggerNames].sort(),
       );
     });
 
