@@ -832,9 +832,9 @@ src/features/admin/attendees-merge.ts:408:10  return undefined → return undefi
 # contact-tokens.ts — `?? → ||` and `return null → return undefined` sites whose
 # operand can never be a falsy-but-non-null value, or whose result is only ever
 # consumed by a nullish check. Each is provably equivalent from the types.
-src/shared/db/contact-tokens.ts:199:35  ?? → ||    # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
-src/shared/db/contact-tokens.ts:240:22  return null → return undefined    # removeBookingToken's no-match return; removedSource is only ever consumed by `removedSource ?? sync.source`, and null and undefined agree under ??
-src/shared/db/contact-tokens.ts:311:18  ?? → ||    # `removedSource ?? sync.source`: removedSource is BookingSource|null, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
+src/shared/db/contact-tokens.ts:203:35  ?? → ||    # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
+src/shared/db/contact-tokens.ts:244:22  return null → return undefined    # removeBookingToken's no-match return; removedSource is only ever consumed by `removedSource ?? sync.source`, and null and undefined agree under ??
+src/shared/db/contact-tokens.ts:315:18  ?? → ||    # `removedSource ?? sync.source`: removedSource is BookingSource|null, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),
