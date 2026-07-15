@@ -3,7 +3,11 @@ import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { backupKey, backupTimestamp, dbName } from "#shared/db/backup.ts";
+import {
+  backupKey,
+  backupTimestamp,
+  dbName,
+} from "#shared/db/backup-storage.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";

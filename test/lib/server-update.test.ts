@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { backupKey, backupTimestamp } from "#shared/db/backup.ts";
+import { backupKey, backupTimestamp } from "#shared/db/backup-storage.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
