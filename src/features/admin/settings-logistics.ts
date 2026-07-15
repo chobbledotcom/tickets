@@ -15,7 +15,7 @@ import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { settingsToggle } from "#routes/admin/settings-helpers.ts";
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import type { IdRouteHandler } from "#routes/entity.ts";
+import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -39,7 +39,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
-import { isDeliveryRole } from "#shared/types.ts";
+import { isDeliveryRole, type LogisticsAgent } from "#shared/types.ts";
 import {
   type AgentUserOption,
   adminLogisticsAgentEditPage,
@@ -134,14 +134,14 @@ const parseAssignedUserIds = async (form: FormParams): Promise<number[]> =>
   selectedIdsFromForm(form, "user_ids", await loadAgentUserOptions());
 
 /** GET /admin/logistics/:id/edit — agent details plus its assigned users. */
-const handleAgentEditGet: IdRouteHandler = (request, { id }) =>
-  requireOwnerOr(request, async (session) => {
+const handleAgentEditGet: IdRouteHandler =
+  createIdEntityHandler<LogisticsAgent>(logisticsAgents.table.findById)(
+    requireOwnerOr,
+  )(async (agent, session, request) => {
     applyFlash(request);
-    const agent = await logisticsAgents.table.findById(id);
-    if (!agent) return notFoundResponse();
     const [users, selectedIds] = await Promise.all([
       loadAgentUserOptions(),
-      agentUsers.getIds(id),
+      agentUsers.getIds(agent.id),
     ]);
     return htmlResponse(
       adminLogisticsAgentEditPage(agent, users, new Set(selectedIds), session),

@@ -18,6 +18,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { formDataToParams } from "#routes/csrf.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
@@ -347,25 +348,25 @@ export const getListingAndGroups = async (
 type ListingAndGroups = NonNullable<
   Awaited<ReturnType<typeof getListingAndGroups>>
 >;
+const listingAndGroupsHandler =
+  createIdEntityHandler<ListingAndGroups>(getListingAndGroups)(
+    requireContentOr,
+  );
 
 /**
  * Session-guarded GET handler that loads the listing + groups context and
  * renders a page from it. Shared by the duplicate and edit forms.
  */
-const listingAndGroupsPage =
-  (
-    renderPage: (
-      ctx: ListingAndGroups,
-      session: AdminSession,
-      request: Request,
-    ) => string,
-  ): TypedRouteHandler<"GET /admin/listing/:id"> =>
-  (request, params) =>
-    requireContentOr(request, (session) =>
-      withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
-        htmlResponse(renderPage(ctx, session, request)),
-      ),
-    );
+const listingAndGroupsPage = (
+  renderPage: (
+    ctx: ListingAndGroups,
+    session: AdminSession,
+    request: Request,
+  ) => string,
+): TypedRouteHandler<"GET /admin/listing/:id"> =>
+  listingAndGroupsHandler((ctx, session, request) =>
+    htmlResponse(renderPage(ctx, session, request)),
+  );
 
 /** Handle GET /admin/listing/:id/duplicate */
 export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =

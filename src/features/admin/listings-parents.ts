@@ -6,7 +6,8 @@
 import { unique } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
-import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
+import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
@@ -35,7 +36,6 @@ import {
 import { packageChildEdgeError } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
-import { withEntityFromParam } from "./entity-handlers.ts";
 
 /** Error shown when a child (named `name`) would hide an opt-in add-on that is
  * only reachable through it — named after the add-on. Shared by the edge editor
@@ -369,45 +369,45 @@ export const remapDuplicatedGroupEdges = async (
 };
 
 /** Handle POST /admin/listing/:id/children (set the required child listings). */
-export const handleAdminListingChildren: TypedRouteHandler<
-  "POST /admin/listing/:id/children"
-> = (request, { id }) =>
-  withAuth(request, CONTENT_FORM, (_session, form) =>
-    withEntityFromParam(id, getListingWithCount, async (listing) => {
-      const result = await validateChildEdges(
-        listing,
-        form.getNumberArray("child_listing_ids"),
-      );
-      if (!result.ok) {
-        return redirect(`/admin/listing/${id}/edit`, result.error, false);
-      }
-      const { childIds } = result;
-      // A HIDDEN package's member can't gain children (its child selector would
-      // name the collapsed members), nor can a package member be chosen AS a
-      // child. A visible package member may gate children — the package page
-      // renders its selector. Block the conflicts before persisting the edges.
-      const packageConflict = await packageChildEdgeConflict(
-        await listingGroups.getIds(id),
-        childIds,
-      );
-      if (packageConflict) {
-        return redirect(
-          `/admin/listing/${id}/edit`,
-          packageChildEdgeError(packageConflict),
-          false,
-        );
-      }
-      await listingChildren.setIds(id, childIds);
-      await logActivity(
-        `Listing '${listing.name}' required children set to ${childIds.length} listing${
-          childIds.length === 1 ? "" : "s"
-        }`,
-        listing,
-      );
+const listingChildrenHandler = createIdEntityHandler<ListingWithCount>(
+  getListingWithCount,
+)(formGuard(CONTENT_FORM));
+
+export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/:id/children"> =
+  listingChildrenHandler(async (listing, _session, form, _request, { id }) => {
+    const result = await validateChildEdges(
+      listing,
+      form.getNumberArray("child_listing_ids"),
+    );
+    if (!result.ok) {
+      return redirect(`/admin/listing/${id}/edit`, result.error, false);
+    }
+    const { childIds } = result;
+    // A HIDDEN package's member can't gain children (its child selector would
+    // name the collapsed members), nor can a package member be chosen AS a
+    // child. A visible package member may gate children — the package page
+    // renders its selector. Block the conflicts before persisting the edges.
+    const packageConflict = await packageChildEdgeConflict(
+      await listingGroups.getIds(id),
+      childIds,
+    );
+    if (packageConflict) {
       return redirect(
         `/admin/listing/${id}/edit`,
-        "Required children updated",
-        true,
+        packageChildEdgeError(packageConflict),
+        false,
       );
-    }),
-  );
+    }
+    await listingChildren.setIds(id, childIds);
+    await logActivity(
+      `Listing '${listing.name}' required children set to ${childIds.length} listing${
+        childIds.length === 1 ? "" : "s"
+      }`,
+      listing,
+    );
+    return redirect(
+      `/admin/listing/${id}/edit`,
+      "Required children updated",
+      true,
+    );
+  });

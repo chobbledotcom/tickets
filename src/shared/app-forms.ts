@@ -16,7 +16,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
-import type { ResponseHandler } from "#shared/response-steps.ts";
+import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
 
 export type FormValidator<TValues> = {
@@ -83,19 +83,12 @@ export const createAuthedHandler =
       },
     );
 
-/** A finished authed route: takes the request and its typed params, gives back
- * the response. The shape every {@link createAuthedHandler} factory returns. */
-export type AuthedRoute<TParams> = (
-  request: Request,
-  params: TParams,
-) => Promise<Response>;
-
 /** An owner-only authed form route with no params or loaded context:
  * {@link createAuthedHandler} with the owner policy already applied, so callers
  * pass only their `handle` step. */
 export const ownerFormHandler = (
   handle: AuthedHandleStep<Record<string, never>, void>,
-): AuthedRoute<Record<string, never>> =>
+): ParamsRoute<Record<string, never>> =>
   createAuthedHandler({ auth: OWNER_FORM, handle });
 
 /** Build an authed route from the shared auth/load config plus its own
@@ -105,7 +98,7 @@ export const ownerFormHandler = (
 export const authedHandlerWithStep = <TParams, TContext>(
   config: AuthedBase<TParams, TContext>,
   handle: AuthedHandleStep<TParams, TContext>,
-): AuthedRoute<TParams> =>
+): ParamsRoute<TParams> =>
   createAuthedHandler<TParams, TContext>({ ...config, handle });
 
 // ── createAuthedFormRoute: adds schema validation on top ──────────────

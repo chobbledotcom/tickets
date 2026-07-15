@@ -12,19 +12,15 @@ import { planReorder } from "#shared/reorder.ts";
 
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
-import { ownerPage, requireOwnerOr } from "#routes/auth.ts";
+import {
+  formGuard,
+  OWNER_FORM,
+  ownerPage,
+  requireOwnerOr,
+} from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import {
-  type IdRouteHandler,
-  ownerFormById,
-  withEntity,
-} from "#routes/entity.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { ownerFormHandler } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -139,18 +135,20 @@ const newGet = ownerPage((session) =>
   adminAttendeeStatusFormPage(session, { error: getFlash().error }),
 );
 
+const statusHandler = createIdEntityHandler<AttendeeStatus>(getAttendeeStatus);
+const statusHandlers = {
+  get: statusHandler(requireOwnerOr),
+  post: statusHandler(formGuard(OWNER_FORM)),
+};
+
 /** Owner-guarded GET that loads a status by id (or 404s) and renders a page. */
-const ownerStatusPage =
-  (
-    render: (status: AttendeeStatus, session: AdminSession) => string,
-  ): IdRouteHandler =>
-  (request, { id }) =>
-    requireOwnerOr(request, (session) => {
-      applyFlash(request);
-      return withEntity<AttendeeStatus>((status) =>
-        htmlResponse(render(status, session)),
-      )(() => getAttendeeStatus(id));
-    });
+const ownerStatusPage = (
+  render: (status: AttendeeStatus, session: AdminSession) => string,
+): IdRouteHandler =>
+  statusHandlers.get((status, session, request) => {
+    applyFlash(request);
+    return htmlResponse(render(status, session));
+  });
 
 const editGet = ownerStatusPage((status, session) =>
   adminAttendeeStatusFormPage(session, { error: getFlash().error, status }),
@@ -166,80 +164,79 @@ const createPost = ownerFormHandler(async ({ form }) => {
   return redirect(LIST_PATH, "Status created", true);
 });
 
-const editPost = ownerFormById(async (id, _session, form) => {
-  const existing = await getAttendeeStatus(id);
-  if (!existing) return notFoundResponse();
-  const parsed = parseStatusFormOr(form, `${LIST_PATH}/${id}/edit`);
-  if (parsed instanceof Response) return parsed;
+const editPost = statusHandlers.post(
+  async (existing, _session, form, _request, { id }) => {
+    const parsed = parseStatusFormOr(form, `${LIST_PATH}/${id}/edit`);
+    if (parsed instanceof Response) return parsed;
 
-  if (existing.is_public_default && !parsed.isPublicDefault) {
-    return errorRedirect(
-      `${LIST_PATH}/${id}/edit`,
-      "Choose another public default before clearing this one",
-    );
-  }
-  if (existing.is_paid_default && !parsed.isPaidDefault) {
-    return errorRedirect(
-      `${LIST_PATH}/${id}/edit`,
-      "Choose another paid default before clearing this one",
-    );
-  }
+    if (existing.is_public_default && !parsed.isPublicDefault) {
+      return errorRedirect(
+        `${LIST_PATH}/${id}/edit`,
+        "Choose another public default before clearing this one",
+      );
+    }
+    if (existing.is_paid_default && !parsed.isPaidDefault) {
+      return errorRedirect(
+        `${LIST_PATH}/${id}/edit`,
+        "Choose another paid default before clearing this one",
+      );
+    }
 
-  await attendeeStatuses.table.update(id, parsed);
-  await clearOtherDefaults(id, parsed);
-  await logActivity(`Attendee status '${parsed.name}' updated`);
-  return redirect(LIST_PATH, "Status updated", true);
-});
+    await attendeeStatuses.table.update(id, parsed);
+    await clearOtherDefaults(id, parsed);
+    await logActivity(`Attendee status '${parsed.name}' updated`);
+    return redirect(LIST_PATH, "Status updated", true);
+  },
+);
 
 const deleteGet = ownerStatusPage((status, session) =>
   statusPages.deletePage(status, session, getFlash().error),
 );
 
-const deletePost = ownerFormById(async (id, _session, form) => {
-  const status = await getAttendeeStatus(id);
-  if (!status) return notFoundResponse();
-  const confirmPath = `${LIST_PATH}/${id}/delete`;
-  const mismatch = verifyOrRedirect(
-    form,
-    status.name,
-    confirmPath,
-    "Name",
-    "deletion",
-  );
-  if (mismatch) return mismatch;
-  const all = await attendeeStatuses.getAll();
-  if (all.length <= 1) {
-    return errorRedirect(confirmPath, "You must keep at least one status");
-  }
-  if (status.is_public_default) {
-    return errorRedirect(
+const deletePost = statusHandlers.post(
+  async (status, _session, form, _request, { id }) => {
+    const confirmPath = `${LIST_PATH}/${id}/delete`;
+    const mismatch = verifyOrRedirect(
+      form,
+      status.name,
       confirmPath,
-      "Choose another public default before deleting this status",
+      "Name",
+      "deletion",
     );
-  }
-  if (status.is_paid_default) {
-    return errorRedirect(
-      confirmPath,
-      "Choose another paid default before deleting this status",
+    if (mismatch) return mismatch;
+    const all = await attendeeStatuses.getAll();
+    if (all.length <= 1) {
+      return errorRedirect(confirmPath, "You must keep at least one status");
+    }
+    if (status.is_public_default) {
+      return errorRedirect(
+        confirmPath,
+        "Choose another public default before deleting this status",
+      );
+    }
+    if (status.is_paid_default) {
+      return errorRedirect(
+        confirmPath,
+        "Choose another paid default before deleting this status",
+      );
+    }
+    const inUse = await execute(
+      "SELECT 1 FROM attendees WHERE status_id = ? LIMIT 1",
+      [id],
     );
-  }
-  const inUse = await execute(
-    "SELECT 1 FROM attendees WHERE status_id = ? LIMIT 1",
-    [id],
-  );
-  if (inUse.rows.length > 0) {
-    return errorRedirect(confirmPath, "This status is in use by attendees");
-  }
-  await attendeeStatuses.table.deleteById(id);
-  await logActivity(`Attendee status '${status.name}' deleted`);
-  return redirect(LIST_PATH, "Status deleted", true);
-});
+    if (inUse.rows.length > 0) {
+      return errorRedirect(confirmPath, "This status is in use by attendees");
+    }
+    await attendeeStatuses.table.deleteById(id);
+    await logActivity(`Attendee status '${status.name}' deleted`);
+    return redirect(LIST_PATH, "Status deleted", true);
+  },
+);
 
 /** Factory for move-up / move-down handlers (swap with the ordered neighbour). */
 const moveHandler = (dir: "up" | "down") =>
-  ownerFormById(async (id) => {
+  statusHandlers.post(async (_status, _session, _form, _request, { id }) => {
     const ids = (await attendeeStatuses.getAll()).map((s) => s.id);
-    if (!ids.includes(id)) return notFoundResponse();
     const pair = planReorder(ids, id, dir);
     if (pair) await swapAttendeeStatusOrder(pair[0], pair[1]);
     return redirect(LIST_PATH, "Status moved", true);

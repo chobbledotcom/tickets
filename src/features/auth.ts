@@ -439,6 +439,14 @@ export type Guard<TArgs extends unknown[]> = (
 /** Session guard: require auth and call handler with session */
 export type SessionGuard<TSession> = Guard<[TSession]>;
 
+/** Turn a form auth policy into a route gate that yields its session and form. */
+export const formGuard =
+  (
+    policy: AuthPolicy<"form">,
+  ): Guard<[session: AuthSession, form: FormParams]> =>
+  (request, handler) =>
+    withAuth(request, policy, (session, form) => handler(session, form));
+
 /** Factory for authenticated GET routes whose builder returns the full
  * Response — for pages that may 404, redirect, or set headers. Applies any
  * flashed message first and hands its values to the builder. */

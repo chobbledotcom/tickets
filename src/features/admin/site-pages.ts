@@ -16,10 +16,23 @@ import {
   type ConfirmedHandlers,
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
-import { SITE_FORM, SITE_MULTIPART, sitePage, withAuth } from "#routes/auth.ts";
-import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
+import {
+  formGuard,
+  SITE_FORM,
+  SITE_MULTIPART,
+  sitePage,
+} from "#routes/auth.ts";
+import {
+  createEntityHandler,
+  createIdEntityHandler,
+  type IdParam,
+} from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import { authedFormConfig, createAuthedFormRoute } from "#shared/app-forms.ts";
+import {
+  authedFormConfig,
+  createAuthedFormRoute,
+  createAuthedHandler,
+} from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupExists } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
@@ -39,7 +52,6 @@ import {
   swapSitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import { planReorder } from "#shared/reorder.ts";
 import {
   eligibleChildPages,
@@ -67,7 +79,6 @@ import {
   savedContentResponse,
   siteConfirmAuth,
   siteContentPaths,
-  siteEntityPost,
   siteListPage,
 } from "./site-content.ts";
 import { buildListModel, offerableListing } from "./site-pages-data.ts";
@@ -112,42 +123,6 @@ const availableSlugOrError = async (
   return slug;
 };
 
-// ─── Handler wrappers ───────────────────────────────────────────
-
-/** Load the target page or answer 404, then hand it to `hit`. */
-const loadPageOr404 = async (
-  id: number,
-  hit: (page: SitePage) => Promise<Response>,
-): Promise<Response> => {
-  const page = await getSitePageById(id);
-  return page ? hit(page) : notFoundResponse();
-};
-
-/** SITE_FORM POST handler keyed on `:id`. */
-const idPost = (
-  handler: (id: number, form: FormParams) => Promise<Response>,
-): IdRouteHandler =>
-  idRouteFor((request, id) =>
-    withAuth(request, SITE_FORM, (_session, form) => handler(id, form)),
-  );
-
-/** SITE_FORM POST handler keyed on `(:id, :itemType, :itemId)`. The router's
- * numeric-param rule has already turned `:id`/`:itemId` into numbers; only the
- * `:itemType` segment needs validating here. */
-const itemPost =
-  (
-    handler: (ref: ItemRef, id: number, form: FormParams) => Promise<Response>,
-  ) =>
-  (
-    request: Request,
-    { id, itemType, itemId }: { id: number; itemType: string; itemId: number },
-  ): Promise<Response> =>
-    withAuth(request, SITE_FORM, (_session, form) =>
-      isSitePageItemType(itemType)
-        ? handler({ id: itemId, type: itemType }, id, form)
-        : notFoundResponse(),
-    );
-
 // ─── Page CRUD ──────────────────────────────────────────────────
 
 const renderList = siteListPage(buildListModel, adminSitePagesListPage);
@@ -159,6 +134,9 @@ const renderNew = sitePage((session, _request, flash) =>
 const loadPage = ({ id }: { id: number }): Promise<SitePage | null> =>
   getSitePageById(id);
 const pageEditPath = (page: SitePage): string => editPath(page.id);
+const pageFormHandler = createIdEntityHandler<SitePage>(getSitePageById)(
+  formGuard(SITE_FORM),
+);
 const createPageForm = authedFormConfig(
   SITE_FORM,
   sitePageForm,
@@ -225,18 +203,21 @@ const pageDelete: ConfirmedHandlers = createConfirmedHandlers<
 /** Move a root page one step in `dir` by swapping sort_order with its neighbour
  * among the *root* pages (nested pages are ordered by their edge, not here). */
 const moveRoot = (dir: "up" | "down") =>
-  idPost(async (id) => {
-    const keys = (await loadPageForest()).forest.rootIds.map((rid) =>
-      targetKey("page", rid),
-    );
-    const swap = planReorder(keys, targetKey("page", id), dir);
-    if (swap) {
-      await swapSitePageOrder(
-        parseTargetKey(swap[0]).id,
-        parseTargetKey(swap[1]).id,
+  createAuthedHandler<IdParam>({
+    auth: SITE_FORM,
+    handle: async ({ params: { id } }) => {
+      const keys = (await loadPageForest()).forest.rootIds.map((rid) =>
+        targetKey("page", rid),
       );
-    }
-    return redirect(LIST_PATH, t("site.pages.moved"), true);
+      const swap = planReorder(keys, targetKey("page", id), dir);
+      if (swap) {
+        await swapSitePageOrder(
+          parseTargetKey(swap[0]).id,
+          parseTargetKey(swap[1]).id,
+        );
+      }
+      return redirect(LIST_PATH, t("site.pages.moved"), true);
+    },
   });
 
 // ─── Item manager ───────────────────────────────────────────────
@@ -265,7 +246,7 @@ const isEligibleTarget = async (
   );
 };
 
-const handleAddItem = siteEntityPost(getSitePageById)(async (page, form) => {
+const handleAddItem = pageFormHandler(async (page, _session, form) => {
   const type = form.getString("item_type");
   const itemId = form.getOptionalInt("item_id");
   if (!isSitePageItemType(type) || itemId === null) {
@@ -290,30 +271,43 @@ const handleAddItem = siteEntityPost(getSitePageById)(async (page, form) => {
   );
 });
 
-const handleRemoveItem = itemPost((ref, id) =>
-  loadPageOr404(id, async (page) => {
-    await removePageItem(id, ref.type, ref.id);
-    return savedContentResponse(
-      itemsPath(id),
-      `Item removed from page '${page.name}'`,
-      t("site.pages.item_removed"),
-    );
-  }),
-);
+type ItemRouteParams = { id: number; itemId: number; itemType: string };
+type PageItem = { page: SitePage; ref: ItemRef };
+const pageItemHandler = createEntityHandler<ItemRouteParams, PageItem>(
+  async ({ id, itemId, itemType }) => {
+    if (!isSitePageItemType(itemType)) return null;
+    const page = await getSitePageById(id);
+    return page ? { page, ref: { id: itemId, type: itemType } } : null;
+  },
+)(formGuard(SITE_FORM));
+
+const handleRemoveItem = pageItemHandler(async ({ page, ref }) => {
+  await removePageItem(page.id, ref.type, ref.id);
+  return savedContentResponse(
+    itemsPath(page.id),
+    `Item removed from page '${page.name}'`,
+    t("site.pages.item_removed"),
+  );
+});
 
 const moveItem = (dir: "up" | "down") =>
-  itemPost(async (ref, id) => {
-    const items = await getItemsForPage(id);
-    const keys = items.map((i) => targetKey(i.item_type, i.item_id));
-    const swap = planReorder(keys, targetKey(ref.type, ref.id), dir);
-    if (swap) {
-      await swapPageItemOrder(
-        id,
-        parseTargetKey(swap[0]),
-        parseTargetKey(swap[1]),
-      );
-    }
-    return redirect(itemsPath(id), t("site.pages.moved"), true);
+  createAuthedHandler<ItemRouteParams>({
+    auth: SITE_FORM,
+    handle: async ({ params: { id, itemId, itemType } }) => {
+      if (!isSitePageItemType(itemType)) return notFoundResponse();
+      const ref: ItemRef = { id: itemId, type: itemType };
+      const items = await getItemsForPage(id);
+      const keys = items.map((i) => targetKey(i.item_type, i.item_id));
+      const swap = planReorder(keys, targetKey(ref.type, ref.id), dir);
+      if (swap) {
+        await swapPageItemOrder(
+          id,
+          parseTargetKey(swap[0]),
+          parseTargetKey(swap[1]),
+        );
+      }
+      return redirect(itemsPath(id), t("site.pages.moved"), true);
+    },
   });
 
 // ─── Images ─────────────────────────────────────────────────────

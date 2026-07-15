@@ -7,16 +7,16 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 /* jscpd:ignore-start */
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { ownerFoundOr404 } from "#routes/admin/owner-route.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash, requireCsrfForm } from "#routes/csrf.ts";
+import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
-import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
+import type { RouteHandlerFn } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/builder.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -47,7 +47,6 @@ import {
   deployAndReport,
   loadBuiltSiteUpdateState,
 } from "#shared/site-update.ts";
-import type { AdminSession } from "#shared/types.ts";
 import {
   deployLatestReleaseToDeno,
   deployLatestReleaseToScript,
@@ -153,65 +152,45 @@ const readClampedMonths = (form: {
 const parseDeadlineDate = (dateStr: string): string | null =>
   isIsoDate(dateStr) ? `${dateStr}T23:59:59Z` : null;
 
-type AdminForm = { getString: (key: string) => string };
-
-type OwnerPostHandler = (
+const builtSiteHandler = createIdEntityHandler<BuiltSite>(
+  builtSitesCrudTable.findById,
+);
+type BuiltSitePost = (
   site: BuiltSite,
-  form: AdminForm,
+  form: { getString: (key: string) => string },
   id: number,
 ) => Promise<Response>;
-
-/** Handler receiving the resolved site (with its id) and the owner session. */
-type OwnerSiteHandler = (
-  found: { id: number; site: BuiltSite },
-  session: AdminSession,
-) => Promise<Response>;
-
-/** Owner-gated wrapper that also resolves `:id` → site or returns 404. */
-const withOwnerAndSite = (
-  request: Request,
-  params: RouteParams,
-  handler: OwnerSiteHandler,
-): Promise<Response> => {
-  const id = Number(params.id);
-  return ownerFoundOr404(
-    request,
-    () => builtSitesCrudTable.findById(id),
-    (site, session) => handler({ id, site }, session),
-  );
+const builtSiteHandlers = {
+  get: builtSiteHandler(requireOwnerOr),
+  post: (action: BuiltSitePost): IdRouteHandler =>
+    builtSiteHandler(requireOwnerOr)(
+      async (site, _session, request, { id }) => {
+        const csrf = await requireCsrfForm(request, () =>
+          htmlResponse("CSRF token invalid", 403),
+        );
+        return csrf.ok ? action(site, csrf.form, id) : csrf.response;
+      },
+    ),
 };
 
-/** Owner-gated POST handler wrapper: authenticates, parses CSRF. */
-const ownerPost =
-  (handler: OwnerPostHandler) =>
-  (request: Request, params: RouteParams): Promise<Response> =>
-    withOwnerAndSite(request, params, async ({ id, site }) => {
-      const csrfResult = await requireCsrfForm(request, () =>
-        htmlResponse("CSRF token invalid", 403),
-      );
-      if (!csrfResult.ok) return csrfResult.response;
-      return handler(site, csrfResult.form, id);
-    });
-
 /** GET /admin/built-sites/:id/edit */
-const handleEditGet = (request: Request, params: RouteParams) =>
-  withOwnerAndSite(request, params, async ({ site }, session) => {
-    const flash = applyFlash(request);
-    const [secrets, updateState] = await Promise.all([
-      loadSiteSecretsStatus(site),
-      loadBuiltSiteUpdateState(site),
-    ]);
-    return htmlResponse(
-      adminBuiltSiteEditPage(
-        site,
-        session,
-        flash.error,
-        flash.success,
-        secrets,
-        updateState,
-      ),
-    );
-  });
+const handleEditGet = builtSiteHandlers.get(async (site, session, request) => {
+  const flash = applyFlash(request);
+  const [secrets, updateState] = await Promise.all([
+    loadSiteSecretsStatus(site),
+    loadBuiltSiteUpdateState(site),
+  ]);
+  return htmlResponse(
+    adminBuiltSiteEditPage(
+      site,
+      session,
+      flash.error,
+      flash.success,
+      secrets,
+      updateState,
+    ),
+  );
+});
 
 type EditResult = Awaited<ReturnType<typeof editError>>;
 
@@ -240,7 +219,7 @@ const runSiteUpdate = async (
  * The site migrates on its next request after deploy, so a recent backup of
  * *this site's* database (taken to our storage by the upgrade workflow) is
  * required before pushing a new version. */
-const handleUpdateSite = ownerPost(async (site, _form, id) => {
+const handleUpdateSite = builtSiteHandlers.post(async (site, _form, id) => {
   const access = siteHostingAccess(site, "it can't be updated");
   if (!access.ok) return editError(id, access.error);
   return runSiteUpdate(site, id, () =>
@@ -251,7 +230,7 @@ const handleUpdateSite = ownerPost(async (site, _form, id) => {
 });
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
-const handleRotateToken = ownerPost(async (site, _form, id) => {
+const handleRotateToken = builtSiteHandlers.post(async (site, _form, id) => {
   if (!isProvisioned(site)) {
     return editError(id, "Renewal is not provisioned for this site");
   }
@@ -276,7 +255,7 @@ const handleRotateToken = ownerPost(async (site, _form, id) => {
  * Re-verifies the live secrets first, then sets only the ones still missing —
  * an existing secret is never overwritten (it may have been changed for a
  * reason). */
-const handleAddSecrets = ownerPost(async (site, _form, id) => {
+const handleAddSecrets = builtSiteHandlers.post(async (site, _form, id) => {
   const result = await addMissingSiteSecrets(site);
   if (!result.ok) {
     return editError(id, `Secrets could not be set: ${result.error}`);
@@ -292,7 +271,7 @@ const handleAddSecrets = ownerPost(async (site, _form, id) => {
 });
 
 /** POST /admin/built-sites/:id/bump-deadline */
-const handleBumpDeadline = ownerPost(async (site, form, id) => {
+const handleBumpDeadline = builtSiteHandlers.post(async (site, form, id) => {
   const months = readClampedMonths(form);
   const newIso = addMonthsToRenewalDeadline(site, months);
   const result = await syncReadOnlyFrom(site, newIso);
@@ -305,20 +284,24 @@ const handleBumpDeadline = ownerPost(async (site, form, id) => {
 });
 
 /** POST /admin/built-sites/:id/override-deadline */
-const handleOverrideDeadline = ownerPost(async (site, form, id) => {
-  const dateStr = form.getString("date");
-  if (!dateStr) return editError(id, "Choose a deadline date");
-  const cutoffIso = parseDeadlineDate(dateStr);
-  if (!cutoffIso) return editError(id, "Choose a valid deadline date");
-  const result = await syncReadOnlyFrom(site, cutoffIso);
-  if (result.ok) {
-    await logActivity(`Admin overrode '${site.name}' deadline to ${cutoffIso}`);
-  }
-  return editPushResult(id, result, "Deadline updated");
-});
+const handleOverrideDeadline = builtSiteHandlers.post(
+  async (site, form, id) => {
+    const dateStr = form.getString("date");
+    if (!dateStr) return editError(id, "Choose a deadline date");
+    const cutoffIso = parseDeadlineDate(dateStr);
+    if (!cutoffIso) return editError(id, "Choose a valid deadline date");
+    const result = await syncReadOnlyFrom(site, cutoffIso);
+    if (result.ok) {
+      await logActivity(
+        `Admin overrode '${site.name}' deadline to ${cutoffIso}`,
+      );
+    }
+    return editPushResult(id, result, "Deadline updated");
+  },
+);
 
 /** POST /admin/built-sites/:id/re-sync-deadline */
-const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
+const handleReSyncDeadline = builtSiteHandlers.post(async (site, _form, id) => {
   if (!site.readOnlyFrom) return editError(id, "No deadline to re-sync");
   const renewalUrl =
     isProvisioned(site) && site.renewalToken
@@ -336,35 +319,37 @@ const handleReSyncDeadline = ownerPost(async (site, _form, id) => {
  * Gates on the existence of at least one qualifying renewal tier listing so an
  * admin doesn't generate a token that would dead-end at an empty /renew picker.
  * (The customer picks the actual tier at renew time.) */
-const handleProvisionRenewal = ownerPost(async (site, form, id) => {
-  if (isProvisioned(site)) {
-    return editError(id, "Renewal is already provisioned for this site");
-  }
-  const tier = await pickTierListing();
-  if (!tier) {
-    return editError(
+const handleProvisionRenewal = builtSiteHandlers.post(
+  async (site, form, id) => {
+    if (isProvisioned(site)) {
+      return editError(id, "Renewal is already provisioned for this site");
+    }
+    const tier = await pickTierListing();
+    if (!tier) {
+      return editError(
+        id,
+        "Create a qualifying renewal tier listing before provisioning",
+      );
+    }
+    const months = readClampedMonths(form);
+    const result = await provisionSiteRenewal(
+      site,
+      months,
+      `Provision push failed for site ${id}`,
+    );
+    if (result.pushOk) {
+      await logActivity(
+        `Admin provisioned renewals for '${site.name}' (${months}mo)`,
+      );
+    }
+    return editPushOk(
       id,
-      "Create a qualifying renewal tier listing before provisioning",
+      result.pushOk,
+      "Renewal provisioned",
+      "Renewal could not be pushed to the site",
     );
-  }
-  const months = readClampedMonths(form);
-  const result = await provisionSiteRenewal(
-    site,
-    months,
-    `Provision push failed for site ${id}`,
-  );
-  if (result.pushOk) {
-    await logActivity(
-      `Admin provisioned renewals for '${site.name}' (${months}mo)`,
-    );
-  }
-  return editPushOk(
-    id,
-    result.pushOk,
-    "Renewal provisioned",
-    "Renewal could not be pushed to the site",
-  );
-});
+  },
+);
 
 /** GET /admin/built-sites — overrides the CRUD list so we can render the
  * renewal-tier summary alongside the sites table. */

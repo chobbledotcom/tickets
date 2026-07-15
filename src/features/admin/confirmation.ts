@@ -23,12 +23,11 @@ import {
 import {
   type AuthedBase,
   type AuthedHandleStep,
-  type AuthedRoute,
   authedHandlerWithStep,
 } from "#shared/app-forms.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
+import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
 
 /** Form guard: require auth + CSRF, call handler with session and form */
@@ -103,7 +102,7 @@ type VerifiedFormRouteConfig<TParams, TContext> = AuthedBase<
  */
 export const createVerifiedFormRoute = <TParams, TContext>(
   config: VerifiedFormRouteConfig<TParams, TContext>,
-): AuthedRoute<TParams> =>
+): ParamsRoute<TParams> =>
   authedHandlerWithStep<TParams, TContext>(config, async (args) => {
     const expected = await config.identifier(args.context, args.params);
     const error = verifyOrRedirect(

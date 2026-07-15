@@ -561,6 +561,15 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       );
     });
 
+    test("item move route 404s on a bad type", async () => {
+      const page = await seedPage("bad-move-ref");
+      const { response } = await adminFormPost(
+        `${BASE}/${page.id}/items/bogus/1/move-up`,
+        {},
+      );
+      expect(response.status).toBe(404);
+    });
+
     test("item routes 404 on a bad ref or missing page", async () => {
       const page = await seedPage("refs");
       expect(

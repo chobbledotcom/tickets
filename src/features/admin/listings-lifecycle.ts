@@ -9,7 +9,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
-import { AUTH_FORM, withAuth } from "#routes/auth.ts";
+import { AUTH_FORM, formGuard } from "#routes/auth.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -29,7 +30,6 @@ import {
   adminDeleteListingPage,
   adminReactivateListingPage,
 } from "#templates/admin/listings/lifecycle.tsx";
-import { withEntityFromParam } from "./entity-handlers.ts";
 
 /* jscpd:ignore-end */
 
@@ -108,19 +108,21 @@ export const listingDelete = createConfirmedHandlers<ListingWithCount>({
   successRedirect: "/admin",
 });
 
+const unverifiedListingDelete = createIdEntityHandler<ListingWithCount>(
+  getListingWithCount,
+)(formGuard(AUTH_FORM))(async (listing, _session, _form, _request, { id }) => {
+  // Same orphaned-add-on guard as the confirmed path: block a
+  // delete that would leave a child-scoped add-on unreachable.
+  const error = await deleteOrphanedAddOnError(listing.id);
+  if (error) return redirect(`/admin/listing/${id}`, error, false);
+  await performListingDelete(listing);
+  return redirect("/admin", t("success.listing_deleted"), true);
+});
+
 /** Handle DELETE /admin/listing/:id (delete listing with logging) */
 export const handleAdminListingDelete: TypedRouteHandler<
   "POST /admin/listing/:id/delete"
 > = (request, { id }) =>
   getSearchParam(request, "verify_identifier") !== "false"
     ? listingDelete.post(request, id)
-    : withAuth(request, AUTH_FORM, () =>
-        withEntityFromParam(id, getListingWithCount, async (listing) => {
-          // Same orphaned-add-on guard as the confirmed path: block a
-          // delete that would leave a child-scoped add-on unreachable.
-          const error = await deleteOrphanedAddOnError(listing.id);
-          if (error) return redirect(`/admin/listing/${id}`, error, false);
-          await performListingDelete(listing);
-          return redirect("/admin", t("success.listing_deleted"), true);
-        }),
-      );
+    : unverifiedListingDelete(request, { id });

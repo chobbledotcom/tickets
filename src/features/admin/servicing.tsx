@@ -17,10 +17,12 @@ import {
 import {
   AUTH_FORM,
   type AuthSession,
+  formGuard,
   requireSessionOr,
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -220,34 +222,12 @@ const redirectServicingResult = async <T extends { id: number; name: string }>(
   }
 };
 
-/** A POST on one servicing event: authenticate, check the event exists, then
- * run `act` with the submitted form and the loaded event. Every update,
- * delete, duplicate, and cost route funnels through here. */
-const withServicingEvent = (
-  request: Request,
-  id: number,
-  act: (form: FormParams, event: ServicingEvent) => Promise<Response>,
-): Promise<Response> =>
-  withAuth(request, AUTH_FORM, async (_session, form) => {
-    const event = await getServicingEvent(id);
-    if (!event) return notFoundResponse();
-    return act(form, event);
-  });
-
-/** Curried route shape for the POSTs keyed by the event id alone. */
-const servicingEventPost =
-  (
-    act: (
-      id: number,
-      form: FormParams,
-      event: ServicingEvent,
-    ) => Promise<Response>,
-  ) =>
-  (request: Request, { id }: { id: number }): Promise<Response> =>
-    withServicingEvent(request, id, (form, event) => act(id, form, event));
+const servicingFormHandler = createIdEntityHandler<ServicingEvent>(
+  getServicingEvent,
+)(formGuard(AUTH_FORM));
 
 const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
-  servicingEventPost(async (id, form, event) => {
+  servicingFormHandler(async (event, _session, form, _request, { id }) => {
     const costResponse = await handleCostPost(id, form, event);
     if (costResponse) return costResponse;
     return redirectServicingResult(
@@ -258,13 +238,13 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
   });
 
 const handleServicingDeletePost: TypedRouteHandler<"POST /admin/servicing/:id/delete"> =
-  servicingEventPost(async (id) => {
+  servicingFormHandler(async (_event, _session, _form, _request, { id }) => {
     await deleteServicingEvent(id);
     return redirect("/admin/", t("servicing.success.deleted"), true);
   });
 
 const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id/duplicate"> =
-  servicingEventPost((id) =>
+  servicingFormHandler((_event, _session, _form, _request, { id }) =>
     redirectServicingResult(
       id,
       () => duplicateServicingEvent(id),
@@ -272,26 +252,29 @@ const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id
     ),
   );
 
-const handleServicingCostPost: TypedRouteHandler<
-  "POST /admin/servicing/:id/cost/:costId"
-> = (request, { id, costId }) =>
-  withServicingEvent(request, id, async (form) => {
-    const amount = parsePositiveMinorUnits(form.getString("amount"));
-    if (amount === null) {
+const handleServicingCostPost: TypedRouteHandler<"POST /admin/servicing/:id/cost/:costId"> =
+  createEntityHandler<{ costId: number; id: number }, ServicingEvent>(
+    ({ id }) => getServicingEvent(id),
+  )(formGuard(AUTH_FORM))(
+    async (_event, _session, form, _request, { costId, id }) => {
+      const amount = parsePositiveMinorUnits(form.getString("amount"));
+      if (amount === null) {
+        return redirect(
+          `/admin/servicing/${id}`,
+          t("servicing.error.invalid_cost_amount"),
+          false,
+        );
+      }
+      if (!(await costBelongsToServicing(costId, id)))
+        return notFoundResponse();
+      await editServiceCost(costId, { amount }, id);
       return redirect(
         `/admin/servicing/${id}`,
-        t("servicing.error.invalid_cost_amount"),
-        false,
+        t("servicing.success.cost_updated"),
+        true,
       );
-    }
-    if (!(await costBelongsToServicing(costId, id))) return notFoundResponse();
-    await editServiceCost(costId, { amount }, id);
-    return redirect(
-      `/admin/servicing/${id}`,
-      t("servicing.success.cost_updated"),
-      true,
-    );
-  });
+    },
+  );
 
 export const adminHandlers = handlersFor("servicing")({
   getServicing: handleServicingListGet,

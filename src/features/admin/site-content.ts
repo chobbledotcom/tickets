@@ -6,17 +6,9 @@
 
 /* jscpd:ignore-start */
 import type { FormGuard } from "#routes/admin/confirmation.ts";
-import {
-  formPost,
-  requireSiteOr,
-  SITE_FORM,
-  sitePage,
-  withAuth,
-} from "#routes/auth.ts";
-import { type EntityLoader, gatedEntityRoute } from "#routes/entity.ts";
+import { requireSiteOr, SITE_FORM, sitePage, withAuth } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -42,15 +34,6 @@ export const siteListPage = <T>(
   sitePage(async (session, _request, flash) =>
     render(await load(), session, flash.success),
   );
-
-/** Curried POST `:id` route: Site form gate, then load the entity (404 when
- * missing) and hand it to the mutation. */
-export const siteEntityPost =
-  <T>(load: EntityLoader<T>) =>
-  (handler: (item: T, form: FormParams) => Promise<Response>) =>
-    gatedEntityRoute<FormParams>((request, h) =>
-      formPost(SITE_FORM)(h)(request),
-    )(load, handler);
 
 /** The confirmed-delete auth pair every Site-tab delete flow uses. */
 export const siteConfirmAuth: {
