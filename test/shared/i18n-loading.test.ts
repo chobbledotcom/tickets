@@ -11,27 +11,38 @@ import {
   MESSAGE_GROUPS,
   type MessageLoader,
 } from "#locales/manifest.ts";
+import { allEnglishMessages, withColdMessages } from "#test-utils/i18n.ts";
 
-const withCommonLoader = async (
+const withCommonLoader = (
   loader: MessageLoader,
   run: () => Promise<void>,
+): Promise<void> =>
+  withColdMessages(async () => {
+    const original = ENGLISH_MESSAGE_LOADERS.common;
+    ENGLISH_MESSAGE_LOADERS.common = loader;
+    try {
+      await run();
+    } finally {
+      ENGLISH_MESSAGE_LOADERS.common = original;
+      resetI18nForTest(true);
+    }
+  });
+
+const duplicateMessageLoader = async (): Promise<Record<string, string>> => ({
+  "public.not_found.title": "Duplicate",
+});
+
+const expectDuplicateMessageError = async (
+  load: () => Promise<unknown>,
 ): Promise<void> => {
-  const original = ENGLISH_MESSAGE_LOADERS.common;
-  ENGLISH_MESSAGE_LOADERS.common = loader;
-  resetI18nForTest(true);
-  try {
-    await run();
-  } finally {
-    ENGLISH_MESSAGE_LOADERS.common = original;
-    resetI18nForTest(true);
-    await ensureMessageGroups(MESSAGE_GROUPS);
-  }
+  await expect(load()).rejects.toThrow(
+    'Message key "public.not_found.title" belongs to both en/system and en/common',
+  );
 };
 
 describe("lazy message groups", () => {
-  test("loads only the requested message group", async () => {
-    resetI18nForTest(true);
-    try {
+  test("loads only the requested message group", () =>
+    withColdMessages(async () => {
       expect(t("public.not_found.title")).toBe("Not Found");
       expect(() => t("common.yes")).toThrow(
         'Missing translation for key "common.yes"',
@@ -43,14 +54,10 @@ describe("lazy message groups", () => {
       expect(() => t("admin.dashboard.guide_link")).toThrow(
         'Missing translation for key "admin.dashboard.guide_link"',
       );
-    } finally {
-      await ensureMessageGroups(MESSAGE_GROUPS);
-    }
-  });
+    }));
 
-  test("keeps messages and compiled formats when another group loads", async () => {
-    resetI18nForTest(true);
-    try {
+  test("keeps messages and compiled formats when another group loads", () =>
+    withColdMessages(async () => {
       await ensureMessageGroups(["common"]);
       expect(t("linked_items.heading", { count: 2 })).toBe("Linked items (2):");
 
@@ -58,10 +65,7 @@ describe("lazy message groups", () => {
 
       expect(t("linked_items.heading", { count: 3 })).toBe("Linked items (3):");
       expect(t("error.name_required")).toBe("Name is required");
-    } finally {
-      await ensureMessageGroups(MESSAGE_GROUPS);
-    }
-  });
+    }));
 
   test("shares one in-flight load between concurrent requests", () => {
     let loads = 0;
@@ -104,13 +108,15 @@ describe("lazy message groups", () => {
   });
 
   test("rejects a message key owned by two groups", () =>
-    withCommonLoader(
-      async () => ({ "public.not_found.title": "Duplicate" }),
-      async () => {
-        await expect(ensureMessageGroups(["common"])).rejects.toThrow(
-          'Message key "public.not_found.title" belongs to both en/system and en/common',
-        );
-      },
+    withCommonLoader(duplicateMessageLoader, () =>
+      expectDuplicateMessageError(() => ensureMessageGroups(["common"])),
+    ));
+
+  test("catalog-wide loading rejects a message key owned by two groups", () =>
+    withCommonLoader(duplicateMessageLoader, () =>
+      expectDuplicateMessageError(() =>
+        allEnglishMessages(["system", "common"]),
+      ),
     ));
 
   test("rejects a non-string catalog value", () =>

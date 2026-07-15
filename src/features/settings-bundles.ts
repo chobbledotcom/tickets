@@ -258,6 +258,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
 /** Settings to pre-load for a path: infra ∪ the prefix's bundle. */
 export const settingsForPath = (path: string): readonly string[] => {
   const prefix = getPrefix(path);
-  const bundle = PREFIX_SETTINGS[prefix] ?? ALL_SNAPSHOT_SETTINGS;
-  return [...INFRA_SETTINGS, ...bundle];
+  const bundle = Object.hasOwn(PREFIX_SETTINGS, prefix)
+    ? PREFIX_SETTINGS[prefix]
+    : undefined;
+  return [...INFRA_SETTINGS, ...(bundle ?? ALL_SNAPSHOT_SETTINGS)];
 };

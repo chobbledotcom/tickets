@@ -166,7 +166,9 @@ export const routeAdmin: PathMethodRoute = async (
   // An unknown segment 404s before any session work, so probing traffic
   // never costs a session lookup.
   const segment = adminPathSegment(path);
-  const segmentRouter = segmentRouters[segment];
+  const segmentRouter = Object.hasOwn(segmentRouters, segment)
+    ? segmentRouters[segment]
+    : undefined;
   if (!segmentRouter) return null;
 
   return await withMessageGroups(segmentRouter.messageGroups, async () => {

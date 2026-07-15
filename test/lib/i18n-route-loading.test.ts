@@ -1,19 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ensureMessageGroups, resetI18nForTest, t } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withColdMessages } from "#test-utils/i18n.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { adminGet } from "#test-utils/session.ts";
-
-const withColdMessages = async (run: () => Promise<void>): Promise<void> => {
-  resetI18nForTest(true);
-  try {
-    await run();
-  } finally {
-    await ensureMessageGroups(MESSAGE_GROUPS);
-  }
-};
 
 describeWithEnv("route message loading", { db: true }, () => {
   test("a static response leaves feature messages unloaded", () =>
@@ -41,11 +32,11 @@ describeWithEnv("route message loading", { db: true }, () => {
       );
     }));
 
-  test("an unknown admin segment leaves admin copy unloaded", () =>
+  test("an inherited admin segment leaves admin copy unloaded", () =>
     withColdMessages(async () => {
       const { handleRequest } = await import("#routes");
 
-      const response = await handleRequest(mockRequest("/admin/not-a-page"));
+      const response = await handleRequest(mockRequest("/admin/constructor"));
 
       expect(response.status).toBe(404);
       expect(() => t("admin.dashboard.guide_link")).toThrow(

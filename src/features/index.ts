@@ -502,7 +502,7 @@ const prefixHandlers: Record<string, PrefixRoute> = {
     PUBLIC_MESSAGE_GROUPS,
     lazyRoute(exactRouteLoaders.unsubscribe),
   ),
-  v1: prefixRoute([], lazyRoute(routeLoaders.walletWebservice)),
+  v1: prefixRoute(["fields"], lazyRoute(routeLoaders.walletWebservice)),
   wallet: prefixRoute(PUBLIC_MESSAGE_GROUPS, lazyRoute(routeLoaders.wallet)),
 };
 
@@ -515,7 +515,9 @@ const routeMainApp: RouterFn = async (request, path, method, server) => {
   if (blocked) return blocked;
 
   const prefix = getPrefix(path);
-  const route = prefixHandlers[prefix];
+  const route = Object.hasOwn(prefixHandlers, prefix)
+    ? prefixHandlers[prefix]
+    : undefined;
   if (!route) return notFoundResponse();
   return await withMessageGroups(
     route.messageGroups,

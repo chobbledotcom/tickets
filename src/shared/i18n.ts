@@ -54,8 +54,10 @@ const clearFormatCache = (): void => {
   for (const key of Object.keys(formatCache)) delete formatCache[key];
 };
 
-const registerGroup = (
-  state: I18nState,
+/** Add one catalog to message and ownership maps, rejecting invalid overlap. */
+export const addMessageGroup = (
+  messages: Map<string, string>,
+  owners: Map<string, MessageGroup>,
   group: MessageGroup,
   extra: Messages,
 ): void => {
@@ -63,15 +65,23 @@ const registerGroup = (
     if (typeof message !== "string") {
       throw new TypeError(`en/${group} message "${key}" is not a string`);
     }
-    const owner = state.owners.get(key);
+    const owner = owners.get(key);
     if (owner !== undefined && owner !== group) {
       throw new Error(
         `Message key "${key}" belongs to both en/${owner} and en/${group}`,
       );
     }
-    state.messages.set(key, message);
-    state.owners.set(key, group);
+    messages.set(key, message);
+    owners.set(key, group);
   }
+};
+
+const registerGroup = (
+  state: I18nState,
+  group: MessageGroup,
+  extra: Messages,
+): void => {
+  addMessageGroup(state.messages, state.owners, group, extra);
   state.loaded.add(group);
 };
 

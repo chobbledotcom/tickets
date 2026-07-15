@@ -715,10 +715,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       expect(disabled.status).toBe(404);
     });
 
-    test("returns 404 when routeMainApp returns null for unmatched path", async () => {
-      const response = await handleRequest(
-        mockRequest("/completely-unknown-path-xyz-987"),
-      );
+    test("returns 404 for a path named after an inherited object property", async () => {
+      const response = await handleRequest(mockRequest("/constructor"));
       await expectHtmlResponse(response, 404, "Not Found");
     });
   });
