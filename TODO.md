@@ -1209,4 +1209,5 @@ an attendee that no longer exists. Start with
 `src/shared/db/attendees/delete.ts` and
 `src/shared/merge/attendee-merge.ts`. Add direct regressions proving deletion
 removes a stage and merging repoints it without losing the unique attendee
-invariant.
+invariant. If both attendees have stages, require an explicit conflict decision
+instead of silently choosing or deleting one.
