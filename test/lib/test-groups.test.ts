@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { withEnv } from "#test-utils/env.ts";
+import { withTempDir } from "#test-utils/files.ts";
 import { rethrowUnlessNotFound } from "../../scripts/not-found.ts";
 import {
   collectTestFiles,
@@ -136,27 +137,31 @@ describe("test-groups", () => {
   describe("writeTestGroups", () => {
     /** A scratch project root with a test/ dir: one groupable file, one
      * global-hook file, and one non-test helper that must be ignored. */
-    const makeScratchRoot = async (): Promise<string> => {
-      const root = await Deno.makeTempDir({ prefix: "tickets-test-groups-" });
-      await Deno.mkdir(`${root}/test`, { recursive: true });
-      await Deno.writeTextFile(
-        `${root}/test/plain.test.ts`,
-        'describe("plain", () => {});\n',
+    const withScratchRoot = <Result>(
+      run: (root: string) => Result | Promise<Result>,
+    ): Promise<Result> =>
+      withTempDir(
+        async (root) => {
+          await Deno.mkdir(`${root}/test`, { recursive: true });
+          await Deno.writeTextFile(
+            `${root}/test/plain.test.ts`,
+            'describe("plain", () => {});\n',
+          );
+          await Deno.writeTextFile(
+            `${root}/test/global-hooks.test.ts`,
+            "beforeAll(() => {});\n",
+          );
+          await Deno.writeTextFile(
+            `${root}/test/helper.ts`,
+            "export const x = 1;\n",
+          );
+          return await run(root);
+        },
+        { prefix: "tickets-test-groups-" },
       );
-      await Deno.writeTextFile(
-        `${root}/test/global-hooks.test.ts`,
-        "beforeAll(() => {});\n",
-      );
-      await Deno.writeTextFile(
-        `${root}/test/helper.ts`,
-        "export const x = 1;\n",
-      );
-      return root;
-    };
 
     test("collectTestFiles rejects a shared helper with a global hook", async () => {
-      const root = await makeScratchRoot();
-      try {
+      await withScratchRoot(async (root) => {
         await Deno.writeTextFile(
           `${root}/test/hooky-helper.ts`,
           "afterEach(() => {});\n",
@@ -165,14 +170,11 @@ describe("test-groups", () => {
           "registers a global BDD hook — export a setup function and call it " +
             "from each test file's own suite instead",
         );
-      } finally {
-        await Deno.remove(root, { recursive: true });
-      }
+      });
     });
 
     test("collectTestFiles finds .test.ts and .test.tsx files, sorted", async () => {
-      const root = await makeScratchRoot();
-      try {
+      await withScratchRoot(async (root) => {
         await Deno.writeTextFile(
           `${root}/test/component.test.tsx`,
           'describe("component", () => {});\n',
@@ -189,14 +191,11 @@ describe("test-groups", () => {
           `${root}/test/global-hooks.test.ts`,
           `${root}/test/plain.test.ts`,
         ]);
-      } finally {
-        await Deno.remove(root, { recursive: true });
-      }
+      });
     });
 
     test("writes group entries, keeps solo files separate, and cleans up", async () => {
-      const root = await makeScratchRoot();
-      try {
+      await withScratchRoot(async (root) => {
         const groups = await writeTestGroups(root, 2);
 
         // One groupable file → one group entry; the global-hook file is solo.
@@ -215,14 +214,11 @@ describe("test-groups", () => {
         await groups.cleanup(); // a second pass finds nothing left — no throw
         // The entries and (now empty) groups dir are gone.
         await expect(Deno.stat(`${root}/${GROUPS_DIR}`)).rejects.toThrow();
-      } finally {
-        await Deno.remove(root, { recursive: true });
-      }
+      });
     });
 
     test("cleanup leaves a groups dir holding someone else's files", async () => {
-      const root = await makeScratchRoot();
-      try {
+      await withScratchRoot(async (root) => {
         const groups = await writeTestGroups(root, 1);
         await Deno.writeTextFile(`${root}/${GROUPS_DIR}/keep.txt`, "mine");
         await groups.cleanup();
@@ -233,9 +229,7 @@ describe("test-groups", () => {
         const again = await writeTestGroups(root, 1);
         expect(again.runArgs[0]).toContain(GROUPS_DIR);
         await again.cleanup();
-      } finally {
-        await Deno.remove(root, { recursive: true });
-      }
+      });
     });
 
     /** Run writeTestGroups with its default group count under `env`, and
@@ -244,17 +238,14 @@ describe("test-groups", () => {
     const expectOneGroupEntryWithEnv = async (
       env: Record<string, string | undefined>,
     ): Promise<void> => {
-      const root = await makeScratchRoot();
       using _env = withEnv(env);
-      try {
+      await withScratchRoot(async (root) => {
         const groups = await writeTestGroups(root);
         expect(
           groups.runArgs.filter((arg) => arg.includes(GROUPS_DIR)),
         ).toHaveLength(1);
         await groups.cleanup();
-      } finally {
-        await Deno.remove(root, { recursive: true });
-      }
+      });
     };
 
     test("group count defaults from DENO_JOBS when set", async () => {

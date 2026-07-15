@@ -12,6 +12,7 @@ import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 import { useLocalStoragePath } from "./_shared-site-update.ts";
@@ -41,24 +42,24 @@ describeWithEnv(
   "POST /admin/built-sites/:id/update",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
-    let storageTmp: string;
+    let storageTmp: TempPath;
     let env: EnvScope;
 
     beforeEach(() => {
       // The host's Bunny key plus local storage for the per-site backup gate,
       // set as one env layer so teardown can't leak BUNNY_API_KEY into the
       // "without BUNNY_API_KEY" suite below.
-      storageTmp = Deno.makeTempDirSync();
+      storageTmp = tempDir();
       env = withEnv({
         BUNNY_API_KEY: "host-key",
-        LOCAL_STORAGE_PATH: storageTmp,
+        LOCAL_STORAGE_PATH: storageTmp.path,
       });
     });
 
     afterEach(() => {
       settings.clearTestOverrides();
       env.dispose();
-      if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
+      storageTmp.dispose();
     });
 
     test("deploys the latest release to the site's own script", async () => {

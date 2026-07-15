@@ -9,6 +9,7 @@ import type { ResponseHandler } from "#shared/response-steps.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withTempDir } from "#test-utils/files.ts";
 import {
   TEST_STORAGE_ZONE,
   type TestRequestOptions,
@@ -427,17 +428,12 @@ export const withStorageEnabled = <T>(fn: () => T): T =>
 
 export const withLocalStorageEnabled = async <T>(
   fn: (dir: string) => Promise<T>,
-): Promise<T> => {
-  const dir = await Deno.makeTempDir();
-  try {
-    return await runWithStorageConfig(
-      { localPath: dir, zoneKey: "", zoneName: "" },
-      () => fn(dir),
-    );
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-};
+): Promise<T> =>
+  await withTempDir((dir) =>
+    runWithStorageConfig({ localPath: dir, zoneKey: "", zoneName: "" }, () =>
+      fn(dir),
+    ),
+  );
 
 export const mockProviderType = (
   type: import("#shared/payments.ts").PaymentProviderType,

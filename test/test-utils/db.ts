@@ -22,9 +22,9 @@ import {
   setupTestEncryptionKey,
   withEnv,
 } from "#test-utils/env.ts";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
 import {
   type DescribeEnvOptions,
-  getTestStoragePath,
   type RawListingRange,
   resetTestSession,
   resetTestSlugCounter,
@@ -189,9 +189,9 @@ export const resetDb = (): void => {
  * - `"local"`: a fresh temp dir (recorded for `getTestStoragePath`) with empty
  *   zone creds, so ambient Bunny creds can't shadow the local backend.
  */
-const applyStorageConfig = async (
+const applyStorageConfig = (
   storage: DescribeEnvOptions["storage"],
-): Promise<void> => {
+): TempPath | undefined => {
   if (storage === "cdn") {
     setStorageConfigForTest({
       localPath: "",
@@ -201,19 +201,23 @@ const applyStorageConfig = async (
     return;
   }
   if (storage === "local") {
-    const dir = await Deno.makeTempDir();
-    setTestStoragePath(dir);
-    setStorageConfigForTest({ localPath: dir, zoneKey: "", zoneName: "" });
+    const dir = tempDir();
+    setTestStoragePath(dir.path);
+    setStorageConfigForTest({
+      localPath: dir.path,
+      zoneKey: "",
+      zoneName: "",
+    });
+    return dir;
   }
+  return;
 };
 
 /** Clear the suite-level storage config and remove any `"local"` temp dir. */
-const teardownStorageConfig = async (): Promise<void> => {
+const teardownStorageConfig = (dir: TempPath | undefined): void => {
   setStorageConfigForTest(null);
-  const dir = getTestStoragePath();
-  if (!dir) return;
   setTestStoragePath(null);
-  await Deno.remove(dir, { recursive: true });
+  dir?.dispose();
 };
 
 export const describeWithEnv = (
@@ -223,6 +227,7 @@ export const describeWithEnv = (
 ): void => {
   describe(name, () => {
     let env: EnvScope | undefined;
+    let storageDir: TempPath | undefined;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
@@ -233,13 +238,14 @@ export const describeWithEnv = (
         await createTestDbWithSetup("GB", options.triggers ?? false);
       }
       if (options.env) env = withEnv(options.env);
-      await applyStorageConfig(options.storage);
+      storageDir = applyStorageConfig(options.storage);
     });
-    afterEach(async () => {
+    afterEach(() => {
       if (options.db) resetDb();
       env?.dispose();
       env = undefined;
-      await teardownStorageConfig();
+      teardownStorageConfig(storageDir);
+      storageDir = undefined;
     });
     // A small suite may never reach the amortised reclaim threshold, so hand
     // back its leaked descriptors when it finishes (see reclaim-fds.ts).

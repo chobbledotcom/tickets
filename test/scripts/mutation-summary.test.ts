@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { withEnv } from "#test-utils/env.ts";
+import { tempFile } from "#test-utils/files.ts";
 import {
   formatProgressLine,
   formatSummaryLines,
@@ -147,32 +148,26 @@ describe("mutation summary", () => {
   });
 
   test("writes GitHub step summaries when configured", async () => {
-    const path = await Deno.makeTempFile({ prefix: "mutation-summary-" });
-    try {
-      const text = await withStepSummary(path, () => {
-        writeStepSummary(summarize([]));
-        writeStepSummary(summarize([fakeResult("ignored", 1, "??", "||")]));
-        writeStepSummary(
-          summarize([
-            fakeResult("killed", 2, "===", "!=="),
-            fakeResult("ignored", 3, "??", "||"),
-          ]),
-        );
-        writeStepSummary(
-          summarize([
-            fakeResult("survived", 4, "return x", "return undefined"),
-          ]),
-        );
-      });
+    using file = tempFile({ prefix: "mutation-summary-" });
+    const text = await withStepSummary(file.path, () => {
+      writeStepSummary(summarize([]));
+      writeStepSummary(summarize([fakeResult("ignored", 1, "??", "||")]));
+      writeStepSummary(
+        summarize([
+          fakeResult("killed", 2, "===", "!=="),
+          fakeResult("ignored", 3, "??", "||"),
+        ]),
+      );
+      writeStepSummary(
+        summarize([fakeResult("survived", 4, "return x", "return undefined")]),
+      );
+    });
 
-      expect(text).toContain("Inconclusive");
-      expect(text).toContain("nothing killable");
-      expect(text).toContain("All 1 mutants detected");
-      expect(text).toContain("Survivors");
-      expect(text).toContain("src/example.ts:4:3");
-    } finally {
-      await Deno.remove(path).catch(() => {});
-    }
+    expect(text).toContain("Inconclusive");
+    expect(text).toContain("nothing killable");
+    expect(text).toContain("All 1 mutants detected");
+    expect(text).toContain("Survivors");
+    expect(text).toContain("src/example.ts:4:3");
   });
 
   test("ignores absent or unwritable GitHub step summary paths", async () => {
