@@ -1094,8 +1094,9 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   each missing-column ALTER separately. Move long migrations out of band or
   make progress resumable in bounded request-sized steps, and batch safe ALTERs.
 - **Large in-app backups and storage cleanup.** After the first-page batch,
-  `exportTable` in `src/shared/db/backup.ts` still needs one call per later page;
-  a 25,000-row table at the default page size needs about 50 pages by itself.
+  `exportTable` in `src/shared/db/backup-snapshot.ts` still needs one call per
+  later page; a 25,000-row table at the default page size needs about 50 pages
+  by itself.
   `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
   `pruneOldBackups` make one storage delete per stale object. Send large backups
   through the existing out-of-band workflow and cap cleanup work per request.
@@ -1151,6 +1152,27 @@ Starting points: `src/features/api/payment-processing/completion.ts`,
 `src/shared/site-assignment.ts`. Tests must interrupt each effect, retry through
 both webhook and redirect paths, and prove answers, activity, messages, site
 assignments, and renewal time are neither lost nor duplicated.
+
+---
+
+## Consistent database backup snapshots
+
+*Origin: CodeRabbit review of PR #1836.*
+
+`createBackup` batches each table's first page, then `exportTable` reads later
+pages with standalone queries. A write during those reads can make a backup mix
+rows from different database states. PR #1836 only moves the existing exporter
+into `src/shared/db/backup-snapshot.ts`; it deliberately preserves the current
+queries, replica routing, pagination, and round-trip behavior.
+
+Add a dedicated read-only transaction or snapshot API in
+`src/shared/db/client.ts`. Do not reuse `withTransaction`: that helper opens a
+primary-routed write transaction, serializes writers, and enforces a write
+round-trip limit. Keep the first-page multi-table read efficient, account for
+the edge subrequest budget, and use the same snapshot for every later page.
+Add a regression test in `test/shared/db/backup-snapshot.test.ts` that changes
+rows between page reads and proves the exported rows all come from one database
+state.
 
 ---
 
