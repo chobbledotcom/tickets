@@ -36,6 +36,26 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
     }
   });
 
+  test("allows a 32-byte Unicode MAIN_INSTANCE_KEY", () => {
+    const restore = setTestEnv({ MAIN_INSTANCE_KEY: "é".repeat(16) });
+    try {
+      expect(() => validateOptionalMainInstanceKey()).not.toThrow();
+    } finally {
+      restore();
+    }
+  });
+
+  test("rejects a 31-byte Unicode MAIN_INSTANCE_KEY", () => {
+    const restore = setTestEnv({ MAIN_INSTANCE_KEY: `${"é".repeat(15)}a` });
+    try {
+      expect(() => validateOptionalMainInstanceKey()).toThrow(
+        "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 31 bytes",
+      );
+    } finally {
+      restore();
+    }
+  });
+
   test("fails fast when MAIN_INSTANCE_KEY is blank", () => {
     const restore = setTestEnv({ MAIN_INSTANCE_KEY: "   " });
     try {

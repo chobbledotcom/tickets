@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/deno";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
@@ -59,6 +59,17 @@ describe("sentry", () => {
       expect(await initSentry()).toBe(true);
     });
 
+    test("starts the manual SDK client", async () => {
+      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      const initSpy = spy(Sentry.DenoClient.prototype, "init");
+      try {
+        expect(await initSentry()).toBe(true);
+        expect(initSpy.calls.length).toBe(1);
+      } finally {
+        initSpy.restore();
+      }
+    });
+
     test("is idempotent once initialized", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
       expect(await initSentry()).toBe(true);
@@ -70,9 +81,23 @@ describe("sentry", () => {
       await initSentry();
       expect(Sentry.getClient()?.getOptions().tracesSampleRate).toBe(0);
     });
+
+    test("loads no default integrations", async () => {
+      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      await initSentry();
+      expect(Sentry.getClient()?.getOptions().integrations).toEqual([]);
+    });
   });
 
   describe("captureServerError", () => {
+    const captureDbErrorBody = async (): Promise<string> => {
+      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      await initSentry();
+      await captureServerError({ code: ErrorCode.DB_QUERY });
+      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+      return bodyText(options.body);
+    };
+
     test("does nothing when Sentry is not initialized", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: undefined });
       await captureServerError({ code: ErrorCode.DB_QUERY });
@@ -93,6 +118,8 @@ describe("sentry", () => {
       const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       expect(url).toContain("bugs.example.test");
       expect(url).toContain("/api/2/envelope/");
+      expect(options.method).toBe("POST");
+      expect(options.referrerPolicy).toBe("strict-origin");
       const body = bodyText(options.body);
       // Real exception with a stack trace, not just a flat message.
       expect(body).toContain("kaboom");
@@ -150,15 +177,33 @@ describe("sentry", () => {
     });
 
     test("marks the event as level error", async () => {
+      const levels =
+        (await captureDbErrorBody()).match(/"level":"[^"]*"/g) ?? [];
+      expect(levels).toContain('"level":"error"');
+      expect(levels).not.toContain('"level":"info"');
+    });
+
+    test("does not add empty extra context", async () => {
+      expect(await captureDbErrorBody()).not.toContain('"extra"');
+    });
+
+    test("honours the endpoint retry-after limit", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      fetchStub.restore();
+      fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(
+          new Response(null, {
+            headers: { "retry-after": "60" },
+            status: 429,
+          }),
+        ),
+      );
       await initSentry();
 
       await captureServerError({ code: ErrorCode.DB_QUERY });
+      await captureServerError({ code: ErrorCode.DB_QUERY });
 
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      const levels = bodyText(options.body).match(/"level":"[^"]*"/g) ?? [];
-      expect(levels).toContain('"level":"error"');
-      expect(levels).not.toContain('"level":"info"');
+      expect(fetchStub.calls.length).toBe(1);
     });
 
     test("gives up on a hung transport after the flush timeout, not sooner", async () => {
@@ -167,9 +212,7 @@ describe("sentry", () => {
       // A transport that never settles: capture must still resolve — after
       // the 2s flush timeout, not immediately (a zero timeout would report
       // "flushed" before the transport had any chance to deliver). The SDK
-      // polls its buffer, so the resolution lands shortly AFTER the deadline;
-      // assert it holds out past the deadline, then advance timer by timer
-      // until it settles (bounded so a regression fails instead of hanging).
+      // first finishes client processing, then gives the transport exactly 2s.
       fetchStub.restore();
       fetchStub = stub(
         globalThis,
@@ -185,12 +228,15 @@ describe("sentry", () => {
         }).finally(() => {
           state.settled = true;
         });
-        await time.tickAsync(1999);
+        await time.nextAsync();
+        await time.tickAsync(1998);
         await time.runMicrotasks();
         expect(state.settled).toBe(false);
-        for (let fired = 0; !state.settled && fired < 10_000; fired++) {
-          await time.nextAsync();
-        }
+        await time.tickAsync(1);
+        await time.runMicrotasks();
+        expect(state.settled).toBe(false);
+        await time.tickAsync(1);
+        await time.runMicrotasks();
         expect(state.settled).toBe(true);
         await pending;
       } finally {

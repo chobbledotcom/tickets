@@ -18,6 +18,8 @@ import {
   nativeLibsqlGuard,
   reactRuntimeGuard,
   renameSourceMapLink,
+  SENTRY_BUILD_DEFINES,
+  sentryTreeShakingGuard,
 } from "../../scripts/edge-bundle-modules.ts";
 
 describe("buildBuildInfoModule", () => {
@@ -222,6 +224,31 @@ describe("reactRuntimeGuard", () => {
 
   test("labels the message with the given build name", () => {
     expect(reactRuntimeGuard("Deploy").message).toContain("Deploy bundle");
+  });
+});
+
+describe("Sentry tree shaking", () => {
+  test("compiles out debug and tracing code", () => {
+    expect(SENTRY_BUILD_DEFINES).toEqual({
+      __SENTRY_DEBUG__: "false",
+      __SENTRY_TRACING__: "false",
+    });
+  });
+
+  test("rejects a bundle that retains a Sentry compile-time flag", () => {
+    expect(sentryTreeShakingGuard.test("if (__SENTRY_DEBUG__) log()")).toBe(
+      true,
+    );
+  });
+
+  test("accepts a bundle with Sentry's optional paths compiled away", () => {
+    expect(sentryTreeShakingGuard.test("captureException(error)")).toBe(false);
+  });
+
+  test("explains which Sentry paths remain", () => {
+    expect(sentryTreeShakingGuard.message).toBe(
+      "Bundle retains a Sentry compile-time flag — expected debug and tracing code to be tree-shaken",
+    );
   });
 });
 
