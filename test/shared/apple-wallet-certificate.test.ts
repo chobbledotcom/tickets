@@ -59,11 +59,17 @@ describe("Apple Wallet certificates", () => {
     expect(parsed.issuer).toEqual(encodeSequence([encodeInteger(7)]));
   });
 
-  test("accepts the alternate X509 certificate label", () => {
-    const encoded = certificate(body());
-    expect(isValidAppleCertificate(pemFor("X509 CERTIFICATE", encoded))).toBe(
-      true,
+  test("accepts the alternate X509 certificate label", async () => {
+    const pem = generateTestCerts().signingCert.replaceAll(
+      "CERTIFICATE",
+      "X509 CERTIFICATE",
     );
+    expect(await isValidAppleCertificate(pem)).toBe(true);
+  });
+
+  test("rejects a certificate whose RSA key is too small to use", async () => {
+    const pem = pemFor("CERTIFICATE", certificate(body()));
+    expect(await isValidAppleCertificate(pem)).toBe(false);
   });
 
   test("rejects a certificate with the wrong outer fields", () => {
@@ -140,7 +146,7 @@ describe("Apple Wallet certificates", () => {
     );
   });
 
-  test("returns false instead of suppressing malformed certificate details", () => {
-    expect(isValidAppleCertificate("not a certificate")).toBe(false);
+  test("returns false instead of suppressing malformed certificate details", async () => {
+    expect(await isValidAppleCertificate("not a certificate")).toBe(false);
   });
 });

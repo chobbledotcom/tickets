@@ -34,7 +34,6 @@ import {
   isReadOnly,
   isReadOnlyWarning,
 } from "#shared/env.ts";
-import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
 import { fail, ok } from "#shared/response.ts";
@@ -90,8 +89,11 @@ const validateAppleWalletCerts = async (
     };
   }
 
-  const signingCertValid = isValidAppleCertificate(config.signingCert);
-  const signingKeyValid = isValidRsaPrivateKey(config.signingKey);
+  const [signingCertValid, signingKeyValid, wwdrCertValid] = await Promise.all([
+    isValidAppleCertificate(config.signingCert),
+    isValidRsaPrivateKey(config.signingKey),
+    isValidAppleCertificate(config.wwdrCert),
+  ]);
   const bothValid = signingCertValid && signingKeyValid;
   const pairMatches =
     bothValid &&
@@ -109,9 +111,7 @@ const validateAppleWalletCerts = async (
       pairMatches,
       "debug.apple_signing_key_mismatch",
     ),
-    wwdrCert: isValidAppleCertificate(config.wwdrCert)
-      ? CERT_STATUS.valid
-      : CERT_STATUS.invalidPem,
+    wwdrCert: wwdrCertValid ? CERT_STATUS.valid : CERT_STATUS.invalidPem,
   };
 };
 
@@ -148,7 +148,7 @@ const validateGooglePrivateKey = async (
   config: typeof settings.googleWallet.config,
 ): Promise<string> => {
   if (!config) return CERT_STATUS.notSet;
-  return (await isValidGooglePrivateKey(config.serviceAccountKey))
+  return (await isValidRsaPrivateKey(config.serviceAccountKey))
     ? CERT_STATUS.valid
     : "Invalid key";
 };

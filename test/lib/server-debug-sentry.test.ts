@@ -26,6 +26,23 @@ const expectDebugRedirect = (response: Response): void => {
   );
 };
 
+const sendAcceptedSentryTest = async (
+  env: Record<string, string> = {},
+): Promise<{ requests: number; response: Response }> => {
+  const restoreEnv = setTestEnv({ SENTRY_URL: SENTRY_DSN, ...env });
+  const fetchStub = stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response(null, { status: 200 })),
+  );
+  try {
+    const { response } = await adminFormPost("/admin/debug/sentry");
+    return { requests: fetchStub.calls.length, response };
+  } finally {
+    fetchStub.restore();
+    restoreEnv();
+    resetSentryForTest();
+  }
+};
+
 describeWithEnv("server (admin Sentry test)", { db: true }, () => {
   testRequiresAuth("/admin/debug/sentry", { method: "POST" });
 
@@ -56,20 +73,19 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
   });
 
   test("sends a tagged test error and confirms delivery", async () => {
-    const restoreEnv = setTestEnv({ SENTRY_URL: SENTRY_DSN });
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response(null, { status: 200 })),
-    );
-    try {
-      const { response } = await adminFormPost("/admin/debug/sentry");
-      expectDebugRedirect(response);
-      expectFlash(response, "Sentry test sent.");
-      expect(fetchStub.calls.length).toBe(1);
-    } finally {
-      fetchStub.restore();
-      restoreEnv();
-      resetSentryForTest();
-    }
+    const { requests, response } = await sendAcceptedSentryTest();
+    expectDebugRedirect(response);
+    expectFlash(response, "Sentry test sent.");
+    expect(requests).toBe(1);
+  });
+
+  test("sends the diagnostic while the site is read-only", async () => {
+    const { requests, response } = await sendAcceptedSentryTest({
+      READ_ONLY_FROM: "2000-01-01T00:00:00Z",
+    });
+    expectDebugRedirect(response);
+    expectFlash(response, "Sentry test sent.");
+    expect(requests).toBe(1);
   });
 
   test("reports when Sentry is not configured", async () => {

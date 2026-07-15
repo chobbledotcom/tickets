@@ -11,7 +11,7 @@
 
 import { t } from "#i18n";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
-import { rsaPrivateKeyBytes } from "#shared/crypto/rsa-private-key.ts";
+import { importRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { startOfHour } from "#shared/dates.ts";
 
@@ -39,30 +39,6 @@ const base64url = (data: Uint8Array): string =>
 /** Base64url-encode a UTF-8 string */
 const base64urlStr = (str: string): string =>
   base64url(new TextEncoder().encode(str));
-
-/** Import a PEM RSA private key for RS256 signing */
-const importPrivateKey = (pem: string): Promise<CryptoKey> => {
-  const bytes = rsaPrivateKeyBytes(pem);
-  return crypto.subtle.importKey(
-    "pkcs8",
-    bytes.buffer as ArrayBuffer,
-    { hash: "SHA-256", name: "RSASSA-PKCS1-v1_5" },
-    false,
-    ["sign"],
-  );
-};
-
-/** Validate an unencrypted PKCS#1 or PKCS#8 RSA key via Web Crypto import. */
-export const isValidGooglePrivateKey = async (
-  pem: string,
-): Promise<boolean> => {
-  try {
-    await importPrivateKey(pem);
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 /** A Google Wallet localized string holding a single en-US value. */
 const localizedString = (
@@ -159,7 +135,7 @@ export const signJwt = async (
   const payloadB64 = base64urlStr(JSON.stringify(payload));
   const signingInput = `${headerB64}.${payloadB64}`;
 
-  const key = await importPrivateKey(privateKeyPem);
+  const key = await importRsaPrivateKey(privateKeyPem);
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     key,

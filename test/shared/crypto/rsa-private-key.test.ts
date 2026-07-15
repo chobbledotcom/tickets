@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   encodeDer,
   encodeInteger,
@@ -10,8 +11,8 @@ import {
   readDerChildren,
 } from "#shared/crypto/der.ts";
 import {
+  importRsaPrivateKey,
   isValidRsaPrivateKey,
-  rsaPrivateKeyBytes,
 } from "#shared/crypto/rsa-private-key.ts";
 import {
   generateGoogleTestCreds,
@@ -32,7 +33,7 @@ const pkcs8 = (key = rsaPrivateKey(), algorithm = rsaAlgorithm()): Uint8Array =>
 const expectRsaAlgorithmRejected = (algorithm: Uint8Array): void => {
   expect(
     thrownError(() =>
-      rsaPrivateKeyBytes(
+      importRsaPrivateKey(
         pemFor("PRIVATE KEY", pkcs8(rsaPrivateKey(), algorithm)),
       ),
     ).message,
@@ -40,33 +41,55 @@ const expectRsaAlgorithmRejected = (algorithm: Uint8Array): void => {
 };
 
 describe("RSA private keys", () => {
-  test("accepts the fixed PKCS#1 and PKCS#8 credentials", () => {
-    expect(isValidRsaPrivateKey(generateTestCerts().signingKey)).toBe(true);
+  test("accepts the fixed PKCS#1 and PKCS#8 credentials", async () => {
+    expect(await isValidRsaPrivateKey(generateTestCerts().signingKey)).toBe(
+      true,
+    );
     expect(
-      isValidRsaPrivateKey(generateGoogleTestCreds().serviceAccountKey),
+      await isValidRsaPrivateKey(generateGoogleTestCreds().serviceAccountKey),
     ).toBe(true);
   });
 
-  test("wraps PKCS#1 as PKCS#8", () => {
-    const wrapped = rsaPrivateKeyBytes(
-      pemFor("RSA PRIVATE KEY", rsaPrivateKey()),
-    );
-    const fields = readDerChildren(readDer(wrapped));
-    expect(fields.map((field) => field.tag)).toEqual([0x02, 0x30, 0x04]);
-    expect(fields[0]!.encoded).toEqual(encodeInteger(0));
-    expect(fields[1]!.encoded).toEqual(rsaAlgorithm());
-    expect(fields[2]!.contents).toEqual(rsaPrivateKey());
+  test("rejects RSA values too small for a SHA-256 signature", async () => {
+    expect(
+      await isValidRsaPrivateKey(pemFor("RSA PRIVATE KEY", rsaPrivateKey())),
+    ).toBe(false);
   });
 
-  test("returns valid PKCS#8 bytes unchanged", () => {
-    const encoded = pkcs8();
-    expect(rsaPrivateKeyBytes(pemFor("PRIVATE KEY", encoded))).toEqual(encoded);
+  test("rejects an imported RSA key one bit below the 2048-bit minimum", async () => {
+    const algorithm: RsaHashedKeyAlgorithm = {
+      hash: { name: "SHA-256" },
+      modulusLength: 2047,
+      name: "RSASSA-PKCS1-v1_5",
+      publicExponent: new Uint8Array([1, 0, 1]),
+    };
+    const weakKey: CryptoKey = {
+      algorithm,
+      extractable: false,
+      type: "private",
+      usages: ["sign"],
+    };
+    const importStub = stub(crypto.subtle, "importKey", () =>
+      Promise.resolve(weakKey),
+    );
+    try {
+      expect(await isValidRsaPrivateKey(generateTestCerts().signingKey)).toBe(
+        false,
+      );
+    } finally {
+      importStub.restore();
+    }
+  });
+
+  test("imports private keys as non-extractable", async () => {
+    const key = await importRsaPrivateKey(generateTestCerts().signingKey);
+    expect(key.extractable).toBe(false);
   });
 
   test("rejects an incomplete multi-prime RSA key", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", rsaPrivateKey(1))),
+        importRsaPrivateKey(pemFor("RSA PRIVATE KEY", rsaPrivateKey(1))),
       ).message,
     ).toBe("Unsupported RSA private key version");
   });
@@ -74,7 +97,7 @@ describe("RSA private keys", () => {
   test("rejects extra fields on a two-prime RSA key", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", rsaPrivateKey(0, 10))),
+        importRsaPrivateKey(pemFor("RSA PRIVATE KEY", rsaPrivateKey(0, 10))),
       ).message,
     ).toBe("Unexpected RSA private key fields");
   });
@@ -82,7 +105,7 @@ describe("RSA private keys", () => {
   test("rejects incomplete and malformed PKCS#1 keys", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", rsaPrivateKey(0, 8))),
+        importRsaPrivateKey(pemFor("RSA PRIVATE KEY", rsaPrivateKey(0, 8))),
       ).message,
     ).toBe("Incomplete RSA private key");
     const fields = readDerChildren(readDer(rsaPrivateKey())).map(
@@ -91,7 +114,7 @@ describe("RSA private keys", () => {
     fields[4] = encodeDer(0x04, [new Uint8Array([1])]);
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", encodeSequence(fields))),
+        importRsaPrivateKey(pemFor("RSA PRIVATE KEY", encodeSequence(fields))),
       ).message,
     ).toBe("Invalid RSA private key field");
   });
@@ -103,7 +126,7 @@ describe("RSA private keys", () => {
     fields[0] = encodeDer(0x04, [new Uint8Array([0])]);
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", encodeSequence(fields))),
+        importRsaPrivateKey(pemFor("RSA PRIVATE KEY", encodeSequence(fields))),
       ).message,
     ).toBe("Invalid RSA private key field");
   });
@@ -111,7 +134,7 @@ describe("RSA private keys", () => {
   test("rejects an unsupported PKCS#1 version", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", rsaPrivateKey(2))),
+        importRsaPrivateKey(pemFor("RSA PRIVATE KEY", rsaPrivateKey(2))),
       ).message,
     ).toBe("Unsupported RSA private key version");
   });
@@ -119,7 +142,7 @@ describe("RSA private keys", () => {
   test("rejects a non-sequence PKCS#1 key", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", encodeInteger(0))),
+        importRsaPrivateKey(pemFor("RSA PRIVATE KEY", encodeInteger(0))),
       ).message,
     ).toBe("Invalid RSA private key");
   });
@@ -127,7 +150,7 @@ describe("RSA private keys", () => {
   test("rejects incomplete PKCS#8 keys", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(
+        importRsaPrivateKey(
           pemFor(
             "PRIVATE KEY",
             encodeSequence([encodeInteger(0), rsaAlgorithm()]),
@@ -166,7 +189,7 @@ describe("RSA private keys", () => {
   test("rejects a malformed PKCS#8 algorithm", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(
+        importRsaPrivateKey(
           pemFor("PRIVATE KEY", pkcs8(rsaPrivateKey(), encodeInteger(1))),
         ),
       ).message,
@@ -176,7 +199,7 @@ describe("RSA private keys", () => {
   test("rejects a non-sequence PKCS#8 key", () => {
     expect(
       thrownError(() =>
-        rsaPrivateKeyBytes(pemFor("PRIVATE KEY", encodeInteger(0))),
+        importRsaPrivateKey(pemFor("PRIVATE KEY", encodeInteger(0))),
       ).message,
     ).toBe("Invalid private key");
   });
@@ -188,7 +211,7 @@ describe("RSA private keys", () => {
       encodeDer(0x04, [rsaPrivateKey()]),
     ]);
     expect(
-      thrownError(() => rsaPrivateKeyBytes(pemFor("PRIVATE KEY", malformed)))
+      thrownError(() => importRsaPrivateKey(pemFor("PRIVATE KEY", malformed)))
         .message,
     ).toBe("Invalid private key version");
   });
@@ -200,17 +223,55 @@ describe("RSA private keys", () => {
       encodeInteger(1),
     ]);
     expect(
-      thrownError(() => rsaPrivateKeyBytes(pemFor("PRIVATE KEY", malformed)))
+      thrownError(() => importRsaPrivateKey(pemFor("PRIVATE KEY", malformed)))
         .message,
     ).toBe("Invalid private key bytes");
   });
 
-  test("rejects encrypted and unrelated PEM values", () => {
-    expect(isValidRsaPrivateKey(generateTestCerts().signingCert)).toBe(false);
+  test("rejects encrypted and unrelated PEM values", async () => {
+    expect(await isValidRsaPrivateKey(generateTestCerts().signingCert)).toBe(
+      false,
+    );
     expect(
-      isValidRsaPrivateKey(
+      await isValidRsaPrivateKey(
         pemFor("ENCRYPTED PRIVATE KEY", new Uint8Array([1, 2, 3])),
       ),
     ).toBe(false);
+  });
+
+  test("does not hide an unexpected signing failure", async () => {
+    const signStub = stub(crypto.subtle, "sign", () =>
+      Promise.reject(new Error("signing unavailable")),
+    );
+    try {
+      await expect(
+        isValidRsaPrivateKey(generateTestCerts().signingKey),
+      ).rejects.toThrow("signing unavailable");
+    } finally {
+      signStub.restore();
+    }
+  });
+
+  test("maps Web Crypto key-data failures to invalid credentials", async () => {
+    const failureStubs = [
+      () =>
+        stub(crypto.subtle, "importKey", () =>
+          Promise.reject(new DOMException("bad key", "DataError")),
+        ),
+      () =>
+        stub(crypto.subtle, "sign", () =>
+          Promise.reject(new DOMException("bad values", "OperationError")),
+        ),
+    ];
+    for (const makeStub of failureStubs) {
+      const failureStub = makeStub();
+      try {
+        expect(await isValidRsaPrivateKey(generateTestCerts().signingKey)).toBe(
+          false,
+        );
+      } finally {
+        failureStub.restore();
+      }
+    }
   });
 });

@@ -8,6 +8,7 @@ import {
   requireDerTag,
 } from "#shared/crypto/der.ts";
 import { readPem } from "#shared/crypto/pem.ts";
+import { isValidRsaPublicKey } from "#shared/crypto/rsa-private-key.ts";
 
 /* jscpd:ignore-end */
 
@@ -81,12 +82,15 @@ export const readAppleCertificate = (pem: string): AppleCertificate => {
   };
 };
 
-/** Whether the certificate has the RSA/X.509 structure supported above. */
-export const isValidAppleCertificate = (pem: string): boolean => {
+/** Whether the certificate has supported RSA/X.509 fields and an importable key. */
+export const isValidAppleCertificate = async (
+  pem: string,
+): Promise<boolean> => {
+  let certificate: AppleCertificate;
   try {
-    readAppleCertificate(pem);
-    return true;
+    certificate = readAppleCertificate(pem);
   } catch {
     return false;
   }
+  return isValidRsaPublicKey(certificate.publicKey);
 };

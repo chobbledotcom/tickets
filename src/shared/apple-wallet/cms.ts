@@ -10,7 +10,10 @@ import {
   readDer,
   sortDerValues,
 } from "#shared/crypto/der.ts";
-import { rsaPrivateKeyBytes } from "#shared/crypto/rsa-private-key.ts";
+import {
+  importRsaPrivateKey,
+  importRsaPublicKey,
+} from "#shared/crypto/rsa-private-key.ts";
 import { startOfHour } from "#shared/dates.ts";
 import { readAppleCertificate } from "./certificate.ts";
 
@@ -25,11 +28,6 @@ const OID = {
   signingTime: "1.2.840.113549.1.9.5",
 } as const;
 
-const RSA_SHA256: RsaHashedImportParams = {
-  hash: "SHA-256",
-  name: "RSASSA-PKCS1-v1_5",
-};
-
 const algorithmIdentifier = (oid: string, includeNull = false): Uint8Array =>
   encodeSequence(
     includeNull ? [encodeOid(oid), encodeNull()] : [encodeOid(oid)],
@@ -41,16 +39,6 @@ const attribute = (oid: string, value: Uint8Array): Uint8Array =>
 
 const digest = async (bytes: Uint8Array): Promise<Uint8Array> =>
   new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource));
-
-const importRsaKey = (
-  format: "pkcs8" | "spki",
-  bytes: Uint8Array,
-  usage: KeyUsage,
-): Promise<CryptoKey> =>
-  // false keeps the imported private key and certificate public key non-extractable.
-  crypto.subtle.importKey(format, bytes as BufferSource, RSA_SHA256, false, [
-    usage,
-  ]);
 
 // IMPLICIT tagging replaces the SET tag, but its children still require DER
 // SET OF ordering.
@@ -71,10 +59,9 @@ const createAppleSignature =
   ): ((data: Uint8Array) => Promise<AppleSignature>) =>
   async (data) => {
     const certificate = readAppleCertificate(signingCertPem);
-    const privateKeyBytes = rsaPrivateKeyBytes(signingKeyPem);
     const [privateKey, publicKey] = await Promise.all([
-      importRsaKey("pkcs8", privateKeyBytes, "sign"),
-      importRsaKey("spki", certificate.publicKey, "verify"),
+      importRsaPrivateKey(signingKeyPem),
+      importRsaPublicKey(certificate.publicKey),
     ]);
     const signature = new Uint8Array(
       await crypto.subtle.sign(

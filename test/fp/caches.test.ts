@@ -221,6 +221,8 @@ describe("fp caches and resources", () => {
       cache.set("a", 1);
       setTime(50);
       expect(cache.get("a")).toBe(1);
+      setTime(100);
+      expect(cache.get("a")).toBe(1);
       setTime(101);
       expect(cache.get("a")).toBe(undefined);
       expect(cache.size()).toBe(0);
@@ -271,6 +273,12 @@ describe("fp caches and resources", () => {
     test("refetches after TTL expires", async () => {
       const tracked = await fetchedDynCollection();
       tracked.setTime(101);
+      await expectRefetched(tracked);
+    });
+
+    test("refetches exactly when the TTL is reached", async () => {
+      const tracked = await fetchedDynCollection();
+      tracked.setTime(100);
       await expectRefetched(tracked);
     });
 

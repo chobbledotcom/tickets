@@ -141,6 +141,17 @@ export const mapNotNullish =
   (array: Iterable<T>): U[] =>
     stdMapNotNullish(array, fn);
 
+/** Check items in order and stop at the first reported problem. */
+export const firstProblem =
+  <T>(check: (item: T) => string | null | Promise<string | null>) =>
+  async (items: readonly T[]): Promise<string | null> => {
+    for (const item of items) {
+      const problem = await check(item);
+      if (problem) return problem;
+    }
+    return null;
+  };
+
 /**
  * Curried reduce
  */

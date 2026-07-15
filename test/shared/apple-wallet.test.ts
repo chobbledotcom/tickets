@@ -314,30 +314,30 @@ describe("apple-wallet", () => {
   });
 
   describe("isValidAppleCertificate", () => {
-    test("returns true for a valid PEM certificate", () => {
-      expect(isValidAppleCertificate(creds.signingCert)).toBe(true);
+    test("returns true for a valid PEM certificate", async () => {
+      expect(await isValidAppleCertificate(creds.signingCert)).toBe(true);
     });
 
-    test("returns false for a private key PEM", () => {
-      expect(isValidAppleCertificate(creds.signingKey)).toBe(false);
+    test("returns false for a private key PEM", async () => {
+      expect(await isValidAppleCertificate(creds.signingKey)).toBe(false);
     });
 
-    test("returns false for garbage input", () => {
-      expect(isValidAppleCertificate("not a certificate")).toBe(false);
+    test("returns false for garbage input", async () => {
+      expect(await isValidAppleCertificate("not a certificate")).toBe(false);
     });
   });
 
   describe("isValidRsaPrivateKey", () => {
-    test("returns true for a valid PEM private key", () => {
-      expect(isValidRsaPrivateKey(creds.signingKey)).toBe(true);
+    test("returns true for a valid PEM private key", async () => {
+      expect(await isValidRsaPrivateKey(creds.signingKey)).toBe(true);
     });
 
-    test("returns false for a certificate PEM", () => {
-      expect(isValidRsaPrivateKey(creds.signingCert)).toBe(false);
+    test("returns false for a certificate PEM", async () => {
+      expect(await isValidRsaPrivateKey(creds.signingCert)).toBe(false);
     });
 
-    test("returns false for garbage input", () => {
-      expect(isValidRsaPrivateKey("not a key")).toBe(false);
+    test("returns false for garbage input", async () => {
+      expect(await isValidRsaPrivateKey("not a key")).toBe(false);
     });
   });
 

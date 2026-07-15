@@ -19,6 +19,55 @@ const RSA_ALGORITHM = encodeSequence([
   encodeOid(RSA_ENCRYPTION_OID),
   encodeNull(),
 ]);
+const RSA_SHA256: RsaHashedImportParams = {
+  hash: "SHA-256",
+  name: "RSASSA-PKCS1-v1_5",
+};
+// Apple and Google issue 2048-bit or larger signing keys. Checking before a
+// test signature also avoids a Deno 2.5 crash on an RSA modulus too short to
+// hold the SHA-256 PKCS #1 signature block.
+const MIN_RSA_MODULUS_BITS = 2048;
+
+class InvalidRsaKeySizeError extends Error {}
+
+const importRsaKey = async (
+  format: "pkcs8" | "spki",
+  bytes: Uint8Array,
+  usage: KeyUsage,
+): Promise<CryptoKey> => {
+  // Keep imported key material non-extractable.
+  const key = await crypto.subtle.importKey(
+    format,
+    bytes as BufferSource,
+    RSA_SHA256,
+    false,
+    [usage],
+  );
+  const { modulusLength } = key.algorithm as RsaKeyAlgorithm;
+  if (modulusLength < MIN_RSA_MODULUS_BITS) {
+    throw new InvalidRsaKeySizeError(
+      `RSA key must be at least ${MIN_RSA_MODULUS_BITS} bits`,
+    );
+  }
+  return key;
+};
+
+const isInvalidRsaKeyError = (error: unknown): boolean =>
+  error instanceof InvalidRsaKeySizeError ||
+  (error instanceof DOMException &&
+    (error.name === "DataError" || error.name === "OperationError"));
+
+const rsaCheckPasses = async (
+  check: () => Promise<unknown>,
+): Promise<boolean> => {
+  try {
+    await check();
+    return true;
+  } catch (error) {
+    if (!isInvalidRsaKeyError(error)) throw error;
+    return false;
+  }
+};
 
 const requireRsaAlgorithm = (algorithm: Uint8Array): void => {
   readDerSequence(algorithm, "RSA algorithm");
@@ -60,7 +109,7 @@ const requirePkcs8 = (bytes: Uint8Array): void => {
 };
 
 /** Return an unencrypted RSA private key as PKCS#8 bytes for Web Crypto. */
-export const rsaPrivateKeyBytes = (pem: string): Uint8Array => {
+const rsaPrivateKeyBytes = (pem: string): Uint8Array => {
   const decoded = readPem(pem, ["PRIVATE KEY", "RSA PRIVATE KEY"]);
   if (decoded.label === "RSA PRIVATE KEY") {
     requirePkcs1(decoded.bytes);
@@ -70,12 +119,34 @@ export const rsaPrivateKeyBytes = (pem: string): Uint8Array => {
   return decoded.bytes;
 };
 
-/** Whether PEM has the supported RSA/DER shape; callers still import it with Web Crypto. */
-export const isValidRsaPrivateKey = (pem: string): boolean => {
+/** Import an unencrypted two-prime RSA signing key for SHA-256. */
+export const importRsaPrivateKey = (pem: string): Promise<CryptoKey> =>
+  importRsaKey("pkcs8", rsaPrivateKeyBytes(pem), "sign");
+
+/** Import an RSA SubjectPublicKeyInfo value for SHA-256 verification. */
+export const importRsaPublicKey = (bytes: Uint8Array): Promise<CryptoKey> =>
+  importRsaKey("spki", bytes, "verify");
+
+/** Whether public-key DER is importable by the RSA verification path. */
+export const isValidRsaPublicKey = async (
+  bytes: Uint8Array,
+): Promise<boolean> => rsaCheckPasses(() => importRsaPublicKey(bytes));
+
+/** Whether PEM is an importable RSA key that can produce a SHA-256 signature. */
+export const isValidRsaPrivateKey = async (pem: string): Promise<boolean> => {
+  let bytes: Uint8Array;
   try {
-    rsaPrivateKeyBytes(pem);
-    return true;
+    bytes = rsaPrivateKeyBytes(pem);
   } catch {
     return false;
   }
+  return rsaCheckPasses(async () => {
+    const key = await importRsaKey("pkcs8", bytes, "sign");
+    // Import alone does not prove that the private RSA parameters agree.
+    await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      key,
+      new Uint8Array() as BufferSource,
+    );
+  });
 };

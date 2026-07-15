@@ -16,12 +16,14 @@ import {
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { pemFor, rsaPrivateKey } from "#test-utils/der.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();
+const unusableRsaKey = pemFor("RSA PRIVATE KEY", rsaPrivateKey());
 
 /** Submit Apple Wallet settings form with overrides applied to valid defaults */
 const submitWalletSettingsForm = async (
@@ -369,6 +371,37 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       ),
       false,
     )(response);
+  });
+
+  test("rejects a structurally valid signing key with unusable RSA values", async () => {
+    const response = await submitWalletSettingsForm({
+      apple_wallet_signing_key: unusableRsaKey,
+    });
+    await expectFlashRedirect(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      expect.stringContaining(
+        "Signing private key is not a valid PEM private key",
+      ),
+      false,
+    )(response);
+  });
+
+  test("rejects an unusable retained signing key", async () => {
+    await configureAppleWallet();
+    await settings.update.appleWallet.signingKey(unusableRsaKey);
+    const response = await submitWalletSettingsForm({
+      apple_wallet_signing_cert: MASK_SENTINEL,
+      apple_wallet_signing_key: MASK_SENTINEL,
+      apple_wallet_wwdr_cert: MASK_SENTINEL,
+    });
+    await expectFlashRedirect(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      expect.stringContaining(
+        "Signing private key is not a valid PEM private key",
+      ),
+      false,
+    )(response);
+    expect(settings.appleWallet.signingKey).toBe(unusableRsaKey);
   });
 
   test("rejects invalid PEM WWDR certificate", async () => {
