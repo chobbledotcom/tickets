@@ -28,6 +28,8 @@ import {
   buildBuildInfoModule,
   type EdgeBundleGuard,
   reactRuntimeGuard,
+  SENTRY_BUILD_DEFINES,
+  sentryTreeShakingGuard,
 } from "./edge-bundle-modules.ts";
 import { ASSET_DEFS, buildCdnAssets } from "./edge-cdn-assets.ts";
 import {
@@ -168,7 +170,7 @@ const inlineAssetsPlugin = (
 });
 
 /** Read every static asset ASSET_DEFS references, plus the inlined order widget. */
-const readStaticAssets = async (
+export const readStaticAssets = async (
   minifiedCss: string,
 ): Promise<Record<string, string>> => {
   const staticAssets: Record<string, string> = {
@@ -235,7 +237,10 @@ export const buildEdgeBundle = async (
   await esbuild.build({
     banner: { js: NODEJS_GLOBALS_BANNER },
     bundle: true,
-    define: { "process.env.NODE_ENV": '"production"' },
+    define: {
+      "process.env.NODE_ENV": '"production"',
+      ...SENTRY_BUILD_DEFINES,
+    },
     entryPoints: [entryPoint],
     external: nodeExternals,
     format: "esm",
@@ -264,7 +269,11 @@ export const buildEdgeBundle = async (
   const raw = await Deno.readTextFile(`./dist/${outfile}`);
   const content = transformContent ? transformContent(raw) : raw;
 
-  for (const guard of [reactRuntimeGuard(label), ...(guards ?? [])]) {
+  for (const guard of [
+    reactRuntimeGuard(label),
+    sentryTreeShakingGuard,
+    ...(guards ?? []),
+  ]) {
     if (guard.test(content)) {
       console.error(guard.message);
       Deno.exit(1);

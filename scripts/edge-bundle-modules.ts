@@ -23,6 +23,12 @@ export interface EdgeBundleGuard {
   test: (content: string) => boolean;
 }
 
+/** Sentry compile-time flags for an error-only production SDK build. */
+export const SENTRY_BUILD_DEFINES = {
+  __SENTRY_DEBUG__: "false",
+  __SENTRY_TRACING__: "false",
+} as const;
+
 /** Build the inline build-info module with timestamp and commit SHA. */
 export const buildBuildInfoModule = (
   buildIso: string,
@@ -109,6 +115,14 @@ export const reactRuntimeGuard = (label: string): EdgeBundleGuard => ({
   message: `${label} bundle contains React.createElement — JSX automatic runtime is misconfigured (expected jsx: 'automatic', jsxImportSource: '#jsx')`,
   test: (content) => content.includes("React.createElement"),
 });
+
+/** Guard: Sentry's optional debug and tracing paths must be compiled away. */
+export const sentryTreeShakingGuard: EdgeBundleGuard = {
+  message:
+    "Bundle retains a Sentry compile-time flag — expected debug and tracing code to be tree-shaken",
+  test: (content) =>
+    Object.keys(SENTRY_BUILD_DEFINES).some((flag) => content.includes(flag)),
+};
 
 /** Guard: the bundle must stay under a maximum byte size (e.g. Bunny's 10MB). */
 export const bundleSizeGuard = (maxBytes: number): EdgeBundleGuard => ({

@@ -33,22 +33,24 @@ export const ASSET_DEFS: AssetDef[] = [
   ["contact.js", "handleContactJs", JS, "CONTACT_JS_PATH", true],
 ];
 
+export const CDN_ASSET_DEFS: AssetDef[] = ASSET_DEFS.filter(
+  ([, , , , publishToCdn]) => publishToCdn,
+);
+
 export const buildCdnAssets = (
   staticAssets: Record<string, string>,
 ): StaticCdnAsset[] => [
-  ...ASSET_DEFS.filter(([, , , , publishToCdn]) => publishToCdn).map(
-    ([filename, , contentType]) => {
-      const content = staticAssets[filename];
-      if (content === undefined) {
-        throw new Error(`Missing built static asset ${filename}`);
-      }
-      return {
-        bytes: new TextEncoder().encode(content),
-        contentType,
-        filename,
-      };
-    },
-  ),
+  ...CDN_ASSET_DEFS.map(([filename, , contentType]) => {
+    const content = staticAssets[filename];
+    if (content === undefined) {
+      throw new Error(`Missing built static asset ${filename}`);
+    }
+    return {
+      bytes: new TextEncoder().encode(content),
+      contentType,
+      filename,
+    };
+  }),
   ...ASSETS.map((asset) => ({
     bytes: readAsset(asset),
     contentType: "application/wasm",
