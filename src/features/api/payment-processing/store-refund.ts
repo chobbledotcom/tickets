@@ -223,6 +223,7 @@ const FAILURE_REFUND_CODES: Record<
   capacity_exceeded: "capacity_full",
   encryption_error: "capacity_full",
   sold_out: "sold_out",
+  unexpected_error: "unexpected_error",
 };
 
 /** The placeholder refund reason for a booking we tried but couldn't honour. */

@@ -145,7 +145,11 @@ export type HonourResult =
   | { ok: null; error: unknown }
   | {
       ok: false;
-      reason: "sold_out" | "capacity_exceeded" | "encryption_error";
+      reason:
+        | "sold_out"
+        | "capacity_exceeded"
+        | "encryption_error"
+        | "unexpected_error";
       detail: string;
     };
 
@@ -253,64 +257,66 @@ export const createAttendeeForSession = async (
   pricedOrder: PricedOrder,
   ticketToken: string,
 ): Promise<HonourResult> => {
-  // Per-LINE paid amounts: a listing booked through two paths is two lines
-  // with their own prices, and each becomes its own booking row. The priced
-  // order's lines reference the pricing intent's item objects, which pair
-  // 1:1 by index with validatedItems. `paidByIntentItem.get(...)` is always
-  // defined for a priced item (every intent item produces a priced line), so
-  // the raw value flows straight through — a genuine `0` (a free line that
-  // was still signed) stays `0`. The conditional spread is for
-  // `exactOptionalPropertyTypes`: an explicit `undefined` cannot be assigned
-  // to an optional `number`, so `pricePaid` is omitted when absent (the DB
-  // layer then coerces it to `0` at insert, matching the prior `?? 0`).
-  const paidByIntentItem = paidByItem(pricedOrder);
-  const bookings = orderBookings({
-    allocations: intent.allocations,
-    date: intent.date,
-    dayCount: intent.dayCount,
-    lines: validatedItems.map(({ item, listing }, index) => {
-      const pricePaid = paidByIntentItem.get(pricingIntent.items[index]!);
-      return {
-        ...bookingSlot(item),
-        listing,
-        ...(pricePaid !== undefined ? { pricePaid } : {}),
-        quantity: item.q,
-      };
-    }),
-  });
-  const fullTotal = pricedOrder.fullSubtotal;
-  const depositTotal = orderLineTotal(pricedOrder);
-  const remainingBalance =
-    intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
-
-  // Consume modifier stock, post the ledger legs, and finalize the session in
-  // ONE libsql batch with the attendee + booking INSERTs, so the booking, its
-  // stock, its sale/payment legs, and attendee_id are all-or-nothing in a single
-  // round-trip — never an interactive write transaction held open against the
-  // primary (which timed out under edge→primary latency). The usage amounts come
-  // from the same pricing pass that calculated the checkout total, so scoped
-  // bases, quantities, and clamped discounts match. A modifier that sold out
-  // during payment stops the booking landing (→ "sold-out"). The event is keyed
-  // on the payment session and dated from the provider's checkout time.
-  const plan = await bookingBatchPlan(
-    pricedOrder.modifierApplications,
-    {
-      eventId: session.id,
-      occurredAt: businessTime(session),
-      pricedOrder,
-    },
-    { paymentReference: session.paymentReference, sessionId: session.id },
-  );
-
-  const attendeeInput = {
-    ...(await attendeeBaseFields(session, intent)),
-    bookings,
-    remainingBalance,
-    ticketToken,
+  let prepared: {
+    attendeeInput: Parameters<typeof createBookingAtomic>[0];
+    plan: Parameters<typeof createBookingAtomic>[1];
   };
+  try {
+    // Per-LINE paid amounts: a listing booked through two paths is two lines
+    // with their own prices, and each becomes its own booking row. The priced
+    // order's lines reference the pricing intent's item objects, which pair
+    // 1:1 by index with validatedItems.
+    const paidByIntentItem = paidByItem(pricedOrder);
+    const bookings = orderBookings({
+      allocations: intent.allocations,
+      date: intent.date,
+      dayCount: intent.dayCount,
+      lines: validatedItems.map(({ item, listing }, index) => {
+        const pricePaid = paidByIntentItem.get(pricingIntent.items[index]!);
+        return {
+          ...bookingSlot(item),
+          listing,
+          ...(pricePaid !== undefined ? { pricePaid } : {}),
+          quantity: item.q,
+        };
+      }),
+    });
+    const remainingBalance =
+      intent.reservationAmount === undefined
+        ? 0
+        : pricedOrder.fullSubtotal - orderLineTotal(pricedOrder);
+
+    // Build every fallible input before starting the atomic write. A failure
+    // here is known not to have committed, while a write failure below must be
+    // checked against primary state before deciding whether to refund.
+    const plan = await bookingBatchPlan(
+      pricedOrder.modifierApplications,
+      {
+        eventId: session.id,
+        occurredAt: businessTime(session),
+        pricedOrder,
+      },
+      { paymentReference: session.paymentReference, sessionId: session.id },
+    );
+    prepared = {
+      attendeeInput: {
+        ...(await attendeeBaseFields(session, intent)),
+        bookings,
+        remainingBalance,
+        ticketToken,
+      },
+      plan,
+    };
+  } catch (error) {
+    return {
+      detail: `Unexpected error preparing session ${session.id}: ${String(error)}`,
+      ok: false,
+      reason: "unexpected_error",
+    };
+  }
   let result: Awaited<ReturnType<typeof createBookingAtomic>>;
   try {
-    result = await createBookingAtomic(attendeeInput, plan);
+    result = await createBookingAtomic(prepared.attendeeInput, prepared.plan);
   } catch (error) {
     return { error, ok: null };
   }
