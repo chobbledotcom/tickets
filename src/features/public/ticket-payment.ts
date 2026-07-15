@@ -35,7 +35,7 @@ import {
   stampChildRowPackages,
 } from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
-import { capacityDateFor } from "#shared/capacity-rules.ts";
+import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -97,7 +97,6 @@ import {
   type Group,
   type Holiday,
   type ListingWithCount,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 /* jscpd:ignore-start */
@@ -200,27 +199,6 @@ export const checkAvailability = (
     ),
     date,
   );
-
-/**
- * Shared booking-date fields (date + durationDays), keeping the payment and
- * webhook flows aligned. Span: customisable listings use the chosen `dayCount`;
- * daily listings use their fixed `duration_days`; standard listings span 1 day.
- */
-export const bookingDateFields = (
-  listing: Pick<
-    TicketListing["listing"],
-    "listing_type" | "duration_days" | "customisable_days"
-  >,
-  date: string | null,
-  dayCount = 1,
-): { date: string | null; durationDays: number } => ({
-  date: capacityDateFor(listing.listing_type, date),
-  durationDays: listing.customisable_days
-    ? normalizeDurationDays(dayCount)
-    : listing.listing_type === "daily"
-      ? normalizeDurationDays(listing.duration_days)
-      : 1,
-});
 
 /** Load one group's package pricing and shape it into the {@link PagePackage}
  * the booking flow carries — the group's display fields plus its member
