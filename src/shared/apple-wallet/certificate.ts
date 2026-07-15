@@ -32,6 +32,8 @@ const fieldAt = (
 };
 
 const requireRsaPublicKey = (publicKey: DerValue): void => {
+  // SubjectPublicKeyInfo is an AlgorithmIdentifier followed by the public-key
+  // BIT STRING. Web Crypto later validates the key bytes themselves.
   const fields = readDerChildren(publicKey);
   const algorithm = fieldAt(fields, 0, 0x30, "public-key algorithm");
   const algorithmFields = readDerChildren(algorithm);
@@ -42,9 +44,13 @@ const requireRsaPublicKey = (publicKey: DerValue): void => {
   fieldAt(fields, 1, 0x03, "public key");
 };
 
-/** Extract the exact issuer, serial, and public key DER needed by CMS. */
+/**
+ * Parse the RSA/X.509 fields needed by CMS. This does not validate the
+ * certificate signature, dates, usage, chain, or Apple-specific extensions.
+ */
 export const readAppleCertificate = (pem: string): AppleCertificate => {
   const { bytes } = readPem(pem, ["CERTIFICATE", "X509 CERTIFICATE"]);
+  // Certificate contains TBSCertificate, signatureAlgorithm, and signatureValue.
   const certificateFields = readDerSequence(bytes, "certificate");
   if (certificateFields.length !== 3)
     throw new Error("Invalid certificate fields");
@@ -53,6 +59,9 @@ export const readAppleCertificate = (pem: string): AppleCertificate => {
   fieldAt(certificateFields, 2, 0x03, "signature");
 
   const fields = readDerChildren(tbs);
+  // TBSCertificate starts with optional [0] EXPLICIT version; absent means v1.
+  // The remaining fixed order is serial, signature, issuer, validity, subject,
+  // then SubjectPublicKeyInfo.
   const offset = fields[0]?.tag === 0xa0 ? 1 : 0;
   const serialNumber = fieldAt(fields, offset, 0x02, "serial number");
   fieldAt(fields, offset + 1, 0x30, "signature algorithm");
@@ -64,12 +73,15 @@ export const readAppleCertificate = (pem: string): AppleCertificate => {
 
   return {
     bytes,
+    // CMS reuses the full issuer Name and serial INTEGER encodings. Web Crypto
+    // likewise imports the complete SubjectPublicKeyInfo encoding.
     issuer: issuer.encoded,
     publicKey: publicKey.encoded,
     serialNumber: serialNumber.encoded,
   };
 };
 
+/** Whether the certificate has the RSA/X.509 structure supported above. */
 export const isValidAppleCertificate = (pem: string): boolean => {
   try {
     readAppleCertificate(pem);

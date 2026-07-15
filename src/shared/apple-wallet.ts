@@ -5,7 +5,7 @@
  * - pass.json: Declarative pass content (listing name, date, QR code, etc.)
  * - icon.png / icon@2x.png / icon@3x.png: Pre-rendered pass icons
  * - manifest.json: SHA-1 hashes of all files
- * - signature: PKCS#7 detached signature of manifest.json
+ * - signature: CMS/PKCS #7 detached signature of manifest.json
  */
 
 import { zipSync } from "fflate";
@@ -172,7 +172,7 @@ const buildEventTicketFields = (data: PassData): EventTicketFields => {
   return fields;
 };
 
-/** Compute SHA-1 hex digest of a Uint8Array */
+/** Apple requires SHA-1 for manifest entries; CMS signs the manifest with SHA-256. */
 export const sha1Hex = async (data: Uint8Array): Promise<string> =>
   new Uint8Array(
     await crypto.subtle.digest("SHA-1", data as BufferSource),
@@ -209,6 +209,8 @@ export const buildPkpass = async (
   const manifestJson = await createManifest(files);
   const manifestBytes = new TextEncoder().encode(manifestJson);
 
+  // Sign the exact JSON string stored as manifest.json. Reserializing the
+  // object after signing would change its bytes and invalidate the signature.
   const signature = await signManifest(
     manifestJson,
     creds.signingCert,

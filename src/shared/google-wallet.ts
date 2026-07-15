@@ -52,7 +52,7 @@ const importPrivateKey = (pem: string): Promise<CryptoKey> => {
   );
 };
 
-/** Validate that a string is a parseable PEM private key (PKCS8 format) */
+/** Validate an unencrypted PKCS#1 or PKCS#8 RSA key via Web Crypto import. */
 export const isValidGooglePrivateKey = async (
   pem: string,
 ): Promise<boolean> => {

@@ -10,7 +10,10 @@ import {
 } from "#shared/crypto/der.ts";
 import { readPem } from "#shared/crypto/pem.ts";
 
+// PKCS #1 rsaEncryption. PKCS #8 requires this OID followed by DER NULL.
 const RSA_ENCRYPTION_OID = "1.2.840.113549.1.1.1";
+// PKCS #1 v0 has version, n, e, d, p, q, dP, dQ, and qInv. Version 1 adds
+// unsupported multi-prime data after these nine INTEGERs.
 const RSA_PRIVATE_KEY_FIELDS = 9;
 const RSA_ALGORITHM = encodeSequence([
   encodeOid(RSA_ENCRYPTION_OID),
@@ -32,6 +35,7 @@ const requirePkcs1 = (bytes: Uint8Array): void => {
     requireDerTag(field, 0x02, "RSA private key field");
   }
   const version = fields[0]!.contents;
+  // Only two-prime RSA (version 0) is accepted by the Web Crypto path below.
   if (version.length !== 1 || version[0] !== 0) {
     throw new Error("Unsupported RSA private key version");
   }
@@ -40,11 +44,15 @@ const requirePkcs1 = (bytes: Uint8Array): void => {
   }
 };
 
+// PKCS #8 wraps version 0, the RSA AlgorithmIdentifier, and the PKCS #1 DER
+// inside an OCTET STRING.
 const wrapPkcs1 = (bytes: Uint8Array): Uint8Array =>
   encodeSequence([encodeInteger(0), RSA_ALGORITHM, encodeDer(0x04, [bytes])]);
 
 const requirePkcs8 = (bytes: Uint8Array): void => {
   const fields = readDerSequence(bytes, "private key");
+  // PrivateKeyInfo starts with version, algorithm, and privateKey. Standards
+  // allow optional fields after these, which Web Crypto validates on import.
   if (fields.length < 3) throw new Error("Incomplete private key");
   requireDerTag(fields[0]!, 0x02, "private key version");
   requireRsaAlgorithm(fields[1]!.encoded);
@@ -62,6 +70,7 @@ export const rsaPrivateKeyBytes = (pem: string): Uint8Array => {
   return decoded.bytes;
 };
 
+/** Whether PEM has the supported RSA/DER shape; callers still import it with Web Crypto. */
 export const isValidRsaPrivateKey = (pem: string): boolean => {
   try {
     rsaPrivateKeyBytes(pem);

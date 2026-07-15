@@ -14,6 +14,7 @@ import { rsaPrivateKeyBytes } from "#shared/crypto/rsa-private-key.ts";
 import { startOfHour } from "#shared/dates.ts";
 import { readAppleCertificate } from "./certificate.ts";
 
+// Registered CMS, PKCS #9, PKCS #1, and NIST identifiers written on the wire.
 const OID = {
   contentType: "1.2.840.113549.1.9.3",
   data: "1.2.840.113549.1.7.1",
@@ -34,6 +35,7 @@ const algorithmIdentifier = (oid: string, includeNull = false): Uint8Array =>
     includeNull ? [encodeOid(oid), encodeNull()] : [encodeOid(oid)],
   );
 
+// CMS Attribute uses SET OF even when an attribute has only one value.
 const attribute = (oid: string, value: Uint8Array): Uint8Array =>
   encodeSequence([encodeOid(oid), encodeSet([value])]);
 
@@ -45,10 +47,13 @@ const importRsaKey = (
   bytes: Uint8Array,
   usage: KeyUsage,
 ): Promise<CryptoKey> =>
+  // false keeps the imported private key and certificate public key non-extractable.
   crypto.subtle.importKey(format, bytes as BufferSource, RSA_SHA256, false, [
     usage,
   ]);
 
+// IMPLICIT tagging replaces the SET tag, but its children still require DER
+// SET OF ordering.
 const implicitSet = (tag: number, values: readonly Uint8Array[]): Uint8Array =>
   encodeDer(tag, sortDerValues(values));
 
@@ -108,6 +113,8 @@ export const isValidAppleSigningPair = async (
   signingCertPem: string,
   signingKeyPem: string,
 ): Promise<boolean> =>
+  // Any successful sign-and-verify proves the pair; empty bytes keep this
+  // check independent of pass content.
   (await createAppleSignature(signingCertPem, signingKeyPem)(new Uint8Array()))
     .matchesCertificate;
 
@@ -127,12 +134,17 @@ export const signManifest = async (
     attribute(OID.messageDigest, encodeOctetString(manifestDigest)),
     attribute(OID.signingTime, encodeTime(signingTime)),
   ];
+  // CMS signs the DER SET OF encoding (tag 0x31). SignerInfo stores the same
+  // children below under the [0] IMPLICIT tag (0xa0).
   const signedAttributes = encodeSet(attributes);
   const { certificate: signingCertificate, signature } =
     await signWithCertificate(signedAttributes, signingCertPem, signingKeyPem);
 
+  // SHA-256 AlgorithmIdentifier omits parameters. The rsaEncryption signature
+  // identifier below uses NULL and takes its hash choice from digestAlgorithm.
   const digestAlgorithm = algorithmIdentifier(OID.sha256);
   const signerInfo = encodeSequence([
+    // SignerInfo v1 is required for an issuer-and-serial-number signer ID.
     encodeInteger(1),
     encodeSequence([
       signingCertificate.issuer,
@@ -144,16 +156,22 @@ export const signManifest = async (
     encodeOctetString(signature),
   ]);
   const signedData = encodeSequence([
+    // SignedData v1 covers id-data, ordinary X.509 certificates, and v1 signers.
     encodeInteger(1),
     encodeSet([digestAlgorithm]),
+    // Omitting eContent makes the signature detached: manifest.json is
+    // supplied separately by the pass archive.
     encodeSequence([encodeOid(OID.data)]),
+    // Apple needs both the signing and WWDR certificates to build its chain.
     implicitSet(0xa0, [signingCertificate.bytes, wwdrCertificate.bytes]),
     encodeSet([signerInfo]),
   ]);
   const cms = encodeSequence([
     encodeOid(OID.signedData),
+    // ContentInfo wraps SignedData in [0] EXPLICIT, preserving its SEQUENCE tag.
     encodeDer(0xa0, [signedData]),
   ]);
+  // Catch any malformed length or top-level envelope produced above.
   readDer(cms);
   return cms;
 };
