@@ -336,6 +336,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-12_remove_broken_image_records",
     () => import("./2026-07-12_remove_broken_image_records.ts"),
   ),
+  // Add dormant checkout stage storage and its revision counter.
+  entry(
+    "2026-07-15_checkout_stages",
+    () => import("./2026-07-15_checkout_stages.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

@@ -1,5 +1,6 @@
 /** Triggers that keep precomputed aggregates in step with their source tables. */
 
+import { CHECKOUT_STAGE_REVISION_TRIGGERS } from "./checkout-stage-triggers.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   ticketCountPredicateFor,
@@ -267,4 +268,5 @@ export const TRIGGERS: Trigger[] = [
   ...ANSWER_AGGREGATE_TRIGGERS,
   ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
   ...STRING_AGGREGATE_TRIGGERS,
+  ...CHECKOUT_STAGE_REVISION_TRIGGERS,
 ];
