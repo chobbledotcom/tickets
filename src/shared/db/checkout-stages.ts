@@ -2,7 +2,11 @@
 import * as v from "valibot";
 import { unique } from "#fp";
 import { t } from "#i18n";
-import { type OrderBooking, orderBookings } from "#shared/booking-lines.ts";
+import {
+  type CanonicalBooking,
+  orderBookingsFor,
+  signedPaidLine,
+} from "#shared/booking-lines.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
@@ -11,7 +15,7 @@ import {
   checkBatchAvailability,
   createAttendeeAtomic,
 } from "#shared/db/attendees/api.ts";
-import { bookingCapacityFields } from "#shared/db/attendees/capacity.ts";
+import { bookingCapacityFields } from "#shared/db/attendees/capacity/checks.ts";
 import {
   type CheckoutStageState,
   CheckoutStageStateSchema,
@@ -63,7 +67,7 @@ type TerminalCheckoutStageState = Extract<
  * from, so what we check is exactly what we stage. */
 const orderedBookings = async (
   intent: CheckoutIntent,
-): Promise<OrderBooking[]> => {
+): Promise<CanonicalBooking[]> => {
   const items = toBookingItems(intent);
   const listings = await getListingsWithCountsByIds(
     unique(items.map((item) => item.e)),
@@ -74,12 +78,15 @@ const orderedBookings = async (
     if (!listing) throw new Error(`Listing ${item.e} vanished before checkout`);
     return { item, listing };
   });
-  return orderBookings(lines, { ...intent, items });
+  return orderBookingsFor(
+    intent,
+    lines.map(({ item, listing }) => signedPaidLine(item, listing)),
+  );
 };
 
 const stagedBookings = async (
   intent: CheckoutIntent,
-): Promise<OrderBooking[]> =>
+): Promise<CanonicalBooking[]> =>
   (await orderedBookings(intent)).map((booking) => ({
     ...booking,
     quantity: 0,

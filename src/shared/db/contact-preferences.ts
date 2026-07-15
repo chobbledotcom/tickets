@@ -24,6 +24,7 @@ import {
 } from "#shared/db/client.ts";
 import { queryColumnSet } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { guardFor } from "#shared/validation/guard.ts";
@@ -249,6 +250,26 @@ export const getRepairFallbackRecord = async (
   ...EMPTY_STATS,
   ...(await getContactCountFields(hash)),
 });
+
+/** {@link getContactRecord}, but a corrupt/undecryptable note must not take
+ *  down the caller: log it for repair and fall back to
+ *  {@link getRepairFallbackRecord} instead of throwing, so the real booking
+ *  counts and the record's repair link stay visible. `context` names the
+ *  caller in the logged detail (e.g. "contact history", "contact history
+ *  editor"). */
+export const getContactRecordOrRepair: (
+  context: string,
+) => ContactRecordLoader = (context) => async (hash, privateKey) => {
+  try {
+    return await getContactRecord(hash, privateKey);
+  } catch (error) {
+    logError({
+      code: ErrorCode.DECRYPT_FAILED,
+      detail: `${context} ${toContactHashParam(hash)}: ${error}`,
+    });
+    return getRepairFallbackRecord(hash);
+  }
+};
 
 export const getContactCounts = async (
   hashes: string[],

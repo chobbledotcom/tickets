@@ -137,7 +137,6 @@ describe("attendee page blocks", () => {
     expect(html).toContain("Checkout pending");
     expect(html).toContain('role="alert"');
   });
-
   test("omits the payment block when the attendee has no payment", () => {
     expect(
       PaymentDetails({

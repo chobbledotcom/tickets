@@ -12,7 +12,7 @@ import type {
   EncryptedAttendeeData,
 } from "#shared/db/attendee-types.ts";
 import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
-import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
+import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
 import {
   ATTENDEE_BY_TOKEN_SQL,
   type BookingBatchPlan,

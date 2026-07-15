@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import type { OrderBooking } from "#shared/booking-lines.ts";
+import type { CanonicalBooking } from "#shared/booking-lines.ts";
 import { activateStagedBooking } from "#shared/db/attendees/activate.ts";
 import { refusalReason } from "#shared/db/attendees/activation-refusal.ts";
 import type { FinalizedBookingBatchPlan } from "#shared/db/attendees/create-batch.ts";
@@ -34,7 +34,7 @@ const setupStage = async (sessionId: string, maxAttendees = 2) => {
     ],
   });
   const stage = await stageCheckout(sessionId, "stripe", intent);
-  const bookings: OrderBooking[] = [
+  const bookings: CanonicalBooking[] = [
     {
       date: null,
       durationDays: 1,
@@ -197,7 +197,7 @@ describeWithEnv("db > staged booking activation", { db: true }, () => {
     // Activation receives the raw un-stamped bookings (as the payment path
     // builds them) and must derive the same pairing itself — before it did,
     // every parent+child order read as "changed" and was refunded.
-    const bookings: OrderBooking[] = [
+    const bookings: CanonicalBooking[] = [
       {
         date: null,
         durationDays: 1,

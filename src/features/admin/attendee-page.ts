@@ -50,6 +50,7 @@ import { settings } from "#shared/db/settings.ts";
 import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import { isOwnerRole } from "#shared/types.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
@@ -195,7 +196,7 @@ const overviewTab: TabDef<LoadedAttendee> = {
         return ContactHistory({
           attendee,
           contactRecords,
-          isOwner: ctx.session.adminLevel === "owner",
+          isOwner: isOwnerRole(ctx.session.adminLevel),
           pendingCheckout,
           previousBookings,
         });
@@ -210,7 +211,7 @@ export const attendeePage: EntityPage<LoadedAttendee> = defineEntityPage({
   banner: async ({ attendee, pendingCheckout }, ctx) =>
     attendeeBanner({
       attendee,
-      isOwner: ctx.session.adminLevel === "owner",
+      isOwner: isOwnerRole(ctx.session.adminLevel),
       notes: await getNotesForAttendee(
         attendee.id,
         await requireRequestPrivateKey(),

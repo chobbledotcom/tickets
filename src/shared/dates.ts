@@ -3,6 +3,7 @@
  */
 
 import { filter, once } from "#fp";
+import { DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   formatDatetimeInTz,
@@ -16,23 +17,6 @@ import {
   type Listing,
   normalizeDurationDays,
 } from "#shared/types.ts";
-
-/** Day name lookup from Date.getUTCDay() index (Sunday=0) */
-export const DAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-] as const;
-
-/** Valid day names for bookable_days (Monday-first for display) */
-export const VALID_DAY_NAMES: readonly string[] = [
-  ...DAY_NAMES.slice(1),
-  DAY_NAMES[0]!,
-];
 
 /** Month names for display */
 const MONTH_NAMES = [
@@ -60,6 +44,14 @@ const isLeapYear = (year: number): boolean =>
 /** Days in a specific month (1-indexed) */
 const daysInMonth = (year: number, month: number): number =>
   month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month]!;
+
+/** Parse a date/timestamp string to epoch milliseconds, or null when it
+ *  doesn't parse — the safe wrapper around `Date.parse`, whose own failure
+ *  mode (`NaN`) is easy to let leak into arithmetic by accident. */
+export const parseDateMs = (value: string): number | null => {
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+};
 
 /**
  * Add N months to an ISO timestamp, clamping to the last day of the target month.

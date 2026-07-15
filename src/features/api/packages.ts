@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { apiError, apiResponse } from "#routes/api/cors.ts";
 import {
   applyChildSelectionsToForm,
@@ -53,6 +54,8 @@ import {
   packagePrivacy,
 } from "#shared/package-privacy.ts";
 import type { Group } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 const PACKAGE_NOT_FOUND = "Package not found";
 

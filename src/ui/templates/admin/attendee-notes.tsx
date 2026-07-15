@@ -21,7 +21,7 @@ import { CsrfForm, Flash, hiddenInputs, renderField } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown, withoutLinksTo } from "#shared/markdown.ts";
-import type { AdminSession } from "#shared/types.ts";
+import { type AdminSession, isOwnerRole } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
@@ -52,6 +52,18 @@ const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
  * open the ledger pages a note may link to). */
 type NoteViewProps = { note: SystemNote; isOwner: boolean };
 
+/** A collection of notes plus whether the viewer is an owner. Shared by the
+ * note section, the summary, and the attendee banner so the `{ notes, isOwner }`
+ * pair has one declared shape. */
+export type NotesViewProps = { notes: SystemNote[]; isOwner: boolean };
+
+/** True when a link target is an owner-only page — the standalone ledger routes
+ * (`/admin/ledger…`) and the attendee page's ledger tab
+ * (`/admin/attendees/:id/ledger`). A non-owner's note renders the words without
+ * the link, since a rendered link is a promise that it works. */
+const isOwnerOnlyLink = (href: string): boolean =>
+  href.startsWith("/admin/ledger") ||
+  (href.startsWith("/admin/attendees/") && href.includes("/ledger"));
 /** Render a note's body as (safe) markdown — links and emphasis, HTML escaped.
  * The ledger pages are owner-only, so for any other admin a stored ledger link
  * (the refund notes carry one) is demoted to its plain text — a rendered link
@@ -59,7 +71,7 @@ type NoteViewProps = { note: SystemNote; isOwner: boolean };
 const NoteBody = ({ note, isOwner }: NoteViewProps): JSX.Element => (
   <Raw
     html={renderMarkdown(
-      isOwner ? note.note : withoutLinksTo(note.note, "/admin/ledger"),
+      isOwner ? note.note : withoutLinksTo(note.note, isOwnerOnlyLink),
     )}
   />
 );
@@ -124,10 +136,7 @@ const NoteBox = ({ note, isOwner }: NoteViewProps): JSX.Element => {
 export const AttendeeNotesSection = ({
   notes,
   isOwner,
-}: {
-  notes: SystemNote[];
-  isOwner: boolean;
-}): JSX.Element | null =>
+}: NotesViewProps): JSX.Element | null =>
   notes.length === 0 ? null : (
     <section class="attendee-notes">
       {notes.map((note) => (
@@ -165,11 +174,7 @@ export const AttendeeNotesSummary = ({
   notes,
   names,
   isOwner,
-}: {
-  notes: SystemNote[];
-  names: Map<number, string>;
-  isOwner: boolean;
-}): JSX.Element | null => {
+}: NotesViewProps & { names: Map<number, string> }): JSX.Element | null => {
   if (notes.length === 0) return null;
   const grouped = groupNotesByAttendee(notes);
   return (
@@ -267,7 +272,7 @@ export const adminDeleteNotePage = ({
             : "system-note"
         }
       >
-        <NoteBody isOwner={session.adminLevel === "owner"} note={note} />
+        <NoteBody isOwner={isOwnerRole(session.adminLevel)} note={note} />
       </div>
     ),
     returnUrl,

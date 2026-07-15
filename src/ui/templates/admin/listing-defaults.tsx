@@ -8,7 +8,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { VALID_DAY_NAMES } from "#shared/dates.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   listingDefaultInputName as inputName,
   LISTING_DEFAULT_FIELDS,

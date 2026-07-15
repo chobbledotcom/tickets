@@ -10,6 +10,7 @@
  * clicking a thumb re-checks its radio and swaps the main image, no script.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatDateLongLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -24,6 +25,8 @@ import {
   publicPage,
   renderListingImage,
 } from "./shared.tsx";
+
+/* jscpd:ignore-end */
 
 /** One post on the /news list: the shared Card wrapped in a link. */
 const newsCard = (post: NewsPostCard): string =>

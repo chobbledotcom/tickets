@@ -96,6 +96,7 @@ import {
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { STRIPE_WEBHOOK_EVENTS_VERSION } from "#shared/stripe-webhook-events.ts";
@@ -350,9 +351,7 @@ const publicPagePath = (prefix: string): string =>
 
 type PublicGetPageSpec = {
   prefix: string;
-  pick: (
-    pages: PublicPagesModule,
-  ) => (request: Request) => Response | Promise<Response>;
+  pick: (pages: PublicPagesModule) => ResponseHandler<[request: Request]>;
 };
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [

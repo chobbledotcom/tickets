@@ -1,5 +1,6 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
 import { decrypt } from "#shared/crypto/encryption.ts";
@@ -34,6 +35,7 @@ import {
   type ListingInput,
   rawListingsTable,
 } from "./table.ts";
+/* jscpd:ignore-end */
 
 export type ListingProjectionRow = Omit<ListingWithCount, "profit">;
 
@@ -63,17 +65,23 @@ export const decryptListingWithCount = async (
     settings.hasLogistics,
   );
 
+/** Read requested listings' stored values without overlaying inherited defaults. */
+export const getStoredListingsWithCountsByIds = async (
+  ids: readonly number[],
+): Promise<ListingWithCount[]> => {
+  if (ids.length === 0) return [];
+  const rows = await queryAll<ListingProjectionRow>(
+    `${LISTING_COUNT_SELECT} WHERE listing.id IN (${inPlaceholders(ids)})`,
+    [...ids],
+  );
+  return mapParallel(decryptStoredListingWithCount)(rows);
+};
+
 /** Read one listing's stored values without overlaying inherited defaults. */
 export const getStoredListingWithCount = async (
   id: number,
-): Promise<ListingWithCount | null> => {
-  const rows = await queryAll<ListingProjectionRow>(
-    `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
-    [id],
-  );
-  const row = rows[0];
-  return row ? decryptStoredListingWithCount(row) : null;
-};
+): Promise<ListingWithCount | null> =>
+  (await getStoredListingsWithCountsByIds([id]))[0] ?? null;
 
 /** Query projected listings in newest-first order. */
 export const queryListingsWithCounts = async (

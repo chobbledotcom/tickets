@@ -19,6 +19,7 @@ import {
   computeSitePageSlugIndex,
   getSitePageBySlugIndex,
 } from "#shared/db/site-pages.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { targetKey } from "#shared/site-pages/core.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
 import { requirePublicSite } from "./pages.ts";
@@ -58,10 +59,7 @@ export const renderContentPage = async <T extends { id: number }>(
 export const publicSlugRoute =
   (
     handle: (slug: string) => Promise<Response>,
-  ): ((
-    request: Request,
-    params: { slug: string },
-  ) => Response | Promise<Response>) =>
+  ): ResponseHandler<[request: Request, params: { slug: string }]> =>
   (_request, { slug }) =>
     requirePublicSite(() => handle(slug));
 

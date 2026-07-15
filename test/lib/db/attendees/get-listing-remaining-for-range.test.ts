@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { getDb } from "#shared/db/client.ts";
 import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";

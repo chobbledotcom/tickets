@@ -4,6 +4,7 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
+/* jscpd:ignore-start */
 import { filter, map } from "#fp";
 import { AUTH_FORM, getAuthenticatedSession, withAuth } from "#routes/auth.ts";
 import {
@@ -23,9 +24,12 @@ import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
+
+/* jscpd:ignore-end */
 
 const formatTicketCount = (count: number): string => {
   const suffix = count === 1 ? "" : "s";
@@ -52,7 +56,7 @@ const decryptEntries = async (entries: TokenEntry[]): Promise<TokenEntry[]> => {
 /** Look up attendees by tokens and resolve to entries */
 const withLookup = async (
   tokens: string[],
-  handler: (entries: TokenEntry[]) => Response | Promise<Response>,
+  handler: ResponseHandler<[entries: TokenEntry[]]>,
 ): Promise<Response> => {
   const lookup = await lookupAttendees(tokens);
   if (!lookup.ok) return lookup.response;

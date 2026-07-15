@@ -37,8 +37,8 @@ import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
   checkLinesCapacity,
-  dateToStartEnd,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/checks.ts";
+import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { executeBatchWithResults, queryAllPrimary } from "#shared/db/client.ts";

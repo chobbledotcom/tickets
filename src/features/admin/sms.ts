@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin SMS page — text an attendee via the gateway queue.
@@ -39,6 +40,8 @@ import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { type SmsHistoryItem, smsPage } from "#templates/admin/sms.tsx";
 import { withAttendee } from "./attendees-route-helpers.ts";
+
+/* jscpd:ignore-end */
 
 /** SMS-related activity-log entries all start with this. */
 const SMS_LOG_PREFIX = "SMS";

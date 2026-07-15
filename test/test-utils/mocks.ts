@@ -5,6 +5,7 @@ import { bracket } from "#fp";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import {
@@ -296,7 +297,7 @@ const withStorageFetchMock = (
 /** Run `body` under the standard test zone config with a fetch mock that
  * answers every Bunny storage URL via `respond` (other URLs fall through). */
 export const withBunnyStorageStub = (
-  respond: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  respond: ResponseHandler<[url: string, init?: RequestInit]>,
   body: () => Promise<void>,
 ): Promise<void> =>
   withStorageFetchMock(

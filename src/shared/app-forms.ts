@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import {
   AUTH_FORM,
   type AuthPolicy,
@@ -11,6 +12,8 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
+import type { ResponseHandler } from "#shared/response-steps.ts";
+/* jscpd:ignore-end */
 
 export type FormValidator<TValues> = {
   validate: (form: FormParams) => ValidationResult<TValues>;
@@ -40,9 +43,9 @@ export type AuthedBase<TParams, TContext> = {
 };
 
 /** The handling step run once auth (and any context load) has passed. */
-export type AuthedHandleStep<TParams, TContext> = (
-  args: AuthedHandlerArgs<TParams, TContext>,
-) => Response | Promise<Response>;
+export type AuthedHandleStep<TParams, TContext> = ResponseHandler<
+  [args: AuthedHandlerArgs<TParams, TContext>]
+>;
 
 type AuthedHandlerConfig<TParams, TContext> = AuthedBase<TParams, TContext> & {
   /** Handle the authed, loaded request. */
@@ -124,12 +127,8 @@ type FormRouteConfig<TValues, TParams, TContext> = AuthedBase<
   form:
     | FormValidator<TValues>
     | ((context: TContext) => FormValidator<TValues>);
-  onInvalid: (
-    args: InvalidArgs<TParams, TContext>,
-  ) => Response | Promise<Response>;
-  onValid: (
-    args: HandlerArgs<TValues, TParams, TContext>,
-  ) => Response | Promise<Response>;
+  onInvalid: ResponseHandler<[args: InvalidArgs<TParams, TContext>]>;
+  onValid: ResponseHandler<[args: HandlerArgs<TValues, TParams, TContext>]>;
 };
 
 /** Require auth, optionally load context, validate a typed form, then dispatch. */
@@ -182,9 +181,7 @@ type PublicFormRouteConfig<TValues, TParams> = {
   form: FormValidator<TValues>;
   /** Must return a synchronous Response (used as the CSRF error handler too). */
   onInvalid: (args: PublicInvalidArgs<TParams>) => Response;
-  onValid: (
-    args: PublicHandlerArgs<TValues, TParams>,
-  ) => Response | Promise<Response>;
+  onValid: ResponseHandler<[args: PublicHandlerArgs<TValues, TParams>]>;
 };
 
 /** Render a public page that carries a form: sign a CSRF token for it, pick

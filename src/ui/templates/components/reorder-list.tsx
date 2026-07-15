@@ -5,6 +5,7 @@
  * collection page shell.
  */
 
+/* jscpd:ignore-start */
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms.tsx";
@@ -21,6 +22,7 @@ import {
   writableReorderProps,
 } from "#templates/components/reorder-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
+/* jscpd:ignore-end */
 
 /** A right-aligned quantity/count table cell — the `quantity`-classed `<td>`
  * the reorderable admin tables use for their trailing count column. */

@@ -18,6 +18,7 @@ import { lazyRef, map, pipe, reduce, sort } from "#fp";
 import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 import { createScope } from "#shared/request-scoped.ts";
+import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
 
 /** A single logged query */
 export type QueryLogEntry = {
@@ -34,6 +35,7 @@ export type QueryLogEntry = {
 };
 
 type QueryLogState = {
+  databaseRoundTrips: number;
   enabled: boolean;
   entries: QueryLogEntry[];
   startTime: number;
@@ -49,6 +51,7 @@ type QueryLogState = {
 };
 
 const freshState = (): QueryLogState => ({
+  databaseRoundTrips: 0,
   enabled: false,
   entries: [],
   footerVisible: false,
@@ -172,6 +175,21 @@ export const N_PLUS_ONE_THRESHOLD = 25;
  * 8 CREATE TRIGGER = 27 statements; the threshold sits above that.
  */
 export const TRANSACTION_ROUNDTRIP_THRESHOLD = 30;
+
+/** Count one actual libsql client call and stop before call 51 reaches the
+ * network. Unlike advisory N+1 reporting, this stays hard in production because
+ * Bunny would reject the same request immediately afterwards anyway. */
+export const countDatabaseRoundTrip = (operation: string): void => {
+  const state = queryLogScope.current();
+  if (!state) return;
+  state.databaseRoundTrips += 1;
+  if (state.databaseRoundTrips <= BUNNY_SUBREQUEST_LIMIT) return;
+  throw new Error(
+    `Database round-trip limit exceeded: ${state.databaseRoundTrips} calls ` +
+      `(limit ${BUNNY_SUBREQUEST_LIMIT}) in one request. ` +
+      `Blocked operation: ${operation}`,
+  );
+};
 
 /**
  * When true, an N+1 violation is reported via the error log instead of thrown.

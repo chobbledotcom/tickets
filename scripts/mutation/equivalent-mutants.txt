@@ -42,9 +42,9 @@ src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): numb
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
-src/shared/ledger/project.ts:19:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts:20:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/listing-parents-rules.ts:124:4  ?? → ||    # find()?.error(): an i18n message is never "", so only undefined reaches the fallback either way
-src/shared/ledger/project.ts:37:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts:38:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts:71:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/ledger/reconcile.ts:113:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
 src/shared/ledger/reconcile.ts:116:35  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
@@ -63,6 +63,15 @@ src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: In
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
+
+# Collection cache generation values are only compared for equality. Their
+# absolute value and direction do not matter: every invalidation changes the
+# value, so a fetch started before it cannot populate the cache. The unloaded
+# timestamp is never read because `items` is null, and size is an array length.
+src/fp.ts:449:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
+src/fp.ts:451:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
+src/fp.ts:466:17  ++ → --   # either direction changes generation and invalidates every older captured copy
+src/fp.ts:469:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
@@ -178,6 +187,13 @@ src/shared/booking/fold-tree.ts:424:58  ?? → ||    # foldBookingTree parentQty
 src/shared/booking/fold-tree.ts:444:41  ?? → ||    # dayCount: customisableDuration is a positive day count or null, never 0, so ?? base.dayCount and || base.dayCount coincide
 src/shared/booking/capacity-tree.ts:45:66  ?? → ||    # groupIdsByListingId.get(): number[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/booking/capacity-tree.ts:47:61  ?? → ||    # demandByGroup.get(): undefined (first member) or a running per-package demand ≥1, never 0, so ?? and || coincide
+
+# Attendee group-capacity lookups: Map values are arrays (always truthy), and
+# duration normalization clamps both a default of 0 and 1 to one day.
+src/shared/db/attendees/capacity/groups.ts:133:50  ?? → ||   # rowsByGroup.get(): GroupRow[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/groups.ts:144:14  1 → 0   # expandDailyRange normalizes both 0 and 1 to a one-day span
+src/shared/db/attendees/capacity/groups.ts:166:55  ?? → ||   # membership.get(): number[]|undefined — an array is always truthy
+src/shared/db/attendees/capacity/groups.ts:178:39  ?? → ||   # membership.get(): number[]|undefined — an array is always truthy
 
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way

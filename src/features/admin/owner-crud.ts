@@ -26,6 +26,7 @@ import {
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { NamedResource } from "#shared/rest/resource.ts";
 import type { AdminSession } from "#shared/types.ts";
 
@@ -93,10 +94,9 @@ export const createContentCrudHandlers = createCrudHandlersWithAuth({
 
 function createCrudHandlersWithAuth(auth: AuthGuards) {
   return <Row, Input, Display = Row>(cfg: CrudConfig<Row, Input, Display>) => {
-    type FormHandler = (
-      session: AdminSession,
-      form: FormParams,
-    ) => Response | Promise<Response>;
+    type FormHandler = ResponseHandler<
+      [session: AdminSession, form: FormParams]
+    >;
 
     // Resolve the resource per-request. When `cfg.resource` is a factory, this
     // defers building its fields until a handler actually runs (see the type

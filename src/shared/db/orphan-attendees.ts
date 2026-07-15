@@ -20,8 +20,8 @@
  * listing" when the underlying row is gone.
  */
 
-import { runAttendeePurge } from "#shared/db/attendees/delete.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
+import { executeBatchWithResults, queryOne } from "#shared/db/client.ts";
 
 /**
  * Selects the ids of orphaned attendees older than the bound cut-off. Defined
@@ -55,6 +55,21 @@ export const countOrphanedAttendees = async (
  * every orphan". Dependents go first (they reference the attendee), then the
  * attendees themselves. Returns how many attendee rows were removed.
  */
-export const purgeOrphanedAttendees = (cutoffIso: string): Promise<number> =>
-  // The purge reports the attendees delete's affected rows — how many went.
-  runAttendeePurge(ORPHAN_IDS, [cutoffIso]);
+export const purgeOrphanedAttendees = async (
+  cutoffIso: string,
+): Promise<number> => {
+  const statements = [
+    ...attendeeDependentDeleteStatements({
+      args: [cutoffIso],
+      sql: ORPHAN_IDS,
+    }),
+    {
+      args: [cutoffIso],
+      sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,
+    },
+  ];
+  // The final statement (the attendees delete) reports how many orphans went;
+  // executeBatchWithResults always returns one result per statement.
+  const results = await executeBatchWithResults(statements);
+  return results[results.length - 1]!.rowsAffected;
+};

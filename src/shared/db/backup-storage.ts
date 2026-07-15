@@ -1,4 +1,5 @@
 import { compact } from "#fp";
+import { parseDateMs } from "#shared/dates.ts";
 import { requireEnv } from "#shared/env.ts";
 import { MAX_BACKUPS } from "#shared/limits.ts";
 import { deleteFile, getBasename, listFiles } from "#shared/storage.ts";
@@ -39,10 +40,9 @@ const BACKUP_LEAF = new RegExp(`^backup-${BACKUP_TIMESTAMP}\\.zip$`);
 export const parseBackupTime = (filename: string): number | null => {
   const match = filename.match(BACKUP_TIME_TAIL);
   if (!match) return null;
-  const milliseconds = Date.parse(
+  return parseDateMs(
     `${match[1]}T${match[2]}:${match[3]}:${match[4]}.${match[5]}Z`,
   );
-  return Number.isNaN(milliseconds) ? null : milliseconds;
 };
 
 export const isBackupLeaf = (leaf: string): boolean => BACKUP_LEAF.test(leaf);

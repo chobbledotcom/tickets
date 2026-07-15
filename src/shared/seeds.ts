@@ -7,6 +7,7 @@ import { map, sum } from "#fp";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateTicketToken } from "#shared/crypto/utils.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
 import { encryptAttendeeFields } from "#shared/db/attendees/pii.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
@@ -99,15 +100,7 @@ const prepareListing = async (
     active: 1,
     attachment_name: encAttachmentName,
     attachment_url: encAttachmentUrl,
-    bookable_days: JSON.stringify([
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ]),
+    bookable_days: JSON.stringify(VALID_DAY_NAMES),
     closes_at: encClosesAt,
     created,
     customisable_days: customisable ? 1 : 0,

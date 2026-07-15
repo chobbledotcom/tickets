@@ -12,12 +12,14 @@
  * `children` (one `<tr>` per row) for hand-written JSX rows.
  */
 
+/* jscpd:ignore-start */
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type DetailRow,
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
+/* jscpd:ignore-end */
 
 export type DetailTableProps = {
   /** Detail rows rendered through {@link renderDetailRows} as a HTML string

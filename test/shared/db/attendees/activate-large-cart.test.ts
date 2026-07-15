@@ -6,7 +6,7 @@ import {
   WORLD,
 } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
-import type { OrderBooking } from "#shared/booking-lines.ts";
+import type { CanonicalBooking } from "#shared/booking-lines.ts";
 import { activateStagedBooking } from "#shared/db/attendees/activate.ts";
 import type { FinalizedBookingBatchPlan } from "#shared/db/attendees/create-batch.ts";
 import { stageCheckout } from "#shared/db/checkout-stages.ts";
@@ -44,7 +44,7 @@ describeWithEnv("db > staged large-cart activation", { db: true }, () => {
     });
     const stage = await stageCheckout(sessionId, "stripe", intent);
     await reserveSession(sessionId);
-    const bookings: OrderBooking[] = listings.map((listing) => ({
+    const bookings: CanonicalBooking[] = listings.map((listing) => ({
       date: null,
       durationDays: 1,
       listingId: listing.id,

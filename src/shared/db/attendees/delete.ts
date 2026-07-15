@@ -2,10 +2,9 @@
  * Deletion for attendees.
  */
 
-import type { InValue } from "@libsql/client";
 import {
+  deleteByFieldStatement,
   executeBatch,
-  executeBatchWithResults,
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
@@ -41,7 +40,7 @@ const attendeeListingContributions = (
 
 const restoreListingContributions = (
   contributions: ListingContribution[],
-): Array<{ sql: string; args: InValue[] }> =>
+): SqlStatement[] =>
   contributions.map((row) => ({
     args: [row.booked_quantity, row.tickets_count, row.listing_id],
     sql: `UPDATE listings
@@ -51,10 +50,7 @@ const restoreListingContributions = (
   }));
 
 /** The tables holding an attendee's dependent rows, each with the column that
- * links it to the attendee. Deleted (in this order) before the attendee row.
- * Never exported raw — every purge path builds its statements through
- * {@link attendeePurgeStatements}, so a new dependent table added here is
- * cleaned everywhere automatically. */
+ * links it to the attendee. Deleted (in this order) before the attendee row. */
 const DEPENDENT_ROW_TARGETS = [
   { field: "attendee_id", table: "processed_payments" },
   { field: "attendee_id", table: "checkout_stages" },
@@ -64,68 +60,14 @@ const DEPENDENT_ROW_TARGETS = [
   { field: "servicing_attendee_id", table: "service_costs" },
 ] as const;
 
-/** One dependent-table DELETE scoped to the attendees `idsSelect` names. Table
- * and field are trusted constants from the list above, never input. */
-const dependentRowDelete = (
-  target: (typeof DEPENDENT_ROW_TARGETS)[number],
-  idsSelect: string,
-  args: InValue[],
-): { sql: string; args: InValue[] } => ({
-  args,
-  sql: `DELETE FROM ${target.table} WHERE ${target.field} IN (${idsSelect})`,
-});
-
-/**
- * The DELETE statements clearing every dependent row for the attendees an
- * id-select names, then the attendees themselves — the ONE purge mechanism.
- * The single-attendee delete, the orphaned-attendee purge, and the
- * pending-checkout discard all build from this, so they can never drift on
- * which tables a purge must clean. `idsSelect` is any SELECT producing
- * attendee ids (a literal `?` works for one id); `args` fill its placeholders
- * and are re-bound per statement. The attendees delete comes LAST, so a
- * caller counting the final statement's affected rows counts attendees.
- *
- * `stagesLast` moves the checkout_stages delete after even the attendees —
- * for the pending discard, whose id-select reads checkout_stages and must
- * keep resolving ids until every other delete has run. Callers outside this
- * module run purges through {@link runAttendeePurge}.
- */
-const attendeePurgeStatements = (
-  idsSelect: string,
-  args: InValue[],
-  {
-    leading = [],
-    stagesLast = false,
-  }: { leading?: SqlStatement[]; stagesLast?: boolean } = {},
-): { sql: string; args: InValue[] }[] => {
-  const [stages, others] = [
-    DEPENDENT_ROW_TARGETS.filter((t) => t.table === "checkout_stages"),
-    DEPENDENT_ROW_TARGETS.filter((t) => t.table !== "checkout_stages"),
-  ];
-  const early = stagesLast ? others : [...stages, ...others];
-  const late = stagesLast ? stages : [];
-  return [
-    ...leading,
-    ...early.map((target) => dependentRowDelete(target, idsSelect, args)),
-    { args, sql: `DELETE FROM attendees WHERE id IN (${idsSelect})` },
-    ...late.map((target) => dependentRowDelete(target, idsSelect, args)),
-  ];
-};
-
-/** Run a purge for the attendees `idsSelect` names and report the LAST
- * statement's affected rows: the attendees removed normally, or — under
- * `stagesLast` — the checkout stages removed (what the pending discard
- * counts). The one entry every set-based purge path calls. */
-export const runAttendeePurge = async (
-  idsSelect: string,
-  args: InValue[],
-  opts?: { leading?: SqlStatement[]; stagesLast?: boolean },
-): Promise<number> => {
-  const results = await executeBatchWithResults(
-    attendeePurgeStatements(idsSelect, args, opts),
-  );
-  return results[results.length - 1]!.rowsAffected;
-};
+/** Build the common dependent-row deletes for one or many attendee ids. */
+export const attendeeDependentDeleteStatements = (
+  attendeeIds: SqlStatement,
+): SqlStatement[] =>
+  DEPENDENT_ROW_TARGETS.map(({ field, table }) => ({
+    args: attendeeIds.args,
+    sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
+  }));
 
 /** Delete an attendee and all dependent data tied to the attendee record. */
 const purgeAttendee = (
@@ -133,8 +75,13 @@ const purgeAttendee = (
   contributions: ListingContribution[],
 ): Promise<void> =>
   executeBatch([
-    ...attendeePurgeStatements("?", [attendeeId]),
+    ...attendeeDependentDeleteStatements({ args: [attendeeId], sql: "?" }),
     ...restoreListingContributions(contributions),
+    deleteByFieldStatement({
+      field: "id",
+      table: "attendees",
+      value: attendeeId,
+    }),
   ]);
 
 /**

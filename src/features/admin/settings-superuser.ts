@@ -6,7 +6,10 @@
  */
 
 /* jscpd:ignore-start */
-import { settingsRoute } from "#routes/admin/settings-helpers.ts";
+import {
+  type ErrorPageFn,
+  settingsRoute,
+} from "#routes/admin/settings-helpers.ts";
 import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -27,11 +30,7 @@ import {
 /** Roll back a created superuser after email failure and return error page */
 const rollbackSuperuser = async (
   userId: number,
-  errorPage: (
-    msg: string,
-    status: number,
-    id: string,
-  ) => Response | Promise<Response>,
+  errorPage: ErrorPageFn,
 ): Promise<Response> => {
   try {
     await deleteUser(userId);

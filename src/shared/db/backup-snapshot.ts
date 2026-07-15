@@ -1,5 +1,11 @@
-import { chunk } from "#fp";
-import { queryAllPrimary, queryOnePrimary } from "#shared/db/client.ts";
+import { chunk, requiredMapValue } from "#fp";
+import {
+  queryAllPrimary,
+  queryBatchPrimary,
+  queryOnePrimary,
+  resultRows,
+  type SqlStatement,
+} from "#shared/db/client.ts";
 import { SCHEMA_TABLE_NAMES } from "#shared/db/migrations.ts";
 import { readLimit } from "#shared/limits.ts";
 
@@ -36,11 +42,24 @@ const escapeSql = (value: unknown): string => {
 const ROWS_PER_INSERT = 100;
 const DEFAULT_BACKUP_PAGE_SIZE = 500;
 const ROWID_ALIAS = "__backup_rowid__";
+type BackupRow = Record<string, unknown>;
+
+const tablePageStatement = (
+  table: string,
+  cursor: number,
+  pageSize: number,
+): SqlStatement => ({
+  args: [cursor, pageSize],
+  sql:
+    `SELECT rowid AS ${ROWID_ALIAS}, * FROM ${quoteSqlIdentifier(table)} ` +
+    "WHERE rowid > ? ORDER BY rowid LIMIT ?",
+});
 
 /** Export one table in deterministic, primary-pinned keyset pages. */
 export const exportTable = async (
   table: string,
   pageSize: number = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE),
+  firstPage?: BackupRow[],
 ): Promise<{ sql: string; rowCount: number }> => {
   const quoted = quoteSqlIdentifier(table);
   const statements: string[] = [];
@@ -50,13 +69,16 @@ export const exportTable = async (
   const tuple = (row: Record<string, unknown>): string =>
     `(${cols.map((column) => escapeSql(row[column])).join(", ")})`;
   let cursor = 0;
+  let suppliedPage = firstPage;
 
   for (;;) {
-    const rows = await queryAllPrimary<Record<string, unknown>>(
-      `SELECT rowid AS ${ROWID_ALIAS}, * FROM ${quoted} ` +
-        "WHERE rowid > ? ORDER BY rowid LIMIT ?",
-      [cursor, pageSize],
-    );
+    const rows =
+      suppliedPage ??
+      (await queryAllPrimary<BackupRow>(
+        tablePageStatement(table, cursor, pageSize).sql,
+        [cursor, pageSize],
+      ));
+    suppliedPage = undefined;
     if (rows.length === 0) break;
     if (rowCount === 0) {
       cols = Object.keys(rows[0]!).filter((column) => column !== ROWID_ALIAS);
@@ -77,20 +99,27 @@ export const exportTable = async (
 };
 
 const exportTables = async (tables: string[]): Promise<TableBackup[]> => {
-  const backups: TableBackup[] = [];
-  const concurrency = 4;
-  for (let index = 0; index < tables.length; index += concurrency) {
-    const batch = tables.slice(index, index + concurrency);
-    backups.push(
-      ...(await Promise.all(
-        batch.map(async (table) => ({
-          table,
-          ...(await exportTable(table)),
-        })),
+  const pageSize = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE);
+  const firstPages = await queryBatchPrimary(
+    tables.map((table) => tablePageStatement(table, 0, pageSize)),
+  );
+  const pagesByIndex = new Map(firstPages.entries());
+  return Promise.all(
+    tables.map(async (table, index) => ({
+      table,
+      ...(await exportTable(
+        table,
+        pageSize,
+        resultRows<BackupRow>(
+          requiredMapValue(
+            pagesByIndex,
+            index,
+            `Backup page missing for ${table}`,
+          ),
+        ),
       )),
-    );
-  }
-  return backups;
+    })),
+  );
 };
 
 /** Complete bounded exports attempted before continuous writes abort capture. */

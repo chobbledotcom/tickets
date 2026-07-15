@@ -30,7 +30,7 @@ export const stubRefundPayment = (
   stub(stripeApi, "refundPayment", () => Promise.resolve(result as never));
 
 interface StripeMockOptions {
-  /** The refund result `refundPayment` returns (default: `{ id: "re_test" }`). */
+  /** The completed refund that `refundPayment` returns. */
   refundResult?: { id: string; status: "succeeded" } | null;
   /** The checkout session `retrieveCheckoutSession` returns. */
   session: StripeCheckoutFields;

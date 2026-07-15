@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { sumByKey, sumOf, unique } from "#fp";
 import { costAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
@@ -20,8 +21,7 @@ import {
   type ExistingLine,
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
-import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
-import { bookingStartAt } from "#shared/db/attendees/capacity.ts";
+import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
@@ -54,6 +54,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** An answer chosen for a service event's custom question. Only the `answerId`
  *  is needed — `saveAttendeeAnswers` resolves each answer's question itself, so
@@ -369,10 +370,11 @@ const lineKeyForInput = (
   booking: ListingBooking,
   existingBySlot: Map<string, string>,
 ): { exists: boolean; key: string } => {
-  const key =
-    existingBySlot.get(
-      bookingSlotKey(booking.listingId, bookingStartAt(booking)),
-    ) ?? "";
+  const { startAt } = dateToStartEnd(
+    booking.date ?? null,
+    booking.durationDays ?? 1,
+  );
+  const key = existingBySlot.get(`${booking.listingId}|${startAt ?? ""}`) ?? "";
   return { exists: key !== "", key };
 };
 
@@ -380,7 +382,12 @@ const desiredLines = (
   input: ServicingEventInput,
   existing: Array<{ key: string; booking: ListingAttendeeRow }>,
 ): DesiredListingLine[] => {
-  const existingBySlot = new Map(existing.map(({ key }) => [key, key]));
+  const existingBySlot = new Map(
+    existing.map(({ key, booking }) => [
+      `${booking.listing_id}|${booking.start_at ?? ""}`,
+      key,
+    ]),
+  );
   return input.bookings.map((booking) => {
     const date = booking.date ?? null;
     const durationDays = normalizeDurationDays(booking.durationDays ?? 1);

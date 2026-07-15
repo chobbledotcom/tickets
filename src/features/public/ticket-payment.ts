@@ -50,7 +50,7 @@ import {
   createAttendeeAtomic,
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
-import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity.ts";
+import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity/groups.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import { stagedSessionCreator } from "#shared/db/checkout-stages.ts";
 import {
@@ -88,6 +88,7 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   availableDayCounts,
   type ContactInfo,
@@ -102,7 +103,6 @@ import { listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import { ticketPageUrl } from "./ticket-page-url.ts";
 import type {
-  AsyncHandler,
   ChildrenByParentId,
   ListingQty,
   TicketCtx,
@@ -202,11 +202,6 @@ export const checkAvailability = (
     date,
   );
 
-/**
- * Shared booking-date fields (date + durationDays), keeping the payment and
- * webhook flows aligned. Span: customisable listings use the chosen `dayCount`;
- * daily listings use their fixed `duration_days`; standard listings span 1 day.
- */
 /** Load one group's package pricing and shape it into the {@link PagePackage}
  * the booking flow carries — the group's display fields plus its member
  * quantity/price maps, scoped to the members actually on the page. */
@@ -557,7 +552,7 @@ export const parentRequiresChild = async (
  * package itself is reached via its group slug, not these listing slugs). */
 export const withActiveListings = async (
   slugs: string[],
-  handler: AsyncHandler<[TicketListing[]]>,
+  handler: ResponseHandler<[listings: TicketListing[]]>,
 ): Promise<Response> => {
   const listings = await getListingsBySlugsBatch(slugs);
   const active = compact(listings).filter((e) => e.active);

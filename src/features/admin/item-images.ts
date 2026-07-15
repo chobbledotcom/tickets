@@ -2,6 +2,7 @@
  * Shared image-tab loaders and handlers for image_uses-backed entities.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
   type AuthPolicy,
@@ -24,6 +25,8 @@ import type { ImageUseItemType } from "#shared/types.ts";
 import { ItemImagesPanel } from "#templates/admin/images.tsx";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { withUploadedImage } from "./image-upload.ts";
+
+/* jscpd:ignore-end */
 
 type ItemImageConfig<T> = {
   /** Who may edit this entity's images. Defaults to the content gates; entities

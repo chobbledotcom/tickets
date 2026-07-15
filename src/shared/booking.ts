@@ -18,7 +18,7 @@ import type { LedgerPoster } from "#shared/db/attendees/create-batch.ts";
 import { createStagedCheckout } from "#shared/db/checkout-stages.ts";
 import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
-import { getActivePaymentProvider } from "#shared/payments.ts";
+import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
@@ -99,15 +99,7 @@ export const processBooking = async (
       {
         ...contact,
         date,
-        items: [
-          {
-            listingId: listing.id,
-            name: listing.name,
-            quantity,
-            slug: listing.slug,
-            unitPrice,
-          },
-        ],
+        items: [checkoutItem(listing, quantity, unitPrice)],
         listingAnswerIds: singleListingAnswerIds(listing.id, answerIds),
       },
       baseUrl,

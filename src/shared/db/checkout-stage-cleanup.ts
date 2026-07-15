@@ -1,7 +1,8 @@
 import type { InValue } from "@libsql/client";
-import { runAttendeePurge } from "#shared/db/attendees/delete.ts";
+import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
 import {
   execute,
+  executeBatchWithResults,
   inPlaceholders,
   type SqlStatement,
 } from "#shared/db/client.ts";
@@ -25,11 +26,32 @@ const discardPendingCheckoutsWhere = (
   where: string,
   args: InValue[],
   leading: SqlStatement[] = [],
-): Promise<number> =>
-  runAttendeePurge(pendingStageAttendees(where), args, {
-    leading,
-    stagesLast: true,
-  });
+): Promise<number> => discardPendingCheckouts(where, args, leading);
+
+const discardPendingCheckouts = async (
+  where: string,
+  args: InValue[],
+  leading: SqlStatement[],
+): Promise<number> => {
+  const attendeeIds = { args, sql: pendingStageAttendees(where) };
+  const dependentDeletes = attendeeDependentDeleteStatements(attendeeIds);
+  const stageDelete = dependentDeletes.find((statement) =>
+    statement.sql.startsWith("DELETE FROM checkout_stages "),
+  );
+  if (!stageDelete) {
+    throw new Error("Attendee purge is missing checkout stage cleanup");
+  }
+  const results = await executeBatchWithResults([
+    ...leading,
+    ...dependentDeletes.filter((statement) => statement !== stageDelete),
+    {
+      args,
+      sql: `DELETE FROM attendees WHERE id IN (${attendeeIds.sql})`,
+    },
+    stageDelete,
+  ]);
+  return results[results.length - 1]!.rowsAffected;
+};
 
 /** Discard one or more cancelled sessions through the shared atomic purge. */
 export const discardPendingCheckoutSessions = (

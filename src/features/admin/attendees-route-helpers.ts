@@ -20,6 +20,7 @@ import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
   AdminSession,
@@ -254,13 +255,15 @@ export const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
 
 /** Attendee form handler that receives typed IDs */
-type AttendeeFormAction = (
-  data: AttendeeWithListing,
-  session: AuthSession,
-  form: FormParams,
-  listingId: number,
-  attendeeId: number,
-) => Response | Promise<Response>;
+type AttendeeFormAction = ResponseHandler<
+  [
+    data: AttendeeWithListing,
+    session: AuthSession,
+    form: FormParams,
+    listingId: number,
+    attendeeId: number,
+  ]
+>;
 
 /** Create an attendee form handler with typed IDs */
 export const attendeeFormAction = (

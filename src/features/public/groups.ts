@@ -10,11 +10,11 @@ import {
   getGroupListingIds,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
-import { getVisibleGroupMembers, groupBookable } from "./discovery.ts";
+import { getVisibleGroupMembers, groupBookable } from "./group-liveness.ts";
 import { renderTicketFlow } from "./ticket-submit.ts";
-import type { AsyncHandler } from "./types.ts";
 
 /** A group resolved with its buyer-visible active listings. */
 type GroupWithListings = { group: Group; listings: ListingWithCount[] };
@@ -54,7 +54,7 @@ const loadActiveGroupListingsBySlug = groupListingsLoader(async (group) => {
  * empty ({@link loadActiveGroupListingsBySlug}). */
 const withActiveGroupListingsBySlug = async (
   slug: string,
-  handler: AsyncHandler<[Group, ListingWithCount[]]>,
+  handler: ResponseHandler<[group: Group, listings: ListingWithCount[]]>,
 ): Promise<Response> => {
   const loaded = await loadActiveGroupListingsBySlug(slug);
   return loaded ? handler(loaded.group, loaded.listings) : notFoundResponse();

@@ -2,6 +2,7 @@
  * Public pages - home, listings, terms, contact
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
@@ -20,15 +21,16 @@ import {
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getBookableStartDates, parseIsoDateParam } from "#shared/dates.ts";
-import { getListingRemainingForRange } from "#shared/db/attendees/capacity.ts";
+import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import {
-  type Group,
+  type GroupWithMembers,
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
@@ -47,11 +49,12 @@ import {
   applyParentSoldOut,
   classifyForDiscovery,
   dropHiddenPackageMembers,
-  getVisibleGroupMembersByGroupIds,
-  loadPublicGroups,
 } from "./discovery.ts";
+import { loadPublicGroups } from "./group-liveness.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
+
+/* jscpd:ignore-end */
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
@@ -61,10 +64,9 @@ export const requirePublicSite = <T>(fn: () => T): T | Response =>
   settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Render a public site page with website title and content */
-const renderPublicPage = (
-  pageType: PublicPageType,
-  getContent: () => string | null,
-): Response | Promise<Response> =>
+const renderPublicPage: ResponseHandler<
+  [pageType: PublicPageType, getContent: () => string | null]
+> = (pageType, getContent) =>
   requirePublicSite(async () => {
     const content = getContent();
     return htmlResponse(
@@ -78,7 +80,7 @@ const renderPublicPage = (
   });
 
 /** Handle GET / (home page) - redirect to admin or show public site */
-export const handleHome = (): Response | Promise<Response> =>
+export const handleHome: ResponseHandler = () =>
   renderPublicPage("home", () => settings.homepageText);
 
 /** The booked span a daily listing's card availability is judged over: a
@@ -154,13 +156,14 @@ const memberUnavailableOn = (
 
 /** Package groups where ANY member is unavailable on the searched date: a
  * package is bought as one whole bundle (every member together — see
- * {@link packageGroupBookable}, the date-less version of this same rule), so
+ * the shared group liveness loader, the date-less version of this rule), so
  * one member that can't be booked on the chosen date makes the whole bundle
  * unbookable, and the package must read as sold out rather than advertise a
- * Book link that can only fail. Members are loaded fresh (not reused from the
- * page's own listing set) because a hidden package's members never join that
- * set, yet still decide whether their package is sold out. A `null` requested
- * date means no search is in play, so nothing is projected sold out here.
+ * Book link that can only fail. Members come from the group liveness load, not
+ * the page's own listing set, because a hidden package's members never join
+ * that set yet still decide whether their package is sold out. A `null`
+ * requested date means no search is in play, so nothing is projected sold out
+ * here.
  *
  * This is a projection of the booking page's date rules, not a re-run of
  * them: each direct member is judged on having any spot left for the date.
@@ -170,14 +173,13 @@ const memberUnavailableOn = (
  * The booking page stays the real gate either way; re-running its full
  * bundle-and-children date logic per package here isn't worth the cost yet. */
 const soldOutPackageIds = async (
-  groups: readonly Group[],
+  groups: readonly GroupWithMembers[],
   requestedDate: string | null,
 ): Promise<ReadonlySet<number>> => {
-  const packages = groups.filter((g) => g.is_package);
+  const packages = groups.filter(({ group }) => group.is_package);
   if (requestedDate === null || packages.length === 0) return new Set();
-  const membersByGroup = await getVisibleGroupMembersByGroupIds(packages);
   const soldOutIds = await Promise.all(
-    [...membersByGroup].map(async ([groupId, members]) => {
+    packages.map(async ({ group, members }) => {
       const daily = members.filter((m) => m.listing_type === "daily");
       const [ticketListings, dailyUnavailableIds] = await Promise.all([
         buildTicketListingsWithGroupCapacity(members),
@@ -186,7 +188,7 @@ const soldOutPackageIds = async (
       const anyUnavailable = ticketListings.some((info) =>
         memberUnavailableOn(info, dailyUnavailableIds),
       );
-      return anyUnavailable ? groupId : null;
+      return anyUnavailable ? group.id : null;
     }),
   );
   return new Set(compact(soldOutIds));
@@ -197,11 +199,11 @@ const soldOutPackageIds = async (
  * listings dashboard, not the public page.) When daily listings are shown, a
  * `?date=` filter resolves their per-date availability (#51), and any package
  * with any member unavailable on that date reads as sold out too. */
-export const handlePublicListings = (
-  request: Request,
-): Response | Promise<Response> =>
+export const handlePublicListings: ResponseHandler<[request: Request]> = (
+  request,
+) =>
   requirePublicSite(async () => {
-    const [groups, { listings: allListings }, nav] = await Promise.all([
+    const [publicGroups, { listings: allListings }, nav] = await Promise.all([
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
       publicNavProps(null),
@@ -215,11 +217,12 @@ export const handlePublicListings = (
     const requestedDate = parseIsoDateParam(
       new URL(request.url).searchParams.get("date"),
     );
+    const groups = publicGroups.map(({ group }) => group);
     const [ticketListings, dateFilter, soldOutPackages, attributesByListing] =
       await Promise.all([
         buildTicketListingsWithGroupCapacity(listings),
         buildDailyDateFilter(listings, requestedDate),
-        soldOutPackageIds(groups, requestedDate),
+        soldOutPackageIds(publicGroups, requestedDate),
         getSelectedAttributesForListings(listings.map((listing) => listing.id)),
       ]);
     return htmlResponse(
@@ -241,7 +244,7 @@ export const handlePublicListings = (
   });
 
 /** Handle GET /terms - public terms and conditions page (404 when empty) */
-export const handlePublicTerms = (): Response | Promise<Response> =>
+export const handlePublicTerms: ResponseHandler = () =>
   requirePublicSite(async () =>
     settings.terms
       ? htmlResponse(
@@ -277,10 +280,9 @@ const renderContactPage = async (request: Request): Promise<Response> => {
 };
 
 /** Handle GET /contact - public contact page (404 when empty and form off) */
-export const handlePublicContact = (
-  request: Request,
-): Response | Promise<Response> =>
-  requirePublicSite(() => renderContactPage(request));
+export const handlePublicContact: ResponseHandler<[request: Request]> = (
+  request,
+) => requirePublicSite(() => renderContactPage(request));
 
 /** Process a CSRF-checked contact form submission: validate, run Botpoison
  * verification, and only deliver to the owner when verification passes. */
@@ -315,9 +317,9 @@ const processContactSubmission = async (
 
 /** Handle POST /contact - contact form submission. 404 when the form is not
  * active so the endpoint only exists when the feature is fully configured. */
-export const handlePublicContactSubmit = (
-  request: Request,
-): Response | Promise<Response> => {
+export const handlePublicContactSubmit: ResponseHandler<[request: Request]> = (
+  request,
+) => {
   if (!isContactFormActive()) return notFoundResponse();
   return requirePublicSite(() =>
     withCsrfForm(

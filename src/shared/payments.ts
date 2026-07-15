@@ -6,6 +6,7 @@
  * this interface so they never depend on a specific provider.
  */
 
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -13,6 +14,7 @@ import { logDebug } from "#shared/logger.ts";
 import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
+/* jscpd:ignore-end */
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
@@ -37,6 +39,21 @@ export type CheckoutItem = {
    * booking row. */
   packageGroupId?: number | undefined;
 };
+
+/** Build a standalone-line {@link CheckoutItem} for one listing — the shared
+ * shape every single-listing checkout (direct-to-provider QR booking, the
+ * plain public booking form) builds its one-item `items` array from. */
+export const checkoutItem = (
+  listing: Pick<CheckoutItem, "name" | "slug"> & { id: number },
+  quantity: number,
+  unitPrice: number,
+): CheckoutItem => ({
+  listingId: listing.id,
+  name: listing.name,
+  quantity,
+  slug: listing.slug,
+  unitPrice,
+});
 
 /**
  * A modifier resolved for a specific checkout — the input the pricing pipeline

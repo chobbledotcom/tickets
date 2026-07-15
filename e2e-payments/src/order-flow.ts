@@ -13,7 +13,8 @@
  * checkbox cards, the combined booking page, the hosted checkout.
  */
 
-import type { BrowserSession } from "./browser.ts";
+/* jscpd:ignore-start */
+import { type BrowserSession, hrefOf } from "./browser.ts";
 import { config } from "./config.ts";
 import {
   createListing,
@@ -22,6 +23,7 @@ import {
   waitForAppReturn,
 } from "./flow.ts";
 import { log, step } from "./log.ts";
+/* jscpd:ignore-end */
 
 /** The one catalog this journey builds and orders. Prices are minor units;
  * the free leg zeroes them all. */
@@ -211,16 +213,10 @@ const assertPerPathEditor = async (
   const attendeeLink = session.page
     .locator('a[href*="/admin/attendees/"]:not([href$="/new"])')
     .first();
-  const href = await attendeeLink.getAttribute("href", {
-    timeout: config.navTimeoutMs,
-  });
-  if (!href) throw new Error("no attendee link on the roster");
+  const href = await hrefOf(attendeeLink, "no attendee link on the roster");
   await session.goto(href.startsWith("http") ? new URL(href).pathname : href);
   const editTab = session.page.locator('a[href$="/edit"]').first();
-  const editHref = await editTab.getAttribute("href", {
-    timeout: config.navTimeoutMs,
-  });
-  if (!editHref) throw new Error("no edit tab on the attendee page");
+  const editHref = await hrefOf(editTab, "no edit tab on the attendee page");
   await session.goto(
     editHref.startsWith("http") ? new URL(editHref).pathname : editHref,
   );

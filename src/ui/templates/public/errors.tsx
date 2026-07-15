@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { getRenewalUrl } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
@@ -5,6 +6,8 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import { simplePublicPage } from "./shared.tsx";
+
+/* jscpd:ignore-end */
 
 /**
  * Curried error-page factory. The temporary/database-busy/migration/
@@ -36,6 +39,43 @@ export const notFoundPage = (): string =>
     </Layout>,
   );
 
+/** The fallback "Go to booking page" link shown on a QR-book error page —
+ *  only when the listing has a standalone /ticket/<slug> page. A `null` slug
+ *  (the listing has no standalone page, e.g. a non-standalone child or a hidden
+ *  package member whose `/ticket/<slug>` 404s) renders nothing, so the page
+ *  never offers a dead link. */
+const qrBookBookingLink = (slug: string | null): JSX.Element | false =>
+  slug !== null && (
+    <p>
+      <a href={`/ticket/${escapeHtml(slug)}`}>
+        {t("public.qr_book_error.booking_link")}
+      </a>
+    </p>
+  );
+
+/** Shared renderer for a QR-book error page: a titled/headed simple page whose
+ *  body is one `<p>` (the explanation) followed by the fallback booking link
+ *  when the listing has a standalone page. Both the token-error and the
+ *  checkout-error pages render through this, so their body markup exists once.
+ *  `slug` is `null` for a listing with no standalone `/ticket/<slug>` page
+ *  (a non-standalone child, a hidden package member), so the dead-link case
+ *  is impossible. */
+const qrBookPage = (
+  titleKey: string,
+  headingKey: string,
+  body: Child,
+  slug: string | null,
+): string =>
+  simplePublicPage(
+    t(titleKey),
+    t(headingKey),
+  )(
+    <>
+      <p>{body}</p>
+      {qrBookBookingLink(slug)}
+    </>,
+  );
+
 /**
  * QR booking link error page shown when a signed link is invalid or expired.
  * Includes a fallback link to the listing's normal booking page — but only when
@@ -43,24 +83,32 @@ export const notFoundPage = (): string =>
  * non-standalone child or a hidden package member whose `/ticket/<slug>` 404s)
  * renders the error without a dead link to offer.
  */
-export const qrBookErrorPage = (
-  slug: string | null,
-  message = t("public.qr_book_error.message"),
+export const qrBookErrorPage = (slug: string | null): string =>
+  qrBookPage(
+    "public.qr_book_error.title",
+    "public.qr_book_error.heading",
+    t("public.qr_book_error.message"),
+    slug,
+  );
+
+/**
+ * Error page shown when a QR direct-to-checkout booking could not start its
+ * payment session: the provider refused the booking (HTTP 400, with the
+ * provider's own message) or the session could not be created (HTTP 500, with
+ * a generic "try again" message). The payment flow supplies the message and
+ * status; the page offers the same fallback booking link as the token-error
+ * page, since a listing that can skip straight to checkout always has a
+ * standalone /ticket/<slug> page to fall back to.
+ */
+export const qrBookCheckoutErrorPage = (
+  slug: string,
+  message: string,
 ): string =>
-  simplePublicPage(
-    t("public.qr_book_error.title"),
-    t("public.qr_book_error.heading"),
-  )(
-    <>
-      <p>{message}</p>
-      {slug !== null && (
-        <p>
-          <a href={`/ticket/${escapeHtml(slug)}`}>
-            {t("public.qr_book_error.booking_link")}
-          </a>
-        </p>
-      )}
-    </>,
+  qrBookPage(
+    "public.qr_book_checkout_error.title",
+    "public.qr_book_checkout_error.heading",
+    message,
+    slug,
   );
 
 /**

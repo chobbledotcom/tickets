@@ -1,8 +1,11 @@
+/* jscpd:ignore-start */
 import type { BrowserSession } from "../browser.ts";
 import type { ProviderName } from "../config.ts";
 import { config } from "../config.ts";
 import { log } from "../log.ts";
-import type { ConfigureProvider } from "./types.ts";
+import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
+
+/* jscpd:ignore-end */
 
 /** A step that acts on the settings page for one named payment provider. */
 type ProviderStep = (
@@ -52,4 +55,18 @@ export const configureProvider =
     await selectProvider(session, provider);
     await saveCredentials(session, secrets);
     await assertConfigured(session, provider);
+  };
+
+/**
+ * Build a provider's `payHostedCheckout` from just the step that drives its
+ * hosted page. Every provider says what it is doing, then waits for the hosted
+ * page's DOM before touching it — those two lines live here rather than being
+ * repeated per provider, so each provider only writes its own driving step.
+ */
+export const hostedCheckout =
+  (message: string, drive: PayHostedCheckout): PayHostedCheckout =>
+  async (page, ctx) => {
+    log(message);
+    await page.waitForLoadState("domcontentloaded");
+    await drive(page, ctx);
   };

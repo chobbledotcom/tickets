@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
 import {
   median,
+  medianAbsoluteDeviation,
   stripBase64Payloads,
   strippedChars,
 } from "../../scripts/bench/cold-start/strip-lib.ts";
@@ -37,10 +38,16 @@ describe("cold-start bench string stripping", () => {
     ]);
   });
 
-  test("median picks the middle of a sorted copy", () => {
+  test("median uses the middle of a sorted copy", () => {
     expect(median([3, 1, 2])).toBe(2);
     expect(median([5])).toBe(5);
-    expect(median([4, 1, 3, 2])).toBe(3);
+    expect(median([4, 1, 3, 2])).toBe(2.5);
     expect(Number.isNaN(median([]))).toBe(true);
+  });
+
+  test("medianAbsoluteDeviation reports robust odd and even spread", () => {
+    expect(medianAbsoluteDeviation([1, 2, 2, 4, 6])).toBe(1);
+    expect(medianAbsoluteDeviation([1, 2, 4, 8])).toBe(1.5);
+    expect(Number.isNaN(medianAbsoluteDeviation([]))).toBe(true);
   });
 });

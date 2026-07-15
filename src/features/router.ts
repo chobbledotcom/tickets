@@ -4,6 +4,7 @@
 
 import { reduce } from "#fp";
 import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   compileRoutePathPattern,
   type RouteParamNames,
@@ -31,11 +32,9 @@ export type RouteParamsFor<Pattern extends string> = {
 };
 
 /** Route handler with params inferred from the route pattern */
-export type TypedRouteHandler<Pattern extends string> = (
-  request: Request,
-  params: RouteParamsFor<Pattern>,
-  server?: ServerContext,
-) => Response | Promise<Response>;
+export type TypedRouteHandler<Pattern extends string> = ResponseHandler<
+  [request: Request, params: RouteParamsFor<Pattern>, server?: ServerContext]
+>;
 
 // =============================================================================
 // Runtime types
@@ -45,11 +44,9 @@ export type TypedRouteHandler<Pattern extends string> = (
 export type RouteParams = Record<string, string | number | undefined>;
 
 /** Route handler function signature (used internally by createRouter) */
-export type RouteHandlerFn = (
-  request: Request,
-  params: RouteParams,
-  server?: ServerContext,
-) => Response | Promise<Response>;
+export type RouteHandlerFn = ResponseHandler<
+  [request: Request, params: RouteParams, server?: ServerContext]
+>;
 
 /** Compiled route with regex */
 type CompiledRoute = {

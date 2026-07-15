@@ -32,7 +32,7 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransferGroups } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
-import { sameAccount } from "#shared/ledger/account.ts";
+import { legMatches } from "#shared/ledger/legs.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -47,8 +47,9 @@ type ComputedRefund = {
 const isRefundLeg = (kind: string | undefined): boolean =>
   kind?.startsWith("refund_") ?? false;
 
-const isProviderPaymentLeg = (leg: Transfer): boolean =>
-  leg.kind === KIND.payment && sameAccount(leg.source, WORLD);
+/** A provider cash payment: `payment` sourced from the world (card/bank in),
+ *  as opposed to an operator-recorded manual payment. */
+const isProviderPaymentLeg = legMatches({ from: WORLD, kind: KIND.payment });
 
 const isOperatorMoneyLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
@@ -291,12 +292,9 @@ export type PlaceholderRefundFacts = {
  * cash-only booking that was never honoured, so there is no sale leg or
  * fully-paid account to reverse. Never throws — the provider refund has already
  * settled, so a ledger write must not turn it into a 500. `posted` reports
- * whether every leg this call had to write is stored: the payment alone when
- * no refund happened (we still hold the money — the record is complete), the
- * payment plus its `refund_cash` reversal when one did. A failed write is
- * logged and reported as `posted: false`; the caller decides whether that is
- * terminal (a settled refund is) or must be retried (a held payment that
- * never reached the ledger).
+ * whether every required leg was stored: just the payment when no refund
+ * completed, or the payment and refund together when one did. A failed post is
+ * logged and reported as `posted: false`.
  */
 export const recordPlaceholderRefund = (
   facts: PlaceholderRefundFacts,

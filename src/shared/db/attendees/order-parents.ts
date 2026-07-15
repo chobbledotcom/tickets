@@ -108,15 +108,23 @@ const splitPricePaid = (
 };
 
 /** Expand one booking into its rows: one per `(child, parent)` allocation
- * (carrying that parent), plus — for any units the allocations don't cover — a
- * single parent-less remainder row. A booking with no allocation stays one
- * standalone row. `pricePaid` is split across the rows by {@link splitPricePaid}. */
+ *  (carrying that parent), plus — for any units the allocations don't cover — a
+ *  single parent-less remainder row. A booking with no allocation stays one
+ *  standalone row. `pricePaid` is split across the rows by {@link splitPricePaid}.
+ *
+ *  Generic over `T extends ListingBooking` so a caller that carries extra
+ *  required row fields through the booking keeps them on every expanded row —
+ *  the spread copies all of `booking`'s own properties and only overrides the
+ *  `ListingBooking`-compatible members (parent, quantity, price, token). The
+ *  cast is the standard workaround for TypeScript's inability to prove a
+ *  generic object spread is assignable back to its parameter; the spread
+ *  structurally preserves `T`, so the assertion is sound. */
 const expandBooking = <T extends ListingBooking>(
   booking: T,
   childAllocs: readonly { parentId: number; qty: number }[] | undefined,
   orderToken: string,
 ): T[] => {
-  if (!childAllocs) return [{ ...booking, orderToken }];
+  if (!childAllocs) return [{ ...booking, orderToken }] as T[];
   const totalQty = booking.quantity ?? 1;
   const allocatedQty = childAllocs.reduce((sum, a) => sum + a.qty, 0);
   const remainderQty = totalQty - allocatedQty;
@@ -135,7 +143,7 @@ const expandBooking = <T extends ListingBooking>(
     quantity: row.qty,
     ...(row.parentId !== undefined ? { parentListingId: row.parentId } : {}),
     ...(prices[i] !== undefined ? { pricePaid: prices[i] } : {}),
-  }));
+  })) as T[];
 };
 
 /**
@@ -152,7 +160,9 @@ const expandBooking = <T extends ListingBooking>(
  * the latter recomputes parentListingId as "first in-order parent" (lossy for
  * multi-parent), this function uses the allocation list to record the exact
  * parent for each unit. Used by both the free path and the paid webhook path,
- * which thread the allocation through the round-trip.
+ * which thread the allocation through the round-trip. Generic over
+ * `T extends ListingBooking` so any required row fields a caller carries on
+ * each booking survive the expansion.
  */
 export const expandChildAllocations = <T extends ListingBooking>(
   bookings: T[],

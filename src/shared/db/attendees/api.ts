@@ -11,7 +11,7 @@ import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#shared/
 import {
   checkBatchAvailabilityImpl,
   checkListingAvailability,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/checks.ts";
 import {
   createAttendeeAtomicImpl,
   createBookingAtomic as createBookingAtomicImpl,

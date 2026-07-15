@@ -16,6 +16,7 @@
  * attendee entity page's Edit tab embeds.
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
@@ -82,6 +83,7 @@ import {
   type SelectOption,
 } from "#templates/components/select-field.tsx";
 import { PHONE_INPUT_PATTERN } from "#templates/fields/ticket.ts";
+/* jscpd:ignore-end */
 
 /** Template data for the attendee form: everything the editable form itself
  * renders. The other tabs' data (log, ledger, notes, contact history) lives

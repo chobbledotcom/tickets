@@ -13,7 +13,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
+import { getGroupRemainingForListing } from "#shared/db/attendees/capacity/groups.ts";
 import { stagedSessionCreator } from "#shared/db/checkout-stages.ts";
 import { isHiddenPackageMember } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -22,11 +22,14 @@ import {
   listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings/records.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import { type CheckoutIntent, checkoutItem } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { type QrBookPayload, verifyQrBookToken } from "#shared/qr-token.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { qrBookErrorPage } from "#templates/public/errors.tsx";
+import {
+  qrBookCheckoutErrorPage,
+  qrBookErrorPage,
+} from "#templates/public/errors.tsx";
 import type {
   BookingPrefill,
   TicketPrefill,
@@ -34,11 +37,8 @@ import type {
 import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 
-const errorResponse = (
-  slug: string,
-  status: number,
-  message?: string,
-): Response => htmlResponse(qrBookErrorPage(slug, message), status);
+const errorResponse = (slug: string, status: number): Response =>
+  htmlResponse(qrBookErrorPage(slug), status);
 
 /** QR error with NO fallback booking link — for a listing that has no standalone
  * `/ticket/<slug>` page (a non-standalone child or a hidden package member),
@@ -104,21 +104,16 @@ const buildCheckoutIntent = (
   address: "",
   date: capacityDateFor(listing.listing_type, payload.d),
   email: "",
-  items: [
-    {
-      listingId: listing.id,
-      name: listing.name,
-      quantity: payload.q,
-      slug: listing.slug,
-      unitPrice: payload.v,
-    },
-  ],
+  items: [checkoutItem(listing, payload.q, payload.v)],
   name: payload.n,
   phone: "",
   special_instructions: "",
 });
 
-/** Redirect directly to Stripe checkout using the signed values */
+/** Redirect directly to Stripe checkout using the signed values. The payment
+ * flow's error (a provider validation refusal at 400, or a null/failed session
+ * at 500 with a generic message) is passed straight through to the page rather
+ * than replaced with a generic 500, so the visitor sees why it failed. */
 const skipToCheckout = (
   request: Request,
   listing: ListingWithCount,
@@ -129,7 +124,8 @@ const skipToCheckout = (
     `qr-book listing=${listing.id}`,
     request,
     stagedSessionCreator(intent),
-    (message, status) => errorResponse(listing.slug, status, message),
+    (msg, status) =>
+      htmlResponse(qrBookCheckoutErrorPage(listing.slug, msg), status),
   );
 };
 

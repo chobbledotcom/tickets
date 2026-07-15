@@ -20,6 +20,7 @@
  * deliberately not a stash-dependent bounce.
  */
 
+/* jscpd:ignore-start */
 import { byId } from "#fp";
 import { t } from "#i18n";
 import {
@@ -105,6 +106,7 @@ import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
 } from "#templates/admin/attendee-form.tsx";
+/* jscpd:ignore-end */
 
 // ---------------------------------------------------------------------------
 // GET /admin/attendees/new

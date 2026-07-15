@@ -32,6 +32,7 @@
  * guard — a site has one, fixed at setup, so every transfer shares it.)
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { groupBy, sumOf } from "#fp";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
@@ -53,6 +54,8 @@ import {
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import { toCanonicalIso } from "#shared/payment-helpers.ts";
+
+/* jscpd:ignore-end */
 
 /** One paid `listing_attendees` row joined to its attendee's booking time. */
 type PaidRow = {

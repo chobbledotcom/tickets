@@ -76,18 +76,28 @@ const AttendeeCountDisplay = (
   );
 };
 
+/** A capacity row's label: the row's own name plus the "(this date)" suffix
+ * daily listings add. */
+const capacityRowLabel = (
+  labelKey: string,
+  dailySuffix: string,
+): JSX.Element => (
+  <>
+    {t(labelKey)}
+    {dailySuffix}
+  </>
+);
+
 type AttendeesSummaryRowProps = Omit<ListingCapacityRowsProps, "groupContext">;
 
 export const AttendeesSummaryRow = (
   props: AttendeesSummaryRowProps,
 ): JSX.Element => (
   <LabelledRow
-    label={
-      <>
-        {t("listings_table.listing_attendees")}
-        {props.dailySuffix}
-      </>
-    }
+    label={capacityRowLabel(
+      "listings_table.listing_attendees",
+      props.dailySuffix,
+    )}
   >
     <AttendeeCountDisplay {...props} />
     {props.isDaily && !props.dateFilter && (
@@ -113,12 +123,7 @@ export const GroupAttendeesRow = ({
   dailySuffix: string;
 }): JSX.Element => (
   <LabelledRow
-    label={
-      <>
-        {t("listings_table.group_attendees")}
-        {dailySuffix}
-      </>
-    }
+    label={capacityRowLabel("listings_table.group_attendees", dailySuffix)}
   >
     <GroupCapacityMeter count={groupAttendeeCount} max={group.max_attendees} />{" "}
     <small>

@@ -6,7 +6,7 @@
  *
  * Behaviour under test (all shipped):
  *   - `purgeOrphanedAttendees` deletes `system_notes` rows for swept orphans
- *     (`system_notes` is in `ORPHAN_DEPENDENT_TABLES`).
+ *     (`system_notes` is a dependent row cleared by the shared attendee purge set).
  *   - A cost-bearing servicing event purged as an orphan leaves its cost legs
  *     as orphaned history — the transfers ledger is append-only, so the purge
  *     never reverses them.
@@ -33,7 +33,7 @@ import {
 
 // jscpd:ignore-end
 
-/** Insert a system_notes row for an attendee (the table the purge omits). */
+/** Insert a system_notes row for an attendee (a dependent row the purge clears). */
 const attachSystemNote = async (attendeeId: number): Promise<void> => {
   await getDb().execute({
     args: [attendeeId],
@@ -85,7 +85,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await attachSystemNote(id);
     expect(await childRowCount("system_notes", id)).toBe(1);
     await purgeOrphanedAttendees(nowIso());
-    // system_notes is in ORPHAN_DEPENDENT_TABLES, so the purge clears it.
+    // system_notes is a dependent row, so the shared purge clears it.
     expect(await childRowCount("system_notes", id)).toBe(0);
   });
 

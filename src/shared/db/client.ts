@@ -12,6 +12,7 @@ import {
   type InStatement,
   type InValue,
   type ResultSet,
+  type Transaction,
   type TransactionMode,
 } from "@libsql/client";
 import { lazyRef } from "#fp";
@@ -19,8 +20,10 @@ import {
   invalidateCachesForWrite,
   type WriteVerb,
 } from "#shared/cache-registry.ts";
+import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
 import {
   addQueryLogEntry,
+  countDatabaseRoundTrip,
   enforceTransactionRoundTripGuard,
   isQueryLogEnabled,
   logCompletedSql,
@@ -28,6 +31,7 @@ import {
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import { namedError } from "#shared/named-error.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 
 /**
@@ -127,12 +131,71 @@ const createDbClient = (): Client => {
   } as Parameters<typeof createClient>[0]);
 };
 
+const GUARDED_CLIENT = Symbol("guarded-db-client");
+
+const databaseRoundTrip = <T>(operation: string, run: () => T): T => {
+  countDatabaseRoundTrip(operation);
+  return run();
+};
+
+const executeWithRoundTripGuard = (
+  target: Pick<Client, "execute">,
+  operation: string,
+) =>
+  wrapExecute(target, (_statement, execute) =>
+    databaseRoundTrip(operation, execute),
+  );
+
+const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
+  proxyMembers(transaction, {
+    batch: (statements: InStatement[]) =>
+      databaseRoundTrip("transaction batch", () =>
+        transaction.batch(statements),
+      ),
+    commit: (): Promise<void> =>
+      databaseRoundTrip("transaction commit", () => transaction.commit()),
+    execute: executeWithRoundTripGuard(transaction, "transaction statement"),
+    executeMultiple: (sql: string): Promise<void> =>
+      databaseRoundTrip("transaction script", () =>
+        transaction.executeMultiple(sql),
+      ),
+    rollback: (): Promise<void> =>
+      databaseRoundTrip("transaction rollback", () => transaction.rollback()),
+  });
+
+const guardedClients = new WeakMap<Client, Client>();
+
+const withRoundTripGuard = (client: Client): Client => {
+  if (Reflect.get(client, GUARDED_CLIENT) === true) return client;
+  const existing = guardedClients.get(client);
+  if (existing) return existing;
+  const guarded = proxyMembers(client, {
+    [GUARDED_CLIENT]: true,
+    batch: (statements: InStatement[], mode?: TransactionMode) =>
+      databaseRoundTrip("batch", () => client.batch(statements, mode)),
+    execute: executeWithRoundTripGuard(client, "statement"),
+    executeMultiple: (sql: string): Promise<void> =>
+      databaseRoundTrip("script", () => client.executeMultiple(sql)),
+    migrate: (statements: InStatement[]): Promise<ResultSet[]> =>
+      databaseRoundTrip("migration batch", () => client.migrate(statements)),
+    sync: () => databaseRoundTrip("replica sync", () => client.sync()),
+    transaction: async (mode?: TransactionMode): Promise<Transaction> =>
+      transactionWithRoundTripGuard(
+        await databaseRoundTrip("transaction begin", () =>
+          beginTransaction(client, mode),
+        ),
+      ),
+  });
+  guardedClients.set(client, guarded);
+  return guarded;
+};
+
 const [dbGetter, dbSetter] = lazyRef(createDbClient);
 
 /**
  * Get or create database client
  */
-export const getDb = (): Client => dbGetter();
+export const getDb = (): Client => withRoundTripGuard(dbGetter());
 
 /**
  * Set database client (for testing)

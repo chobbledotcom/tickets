@@ -2,6 +2,7 @@
  * Admin guide — Domains sections.
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import {
   custom,
@@ -9,6 +10,7 @@ import {
   type GuideHostConfig,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+/* jscpd:ignore-end */
 
 export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
   compact<GuideSection>([

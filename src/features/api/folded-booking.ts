@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import * as v from "valibot";
 import { sumOf } from "#fp";
 import { apiError } from "#routes/api/cors.ts";
@@ -45,19 +46,18 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
-/* jscpd:ignore-start */
 import {
   type ContactInfo,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
-/* jscpd:ignore-end */
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   extractContact,
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
+/* jscpd:ignore-end */
 
 /** Parse the `children` array of a booking body against `schema`, or null (the
  * caller's 400) when it is present but malformed. */

@@ -58,7 +58,6 @@ import {
 } from "./attendees-route-helpers.ts";
 
 /* jscpd:ignore-end */
-
 /** Return a redirect response when the attendee has no active booking line, or null otherwise. */
 const redirectIfNoActiveBookingLine = async (
   attendeeId: number,

@@ -13,6 +13,7 @@ import { type Flash, getFlash, setFlashFormId } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms.tsx";
 import { validateMessageText } from "#shared/inbound-message.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 
 export { FormParams } from "#shared/form-data.ts";
 
@@ -109,7 +110,7 @@ export const requireCsrfForm = async (
 export const withCsrfForm = async (
   request: Request,
   onInvalid: (message: string, status: number) => Response,
-  handler: (form: FormParams) => Response | Promise<Response>,
+  handler: ResponseHandler<[form: FormParams]>,
 ): Promise<Response> => {
   const csrf = await requireCsrfFormWithMessage(request, (message) =>
     onInvalid(message, 403),

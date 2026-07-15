@@ -3,7 +3,7 @@
  * apply to which kind of listing.
  *
  * Capacity is enforced in several places: the JS preflight
- * (`#shared/db/attendees/capacity.ts`), the inline SQL guard embedded in the
+ * (`#shared/db/attendees/capacity/checks.ts`), the inline SQL guard embedded in the
  * booking INSERT/UPDATE (`#shared/db/capacity.ts`), and the booking-page
  * limits (`#shared/booking/model.ts`, `#shared/booking/package-cap.ts`).
  * Each of those used to branch on `listing_type === "daily"` by hand. This
@@ -126,7 +126,7 @@ export const CAPACITY_RULES: readonly CapacityRule[] =
      * daily listings: a multi-day booking must fit EVERY day it occupies, and
      * spots freed on one date say nothing about another. Counted by
      * `buildListingCountSql` (SQL) and the per-day expansion in
-     * `#shared/db/attendees/capacity.ts` (JS). A daily listing therefore has
+     * `#shared/db/attendees/capacity/range.ts` (JS). A daily listing therefore has
      * NO date-less own count — date-less surfaces must not treat its running
      * total as remaining stock.
      */

@@ -214,43 +214,78 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
   },
 ];
 
+/** The five standard admin-CRUD doc entries for a resource. Descriptions are
+ *  passed in (they carry per-resource wording — "an listing", the holiday
+ *  "owner only" notes), so this shares only the method/path/request/response
+ *  shape every resource repeats. `desc` is [list, get, create, update, delete]. */
+const crudDocs = (c: {
+  singular: string;
+  plural: string;
+  idParam: string;
+  example: unknown;
+  listResponse: unknown;
+  createBody: unknown;
+  updateBody: unknown;
+  deleteBody: unknown;
+  desc: [string, string, string, string, string];
+}): EndpointDoc[] => {
+  const base = `/api/admin/${c.plural}`;
+  const byId = `${base}/:${c.idParam}`;
+  const one = json({ [c.singular]: c.example });
+  const [list, get, create, update, del] = c.desc;
+  return [
+    {
+      description: list,
+      method: "GET",
+      path: base,
+      response: json(c.listResponse),
+    },
+    { description: get, method: "GET", path: byId, response: one },
+    {
+      description: create,
+      method: "POST",
+      path: base,
+      request: json(c.createBody),
+      response: one,
+    },
+    {
+      description: update,
+      method: "PUT",
+      path: byId,
+      request: json(c.updateBody),
+      response: one,
+    },
+    {
+      description: del,
+      method: "DELETE",
+      path: byId,
+      request: json(c.deleteBody),
+      response: json({ status: "ok" }),
+    },
+  ];
+};
+
 export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
-  {
-    description: "List all listings with attendee counts",
-    method: "GET",
-    path: "/api/admin/listings",
-    response: json({
+  ...crudDocs({
+    createBody: ADMIN_API_CREATE_BODY,
+    deleteBody: ADMIN_API_DELETE_BODY,
+    desc: [
+      "List all listings with attendee counts",
+      "Get a single listing by ID",
+      "Create a new listing",
+      "Update an listing (all fields optional)",
+      "Delete an listing (requires name confirmation)",
+    ],
+    example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
+    idParam: "listingId",
+    listResponse: {
       admin_level: "owner",
       listings: [ADMIN_API_EXAMPLE_ADMIN_LISTING],
-    }),
-  },
-  {
-    description: "Get a single listing by ID",
-    method: "GET",
-    path: "/api/admin/listings/:listingId",
-    response: json({ listing: ADMIN_API_EXAMPLE_ADMIN_LISTING }),
-  },
-  {
-    description: "Create a new listing",
-    method: "POST",
-    path: "/api/admin/listings",
-    request: json(ADMIN_API_CREATE_BODY),
-    response: json({ listing: ADMIN_API_EXAMPLE_ADMIN_LISTING }),
-  },
-  {
-    description: "Update an listing (all fields optional)",
-    method: "PUT",
-    path: "/api/admin/listings/:listingId",
-    request: json(ADMIN_API_UPDATE_BODY),
-    response: json({ listing: ADMIN_API_EXAMPLE_ADMIN_LISTING }),
-  },
-  {
-    description: "Delete an listing (requires name confirmation)",
-    method: "DELETE",
-    path: "/api/admin/listings/:listingId",
-    request: json(ADMIN_API_DELETE_BODY),
-    response: json({ status: "ok" }),
-  },
+    },
+    plural: "listings",
+    singular: "listing",
+    updateBody: ADMIN_API_UPDATE_BODY,
+  }),
   {
     description: "Deactivate an listing",
     method: "POST",
@@ -263,72 +298,38 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     path: "/api/admin/listings/:listingId/reactivate",
     response: json({ listing: ADMIN_API_EXAMPLE_ADMIN_LISTING }),
   },
-  // Groups (any admin)
-  {
-    description: "List all groups",
-    method: "GET",
-    path: "/api/admin/groups",
-    response: json({ groups: [ADMIN_API_EXAMPLE_GROUP] }),
-  },
-  {
-    description: "Get a single group by ID",
-    method: "GET",
-    path: "/api/admin/groups/:groupId",
-    response: json({ group: ADMIN_API_EXAMPLE_GROUP }),
-  },
-  {
-    description: "Create a new group",
-    method: "POST",
-    path: "/api/admin/groups",
-    request: json(ADMIN_API_GROUP_CREATE_BODY),
-    response: json({ group: ADMIN_API_EXAMPLE_GROUP }),
-  },
-  {
-    description: "Update a group (all fields optional)",
-    method: "PUT",
-    path: "/api/admin/groups/:groupId",
-    request: json(ADMIN_API_GROUP_UPDATE_BODY),
-    response: json({ group: ADMIN_API_EXAMPLE_GROUP }),
-  },
-  {
-    description: "Delete a group (requires name confirmation)",
-    method: "DELETE",
-    path: "/api/admin/groups/:groupId",
-    request: json(ADMIN_API_GROUP_DELETE_BODY),
-    response: json({ status: "ok" }),
-  },
-  // Holidays (owner only)
-  {
-    description: "List all holidays (owner only)",
-    method: "GET",
-    path: "/api/admin/holidays",
-    response: json({ holidays: [ADMIN_API_EXAMPLE_HOLIDAY] }),
-  },
-  {
-    description: "Get a single holiday by ID (owner only)",
-    method: "GET",
-    path: "/api/admin/holidays/:holidayId",
-    response: json({ holiday: ADMIN_API_EXAMPLE_HOLIDAY }),
-  },
-  {
-    description: "Create a holiday (owner only)",
-    method: "POST",
-    path: "/api/admin/holidays",
-    request: json(ADMIN_API_HOLIDAY_CREATE_BODY),
-    response: json({ holiday: ADMIN_API_EXAMPLE_HOLIDAY }),
-  },
-  {
-    description: "Update a holiday (owner only, all fields optional)",
-    method: "PUT",
-    path: "/api/admin/holidays/:holidayId",
-    request: json(ADMIN_API_HOLIDAY_UPDATE_BODY),
-    response: json({ holiday: ADMIN_API_EXAMPLE_HOLIDAY }),
-  },
-  {
-    description: "Delete a holiday (owner only, requires name confirmation)",
-    method: "DELETE",
-    path: "/api/admin/holidays/:holidayId",
-    request: json(ADMIN_API_HOLIDAY_DELETE_BODY),
-    response: json({ status: "ok" }),
-  },
+  ...crudDocs({
+    createBody: ADMIN_API_GROUP_CREATE_BODY,
+    deleteBody: ADMIN_API_GROUP_DELETE_BODY,
+    desc: [
+      "List all groups",
+      "Get a single group by ID",
+      "Create a new group",
+      "Update a group (all fields optional)",
+      "Delete a group (requires name confirmation)",
+    ],
+    example: ADMIN_API_EXAMPLE_GROUP,
+    idParam: "groupId",
+    listResponse: { groups: [ADMIN_API_EXAMPLE_GROUP] },
+    plural: "groups",
+    singular: "group",
+    updateBody: ADMIN_API_GROUP_UPDATE_BODY,
+  }),
+  ...crudDocs({
+    createBody: ADMIN_API_HOLIDAY_CREATE_BODY,
+    deleteBody: ADMIN_API_HOLIDAY_DELETE_BODY,
+    desc: [
+      "List all holidays (owner only)",
+      "Get a single holiday by ID (owner only)",
+      "Create a holiday (owner only)",
+      "Update a holiday (owner only, all fields optional)",
+      "Delete a holiday (owner only, requires name confirmation)",
+    ],
+    example: ADMIN_API_EXAMPLE_HOLIDAY,
+    idParam: "holidayId",
+    listResponse: { holidays: [ADMIN_API_EXAMPLE_HOLIDAY] },
+    plural: "holidays",
+    singular: "holiday",
+    updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
+  }),
 ];

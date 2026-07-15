@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
+import { squareRequestInit } from "#shared/square.ts";
 import { log } from "../log.ts";
 import { sleep } from "../util.ts";
-import { squareRequestInit } from "#shared/square.ts";
-import { configureProvider } from "./shared.ts";
+import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
 
 /**
@@ -130,9 +130,9 @@ const completeViaSandboxApi = async (
   const locationId = order?.location_id ?? ctx.secrets.locationId;
   if (!amountMoney || !locationId) {
     throw new Error(
-      `Square: order ${orderId} missing total/location (got ${
-        JSON.stringify(order)
-      })`,
+      `Square: order ${orderId} missing total/location (got ${JSON.stringify(
+        order,
+      )})`,
     );
   }
   log(
@@ -185,9 +185,9 @@ const completeViaSandboxApi = async (
 
   // Drive the browser to the app's real return URL, exactly as Square would on
   // a live redirect (the app reads orderId → validates the now-paid order).
-  const returnUrl = `${ctx.baseUrl}/payment/success?orderId=${
-    encodeURIComponent(orderId)
-  }`;
+  const returnUrl = `${ctx.baseUrl}/payment/success?orderId=${encodeURIComponent(
+    orderId,
+  )}`;
   log(`  navigating the browser to the app return URL: ${returnUrl}`);
   await page.goto(returnUrl, { waitUntil: "domcontentloaded" });
 };
@@ -201,13 +201,12 @@ export const square: PaymentProvider = {
   }),
   name: "square",
 
-  payHostedCheckout: async (
-    page: Page,
-    ctx: HostedCheckoutContext,
-  ): Promise<void> => {
-    await page.waitForLoadState("domcontentloaded");
-    await completeViaSandboxApi(page, ctx);
-  },
+  payHostedCheckout: hostedCheckout(
+    "Completing Square sandbox payment…",
+    async (page, ctx) => {
+      await completeViaSandboxApi(page, ctx);
+    },
+  ),
   // The Square sandbox account/location has a FIXED currency and rejects a
   // payment link whose amount is in any other currency ("This business can only
   // process payments in GBP but amount was provided in USD"). This sandbox is

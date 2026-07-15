@@ -2,6 +2,7 @@
  * SMS Gateway form for advanced settings.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -10,6 +11,7 @@ import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanc
 import { MaskedInput } from "#templates/components/masked-input.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { TextField } from "#templates/components/text-field.tsx";
+/* jscpd:ignore-end */
 
 export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <SettingsSection

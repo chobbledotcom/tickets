@@ -2,6 +2,7 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
+/* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
@@ -36,6 +37,7 @@ import {
 import { columnMapByIds, nameSource } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
+/* jscpd:ignore-end */
 
 /**
  * Columns for a `ListingAttendeeRow` read straight from one `listing_attendees`

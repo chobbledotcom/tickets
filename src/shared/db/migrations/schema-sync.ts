@@ -432,29 +432,31 @@ export const noArgStatements = (sqls: string[]): SqlStatement[] =>
 
 export const applySchemaChanges: () => Promise<void> = fromLiveSchema(
   async (live) => {
-    const statements: SqlStatement[] = [];
+    const creates: SqlStatement[] = [];
+    const alters: SqlStatement[] = [];
     for (const entry of SCHEMA) {
       const [name, table] = entry;
       const existing = live.tables.get(name);
       if (!existing) {
         // Missing table: one CREATE carries every column, so no ALTERs follow.
-        statements.push({ args: [], sql: createTableSql(entry) });
+        creates.push({ args: [], sql: createTableSql(entry) });
         continue;
       }
       for (const [col, type] of table.columns) {
         if (!existing.has(col)) {
-          statements.push({
+          alters.push({
             args: [],
             sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
           });
         }
       }
     }
-    // Run statements through runMigration rather than a single batch so another
-    // edge isolate can safely win the same additive schema race after our
-    // snapshot. runMigration ignores idempotent duplicate/already-exists DDL
-    // errors but still surfaces real failures.
-    for (const statement of statements) {
+    // Missing-table CREATEs are idempotent and independent, so one batch keeps a
+    // fresh setup within Bunny's 50-subrequest limit. ALTER ADD COLUMN can race
+    // another isolate after this snapshot; keep those on runMigration so an
+    // already-added column is accepted without hiding real failures.
+    if (creates.length > 0) await executeBatch(creates);
+    for (const statement of alters) {
       await runMigration(statement.sql);
     }
   },

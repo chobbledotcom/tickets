@@ -3,7 +3,15 @@
  */
 
 /* jscpd:ignore-start */
-import { byId, groupBy, groupToMap, mapNotNullish } from "#fp";
+import * as v from "valibot";
+import {
+  byId,
+  flatMap,
+  groupBy,
+  groupToMap,
+  mapNotNullish,
+  mapParallel,
+} from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
@@ -34,9 +42,11 @@ import {
   removeListingGroupPricesStatement,
 } from "#shared/db/listing-prices.ts";
 import {
-  getListingsWithCountsByIds,
+  decryptListingWithCount,
+  type ListingProjectionRow,
   queryListingsWithCounts,
 } from "#shared/db/listings/records.ts";
+import { listingProjectionSql } from "#shared/db/listings/sql.ts";
 import {
   envNameSource,
   type ListsByIds,
@@ -211,33 +221,38 @@ export const getListingsByGroupIds = async (
   groupIds: readonly number[],
   activeOnly = false,
 ): Promise<Map<number, ListingWithCount[]>> => {
-  const byGroup = new Map<number, ListingWithCount[]>(
-    groupIds.map((id) => [id, []]),
-  );
-  if (groupIds.length === 0) return byGroup;
-  const edges = await queryAll<{ group_id: number; listing_id: number }>(
-    `SELECT group_id, listing_id FROM group_listings
-      WHERE group_id IN (${inPlaceholders(groupIds)})`,
+  if (groupIds.length === 0) return new Map();
+  type GroupListingRow = ListingProjectionRow & { group_ids: string };
+  type ListingGroups = { groupIds: number[]; member: ListingWithCount };
+  const rows = await queryAll<GroupListingRow>(
+    `SELECT json_group_array(groupListing.group_id) AS group_ids,
+            ${listingProjectionSql("listing")},
+            listing.booked_quantity AS attendee_count
+       FROM group_listings AS groupListing
+       JOIN listings AS listing ON listing.id = groupListing.listing_id
+      WHERE groupListing.group_id IN (${inPlaceholders(groupIds)})
+        ${activeOnly ? "AND listing.active = 1" : ""}
+      GROUP BY listing.id
+      ORDER BY listing.created DESC, listing.id DESC`,
     [...groupIds],
   );
-  const members = await getListingsWithCountsByIds([
-    ...new Set(edges.map((edge) => edge.listing_id)),
-  ]);
-  const memberIdsByGroup = new Map<number, Set<number>>();
-  for (const { group_id, listing_id } of edges) {
-    const ids = memberIdsByGroup.get(group_id) ?? new Set<number>();
-    ids.add(listing_id);
-    memberIdsByGroup.set(group_id, ids);
-  }
-  for (const [groupId, ids] of memberIdsByGroup) {
-    byGroup.set(
+  const listingsWithGroups: ListingGroups[] = await mapParallel(
+    async (row: GroupListingRow): Promise<ListingGroups> => ({
+      groupIds: v.parse(v.array(v.number()), JSON.parse(row.group_ids)),
+      member: await decryptListingWithCount(row),
+    }),
+  )(rows);
+  const entries: Array<readonly [number, ListingWithCount]> = flatMap(
+    ({ groupIds, member }: ListingGroups) =>
+      groupIds.map((groupId) => [groupId, member] as const),
+  )(listingsWithGroups);
+  const entriesByGroup = Map.groupBy(entries, ([groupId]) => groupId);
+  return new Map(
+    groupIds.map((groupId) => [
       groupId,
-      members.filter(
-        (member) => (!activeOnly || member.active) && ids.has(member.id),
-      ),
-    );
-  }
-  return byGroup;
+      (entriesByGroup.get(groupId) ?? []).map(([, member]) => member),
+    ]),
+  );
 };
 
 /** Active members of several groups, keyed by group id — the public site-nav's

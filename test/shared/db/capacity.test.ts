@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
-import { currentBatchCapacityCondition } from "#shared/db/attendees/capacity.ts";
+import { currentBatchCapacityCondition } from "#shared/db/attendees/capacity/checks.ts";
 import {
   buildBatchCapacityCondition,
   buildCapacityCondition,

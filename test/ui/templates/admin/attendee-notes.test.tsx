@@ -51,6 +51,24 @@ describe("AttendeeNotesSection", () => {
     expect(html).not.toContain('href="/admin/ledger?attendee=5"');
   });
 
+  test("demotes the attendee ledger-tab link too, not just standalone /admin/ledger", () => {
+    // The attendee page's ledger tab (/admin/attendees/:id/ledger) is also
+    // owner-only — PaymentDetails links to it, and an operator could paste it
+    // into a note. Without catching it, a non-owner would see a dead link.
+    const ledgerTabNote = note({
+      note: "Check the [ledger](/admin/attendees/5/ledger).",
+    });
+    const staffHtml = String(
+      <AttendeeNotesSection isOwner={false} notes={[ledgerTabNote]} />,
+    );
+    expect(staffHtml).toContain("Check the ledger");
+    expect(staffHtml).not.toContain('href="/admin/attendees/5/ledger"');
+
+    const ownerHtml = String(
+      <AttendeeNotesSection isOwner notes={[ledgerTabNote]} />,
+    );
+    expect(ownerHtml).toContain('href="/admin/attendees/5/ledger"');
+  });
   test("renders an owner note without the alert styling", () => {
     const html = String(
       <AttendeeNotesSection
@@ -72,7 +90,7 @@ describe("AttendeeNotesSection", () => {
   test("hides the delete link in read-only mode", () => {
     const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
-      const html = String(<AttendeeNotesSection notes={[note()]} />);
+      const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
       expect(html).toContain("Refunded");
       expect(html).not.toContain("/admin/attendee/5/note/1/delete");
     } finally {
@@ -98,6 +116,7 @@ describe("AttendeeNotesSummary", () => {
     ]);
     const html = String(
       <AttendeeNotesSummary
+        isOwner={false}
         names={names}
         notes={[
           note({ attendee_id: 5, id: 1, note: "first" }),
@@ -117,6 +136,7 @@ describe("AttendeeNotesSummary", () => {
   test("falls back to the id when a name is unknown", () => {
     const html = String(
       <AttendeeNotesSummary
+        isOwner={false}
         names={new Map()}
         notes={[note({ attendee_id: 9 })]}
       />,
@@ -124,8 +144,33 @@ describe("AttendeeNotesSummary", () => {
     expect(html).toContain("#9");
   });
 
+  test("demotes a note's ledger link for non-owners but keeps it for owners", () => {
+    // A rendered link is a promise that it works: the ledger pages are
+    // owner-only, so a non-owner sees the words without the link.
+    const staffHtml = String(
+      <AttendeeNotesSummary
+        isOwner={false}
+        names={new Map([[5, "Alice"]])}
+        notes={[note({ attendee_id: 5 })]}
+      />,
+    );
+    expect(staffHtml).toContain("see the ledger");
+    expect(staffHtml).not.toContain('href="/admin/ledger?attendee=5"');
+
+    const ownerHtml = String(
+      <AttendeeNotesSummary
+        isOwner
+        names={new Map([[5, "Alice"]])}
+        notes={[note({ attendee_id: 5 })]}
+      />,
+    );
+    expect(ownerHtml).toContain('href="/admin/ledger?attendee=5"');
+  });
+
   test("renders nothing when there are no notes", () => {
-    const html = String(<AttendeeNotesSummary names={new Map()} notes={[]} />);
+    const html = String(
+      <AttendeeNotesSummary isOwner={false} names={new Map()} notes={[]} />,
+    );
     expect(html).not.toContain("<details");
     expect(html).not.toContain("have notes");
   });

@@ -7,9 +7,9 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import { once } from "#fp";
 import { t } from "#i18n";
 import {
+  createRecalculateHandlers,
   createRecalculatePageRenderer,
   parseEditableAggregateForm,
-  runRecalculatePost,
 } from "#routes/admin/aggregate-recalculation.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
@@ -55,7 +55,6 @@ import {
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
 import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
-import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   type CalcKind,
@@ -449,44 +448,28 @@ const renderModifierRecalculatePage = createRecalculatePageRenderer(
   adminModifierRecalculatePage,
 );
 
+const modifierRecalculateHandlers = createRecalculateHandlers({
+  chooseMessage: t("modifiers.recalculate.choose"),
+  entityId: (modifier) => modifier.id,
+  fields: MODIFIER_AGGREGATE_FIELDS,
+  log: (modifier) =>
+    logActivity(`Modifier '${modifier.name}' totals recalculated`),
+  render: renderModifierRecalculatePage,
+  reset: resetModifierAggregateFields,
+  successMessage: t("modifiers.recalculate.success"),
+  successPath: (modifier) => `/admin/modifiers/${modifier.id}/edit`,
+  withEntity: withModifier,
+});
+
 const handleModifierRecalculateGet: TypedRouteHandler<
   "GET /admin/modifiers/recalculate/:modifierId"
 > = (request, { modifierId }) =>
-  requireSessionOr(request, (session) =>
-    withModifier(modifierId)((modifier) => {
-      const flash = getFlash();
-      return renderModifierRecalculatePage(
-        modifier,
-        session,
-        flash.error,
-        flash.success,
-      );
-    }),
-  );
+  modifierRecalculateHandlers.get(request, modifierId);
 
 const handleModifierRecalculatePost: TypedRouteHandler<
   "POST /admin/modifiers/recalculate/:modifierId"
 > = (request, { modifierId }) =>
-  withAuth(request, AUTH_FORM, (session, form) =>
-    withModifier(modifierId)((modifier) =>
-      runRecalculatePost({
-        fields: MODIFIER_AGGREGATE_FIELDS,
-        form,
-        log: () =>
-          logActivity(`Modifier '${modifier.name}' totals recalculated`),
-        renderChoose: () =>
-          renderModifierRecalculatePage(
-            modifier,
-            session,
-            t("modifiers.recalculate.choose"),
-          ),
-        reset: (selected) =>
-          resetModifierAggregateFields(modifier.id, selected),
-        successMessage: t("modifiers.recalculate.success"),
-        successPath: `/admin/modifiers/${modifier.id}/edit`,
-      }),
-    ),
-  );
+  modifierRecalculateHandlers.post(request, modifierId);
 
 /** Selected ids from a checkbox group, positive integers only. */
 const selectedIds = (form: FormParams, field: string): number[] =>

@@ -1,6 +1,6 @@
 import { insertManyStatement } from "#shared/accounting/rows.ts";
 import { assertPostable } from "#shared/accounting/store.ts";
-import type { OrderBooking } from "#shared/booking-lines.ts";
+import type { CanonicalBooking } from "#shared/booking-lines.ts";
 import type { AttendeeInput } from "#shared/db/attendee-types.ts";
 import {
   type ActivationFailure,
@@ -9,9 +9,9 @@ import {
 } from "#shared/db/attendees/activation-refusal.ts";
 import {
   bookingCapacityFields,
-  bookingStartAt,
   currentBatchCapacityCondition,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/checks.ts";
+import { bookingStartAt } from "#shared/db/attendees/capacity/range.ts";
 import {
   bookingWriteGuard,
   type FinalizedBookingBatchPlan,
@@ -45,7 +45,7 @@ type ActivationLine = {
   startAt: string | null;
 };
 
-const activationLines = (bookings: OrderBooking[]): ActivationLine[] =>
+const activationLines = (bookings: CanonicalBooking[]): ActivationLine[] =>
   bookings.map((booking) => ({
     listingId: booking.listingId,
     packageGroupId: booking.packageGroupId ?? 0,
@@ -177,7 +177,7 @@ export const activateStagedBooking = async (
   attendeeId: number,
   ticketToken: string,
   input: Omit<AttendeeInput, "bookings" | "paymentId"> & {
-    bookings: OrderBooking[];
+    bookings: CanonicalBooking[];
     paymentId: string;
   },
   plan: FinalizedBookingBatchPlan,

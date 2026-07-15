@@ -301,5 +301,42 @@ describe("markdown", () => {
         ["> - Money", "", "> | Page |", "> | --- |", "> | Money |"].join("\n"),
       );
     });
+
+    test("does not crash on a table with escaped pipes and still demotes links in other cells", () => {
+      // Marked normalizes `\|` to `|` in cell.text, so a cell with an escaped
+      // pipe can't be located in token.raw. Before the fix this hit an assert
+      // and crashed; now the unmatched cell is skipped (its raw source stays)
+      // while matched cells are still rewritten.
+      const markdown = [
+        "| Link | Note |",
+        "| --- | --- |",
+        "| [money](/admin/ledger/x) | a\\|b |",
+      ].join("\n");
+
+      const filtered = withoutLinksTo(markdown, "/admin/ledger");
+      expect(filtered).toBe(
+        ["| Link | Note |", "| --- | --- |", "| money | a\\|b |"].join("\n"),
+      );
+    });
+
+    test("demotes links matching a predicate, not just a string prefix", () => {
+      // The attendee ledger tab (/admin/attendees/:id/ledger) is owner-only
+      // but doesn't share a prefix with the standalone /admin/ledger routes.
+      // A predicate matcher catches both.
+      const isOwnerOnly = (href: string): boolean =>
+        href.startsWith("/admin/ledger") ||
+        (href.startsWith("/admin/attendees/") && href.includes("/ledger"));
+
+      expect(
+        withoutLinksTo(
+          "See the [ledger](/admin/attendees/5/ledger).",
+          isOwnerOnly,
+        ),
+      ).toBe("See the ledger.");
+      // A link to the attendee page itself (not the ledger tab) is kept.
+      expect(
+        withoutLinksTo("See [Ada](/admin/attendees/5).", isOwnerOnly),
+      ).toBe("See [Ada](/admin/attendees/5).");
+    });
   });
 });

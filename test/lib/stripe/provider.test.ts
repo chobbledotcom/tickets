@@ -390,6 +390,18 @@ describeStripe("stripe-provider", () => {
       });
     }
 
+    test("returns false when Stripe returns null (no refund created)", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.refunds, "create", () => Promise.resolve(null as never)),
+        async () => {
+          const result = await stripePaymentProvider.refundPayment("pi_null");
+          expect(result).toBe(false);
+        },
+      );
+    });
+
     test("returns false when refund fails", async () => {
       const client = await stripeClient();
       await withMocks(

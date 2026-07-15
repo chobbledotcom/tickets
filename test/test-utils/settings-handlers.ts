@@ -2,6 +2,7 @@ import { fn } from "@std/expect/fn";
 import type { ErrorPageFn } from "#routes/admin/settings-helpers.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 
 /** Build FormParams from a plain record of form fields. */
@@ -27,11 +28,9 @@ export const makeMockErrorPage = (): ErrorPageFn & ReturnType<typeof fn> =>
 
 /** Invoke a settings handler with form `data` + `errorPage` and a null session. */
 export const runHandler = (
-  handler: (
-    form: FormParams,
-    errorPage: ErrorPageFn,
-    session: AuthSession,
-  ) => Response | Promise<Response>,
+  handler: ResponseHandler<
+    [form: FormParams, errorPage: ErrorPageFn, session: AuthSession]
+  >,
   data: Record<string, string>,
   errorPage: ErrorPageFn,
 ): Promise<Response> =>

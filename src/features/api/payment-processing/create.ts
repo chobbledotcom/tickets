@@ -17,8 +17,7 @@ import type {
   BookingIntent,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { lineGroupId } from "#shared/booking/signed-metadata.ts";
-import { orderBookings } from "#shared/booking-lines.ts";
+import { orderBookingsFor, signedPaidLine } from "#shared/booking-lines.ts";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
@@ -46,22 +45,12 @@ import {
 } from "#shared/db/questions/attendee-answers/save.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type {
-  BookingItem,
   CheckoutIntent,
   ModifierSpec,
   TextAnswerRef,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-
-/** The listing id + package path shared by every booking row we build from a
- * signed line — a fresh booking, a quantity-0 placeholder, or a dateless ghost.
- * A line's package path keeps a listing booked through two paths in two distinct
- * slots. */
-export const bookingSlot = (item: BookingItem) => ({
-  listingId: item.e,
-  packageGroupId: lineGroupId(item) ?? 0,
-});
 
 /** The one success shape every resolved payment session returns: the created or
  *  already-existing attendee (only its id is carried — see PaymentSuccess), the
@@ -294,15 +283,23 @@ export const createAttendeeForSession = async (
   // Per-LINE paid amounts: a listing booked through two paths is two lines
   // with their own prices, and each becomes its own booking row. The priced
   // order's lines reference the pricing intent's item objects, which pair
-  // 1:1 by index with validatedItems.
+  // 1:1 by index with validatedItems. `paidByIntentItem.get(...)` is always
+  // defined for a priced item (every intent item produces a priced line), so
+  // the raw value flows straight through — a genuine `0` (a free line that
+  // was still signed) stays `0`. The conditional spread is for
+  // `exactOptionalPropertyTypes`: an explicit `undefined` cannot be assigned
+  // to an optional `number`, so `pricePaid` is omitted when absent (the DB
+  // layer then coerces it to `0` at insert, matching the prior `?? 0`).
   const paidByIntentItem = paidByItem(pricedOrder);
-  const bookings = orderBookings(
-    validatedItems.map(({ item, listing }, index) => ({
-      item,
-      listing,
-      pricePaid: paidByIntentItem.get(pricingIntent.items[index]!) ?? 0,
-    })),
+  const bookings = orderBookingsFor(
     intent,
+    validatedItems.map(({ item, listing }, index) =>
+      signedPaidLine(
+        item,
+        listing,
+        paidByIntentItem.get(pricingIntent.items[index]!),
+      ),
+    ),
   );
   const fullTotal = pricedOrder.fullSubtotal;
   const depositTotal = orderLineTotal(pricedOrder);

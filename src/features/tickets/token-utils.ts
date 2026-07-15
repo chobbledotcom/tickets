@@ -24,7 +24,7 @@ import {
 } from "#shared/db/token-attempts.ts";
 import { listingDetails } from "#shared/listing-details.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import type { MakeResponse } from "#shared/response-steps.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import {
   type Attendee,
@@ -102,10 +102,9 @@ export const lookupSingleTokenPassData = async (
 export type TokenRouteFn = PathMethodRoute;
 
 /** Handler type for token-based route methods */
-export type TokenMethodHandler = (
-  request: Request,
-  tokens: string[],
-) => Response | Promise<Response>;
+export type TokenMethodHandler = ResponseHandler<
+  [request: Request, tokens: string[]]
+>;
 
 /** Map of HTTP method to handler */
 type TokenMethodMap = Record<string, TokenMethodHandler>;
@@ -261,7 +260,7 @@ export const withTokenRateLimit = async (
   request: Request,
   server: ServerContext | undefined,
   tokens: string[],
-  run: MakeResponse,
+  run: ResponseHandler,
 ): Promise<Response> => {
   const ip = getClientIp(request, server);
   if (await isTokenRateLimited(ip)) return rateLimitedResponse();

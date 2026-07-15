@@ -1,6 +1,8 @@
+/* jscpd:ignore-start */
 import type { Page } from "playwright";
 import type { BrowserSession } from "../browser.ts";
 import type { ProviderName } from "../config.ts";
+/* jscpd:ignore-end */
 
 /**
  * Set a provider up through the admin UI, using the browser session and the
@@ -9,6 +11,15 @@ import type { ProviderName } from "../config.ts";
 export type ConfigureProvider = (
   session: BrowserSession,
   secrets: Record<string, string>,
+) => Promise<void>;
+
+/**
+ * Drive a provider's *hosted* checkout page: enter the sandbox test card and
+ * submit. See `PaymentProvider.payHostedCheckout` for the full contract.
+ */
+export type PayHostedCheckout = (
+  page: Page,
+  ctx: HostedCheckoutContext,
 ) => Promise<void>;
 
 /**
@@ -48,7 +59,7 @@ export interface PaymentProvider {
    * second argument; it exists for sandboxes with no automatable hosted card
    * page (see HostedCheckoutContext).
    */
-  payHostedCheckout: (page: Page, ctx: HostedCheckoutContext) => Promise<void>;
+  payHostedCheckout: PayHostedCheckout;
   /**
    * The site currency the provider sandbox expects, as an ISO country code for
    * the setup wizard (GB→GBP, US→USD). Sandbox account currency must match.

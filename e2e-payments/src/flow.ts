@@ -5,10 +5,12 @@
  * confirm the booking is recorded as paid.
  */
 
+/* jscpd:ignore-start */
 import type { Locator } from "playwright";
-import type { BrowserSession } from "./browser.ts";
+import { type BrowserSession, hrefOf } from "./browser.ts";
 import { config } from "./config.ts";
 import { log, step } from "./log.ts";
+/* jscpd:ignore-end */
 
 const LISTING_NAME = "E2E Payment Concert";
 // Not example.com: some processors (Square) reject that reserved domain as an
@@ -84,13 +86,10 @@ export const createListing = async (
   // Open the new listing and read its public booking link.
   await session.goto("/admin/");
   await session.clickLink(name);
-  const href = await session.page
-    .locator('a[href*="/ticket/"]')
-    .first()
-    .getAttribute("href", { timeout: config.navTimeoutMs });
-  if (!href) {
-    throw new Error("no public /ticket/ link found on the listing page");
-  }
+  const href = await hrefOf(
+    session.page.locator('a[href*="/ticket/"]').first(),
+    "no public /ticket/ link found on the listing page",
+  );
   const path = href.startsWith("http") ? new URL(href).pathname : href;
   log(`  public booking path: ${path}`);
   return path;
@@ -339,12 +338,10 @@ export const assertPaidBookingConfirmed = async (
   const attendeesTabLink = session.page
     .locator("nav.entity-tabs a", { hasText: "Attendees" })
     .first();
-  const attendeesHref = await attendeesTabLink.getAttribute("href", {
-    timeout: config.navTimeoutMs,
-  });
-  if (!attendeesHref) {
-    throw new Error("no Attendees tab link found on the listing page");
-  }
+  const attendeesHref = await hrefOf(
+    attendeesTabLink,
+    "no Attendees tab link found on the listing page",
+  );
   await session.goto(attendeesHref);
   const attendeesBody = await session.bodyText();
   if (!attendeesBody.includes(BOOKER_EMAIL)) {

@@ -6,9 +6,8 @@
  * booked. The final date-specific check still happens when the buyer submits.
  */
 
-import { byId, mapNotNullish, mapParallel, unique } from "#fp";
+import { byId, mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import {
   buildTicketListing,
   childActive,
@@ -18,25 +17,15 @@ import {
   parentAndChildFitGroup,
   type TicketListing,
 } from "#shared/booking/model.ts";
-import {
-  packageBundleLimit,
-  packageLimitInfo,
-} from "#shared/booking/package-cap.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/groups.ts";
 import {
-  getActiveListingsByGroupId,
-  getActiveListingsByGroupIds,
   getGroupIdsByListingIds,
-  getGroupListingIds,
-  getGroupPackagePrices,
   getHiddenPackageMemberIds,
-  groups,
-  packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -47,16 +36,10 @@ import {
 } from "#shared/db/listing-parents.ts";
 import {
   availableDayCounts,
-  type Group,
   type Holiday,
   type ListingWithCount,
   sharedGroupCapacity,
 } from "#shared/types.ts";
-import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
-import {
-  loadChildrenByParentId,
-  loadPackageLimitGroupMaps,
-} from "./ticket-payment.ts";
 
 /**
  * Drop members of a HIDDEN package from a buyer-facing listing set: such a
@@ -64,7 +47,7 @@ import {
  * the members must not appear as standalone cards/links/feed items on any
  * public surface. A no-op (and no query) when none of the listings are
  * hidden-package members. The package group itself is unaffected — its CTA is
- * gated separately by {@link packageGroupBookable}.
+ * gated separately by the shared group liveness loader.
  */
 export const dropHiddenPackageMembers = async <T extends { id: number }>(
   listings: T[],
@@ -73,65 +56,6 @@ export const dropHiddenPackageMembers = async <T extends { id: number }>(
   return hidden.size === 0
     ? listings
     : listings.filter((e) => !hidden.has(e.id));
-};
-
-/** A group's members as buyers may see them on that group's own surfaces. A
- * package group keeps its full membership — it IS the package — while any other
- * group drops the members of a hidden package, which belong only to that
- * package and must never surface standalone (even via a second group they
- * happen to share). */
-export const visibleGroupMembers = <T extends { id: number }>(
-  group: { is_package: boolean },
-  members: T[],
-): Promise<T[]> =>
-  group.is_package
-    ? Promise.resolve(members)
-    : dropHiddenPackageMembers(members);
-
-/** Load a group's active members already filtered to what buyers may see — the
- * "active members → {@link visibleGroupMembers}" step every public group surface
- * (listings page, group QR, direct ticket page) runs before deciding bookability. */
-export const getVisibleGroupMembers = async (
-  group: Group,
-): Promise<ListingWithCount[]> =>
-  visibleGroupMembers(group, await getActiveListingsByGroupId(group.id));
-
-/** Batched {@link getVisibleGroupMembers}: the buyer-visible active members of
- * SEVERAL groups keyed by group id, loaded in a bounded number of reads (one
- * member batch plus one hidden-package lookup) rather than per group. The
- * site-page nav resolves many group leaves at once, so it uses this to avoid a
- * member query per group; each group's members still pass the same hidden-drop
- * {@link visibleGroupMembers} applies, computed here from one shared hidden set.
- * (A package's own whole-bundle cap is still judged per group in {@link
- * packageGroupBookable} — that is genuinely per-package work.) */
-export const getVisibleGroupMembersByGroupIds = async (
-  groupList: readonly Group[],
-): Promise<Map<number, ListingWithCount[]>> => {
-  const membersByGroup = await getActiveListingsByGroupIds(
-    groupList.map((group) => group.id),
-  );
-  const hidden = await getHiddenPackageMemberIds([
-    ...new Set(
-      [...membersByGroup.values()].flatMap((members) =>
-        members.map((member) => member.id),
-      ),
-    ),
-  ]);
-  return new Map(
-    groupList.map((group) => {
-      // getActiveListingsByGroupIds seeds an entry for every id it is passed, so
-      // this is always defined for a group we asked about.
-      const members = membersByGroup.get(group.id)!;
-      return [
-        group.id,
-        // Mirror visibleGroupMembers without a per-group hidden query: a package
-        // IS its membership; any other group drops a hidden package's members.
-        group.is_package
-          ? members
-          : members.filter((member) => !hidden.has(member.id)),
-      ];
-    }),
-  );
 };
 
 /**
@@ -354,120 +278,6 @@ export const classifyForDiscovery = async (
   }
   return { addOnChildIds, childIds, nonStandaloneChildIds, soldOutParentIds };
 };
-
-/**
- * Whether a group has an active member that is actually bookable standalone:
- * neither a child (a booking can never start from a child) NOR a
- * parent the classifier projects sold out (its required children all
- * unavailable). The single gate behind both the `/listings` group Book CTA
- * (pages.ts) and the group QR (`/ticket/<group>/qr`, ticket-routes.ts), so the
- * two surfaces can't drift: a group `/ticket/<group>` would render with no
- * bookable quantity never advertises a Book link or mints a QR pointing at it.
- * Callers pass the group's already-loaded active members.
- */
-/**
- * An empty group is never bookable, so short-circuit to false; otherwise run the
- * real check. Wraps a members-based test so the empty-group guard lives in one
- * place rather than being re-spelled at each entry point.
- */
-const whenMembersPresent =
-  <A extends unknown[]>(
-    check: (
-      members: readonly ListingWithCount[],
-      ...args: A
-    ) => Promise<boolean>,
-  ) =>
-  (members: readonly ListingWithCount[], ...args: A): Promise<boolean> =>
-    members.length === 0 ? Promise.resolve(false) : check(members, ...args);
-
-export const groupHasBookableMember = whenMembersPresent(async (members) => {
-  const { childIds, soldOutParentIds } = await classifyForDiscovery(members);
-  return members.some(
-    (m) => !childIds.has(m.id) && !soldOutParentIds.has(m.id),
-  );
-});
-
-/**
- * Shows a package only when every member is active and at least one whole
- * package can still be booked.
- */
-export const packageGroupBookable = whenMembersPresent(
-  async (members, groupId: number) => {
-    const [allMemberIds, ticketListings, rows] = await Promise.all([
-      getGroupListingIds(groupId),
-      buildTicketListingsWithGroupCapacity([...members]),
-      getGroupPackagePrices(groupId),
-    ]);
-    // An inactive member is absent from `members` (active only) but still a group
-    // row, so fewer active members than total means the bundle is incomplete.
-    if (members.length < allMemberIds.length) return false;
-    // Use the same package limit as the page, submit path, and API.
-    const childrenByParentId = await loadChildrenByParentId(ticketListings);
-    const { groupIdsByListingId, groupRemainingByGroupId: remaining } =
-      await loadPackageLimitGroupMaps(ticketListings, childrenByParentId);
-    const maps = packageMemberMaps(rows);
-    const tree = buildBookingTree({
-      childrenByParentId,
-      listings: ticketListings,
-      packages: [
-        {
-          dayPrices: new Map(),
-          groupId,
-          hideListings: false,
-          memberListingIds: members.map((m) => m.id),
-          prices: maps.prices,
-          quantities: maps.quantities,
-        },
-      ],
-      slugs: members.map((m) => m.slug),
-    });
-    return (
-      packageBundleLimit(
-        tree,
-        packageLimitInfo(
-          ticketListings,
-          childrenByParentId,
-          remaining,
-          groupIdsByListingId,
-        ),
-      ) >= 1
-    );
-  },
-);
-
-/** Whether a group's `/listings` CTA / QR should be offered: a regular group
- * needs one standalone-bookable member ({@link groupHasBookableMember}); a
- * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}). The
- * single decision both the listings page and the group QR share. */
-export const groupBookable = (
-  group: Group,
-  members: readonly ListingWithCount[],
-): Promise<boolean> =>
-  group.is_package
-    ? packageGroupBookable(members, group.id)
-    : groupHasBookableMember(members);
-
-/** Load non-hidden groups whose Book CTA leads to a bookable page, so a
- * child-only or sold-out group never advertises a dead link. A regular group
- * needs one standalone-bookable member ({@link groupHasBookableMember}); a
- * PACKAGE needs the whole bundle to fit ({@link packageGroupBookable}). Shared
- * by every public surface that lists groups (the `/listings` page and the
- * `/order` gallery). */
-export const loadPublicGroups = async (): Promise<Group[]> => {
-  const visibleGroups = (await groups.cache.getAll()).filter((g) => !g.hidden);
-  const bookable = await mapParallel(async (g: Group) =>
-    groupBookable(g, await getVisibleGroupMembers(g)),
-  )(visibleGroups);
-  return visibleGroups.filter((_, i) => bookable[i]);
-};
-
-/** The packages a public surface can advertise — bookable groups that are
- * bundles (`is_package`), so a hidden package stays discoverable by name even
- * though its member listings are dropped. Shared by the `/listings` JSON API
- * and the feeds, which both publish the bundle as a first-class product (booked
- * whole at `/ticket/<group-slug>`) and map it to their own shape. */
-export const loadBookablePackages = async (): Promise<Group[]> =>
-  (await loadPublicGroups()).filter((g) => g.is_package);
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no
  * purchasable quantity) — projecting a parent with no bookable child onto the

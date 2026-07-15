@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { isContactFormActive } from "#shared/contact-form.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -18,6 +19,7 @@ import {
 } from "#templates/components/nav.tsx";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+/* jscpd:ignore-end */
 
 /** Everything {@link PublicNav} renders: the settings-driven page flags, the
  * news flag (any post exists), plus the site-pages tree (built per request by

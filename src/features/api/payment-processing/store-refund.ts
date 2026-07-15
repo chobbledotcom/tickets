@@ -9,7 +9,6 @@
 
 import {
   attendeeBaseFields,
-  bookingSlot,
   type HonourResult,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
@@ -29,6 +28,7 @@ import type {
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
+import { bookingSlot } from "#shared/booking-lines.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { CreateAttendeeSuccess } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";

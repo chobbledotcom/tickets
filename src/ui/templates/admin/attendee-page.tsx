@@ -6,6 +6,7 @@
  * attendee-specific content it composes.
  */
 
+/* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { targetQuery } from "#shared/bulk-email.ts";
@@ -13,11 +14,13 @@ import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
-import type { SystemNote } from "#shared/db/system-notes.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { Attendee } from "#shared/types.ts";
-import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
+import {
+  AttendeeNotesSection,
+  type NotesViewProps,
+} from "#templates/admin/attendee-notes.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { MaybeButtonLink } from "#templates/components/actions.tsx";
 import { dataTable } from "#templates/components/data-table.tsx";
@@ -29,6 +32,7 @@ import {
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { ProseSection } from "#templates/components/prose-section.tsx";
 import { quantityLabel } from "#templates/public/order-summary.tsx";
+/* jscpd:ignore-end */
 
 /** One channel's contact record plus the URL-safe HMAC param that keys its
  * /admin/history editor link. Null when the attendee has no value for that
@@ -338,12 +342,8 @@ export const attendeeBanner = ({
 }: {
   attendee: Attendee;
   statuses: AttendeeStatus[];
-  notes: SystemNote[];
   pendingCheckout: boolean;
-  /** Only owners may open the ledger pages, so a note's ledger link renders as
-   * plain text for everyone else. */
-  isOwner: boolean;
-}): JSX.Element | null => {
+} & NotesViewProps): JSX.Element | null => {
   const showStatus = statuses.length > 1;
   if (!showStatus && notes.length === 0 && !pendingCheckout) return null;
   const status = statuses.find((s) => s.id === attendee.status_id);

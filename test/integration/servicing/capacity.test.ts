@@ -13,12 +13,9 @@
  *     flag changes the SQL — the assertion is mutation-resistant.
  *
  * Implementation contract (implemented — this describes the shipped behavior):
- *   - `#shared/db/attendees/capacity.ts` currently keeps `overlapsDay` and
- *     `expandDailyRange` module-private. The implementation must EXPORT them
- *     so these unit tests can exercise them directly (the alternative —
- *     driving them through `checkListingAvailability` — would only give
- *     integration coverage; the [U]/[I] split in tests.md is intentional).
- *   - `#shared/db/attendees/capacity.ts` already exports
+ *   - `#shared/db/attendees/capacity/range.ts` exports `overlapsDay` and
+ *     `expandDailyRange` so these unit tests can exercise them directly.
+ *   - `#shared/db/attendees/capacity/checks.ts` exports
  *     `buildCapacityCheckedInsert(booking, attendeeIdExpr?, attendeeIdArg?,
  *     allowOverbook=false)`.
  *   - `#shared/db/capacity.ts` already exports `dateToRange` (used to derive
@@ -29,11 +26,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
+import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
 import {
-  buildCapacityCheckedInsert,
   expandDailyRange,
   overlapsDay,
-} from "#shared/db/attendees/capacity.ts";
+} from "#shared/db/attendees/capacity/range.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 
 // jscpd:ignore-end

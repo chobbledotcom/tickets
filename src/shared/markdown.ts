@@ -81,12 +81,24 @@ export const isSimpleMarkdown = (text: string): boolean => {
   );
 };
 
-/** Replace each markdown link whose target starts with `prefix` with its plain
+/** A link target to strip: either a URL prefix (the common case) or a predicate
+ * for patterns that can't be expressed as a single prefix (e.g. an owner-only
+ * tab whose URL also starts with a shared base the viewer CAN open). */
+type LinkMatcher = string | ((href: string) => boolean);
+
+/** True when `href` should be demoted to plain text. A string matcher is a
+ * prefix check; a function matcher is called directly. */
+const linkMatches = (matcher: LinkMatcher, href: string): boolean =>
+  typeof matcher === "string" ? href.startsWith(matcher) : matcher(href);
+
+/** Replace each markdown link whose target matches `matcher` with its plain
  * text. Used to strip links the viewer isn't allowed to open (e.g. owner-only
  * admin pages) before rendering — a rendered link is a promise that it works,
  * so a viewer who can't follow it gets the words without the link. */
-export const withoutLinksTo = (markdown: string, prefix: string): string =>
-  rewriteTokens(Lexer.lex(markdown), prefix);
+export const withoutLinksTo = (
+  markdown: string,
+  matcher: LinkMatcher,
+): string => rewriteTokens(Lexer.lex(markdown), matcher);
 
 /** Replace child token source in order while preserving every byte between
  * children (markers, whitespace, table pipes, list bullets, and safe markdown). */
@@ -128,29 +140,32 @@ const rewriteSourceParts = <Part>(
 const rewriteChildren = (
   raw: string,
   children: readonly Token[],
-  prefix: string,
+  matcher: LinkMatcher,
   flattenMissing = true,
 ): string => {
   const parts = locateSourceParts(raw, children, (child) => child.raw);
   if (flattenMissing && parts.some(({ index }) => index < 0)) {
-    return rewriteChildren(raw, children.flatMap(leafTokens), prefix, false);
+    return rewriteChildren(raw, children.flatMap(leafTokens), matcher, false);
   }
   return rewriteSourceParts(
     raw,
     parts.filter(({ index }) => index >= 0),
-    (child) => rewriteToken(child, prefix),
+    (child) => rewriteToken(child, matcher),
   );
 };
 
-const rewriteTable = (token: Tokens.Table, prefix: string): string => {
+const rewriteTable = (token: Tokens.Table, matcher: LinkMatcher): string => {
   const cells = [...token.header, ...token.rows.flat()];
   const parts = locateSourceParts(token.raw, cells, (cell) => cell.text);
-  assert(
-    parts.every(({ index }) => index >= 0),
-    "Markdown table cell not found",
-  );
-  return rewriteSourceParts(token.raw, parts, (cell) =>
-    rewriteChildren(cell.text, cell.tokens, prefix),
+  // Marked normalizes escaped pipes (`\|` → `|`) in cell.text, so a cell whose
+  // source has an escaped pipe won't be found in token.raw. Skip those cells
+  // (their raw source is preserved by rewriteSourceParts' gap handling) rather
+  // than crashing — the table still renders, and any link in a matched cell is
+  // still demoted.
+  return rewriteSourceParts(
+    token.raw,
+    parts.filter(({ index }) => index >= 0),
+    (cell) => rewriteChildren(cell.text, cell.tokens, matcher),
   );
 };
 
@@ -175,21 +190,26 @@ const leafTokens = (token: Token): Token[] => {
   return children.length > 0 ? children.flatMap(leafTokens) : [token];
 };
 
-const rewriteToken = (token: Token, prefix: string): string => {
+const rewriteToken = (token: Token, matcher: LinkMatcher): string => {
   if (token.type === "link") {
-    if (!token.href.startsWith(prefix)) return token.raw;
+    if (!linkMatches(matcher, token.href)) return token.raw;
+    // `Token` is `MarkedToken | Tokens.Generic`; Generic has `tokens?`
+    // optional and `type: string`, so narrowing on `type === "link"` still
+    // leaves `tokens` as `Token[] | undefined`. The assert narrows it.
     assert(token.tokens, "Markdown link has no parsed text");
-    return rewriteChildren(token.text, token.tokens, prefix);
+    return rewriteChildren(token.text, token.tokens, matcher);
   }
-  if (isTableToken(token)) return rewriteTable(token, prefix);
+  if (isTableToken(token)) return rewriteTable(token, matcher);
   if (token.type === "list") {
-    return rewriteChildren(token.raw, token.items, prefix);
+    return rewriteChildren(token.raw, token.items, matcher);
   }
   if ("tokens" in token && Array.isArray(token.tokens)) {
-    return rewriteChildren(token.raw, token.tokens, prefix);
+    return rewriteChildren(token.raw, token.tokens, matcher);
   }
   return token.raw;
 };
 
-const rewriteTokens = (tokens: readonly Token[], prefix: string): string =>
-  tokens.map((token) => rewriteToken(token, prefix)).join("");
+const rewriteTokens = (
+  tokens: readonly Token[],
+  matcher: LinkMatcher,
+): string => tokens.map((token) => rewriteToken(token, matcher)).join("");

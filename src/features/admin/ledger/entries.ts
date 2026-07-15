@@ -32,6 +32,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import {
   defineLedgerEntryAddForm,
@@ -105,10 +106,9 @@ const loadAddableAccount = async (
     : null;
 };
 
-type OwnerLedgerFormHandler = (
-  session: AuthSession,
-  form: FormParams,
-) => Response | Promise<Response>;
+type OwnerLedgerFormHandler = ResponseHandler<
+  [session: AuthSession, form: FormParams]
+>;
 
 const ownerLedgerForm = (
   request: Request,
@@ -141,10 +141,9 @@ const editPostedTransfer = async (
   return { redirectUrl: editEntryPath(id, returnUrl), returnUrl, transfer };
 };
 
-type PostedTransferHandler = (
-  posted: PostedTransfer,
-  form: FormParams,
-) => Response | Promise<Response>;
+type PostedTransferHandler = ResponseHandler<
+  [posted: PostedTransfer, form: FormParams]
+>;
 
 /** Load the record an entry GET page is about, then render the page with the
  * request's flash error and return URL. A missing record renders nothing

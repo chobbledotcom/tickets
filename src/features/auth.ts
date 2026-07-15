@@ -2,6 +2,7 @@
  * Authentication and session utilities
  */
 
+/* jscpd:ignore-start */
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { applyFlash, parseFormData } from "#routes/csrf.ts";
 import { lowerContentType } from "#routes/middleware.ts";
@@ -32,13 +33,11 @@ import {
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms.tsx";
-/* jscpd:ignore-start */
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-/* jscpd:ignore-end */
-import type { MakeResponse, RequestRoute } from "#shared/response-steps.ts";
+import type { RequestRoute, ResponseHandler } from "#shared/response-steps.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
 import {
@@ -51,6 +50,8 @@ import {
   type NagItem,
   SITE_ADMIN_LEVELS,
 } from "#shared/types.ts";
+
+/* jscpd:ignore-end */
 
 // SessionKeyError and the session→private-key derivation live in #shared so
 // shared-layer modules (e.g. the activity log) can reach them without importing
@@ -85,6 +86,15 @@ const loadAuthUserFields = async (
   return null;
 };
 
+/** Drop the cached session (and, when the caller has a token, the stored
+ *  session row) — the one "this session is no longer valid" step every bail-out
+ *  below shares. Always resolves to null so callers can `return invalidateSession(...)`. */
+const invalidateSession = async (token?: string): Promise<null> => {
+  if (token) await deleteSession(token);
+  setCachedSession(null);
+  return null;
+};
+
 /**
  * Get authenticated session if valid
  * Returns null if not authenticated
@@ -102,33 +112,19 @@ export const getAuthenticatedSession = async (
 
   const cookies = parseCookies(request);
   const token = cookies.get(getSessionCookieName());
-  if (!token) {
-    setCachedSession(null);
-    return null;
-  }
+  if (!token) return invalidateSession();
 
   const session = await getSession(token);
-  if (!session) {
-    setCachedSession(null);
-    return null;
-  }
+  if (!session) return invalidateSession();
 
-  if (session.expires < nowMs()) {
-    await deleteSession(token);
-    setCachedSession(null);
-    return null;
-  }
+  if (session.expires < nowMs()) return invalidateSession(token);
 
   // Load user and decrypt admin level
   const user = await loadAuthUserFields(
     session.user_id,
     "Session references non-existent user, invalidating",
   );
-  if (!user) {
-    await deleteSession(token);
-    setCachedSession(null);
-    return null;
-  }
+  if (!user) return invalidateSession(token);
 
   const adminLevel = await decryptAdminLevel(user);
   await signCsrfToken();
@@ -379,7 +375,8 @@ const requireSessionFor = async (
 
 const isResponse = (v: unknown): v is Response => v instanceof Response;
 
-type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+/** A response callback that receives the signed-in session. */
+export type AuthSessionHandler = ResponseHandler<[session: AuthSession]>;
 
 /**
  * Low-level session gate with custom no-session fallback (used by dashboard login page).
@@ -388,8 +385,8 @@ type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
  */
 export const withSession = async (
   request: Request,
-  handler: SessionHandler,
-  onNoSession: MakeResponse,
+  handler: AuthSessionHandler,
+  onNoSession: ResponseHandler,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   return session ? handler(session) : onNoSession();
@@ -398,7 +395,7 @@ export const withSession = async (
 /** Require session — redirect if not authenticated, 403 if role check fails */
 export const requireSessionOr = async (
   request: Request,
-  handler: SessionHandler,
+  handler: AuthSessionHandler,
   role?: AdminLevel,
 ): Promise<Response> => {
   const result = await requireSessionFor(request, "html", role);
@@ -408,7 +405,7 @@ export const requireSessionOr = async (
 /** Build a session guard that requires an exact role. */
 const requireRoleOr =
   (role: AdminLevel) =>
-  (request: Request, handler: SessionHandler): Promise<Response> =>
+  (request: Request, handler: AuthSessionHandler): Promise<Response> =>
     requireSessionOr(request, handler, role);
 
 /** Require owner session — shorthand for requireSessionOr with owner role */
@@ -417,7 +414,7 @@ export const requireOwnerOr = requireRoleOr("owner");
 /** Build a session guard that admits any of the given roles. */
 const requireRolesOr =
   (roles: readonly AdminLevel[]) =>
-  async (request: Request, handler: SessionHandler): Promise<Response> => {
+  async (request: Request, handler: AuthSessionHandler): Promise<Response> => {
     const result = await requireSessionFor(request, "html", undefined, roles);
     return isResponse(result) ? result : handler(result);
   };
@@ -434,11 +431,16 @@ export const requireSiteOr = requireRolesOr(SITE_ADMIN_LEVELS);
  * outside {@link DELIVERY_ADMIN_LEVELS}. */
 export const requireDeliveryOr = requireRolesOr(DELIVERY_ADMIN_LEVELS);
 
-/** Session guard: require auth and call handler with session */
-export type SessionGuard<TSession> = (
+/** A gate a route runs before its handler: it authenticates/loads whatever
+ * the handler needs, then calls it with that data — or answers the request
+ * itself (a redirect, a 403) without ever calling it. */
+export type Guard<TArgs extends unknown[]> = (
   request: Request,
-  handler: (session: TSession) => Response | Promise<Response>,
+  handler: ResponseHandler<TArgs>,
 ) => Promise<Response>;
+
+/** Session guard: require auth and call handler with session */
+export type SessionGuard<TSession> = Guard<[TSession]>;
 
 /** Factory for authenticated GET routes whose builder returns the full
  * Response — for pages that may 404, redirect, or set headers. Applies any
@@ -446,11 +448,7 @@ export type SessionGuard<TSession> = (
 export const authResponsePage =
   <TSession>(requireSession: SessionGuard<TSession>) =>
   (
-    build: (
-      session: TSession,
-      request: Request,
-      flash: Flash,
-    ) => Response | Promise<Response>,
+    build: ResponseHandler<[session: TSession, request: Request, flash: Flash]>,
   ): RequestRoute =>
   (request) =>
     requireSession(request, (session) =>
@@ -502,7 +500,7 @@ export const deliveryPage = authPage(requireDeliveryOr);
  * decide what each case means (fail, redirect, render). */
 export const withOptionalSession = async (
   request: Request,
-  handler: (session: AuthSession | null) => Response | Promise<Response>,
+  handler: ResponseHandler<[session: AuthSession | null]>,
 ): Promise<Response> => handler(await getAuthenticatedSession(request));
 
 /** Require any authenticated user (owner, manager or agent). Used for pages
@@ -512,7 +510,7 @@ export const withOptionalSession = async (
  * only gate. */
 export const requireAnyUserOr = (
   request: Request,
-  handler: SessionHandler,
+  handler: AuthSessionHandler,
 ): Promise<Response> =>
   withOptionalSession(request, (session) =>
     session ? handler(session) : authFailure("html", "not-authenticated"),
@@ -667,11 +665,9 @@ const resolveSession = async (
 export async function withAuth<T extends BodyMode>(
   request: Request,
   policy: AuthPolicy<T>,
-  handler: (
-    session: AuthSession,
-    body: ParsedBody<T>,
-    authKind: AuthKind,
-  ) => Response | Promise<Response>,
+  handler: ResponseHandler<
+    [session: AuthSession, body: ParsedBody<T>, authKind: AuthKind]
+  >,
 ): Promise<Response> {
   const channel = channelFor(policy.body);
   const auth = await resolveSession(request, channel, policy.allowApiKey);
@@ -695,12 +691,7 @@ export async function withAuth<T extends BodyMode>(
  * the authenticate-then-delegate shape lives in one place. */
 export const gatedPost =
   <T extends BodyMode>(policy: AuthPolicy<T>) =>
-  (
-    handle: (
-      session: AuthSession,
-      body: ParsedBody<T>,
-    ) => Response | Promise<Response>,
-  ) =>
+  (handle: ResponseHandler<[session: AuthSession, body: ParsedBody<T>]>) =>
   (request: Request): Promise<Response> =>
     withAuth(request, policy, handle);
 
@@ -708,5 +699,5 @@ export const gatedPost =
  * routes that act on the form alone and never read the session. */
 export const formPost =
   (policy: AuthPolicy<"form">) =>
-  (handle: (form: FormParams) => Response | Promise<Response>): RequestRoute =>
+  (handle: ResponseHandler<[form: FormParams]>): RequestRoute =>
     gatedPost(policy)((_session, form) => handle(form));

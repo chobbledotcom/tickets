@@ -8,10 +8,10 @@
  */
 
 /* jscpd:ignore-start */
-import type { OrderBooking } from "#shared/booking-lines.ts";
+import type { CanonicalBooking } from "#shared/booking-lines.ts";
 import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
 import { bookingSlotKey } from "#shared/db/attendees/booking-slot.ts";
-import { bookingStartAt } from "#shared/db/attendees/capacity.ts";
+import { bookingStartAt } from "#shared/db/attendees/capacity/range.ts";
 import {
   anyModifierSoldOut,
   type ModifierUsage,
@@ -24,7 +24,7 @@ export type ActivationFailure =
   | "stage_active"
   | "stage_mismatch";
 
-const expectedLineKey = (booking: OrderBooking): string =>
+const expectedLineKey = (booking: CanonicalBooking): string =>
   bookingSlotKey(
     booking.listingId,
     bookingStartAt(booking),
@@ -49,7 +49,7 @@ const expectedLineKey = (booking: OrderBooking): string =>
  */
 export const findStageProblem = async (
   attendeeId: number,
-  bookings: OrderBooking[],
+  bookings: CanonicalBooking[],
 ): Promise<Extract<
   ActivationFailure,
   "stage_active" | "stage_mismatch"
@@ -79,7 +79,7 @@ export const findStageProblem = async (
  */
 export const refusalReason = async (
   attendeeId: number,
-  bookings: OrderBooking[],
+  bookings: CanonicalBooking[],
   usages: ModifierUsage[],
 ): Promise<ActivationFailure> => {
   const stageProblem = await findStageProblem(attendeeId, bookings);
