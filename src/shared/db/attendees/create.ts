@@ -23,7 +23,7 @@ import {
   writeAsLedgerBatch,
   writeWithLedger,
 } from "#shared/db/attendees/create-batch.ts";
-import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ATTENDEE_KIND, type AttendeeKind } from "#shared/db/attendees/kind.ts";
 import { annotateOrderParents } from "#shared/db/attendees/order-parents.ts";
 import {
   contactFields,
@@ -41,9 +41,8 @@ import {
 /* jscpd:ignore-end */
 
 type AttendeeOrderFields = {
-  kind?: string | undefined;
+  kind?: AttendeeKind | undefined;
   statusId: number | null;
-  remainingBalance: number;
 };
 
 export const buildAttendeeInsert = (
@@ -104,7 +103,6 @@ const prepareAttendeeWrite = async (
     bookings: rawBookings,
     paymentId = "",
     statusId = null,
-    remainingBalance = 0,
     allowOverbook = false,
   } = input;
   if (
@@ -171,7 +169,6 @@ const prepareAttendeeWrite = async (
       activityStatements,
       attendeeInsert: buildAttendeeInsert(enc, {
         kind: input.kind,
-        remainingBalance,
         statusId,
       }),
       bookingStatements,

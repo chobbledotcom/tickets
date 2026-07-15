@@ -147,7 +147,7 @@ const prepareAttendee = async (
   ))!;
 
   return [
-    buildAttendeeInsert(enc, { remainingBalance: 0, statusId: null }),
+    buildAttendeeInsert(enc, { statusId: null }),
     {
       args: [listingId, enc.ticketTokenIndex, quantity],
       sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
