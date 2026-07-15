@@ -63,7 +63,7 @@ export const handleAdminSettingsPost = settingsRoute(
   async (form, errorPage, session) => {
     const validation = validateChangePasswordForm(form);
     if (!validation.valid) {
-      return errorPage(validation.error, 400, "settings-password");
+      return errorPage(validation.error, "settings-password");
     }
 
     // Load current user (guaranteed to exist since session was just validated)
@@ -76,7 +76,6 @@ export const handleAdminSettingsPost = settingsRoute(
     if (!passwordHash) {
       return errorPage(
         t("error.current_password_incorrect"),
-        401,
         "settings-password",
       );
     }
@@ -89,11 +88,7 @@ export const handleAdminSettingsPost = settingsRoute(
       oldWrappedDataKey: user.wrapped_data_key!,
     });
     if (!success) {
-      return errorPage(
-        t("error.password_update_failed"),
-        500,
-        "settings-password",
-      );
+      return errorPage(t("error.password_update_failed"), "settings-password");
     }
 
     await logActivity("Password changed");

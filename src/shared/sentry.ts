@@ -22,9 +22,15 @@ import { getEnv } from "#shared/env.ts";
 import { type ErrorContext, formatErrorMessage } from "#shared/logger.ts";
 
 type SentrySdk = typeof import("#shared/sentry-sdk.ts")["sentrySdk"];
+type LoadedSentry = {
+  client: ReturnType<SentrySdk["init"]>;
+  sdk: SentrySdk;
+};
 
-/** The loaded SDK namespace; null until `initSentry` first loads it. */
-const [getSentrySdk, setSentrySdk] = lazyRef<SentrySdk | null>(() => null);
+/** The loaded SDK and initialized client, or null while Sentry is off. */
+const [getLoadedSentry, setLoadedSentry] = lazyRef<LoadedSentry | null>(
+  () => null,
+);
 
 /** How long to wait for queued events to reach Sentry before giving up (ms). */
 const FLUSH_TIMEOUT_MS = 2000;
@@ -37,25 +43,61 @@ const FLUSH_TIMEOUT_MS = 2000;
 export const releaseFromCommit = (commit: string): string | undefined =>
   commit ? `chobble-tickets@${commit}` : undefined;
 
+/** Load and initialize the configured SDK, or return null when Sentry is off. */
+const loadSentry = async (): Promise<LoadedSentry | null> => {
+  const dsn = getEnv("SENTRY_URL");
+  if (!dsn) return null;
+
+  const loaded = getLoadedSentry();
+  if (loaded?.sdk.isInitialized()) return loaded;
+
+  const sdk = (await import("#shared/sentry-sdk.ts")).sentrySdk;
+  const next = {
+    client: sdk.init({
+      dsn,
+      release: releaseFromCommit(BUILD_COMMIT),
+    }),
+    sdk,
+  };
+  setLoadedSentry(next);
+  return next;
+};
+
 /**
  * Initialize the Sentry SDK. No-op (returns false) when `SENTRY_URL` is unset —
  * without even loading the SDK. Safe to call more than once: only the first
  * call with a DSN loads and initializes.
  */
-export const initSentry = async (): Promise<boolean> => {
-  const dsn = getEnv("SENTRY_URL");
-  if (!dsn) return false;
+export const initSentry = async (): Promise<boolean> =>
+  (await loadSentry()) !== null;
 
-  const Sentry =
-    getSentrySdk() ?? (await import("#shared/sentry-sdk.ts")).sentrySdk;
-  setSentrySdk(Sentry);
-  if (Sentry.isInitialized()) return true;
+/** Send a real test error and wait for the Sentry transport to finish. */
+export const sendSentryTest = async (): Promise<boolean> => {
+  const loaded = await loadSentry();
+  if (!loaded) return false;
+  const { client, sdk: Sentry } = loaded;
 
-  Sentry.init({
-    dsn,
-    release: releaseFromCommit(BUILD_COMMIT),
+  let eventId: string | undefined;
+  return new Promise<boolean>((resolve) => {
+    const stopListening = client.on("afterSendEvent", (event, response) => {
+      if (event.event_id !== eventId) return;
+      const status = response.statusCode;
+      finish(status !== undefined && status >= 200 && status < 300);
+    });
+    const timeout = setTimeout(() => finish(false), FLUSH_TIMEOUT_MS);
+    function finish(accepted: boolean): void {
+      clearTimeout(timeout);
+      stopListening();
+      resolve(accepted);
+    }
+    eventId = Sentry.captureException(
+      new Error("Test Sentry notification from the admin debug page."),
+      {
+        level: "error",
+        tags: { source: "admin-debug", test: "true" },
+      },
+    );
   });
-  return true;
 };
 
 /** Per-event tags so errors can be filtered by class in the Sentry UI. */
@@ -79,8 +121,9 @@ const eventTags = (context: ErrorContext): Record<string, string> => {
 export const captureServerError = async (
   context: ErrorContext,
 ): Promise<void> => {
-  const Sentry = getSentrySdk();
-  if (!Sentry?.isInitialized()) return;
+  const loaded = getLoadedSentry();
+  if (!loaded?.sdk.isInitialized()) return;
+  const Sentry = loaded.sdk;
 
   const captureContext = {
     ...(context.detail ? { extra: { detail: context.detail } } : {}),
@@ -100,13 +143,14 @@ export const captureServerError = async (
 /**
  * Detach the SDK's client so Sentry state doesn't leak between tests. No-op
  * when the SDK was never loaded — it must not drag the module in. The loaded
- * namespace itself stays cached: a re-import would return the identical
- * module object, so dropping the reference could never be observed.
+ * loaded state stays cached so the next configured call can initialize its
+ * client again without creating a second module namespace.
  * Production never calls this — the client lives for the process lifetime.
  */
 export const resetSentryForTest = (): void => {
-  const Sentry = getSentrySdk();
-  if (!Sentry) return;
+  const loaded = getLoadedSentry();
+  if (!loaded) return;
+  const Sentry = loaded.sdk;
   const scopes = [
     Sentry.getCurrentScope(),
     Sentry.getGlobalScope(),

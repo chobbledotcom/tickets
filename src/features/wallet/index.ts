@@ -65,14 +65,14 @@ export const buildPkpassForToken = (
   token: string,
   config: SigningCredentials,
 ): Promise<Response> =>
-  withPassData([token], (passData) => {
+  withPassData([token], async (passData) => {
     const domain = getEffectiveDomain();
     const fullPassData = {
       ...passData,
       description: `Ticket for ${passData.listingName}`,
       webServiceURL: `https://${domain}`,
     };
-    const pkpass = buildPkpass(fullPassData, config);
+    const pkpass = await buildPkpass(fullPassData, config);
     const body = pkpass as Uint8Array<ArrayBuffer>;
 
     return new Response(body, {

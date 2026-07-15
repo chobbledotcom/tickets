@@ -7,12 +7,14 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 /* jscpd:ignore-start */
-import { ownerPage } from "#routes/auth.ts";
+import { t } from "#i18n";
+import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
-  isValidPemCertificate,
-  isValidPemPrivateKey,
-} from "#shared/apple-wallet.ts";
+  isValidAppleCertificate,
+  isValidCertificate,
+} from "#shared/apple-wallet/certificate.ts";
+import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
@@ -24,6 +26,7 @@ import {
   isPaymentsEnabled,
   providerValue,
 } from "#shared/config.ts";
+import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getHostEmailConfig } from "#shared/email.ts";
@@ -34,14 +37,16 @@ import {
   isReadOnly,
   isReadOnlyWarning,
 } from "#shared/env.ts";
-import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
+import { fail, ok } from "#shared/response.ts";
 import { getRuntimeInfo } from "#shared/runtime.ts";
+import { sendSentryTest } from "#shared/sentry.ts";
 import { getStorageBackend } from "#shared/storage.ts";
 import {
   adminDebugPage,
   type DebugPageState,
+  SENTRY_TEST_FORM_ID,
 } from "#templates/admin/debug.tsx";
 
 /* jscpd:ignore-end */
@@ -52,26 +57,64 @@ type CertValidation = {
   wwdrCert: string;
 };
 
-/** Validate Apple Wallet PEM certs/key, returning "Valid", "Invalid PEM", or "Not set" for each */
-const validateAppleWalletCerts = (
+const CERT_STATUS = {
+  invalidPem: "Invalid PEM",
+  notSet: "Not set",
+  valid: "Valid",
+} as const;
+
+/** Debug fields use an empty cell when a setting has no value to display. */
+const EMPTY_DEBUG_VALUE = "";
+
+const showOrEmpty = (value: string | null | undefined): string =>
+  typeof value === "string" ? value : EMPTY_DEBUG_VALUE;
+
+const appleSigningStatus = (
+  valid: boolean,
+  bothValid: boolean,
+  pairMatches: boolean,
+  mismatchKey: string,
+): string => {
+  if (!valid) return CERT_STATUS.invalidPem;
+  if (!bothValid || pairMatches) return CERT_STATUS.valid;
+  return t(mismatchKey);
+};
+
+/** Report whether each Apple Wallet certificate and key is usable together. */
+const validateAppleWalletCerts = async (
   config: typeof settings.appleWallet.config,
-): CertValidation => {
+): Promise<CertValidation> => {
   if (!config) {
     return {
-      signingCert: "Not set",
-      signingKey: "Not set",
-      wwdrCert: "Not set",
+      signingCert: CERT_STATUS.notSet,
+      signingKey: CERT_STATUS.notSet,
+      wwdrCert: CERT_STATUS.notSet,
     };
   }
 
+  const [signingCertValid, signingKeyValid, wwdrCertValid] = await Promise.all([
+    isValidAppleCertificate(config.signingCert),
+    isValidRsaPrivateKey(config.signingKey),
+    isValidCertificate(config.wwdrCert),
+  ]);
+  const bothValid = signingCertValid && signingKeyValid;
+  const pairMatches =
+    bothValid &&
+    (await isValidAppleSigningPair(config.signingCert, config.signingKey));
   return {
-    signingCert: isValidPemCertificate(config.signingCert)
-      ? "Valid"
-      : "Invalid PEM",
-    signingKey: isValidPemPrivateKey(config.signingKey)
-      ? "Valid"
-      : "Invalid PEM",
-    wwdrCert: isValidPemCertificate(config.wwdrCert) ? "Valid" : "Invalid PEM",
+    signingCert: appleSigningStatus(
+      signingCertValid,
+      bothValid,
+      pairMatches,
+      "debug.apple_signing_cert_mismatch",
+    ),
+    signingKey: appleSigningStatus(
+      signingKeyValid,
+      bothValid,
+      pairMatches,
+      "debug.apple_signing_key_mismatch",
+    ),
+    wwdrCert: wwdrCertValid ? CERT_STATUS.valid : CERT_STATUS.invalidPem,
   };
 };
 
@@ -82,7 +125,7 @@ const resolveWalletSource = (
 ): string => {
   if (hasDbConfig) return "Database";
   if (envConfigured) return "Environment variables";
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Resolve the effective Apple Wallet pass-type id (db config takes priority). */
@@ -91,7 +134,7 @@ const resolveWalletPassTypeId = (
 ): string => {
   if (appleWallet.hasDbConfig) return appleWallet.passTypeId;
   if (appleWallet.hostConfig) return appleWallet.hostConfig.passTypeId;
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Resolve the effective Google Wallet issuer id (db config takes priority). */
@@ -100,30 +143,32 @@ const resolveGoogleWalletIssuerId = (
 ): string => {
   if (googleWallet.hasDbConfig) return googleWallet.issuerId;
   if (googleWallet.hostConfig) return googleWallet.hostConfig.issuerId;
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Validate the Google private key, returning a status string for the UI. */
 const validateGooglePrivateKey = async (
   config: typeof settings.googleWallet.config,
 ): Promise<string> => {
-  if (!config) return "Not set";
-  return (await isValidGooglePrivateKey(config.serviceAccountKey))
-    ? "Valid"
+  if (!config) return CERT_STATUS.notSet;
+  return (await isValidRsaPrivateKey(config.serviceAccountKey))
+    ? CERT_STATUS.valid
     : "Invalid key";
 };
 
 /** Whether the configured payment provider has its webhook config set. */
-const webhookConfiguredFor = (provider: string | null): boolean =>
-  providerValue(provider, {
-    square: settings.square.webhookSignatureKey !== "",
-    stripe: settings.stripe.webhookEndpointId !== "",
+const webhookConfiguredFor = (provider: string | null): boolean => {
+  const configured = providerValue(provider, {
+    square: settings.square.webhookSignatureKey !== EMPTY_DEBUG_VALUE,
+    stripe: settings.stripe.webhookEndpointId !== EMPTY_DEBUG_VALUE,
     sumup: settings.sumup.hasKey,
-  }) ?? false;
+  });
+  return configured === true;
+};
 
 /** Map a `sk_test_`/`sk_live_` key mode to a display label; "" if unrecognized. */
 const paymentModeLabel = (mode: "test" | "live" | null): string =>
-  mode === "live" ? "Live" : mode === "test" ? "Test" : "";
+  mode === "live" ? "Live" : mode === "test" ? "Test" : EMPTY_DEBUG_VALUE;
 
 /**
  * Resolve the active payment provider's environment (Test/Live/Sandbox) for
@@ -136,7 +181,7 @@ const resolvePaymentMode = (provider: string | null): string => {
   if (provider === "square") {
     return settings.square.sandbox ? "Sandbox" : "Live";
   }
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Resolve the site's write-access state from the read-only env flags. */
@@ -151,7 +196,9 @@ const resolveAvailabilityState =
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
   const bunnyCdnResult = bunnyCdnEnabled ? await getCdnHostname() : null;
-  const bunnyCdnCdnHostname = bunnyCdnResult?.ok ? bunnyCdnResult.hostname : "";
+  const bunnyCdnCdnHostname = bunnyCdnResult?.ok
+    ? bunnyCdnResult.hostname
+    : EMPTY_DEBUG_VALUE;
 
   const hostEmailConfig = getHostEmailConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
@@ -160,7 +207,9 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 
   return {
     appleWallet: {
-      certValidation: validateAppleWalletCerts(settings.appleWallet.config),
+      certValidation: await validateAppleWalletCerts(
+        settings.appleWallet.config,
+      ),
       dbConfigured: settings.appleWallet.hasDbConfig,
       envConfigured: appleWalletEnvConfigured,
       passTypeId: resolveWalletPassTypeId(settings.appleWallet),
@@ -170,7 +219,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       ),
     },
     availability: {
-      cutoff: getReadOnlyCutoffIso() ?? "",
+      cutoff: showOrEmpty(getReadOnlyCutoffIso()),
       renewalConfigured: getRenewalUrl() !== null,
       serverTime: nowIso(),
       state: resolveAvailabilityState(),
@@ -182,7 +231,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     bunny: {
       cdnEnabled: bunnyCdnEnabled,
       cdnHostname: bunnyCdnCdnHostname,
-      customDomain: bunnyCdnEnabled ? settings.customDomain : "",
+      customDomain: bunnyCdnEnabled ? settings.customDomain : EMPTY_DEBUG_VALUE,
       dnsEnabled: isBunnyDnsEnabled(),
       registeredSubdomain: settings.bunnySubdomain,
       storageBackend: getStorageBackend(),
@@ -197,7 +246,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     email: {
       apiKeyConfigured: settings.email.hasApiKey,
       fromAddress: settings.email.fromAddress,
-      hostProvider: hostEmailConfig?.provider ?? "",
+      hostProvider: showOrEmpty(hostEmailConfig?.provider),
       provider: settings.email.provider,
     },
     googleWallet: {
@@ -213,13 +262,14 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       ),
     },
     limits: LIMIT_ENTRIES,
-    ntfy: {
-      configured: !!getEnv("NTFY_URL"),
+    notifications: {
+      ntfyConfigured: !!getEnv("NTFY_URL"),
+      sentryConfigured: !!getEnv("SENTRY_URL"),
     },
     payment: {
       keyConfigured: isPaymentsEnabled(),
       mode: resolvePaymentMode(paymentProvider),
-      provider: paymentProvider ?? "",
+      provider: showOrEmpty(paymentProvider),
       webhookConfigured: webhookConfiguredFor(paymentProvider),
     },
     prune: {
@@ -261,7 +311,21 @@ const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = ownerPage(
   },
 );
 
+/** Send an owner-requested Sentry test and report whether it was delivered. */
+const handleSentryTestPost: TypedRouteHandler<"POST /admin/debug/sentry"> =
+  gatedPost(OWNER_FORM)(async () => {
+    const sent = await sendSentryTest();
+    return sent
+      ? ok("/admin/debug", t("debug.sentry_test_sent"), {
+          formId: SENTRY_TEST_FORM_ID,
+        })
+      : fail("/admin/debug", t("debug.sentry_test_failed"), {
+          formId: SENTRY_TEST_FORM_ID,
+        });
+  });
+
 /** Debug routes */
 export const adminHandlers = handlersFor("debug")({
   getDebug: handleAdminDebugGet,
+  postSentryTest: handleSentryTestPost,
 });
