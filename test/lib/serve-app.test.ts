@@ -31,15 +31,11 @@ describeWithEnv("serve-app", { db: true }, () => {
       // MAIN_INSTANCE_KEY must be unset or ≥32 bytes; a short one fails the
       // boot checks inside the handler, which must answer with the generic
       // temporary-error page rather than crash the isolate.
-      const restore = withEnv({ MAIN_INSTANCE_KEY: "too-short" });
-      try {
-        await withExpectedError(async () => {
-          const response = await serveHandler(request("/health"));
-          expect(response.status).toBe(503);
-        });
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ MAIN_INSTANCE_KEY: "too-short" });
+      await withExpectedError(async () => {
+        const response = await serveHandler(request("/health"));
+        expect(response.status).toBe(503);
+      });
     });
 
     test("boots once, logs the start, and serves requests", async () => {
@@ -107,21 +103,13 @@ describeWithEnv("serve-app", { db: true }, () => {
 
   describe("devServerPort", () => {
     test("uses PORT when set", () => {
-      const restore = withEnv({ PORT: "8080" });
-      try {
-        expect(devServerPort()).toBe(8080);
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ PORT: "8080" });
+      expect(devServerPort()).toBe(8080);
     });
 
     test("defaults to 3000 when PORT is unset", () => {
-      const restore = withEnv({ PORT: undefined });
-      try {
-        expect(devServerPort()).toBe(3000);
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ PORT: undefined });
+      expect(devServerPort()).toBe(3000);
     });
   });
 });

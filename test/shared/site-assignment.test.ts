@@ -370,16 +370,12 @@ describeWithEnv(
 
     describe("feature flag", () => {
       test("no-ops when CAN_BUILD_SITES is disabled", async () => {
-        const restore = withEnv({ CAN_BUILD_SITES: undefined });
-        try {
-          await insertBuiltSite("Site A", "a.test.net", "", "", true);
-          await assignAndNotifyBuiltSites([siteEntry()]);
-          const sites = await builtSites.getAll();
-          expect(sites[0]!.assignable).toBe(true);
-          expect(sites[0]!.assignedAttendeeId).toBeNull();
-        } finally {
-          restore();
-        }
+        using _env = withEnv({ CAN_BUILD_SITES: undefined });
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        await assignAndNotifyBuiltSites([siteEntry()]);
+        const sites = await builtSites.getAll();
+        expect(sites[0]!.assignable).toBe(true);
+        expect(sites[0]!.assignedAttendeeId).toBeNull();
       });
     });
 
@@ -423,7 +419,7 @@ describeWithEnv(
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        const restoreEnv = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
         const errorSpy = stub(console, "error", () => {});
 
         try {
@@ -432,7 +428,6 @@ describeWithEnv(
           ]);
         } finally {
           errorSpy.restore();
-          restoreEnv();
         }
 
         const sites = await builtSites.getAll();
@@ -459,7 +454,7 @@ describeWithEnv(
         await deactivateAllTierListings();
 
         const buildStub = stubBuildSiteSuccess();
-        const restoreEnv = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
         const errorSpy = stub(console, "error", () => {});
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
@@ -482,7 +477,6 @@ describeWithEnv(
           ).toBe(true);
         } finally {
           errorSpy.restore();
-          restoreEnv();
           buildStub.restore();
         }
       });
@@ -704,14 +698,10 @@ describeWithEnv(
 
 describe("validateSiteAssignmentConfig without builder", () => {
   test("rejects when CAN_BUILD_SITES is disabled", async () => {
-    const restore = withEnv({ CAN_BUILD_SITES: undefined });
-    try {
-      const result = await validateSiteAssignmentConfig([siteEntry()]);
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.reason).toBe("builder_disabled");
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ CAN_BUILD_SITES: undefined });
+    const result = await validateSiteAssignmentConfig([siteEntry()]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("builder_disabled");
   });
 });
 

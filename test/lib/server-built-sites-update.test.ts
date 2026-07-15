@@ -11,7 +11,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 import { useLocalStoragePath } from "./_shared-site-update.ts";
@@ -42,14 +42,14 @@ describeWithEnv(
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
     let storageTmp: string;
-    let restoreEnv: () => void;
+    let env: EnvScope;
 
     beforeEach(() => {
       // The host's Bunny key plus local storage for the per-site backup gate,
       // set as one env layer so teardown can't leak BUNNY_API_KEY into the
       // "without BUNNY_API_KEY" suite below.
       storageTmp = Deno.makeTempDirSync();
-      restoreEnv = withEnv({
+      env = withEnv({
         BUNNY_API_KEY: "host-key",
         LOCAL_STORAGE_PATH: storageTmp,
       });
@@ -57,7 +57,7 @@ describeWithEnv(
 
     afterEach(() => {
       settings.clearTestOverrides();
-      restoreEnv?.();
+      env.dispose();
       if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
     });
 

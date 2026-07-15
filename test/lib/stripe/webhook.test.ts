@@ -26,13 +26,12 @@ const withStripeClient = async (
   env: Record<string, string | undefined>,
   check: (client: Awaited<ReturnType<typeof getStripeClient>>) => void,
 ) => {
-  const restore = withEnv(env);
+  using _env = withEnv(env);
   try {
     resetStripeClient();
     await settings.update.stripe.secretKey("sk_test_123");
     check(await getStripeClient());
   } finally {
-    restore();
     resetStripeClient();
   }
 };

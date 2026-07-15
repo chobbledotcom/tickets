@@ -319,16 +319,12 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows built sites section when builder is enabled", async () => {
-      const restore = withEnv({ CAN_BUILD_SITES: "true" });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          'id="built-sites"',
-          "Add Built Site",
-        );
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ CAN_BUILD_SITES: "true" });
+      await assertAdminHtml(
+        "/admin/guide",
+        'id="built-sites"',
+        "Add Built Site",
+      );
     });
 
     test("shows default wallet setup instructions when no host wallet configured", async () => {
@@ -403,16 +399,12 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows subdomain suffix when Bunny DNS is configured", async () => {
-      const restore = withEnv({
+      using _env = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.example.com",
         BUNNY_DNS_ZONE_ID: "test-zone",
       });
-      try {
-        await assertAdminHtml("/admin/guide", ".tickets.example.com");
-      } finally {
-        restore();
-      }
+      await assertAdminHtml("/admin/guide", ".tickets.example.com");
     });
 
     test("documents the release tag format shared with the update checker", async () => {

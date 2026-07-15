@@ -27,6 +27,7 @@ import {
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { getEmbeddableTicketResponse } from "#test-utils/db-helpers/misc.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   mockFormRequest,
   mockRequest,
@@ -850,8 +851,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       const db = getDbFn();
       invalidateListingsCache();
       await s.loadKeys(ALL_SETTINGS_KEYS);
-      const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
-      Deno.env.delete("TEST_EXPECT_ERROR");
+      using _env = withEnv({ TEST_EXPECT_ERROR: undefined });
       const executeStub = stub(db, "execute", () => {
         throw new Error("synthetic db failure");
       });
@@ -861,7 +861,6 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         ).rejects.toThrow("synthetic db failure");
       } finally {
         executeStub.restore();
-        if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
       }
     });
 

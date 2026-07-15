@@ -245,7 +245,7 @@ describe("test-groups", () => {
       env: Record<string, string | undefined>,
     ): Promise<void> => {
       const root = await makeScratchRoot();
-      const restoreEnv = withEnv(env);
+      using _env = withEnv(env);
       try {
         const groups = await writeTestGroups(root);
         expect(
@@ -253,7 +253,6 @@ describe("test-groups", () => {
         ).toHaveLength(1);
         await groups.cleanup();
       } finally {
-        restoreEnv();
         await Deno.remove(root, { recursive: true });
       }
     };

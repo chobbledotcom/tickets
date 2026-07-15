@@ -47,16 +47,12 @@ describe("adminBuiltSitesPage", () => {
   });
 
   test("shows site data without write links in read-only mode", () => {
-    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
-      const html = adminBuiltSitesPage([site], TEST_SESSION);
-      expect(html).toContain("Linky");
-      expect(html).not.toContain('href="/admin/built-sites/new"');
-      expect(html).not.toContain('href="/admin/built-sites/7/edit"');
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
+    const html = adminBuiltSitesPage([site], TEST_SESSION);
+    expect(html).toContain("Linky");
+    expect(html).not.toContain('href="/admin/built-sites/new"');
+    expect(html).not.toContain('href="/admin/built-sites/7/edit"');
   });
 
   test("lists each tier with units sold from attendee_count", () => {

@@ -17,7 +17,11 @@ import {
 } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { setStorageConfigForTest } from "#shared/storage.ts";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import {
+  type EnvScope,
+  setupTestEncryptionKey,
+  withEnv,
+} from "#test-utils/env.ts";
 import {
   type DescribeEnvOptions,
   getTestStoragePath,
@@ -105,7 +109,7 @@ export const setupTransactionalTestDb = async (): Promise<
   const goldenPath = await getOrCreateGoldenDb();
   const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
-  const restoreEnv = withEnv({
+  const env = withEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
@@ -115,7 +119,7 @@ export const setupTransactionalTestDb = async (): Promise<
   return async () => {
     setDb(null);
     client.close();
-    restoreEnv();
+    env.dispose();
     cleanupTestDbPath(path);
   };
 };
@@ -218,7 +222,7 @@ export const describeWithEnv = (
   fn: () => void,
 ): void => {
   describe(name, () => {
-    let restoreEnv: (() => void) | undefined;
+    let env: EnvScope | undefined;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
@@ -228,13 +232,13 @@ export const describeWithEnv = (
         settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup("GB", options.triggers ?? false);
       }
-      if (options.env) restoreEnv = withEnv(options.env);
+      if (options.env) env = withEnv(options.env);
       await applyStorageConfig(options.storage);
     });
     afterEach(async () => {
       if (options.db) resetDb();
-      if (restoreEnv) restoreEnv();
-      restoreEnv = undefined;
+      env?.dispose();
+      env = undefined;
       await teardownStorageConfig();
     });
     // A small suite may never reach the amortised reclaim threshold, so hand

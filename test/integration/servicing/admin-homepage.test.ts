@@ -78,30 +78,22 @@ describeWithEnv(
 
     test("the read-only servicing list shows event names without edit links", async () => {
       const { id } = await roomAWithBoiler();
-      const restore = withEnv({
+      using _env = withEnv({
         READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
       });
-      try {
-        const body = await renderAdminPage("/admin/servicing");
-        expect(body).toContain("Boiler Service");
-        expect(body).not.toContain(`href="/admin/servicing/${id}"`);
-      } finally {
-        restore();
-      }
+      const body = await renderAdminPage("/admin/servicing");
+      expect(body).toContain("Boiler Service");
+      expect(body).not.toContain(`href="/admin/servicing/${id}"`);
     });
 
     test("the read-only dashboard shows event names without edit links", async () => {
       const { id } = await roomAWithBoiler();
-      const restore = withEnv({
+      using _env = withEnv({
         READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
       });
-      try {
-        const body = await renderAdminPage("/admin/");
-        expect(body).toContain("Boiler Service");
-        expect(body).not.toContain(`href="/admin/servicing/${id}"`);
-      } finally {
-        restore();
-      }
+      const body = await renderAdminPage("/admin/");
+      expect(body).toContain("Boiler Service");
+      expect(body).not.toContain(`href="/admin/servicing/${id}"`);
     });
 
     test("the servicing list shows an empty state when no service events exist", async () => {

@@ -74,39 +74,35 @@ describe("orderGalleryPage packages", () => {
   });
 
   test("renders packages as unavailable, not selectable, in read-only mode", () => {
-    const restore = withEnv({
+    using _env = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
-    try {
-      const html = orderGalleryPage(
-        [],
-        [
-          {
-            group: testGroup({
-              is_package: true,
-              name: "Frozen Bundle",
-              slug: "frozen",
-            }),
-            members: [],
-          },
-        ],
-        states,
-        emptyNav,
-        "",
-      );
-      expect(html).toContain("Frozen Bundle");
-      expect(html).toContain('class="card order-card order-card--unavailable"');
-      expect(html).toContain("Registration Closed");
-      // No live booking affordance while the site is read-only: neither a
-      // link nor a selectable checkbox.
-      expect(html).not.toContain('href="/ticket/frozen"');
-      expect(html).not.toContain('class="order-select"');
-      // The cutoff must stay in this worker's env overlay: a write to the real
-      // process env is visible to every parallel test worker and flips the
-      // whole app read-only under them mid-test.
-      expect(getRealEnv("READ_ONLY_FROM")).toBeUndefined();
-    } finally {
-      restore();
-    }
+    const html = orderGalleryPage(
+      [],
+      [
+        {
+          group: testGroup({
+            is_package: true,
+            name: "Frozen Bundle",
+            slug: "frozen",
+          }),
+          members: [],
+        },
+      ],
+      states,
+      emptyNav,
+      "",
+    );
+    expect(html).toContain("Frozen Bundle");
+    expect(html).toContain('class="card order-card order-card--unavailable"');
+    expect(html).toContain("Registration Closed");
+    // No live booking affordance while the site is read-only: neither a
+    // link nor a selectable checkbox.
+    expect(html).not.toContain('href="/ticket/frozen"');
+    expect(html).not.toContain('class="order-select"');
+    // The cutoff must stay in this worker's env overlay: a write to the real
+    // process env is visible to every parallel test worker and flips the
+    // whole app read-only under them mid-test.
+    expect(getRealEnv("READ_ONLY_FROM")).toBeUndefined();
   });
 });

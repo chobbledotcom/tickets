@@ -60,13 +60,9 @@ const seedTieredFleet = async (): Promise<void> => {
 
 /** Run `fn` with the credentials endpoint enabled and a one-per-channel fleet seeded. */
 const withTieredFleet = async (fn: () => Promise<void>): Promise<void> => {
-  const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
-  try {
-    await seedTieredFleet();
-    await fn();
-  } finally {
-    restore();
-  }
+  using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
+  await seedTieredFleet();
+  await fn();
 };
 
 const auth = { authorization: `Bearer ${KEY}` };
@@ -78,54 +74,42 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
   });
 
   test("returns 401 when the bearer key is missing", async () => {
-    const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
-    try {
-      expect((await post()).status).toBe(401);
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
+    expect((await post()).status).toBe(401);
   });
 
   test("returns 401 when the bearer key is wrong", async () => {
-    const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
-    try {
-      const response = await post({ authorization: "Bearer not-the-key" });
-      expect(response.status).toBe(401);
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
+    const response = await post({ authorization: "Bearer not-the-key" });
+    expect(response.status).toBe(401);
   });
 
   test("returns read-only credentials for sites that have them", async () => {
-    const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
-    try {
-      await insertBuiltSite(
-        "Acme",
-        "acme.b-cdn.net",
-        "libsql://acme.lite.bunnydb.net",
-        "ro-token-acme",
-        false,
-        "script-acme",
-      );
-      // A half-provisioned site (no script id / credentials) is omitted.
-      await insertBuiltSite("Pending", "pending.b-cdn.net");
+    using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
+    await insertBuiltSite(
+      "Acme",
+      "acme.b-cdn.net",
+      "libsql://acme.lite.bunnydb.net",
+      "ro-token-acme",
+      false,
+      "script-acme",
+    );
+    // A half-provisioned site (no script id / credentials) is omitted.
+    await insertBuiltSite("Pending", "pending.b-cdn.net");
 
-      const response = await post({ authorization: `Bearer ${KEY}` });
-      expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({
-        sites: [
-          {
-            dbToken: "ro-token-acme",
-            dbUrl: "libsql://acme.lite.bunnydb.net",
-            name: "Acme",
-            scriptId: "script-acme",
-          },
-        ],
-        tier: "release",
-      });
-    } finally {
-      restore();
-    }
+    const response = await post({ authorization: `Bearer ${KEY}` });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      sites: [
+        {
+          dbToken: "ro-token-acme",
+          dbUrl: "libsql://acme.lite.bunnydb.net",
+          name: "Acme",
+          scriptId: "script-acme",
+        },
+      ],
+      tier: "release",
+    });
   });
 
   describe("tier filtering", () => {

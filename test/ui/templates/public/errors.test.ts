@@ -98,12 +98,8 @@ describe("readOnlyPage", () => {
   // Set RENEWAL_URL through the worker-local overlay (not the shared process
   // env, which parallel test files read) and restore it afterwards.
   const withRenewalUrl = (value: string | undefined, run: () => void): void => {
-    const restore = withEnv({ RENEWAL_URL: value });
-    try {
-      run();
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ RENEWAL_URL: value });
+    run();
   };
 
   test("includes the renewal link when RENEWAL_URL is set", () => {

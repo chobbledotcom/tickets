@@ -7,12 +7,8 @@ import { doAuthenticatedFormRequest } from "./request.ts";
  * enables the flag for the duration of its own request — mirroring the real
  * precondition — then restores it. */
 const withBuilderEnabled = async <T>(run: () => Promise<T>): Promise<T> => {
-  const restore = withEnv({ CAN_BUILD_SITES: "true" });
-  try {
-    return await run();
-  } finally {
-    restore();
-  }
+  using _env = withEnv({ CAN_BUILD_SITES: "true" });
+  return await run();
 };
 
 /**

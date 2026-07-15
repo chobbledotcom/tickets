@@ -19,12 +19,8 @@ export const TEST_SESSION = { adminLevel: "owner" as const };
 export const withBuilderEnv =
   (value: string | undefined) =>
   (fn: () => void): void => {
-    const restore = withEnv({ CAN_BUILD_SITES: value });
-    try {
-      fn();
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ CAN_BUILD_SITES: value });
+    fn();
   };
 export const withBuilder = withBuilderEnv("true");
 export const withoutBuilder = withBuilderEnv(undefined);

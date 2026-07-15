@@ -428,7 +428,7 @@ describeStripe("stripe-provider", () => {
   describe("getMockConfig without STRIPE_MOCK_HOST", () => {
     test("creates client without mock config when STRIPE_MOCK_HOST not set", async () => {
       await settings.update.stripe.secretKey("sk_test_123");
-      const restore = withEnv({
+      using _env = withEnv({
         STRIPE_MOCK_HOST: undefined,
         STRIPE_MOCK_PORT: undefined,
       });
@@ -440,7 +440,6 @@ describeStripe("stripe-provider", () => {
         // Client is created using real Stripe (no mock) - returns non-null
         expect(client !== undefined).toBe(true);
       } finally {
-        restore();
         resetStripeClient();
       }
     });

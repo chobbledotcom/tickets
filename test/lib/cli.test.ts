@@ -27,51 +27,43 @@ const withTempEnvDir = async <T>(
 
 describe("CLI config", () => {
   test("loads and normalizes environment config", async () => {
-    const restore = withEnv({
+    using _env = withEnv({
       API_HOSTNAME: "tickets.example.com/",
       API_KEY: "env-key",
     });
-    try {
-      await withTempEnvDir((envDir) =>
-        expect(loadConfig(envDir)).resolves.toEqual({
-          apiHostname: "https://tickets.example.com",
-          apiKey: "env-key",
-        }),
-      );
-    } finally {
-      restore();
-    }
+    await withTempEnvDir((envDir) =>
+      expect(loadConfig(envDir)).resolves.toEqual({
+        apiHostname: "https://tickets.example.com",
+        apiKey: "env-key",
+      }),
+    );
   });
 
   test("loads quoted dotenv config while skipping comments and invalid lines", async () => {
-    const restore = withEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
-    try {
-      await withTempEnvDir(async (envDir) => {
-        await Deno.writeTextFile(
-          join(envDir, ".env"),
-          [
-            "# local CLI config",
-            "not valid",
-            "API_HOSTNAME='http://localhost:4567/'",
-            'API_KEY="dot-key"',
-          ].join("\n"),
-        );
+    await withTempEnvDir(async (envDir) => {
+      await Deno.writeTextFile(
+        join(envDir, ".env"),
+        [
+          "# local CLI config",
+          "not valid",
+          "API_HOSTNAME='http://localhost:4567/'",
+          'API_KEY="dot-key"',
+        ].join("\n"),
+      );
 
-        await expect(loadConfig(envDir)).resolves.toEqual({
-          apiHostname: "http://localhost:4567",
-          apiKey: "dot-key",
-        });
+      await expect(loadConfig(envDir)).resolves.toEqual({
+        apiHostname: "http://localhost:4567",
+        apiKey: "dot-key",
       });
-    } finally {
-      restore();
-    }
+    });
   });
 
   test("prompts for missing config", async () => {
-    const restore = withEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -87,12 +79,11 @@ describe("CLI config", () => {
       );
     } finally {
       prompt.restore();
-      restore();
     }
   });
 
   test("rejects empty prompted config", async () => {
-    const restore = withEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -103,12 +94,11 @@ describe("CLI config", () => {
       );
     } finally {
       prompt.restore();
-      restore();
     }
   });
 
   test("rejects missing prompted config", async () => {
-    const restore = withEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -119,40 +109,31 @@ describe("CLI config", () => {
       );
     } finally {
       prompt.restore();
-      restore();
     }
   });
 
   test("preserves an explicitly blank environment host", async () => {
-    const restore = withEnv({
+    using _env = withEnv({
       API_HOSTNAME: "   ",
       API_KEY: "env-key",
     });
-    try {
-      await withTempEnvDir((envDir) =>
-        expect(loadConfig(envDir)).resolves.toEqual({
-          apiHostname: "",
-          apiKey: "env-key",
-        }),
-      );
-    } finally {
-      restore();
-    }
+    await withTempEnvDir((envDir) =>
+      expect(loadConfig(envDir)).resolves.toEqual({
+        apiHostname: "",
+        apiKey: "env-key",
+      }),
+    );
   });
 
   test("surfaces dotenv read errors that are not missing files", async () => {
-    const restore = withEnv({
+    using _env = withEnv({
       API_HOSTNAME: "tickets.example.com",
       API_KEY: "env-key",
     });
-    try {
-      await withTempEnvDir(async (envDir) => {
-        await Deno.mkdir(join(envDir, ".env"));
-        await expect(loadConfig(envDir)).rejects.toThrow();
-      });
-    } finally {
-      restore();
-    }
+    await withTempEnvDir(async (envDir) => {
+      await Deno.mkdir(join(envDir, ".env"));
+      await expect(loadConfig(envDir)).rejects.toThrow();
+    });
   });
 });
 

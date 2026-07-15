@@ -349,7 +349,7 @@ export const writeTestState = async (dir: string): Promise<void> => {
   // also backs createTestDb fixtures that must start without any setup).
   const workPath = join(dir, "setup-work.db");
   await Deno.copyFile(goldenPath, workPath);
-  const restoreEnv = withEnv({
+  using _env = withEnv({
     DB_URL: `file:${workPath}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
@@ -362,7 +362,6 @@ export const writeTestState = async (dir: string): Promise<void> => {
   } finally {
     setDb(null);
     client.close();
-    restoreEnv();
     for (const suffix of DB_FILE_SUFFIXES) {
       await Deno.remove(workPath + suffix).catch(() => {
         // scratch side-files may legitimately not exist

@@ -1,17 +1,17 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { verifyBotpoisonSolution } from "#shared/botpoison.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("verifyBotpoisonSolution", () => {
-  let restoreEnv: () => void;
+  let env: EnvScope;
   beforeEach(() => {
-    restoreEnv = withEnv({ BOTPOISON_SECRET_KEY: "sk_test_secret" });
+    env = withEnv({ BOTPOISON_SECRET_KEY: "sk_test_secret" });
   });
 
   afterEach(() => {
-    restoreEnv();
+    env.dispose();
   });
 
   test("returns false for an empty solution without calling the API", async () => {
@@ -21,8 +21,8 @@ describe("verifyBotpoisonSolution", () => {
   });
 
   test("returns false when no secret key is configured", async () => {
-    restoreEnv();
-    restoreEnv = withEnv({ BOTPOISON_SECRET_KEY: undefined });
+    env.dispose();
+    env = withEnv({ BOTPOISON_SECRET_KEY: undefined });
     using fetchStub = stubFetch(new Error("should not be called"));
     expect(await verifyBotpoisonSolution("solution-123")).toBe(false);
     expect(fetchStub.calls.length).toBe(0);

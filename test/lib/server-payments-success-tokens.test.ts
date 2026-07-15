@@ -109,25 +109,21 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      const restore = withEnv({
+      using _env = withEnv({
         HOST_EMAIL_API_KEY: "re_test123",
         HOST_EMAIL_FROM_ADDRESS: "noreply@tickets.com",
         HOST_EMAIL_PROVIDER: "resend",
       });
 
-      try {
-        const response = await handleRequest(
-          mockRequest(
-            `/payment/success?tokens=${encodeURIComponent(
-              result.attendees[0]!.ticket_token,
-            )}`,
-          ),
-        );
-        const html = await expectHtmlResponse(response, 200, "Junk/Spam");
-        expect(html).toContain("noreply@tickets.com");
-      } finally {
-        restore();
-      }
+      const response = await handleRequest(
+        mockRequest(
+          `/payment/success?tokens=${encodeURIComponent(
+            result.attendees[0]!.ticket_token,
+          )}`,
+        ),
+      );
+      const html = await expectHtmlResponse(response, 200, "Junk/Spam");
+      expect(html).toContain("noreply@tickets.com");
     });
   });
 });

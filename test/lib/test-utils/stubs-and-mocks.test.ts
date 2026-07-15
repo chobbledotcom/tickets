@@ -98,6 +98,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
   describe("stubNtfyFetch", () => {
     test("stubs globalThis.fetch and sets NTFY_URL env", async () => {
       const { fetchStub, restore } = stubNtfyFetch();
+      using _env = restore;
       try {
         await globalThis.fetch("https://ntfy.sh/test-topic", {
           body: "hello",
@@ -106,7 +107,6 @@ describe("test-utils — stubs, caches & request mocks", () => {
         expectNtfyNotification(fetchStub, "hello");
       } finally {
         fetchStub.restore();
-        restore();
       }
     });
   });
@@ -130,12 +130,8 @@ describe("test-utils — stubs, caches & request mocks", () => {
   describe("resetDb", () => {
     test("leaves a non-file DB_URL alone (nothing on disk to remove)", async () => {
       const { withEnv } = await import("#test-utils/env.ts");
-      const restore = withEnv({ DB_URL: ":memory:" });
-      try {
-        resetDb(); // must not try to close/unlink a file for :memory:
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: ":memory:" });
+      resetDb(); // must not try to close/unlink a file for :memory:
     });
 
     test("resets database so next createTestDb gives clean state", async () => {
@@ -168,7 +164,6 @@ describe("test-utils — stubs, caches & request mocks", () => {
 
     test("removes the temp database even when closing the client throws", async () => {
       const path = await createTrackedTestDbFile(".db");
-      const restoreEnv = withEnv({ DB_URL: `file:${path}` });
       const { setDb } = await import("#shared/db/client.ts");
       setDb({
         close: () => {
@@ -178,6 +173,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
       let cleanupError: unknown;
 
       try {
+        using _env = withEnv({ DB_URL: `file:${path}` });
         expect(() => resetDb()).not.toThrow();
         try {
           await Deno.stat(path);
@@ -186,7 +182,6 @@ describe("test-utils — stubs, caches & request mocks", () => {
           expect(error).toBeInstanceOf(Deno.errors.NotFound);
         }
       } finally {
-        restoreEnv();
         try {
           await Deno.remove(path);
         } catch (error) {

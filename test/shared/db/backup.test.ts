@@ -191,53 +191,33 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("dbName", () => {
     test("returns 'local' for in-memory databases", () => {
-      const restore = withEnv({ DB_URL: ":memory:" });
-      try {
-        expect(dbName()).toBe("local");
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: ":memory:" });
+      expect(dbName()).toBe("local");
     });
 
     test("extracts name from libsql:// URL", () => {
-      const restore = withEnv({
+      using _env = withEnv({
         DB_URL:
           "libsql://01KFXBFGMADR58XZ2PBX7HCB5Y-tickets-spencer.lite.bunnydb.net/",
       });
-      try {
-        expect(dbName()).toBe("tickets-spencer");
-      } finally {
-        restore();
-      }
+      expect(dbName()).toBe("tickets-spencer");
     });
 
     test("uses full first segment for Turso URLs (db-name and org are both unique identity)", () => {
-      const restore = withEnv({
+      using _env = withEnv({
         DB_URL: "https://my-site-myorg.turso.io",
       });
-      try {
-        expect(dbName()).toBe("my-site-myorg");
-      } finally {
-        restore();
-      }
+      expect(dbName()).toBe("my-site-myorg");
     });
 
     test("returns full hostname segment when no dash", () => {
-      const restore = withEnv({ DB_URL: "libsql://standalone.turso.io" });
-      try {
-        expect(dbName()).toBe("standalone");
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: "libsql://standalone.turso.io" });
+      expect(dbName()).toBe("standalone");
     });
 
     test("returns 'local' for invalid URLs", () => {
-      const restore = withEnv({ DB_URL: "not-a-url" });
-      try {
-        expect(dbName()).toBe("local");
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: "not-a-url" });
+      expect(dbName()).toBe("local");
     });
 
     test("names a database from an explicitly passed URL (another instance)", () => {
@@ -251,12 +231,8 @@ describeWithEnv("backup", { db: true }, () => {
   describe("backupDir", () => {
     test("defaults to the current DB's folder", () => {
       // An in-memory DB_URL makes dbName() fall back to "local".
-      const restore = withEnv({ DB_URL: ":memory:" });
-      try {
-        expect(backupDir()).toBe("local/");
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: ":memory:" });
+      expect(backupDir()).toBe("local/");
     });
 
     test("scopes to a named database when given one", () => {
@@ -286,14 +262,10 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("backupKey nests the leaf inside the current DB's folder", () => {
       // An in-memory DB_URL makes dbName() return "local".
-      const restore = withEnv({ DB_URL: ":memory:" });
-      try {
-        expect(backupKey("2024-01-15T12-30-00-000Z")).toBe(
-          "local/backup-2024-01-15T12-30-00-000Z.zip",
-        );
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: ":memory:" });
+      expect(backupKey("2024-01-15T12-30-00-000Z")).toBe(
+        "local/backup-2024-01-15T12-30-00-000Z.zip",
+      );
     });
 
     test("backupKey scopes to a named database when given one", () => {
@@ -362,34 +334,32 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("true when a backup is within the freshness window", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         await seedBackup(new Date(Date.now() - 60_000));
         expect(await hasRecentBackup()).toBe(true);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
 
     test("false when the newest backup is older than the window", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         await seedBackup(
           new Date(Date.now() - BACKUP_REQUIRED_WITHIN_MS - 60_000),
         );
         expect(await hasRecentBackup()).toBe(false);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
 
     test("checks a passed maxAge and name (another instance's backup)", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         const site = dbName("libsql://01-client-acme.lite.bunnydb.net");
         await uploadRaw(
           new Uint8Array([1]),
@@ -399,7 +369,6 @@ describeWithEnv("backup", { db: true }, () => {
         expect(await hasRecentBackup(60 * 60 * 1000, site)).toBe(true);
         expect(await hasRecentBackup(60 * 60 * 1000)).toBe(false);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
@@ -408,8 +377,8 @@ describeWithEnv("backup", { db: true }, () => {
       // The reported bug: "tickets" must not pick up "tickets-spencer"'s
       // backups just because one name is a string prefix of the other.
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         await uploadRaw(
           new Uint8Array([1]),
           backupKey(
@@ -422,26 +391,24 @@ describeWithEnv("backup", { db: true }, () => {
         );
         expect(await hasRecentBackup(60 * 60 * 1000, "tickets")).toBe(false);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
 
     test("false when no backups exist", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         expect(await hasRecentBackup()).toBe(false);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
 
     test("ignores files in the folder that are not valid backups", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         // A fresh file with a valid timestamp tail but not a "backup-…" name
         // must NOT satisfy the gate — parseBackupTime alone would accept it, so
         // the recency check filters to real backups first.
@@ -451,7 +418,6 @@ describeWithEnv("backup", { db: true }, () => {
         );
         expect(await hasRecentBackup()).toBe(false);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
@@ -463,8 +429,8 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("removes the oldest backups beyond the keep count, ignoring non-backup files", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         const d1 = new Date("2024-01-01T00:00:00Z");
         const d2 = new Date("2024-02-01T00:00:00Z");
         const d3 = new Date("2024-03-01T00:00:00Z");
@@ -485,28 +451,26 @@ describeWithEnv("backup", { db: true }, () => {
           `${backupDir()}notes.txt`,
         ]);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
 
     test("keeps everything when the count is within the limit", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         await seed(new Date("2024-01-01T00:00:00Z"));
         const removed = await pruneOldBackups(5);
         expect(removed).toEqual([]);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
 
     test("never throws when a delete fails, returning no removed files", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
+        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
         await seed(new Date("2024-01-01T00:00:00Z"));
         await seed(new Date("2024-02-01T00:00:00Z"));
         setDeleteOverride(new Error("forced delete failure"));
@@ -520,7 +484,6 @@ describeWithEnv("backup", { db: true }, () => {
         const remaining = await listFiles(backupDir());
         expect(remaining).toHaveLength(2);
       } finally {
-        restore();
         Deno.removeSync(tmpDir, { recursive: true });
       }
     });
@@ -705,21 +668,13 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("returns true for libsql:// URLs", () => {
-      const restore = withEnv({ DB_URL: "libsql://db.turso.io" });
-      try {
-        expect(isRemoteDatabase()).toBe(true);
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: "libsql://db.turso.io" });
+      expect(isRemoteDatabase()).toBe(true);
     });
 
     test("returns true for https:// URLs", () => {
-      const restore = withEnv({ DB_URL: "https://db.turso.io" });
-      try {
-        expect(isRemoteDatabase()).toBe(true);
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DB_URL: "https://db.turso.io" });
+      expect(isRemoteDatabase()).toBe(true);
     });
   });
 });

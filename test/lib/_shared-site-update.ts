@@ -1,5 +1,5 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { withEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
 
 /** Register hooks that point LOCAL_STORAGE_PATH at a fresh temp dir for each
  *  test, then restore the env and delete the dir afterward. Call inside a
@@ -7,15 +7,15 @@ import { withEnv } from "#test-utils/env.ts";
  *  the pre-update backup gate looks. */
 export const useLocalStoragePath = (): void => {
   let storageTmp: string;
-  let restoreStorage: () => void;
+  let storageEnv: EnvScope;
 
   beforeEach(() => {
     storageTmp = Deno.makeTempDirSync();
-    restoreStorage = withEnv({ LOCAL_STORAGE_PATH: storageTmp });
+    storageEnv = withEnv({ LOCAL_STORAGE_PATH: storageTmp });
   });
 
   afterEach(() => {
-    restoreStorage?.();
+    storageEnv.dispose();
     if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
   });
 };

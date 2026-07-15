@@ -215,14 +215,10 @@ describe("adminListingPage details table", () => {
   });
 
   test("shows a running-total mismatch without its repair link in read-only mode", () => {
-    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = renderMismatch();
-      expect(html).toContain("Running total check");
-      expect(html).not.toContain(`/admin/listings/recalculate/${listing.id}`);
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = renderMismatch();
+    expect(html).toContain("Running total check");
+    expect(html).not.toContain(`/admin/listings/recalculate/${listing.id}`);
   });
 
   test("renders no Group Attendees row when groupContext is omitted", () => {

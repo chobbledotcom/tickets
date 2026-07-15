@@ -31,7 +31,7 @@ import {
 import { times } from "#test-utils/arrays.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetchStatus, withMocks } from "#test-utils/mocks.ts";
 import { withRandomBytes } from "#test-utils/random.ts";
 
@@ -107,12 +107,13 @@ const expectAdminSuperuserState = async (
 };
 
 const useAdminEmailEnv = () => {
-  let restoreEnv: (() => void) | undefined;
+  let env: EnvScope | undefined;
   afterEach(() => {
-    restoreEnv?.();
+    env?.dispose();
   });
   return (adminEmailAddress: string | undefined): void => {
-    restoreEnv = withEnv({ ADMIN_EMAIL_ADDRESS: adminEmailAddress });
+    env?.dispose();
+    env = withEnv({ ADMIN_EMAIL_ADDRESS: adminEmailAddress });
   };
 };
 

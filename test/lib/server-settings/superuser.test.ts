@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { lazyRef } from "#fp";
 import { handleRequest } from "#routes";
 import { buildSessionCookie } from "#shared/cookies.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
@@ -22,7 +23,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -102,6 +103,7 @@ const withCapturedPassword = (
 
 describeWithEnv("server (admin settings superuser)", { db: true }, () => {
   afterEach(() => {
+    clearAdminEmailEnv();
     setHostEmailConfigForTest(null);
   });
 
@@ -480,13 +482,18 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const envRestore: { current: (() => void) | undefined } = {
-  current: undefined,
+const [getAdminEmailEnv, setAdminEmailEnv] = lazyRef<EnvScope | null>(
+  () => null,
+);
+
+const clearAdminEmailEnv = (): void => {
+  getAdminEmailEnv()?.dispose();
+  setAdminEmailEnv(null);
 };
 
 function restoreAdminEmail(value: string | undefined): void {
-  envRestore.current?.();
-  envRestore.current = withEnv({ ADMIN_EMAIL_ADDRESS: value });
+  clearAdminEmailEnv();
+  setAdminEmailEnv(withEnv({ ADMIN_EMAIL_ADDRESS: value }));
 }
 
 function setupForEnable(email: string): void {

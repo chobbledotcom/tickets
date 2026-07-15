@@ -21,15 +21,12 @@ const getOwnerSession = async () => {
 };
 
 describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
-  let restoreEnv: (() => void) | undefined;
-
   afterEach(() => {
-    restoreEnv?.();
     settings.clearTestOverride("superuser_choice");
   });
 
   test("owner session includes settingsNagItems computed via getSettingsNagItemsForOwner", async () => {
-    restoreEnv = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     const session = await getOwnerSession();
     expect(session.adminLevel).toBe("owner");
     expect(session.settingsNagItems).toBeDefined();
@@ -56,7 +53,7 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
   });
 
   test("settingsNagItems includes superuser nag when conditions are met", async () => {
-    restoreEnv = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
     const session = await getOwnerSession();
     expect(session.settingsNagItems).toBeDefined();
@@ -67,7 +64,7 @@ describeWithEnv("AuthSession.settingsNagItems", { db: true }, () => {
   });
 
   test("settingsNagItems does NOT include superuser nag when choice is already 'self-managed'", async () => {
-    restoreEnv = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "self-managed" });
     const session = await getOwnerSession();
     expect(session.settingsNagItems).toBeDefined();

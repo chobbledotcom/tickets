@@ -7,7 +7,7 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import {
   TEST_STORAGE_ZONE,
   type TestRequestOptions,
@@ -587,7 +587,7 @@ export function okEmptyResponse(): Promise<Response> {
 
 export const stubNtfyFetch = (
   env: Record<string, string | undefined> = {},
-): { fetchStub: Stub; restore: () => void } => {
+): { fetchStub: Stub; restore: EnvScope } => {
   const restore = withEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
   const fetchStub = stub(globalThis, "fetch", okEmptyResponse);
   return { fetchStub, restore };

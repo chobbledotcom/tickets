@@ -48,20 +48,16 @@ describeWithEnv(
 
       test("the attendee page hides the add-note link in read-only mode", async () => {
         const { attendee } = await setupListingAndAttendee();
-        const restore = withEnv({
+        using _env = withEnv({
           READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
         });
-        try {
-          const response = await adminGet(`/admin/attendees/${attendee.id}`);
-          expect(response.status).toBe(200);
-          const html = await response.text();
-          expect(html).toContain("Attendee: John Doe");
-          expect(html).not.toContain(
-            `/admin/attendee/${attendee.id}/note?return_url=`,
-          );
-        } finally {
-          restore();
-        }
+        const response = await adminGet(`/admin/attendees/${attendee.id}`);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Attendee: John Doe");
+        expect(html).not.toContain(
+          `/admin/attendee/${attendee.id}/note?return_url=`,
+        );
       });
 
       test("shows edit form with prefilled attendee data", async () => {

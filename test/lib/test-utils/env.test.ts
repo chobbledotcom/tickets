@@ -1,9 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withEnv } from "#test-utils/env.ts";
+import { getRealEnv, withEnv } from "#test-utils/env.ts";
 
 const SET_KEY = "TICKETS_TEST_WITH_ENV_SET";
 const DELETE_KEY = "TICKETS_TEST_WITH_ENV_DELETE";
+const REAL_KEY = "TICKETS_TEST_WITH_ENV_REAL";
 
 describe("withEnv", () => {
   test("sets one value for its scope", () => {
@@ -41,6 +42,19 @@ describe("withEnv", () => {
       expect(Deno.env.get(SET_KEY)).toBeUndefined();
     }
     expect(Deno.env.get(SET_KEY)).toBe("before");
+  });
+
+  test("passes keys outside its scope through to the process env", () => {
+    expect(getRealEnv(REAL_KEY)).toBeUndefined();
+    using _env = withEnv({ [SET_KEY]: "inside" });
+    try {
+      Deno.env.set(REAL_KEY, "real");
+      expect(getRealEnv(REAL_KEY)).toBe("real");
+      Deno.env.delete(REAL_KEY);
+      expect(getRealEnv(REAL_KEY)).toBeUndefined();
+    } finally {
+      Deno.env.delete(REAL_KEY);
+    }
   });
 
   test("restores values after work throws", () => {

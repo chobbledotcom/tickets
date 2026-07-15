@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { withEnv } from "#test-utils/env.ts";
 import {
   formatProgressLine,
   formatSummaryLines,
@@ -34,16 +35,9 @@ describe("mutation summary", () => {
     path: string | null,
     run: () => void,
   ): Promise<string> => {
-    const previous = Deno.env.get("GITHUB_STEP_SUMMARY");
-    try {
-      if (path === null) Deno.env.delete("GITHUB_STEP_SUMMARY");
-      else Deno.env.set("GITHUB_STEP_SUMMARY", path);
-      run();
-      return path === null ? "" : await Deno.readTextFile(path).catch(() => "");
-    } finally {
-      if (previous === undefined) Deno.env.delete("GITHUB_STEP_SUMMARY");
-      else Deno.env.set("GITHUB_STEP_SUMMARY", previous);
-    }
+    using _env = withEnv({ GITHUB_STEP_SUMMARY: path ?? undefined });
+    run();
+    return path === null ? "" : await Deno.readTextFile(path).catch(() => "");
   };
 
   test("excludes ignored equivalent survivors from the score denominator", () => {

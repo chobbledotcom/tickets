@@ -398,7 +398,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   });
 });
 
-/** Set all Apple Wallet env vars and return restore function */
+/** Set all Apple Wallet env vars for the returned scope. */
 const setWalletEnvVars = () =>
   withEnv({
     APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.tickets",
@@ -431,7 +431,7 @@ describeWithEnv(
     });
 
     test("returns config when all env vars are set", () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       const config = settings.appleWallet.hostConfig;
       expect(config).not.toBeNull();
       expect(config!.passTypeId).toBe("pass.com.env.tickets");
@@ -457,13 +457,13 @@ describeWithEnv(
   },
   () => {
     test("hasAppleWalletConfig returns true with env vars when DB not configured", () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       expect(settings.appleWallet.hasDbConfig).toBe(false);
       expect(settings.appleWallet.hasConfig).toBe(true);
     });
 
     test("getAppleWalletConfig falls back to env vars when DB not configured", () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       const config = settings.appleWallet.config;
       expect(config).not.toBeNull();
       expect(config!.passTypeId).toBe("pass.com.env.tickets");
@@ -471,7 +471,7 @@ describeWithEnv(
     });
 
     test("getAppleWalletConfig prefers DB config over env vars", async () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       await configureAppleWallet();
       const config = settings.appleWallet.config;
       expect(config).not.toBeNull();
@@ -480,7 +480,7 @@ describeWithEnv(
     });
 
     test("wallet route works with env var config", async () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       const { token } = await fetchValidPkpassForNewAttendee();
 
       const passJson = await parsePkpassJson(token);
@@ -489,7 +489,7 @@ describeWithEnv(
     });
 
     test("ticket view shows wallet link with env var config", async () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       const { token } = await createTestAttendeeWithToken(
         "Alice",
         "alice@test.com",
@@ -500,7 +500,7 @@ describeWithEnv(
     });
 
     test("settings page shows host Apple Wallet label when env vars configured", async () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       const response = await adminGet("/admin/settings-advanced");
       const body = await response.text();
       expect(body).toContain("Host env (pass.com.env.tickets)");
@@ -508,7 +508,7 @@ describeWithEnv(
     });
 
     test("settings page shows overriding label when both DB and env configured", async () => {
-      setWalletEnvVars();
+      using _env = setWalletEnvVars();
       await configureAppleWallet();
       const response = await adminGet("/admin/settings-advanced");
       const body = await response.text();

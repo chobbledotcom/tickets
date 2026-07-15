@@ -22,24 +22,16 @@ beforeAll(async () => {
 
 describe("API key pages in read-only mode", () => {
   test("hides the delete link from the key page", () => {
-    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminApiKeyManagePage(API_KEY, SESSION);
-      expect(html).toContain("Deploy key");
-      expect(html).not.toContain('href="/admin/api-keys/7/delete"');
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminApiKeyManagePage(API_KEY, SESSION);
+    expect(html).toContain("Deploy key");
+    expect(html).not.toContain('href="/admin/api-keys/7/delete"');
   });
 
   test("hides the create form from the key list", () => {
-    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminApiKeysPage([API_KEY], SESSION, {});
-      expect(html).toContain("Deploy key");
-      expect(html).not.toContain('action="/admin/api-keys"');
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminApiKeysPage([API_KEY], SESSION, {});
+    expect(html).toContain("Deploy key");
+    expect(html).not.toContain('action="/admin/api-keys"');
   });
 });

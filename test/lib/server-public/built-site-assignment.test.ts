@@ -45,7 +45,7 @@ describeWithEnv(
         });
 
       test("registration succeeds when no sites available — auto-build is attempted in the background", async () => {
-        const restore = withEnv({ CAN_BUILD_SITES: "true" });
+        using _env = withEnv({ CAN_BUILD_SITES: "true" });
         const buildStub = stub(builderApi, "buildSite", () =>
           Promise.resolve({ error: "stubbed", ok: false as const }),
         );
@@ -56,20 +56,15 @@ describeWithEnv(
           expect(buildStub.calls.length).toBe(1);
         } finally {
           buildStub.restore();
-          restore();
         }
       });
 
       test("registration succeeds when assignable sites are available", async () => {
-        const restore = withEnv({ CAN_BUILD_SITES: "true" });
-        try {
-          const listing = await createAssignBuiltSiteListing();
-          await insertBuiltSite("Available", "avail.b-cdn.net", "", "", true);
-          const response = await bookAssignBuiltSiteListing(listing);
-          expectReservedRedirectWithTokens(response);
-        } finally {
-          restore();
-        }
+        using _env = withEnv({ CAN_BUILD_SITES: "true" });
+        const listing = await createAssignBuiltSiteListing();
+        await insertBuiltSite("Available", "avail.b-cdn.net", "", "", true);
+        const response = await bookAssignBuiltSiteListing(listing);
+        expectReservedRedirectWithTokens(response);
       });
     });
   },

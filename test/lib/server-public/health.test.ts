@@ -19,41 +19,33 @@ describeWithEnv("server public > health", { db: true, triggers: true }, () => {
     });
 
     test("returns build diagnostics when the request carries the debug key", async () => {
-      const restore = withEnv({ DEBUG_KEY: "s3cret-diag-key" });
-      try {
-        await assertJson(
-          handleRequest(
-            mockRequest("/health", {
-              headers: { "x-debug-key": "s3cret-diag-key" },
-            }),
-          ),
-          200,
-          (json) => {
-            // The dynamic, meaningful field: a parseable server timestamp.
-            expect(typeof json.serverTime).toBe("string");
-            expect(Number.isNaN(Date.parse(json.serverTime))).toBe(false);
-            // Build markers are present (empty strings in a dev/test build).
-            expect(json).toHaveProperty("commit");
-            expect(json).toHaveProperty("buildTimestamp");
-            // Never leaks the liveness text into the diagnostics payload.
-            expect(json).not.toHaveProperty("status");
-          },
-        );
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DEBUG_KEY: "s3cret-diag-key" });
+      await assertJson(
+        handleRequest(
+          mockRequest("/health", {
+            headers: { "x-debug-key": "s3cret-diag-key" },
+          }),
+        ),
+        200,
+        (json) => {
+          // The dynamic, meaningful field: a parseable server timestamp.
+          expect(typeof json.serverTime).toBe("string");
+          expect(Number.isNaN(Date.parse(json.serverTime))).toBe(false);
+          // Build markers are present (empty strings in a dev/test build).
+          expect(json).toHaveProperty("commit");
+          expect(json).toHaveProperty("buildTimestamp");
+          // Never leaks the liveness text into the diagnostics payload.
+          expect(json).not.toHaveProperty("status");
+        },
+      );
     });
 
     test("ignores a wrong debug key and stays on plain liveness", async () => {
-      const restore = withEnv({ DEBUG_KEY: "s3cret-diag-key" });
-      try {
-        const response = await handleRequest(
-          mockRequest("/health", { headers: { "x-debug-key": "wrong" } }),
-        );
-        expect(await response.text()).toBe("Up :)");
-      } finally {
-        restore();
-      }
+      using _env = withEnv({ DEBUG_KEY: "s3cret-diag-key" });
+      const response = await handleRequest(
+        mockRequest("/health", { headers: { "x-debug-key": "wrong" } }),
+      );
+      expect(await response.text()).toBe("Up :)");
     });
 
     test("ignores the debug header when DEBUG_KEY is unset", async () => {
