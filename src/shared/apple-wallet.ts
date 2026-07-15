@@ -5,21 +5,14 @@
  * - pass.json: Declarative pass content (listing name, date, QR code, etc.)
  * - icon.png / icon@2x.png / icon@3x.png: Pre-rendered pass icons
  * - manifest.json: SHA-1 hashes of all files
- * - signature: PKCS#7 detached signature of manifest.json
+ * - signature: CMS/PKCS #7 detached signature of manifest.json
  */
 
 import { zipSync } from "fflate";
-import forge from "node-forge";
 import { t } from "#i18n";
+import { signManifest } from "#shared/apple-wallet/cms.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
-import { startOfHour } from "#shared/dates.ts";
 import { WALLET_ICONS } from "#shared/wallet-icons.ts";
-
-// Force pure-JS mode so node-forge never attempts require("crypto").
-// The Bunny Edge runtime sets process.versions.node (via the node:process
-// global), which makes node-forge think it's running in Node and try to
-// load native crypto — causing "Dynamic require of 'crypto' is not supported".
-forge.options.usePureJavaScript = true;
 
 /** Shared wallet pass data common to both Apple and Google Wallet */
 export type WalletPassData = {
@@ -77,7 +70,7 @@ export const generatePassJson = (
 ): Record<string, unknown> => {
   const pass: Record<string, unknown> = {
     authenticationToken: padAuthToken(data.serialNumber),
-    backgroundColor: data.backgroundColor ?? "rgb(255, 255, 255)",
+    backgroundColor: data.backgroundColor || "rgb(255, 255, 255)",
     barcodes: [
       {
         format: "PKBarcodeFormatQR",
@@ -86,10 +79,10 @@ export const generatePassJson = (
       },
     ],
     description: data.description,
-    foregroundColor: data.foregroundColor ?? "rgb(0, 0, 0)",
+    eventTicket: buildEventTicketFields(data),
+    foregroundColor: data.foregroundColor || "rgb(0, 0, 0)",
     formatVersion: 1,
-    labelColor: data.labelColor ?? "rgb(100, 100, 100)",
-    listingTicket: buildListingTicketFields(data),
+    labelColor: data.labelColor || "rgb(100, 100, 100)",
     organizationName: data.organizationName,
     passTypeIdentifier: creds.passTypeId,
     serialNumber: data.serialNumber,
@@ -114,17 +107,17 @@ type PassField = {
   currencyCode?: string;
 };
 
-/** listingTicket field groups with typed arrays */
-type ListingTicketFields = {
+/** eventTicket field groups with typed arrays */
+type EventTicketFields = {
   primaryFields: PassField[];
   secondaryFields: PassField[];
   auxiliaryFields: PassField[];
   backFields: PassField[];
 };
 
-/** Build the listingTicket field groups */
-const buildListingTicketFields = (data: PassData): ListingTicketFields => {
-  const fields: ListingTicketFields = {
+/** Build the eventTicket field groups */
+const buildEventTicketFields = (data: PassData): EventTicketFields => {
+  const fields: EventTicketFields = {
     auxiliaryFields: [],
     backFields: [],
     primaryFields: [
@@ -179,85 +172,32 @@ const buildListingTicketFields = (data: PassData): ListingTicketFields => {
   return fields;
 };
 
-type PemValidator = (pem: string) => boolean;
-
-/** Builds a "does this PEM string parse?" check from the forge parser for one
- *  PEM kind — the shared try/parse/catch behind the certificate and private-key
- *  checks below. */
-const isValidPem =
-  (parse: (pem: string) => unknown): PemValidator =>
-  (pem) => {
-    try {
-      parse(pem);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-/** Validate that a string is a parseable PEM certificate */
-export const isValidPemCertificate: PemValidator = isValidPem(
-  forge.pki.certificateFromPem,
-);
-
-/** Validate that a string is a parseable PEM private key */
-export const isValidPemPrivateKey: PemValidator = isValidPem(
-  forge.pki.privateKeyFromPem,
-);
-
-/** Compute SHA-1 hex digest of a Uint8Array */
-export const sha1Hex = (data: Uint8Array): string => {
-  const md = forge.md.sha1.create();
-  md.update(forge.util.binary.raw.encode(data));
-  return md.digest().toHex();
-};
+/** Apple requires SHA-1 for manifest entries; CMS signs the manifest with SHA-256. */
+export const sha1Hex = async (data: Uint8Array): Promise<string> =>
+  new Uint8Array(
+    await crypto.subtle.digest("SHA-1", data as BufferSource),
+  ).toHex();
 
 /** Create manifest.json mapping filenames to SHA-1 hashes */
-export const createManifest = (files: Record<string, Uint8Array>): string => {
-  const manifest: Record<string, string> = {};
-  for (const [name, data] of Object.entries(files)) {
-    manifest[name] = sha1Hex(data);
-  }
-  return JSON.stringify(manifest);
-};
-
-/** Sign the manifest with PKCS#7 detached signature */
-export const signManifest = (
-  manifestData: string,
-  signingCertPem: string,
-  signingKeyPem: string,
-  wwdrCertPem: string,
-): Uint8Array => {
-  const cert = forge.pki.certificateFromPem(signingCertPem);
-  const key = forge.pki.privateKeyFromPem(signingKeyPem);
-  const wwdr = forge.pki.certificateFromPem(wwdrCertPem);
-
-  const p7 = forge.pkcs7.createSignedData();
-  p7.content = forge.util.createBuffer(manifestData, "utf8");
-  p7.addCertificate(cert);
-  p7.addCertificate(wwdr);
-  p7.addSigner({
-    authenticatedAttributes: [
-      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
-      { type: forge.pki.oids.messageDigest },
-      { type: forge.pki.oids.signingTime, value: startOfHour(new Date()) },
-    ],
-    certificate: cert,
-    digestAlgorithm: forge.pki.oids.sha256,
-    key,
-  });
-  p7.sign({ detached: true });
-
-  const asn1 = p7.toAsn1();
-  const der = forge.asn1.toDer(asn1);
-  return new Uint8Array(forge.util.binary.raw.decode(der.getBytes()));
-};
+export const createManifest = async (
+  files: Record<string, Uint8Array>,
+): Promise<string> =>
+  JSON.stringify(
+    Object.fromEntries(
+      await Promise.all(
+        Object.entries(files).map(async ([name, data]) => [
+          name,
+          await sha1Hex(data),
+        ]),
+      ),
+    ),
+  );
 
 /** Build a complete .pkpass file as a Uint8Array (ZIP archive) */
-export const buildPkpass = (
+export const buildPkpass = async (
   data: PassData,
   creds: SigningCredentials,
-): Uint8Array => {
+): Promise<Uint8Array> => {
   const passJson = generatePassJson(data, creds);
   const passJsonBytes = new TextEncoder().encode(JSON.stringify(passJson));
 
@@ -266,10 +206,12 @@ export const buildPkpass = (
     ...WALLET_ICONS,
   };
 
-  const manifestJson = createManifest(files);
+  const manifestJson = await createManifest(files);
   const manifestBytes = new TextEncoder().encode(manifestJson);
 
-  const signature = signManifest(
+  // Sign the exact JSON string stored as manifest.json. Reserializing the
+  // object after signing would change its bytes and invalidate the signature.
+  const signature = await signManifest(
     manifestJson,
     creds.signingCert,
     creds.signingKey,

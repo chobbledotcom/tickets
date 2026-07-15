@@ -21,18 +21,17 @@ import { fail, ok } from "#shared/response.ts";
 
 /**
  * Given a result that either succeeded or failed with an `error` string, show
- * the failure on `formId` as an error page with `status`, or hand the
- * successful result to `onOk`. Every domain step here follows this shape:
+ * the failure on `formId`, or hand the successful result to `onOk`. Every
+ * domain step here follows this shape:
  * check `.ok`, show the error on the form, otherwise carry on.
  */
 const orErrorPage = <S extends { ok: true }, R>(
   result: S | { ok: false; error: string },
   errorPage: ErrorPageFn,
-  status: number,
   formId: string,
   onOk: (ok: S) => R | Promise<R>,
 ): ReturnType<ErrorPageFn> | R | Promise<R> =>
-  result.ok ? onOk(result) : errorPage(result.error, status, formId);
+  result.ok ? onOk(result) : errorPage(result.error, formId);
 
 /**
  * Run a task guarded by the global current-task lock, returning the task's
@@ -45,7 +44,7 @@ const runGuardedTask = async (
   task: () => Promise<Response>,
 ): Promise<Response> => {
   const taskResult = await settings.withCurrentTask(taskName, task);
-  return orErrorPage(taskResult, errorPage, 409, formId, (ok) => ok.value);
+  return orErrorPage(taskResult, errorPage, formId, (ok) => ok.value);
 };
 
 /** Guard returning an errorPage response when Bunny CDN isn't configured. */
@@ -55,7 +54,7 @@ const requireBunnyCdn = (
 ): ReturnType<ErrorPageFn> | null =>
   isBunnyCdnEnabled()
     ? null
-    : errorPage(t("error.bunny_cdn_not_configured"), 400, formId);
+    : errorPage(t("error.bunny_cdn_not_configured"), formId);
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
@@ -81,7 +80,6 @@ export const handleCustomDomainPost = advancedSettingsRoute(
     if (!DOMAIN_PATTERN.test(raw)) {
       return errorPage(
         t("error.invalid_domain_format"),
-        400,
         "settings-custom-domain",
       );
     }
@@ -131,7 +129,6 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
     if (!customDomain) {
       return errorPage(
         t("error.no_custom_domain"),
-        400,
         "settings-custom-domain-validate",
       );
     }
@@ -145,7 +142,6 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
         return orErrorPage(
           result,
           errorPage,
-          502,
           "settings-custom-domain-validate",
           async () => {
             await settings.update.customDomainLastValidated();
@@ -173,19 +169,18 @@ const FORM_ID_HOST_SUBDOMAIN = "settings-host-subdomain";
 export const handleHostSubdomainPost = advancedSettingsRoute(
   async (form, errorPage) => {
     if (!isBunnyDnsEnabled()) {
-      return errorPage("Not configured", 400, FORM_ID_HOST_SUBDOMAIN);
+      return errorPage("Not configured", FORM_ID_HOST_SUBDOMAIN);
     }
     if (settings.bunnySubdomain) {
       return errorPage(
         "Subdomain has already been set and cannot be changed",
-        400,
         FORM_ID_HOST_SUBDOMAIN,
       );
     }
 
     const raw = form.getString("subdomain").toLowerCase().trim();
     if (!raw || !SUBDOMAIN_PATTERN.test(raw)) {
-      return errorPage("Invalid subdomain format", 400, FORM_ID_HOST_SUBDOMAIN);
+      return errorPage("Invalid subdomain format", FORM_ID_HOST_SUBDOMAIN);
     }
 
     const save = form.getString("save");
@@ -194,12 +189,11 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
       // Preview: check availability only
       const check = await checkSubdomainAvailable(raw);
       if (!check.ok) {
-        return errorPage(check.error, 502, FORM_ID_HOST_SUBDOMAIN);
+        return errorPage(check.error, FORM_ID_HOST_SUBDOMAIN);
       }
       if (!check.available) {
         return errorPage(
           `Subdomain "${raw}" is already taken`,
-          409,
           FORM_ID_HOST_SUBDOMAIN,
         );
       }
@@ -223,7 +217,6 @@ export const handleHostSubdomainPost = advancedSettingsRoute(
         return orErrorPage(
           result,
           errorPage,
-          502,
           FORM_ID_HOST_SUBDOMAIN,
           async (ok_) => {
             await settings.update.bunnySubdomain(ok_.fullDomain);

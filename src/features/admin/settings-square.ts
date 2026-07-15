@@ -62,7 +62,6 @@ export const handleAdminSquareWebhookPost = settingsSecret({
   field: "square_webhook_signature_key",
   formId: "settings-square-webhook",
   label: "Square webhook signature key",
-  required: true,
   save: (v) => settings.update.square.webhookSignatureKey(v),
   validate: validateSquareWebhookSignatureKey,
 });

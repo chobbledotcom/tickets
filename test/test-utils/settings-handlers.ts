@@ -19,11 +19,11 @@ export const lastLogMessage = async (): Promise<string> => {
   return logs[0]?.message ?? "";
 };
 
-/** A fresh spy ErrorPageFn that renders `error: <msg>` with the given status. */
+/** A fresh spy ErrorPageFn that renders `error: <msg>` as a bad request. */
 export const makeMockErrorPage = (): ErrorPageFn & ReturnType<typeof fn> =>
   fn(
-    (error: string, status: number, _formId: string) =>
-      new Response(`error: ${error}`, { status }),
+    (error: string, _formId?: string) =>
+      new Response(`error: ${error}`, { status: 400 }),
   ) as unknown as ErrorPageFn & ReturnType<typeof fn>;
 
 /** Invoke a settings handler with form `data` + `errorPage` and a null session. */

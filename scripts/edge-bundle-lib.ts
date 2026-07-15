@@ -3,8 +3,8 @@
  *
  * `build-edge.ts` (Bunny Edge Scripting) and `build-deploy.ts` (Deno Deploy)
  * produce the same shape of single-file ESM bundle: the same static-asset and
- * codec-wasm inlining, build-info/asset-paths modules, Node-global banner,
- * bare-crypto shim, and `platform: "browser"` config (which resolves
+ * codec-wasm inlining, build-info/asset-paths modules, Node-global banner, and
+ * `platform: "browser"` config (which resolves
  * `@libsql/client` to its pure-JS `web` export). Everything they share lives
  * here; each caller passes only what genuinely differs — the entry point, any
  * extra guards (the deploy build asserts no native libsql binding leaked in),
@@ -79,37 +79,6 @@ const nodeExternals = [
   ...builtinModules,
   ...builtinModules.map((m) => `node:${m}`),
 ];
-
-/**
- * Plugin to shim bare "crypto" imports with a Web Crypto API adapter.
- * node-forge's prng.js calls `require("crypto")` at module load time (before
- * `forge.options.usePureJavaScript` can be set) and uses `randomBytes()` for
- * seeding its Fortuna PRNG. We provide a shim that delegates to the Web Crypto
- * API (`globalThis.crypto.getRandomValues`), which is available in both Deno
- * and Bunny Edge runtimes. The node:-prefixed "node:crypto" stays external for
- * code that needs the full Node.js crypto API.
- */
-const shimBareNodeCryptoPlugin: Plugin = {
-  name: "shim-bare-node-crypto",
-  setup(build) {
-    build.onResolve({ filter: /^crypto$/ }, () => ({
-      namespace: "shim-bare-crypto",
-      path: "crypto",
-    }));
-    build.onLoad({ filter: /.*/, namespace: "shim-bare-crypto" }, () => ({
-      contents: `
-        export function randomBytes(size, cb) {
-          var b = Buffer.alloc(size);
-          globalThis.crypto.getRandomValues(b);
-          if (cb) { cb(null, b); return; }
-          return b;
-        }
-        export default { randomBytes };
-      `,
-      loader: "js",
-    }));
-  },
-};
 
 // Banner to inject Node.js globals that many packages expect (per Bunny docs).
 // process.env is populated by the runtime's native secrets at runtime.
@@ -250,7 +219,6 @@ export const buildEdgeBundle = async (
     outdir: "./dist",
     platform: "browser",
     plugins: [
-      shimBareNodeCryptoPlugin,
       inlineAssetsPlugin(buildIso, buildTs, inlinedAssets, published),
       wasmPlugin,
       // The loader pins older structural esbuild types; its runtime plugins

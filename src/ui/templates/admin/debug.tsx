@@ -2,13 +2,16 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
+import { CsrfForm } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
+/* jscpd:ignore-end */
 
 export type DebugPageState = {
   appleWallet: {
@@ -57,8 +60,9 @@ export type DebugPageState = {
     fromAddress: string;
     hostProvider: string;
   };
-  ntfy: {
-    configured: boolean;
+  notifications: {
+    ntfyConfigured: boolean;
+    sentryConfigured: boolean;
   };
   bunny: {
     storageBackend: "bunny" | "local" | "none";
@@ -118,6 +122,28 @@ const statusRow = (label: string, ok: boolean): RowSpec => ({
   label,
   value: statusBadge(ok, t("common.configured"), t("common.not_configured")),
 });
+
+export const SENTRY_TEST_FORM_ID = "debug-sentry-test";
+
+/** Sentry status plus the test action, which only exists when it can send. */
+const sentryStatus = (configured: boolean): JSX.Element => (
+  <>
+    {statusBadge(
+      configured,
+      t("common.configured"),
+      t("common.not_configured"),
+    )}
+    {configured ? (
+      <CsrfForm
+        action="/admin/debug/sentry"
+        class="inline"
+        id={SENTRY_TEST_FORM_ID}
+      >
+        <button type="submit">{t("debug.test_sentry")}</button>
+      </CsrfForm>
+    ) : null}
+  </>
+);
 
 /** The article/h2/table-scroll scaffolding shared by every debug section. */
 const DebugSection = ({
@@ -382,7 +408,13 @@ const DEBUG_SECTIONS: readonly DebugSectionSpec[] = [
     titleKey: "common.email",
   },
   {
-    rows: ({ ntfy }) => [statusRow(t("debug.field.ntfy_url"), ntfy.configured)],
+    rows: ({ notifications }) => [
+      statusRow(t("debug.field.ntfy_url"), notifications.ntfyConfigured),
+      {
+        label: t("debug.field.sentry_url"),
+        value: sentryStatus(notifications.sentryConfigured),
+      },
+    ],
     titleKey: "debug.section.notifications",
   },
   {

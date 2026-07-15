@@ -139,7 +139,6 @@ export const handleListingDefaultsGet: TypedRouteHandler<"GET /admin/listing-def
 /** POST /admin/listing-defaults — owner only. */
 export const handleListingDefaultsPost = settingsHandler<ParseResult>({
   extract: (form) => parseListingDefaultsForm(form, settings.hasLogistics),
-  label: "Listing defaults",
   log: () => t("listing_defaults.saved"),
   redirectTo: "/admin/listing-defaults",
   // validate() rejects a non-null error before save() runs, so save always has
