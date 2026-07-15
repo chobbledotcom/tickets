@@ -1094,8 +1094,9 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   each missing-column ALTER separately. Move long migrations out of band or
   make progress resumable in bounded request-sized steps, and batch safe ALTERs.
 - **Large in-app backups and storage cleanup.** After the first-page batch,
-  `exportTable` in `src/shared/db/backup-snapshot.ts` still needs one call per later page;
-  a 25,000-row table at the default page size needs about 50 pages by itself.
+  `exportTable` in `src/shared/db/backup-snapshot.ts` still needs one call per
+  later page; a 25,000-row table at the default page size needs about 50 pages
+  by itself.
   `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
   `pruneOldBackups` make one storage delete per stale object. Send large backups
   through the existing out-of-band workflow and cap cleanup work per request.
@@ -1172,3 +1173,25 @@ the edge subrequest budget, and use the same snapshot for every later page.
 Add a regression test in `test/shared/db/backup-snapshot.test.ts` that changes
 rows between page reads and proves the exported rows all come from one database
 state.
+
+---
+
+## Backup storage edge cases
+
+*Origin: CodeRabbit review of PR #1837.*
+
+PR #1837 only moves the existing backup storage helpers out of
+`src/shared/db/backup.ts`; it deliberately preserves their behavior. These
+possible behavior changes need separate decisions and regression tests:
+
+- **Keep every database namespace non-empty and distinct.** `dbName` in
+  `src/shared/db/backup-storage.ts` returns an empty name for a parseable local
+  `file:` URL and strips the first dashed part from non-Bunny hostnames. Decide
+  the supported URL schemes and hostnames, return a named local folder for local
+  URLs, and only remove Bunny DB's UUID prefix for `.lite.bunnydb.net`. Start
+  with tests for `file:database.db` and two distinct dashed HTTPS hostnames.
+- **Reject future-dated backups from the update gate.** `hasRecentBackup` in
+  `src/shared/db/backup-storage.ts` treats every future timestamp as recent
+  because its age is negative. Decide how much clock skew is acceptable, then
+  require a non-negative age (or a documented tolerance) before applying the
+  maximum age. Add a test with a future backup filename.
