@@ -27,7 +27,7 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getGroupIdsByListingIds, groups } from "#shared/db/groups.ts";
+import { groups, listingGroups } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import {
@@ -165,7 +165,7 @@ const childAddOnSaveError = async (
   const allIds = allListings.map((listing) => listing.id);
   const [childIds, membership] = await Promise.all([
     getNonStandaloneChildIds(allIds),
-    getGroupIdsByListingIds(allIds),
+    listingGroups.getIdsByKeys(allIds),
   ]);
   const membershipListings: ListingGroupMembership[] = allListings.map(
     (listing) => toListingGroupMembership(listing, membership),

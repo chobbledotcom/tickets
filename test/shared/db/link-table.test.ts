@@ -83,6 +83,13 @@ describeWithEnv("db link-table", { db: true }, () => {
     expect(await byUser.getIds(1)).toEqual([1, 2]);
   });
 
+  test("getIdsTx sees earlier transaction writes and returns ids ascending", async () => {
+    await withTransaction(async (tx) => {
+      await byUser.setIdsTx(tx, 1, [9, 3, 7]);
+      expect(await byUser.getIdsTx(tx, 1)).toEqual([3, 7, 9]);
+    });
+  });
+
   test("addIdsTx adds links without touching existing ones", async () => {
     await byUser.setIds(1, [1]);
     await withTransaction((tx) => byUser.addIdsTx(tx, 1, [3, 2, 3]));

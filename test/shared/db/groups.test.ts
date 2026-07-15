@@ -16,14 +16,14 @@ import {
   assignListingsToGroup,
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
-  getActiveListingsByGroupIds,
   getGroupBySlugIndex,
-  getGroupIdsByListingId,
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
+  getListingsByGroupIds,
   getPackageDisplayById,
   groups,
   isGroupSlugTaken,
+  listingGroups,
   resetGroupListings,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
@@ -171,7 +171,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(listings[0]?.attendee_count).toBe(3);
     });
 
-    test("getActiveListingsByGroupIds batches several groups, keyed by id", async () => {
+    test("getListingsByGroupIds batches active members by group id", async () => {
       const populated = await createTestGroup({
         name: "Populated",
         slug: "batch-populated",
@@ -202,10 +202,10 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         sql: "UPDATE listings SET active = 0 WHERE id = ?",
       });
 
-      const byGroup = await getActiveListingsByGroupIds([
-        populated.id,
-        empty.id,
-      ]);
+      const byGroup = await getListingsByGroupIds(
+        [populated.id, empty.id],
+        true,
+      );
       // The inactive member is dropped; the shared active one appears under both.
       expect(
         byGroup
@@ -216,12 +216,12 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(byGroup.get(empty.id)?.map((l) => l.id)).toEqual([shared.id]);
     });
 
-    test("getActiveListingsByGroupIds maps a memberless group to an empty list", async () => {
+    test("getListingsByGroupIds maps a memberless group to an empty list", async () => {
       const bare = await createTestGroup({ name: "Bare", slug: "batch-bare" });
-      const byGroup = await getActiveListingsByGroupIds([bare.id]);
+      const byGroup = await getListingsByGroupIds([bare.id], true);
       expect(byGroup.get(bare.id)).toEqual([]);
       // No ids ⇒ empty map, no query.
-      expect((await getActiveListingsByGroupIds([])).size).toBe(0);
+      expect((await getListingsByGroupIds([], true)).size).toBe(0);
     });
 
     test("resetGroupListings removes every membership row", async () => {
@@ -235,7 +235,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Reset Listing",
       });
       await resetGroupListings(group.id);
-      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
+      expect(await listingGroups.getIds(listing.id)).toEqual([]);
     });
 
     test("assignListingsToGroup moves every listing in one batch", async () => {
@@ -245,13 +245,13 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       });
       const a = await createTestListing({ maxAttendees: 10, name: "Assign A" });
       const b = await createTestListing({ maxAttendees: 10, name: "Assign B" });
-      expect(await getGroupIdsByListingId(a.id)).toEqual([]);
-      expect(await getGroupIdsByListingId(b.id)).toEqual([]);
+      expect(await listingGroups.getIds(a.id)).toEqual([]);
+      expect(await listingGroups.getIds(b.id)).toEqual([]);
 
       await assignListingsToGroup([a.id, b.id], group.id);
 
-      expect(await getGroupIdsByListingId(a.id)).toContain(group.id);
-      expect(await getGroupIdsByListingId(b.id)).toContain(group.id);
+      expect(await listingGroups.getIds(a.id)).toContain(group.id);
+      expect(await listingGroups.getIds(b.id)).toContain(group.id);
     });
 
     test("assignListingsToGroup is a no-op for an empty list", async () => {
@@ -266,7 +266,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       await assignListingsToGroup([], group.id);
 
-      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
+      expect(await listingGroups.getIds(listing.id)).toEqual([]);
     });
   });
 

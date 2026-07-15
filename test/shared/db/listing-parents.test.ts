@@ -5,15 +5,18 @@ import {
   anyNonStandaloneChild,
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
-  getChildListingIds,
-  getChildrenForParents,
-  getParentsForChildren,
-  getParentsOf,
+  hydrateListingLinks,
   listingChildren,
+  listingIdsWithLinks,
   listingParents,
   type TouchingEdge,
 } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -39,6 +42,20 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
     const childB = await createTestListing({ name: "Add-on B" });
     return { childA, childB, parent };
   };
+
+  const linkChildToParents = async (
+    childId: number,
+    parentIds: readonly number[],
+  ): Promise<void> => {
+    for (const parentId of parentIds) {
+      await listingChildren.setIds(parentId, [childId]);
+    }
+  };
+
+  const hydratedListings = async (
+    side: typeof listingChildren,
+    ids: readonly number[],
+  ) => (await hydrateListingLinks(side, ids)).listingsByKey;
 
   describe("setChildIds / getChildIds", () => {
     test("stores and returns a parent's children, ascending", async () => {
@@ -81,7 +98,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
     });
   });
 
-  describe("getParentIds / getParentsOf", () => {
+  describe("listingParents", () => {
     test("reverse lookup returns the parent ids a child is offered under", async () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
@@ -92,8 +109,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const { parent, childA } = await threeListings();
       const parent2 = await createTestListing({ name: "Base unit 2" });
       // Link the higher-id parent first so insert order is descending.
-      await listingChildren.setIds(parent2.id, [childA.id]);
-      await listingChildren.setIds(parent.id, [childA.id]);
+      await linkChildToParents(childA.id, [parent2.id, parent.id]);
       expect(await listingParents.getIds(childA.id)).toEqual(
         ascending([parent.id, parent2.id]),
       );
@@ -102,14 +118,19 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
     test("hydrates the parent listings of a child", async () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
-      const parents = await getParentsOf(childA.id);
+      const parents =
+        (await hydratedListings(listingParents, [childA.id])).get(childA.id) ??
+        [];
       expect(parents.map((p) => p.id)).toEqual([parent.id]);
       expect(parents.map((p) => p.name)).toEqual(["Base unit"]);
     });
 
     test("returns an empty array when the child has no parents", async () => {
       const { childA } = await threeListings();
-      expect(await getParentsOf(childA.id)).toEqual([]);
+      expect(
+        (await hydratedListings(listingParents, [childA.id])).get(childA.id) ??
+          [],
+      ).toEqual([]);
     });
 
     test("drops parent edges whose listing no longer exists", async () => {
@@ -118,31 +139,49 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       await listingChildren.setIds(missingParentId, [childA.id]);
       // The edge row exists but no parent listing does, so hydration drops it.
       expect(await listingParents.getIds(childA.id)).toEqual([missingParentId]);
-      expect(await getParentsOf(childA.id)).toEqual([]);
+      expect(
+        (await hydratedListings(listingParents, [childA.id])).get(childA.id) ??
+          [],
+      ).toEqual([]);
     });
   });
 
-  describe("getChildListingIds", () => {
+  describe("listingParents.getIdsByKeys", () => {
     test("returns the subset of ids that are children of some parent", async () => {
       const { parent, childA, childB } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
-      const result = await getChildListingIds([
+      const result = await listingParents.getIdsByKeys([
         parent.id,
         childA.id,
         childB.id,
       ]);
-      expect([...result]).toEqual([childA.id]);
+      expect(result.get(parent.id)).toEqual([]);
+      expect(result.get(childA.id)).toEqual([parent.id]);
+      expect(result.get(childB.id)).toEqual([]);
     });
 
     test("returns an empty set for an empty input (no query)", async () => {
-      expect([...(await getChildListingIds([]))]).toEqual([]);
+      expect(await listingParents.getIdsByKeys([])).toEqual(new Map());
     });
 
     test("finds a child from a single-id lookup", async () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
-      expect([...(await getChildListingIds([childA.id]))]).toEqual([childA.id]);
+      expect(await listingParents.getIdsByKeys([childA.id])).toEqual(
+        new Map([[childA.id, [parent.id]]]),
+      );
     });
+  });
+
+  test("listingIdsWithLinks keeps exactly the keys with linked ids", () => {
+    expect(
+      listingIdsWithLinks(
+        new Map([
+          [1, []],
+          [2, [9]],
+        ]),
+      ),
+    ).toEqual(new Set([2]));
   });
 
   describe("anyNonStandaloneChild", () => {
@@ -173,13 +212,59 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
         { otherId: parent.id, self: "child" },
       ]);
     });
+
+    test("reads edge ids without loading listing rows", async () => {
+      const { parent, childA } = await threeListings();
+      await listingChildren.setIds(parent.id, [childA.id]);
+      const queries = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        await firstTouchingEdgeError(parent.id, () => null);
+        return getQueryLog().map((entry) => entry.sql);
+      });
+      expect(
+        queries.some((sql) => sql.includes("FROM listings AS listing")),
+      ).toBe(false);
+    });
   });
 
-  describe("getChildrenForParents", () => {
+  describe("hydrateListingLinks", () => {
+    test("keeps linked rows ordered but omits empty requested keys", async () => {
+      const { parent, childA, childB } = await threeListings();
+      const emptyParent = await createTestListing({ name: "Empty parent" });
+      await listingChildren.setIds(parent.id, [childB.id, childA.id]);
+
+      expect(
+        await listingChildren.getIdsByKeys([emptyParent.id, parent.id]),
+      ).toEqual(
+        new Map([
+          [emptyParent.id, []],
+          [parent.id, ascending([childA.id, childB.id])],
+        ]),
+      );
+      const hydrated = await hydratedListings(listingChildren, [
+        emptyParent.id,
+        parent.id,
+      ]);
+      expect([...hydrated.keys()]).toEqual([parent.id]);
+      expect(hydrated.get(parent.id)?.map((listing) => listing.id)).toEqual(
+        ascending([childA.id, childB.id]),
+      );
+    });
+
+    test("omits a key when every linked listing is missing", async () => {
+      const { parent, childA } = await threeListings();
+      await listingChildren.setIds(parent.id, [childA.id + 100_000]);
+      expect((await hydratedListings(listingChildren, [parent.id])).size).toBe(
+        0,
+      );
+    });
+  });
+
+  describe("hydrated listingChildren", () => {
     test("groups hydrated children by parent, preserving child-id order", async () => {
       const { parent, childA, childB } = await threeListings();
       await listingChildren.setIds(parent.id, [childB.id, childA.id]);
-      const map = await getChildrenForParents([parent.id]);
+      const map = await hydratedListings(listingChildren, [parent.id]);
       // Order is by child id ascending (the query's ORDER BY), not insert order.
       expect(map.get(parent.id)?.map((c) => c.id)).toEqual(
         ascending([childA.id, childB.id]),
@@ -191,33 +276,38 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const parent2 = await createTestListing({ name: "Base unit 2" });
       await listingChildren.setIds(parent.id, [childA.id]);
       await listingChildren.setIds(parent2.id, [childB.id]);
-      const map = await getChildrenForParents([parent.id, parent2.id]);
+      const map = await hydratedListings(listingChildren, [
+        parent2.id,
+        parent.id,
+      ]);
+      expect([...map.keys()]).toEqual([parent.id, parent2.id]);
       expect(map.get(parent.id)?.map((c) => c.id)).toEqual([childA.id]);
       expect(map.get(parent2.id)?.map((c) => c.id)).toEqual([childB.id]);
     });
 
     test("omits parents with no children and returns empty for empty input", async () => {
       const { parent } = await threeListings();
-      expect((await getChildrenForParents([parent.id])).size).toBe(0);
-      expect((await getChildrenForParents([])).size).toBe(0);
+      expect((await hydratedListings(listingChildren, [parent.id])).size).toBe(
+        0,
+      );
+      expect((await hydratedListings(listingChildren, [])).size).toBe(0);
     });
 
     test("drops a child edge whose listing no longer exists", async () => {
       const { parent, childA } = await threeListings();
       const missingChildId = childA.id + 100_000;
       await listingChildren.setIds(parent.id, [childA.id, missingChildId]);
-      const map = await getChildrenForParents([parent.id]);
+      const map = await hydratedListings(listingChildren, [parent.id]);
       expect(map.get(parent.id)?.map((c) => c.id)).toEqual([childA.id]);
     });
   });
 
-  describe("getParentsForChildren", () => {
+  describe("hydrated listingParents", () => {
     test("groups hydrated parents by child, preserving parent-id order", async () => {
       const { parent, childA } = await threeListings();
       const parent2 = await createTestListing({ name: "Base unit 2" });
-      await listingChildren.setIds(parent.id, [childA.id]);
-      await listingChildren.setIds(parent2.id, [childA.id]);
-      const map = await getParentsForChildren([childA.id]);
+      await linkChildToParents(childA.id, [parent.id, parent2.id]);
+      const map = await hydratedListings(listingParents, [childA.id]);
       expect(map.get(childA.id)?.map((p) => p.id)).toEqual(
         ascending([parent.id, parent2.id]),
       );
@@ -225,16 +315,17 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
 
     test("omits children with no parents and returns empty for empty input", async () => {
       const { childA } = await threeListings();
-      expect((await getParentsForChildren([childA.id])).size).toBe(0);
-      expect((await getParentsForChildren([])).size).toBe(0);
+      expect((await hydratedListings(listingParents, [childA.id])).size).toBe(
+        0,
+      );
+      expect((await hydratedListings(listingParents, [])).size).toBe(0);
     });
 
     test("drops a parent edge whose listing no longer exists", async () => {
       const { parent, childA } = await threeListings();
       const missingParentId = childA.id + 100_000;
-      await listingChildren.setIds(parent.id, [childA.id]);
-      await listingChildren.setIds(missingParentId, [childA.id]);
-      const map = await getParentsForChildren([childA.id]);
+      await linkChildToParents(childA.id, [parent.id, missingParentId]);
+      const map = await hydratedListings(listingParents, [childA.id]);
       // The edge to the missing parent is dropped; the real parent survives.
       expect(map.get(childA.id)?.map((p) => p.id)).toEqual([parent.id]);
     });

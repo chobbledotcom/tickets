@@ -55,18 +55,18 @@ import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity/groups.
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
-  getGroupIdsByListingIds,
   getHiddenPackageMemberIds,
   isHiddenPackageMember,
+  listingGroups,
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
 import {
   anyNonStandaloneChild,
-  getChildListingIds,
-  getChildrenForParents,
+  hydrateListingLinks,
   listingChildren,
+  listingParents,
 } from "#shared/db/listing-parents.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings/records.ts";
 import {
@@ -550,8 +550,12 @@ export const lacksStandalonePublicPage = async (
 export const dropChildListings = async (
   listings: readonly ListingWithCount[],
 ): Promise<ListingWithCount[]> => {
-  const childIds = await getChildListingIds(listings.map((e) => e.id));
-  return listings.filter((e) => !childIds.has(e.id));
+  const parentsByChild = await listingParents.getIdsByKeys(
+    listings.map((listing) => listing.id),
+  );
+  return listings.filter(
+    (listing) => parentsByChild.get(listing.id)!.length === 0,
+  );
 };
 
 /**
@@ -691,9 +695,11 @@ const keepPackageDatesChildrenCanServe = (
 export const loadChildrenByParentId = async (
   listings: TicketListing[],
 ): Promise<ChildrenByParentId> => {
-  const childrenByParent = await getChildrenForParents(
+  const childLinks = await hydrateListingLinks(
+    listingChildren,
     listings.map((e) => e.listing.id),
   );
+  const childrenByParent = childLinks.listingsByKey;
   const result: ChildrenByParentId = new Map();
   for (const [parentId, children] of childrenByParent) {
     result.set(parentId, await buildTicketListingsWithGroupCapacity(children));
@@ -769,7 +775,7 @@ export const loadPackageLimitGroupMaps = async (
     ...members.map((e) => e.listing),
     ...[...childrenByParentId.values()].flat().map((e) => e.listing),
   ];
-  const groupIdsByListingId = await getGroupIdsByListingIds(
+  const groupIdsByListingId = await listingGroups.getIdsByKeys(
     limitListings.map((l) => l.id),
   );
   return {
@@ -890,7 +896,10 @@ export const keepParentDailyDatesChildrenCanServe = async (
   parentDates: string[],
   holidays: Holiday[],
 ): Promise<string[]> => {
-  const childrenByParent = await getChildrenForParents([parent.id]);
+  const { listingsByKey: childrenByParent } = await hydrateListingLinks(
+    listingChildren,
+    [parent.id],
+  );
   const childRows = childrenByParent.get(parent.id);
   if (!childRows || childRows.length === 0) return parentDates;
   const children = await buildTicketListingsWithGroupCapacity(childRows);

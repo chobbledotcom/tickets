@@ -17,8 +17,7 @@ import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
-  getGroupIdsByListingId,
-  getGroupIdsByListingIds,
+  listingGroups,
   packageChildEdgeConflict,
   setListingGroupsTx,
 } from "#shared/db/groups.ts";
@@ -311,7 +310,7 @@ export const bodyToUpdateInput = async (
   if (!parsedName.ok) return parsedName;
 
   return withParsedGroupIds(body, async (groupIds) => {
-    const existingGroupIds = await getGroupIdsByListingId(existing.id);
+    const existingGroupIds = await listingGroups.getIds(existing.id);
     const maxAttendees = bodyNumber(
       body,
       "max_attendees",
@@ -542,11 +541,11 @@ const persistListingJoins = async (
 const hydrateListingGroupIds = async (
   rows: { id: number }[],
 ): Promise<ReadonlyMap<number, Record<string, unknown>>> => {
-  const groupIdsByListing = await getGroupIdsByListingIds(
+  const groupIdsByListing = await listingGroups.getIdsByKeys(
     rows.map((r) => r.id),
   );
   return mapBy("id", (row: (typeof rows)[number]) => ({
-    group_ids: groupIdsByListing.get(row.id) ?? [],
+    group_ids: listingGroups.idsFor(groupIdsByListing, row.id),
   }))(rows);
 };
 
@@ -581,7 +580,7 @@ const listingApiRoutes = defineCrudApi<
   // and must be able to read them back to round-trip listing group state.
   // get/create/update hydrate the single written row; the list endpoint uses
   // the batched hydrateList below to avoid an N+1 over the returned listings.
-  hydrate: async (row) => ({ group_ids: await getGroupIdsByListingId(row.id) }),
+  hydrate: async (row) => ({ group_ids: await listingGroups.getIds(row.id) }),
   hydrateList: hydrateListingGroupIds,
   linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),

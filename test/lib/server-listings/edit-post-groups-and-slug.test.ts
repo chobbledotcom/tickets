@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getGroupIdsByListingId } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   expectFlashRedirect,
@@ -64,7 +64,7 @@ describeWithEnv(
         )(response);
 
         // The group checkboxes replace membership: group1 → group2.
-        expect(await getGroupIdsByListingId(listing.id)).toEqual([group2.id]);
+        expect(await listingGroups.getIds(listing.id)).toEqual([group2.id]);
       });
 
       test("rejects non-existent group_id on edit", async () => {

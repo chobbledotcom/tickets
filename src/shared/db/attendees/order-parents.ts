@@ -31,21 +31,21 @@ import type {
   ChildAllocation,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import { getParentsForChildren } from "#shared/db/listing-parents.ts";
+import { listingParents } from "#shared/db/listing-parents.ts";
 
 /** The first parent of each child that is itself booked in this order, keyed by
  * child listing id. Children with no in-order parent are omitted. */
 const inOrderParentByChild = async (
   listingIds: readonly number[],
 ): Promise<Map<number, number>> => {
-  const parentsByChild = await getParentsForChildren(listingIds);
+  const parentsByChild = await listingParents.getIdsByKeys(listingIds);
   const bookedInOrder = new Set(listingIds);
   const result = new Map<number, number>();
-  for (const [childId, parents] of parentsByChild) {
-    const inOrderParent = parents.find((parent) =>
-      bookedInOrder.has(parent.id),
+  for (const [childId, parentIds] of parentsByChild) {
+    const inOrderParent = parentIds.find((parentId) =>
+      bookedInOrder.has(parentId),
     );
-    if (inOrderParent) result.set(childId, inOrderParent.id);
+    if (inOrderParent !== undefined) result.set(childId, inOrderParent);
   }
   return result;
 };
