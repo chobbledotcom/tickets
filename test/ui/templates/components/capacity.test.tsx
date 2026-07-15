@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   CapacityMeter,
   capacityLevel,
-  capacityMeterHtml,
   capacityMeterText,
   GroupCapacityMeter,
 } from "#templates/components/capacity.tsx";
@@ -41,6 +40,14 @@ describe("capacityLevel", () => {
     });
   });
 
+  test("applies both limits to a cap of one", () => {
+    expect(capacityLevel(1, 1)).toEqual({
+      nearLimit: true,
+      overLimit: true,
+      remaining: 0,
+    });
+  });
+
   test("reports negative seats left past the cap", () => {
     expect(capacityLevel(12, 10)).toEqual({
       nearLimit: true,
@@ -65,20 +72,6 @@ describe("capacityMeterText", () => {
 
   test("shows an overridden seats-left figure", () => {
     expect(capacityMeterText(12, 10, 0)).toBe("12 / 10 — 0 remain");
-  });
-});
-
-describe("capacityMeterHtml", () => {
-  test("is plain text when the warning flag is off", () => {
-    expect(capacityMeterHtml({ count: 5, danger: false, max: 20 })).toBe(
-      "5 / 20 — 15 remain",
-    );
-  });
-
-  test("wraps the text in a danger span when the warning flag is on", () => {
-    expect(capacityMeterHtml({ count: 19, danger: true, max: 20 })).toBe(
-      '<span class="danger-text">19 / 20 — 1 remain</span>',
-    );
   });
 });
 

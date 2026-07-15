@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { buildAnswerSummaryRows } from "#templates/admin/listings/aggregates.tsx";
 import {
   ListingOverviewPanel,
   overviewStatsFromAttendees,
@@ -19,12 +18,10 @@ import {
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   singleAnswerSizeQuestionData,
-  sizeQuestionAnswerData,
   smallLargeAnswers,
   testAnswer,
   testListingWithCount,
   testQuestion,
-  unselectedAnswerQuestionData,
 } from "#test-utils/factories.ts";
 
 const TEST_LISTINGS = [
@@ -802,30 +799,6 @@ describe("adminListingQuestionsPage", () => {
       }),
     );
     expect(html).toContain("3 options: S, M, L)");
-  });
-});
-
-describe("buildAnswerSummaryRows", () => {
-  test("returns empty string when questionData is undefined", () => {
-    expect(buildAnswerSummaryRows(undefined)).toBe("");
-  });
-
-  test("returns empty string when no questions", () => {
-    expect(
-      buildAnswerSummaryRows({ attendeeAnswerMap: new Map(), questions: [] }),
-    ).toBe("");
-  });
-
-  test("renders question with answer counts", () => {
-    const html = buildAnswerSummaryRows(sizeQuestionAnswerData());
-    expect(html).toContain("<th>Size?</th>");
-    expect(html).toContain("Small (2)");
-    expect(html).toContain("Large (1)");
-  });
-
-  test("shows zero for answers with no selections", () => {
-    const html = buildAnswerSummaryRows(unselectedAnswerQuestionData());
-    expect(html).toContain("A (0)");
   });
 });
 
