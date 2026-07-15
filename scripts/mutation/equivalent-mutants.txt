@@ -951,10 +951,10 @@ src/shared/db/attendees/select.ts:383:26  ?? → ||   # query.join: AttendeeJoin
 # placeholder-free message (locked by the "fast path renders every
 # placeholder-free message exactly as full ICU would" test), so a mutant that
 # makes needsIcu always-true is a pure performance change with no observable effect.
-src/shared/i18n.ts:234:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
-src/shared/i18n.ts:234:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
-src/shared/i18n.ts:177:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts:316:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts:237:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
+src/shared/i18n.ts:237:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
+src/shared/i18n.ts:180:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts:319:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # listing edit panel (features/admin/listing-page-management-panels.ts) — group-id fallback.
 src/features/admin/listing-page-management-panels.ts:46:39  ?? → ||   # `selectedGroupIds ?? ctxData.selectedGroupIds`: selectedGroupIds is number[]|undefined — a submitted array (even []) is always truthy, so both operators return it unchanged, and undefined maps to the stored ids under both. No input distinguishes them (same class as attributes.tsx:151:61)

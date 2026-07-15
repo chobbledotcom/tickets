@@ -61,7 +61,8 @@ export const addMessageGroup = (
   group: MessageGroup,
   extra: Messages,
 ): void => {
-  for (const [key, message] of Object.entries(extra)) {
+  const entries = Object.entries(extra);
+  for (const [key, message] of entries) {
     if (typeof message !== "string") {
       throw new TypeError(`en/${group} message "${key}" is not a string`);
     }
@@ -71,6 +72,8 @@ export const addMessageGroup = (
         `Message key "${key}" belongs to both en/${owner} and en/${group}`,
       );
     }
+  }
+  for (const [key, message] of entries) {
     messages.set(key, message);
     owners.set(key, group);
   }

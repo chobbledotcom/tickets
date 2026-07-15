@@ -29,6 +29,7 @@ const withCommonLoader = (
   });
 
 const duplicateMessageLoader = async (): Promise<Record<string, string>> => ({
+  "common.before_duplicate": "Must not remain",
   "public.not_found.title": "Duplicate",
 });
 
@@ -111,6 +112,15 @@ describe("lazy message groups", () => {
     withCommonLoader(duplicateMessageLoader, () =>
       expectDuplicateMessageError(() => ensureMessageGroups(["common"])),
     ));
+
+  test("keeps no messages from a rejected catalog", () =>
+    withCommonLoader(duplicateMessageLoader, async () => {
+      await expectDuplicateMessageError(() => ensureMessageGroups(["common"]));
+
+      expect(() => t("common.before_duplicate")).toThrow(
+        'Missing translation for key "common.before_duplicate"',
+      );
+    }));
 
   test("catalog-wide loading rejects a message key owned by two groups", () =>
     withCommonLoader(duplicateMessageLoader, () =>
