@@ -70,7 +70,7 @@ const canonicalPricePayload = (
       (entry): entry is [string, string] =>
         !!entry[1] && !UNSIGNED_KEYS.has(entry[0]),
     )
-    .sort(([left], [right]) => left.localeCompare(right));
+    .sort(([left], [right]) => (left < right ? -1 : 1));
   return JSON.stringify([PRICE_SIG_VERSION, total, entries]);
 };
 

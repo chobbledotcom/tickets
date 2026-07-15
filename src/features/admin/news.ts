@@ -14,16 +14,13 @@ import {
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
 import { SITE_FORM, SITE_MULTIPART, sitePage } from "#routes/auth.ts";
-import { errorRedirect } from "#routes/response.ts";
 import { authedFormConfig, createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
-  computeNewsSlugIndex,
   createNewsPost,
   deleteNewsPostWithImages,
   getNewsPostById,
   getNewsPostSummaries,
-  isNewsSlugTaken,
   type NewsPostWriteInput,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
@@ -39,7 +36,8 @@ import { createItemImageHandlers } from "./item-images.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
 import { newsPage } from "./news-page.ts";
 import {
-  savedContentResponse,
+  contentWriteOrError,
+  saveContent,
   siteConfirmAuth,
   siteContentPaths,
   siteListPage,
@@ -83,14 +81,15 @@ const editPostForm = authedFormConfig(
 );
 const handleCreate = createAuthedFormRoute({
   ...createPostForm,
-  onValid: async ({ values }) => {
-    const post = await createNewsPost(newsContentInput(values));
-    return savedContentResponse(
-      paths.edit(post.id),
-      `News post '${post.name}' created`,
-      t("news.created"),
-    );
-  },
+  onValid: async ({ values }) =>
+    saveContent(
+      (transaction) => createNewsPost(newsContentInput(values), transaction),
+      (post) => ({
+        flashMessage: t("news.created"),
+        logMessage: `News post '${post.name}' created`,
+        path: paths.edit(post.id),
+      }),
+    ),
 });
 const handleUpdate = createAuthedFormRoute({
   ...editPostForm,
@@ -98,18 +97,22 @@ const handleUpdate = createAuthedFormRoute({
     const editPath = paths.edit(post.id);
     // The form validator already checked the normalized slug's format.
     const slug = normalizeSlug(values.slug);
-    if (await isNewsSlugTaken(slug, post.id)) {
-      return errorRedirect(editPath, t("news.error.slug_taken"));
-    }
-    await updateNewsPost(post.id, {
-      ...newsContentInput(values),
-      slug,
-      slugIndex: await computeNewsSlugIndex(slug),
-    });
-    return savedContentResponse(
-      editPath,
-      `News post '${values.name}' updated`,
-      t("news.updated"),
+    return saveContent(
+      async (transaction) =>
+        contentWriteOrError(
+          await updateNewsPost(
+            post.id,
+            { ...newsContentInput(values), slug },
+            transaction,
+          ),
+          editPath,
+          t("news.error.slug_taken"),
+        ),
+      () => ({
+        flashMessage: t("news.updated"),
+        logMessage: `News post '${values.name}' updated`,
+        path: editPath,
+      }),
     );
   },
 });

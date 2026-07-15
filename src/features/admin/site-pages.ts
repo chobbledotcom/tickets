@@ -47,7 +47,6 @@ import {
 import {
   createSitePage,
   getSitePageById,
-  isSitePageSlugTaken,
   type SitePageWriteInput,
   swapSitePageOrder,
   updateSitePage,
@@ -76,7 +75,8 @@ import {
 import { seoContentInput } from "./content-form-fields.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import {
-  savedContentResponse,
+  contentWriteOrError,
+  saveContent,
   siteConfirmAuth,
   siteContentPaths,
   siteListPage,
@@ -104,23 +104,29 @@ const contentFields = (
   slug,
 });
 
-/** Check a validated slug against reserved words and all public content. */
-const availableSlugOrError = async (
+/** Normalize a validated slug and reject reserved public paths. The write itself
+ * checks ownership atomically across listings, groups, and pages. */
+const availableSlugOrError = (
   value: string,
   errorPath: string,
-  excludeId?: number,
-): Promise<string | Response> => {
+): string | Response => {
   // The slug field's own validator already ran `validateSlug(normalizeSlug())`
-  // (so the format is known-good here); re-normalise for the reserved/uniqueness
-  // checks and storage.
+  // (so the format is known-good here); re-normalise for the reserved check and
+  // storage.
   const slug = normalizeSlug(value);
   if (isReservedSlug(slug)) {
     return errorRedirect(errorPath, t("site.pages.error.reserved"));
   }
-  if (await isSitePageSlugTaken(slug, excludeId)) {
-    return errorRedirect(errorPath, t("site.pages.error.slug_taken"));
-  }
   return slug;
+};
+
+const withPageSlug = (
+  value: string,
+  errorPath: string,
+  save: (slug: string) => Promise<Response>,
+): Promise<Response> => {
+  const slug = availableSlugOrError(value, errorPath);
+  return slug instanceof Response ? Promise.resolve(slug) : save(slug);
 };
 
 // ─── Page CRUD ──────────────────────────────────────────────────
@@ -150,28 +156,50 @@ const editPageForm = authedFormConfig(
 );
 const handleCreate = createAuthedFormRoute({
   ...createPageForm,
-  onValid: async ({ values }) => {
-    const slug = await availableSlugOrError(values.slug, paths.newPage);
-    if (slug instanceof Response) return slug;
-    const page = await createSitePage(contentFields(values, slug));
-    return savedContentResponse(
-      editPath(page.id),
-      `Page '${values.name}' created`,
-      t("site.pages.created"),
-    );
-  },
+  onValid: ({ values }) =>
+    withPageSlug(values.slug, paths.newPage, (slug) =>
+      saveContent(
+        async (transaction) => {
+          const result = await createSitePage(
+            contentFields(values, slug),
+            transaction,
+          );
+          return contentWriteOrError(
+            result,
+            paths.newPage,
+            t("site.pages.error.slug_taken"),
+          );
+        },
+        (page) => ({
+          flashMessage: t("site.pages.created"),
+          logMessage: `Page '${values.name}' created`,
+          path: editPath(page.id),
+        }),
+      ),
+    ),
 });
 const handleUpdate = createAuthedFormRoute({
   ...editPageForm,
   onValid: async ({ context: page, values }) => {
     const path = editPath(page.id);
-    const slug = await availableSlugOrError(values.slug, path, page.id);
-    if (slug instanceof Response) return slug;
-    await updateSitePage(page.id, contentFields(values, slug));
-    return savedContentResponse(
-      path,
-      `Page '${values.name}' updated`,
-      t("site.pages.updated"),
+    return withPageSlug(values.slug, path, (slug) =>
+      saveContent(
+        async (transaction) =>
+          contentWriteOrError(
+            await updateSitePage(
+              page.id,
+              contentFields(values, slug),
+              transaction,
+            ),
+            path,
+            t("site.pages.error.slug_taken"),
+          ),
+        () => ({
+          flashMessage: t("site.pages.updated"),
+          logMessage: `Page '${values.name}' updated`,
+          path,
+        }),
+      ),
     );
   },
 });
@@ -260,14 +288,19 @@ const handleAddItem = pageFormHandler(async (page, _session, form) => {
   // the same friendly "can't be added" (addPageItem isn't called when the target
   // is already ineligible).
   const eligible = await isEligibleTarget(page.id, type, itemId);
-  const added = eligible && (await addPageItem(page.id, type, itemId));
-  if (!added) {
+  if (!eligible) {
     return errorRedirect(itemsPath(page.id), t("site.pages.error.ineligible"));
   }
-  return savedContentResponse(
-    itemsPath(page.id),
-    `Item added to page '${page.name}'`,
-    t("site.pages.item_added"),
+  return saveContent(
+    async (transaction) =>
+      (await addPageItem(page.id, type, itemId, transaction))
+        ? page
+        : errorRedirect(itemsPath(page.id), t("site.pages.error.ineligible")),
+    () => ({
+      flashMessage: t("site.pages.item_added"),
+      logMessage: `Item added to page '${page.name}'`,
+      path: itemsPath(page.id),
+    }),
   );
 });
 
@@ -281,14 +314,19 @@ const pageItemHandler = createEntityHandler<ItemRouteParams, PageItem>(
   },
 )(formGuard(SITE_FORM));
 
-const handleRemoveItem = pageItemHandler(async ({ page, ref }) => {
-  await removePageItem(page.id, ref.type, ref.id);
-  return savedContentResponse(
-    itemsPath(page.id),
-    `Item removed from page '${page.name}'`,
-    t("site.pages.item_removed"),
-  );
-});
+const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
+  saveContent(
+    async (transaction) => {
+      await removePageItem(page.id, ref.type, ref.id, transaction);
+      return page;
+    },
+    () => ({
+      flashMessage: t("site.pages.item_removed"),
+      logMessage: `Item removed from page '${page.name}'`,
+      path: itemsPath(page.id),
+    }),
+  ),
+);
 
 const moveItem = (dir: "up" | "down") =>
   createAuthedHandler<ItemRouteParams>({

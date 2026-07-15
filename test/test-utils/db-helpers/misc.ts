@@ -79,13 +79,15 @@ export const createTestSitePage = async (
   extra: Partial<Omit<SitePageWriteInput, "slug">> = {},
 ): Promise<SitePage> => {
   const { createSitePage } = await import("#shared/db/site-pages.ts");
-  return createSitePage({
+  const result = await createSitePage({
     content: extra.content ?? "",
     metaDescription: extra.metaDescription ?? "",
     metaTitle: extra.metaTitle ?? "",
     name: extra.name ?? `Page ${slug}`,
     slug,
   });
+  if (!result.ok) throw new Error(`site page slug is already used: ${slug}`);
+  return result.value;
 };
 
 /** Create a news post directly at the DB layer (the admin create flow has its

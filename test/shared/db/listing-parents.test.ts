@@ -222,7 +222,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
         return getQueryLog().map((entry) => entry.sql);
       });
       expect(
-        queries.some((sql) => sql.includes("FROM listings AS listing")),
+        queries.some((sql) => /\b(?:from|join)\s+listings\b/i.test(sql)),
       ).toBe(false);
     });
   });

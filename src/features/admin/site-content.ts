@@ -7,9 +7,11 @@
 /* jscpd:ignore-start */
 import type { FormGuard } from "#routes/admin/confirmation.ts";
 import { requireSiteOr, SITE_FORM, sitePage, withAuth } from "#routes/auth.ts";
-import { redirect } from "#routes/response.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { type TxScope, withTransaction } from "#shared/db/client.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
+import type { Result } from "#shared/result.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -44,12 +46,40 @@ export const siteConfirmAuth: {
   withForm: (r, h) => withAuth(r, SITE_FORM, h),
 };
 
-/** Save completion: record the activity and flash back to `path`. */
-export const savedContentResponse = async (
-  path: string,
-  logMessage: string,
-  flashMessage: string,
-): Promise<Response> => {
-  await logActivity(logMessage);
-  return redirect(path, flashMessage, true);
+type SavedContent = {
+  flashMessage: string;
+  logMessage: string;
+  path: string;
 };
+
+/** Write content and its activity row in one transaction. The callback may
+ * reject before writing by returning a validation response; no activity is then
+ * logged. */
+export const saveContent = async <T>(
+  write: (transaction: TxScope) => Promise<T | Response>,
+  complete: (value: T) => SavedContent,
+): Promise<Response> => {
+  const saved = await withTransaction(async (transaction) => {
+    const value = await write(transaction);
+    if (value instanceof Response) return value;
+    const completion = complete(value);
+    await logActivity(completion.logMessage, undefined, undefined, transaction);
+    return completion;
+  });
+  return saved instanceof Response
+    ? saved
+    : redirect(saved.path, saved.flashMessage, true);
+};
+
+/** Turn a conditional content write into its saved value or the standard form
+ * response for the reason it did not write. */
+export const contentWriteOrError = <T>(
+  result: Result<T, "notFound" | "slugTaken">,
+  path: string,
+  slugError: string,
+): T | Response =>
+  result.ok
+    ? result.value
+    : result.error === "notFound"
+      ? notFoundResponse()
+      : errorRedirect(path, slugError);

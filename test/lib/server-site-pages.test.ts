@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { addPageItem, getItemsForPage } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
-  createSitePage,
   getSitePageById,
   getSitePageBySlugIndex,
   sitePages,
@@ -21,6 +21,8 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const BASE = "/admin/site/pages";
@@ -105,6 +107,21 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(await wasLogged("Page 'Name about' created")).toBe(true);
     });
 
+    test("rolls back the page when activity logging fails", async () => {
+      await getDb().execute(`
+        CREATE TRIGGER fail_page_activity_log
+        BEFORE INSERT ON activity_log
+        BEGIN
+          SELECT RAISE(ABORT, 'activity log write failed');
+        END
+      `);
+
+      const response = await withExpectedError(() => create("not-committed"));
+
+      expect(response.status).toBe(503);
+      expect((await sitePages.getAll()).length).toBe(0);
+    });
+
     test("rejects a missing slug", async () => {
       const { response } = await adminFormPost(BASE, { name: "No Slug" });
       expectRedirect(response);
@@ -120,7 +137,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
     test("rejects a duplicate slug", async () => {
       await create("dup");
       const response = await create("dup");
-      expectRedirect(response);
+      expectErrorFlash(response, "already in use by a listing, group, or page");
       expect(
         (await sitePages.getAll()).filter((r) => r.slug === "dup").length,
       ).toBe(1);
@@ -239,7 +256,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         name: "B",
         slug: "keep-a",
       });
-      expectRedirect(response);
+      expectErrorFlash(response, "already in use by a listing, group, or page");
       expect((await getSitePageById(b.id))?.slug).toBe("keep-b");
     });
 
@@ -406,13 +423,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await seedPage("spare");
       // A real sub-page whose name is empty: its label stays "" (?? keeps the
       // empty string) rather than falling back to the "(missing)" placeholder.
-      const blank = await createSitePage({
-        content: "",
-        metaDescription: "",
-        metaTitle: "",
-        name: "",
-        slug: "blank-page",
-      });
+      const blank = await createTestSitePage("blank-page", { name: "" });
       await addPageItem(page.id, "listing", listing.id);
       await addPageItem(page.id, "group", group.id);
       await addPageItem(page.id, "page", child.id);

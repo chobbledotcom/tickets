@@ -10,6 +10,7 @@ import {
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import {
   singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
@@ -53,6 +54,18 @@ describe("detail-rows", () => {
       ];
       expect(String(DetailTable({ rows }))).toBe(
         '<div class="table-scroll"><table class="listing-details-table"><tbody><tr><th>A</th><td>1</td></tr><tr><th>B</th><td>2</td></tr></tbody></table></div>',
+      );
+    });
+
+    test("renders custom children before mapped rows", () => {
+      const rows: DetailRow[] = [{ key: "Shared", value: "Second" }];
+      const children = LabelledRow({
+        children: "First",
+        label: "Custom",
+      });
+
+      expect(String(DetailTable({ children, rows }))).toBe(
+        '<div class="table-scroll"><table class="listing-details-table"><tbody><tr><th>Custom</th><td>First</td></tr><tr><th>Shared</th><td>Second</td></tr></tbody></table></div>',
       );
     });
   });
@@ -290,6 +303,17 @@ describe("detail-rows", () => {
         revenue: 0,
       });
       expect(rows.find((r) => r.key === "Total Revenue")?.value).toBe("£0");
+    });
+
+    test("keeps authoritative revenue for an unpaid listing", () => {
+      const rows = buildSharedDetailRows({
+        attendeeCount: 1,
+        attendees: [testAttendee({ price_paid: "1000" })],
+        hasPaidListing: false,
+        maxCapacity: 0,
+        revenue: 2500,
+      });
+      expect(rows.find((r) => r.key === "Total Revenue")?.value).toBe("£25");
     });
 
     test("excludes revenue row when hasPaidListing is false", () => {

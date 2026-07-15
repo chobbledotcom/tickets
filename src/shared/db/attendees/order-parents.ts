@@ -27,6 +27,7 @@
  * remainder row, so no unit — or its price — is ever dropped.
  */
 
+import { reduce } from "#fp";
 import type {
   ChildAllocation,
   ListingBooking,
@@ -40,14 +41,14 @@ const inOrderParentByChild = async (
 ): Promise<Map<number, number>> => {
   const parentsByChild = await listingParents.getIdsByKeys(listingIds);
   const bookedInOrder = new Set(listingIds);
-  const result = new Map<number, number>();
-  for (const [childId, parentIds] of parentsByChild) {
+  return reduce((result, [childId, parentIds]: [number, number[]]) => {
     const inOrderParent = parentIds.find((parentId) =>
       bookedInOrder.has(parentId),
     );
-    if (inOrderParent !== undefined) result.set(childId, inOrderParent);
-  }
-  return result;
+    return inOrderParent === undefined
+      ? result
+      : result.set(childId, inOrderParent);
+  }, new Map<number, number>())([...parentsByChild]);
 };
 
 /**
@@ -125,8 +126,9 @@ const expandBooking = <T extends ListingBooking>(
   orderToken: string,
 ): T[] => {
   if (!childAllocs) return [{ ...booking, orderToken }] as T[];
-  const totalQty = booking.quantity ?? 1;
   const allocatedQty = childAllocs.reduce((sum, a) => sum + a.qty, 0);
+  const totalQty =
+    booking.quantity === undefined ? allocatedQty : booking.quantity;
   const remainderQty = totalQty - allocatedQty;
   const rows: { parentId?: number; qty: number }[] = [
     ...childAllocs.map((a) => ({ parentId: a.parentId, qty: a.qty })),
@@ -169,12 +171,7 @@ export const expandChildAllocations = <T extends ListingBooking>(
   allocations: ChildAllocation[],
 ): T[] => {
   const orderToken = crypto.randomUUID();
-  const allocByChild = new Map<number, { parentId: number; qty: number }[]>();
-  for (const alloc of allocations) {
-    const list = allocByChild.get(alloc.childId) ?? [];
-    list.push({ parentId: alloc.parentId, qty: alloc.qty });
-    allocByChild.set(alloc.childId, list);
-  }
+  const allocByChild = Map.groupBy(allocations, ({ childId }) => childId);
   return bookings.flatMap((booking) =>
     expandBooking(booking, allocByChild.get(booking.listingId), orderToken),
   );

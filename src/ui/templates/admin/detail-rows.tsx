@@ -166,6 +166,7 @@ export type SharedDetailInput = {
   attendees: Attendee[];
   attendeeCount: number;
   maxCapacity: number;
+  /** Calculate attendee revenue when no authoritative total is supplied. */
   hasPaidListing: boolean;
   questionData?: TableQuestionData | undefined;
   labelSuffix?: string;
@@ -202,12 +203,12 @@ const buildRevenueRow = (revenue: number): DetailRow => ({
 });
 
 /** The stat rows shared by the attendee-derived and SQL-derived detail tables:
- *  check-in progress, the (paid-only) revenue total, and the answer summary. The
+ *  check-in progress, an optional revenue total, and the answer summary. The
  *  attendee-count row is prepended separately by {@link buildSharedDetailRows},
  *  since a stat-only caller renders its own count. */
 export type StatDetailInput = {
   checkedInStats: CheckedInStats;
-  /** Received revenue in minor units. Omit this row for a free listing. */
+  /** Received revenue in minor units. Omit this row when no total applies. */
   revenue?: number | undefined;
   questionData?: TableQuestionData | undefined;
   labelSuffix: string;
@@ -243,12 +244,10 @@ export const buildSharedDetailRows = ({
     : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
   ...buildStatDetailRows({
     checkedInStats: getCheckedInStats(attendees),
-    // Compute the attendee-summed revenue only for a paid listing (it is the
-    // only case the row renders.
-    ...(hasPaidListing
-      ? { revenue: revenue ?? calculateTotalRevenue(attendees) }
-      : {}),
     labelSuffix,
     questionData,
+    revenue:
+      revenue ??
+      (hasPaidListing ? calculateTotalRevenue(attendees) : undefined),
   }),
 ];

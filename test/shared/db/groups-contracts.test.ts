@@ -39,12 +39,11 @@ const insertMinimalGroup = async (name: string) => {
 describeWithEnv("db > group storage contracts", { db: true }, () => {
   test("omitted group flags default to false", async () => {
     const inserted = await insertMinimalGroup("Default Flags");
-    const group = await groups.table.findById(inserted.id);
-    if (!group) throw new Error("Stored group missing");
-
-    expect(group.hidden).toBe(false);
-    expect(group.hide_package_listings).toBe(false);
-    expect(group.is_package).toBe(false);
+    expect(await groups.table.findById(inserted.id)).toMatchObject({
+      hidden: false,
+      hide_package_listings: false,
+      is_package: false,
+    });
   });
 
   test("a group write refreshes an already-read group cache", async () => {

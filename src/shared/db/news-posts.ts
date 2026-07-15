@@ -19,7 +19,9 @@ import {
   executeBatch,
   queryAll,
   queryOne,
-  rowExists,
+  resultRows,
+  type TxScope,
+  useTransaction,
 } from "#shared/db/client.ts";
 // jscpd:ignore-end
 import {
@@ -34,11 +36,16 @@ import {
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
 import { decryptNameSlug } from "#shared/db/query.ts";
+import {
+  unclaimedSlugCondition,
+  updateRowWithUnclaimedSlug,
+} from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
 import { col } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
+import type { Result } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import type {
   ItemImageProjection,
@@ -78,28 +85,22 @@ export type NewsPostWriteInput = Required<
 export const computeNewsSlugIndex = (slug: string): Promise<BlindIndex> =>
   hmacHash(slug);
 
+const unclaimedNewsSlugCondition = (
+  slugIndex: BlindIndex,
+  excludeId?: number,
+) =>
+  unclaimedSlugCondition(slugIndex, [
+    {
+      ...(excludeId === undefined ? {} : { excludeId }),
+      table: "news_posts",
+    },
+  ]);
+
 /** The permalink base for a post: its created date (yyyy-MM-dd) and name,
  * sluggified — e.g. `2026-07-06-big-launch`. Two same-day posts with the same
  * name get a `-2`, `-3`, … suffix from {@link uniqueSlugFromBase}. */
 export const newsSlugBase = (created: string, name: string): string =>
   slugify(`${created.slice(0, 10)}-${name}`);
-
-/** Is this exact slug already used by a news post (other than `excludeId`, when
- * given — an edit checks uniqueness against the OTHER posts)? News slugs live
- * under the `/news/` prefix, a namespace of their own, so uniqueness is scoped
- * to news_posts (not the shared listing/group/page slug registry). */
-export const isNewsSlugTaken = async (
-  slug: string,
-  excludeId?: number,
-): Promise<boolean> => {
-  const slugIndex = await computeNewsSlugIndex(slug);
-  const excludeClause = excludeId === undefined ? "" : " AND id != ?";
-  const args = excludeId === undefined ? [slugIndex] : [slugIndex, excludeId];
-  return rowExists(
-    `SELECT 1 FROM news_posts WHERE slug_index = ?${excludeClause} LIMIT 1`,
-    args,
-  );
-};
 
 // The existence probe every public page's nav runs: one indexed LIMIT 1 read,
 // nothing decrypted. Request-scoped and auto-cleared on any news_posts write.
@@ -211,24 +212,67 @@ export const getNewsPostBySlugIndex = async (
  * and the name (unique within news_posts). */
 export const createNewsPost = async (
   input: NewsPostWriteInput & { created?: string },
+  transaction?: TxScope,
 ): Promise<NewsPost> => {
   const created = input.created ?? nowIso();
-  const { slug, slugIndex } = await uniqueSlugFromBase({
-    base: newsSlugBase(created, input.name),
-    computeIndex: computeNewsSlugIndex,
-    isTaken: isNewsSlugTaken,
+  return useTransaction(transaction, async (tx) => {
+    const { slug, slugIndex } = await uniqueSlugFromBase({
+      base: newsSlugBase(created, input.name),
+      computeIndex: computeNewsSlugIndex,
+      isTaken: async (slug) => {
+        const condition = unclaimedNewsSlugCondition(
+          await computeNewsSlugIndex(slug),
+        );
+        return (
+          resultRows(
+            await tx.execute({
+              args: condition.args,
+              sql: `SELECT 1 WHERE NOT (${condition.sql})`,
+            }),
+          ).length > 0
+        );
+      },
+    });
+    const result = await tx.execute(
+      await newsPostsTable.insertStatement!({
+        ...input,
+        created,
+        slug,
+        slugIndex,
+      }),
+    );
+    return {
+      content: input.content,
+      created,
+      id: Number(result.lastInsertRowid),
+      meta_description: input.metaDescription,
+      meta_title: input.metaTitle,
+      name: input.name,
+      slug,
+      slug_index: slugIndex,
+      snippet: input.snippet,
+    };
   });
-  return newsPostsTable.insert({ ...input, created, slug, slugIndex });
 };
 
 /** Update a post's editable fields — every field, every time (the edit form
- * posts them all), including the (now editable) slug and its blind index.
- * `created` never changes. The caller normalises the slug and checks its
- * cross-post uniqueness (via {@link isNewsSlugTaken}) before calling. */
-export const updateNewsPost = (
+ * posts them all), including the (now editable) slug. `created` never changes.
+ * The blind index is computed here and its uniqueness condition is part of the
+ * UPDATE statement, so a concurrent rename returns `slugTaken`. */
+export const updateNewsPost = async (
   id: number,
-  input: NewsPostWriteInput & { slug: string; slugIndex: BlindIndex },
-): Promise<NewsPost | null> => newsPostsTable.update(id, input);
+  input: NewsPostWriteInput & { slug: string },
+  transaction?: TxScope,
+): Promise<Result<NewsPost, "notFound" | "slugTaken">> => {
+  const slugIndex = await computeNewsSlugIndex(input.slug);
+  return updateRowWithUnclaimedSlug(
+    newsPostsTable,
+    id,
+    { ...input, slugIndex },
+    unclaimedNewsSlugCondition(slugIndex, id),
+    transaction,
+  );
+};
 
 /** Delete a post and its image links in one batch (images themselves stay in
  * the library — only the uses are pruned, as with listing/group deletion). */

@@ -14,6 +14,7 @@ import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
 import { createSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -253,39 +254,48 @@ describeWithEnv("db > auth", { db: true }, () => {
     });
 
     test("clearLoginAttempts clears attempts", async () => {
-      await loginLimiter.record("192.168.1.5");
-      await loginLimiter.record("192.168.1.5");
+      const ip = "192.168.1.5";
+      for (let attempt = 0; attempt < MAX_LOGIN_ATTEMPTS; attempt++) {
+        await loginLimiter.record(ip);
+      }
+      expect(await loginLimiter.isLimited(ip)).toBe(true);
 
-      await clearLoginAttempts("192.168.1.5");
+      await clearLoginAttempts(ip);
 
-      const limited = await loginLimiter.isLimited("192.168.1.5");
-      expect(limited).toBe(false);
+      expect(await loginLimiter.isLimited(ip)).toBe(false);
     });
 
     test("login limiter clears expired lockout", async () => {
+      const ip = "192.168.1.6";
+      const ipHash = await hmacHash(ip);
       await getDb().execute(
         insert("login_attempts", {
-          attempts: 5,
-          ip: "192.168.1.6",
+          attempts: MAX_LOGIN_ATTEMPTS,
+          ip: ipHash,
           locked_until: Date.now() - 1000,
         }),
       );
 
-      const limited = await loginLimiter.isLimited("192.168.1.6");
-      expect(limited).toBe(false);
+      expect(await loginLimiter.isLimited(ip)).toBe(false);
+      const row = await getDb().execute({
+        args: [ipHash],
+        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
+      });
+      expect(row.rows).toEqual([]);
     });
 
     test("login limiter returns false for attempts below max without lockout", async () => {
+      const ip = "192.168.1.7";
       await getDb().execute(
         insert("login_attempts", {
-          attempts: 3,
-          ip: "192.168.1.7",
+          attempts: MAX_LOGIN_ATTEMPTS - 1,
+          ip: await hmacHash(ip),
           locked_until: null,
         }),
       );
 
-      const limited = await loginLimiter.isLimited("192.168.1.7");
-      expect(limited).toBe(false);
+      expect(await loginLimiter.isLimited(ip)).toBe(false);
+      expect(await loginLimiter.record(ip)).toBe(true);
     });
 
     test("login limiter resets expired lockout and returns false", async () => {
