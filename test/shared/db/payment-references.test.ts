@@ -10,14 +10,12 @@ import {
   legacyMergePaymentReferenceStatement,
   markPaymentReferencesProviderRefunded,
 } from "#shared/db/payment-references.ts";
-import {
-  finalizeSession as finalizePaymentSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > payment references", { db: true }, () => {
   test("encrypts non-empty references and leaves empty references empty", async () => {
@@ -47,10 +45,8 @@ describeWithEnv("db > payment references", { db: true }, () => {
     const firstId = first.attendees[0]!.id;
     const secondId = second.attendees[0]!.id;
 
-    await reserveSession("sess_refs_a");
-    await finalizePaymentSession("sess_refs_a", firstId, [], "pi_recorded");
-    await reserveSession("sess_refs_b");
-    await finalizePaymentSession("sess_refs_b", firstId, [], "pi_recorded");
+    await finalizeProcessedPayment("sess_refs_a", firstId, "", "pi_recorded");
+    await finalizeProcessedPayment("sess_refs_b", firstId, "", "pi_recorded");
 
     const references = await getRefundPaymentReferences(
       [
@@ -88,11 +84,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
 
-    await reserveSession("sess_refs_duplicate");
-    await finalizePaymentSession(
+    await finalizeProcessedPayment(
       "sess_refs_duplicate",
       attendeeId,
-      [],
+      "",
       "pi_duplicate",
     );
 
@@ -191,11 +186,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
     });
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
-    await reserveSession("sess_returned");
-    await finalizePaymentSession(
+    await finalizeProcessedPayment(
       "sess_returned",
       attendeeId,
-      [],
+      "",
       "pi_returned",
     );
 
@@ -230,8 +224,12 @@ describeWithEnv("db > payment references", { db: true }, () => {
     });
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
-    await reserveSession("sess_has_ref");
-    await finalizePaymentSession("sess_has_ref", attendeeId, [], "pi_has_ref");
+    await finalizeProcessedPayment(
+      "sess_has_ref",
+      attendeeId,
+      "",
+      "pi_has_ref",
+    );
 
     // An attendee with empty payment_id AND a processed_payments row still
     // surfaces via the processed-payments lookup, since that path doesn't
@@ -254,10 +252,18 @@ describeWithEnv("db > payment references", { db: true }, () => {
     });
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
-    await reserveSession("sess_shared_a");
-    await finalizePaymentSession("sess_shared_a", attendeeId, [], "pi_shared");
-    await reserveSession("sess_shared_b");
-    await finalizePaymentSession("sess_shared_b", attendeeId, [], "pi_shared");
+    await finalizeProcessedPayment(
+      "sess_shared_a",
+      attendeeId,
+      "",
+      "pi_shared",
+    );
+    await finalizeProcessedPayment(
+      "sess_shared_b",
+      attendeeId,
+      "",
+      "pi_shared",
+    );
 
     const references = await getRefundPaymentReferences(
       [{ id: attendeeId, payment_id: "" }],
@@ -281,18 +287,16 @@ describeWithEnv("db > payment references", { db: true }, () => {
     });
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
-    await reserveSession("sess_refunded_a");
-    await finalizePaymentSession(
+    await finalizeProcessedPayment(
       "sess_refunded_a",
       attendeeId,
-      [],
+      "",
       "pi_shared_refunded",
     );
-    await reserveSession("sess_refunded_b");
-    await finalizePaymentSession(
+    await finalizeProcessedPayment(
       "sess_refunded_b",
       attendeeId,
-      [],
+      "",
       "pi_shared_refunded",
     );
     await markPaymentReferencesProviderRefunded([

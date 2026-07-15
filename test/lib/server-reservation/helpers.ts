@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import {
   attendeeStatuses,
   getPublicDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -11,7 +13,10 @@ import { settings } from "#shared/db/settings.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
-import { modifierUsageCount } from "#test-utils/modifiers.ts";
+import {
+  insertModifierUsage,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
@@ -78,11 +83,8 @@ export const attendeeCount = async (): Promise<number> => {
   return Number(rows[0]!.c);
 };
 
-/** Create a listing plus a one-unit, stock-limited discount modifier whose unit
- * is consumed by a concurrent order — simulated with an AFTER INSERT trigger on
- * attendees — so the checkout's own consumeModifierStock loses the race and
- * rolls the just-created attendee back. The discount zeroes the total, routing
- * the order through the free path. `fields` selects an email or phone listing. */
+/** Create a listing plus a one-unit discount whose stock is consumed immediately
+ * before the real atomic create, after pricing has already completed. */
 export const setupSoldOutModifierRace = async (
   fields: "email" | "phone" = "email",
 ) => {
@@ -99,23 +101,12 @@ export const setupSoldOutModifierRace = async (
     name: "Comp",
     stock: 1,
   });
-  // Simulate the race: a *different*, concurrent order consumes the modifier's
-  // last unit between pricing and our commit. Its usage lands on that other
-  // order's attendee (a sentinel id, never ours), so it stands after our order
-  // rolls back — exactly as a real competing booking's stock would. Firing on our
-  // attendee INSERT (just before the booking insert in the batch) is only the
-  // hook for "stock gone by commit time"; it must not attach to NEW.id, or it
-  // would look like our own consumption.
-  await getDb().execute(
-    `CREATE TRIGGER test_consume_modifier_before_order
-     AFTER INSERT ON attendees
-     BEGIN
-       INSERT INTO modifier_usages
-         (modifier_id, attendee_id, quantity, amount_applied, created)
-       VALUES (${modifier.id}, 999999, 1, 1000, '2024-01-01T00:00:00Z');
-     END`,
-  );
-  return { listing, modifier };
+  const createBooking = attendeesApi.createBookingAtomic;
+  const race = stub(attendeesApi, "createBookingAtomic", async (...args) => {
+    await insertModifierUsage(modifier.id, 999999, 1, 1000);
+    return createBooking(...args);
+  });
+  return { listing, modifier, race };
 };
 
 /** Total recorded contact activity across every contact. Zero means a

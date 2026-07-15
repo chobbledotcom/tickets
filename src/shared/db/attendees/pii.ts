@@ -160,11 +160,11 @@ export const contactFields = ({
 /** Encrypt attendee fields into a PII blob, returning null if key not configured */
 export const encryptAttendeeFields = async (
   input: EncryptInput,
+  ticketToken = generateTicketToken(),
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = settings.publicKey;
   if (!publicKeyJwk) return null;
 
-  const ticketToken = generateTicketToken();
   // Bookings never carry a pinned location — lat/lng are admin-side only.
   const piiJson = buildPiiBlob({
     ...contactFields(input),

@@ -5,14 +5,12 @@ import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
-import {
-  finalizeSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import {
   createAttendee,
   getBookings,
@@ -57,10 +55,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   test("repoints the source's provider payment references onto the target", async () => {
     const { source, target } = await createMergePair();
     await reserveSession("source-paid-session");
-    await finalizeSession(
+    await finalizeReservedPayment(
       "source-paid-session",
       source.id,
-      [],
+      "",
       "pi_source_paid",
     );
 

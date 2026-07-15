@@ -138,15 +138,13 @@ describeWithEnv(
       if (!attResult.success) throw new Error("Failed to create attendee");
 
       // Reserve and finalize the session with the real attendee
-      const {
-        reserveSession: reserveSessionFn,
-        finalizeSession: finalizeSessionFn,
-      } = await import("#shared/db/processed-payments.ts");
-      await reserveSessionFn("cs_del_listing_wh");
-      await finalizeSessionFn(
+      const { finalizeProcessedPayment } = await import(
+        "#test-utils/processed-payments.ts"
+      );
+      await finalizeProcessedPayment(
         "cs_del_listing_wh",
         attResult.attendees[0]!.id,
-        ["tok-test"],
+        "tok-test",
         "pi_del_listing_wh",
       );
 

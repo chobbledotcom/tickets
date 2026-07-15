@@ -10,7 +10,6 @@ import {
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
 import {
-  finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
@@ -20,7 +19,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { consumeModifierStock } from "#test-utils/modifiers.ts";
+import { insertModifierUsage } from "#test-utils/modifiers.ts";
+import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -55,10 +55,10 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     );
 
     await reserveSession("sess_attendee_delete");
-    await finalizePaymentSession(
+    await finalizeReservedPayment(
       "sess_attendee_delete",
       attendee.id,
-      ["tok-test"],
+      "tok-test",
       "pi_attendee_delete",
     );
 
@@ -165,10 +165,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       stock: null,
     });
 
-    const consumed = await consumeModifierStock(attendee.id, [
-      { amountApplied: 1500, modifierId: modifier.id, quantity: 3 },
-    ]);
-    expect(consumed).toBe(true);
+    await insertModifierUsage(modifier.id, attendee.id, 3, 1500);
     const before = await queryOne<{ n: number }>(
       "SELECT COUNT(*) AS n FROM modifier_usages WHERE attendee_id = ?",
       [attendee.id],
@@ -186,7 +183,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       new Map([[modifier.id, 3]]),
     );
     // The count aggregates (trigger-maintained) survive the attendee deletion.
-    // total_revenue projects from the ledger, and consumeModifierStock posts no
+    // total_revenue projects from the ledger, and the fixture posts no
     // modifier legs, so it reads 0.
     const reread = (await getAllModifiers()).find((m) => m.id === modifier.id);
     expect(reread).toMatchObject({

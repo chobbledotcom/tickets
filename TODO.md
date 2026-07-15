@@ -334,18 +334,6 @@ recorded here because the split PR was a pure reorganisation — changing this
 behaviour there would be out of scope — and CodeRabbit flagged them as worth a
 look.
 
-- **Refund after a committed booking** (`src/features/api/payment-processing/index.ts`,
-  the `try { honoured = await createAttendeeForSession(...) } catch` in
-  `processReservedSession`). `createAttendeeForSession` commits the attendee +
-  bookings atomically, then runs `ensureAllBookings` (a post-commit read). If
-  that post-write step *threw*, the `catch` would route to `storeRefundedBooking`
-  — refunding a booking that actually persisted. Today `ensureAllBookings`
-  returns a structured `{ ok: false }` rather than throwing on the capacity path,
-  so the window is theoretical, but it isn't guarded structurally. Fix direction:
-  narrow the `try` to the pre-commit call only, or guarantee the post-commit
-  cleanup path is non-throwing, so a persisted booking can never be refunded.
-  Add a regression test that makes the post-commit step throw and asserts no
-  refund is issued.
 - **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
   `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
   `validateAllItems` calls `getListingWithCount` once per item in a loop, and
@@ -1130,3 +1118,36 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
 The `scripts/backup.ts` command and fleet loops in GitHub Actions run outside
 Bunny and are not subject to this per-request limit. Restore replay and catalog
 import already use bounded batches.
+
+---
+
+## Resumable paid-booking completion
+
+*Origin: CodeRabbit review of PR #1833.*
+
+The attendee, booking rows, ledger, modifier use, contact activity, and payment
+finalization commit atomically, but `completePaidBooking` then saves answers,
+logs promo-code use, and calls `logAndNotifyRegistration` after that commit. If
+one of those effects fails, `processed_payments.attendee_id` already marks the
+session as finished. A later webhook or redirect therefore replays success
+without retrying the unfinished work. This gap predates PR #1833, but that PR
+made the boundary easier to see. It deliberately excludes schema changes, so a
+durable completion system is outside that atomic-write-only change.
+
+Build one resumable completion mechanism rather than retrying these calls ad
+hoc. Store the completion input and per-effect state against the payment session
+in the same transaction that finalizes the booking. Claim unfinished effects
+with a stale lease so racing webhook and redirect requests cannot both run them.
+Make each database effect and its completed marker one transaction. Give
+external deliveries a stable idempotency key where the provider supports one,
+and do not prune payment rows with unfinished work. Fresh completion,
+lost-result recovery, processed-payment replay, and ledger replay must all call
+the same resume function.
+
+Starting points: `src/features/api/payment-processing/completion.ts`,
+`src/features/api/payment-processing/index.ts`,
+`src/shared/db/payment-finalize.ts`, `src/shared/db/processed-payments.ts`,
+`src/shared/db/prune.ts`, `src/shared/webhook.ts`, `src/shared/email.ts`, and
+`src/shared/site-assignment.ts`. Tests must interrupt each effect, retry through
+both webhook and redirect paths, and prove answers, activity, messages, site
+assignments, and renewal time are neither lost nor duplicated.

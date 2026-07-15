@@ -2,10 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import {
-  finalizeSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import {
   expectFlashRedirect,
   testRequiresAuth,
@@ -16,6 +13,7 @@ import {
   createTestAttendee,
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
+import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -149,10 +147,10 @@ describeWithEnv(
           1000,
         );
         await reserveSession("balance_paid_delete_guard");
-        await finalizeSession(
+        await finalizeReservedPayment(
           "balance_paid_delete_guard",
           attendee.id,
-          [],
+          "",
           "pi_balance_paid",
         );
 

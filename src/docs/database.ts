@@ -53,8 +53,6 @@ export type { ListingCapacityRow } from "#shared/db/attendees/capacity/types.ts"
 export {
   type BookingBatchPlan,
   buildAttendeeInsert,
-  ensureAllBookings,
-  reverseOrderActivity,
 } from "#shared/db/attendees/create.ts";
 export * from "#shared/db/attendees/delete.ts";
 export * from "#shared/db/attendees/pii.ts";

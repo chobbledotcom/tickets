@@ -31,20 +31,17 @@ import {
   combinedPackageTerms,
   explicitStandaloneIds,
   type PagePackage,
-  soleParentPackageIds,
-  stampChildRowPackages,
 } from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
+import { orderBookings } from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
   ChildAllocation,
-  CreateAttendeeResult,
   LineBooking,
-  ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
@@ -52,8 +49,6 @@ import {
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
 import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity/groups.ts";
-import { ensureAllBookings } from "#shared/db/attendees/create.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   getGroupIdsByListingIds,
   getHiddenPackageMemberIds,
@@ -413,35 +408,18 @@ export const createFreeReservation = async ({
   const listingById = new Map(
     listings.map((info) => [info.listing.id, info.listing]),
   );
-  // One row per checkout line: a listing booked through two paths keeps one
-  // row per path, each carrying its own package and its own charged amount. A
-  // provided paidByItem is built from the same item objects, so it prices
-  // every line.
-  const bookings: ListingBooking[] = items.map((item) => ({
-    listingId: item.listingId,
-    packageGroupId: item.packageGroupId ?? 0,
-    quantity: item.quantity,
-    ...bookingDateFields(listingById.get(item.listingId)!, date, dayCount),
-    ...(paidByItem ? { pricePaid: paidByItem.get(item)! } : {}),
-  }));
-  // Expand summed child bookings into per-parent rows when allocations are
-  // provided (free-path provenance): each allocation becomes its own
-  // listing_attendees row with the real parentListingId, so the DB records
-  // which parent each child unit came from. The slot dedup
-  // (hasDuplicateBookingSlot) permits same-child/different-parent rows because
-  // it keys on (listingId, date, parentListingId, packageGroupId). The
-  // expanded list replaces the summed list for the create call;
-  // ensureAllBookings' count uses the expanded length. Each child row is then
-  // stamped with its parent's package when the parent books through exactly
-  // one path, so a bundle's add-ons group under it.
-  const expanded: ListingBooking[] =
-    allocations && allocations.length > 0
-      ? expandChildAllocations(bookings, allocations)
-      : bookings;
-  const finalBookings = stampChildRowPackages(
-    expanded,
-    soleParentPackageIds(items),
-  );
+  const finalBookings = orderBookings({
+    allocations,
+    date,
+    dayCount,
+    lines: items.map((item) => ({
+      listing: listingById.get(item.listingId)!,
+      listingId: item.listingId,
+      packageGroupId: item.packageGroupId ?? 0,
+      ...(paidByItem ? { pricePaid: paidByItem.get(item)! } : {}),
+      quantity: item.quantity,
+    })),
+  });
   // When there are legs to post or stock to consume, commit the booking, its
   // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
   // does) — never an interactive transaction held open across a read-per-leg. The
@@ -473,8 +451,7 @@ export const createFreeReservation = async ({
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
   }
 
-  const check = await ensureAllBookings(result, finalBookings.length, "public");
-  if (!check.ok) {
+  if (!result.success) {
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it concealed. Omit the name (generic
     // message) for a package; a non-package order keeps its first listing's name.
@@ -482,15 +459,11 @@ export const createFreeReservation = async ({
       ? ""
       : listingById.get(items[0]!.listingId)!.name;
     return {
-      error: formatAtomicError(check.reason, errorName),
+      error: formatAtomicError(result.reason, errorName),
       success: false,
     };
   }
-  // ensureAllBookings's ok check guarantees result.success here.
-  const { attendees } = result as Extract<
-    CreateAttendeeResult,
-    { success: true }
-  >;
+  const { attendees } = result;
 
   const entries: EmailEntry[] = attendees.map((attendee) => ({
     attendee,
