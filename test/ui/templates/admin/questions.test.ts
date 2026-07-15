@@ -15,7 +15,7 @@ import {
   ListingQuestionsPanel,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {
   singleAnswerSizeQuestionData,
   smallLargeAnswers,
@@ -154,7 +154,7 @@ describe("adminQuestionsPage", () => {
   });
 
   test("keeps the list readable without write controls in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
       expect(html).toContain("Favourite colour?");
@@ -297,7 +297,7 @@ describe("adminQuestionPage", () => {
   });
 
   test("keeps question details readable without write controls in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = adminQuestionPage(
         { ...question, assign_all: false },
@@ -325,7 +325,7 @@ describe("adminQuestionPage", () => {
   test("joins multiple assigned listing names with a comma in read-only mode", () => {
     // Read-only shows the assigned listings as plain text; two assigned
     // listings must render comma-separated, not run together into one word.
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = adminQuestionPage(
         { ...question, assign_all: false },

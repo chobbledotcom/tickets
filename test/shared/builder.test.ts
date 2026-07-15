@@ -15,7 +15,7 @@ import {
   withBuildSiteMocks,
 } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 const BUILD_INPUT = {
@@ -401,7 +401,7 @@ describeWithEnv(
       ));
 
     test("buildSite on Deno does not include Bunny DNS secrets in env vars", () => {
-      const restore = setTestEnv({
+      const restore = withEnv({
         BUNNY_API_KEY: "host-bunny-key",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
         BUNNY_DNS_ZONE_ID: "zone-123",

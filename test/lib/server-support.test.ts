@@ -5,7 +5,7 @@ import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   awaitTestRequest,
   installRecordingFetch,
@@ -42,7 +42,7 @@ describeWithEnv(
   () => {
     describe("GET /admin/support", () => {
       test("shows the fallback message when SUPPORT_PAGE_TEXT is unset", async () => {
-        const restore = setTestEnv({ SUPPORT_PAGE_TEXT: undefined });
+        const restore = withEnv({ SUPPORT_PAGE_TEXT: undefined });
         try {
           const response = await adminGet("/admin/support");
           const html = await response.text();
@@ -55,7 +55,7 @@ describeWithEnv(
       });
 
       test("renders SUPPORT_PAGE_TEXT as markdown", async () => {
-        const restore = setTestEnv({
+        const restore = withEnv({
           SUPPORT_PAGE_TEXT: "# Help Center\\n\\nReach out anytime",
         });
         try {

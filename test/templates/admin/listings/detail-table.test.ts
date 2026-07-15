@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   testAttendee,
   testGroup,
@@ -215,7 +215,7 @@ describe("adminListingPage details table", () => {
   });
 
   test("shows a running-total mismatch without its repair link in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = renderMismatch();
       expect(html).toContain("Running total check");

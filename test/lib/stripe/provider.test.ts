@@ -12,7 +12,7 @@ import {
 } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { lineFor, stripeClient } from "./fixtures.ts";
@@ -428,7 +428,7 @@ describeStripe("stripe-provider", () => {
   describe("getMockConfig without STRIPE_MOCK_HOST", () => {
     test("creates client without mock config when STRIPE_MOCK_HOST not set", async () => {
       await settings.update.stripe.secretKey("sk_test_123");
-      const restore = setTestEnv({
+      const restore = withEnv({
         STRIPE_MOCK_HOST: undefined,
         STRIPE_MOCK_PORT: undefined,
       });

@@ -9,7 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 // jscpd:ignore-end
@@ -48,7 +48,7 @@ describeWithEnv(
 
       test("the attendee page hides the add-note link in read-only mode", async () => {
         const { attendee } = await setupListingAndAttendee();
-        const restore = setTestEnv({
+        const restore = withEnv({
           READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
         });
         try {

@@ -11,7 +11,7 @@ import {
 import { configureAppleWallet, generateTestCerts } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
@@ -400,7 +400,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
 /** Set all Apple Wallet env vars and return restore function */
 const setWalletEnvVars = () =>
-  setTestEnv({
+  withEnv({
     APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.tickets",
     APPLE_WALLET_SIGNING_CERT: testCerts.signingCert,
     APPLE_WALLET_SIGNING_KEY: testCerts.signingKey,

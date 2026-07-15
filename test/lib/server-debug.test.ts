@@ -19,7 +19,7 @@ import {
   generateTestCerts,
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 /** Build a complete DebugPageState, overriding only the fields a test cares about. */
@@ -336,7 +336,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Environment variables as source when env configured", async () => {
       const certs = generateTestCerts();
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.test",
         APPLE_WALLET_SIGNING_CERT: certs.signingCert,
         APPLE_WALLET_SIGNING_KEY: certs.signingKey,
@@ -357,7 +357,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     afterEach(() => restoreEnv());
 
     test("shows host email provider when env configured", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         HOST_EMAIL_API_KEY: "re_test_key",
         HOST_EMAIL_FROM_ADDRESS: "test@example.com",
         HOST_EMAIL_PROVIDER: "resend",
@@ -415,7 +415,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Environment variables as source when env configured", async () => {
       const creds = await generateGoogleTestCreds();
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         GOOGLE_WALLET_ISSUER_ID: "9876543210",
         GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "env@test.iam.gserviceaccount.com",
         GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: creds.serviceAccountKey,
@@ -434,7 +434,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     afterEach(() => restoreEnv());
 
     test("shows CDN as configured when Bunny CDN is enabled", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_SCRIPT_ID: "99",
       });
@@ -454,7 +454,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows empty CDN hostname when edge script API fails", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_SCRIPT_ID: "99",
       });
@@ -476,7 +476,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     afterEach(() => restoreEnv());
 
     test("shows Bunny CDN badge when storage zone is configured", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         STORAGE_ZONE_KEY: "zone-key",
         STORAGE_ZONE_NAME: "my-zone",
       });
@@ -484,7 +484,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows Local filesystem badge when local storage is configured", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         LOCAL_STORAGE_PATH: "/tmp/test-storage",
       });
       await assertAdminHtml("/admin/debug", "Local filesystem");
@@ -497,7 +497,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     afterEach(() => restoreEnv());
 
     test("shows DNS subdomain as configured with suffix", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
         BUNNY_DNS_ZONE_ID: "12345",
@@ -563,7 +563,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     afterEach(() => restoreEnv());
 
     test("shows spam protection as configured when Botpoison keys are set", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         BOTPOISON_PUBLIC_KEY: "test-public",
         BOTPOISON_SECRET_KEY: "test-secret",
       });
@@ -591,7 +591,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     afterEach(() => restoreEnv());
 
     test("shows Read-only state, the cutoff, and the renewal badge", async () => {
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         READ_ONLY_FROM: "2000-01-01T00:00:00Z",
         RENEWAL_URL: "https://example.com/renew",
       });
@@ -605,7 +605,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Expiring soon when within the warning window", async () => {
       const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
-      restoreEnv = setTestEnv({ READ_ONLY_FROM: soon });
+      restoreEnv = withEnv({ READ_ONLY_FROM: soon });
       await assertAdminHtml("/admin/debug", "Expiring soon");
     });
   });

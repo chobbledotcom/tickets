@@ -20,7 +20,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -85,7 +85,7 @@ describeWithEnv(
           "Resv",
           "resv@example.com",
         );
-        const restore = setTestEnv({
+        const restore = withEnv({
           HOST_EMAIL_API_KEY: "re_test123",
           HOST_EMAIL_FROM_ADDRESS: "tickets@mysite.com",
           HOST_EMAIL_PROVIDER: "resend",

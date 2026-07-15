@@ -19,7 +19,7 @@ import {
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { devServerPort, serveHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withExpectedError } from "#test-utils/mocks.ts";
 
 const request = (path: string): Request =>
@@ -31,7 +31,7 @@ describeWithEnv("serve-app", { db: true }, () => {
       // MAIN_INSTANCE_KEY must be unset or ≥32 bytes; a short one fails the
       // boot checks inside the handler, which must answer with the generic
       // temporary-error page rather than crash the isolate.
-      const restore = setTestEnv({ MAIN_INSTANCE_KEY: "too-short" });
+      const restore = withEnv({ MAIN_INSTANCE_KEY: "too-short" });
       try {
         await withExpectedError(async () => {
           const response = await serveHandler(request("/health"));
@@ -107,7 +107,7 @@ describeWithEnv("serve-app", { db: true }, () => {
 
   describe("devServerPort", () => {
     test("uses PORT when set", () => {
-      const restore = setTestEnv({ PORT: "8080" });
+      const restore = withEnv({ PORT: "8080" });
       try {
         expect(devServerPort()).toBe(8080);
       } finally {
@@ -116,7 +116,7 @@ describeWithEnv("serve-app", { db: true }, () => {
     });
 
     test("defaults to 3000 when PORT is unset", () => {
-      const restore = setTestEnv({ PORT: undefined });
+      const restore = withEnv({ PORT: undefined });
       try {
         expect(devServerPort()).toBe(3000);
       } finally {

@@ -1,5 +1,5 @@
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
-import { setTestEnv } from "../env.ts";
+import { withEnv } from "../env.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
 /** The built-sites admin routes 404 unless CAN_BUILD_SITES is on (the feature
@@ -7,7 +7,7 @@ import { doAuthenticatedFormRequest } from "./request.ts";
  * enables the flag for the duration of its own request — mirroring the real
  * precondition — then restores it. */
 const withBuilderEnabled = async <T>(run: () => Promise<T>): Promise<T> => {
-  const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+  const restore = withEnv({ CAN_BUILD_SITES: "true" });
   try {
     return await run();
   } finally {

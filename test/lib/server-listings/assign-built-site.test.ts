@@ -7,14 +7,14 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv("server listings > assign_built_site", { db: true }, () => {
   describe("assign_built_site", () => {
     test("saves assign_built_site when CAN_BUILD_SITES is true", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      const restore = withEnv({ CAN_BUILD_SITES: "true" });
       try {
         const listing = await createTestListing({ assignBuiltSite: true });
         const saved = await getListingWithCount(listing.id);
@@ -31,7 +31,7 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
     });
 
     test("defaults to false even when CAN_BUILD_SITES is true", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      const restore = withEnv({ CAN_BUILD_SITES: "true" });
       try {
         const listing = await createTestListing();
         const saved = await getListingWithCount(listing.id);
@@ -42,7 +42,7 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
     });
 
     test("updates listing to enable assign_built_site", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      const restore = withEnv({ CAN_BUILD_SITES: "true" });
       try {
         const listing = await createTestListing();
         await updateTestListing(listing.id, { assignBuiltSite: true });

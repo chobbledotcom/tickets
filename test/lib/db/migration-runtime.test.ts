@@ -23,7 +23,7 @@ import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { resetTestSession, TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
@@ -74,7 +74,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
   describe("migration behaviour", () => {
     test("migrates an existing database without taking an inline backup", async () => {
       const tmpDir = Deno.makeTempDirSync();
-      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      const restore = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
         await getDb().execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -132,7 +132,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     });
 
     test("reclaims an expired lock so a stalled migration can complete", async () => {
-      const restore = setTestEnv({
+      const restore = withEnv({
         LOCAL_STORAGE_PATH: undefined,
         STORAGE_ZONE_KEY: undefined,
         STORAGE_ZONE_NAME: undefined,

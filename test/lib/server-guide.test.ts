@@ -13,7 +13,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describeWithEnv("server (admin guide)", { db: true }, () => {
   // The guide's default rendering is identical in every test (static help
@@ -319,7 +319,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows built sites section when builder is enabled", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+      const restore = withEnv({ CAN_BUILD_SITES: "true" });
       try {
         await assertAdminHtml(
           "/admin/guide",
@@ -403,7 +403,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("shows subdomain suffix when Bunny DNS is configured", async () => {
-      const restore = setTestEnv({
+      const restore = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets.example.com",
         BUNNY_DNS_ZONE_ID: "test-zone",

@@ -6,7 +6,7 @@
 
 import { settings } from "#shared/db/settings.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 /** Configure all Google Wallet settings in the database */
 export const configureGoogleWallet = async (): Promise<void> => {
@@ -20,7 +20,7 @@ export const configureGoogleWallet = async (): Promise<void> => {
 
 /** Set all Google Wallet env vars and return restore function */
 export const setGoogleWalletEnvVars = async (): Promise<() => void> =>
-  setTestEnv({
+  withEnv({
     GOOGLE_WALLET_ISSUER_ID: "9876543210",
     GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL:
       "env@env-project.iam.gserviceaccount.com",

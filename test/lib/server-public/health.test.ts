@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 
 // jscpd:ignore-end
@@ -19,7 +19,7 @@ describeWithEnv("server public > health", { db: true, triggers: true }, () => {
     });
 
     test("returns build diagnostics when the request carries the debug key", async () => {
-      const restore = setTestEnv({ DEBUG_KEY: "s3cret-diag-key" });
+      const restore = withEnv({ DEBUG_KEY: "s3cret-diag-key" });
       try {
         await assertJson(
           handleRequest(
@@ -45,7 +45,7 @@ describeWithEnv("server public > health", { db: true, triggers: true }, () => {
     });
 
     test("ignores a wrong debug key and stays on plain liveness", async () => {
-      const restore = setTestEnv({ DEBUG_KEY: "s3cret-diag-key" });
+      const restore = withEnv({ DEBUG_KEY: "s3cret-diag-key" });
       try {
         const response = await handleRequest(
           mockRequest("/health", { headers: { "x-debug-key": "wrong" } }),

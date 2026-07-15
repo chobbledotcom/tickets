@@ -27,7 +27,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 
 const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
@@ -370,7 +370,7 @@ describeWithEnv(
 
     describe("feature flag", () => {
       test("no-ops when CAN_BUILD_SITES is disabled", async () => {
-        const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
+        const restore = withEnv({ CAN_BUILD_SITES: undefined });
         try {
           await insertBuiltSite("Site A", "a.test.net", "", "", true);
           await assignAndNotifyBuiltSites([siteEntry()]);
@@ -423,7 +423,7 @@ describeWithEnv(
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        const restoreEnv = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
         const errorSpy = stub(console, "error", () => {});
 
         try {
@@ -459,7 +459,7 @@ describeWithEnv(
         await deactivateAllTierListings();
 
         const buildStub = stubBuildSiteSuccess();
-        const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        const restoreEnv = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
         const errorSpy = stub(console, "error", () => {});
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
@@ -704,7 +704,7 @@ describeWithEnv(
 
 describe("validateSiteAssignmentConfig without builder", () => {
   test("rejects when CAN_BUILD_SITES is disabled", async () => {
-    const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
+    const restore = withEnv({ CAN_BUILD_SITES: undefined });
     try {
       const result = await validateSiteAssignmentConfig([siteEntry()]);
       expect(result.ok).toBe(false);

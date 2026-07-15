@@ -8,7 +8,7 @@ import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 // jscpd:ignore-end
 
@@ -45,7 +45,7 @@ describeWithEnv(
         });
 
       test("registration succeeds when no sites available — auto-build is attempted in the background", async () => {
-        const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+        const restore = withEnv({ CAN_BUILD_SITES: "true" });
         const buildStub = stub(builderApi, "buildSite", () =>
           Promise.resolve({ error: "stubbed", ok: false as const }),
         );
@@ -61,7 +61,7 @@ describeWithEnv(
       });
 
       test("registration succeeds when assignable sites are available", async () => {
-        const restore = setTestEnv({ CAN_BUILD_SITES: "true" });
+        const restore = withEnv({ CAN_BUILD_SITES: "true" });
         try {
           const listing = await createAssignBuiltSiteListing();
           await insertBuiltSite("Available", "avail.b-cdn.net", "", "", true);

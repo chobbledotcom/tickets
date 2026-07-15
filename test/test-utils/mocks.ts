@@ -7,7 +7,7 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   TEST_STORAGE_ZONE,
   type TestRequestOptions,
@@ -142,7 +142,7 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
 export const withExpectedError = bracket(
   // Overlay-scoped so the flag stays inside this worker: written to the real
   // process env it would make every parallel test worker swallow its errors.
-  () => setTestEnv({ TEST_EXPECT_ERROR: "1" }),
+  () => withEnv({ TEST_EXPECT_ERROR: "1" }),
   (restore) => restore(),
 );
 
@@ -588,7 +588,7 @@ export function okEmptyResponse(): Promise<Response> {
 export const stubNtfyFetch = (
   env: Record<string, string | undefined> = {},
 ): { fetchStub: Stub; restore: () => void } => {
-  const restore = setTestEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
+  const restore = withEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
   const fetchStub = stub(globalThis, "fetch", okEmptyResponse);
   return { fetchStub, restore };
 };

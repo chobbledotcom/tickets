@@ -4,10 +4,10 @@ import {
   WritableDangerLink,
   WritableOnly,
 } from "#templates/admin/writable-only.tsx";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 test("renders writable danger links with their destructive styling", () => {
-  const restore = setTestEnv({ READ_ONLY_FROM: undefined });
+  const restore = withEnv({ READ_ONLY_FROM: undefined });
   try {
     const html = String(
       <WritableDangerLink href="/delete">Delete</WritableDangerLink>,
@@ -19,7 +19,7 @@ test("renders writable danger links with their destructive styling", () => {
 });
 
 test("WritableOnly renders its children in writable mode", () => {
-  const restore = setTestEnv({ READ_ONLY_FROM: undefined });
+  const restore = withEnv({ READ_ONLY_FROM: undefined });
   try {
     const html = String(
       <WritableOnly>
@@ -38,7 +38,7 @@ test("WritableOnly renders its children in writable mode", () => {
 // controls rendered the word "null" on read-only pages. It must return an
 // empty SafeHtml so the controls truly disappear.
 test("WritableOnly renders nothing (not literal 'null') in read-only mode", () => {
-  const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+  const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
   try {
     const html = String(
       <WritableOnly>
@@ -55,7 +55,7 @@ test("WritableOnly renders nothing (not literal 'null') in read-only mode", () =
 // Regression (same root cause): WritableDangerLink wraps content in
 // <WritableOnly>, so its read-only output must be empty too.
 test("WritableDangerLink renders nothing in read-only mode", () => {
-  const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+  const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
   try {
     const html = String(
       <WritableDangerLink href="/delete">Delete</WritableDangerLink>,

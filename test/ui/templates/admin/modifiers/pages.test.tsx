@@ -9,7 +9,7 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testModifier } from "#test-utils/factories.ts";
 
 const SESSION = { adminLevel: "owner" as const };
@@ -66,7 +66,7 @@ describe("adminModifiersPage", () => {
   });
 
   test("hides create and edit actions in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = adminModifiersPage([mod()], SESSION);
       expect(html).not.toContain("Add Modifier");

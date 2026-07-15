@@ -8,7 +8,7 @@ import {
 import type { AuthSession } from "#routes/auth.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 
 beforeAll(() => {
   setupTestEncryptionKey();
@@ -167,7 +167,7 @@ describe("defineEntityPage", () => {
   });
 
   test("read-only mode hides write-form tabs and actions", async () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const actions = await page.renderPage(SESSION, 7, "actions");
       expect(await actions.text()).not.toContain("/admin/widgets/7/delete");

@@ -15,7 +15,7 @@ import {
   attributeNameFlat,
   ListingAttributesPanel,
 } from "#templates/admin/attributes.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const SESSION = { adminLevel: "owner" as const };
@@ -261,7 +261,7 @@ describe("ListingAttributesPanel", () => {
 
 describe("attribute pages in read-only mode", () => {
   test("keeps the list readable without create or reorder controls", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = adminAttributesPage([ATTRIBUTE], SESSION);
       expect(html).toContain("Colour");
@@ -275,7 +275,7 @@ describe("attribute pages in read-only mode", () => {
   });
 
   test("keeps details readable without edit or delete controls", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const html = adminAttributePage(ATTRIBUTE, SESSION, undefined, {
         listingCounts: new Map([[10, 2]]),

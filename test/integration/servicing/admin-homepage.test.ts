@@ -11,7 +11,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   createServicingHold,
   createTestServicingEvent,
@@ -78,7 +78,7 @@ describeWithEnv(
 
     test("the read-only servicing list shows event names without edit links", async () => {
       const { id } = await roomAWithBoiler();
-      const restore = setTestEnv({
+      const restore = withEnv({
         READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
       });
       try {
@@ -92,7 +92,7 @@ describeWithEnv(
 
     test("the read-only dashboard shows event names without edit links", async () => {
       const { id } = await roomAWithBoiler();
-      const restore = setTestEnv({
+      const restore = withEnv({
         READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
       });
       try {

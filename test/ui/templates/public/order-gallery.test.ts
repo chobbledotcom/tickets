@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { OrderGalleryStates } from "#templates/public/order-gallery.tsx";
 import { orderGalleryPage } from "#templates/public/order-gallery.tsx";
 import type { PublicNavProps } from "#templates/public/shared.tsx";
-import { getRealEnv, setTestEnv } from "#test-utils/env.ts";
+import { getRealEnv, withEnv } from "#test-utils/env.ts";
 import { testGroup } from "#test-utils/factories.ts";
 
 /** A nav with no operator pages and every optional link off. */
@@ -74,7 +74,7 @@ describe("orderGalleryPage packages", () => {
   });
 
   test("renders packages as unavailable, not selectable, in read-only mode", () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
     try {

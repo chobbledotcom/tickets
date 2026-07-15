@@ -11,7 +11,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 import { useLocalStoragePath } from "./_shared-site-update.ts";
@@ -49,7 +49,7 @@ describeWithEnv(
       // set as one env layer so teardown can't leak BUNNY_API_KEY into the
       // "without BUNNY_API_KEY" suite below.
       storageTmp = Deno.makeTempDirSync();
-      restoreEnv = setTestEnv({
+      restoreEnv = withEnv({
         BUNNY_API_KEY: "host-key",
         LOCAL_STORAGE_PATH: storageTmp,
       });

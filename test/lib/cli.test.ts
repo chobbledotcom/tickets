@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { adminApiRoutes } from "#routes/admin/api.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { buildRequest, parseBody } from "../../cli/api-request.ts";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
@@ -27,7 +27,7 @@ const withTempEnvDir = async <T>(
 
 describe("CLI config", () => {
   test("loads and normalizes environment config", async () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       API_HOSTNAME: "tickets.example.com/",
       API_KEY: "env-key",
     });
@@ -44,7 +44,7 @@ describe("CLI config", () => {
   });
 
   test("loads quoted dotenv config while skipping comments and invalid lines", async () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -71,7 +71,7 @@ describe("CLI config", () => {
   });
 
   test("prompts for missing config", async () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -92,7 +92,7 @@ describe("CLI config", () => {
   });
 
   test("rejects empty prompted config", async () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -108,7 +108,7 @@ describe("CLI config", () => {
   });
 
   test("rejects missing prompted config", async () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -124,7 +124,7 @@ describe("CLI config", () => {
   });
 
   test("preserves an explicitly blank environment host", async () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       API_HOSTNAME: "   ",
       API_KEY: "env-key",
     });
@@ -141,7 +141,7 @@ describe("CLI config", () => {
   });
 
   test("surfaces dotenv read errors that are not missing files", async () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       API_HOSTNAME: "tickets.example.com",
       API_KEY: "env-key",
     });

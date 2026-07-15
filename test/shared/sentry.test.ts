@@ -1,7 +1,6 @@
 import * as Sentry from "@sentry/deno";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
@@ -10,7 +9,8 @@ import {
   releaseFromCommit,
   resetSentryForTest,
 } from "#shared/sentry.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const DSN = "https://abc123@bugs.example.test/2";
 
@@ -21,19 +21,14 @@ const bodyText = (body: BodyInit | null | undefined): string =>
     : new TextDecoder().decode(body as Uint8Array);
 
 describe("sentry", () => {
-  let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
-  let restoreEnv: (() => void) | undefined;
+  let fetchStub: ReturnType<typeof stubFetch>;
 
   beforeEach(() => {
-    fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("{}", { status: 200 })),
-    );
+    fetchStub = stubFetch(() => new Response("{}", { status: 200 }));
   });
 
   afterEach(() => {
     fetchStub.restore();
-    restoreEnv?.();
-    restoreEnv = undefined;
     // Detach the client so the global Sentry state never leaks into other files.
     resetSentryForTest();
   });
@@ -50,23 +45,23 @@ describe("sentry", () => {
 
   describe("initSentry", () => {
     test("does not initialize when SENTRY_URL is unset", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: undefined });
+      using _env = withEnv({ SENTRY_URL: undefined });
       expect(await initSentry()).toBe(false);
     });
 
     test("initializes when SENTRY_URL is set", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       expect(await initSentry()).toBe(true);
     });
 
     test("is idempotent once initialized", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       expect(await initSentry()).toBe(true);
       expect(await initSentry()).toBe(true);
     });
 
     test("never samples traces — the SDK exists to capture errors only", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
       expect(Sentry.getClient()?.getOptions().tracesSampleRate).toBe(0);
     });
@@ -74,13 +69,13 @@ describe("sentry", () => {
 
   describe("captureServerError", () => {
     test("does nothing when Sentry is not initialized", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: undefined });
+      using _env = withEnv({ SENTRY_URL: undefined });
       await captureServerError({ code: ErrorCode.DB_QUERY });
       expect(fetchStub.calls.length).toBe(0);
     });
 
     test("captures the original exception with its stack trace", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
       await captureServerError({
@@ -103,7 +98,7 @@ describe("sentry", () => {
     });
 
     test("sends the formatted message when no exception is attached", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
       const context = { code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" };
@@ -116,7 +111,7 @@ describe("sentry", () => {
     });
 
     test("tags the event with listing and attendee ids", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
       await captureServerError({
@@ -132,7 +127,7 @@ describe("sentry", () => {
     });
 
     test("carries the detail as structured extra context, not just prose", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
       // The exact serialized shape: an event whose stack-trace source context
@@ -150,7 +145,7 @@ describe("sentry", () => {
     });
 
     test("marks the event as level error", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
 
       await captureServerError({ code: ErrorCode.DB_QUERY });
@@ -162,7 +157,7 @@ describe("sentry", () => {
     });
 
     test("gives up on a hung transport after the flush timeout, not sooner", async () => {
-      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
       // A transport that never settles: capture must still resolve — after
       // the 2s flush timeout, not immediately (a zero timeout would report
@@ -171,11 +166,7 @@ describe("sentry", () => {
       // assert it holds out past the deadline, then advance timer by timer
       // until it settles (bounded so a regression fails instead of hanging).
       fetchStub.restore();
-      fetchStub = stub(
-        globalThis,
-        "fetch",
-        () => new Promise<Response>(() => {}),
-      );
+      fetchStub = stubFetch(() => new Promise<Response>(() => {}));
 
       const time = new FakeTime();
       try {

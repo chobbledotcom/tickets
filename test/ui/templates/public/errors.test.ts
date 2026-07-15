@@ -11,7 +11,7 @@ import {
   temporaryErrorPage,
 } from "#templates/public/errors.tsx";
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describe("notFoundPage", () => {
   registerPublicTemplateHooks();
@@ -98,7 +98,7 @@ describe("readOnlyPage", () => {
   // Set RENEWAL_URL through the worker-local overlay (not the shared process
   // env, which parallel test files read) and restore it afterwards.
   const withRenewalUrl = (value: string | undefined, run: () => void): void => {
-    const restore = setTestEnv({ RENEWAL_URL: value });
+    const restore = withEnv({ RENEWAL_URL: value });
     try {
       run();
     } finally {

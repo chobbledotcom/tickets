@@ -10,7 +10,7 @@ import {
   overviewStatsFromAttendees,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 
 export const TEST_SESSION = { adminLevel: "owner" as const };
 
@@ -19,7 +19,7 @@ export const TEST_SESSION = { adminLevel: "owner" as const };
 export const withBuilderEnv =
   (value: string | undefined) =>
   (fn: () => void): void => {
-    const restore = setTestEnv({ CAN_BUILD_SITES: value });
+    const restore = withEnv({ CAN_BUILD_SITES: value });
     try {
       fn();
     } finally {

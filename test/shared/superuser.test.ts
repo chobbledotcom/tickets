@@ -31,7 +31,7 @@ import {
 import { times } from "#test-utils/arrays.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { stubFetchStatus, withMocks } from "#test-utils/mocks.ts";
 import { withRandomBytes } from "#test-utils/random.ts";
 
@@ -112,7 +112,7 @@ const useAdminEmailEnv = () => {
     restoreEnv?.();
   });
   return (adminEmailAddress: string | undefined): void => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: adminEmailAddress });
+    restoreEnv = withEnv({ ADMIN_EMAIL_ADDRESS: adminEmailAddress });
   };
 };
 

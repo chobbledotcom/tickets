@@ -9,7 +9,7 @@ import {
   expectSendNoop,
   rejectedFetch,
 } from "#test-utils/email.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   generateTestListingName,
   resetTestSlugCounter,
@@ -129,8 +129,8 @@ describe("test-utils — stubs, caches & request mocks", () => {
 
   describe("resetDb", () => {
     test("leaves a non-file DB_URL alone (nothing on disk to remove)", async () => {
-      const { setTestEnv } = await import("#test-utils/env.ts");
-      const restore = setTestEnv({ DB_URL: ":memory:" });
+      const { withEnv } = await import("#test-utils/env.ts");
+      const restore = withEnv({ DB_URL: ":memory:" });
       try {
         resetDb(); // must not try to close/unlink a file for :memory:
       } finally {
@@ -168,7 +168,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
 
     test("removes the temp database even when closing the client throws", async () => {
       const path = await createTrackedTestDbFile(".db");
-      const restoreEnv = setTestEnv({ DB_URL: `file:${path}` });
+      const restoreEnv = withEnv({ DB_URL: `file:${path}` });
       const { setDb } = await import("#shared/db/client.ts");
       setDb({
         close: () => {

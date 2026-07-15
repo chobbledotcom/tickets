@@ -11,7 +11,7 @@ import {
   stripeApi,
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   installUrlHandler,
   urlFromFetchInput,
@@ -26,7 +26,7 @@ const withStripeClient = async (
   env: Record<string, string | undefined>,
   check: (client: Awaited<ReturnType<typeof getStripeClient>>) => void,
 ) => {
-  const restore = setTestEnv(env);
+  const restore = withEnv(env);
   try {
     resetStripeClient();
     await settings.update.stripe.secretKey("sk_test_123");

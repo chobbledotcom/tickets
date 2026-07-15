@@ -5,7 +5,7 @@ import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 import { withSetting } from "#test-utils/settings.ts";
 
@@ -156,7 +156,7 @@ describeWithEnv("AdminNav", {}, () => {
   });
 
   test("the Listings Import link hides in read-only mode (it leads to a blocked upload flow)", () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
     try {
@@ -182,7 +182,7 @@ describeWithEnv("AdminNav", {}, () => {
   });
 
   test("AdminNav hides every 'Add X' create link in read-only mode, keeping the section links", () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
     try {

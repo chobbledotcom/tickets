@@ -24,7 +24,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
@@ -96,7 +96,7 @@ describeWithEnv(
     };
 
     test("GET /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
+      const restore = withEnv({ CAN_BUILD_SITES: undefined });
       try {
         const cookie = await testCookie();
         const response = await awaitTestRequest("/admin/builder", { cookie });
@@ -167,7 +167,7 @@ describeWithEnv(
     });
 
     test("POST /admin/builder returns error when Deno Deploy is not configured", async () => {
-      const restoreEnv = setTestEnv({
+      const restoreEnv = withEnv({
         DENO_DEPLOY_ORG_ID: undefined,
         DENO_DEPLOY_TOKEN: undefined,
       });
@@ -188,7 +188,7 @@ describeWithEnv(
     });
 
     test("POST /admin/builder returns error when Bunny DB is not configured", async () => {
-      const restoreEnv = setTestEnv({ BUNNY_API_KEY: undefined });
+      const restoreEnv = withEnv({ BUNNY_API_KEY: undefined });
       try {
         const { response } = await adminFormPost("/admin/builder", {
           db_provider: "bunny",
@@ -206,7 +206,7 @@ describeWithEnv(
     });
 
     test("POST /admin/builder returns error when Turso is not configured", async () => {
-      const restoreEnv = setTestEnv({
+      const restoreEnv = withEnv({
         TURSO_API_TOKEN: undefined,
         TURSO_GROUP: undefined,
         TURSO_ORGANIZATION: undefined,
@@ -350,7 +350,7 @@ describeWithEnv(
     });
 
     test("POST /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
-      const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
+      const restore = withEnv({ CAN_BUILD_SITES: undefined });
       try {
         const { response } = await adminFormPost("/admin/builder", {
           db_token: "token",
@@ -408,7 +408,7 @@ describeWithEnv(
     });
 
     test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {
-      const restoreEnv = setTestEnv({
+      const restoreEnv = withEnv({
         DENO_DEPLOY_ORG_ID: "test-org",
         DENO_DEPLOY_TOKEN: "test-token",
       });
@@ -432,7 +432,7 @@ describeWithEnv(
     });
 
     test("POST /admin/builder passes turso db_provider to buildSite", async () => {
-      const restoreEnv = setTestEnv({
+      const restoreEnv = withEnv({
         TURSO_API_TOKEN: "test-token",
         TURSO_GROUP: "test-group",
         TURSO_ORGANIZATION: "test-org",

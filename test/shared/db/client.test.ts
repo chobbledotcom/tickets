@@ -18,7 +18,7 @@ import {
   update,
 } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 /** A minimal libsql ResultSet for stubbed execute/batch calls. */
 const emptyResultSet = (): ResultSet => ({
@@ -144,20 +144,15 @@ describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
 describeWithEnv("db > client", { db: true }, () => {
   test("getDb throws error when DB_URL is not set", () => {
     setDb(null);
-    const restore = setTestEnv({ DB_URL: undefined });
-    try {
-      expect(() => getDb()).toThrow("DB_URL environment variable is required");
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ DB_URL: undefined });
+    expect(() => getDb()).toThrow("DB_URL environment variable is required");
   });
 
   test("getDb creates client when db is null", () => {
     setDb(null);
-    const restore = setTestEnv({ DB_URL: ":memory:" });
+    using _env = withEnv({ DB_URL: ":memory:" });
     const client = getDb();
     expect(client).toBeDefined();
-    restore();
   });
 
   test("getDb returns existing client when db is set", () => {

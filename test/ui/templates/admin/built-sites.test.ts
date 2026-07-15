@@ -5,7 +5,7 @@ import {
   adminBuiltSiteEditPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -47,7 +47,7 @@ describe("adminBuiltSitesPage", () => {
   });
 
   test("shows site data without write links in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const restore = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     try {
       const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], TEST_SESSION);

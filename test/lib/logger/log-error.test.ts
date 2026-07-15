@@ -12,7 +12,7 @@ import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 // Outer describe ensures sequential execution — createTestListing() calls
@@ -38,7 +38,7 @@ describe("log-error", () => {
     let restoreEnv: (() => void) | undefined;
 
     beforeEach(() => {
-      restoreEnv = setTestEnv({ NTFY_URL: undefined });
+      restoreEnv = withEnv({ NTFY_URL: undefined });
     });
 
     afterEach(() => {
@@ -82,7 +82,7 @@ describe("log-error", () => {
     });
 
     test("sends ntfy notification when NTFY_URL is configured", async () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      const restore = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
@@ -108,7 +108,7 @@ describe("log-error", () => {
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      const restore = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
 
       try {
         logError({ code: ErrorCode.DB_CONNECTION });
@@ -220,7 +220,7 @@ describe("log-error", () => {
     });
 
     test("does not send ntfy notification", () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      const restore = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.resolve(new Response()),
       );

@@ -22,7 +22,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -486,7 +486,7 @@ const envRestore: { current: (() => void) | undefined } = {
 
 function restoreAdminEmail(value: string | undefined): void {
   envRestore.current?.();
-  envRestore.current = setTestEnv({ ADMIN_EMAIL_ADDRESS: value });
+  envRestore.current = withEnv({ ADMIN_EMAIL_ADDRESS: value });
 }
 
 function setupForEnable(email: string): void {

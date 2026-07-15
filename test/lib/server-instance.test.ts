@@ -12,7 +12,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { insertBuiltSite, type UpdateTier } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 
 const KEY = "instance-key-0123456789abcdef0123456789abcdef";
@@ -60,7 +60,7 @@ const seedTieredFleet = async (): Promise<void> => {
 
 /** Run `fn` with the credentials endpoint enabled and a one-per-channel fleet seeded. */
 const withTieredFleet = async (fn: () => Promise<void>): Promise<void> => {
-  const restore = setTestEnv({ MAIN_INSTANCE_KEY: KEY });
+  const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
   try {
     await seedTieredFleet();
     await fn();
@@ -78,7 +78,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
   });
 
   test("returns 401 when the bearer key is missing", async () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: KEY });
+    const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
     try {
       expect((await post()).status).toBe(401);
     } finally {
@@ -87,7 +87,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
   });
 
   test("returns 401 when the bearer key is wrong", async () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: KEY });
+    const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
     try {
       const response = await post({ authorization: "Bearer not-the-key" });
       expect(response.status).toBe(401);
@@ -97,7 +97,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
   });
 
   test("returns read-only credentials for sites that have them", async () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: KEY });
+    const restore = withEnv({ MAIN_INSTANCE_KEY: KEY });
     try {
       await insertBuiltSite(
         "Acme",

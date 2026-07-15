@@ -10,7 +10,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie } from "#test-utils/session.ts";
 
@@ -162,7 +162,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("shows host email label when host email is configured", async () => {
-      const restore = setTestEnv({
+      const restore = withEnv({
         HOST_EMAIL_API_KEY: "key-123",
         HOST_EMAIL_FROM_ADDRESS: "noreply@example.com",
         HOST_EMAIL_PROVIDER: "resend",

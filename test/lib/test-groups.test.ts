@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { rethrowUnlessNotFound } from "../../scripts/not-found.ts";
 import {
   collectTestFiles,
@@ -245,7 +245,7 @@ describe("test-groups", () => {
       env: Record<string, string | undefined>,
     ): Promise<void> => {
       const root = await makeScratchRoot();
-      const restoreEnv = setTestEnv(env);
+      const restoreEnv = withEnv(env);
       try {
         const groups = await writeTestGroups(root);
         expect(

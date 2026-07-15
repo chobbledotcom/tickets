@@ -18,7 +18,7 @@ import {
   AccountStatementSection,
   adminAccountStatementPage,
 } from "#templates/admin/ledger/statement.tsx";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
 
@@ -251,7 +251,7 @@ describe("adminAccountStatementPage", () => {
   });
 
   test("suppresses add and edit actions in read-only mode", () => {
-    const restore = setTestEnv({
+    const restore = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
     try {
