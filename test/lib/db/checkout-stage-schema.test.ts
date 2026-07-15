@@ -88,7 +88,7 @@ describeWithEnv(
           cid: 0,
           dflt_value: null,
           name: "payment_session_id",
-          notnull: 0,
+          notnull: 1,
           pk: 1,
           type: "TEXT",
         },
@@ -161,6 +161,18 @@ describeWithEnv(
           "INSERT INTO checkout_stage_revisions (id, revision) VALUES (2, 1)",
         ),
       ).rejects.toThrow();
+    });
+
+    test("a stage cannot be stored without a payment session id", async () => {
+      await expect(
+        getDb().execute(`INSERT INTO checkout_stages
+          (payment_session_id, attendee_id, provider, ticket_tokens, state, created_at)
+          VALUES (NULL, 42, 'stripe', '["ticket-1"]', 'open', '2026-07-15T12:00:00Z')`),
+      ).rejects.toThrow();
+      const result = await getDb().execute(
+        "SELECT COUNT(*) AS count FROM checkout_stages",
+      );
+      expect(Number(result.rows[0]?.count)).toBe(0);
     });
 
     test("inserting the first stage creates revision 1", async () => {
