@@ -26,7 +26,10 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
-import { idAndEncryptedName } from "#shared/db/id-and-name-columns.ts";
+import {
+  idAndEncryptedNameSchema,
+  type NamedSortOrderInput,
+} from "#shared/db/common-schema.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { ListingOption } from "#shared/db/listings/records.ts";
 import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
@@ -52,22 +55,17 @@ export type AttributeWithOptions = Attribute & {
 
 export type ListingAttributesById = Map<number, AttributeWithOptions[]>;
 
-type AttributeInput = {
-  name: string;
-  sortOrder?: number;
-};
-
 type AttributeOptionInput = {
   attributeId: number;
   sortOrder: number;
   text: string;
 };
 
-export const attributesTable = defineTable<Attribute, AttributeInput>({
+export const attributesTable = defineTable<Attribute, NamedSortOrderInput>({
   name: "attributes",
   primaryKey: "id",
   schema: {
-    ...idAndEncryptedName(),
+    ...idAndEncryptedNameSchema(encrypt, decrypt),
     sort_order: col.withDefault(() => 0),
   },
 });

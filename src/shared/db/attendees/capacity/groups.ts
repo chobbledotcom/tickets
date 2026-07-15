@@ -3,6 +3,7 @@ import { mapBy, unique } from "#fp";
 import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { columnMapByIds } from "#shared/db/query.ts";
 import type { ListingType } from "#shared/types.ts";
 import { getListingGroupMembership, useListingById } from "./listing.ts";
@@ -163,7 +164,7 @@ export const getDatelessGroupRemaining = (
     ...new Set(
       members
         .filter((member) => !countsPerDate(member.listing_type))
-        .flatMap((member) => membership.get(member.id) ?? []),
+        .flatMap((member) => listingGroups.idsFor(membership, member.id)),
     ),
   ]);
 
@@ -175,7 +176,8 @@ export const remainingByListingOverGroups = (
 ): RemainingMap => {
   const result: RemainingMap = new Map();
   for (const id of listingIds) {
-    const values = (membership.get(id) ?? [])
+    const values = listingGroups
+      .idsFor(membership, id)
       .map((groupId) => byGroup.get(groupId))
       .filter((value): value is number => value !== undefined);
     if (values.length > 0) result.set(id, Math.min(...values));

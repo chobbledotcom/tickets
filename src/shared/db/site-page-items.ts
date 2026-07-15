@@ -11,13 +11,15 @@
 
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
+  execute,
   executeBatch,
   inPlaceholders,
   queryAll,
   resultRows,
   type SqlStatement,
+  type TxScope,
   update,
-  withTransaction,
+  useTransaction,
 } from "#shared/db/client.ts";
 import {
   clearImageUsesForItemStatement,
@@ -58,6 +60,39 @@ export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
     [pageId],
   );
 
+type PageItemChange<T> = (
+  pageId: number,
+  itemType: SitePageItemType,
+  itemId: number,
+  transaction?: TxScope,
+) => Promise<T>;
+
+type PageItemChangeInTransaction<T> = (
+  transaction: TxScope,
+  pageId: number,
+  itemType: SitePageItemType,
+  itemId: number,
+) => Promise<T>;
+
+/** Give a page-item change the caller's transaction, or open its own. A simple
+ * change may provide a one-statement direct path to avoid opening an interactive
+ * transaction when called by itself. */
+const pageItemChange =
+  <T>(
+    change: PageItemChangeInTransaction<T>,
+    direct?: (
+      pageId: number,
+      itemType: SitePageItemType,
+      itemId: number,
+    ) => Promise<T>,
+  ): PageItemChange<T> =>
+  (pageId, itemType, itemId, transaction) =>
+    transaction === undefined && direct
+      ? direct(pageId, itemType, itemId)
+      : useTransaction(transaction, (tx) =>
+          change(tx, pageId, itemType, itemId),
+        );
+
 /**
  * Add an item to a page, or report a conflict. The existence + tree checks and
  * the insert all run in **one write transaction**, so concurrent adds serialise
@@ -67,73 +102,69 @@ export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
  * (single-parent), or nesting would close a cycle; `true` when the edge
  * was created. The new row gets `sort_order = MAX(page's orders) + 1` (0 first).
  */
-export const addPageItem = (
+const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
+  tx,
   pageId: number,
   itemType: SitePageItemType,
   itemId: number,
-): Promise<boolean> =>
-  withTransaction(async (tx) => {
-    // Existence, read in the SAME transaction and bounded to the ids at hand:
-    // the host page (and, for a page item, the child page) must still exist,
-    // so a stale add racing a delete can never insert a dangling page edge.
-    const requiredIds = [
-      ...new Set([pageId, ...(itemType === "page" ? [itemId] : [])]),
-    ];
-    const pageRows = resultRows<{ id: number }>(
-      await tx.execute({
-        args: requiredIds,
-        sql: `SELECT id FROM site_pages WHERE id IN (${inPlaceholders(requiredIds)})`,
-      }),
-    );
-    if (pageRows.length !== requiredIds.length) return false;
-    // Duplicate edge (the unique (page_id, item_type, item_id) key): checked
-    // in-transaction so a concurrent repeat can't slip past to the raw index.
-    const duplicate = resultRows<SitePageItem>(
-      await tx.execute({
-        args: [pageId, itemType, itemId],
-        sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?`,
-      }),
-    );
-    if (duplicate.length > 0) return false;
-    if (itemType === "page") {
-      // Read all page edges once and enforce both page invariants against the
-      // same in-transaction snapshot, before inserting.
-      const pageEdges = resultRows<SitePageItem>(
-        await tx.execute({
-          args: [],
-          sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
-        }),
-      );
-      // Single-parent: the page must not already be nested elsewhere.
-      if (pageEdges.some((e) => e.item_id === itemId)) return false;
-      // Acyclic: nesting it here must not close a loop (self or ancestor).
-      // The walk needs only the child → parent edge map — never a page row.
-      const parentByChild = pageParentMapFromEdges(pageEdges);
-      if (wouldCreateCycle({ parentByChild }, pageId, itemId)) {
-        return false;
-      }
-    }
-    const orderRes = await tx.execute({
-      args: [pageId],
-      sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_page_items WHERE page_id = ?",
-    });
-    // The aggregate always returns exactly one row, so read it directly rather
-    // than guarding an impossible empty result.
-    const next = Number(resultRows<{ next: number }>(orderRes)[0]!.next);
+): Promise<boolean> => {
+  // Existence, read in the SAME transaction and bounded to the ids at hand:
+  // the host page (and, for a page item, the child page) must still exist,
+  // so a stale add racing a delete can never insert a dangling page edge.
+  const requiredIds = [
+    ...new Set([pageId, ...(itemType === "page" ? [itemId] : [])]),
+  ];
+  const pageRows = resultRows<{ id: number }>(
     await tx.execute({
-      args: [pageId, itemType, itemId, next],
-      sql: "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
-    });
-    return true;
+      args: requiredIds,
+      sql: `SELECT id FROM site_pages WHERE id IN (${inPlaceholders(requiredIds)})`,
+    }),
+  );
+  if (pageRows.length !== requiredIds.length) return false;
+  // Duplicate edge (the unique (page_id, item_type, item_id) key): checked
+  // in-transaction so a concurrent repeat can't slip past to the raw index.
+  const duplicate = resultRows<SitePageItem>(
+    await tx.execute({
+      args: [pageId, itemType, itemId],
+      sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?`,
+    }),
+  );
+  if (duplicate.length > 0) return false;
+  if (itemType === "page") {
+    // Read all page edges once and enforce both page invariants against the
+    // same in-transaction snapshot, before inserting.
+    const pageEdges = resultRows<SitePageItem>(
+      await tx.execute({
+        args: [],
+        sql: `SELECT ${SELECT_COLS} FROM site_page_items WHERE item_type = 'page'`,
+      }),
+    );
+    // Single-parent: the page must not already be nested elsewhere.
+    if (pageEdges.some((e) => e.item_id === itemId)) return false;
+    // Acyclic: nesting it here must not close a loop (self or ancestor).
+    // The walk needs only the child → parent edge map — never a page row.
+    const parentByChild = pageParentMapFromEdges(pageEdges);
+    if (wouldCreateCycle({ parentByChild }, pageId, itemId)) {
+      return false;
+    }
+  }
+  const orderRes = await tx.execute({
+    args: [pageId],
+    sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_page_items WHERE page_id = ?",
   });
+  // The aggregate always returns exactly one row, so read it directly rather
+  // than guarding an impossible empty result.
+  const next = Number(resultRows<{ next: number }>(orderRes)[0]!.next);
+  await tx.execute({
+    args: [pageId, itemType, itemId, next],
+    sql: "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
+  });
+  return true;
+};
 
-/** Remove one item from a page (by its composite key). */
-export const removePageItem = (
-  pageId: number,
-  itemType: SitePageItemType,
-  itemId: number,
-): Promise<void> =>
-  executeBatch([itemDeleteStatement(pageId, itemType, itemId)]);
+export const addPageItem: PageItemChange<boolean> = pageItemChange(
+  addPageItemInTransaction,
+);
 
 const itemDeleteStatement = (
   pageId: number,
@@ -143,6 +174,26 @@ const itemDeleteStatement = (
   args: [pageId, itemType, itemId],
   sql: "DELETE FROM site_page_items WHERE page_id = ? AND item_type = ? AND item_id = ?",
 });
+
+const runItemDelete = async (
+  run: (statement: SqlStatement) => Promise<unknown>,
+  pageId: number,
+  itemType: SitePageItemType,
+  itemId: number,
+): Promise<void> => {
+  await run(itemDeleteStatement(pageId, itemType, itemId));
+};
+
+/** Remove one item from a page (by its composite key). */
+export const removePageItem: PageItemChange<void> = pageItemChange(
+  (transaction, ...args) =>
+    runItemDelete((statement) => transaction.execute(statement), ...args),
+  (...args) =>
+    runItemDelete(
+      (statement) => execute(statement.sql, statement.args),
+      ...args,
+    ),
+);
 
 /** Identifies one item within a page by its composite key. */
 export type ItemRef = { type: SitePageItemType; id: number };

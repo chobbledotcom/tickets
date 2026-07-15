@@ -11,6 +11,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   createServicingHold,
   expectLogisticsDisabled,
@@ -47,19 +48,14 @@ describeWithEnv(
       // The listing's `webhook_url` is set; a customer booking fires it. A
       // servicing hold must not — it's not a customer event. We assert no
       // outbound fetch was made by stubbing fetch and checking call count.
-      const { stubFetchRecorder } = await import("#test-utils/mocks.ts");
-      const fetchStub = stubFetchRecorder();
-      try {
-        await createServicingHold({
-          listing: {
-            name: "Webhook L",
-            webhookUrl: "https://example.com/hook",
-          },
-        });
-        expect(fetchStub.callCount()).toBe(0);
-      } finally {
-        fetchStub.restore();
-      }
+      using fetchStub = stubFetch(new Response());
+      await createServicingHold({
+        listing: {
+          name: "Webhook L",
+          webhookUrl: "https://example.com/hook",
+        },
+      });
+      expect(fetchStub.calls).toHaveLength(0);
     });
 
     test("a servicing hold does not consume modifier stock or apply a modifier", async () => {

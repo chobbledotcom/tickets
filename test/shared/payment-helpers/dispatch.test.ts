@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { ErrorCode } from "#shared/logger.ts";
 import {
   createWithClient,
-  errorMessage,
   hasRequiredSessionMetadata,
   PaymentUserError,
   safeAsync,
@@ -67,14 +66,6 @@ describe("payment-helpers", () => {
     test("rejects invalid values", () => {
       expect(isPaymentStatus("completed")).toBe(false);
       expect(isPaymentStatus("")).toBe(false);
-    });
-  });
-
-  describe("errorMessage", () => {
-    test("extracts message from Error, returns fallback for non-Error", () => {
-      expect(errorMessage(new Error("broke"))).toBe("broke");
-      expect(errorMessage("string")).toBe("Unknown error");
-      expect(errorMessage(null)).toBe("Unknown error");
     });
   });
 

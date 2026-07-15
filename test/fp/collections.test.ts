@@ -1,16 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  byId,
   compact,
   filter,
   firstProblem,
   flatMap,
   groupToMap,
+  identity,
   joinStrings,
   map,
   mapBy,
-  mapById,
   partition,
   pipe,
   requiredMapValue,
@@ -229,38 +228,17 @@ describe("fp collections", () => {
     });
   });
 
-  describe("byId", () => {
-    test("indexes items by id", () => {
-      const first = { id: 1, name: "a" };
-      const second = { id: 2, name: "b" };
-      const indexed = byId([first, second]);
-      expect(indexed.get(1)).toBe(first);
-      expect(indexed.get(2)).toBe(second);
-      expect(indexed.size).toBe(2);
-    });
-
-    test("later items with the same id win", () => {
-      const first = { id: 1, name: "first" };
-      const second = { id: 1, name: "second" };
-      expect(byId([first, second]).get(1)).toBe(second);
-    });
-
-    test("empty input gives an empty map", () => {
-      expect(byId([])).toEqual(new Map());
-    });
-  });
-
   describe("mapBy", () => {
-    const namesByCode = mapBy(
-      "code",
-      (item: { code: string; name: string }) => item.name,
-    );
+    type Item = { code: string; id: number; name: string };
+
+    const namesByCode = mapBy("code", (item: Item) => item.name);
+    const itemsById = mapBy("id", identity<Item>);
 
     test("indexes chosen values by chosen keys", () => {
       expect(
         namesByCode([
-          { code: "a", name: "First" },
-          { code: "b", name: "Second" },
+          { code: "a", id: 1, name: "First" },
+          { code: "b", id: 2, name: "Second" },
         ]),
       ).toEqual(
         new Map([
@@ -270,40 +248,32 @@ describe("fp collections", () => {
       );
     });
 
-    test("later items with the same key win", () => {
-      expect(
-        namesByCode([
-          { code: "a", name: "First" },
-          { code: "a", name: "Last" },
-        ]),
-      ).toEqual(new Map([["a", "Last"]]));
-    });
-  });
-
-  describe("mapById", () => {
-    const toName = mapById((item: { id: number; name: string }) => item.name);
-
-    test("indexes each id to the chosen value", () => {
-      const indexed = toName([
-        { id: 1, name: "a" },
-        { id: 2, name: "b" },
-      ]);
-      expect(indexed.get(1)).toBe("a");
-      expect(indexed.get(2)).toBe("b");
+    test("indexes whole items by id", () => {
+      const first: Item = { code: "a", id: 1, name: "First" };
+      const second: Item = { code: "b", id: 2, name: "Second" };
+      const indexed = itemsById([first, second]);
+      expect(indexed.get(1)).toBe(first);
+      expect(indexed.get(2)).toBe(second);
       expect(indexed.size).toBe(2);
     });
 
-    test("later items with the same id win", () => {
+    test("keeps first key order while later duplicate values win", () => {
       expect(
-        toName([
-          { id: 1, name: "first" },
-          { id: 1, name: "second" },
-        ]).get(1),
-      ).toBe("second");
+        namesByCode([
+          { code: "b", id: 1, name: "First B" },
+          { code: "a", id: 2, name: "A" },
+          { code: "b", id: 3, name: "Last B" },
+        ]),
+      ).toEqual(
+        new Map([
+          ["b", "Last B"],
+          ["a", "A"],
+        ]),
+      );
     });
 
     test("empty input gives an empty map", () => {
-      expect(toName([])).toEqual(new Map());
+      expect(itemsById([])).toEqual(new Map());
     });
   });
 });

@@ -7,7 +7,7 @@ import {
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
   getGroupBySlugIndex,
-  getGroupListingIds,
+  groupListings,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
@@ -86,7 +86,7 @@ const completePackageListings = async (
 ): Promise<GroupWithListings | null> => {
   const [members, allMemberIds, holidays] = await Promise.all([
     getActiveListingsByGroupId(group.id),
-    getGroupListingIds(group.id),
+    groupListings.getIds(group.id),
     getActiveHolidays(),
   ]);
   if (members.length === 0 || members.length < allMemberIds.length) {

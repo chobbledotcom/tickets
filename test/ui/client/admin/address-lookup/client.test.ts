@@ -18,7 +18,7 @@ import {
   installFakeDom,
   restoreDocument,
 } from "#test-utils/fake-dom.ts";
-import { setupFetchStub } from "#test-utils/fetch-stub.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const formSpec = (): ElementSpec => ({
   children: [panelSpec(), { name: "address", tag: "textarea" }],
@@ -67,8 +67,6 @@ const initPanelInForm = (panel: ElementSpec): FakeElement => {
 };
 
 describe("address lookup client", () => {
-  const { callCount, stubFetch } = setupFetchStub();
-
   afterEach(() => {
     restoreDocument();
   });
@@ -131,7 +129,7 @@ describe("address lookup client", () => {
   test("searching fills the select with a placeholder plus each address", async () => {
     let requested = "";
     let credentials = "";
-    stubFetch((url, init) => {
+    using _fetch = stubFetch((url, init) => {
       requested = url;
       credentials = String(init?.credentials);
       return Promise.resolve(
@@ -158,7 +156,7 @@ describe("address lookup client", () => {
   });
 
   test("shows the searching message while the lookup is in flight", async () => {
-    stubFetch(() => new Promise(() => {})); // never resolves
+    using _fetch = stubFetch(() => new Promise<Response>(() => {}));
     const { findButton, searchInput, status } = setup();
     searchInput.value = "SW1A 2AA";
 
@@ -171,8 +169,8 @@ describe("address lookup client", () => {
 
   test("an error response that still carries addresses is an error", async () => {
     // The status code decides — a failing response never populates the select.
-    stubFetch(() =>
-      Promise.resolve(jsonResponse({ addresses: ["10 Downing Street"] }, 500)),
+    using _fetch = stubFetch(
+      jsonResponse({ addresses: ["10 Downing Street"] }, 500),
     );
     const { findButton, searchInput, select, status } = setup();
     searchInput.value = "SW1A 2AA";
@@ -185,18 +183,18 @@ describe("address lookup client", () => {
   });
 
   test("an empty search box never calls the endpoint", async () => {
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    using fetchStub = stubFetch(new Error("should not be called"));
     const { findButton, searchInput } = setup();
     searchInput.value = "   ";
 
     findButton.dispatch("click");
     await flush();
 
-    expect(callCount()).toBe(0);
+    expect(fetchStub.calls.length).toBe(0);
   });
 
   test("Enter in the search box searches instead of submitting the form", async () => {
-    stubFetch(() => Promise.resolve(jsonResponse({ addresses: ["A"] })));
+    using _fetch = stubFetch(jsonResponse({ addresses: ["A"] }));
     const { searchInput, select } = setup();
     searchInput.value = "SW1A 2AA";
     let prevented = false;
@@ -214,18 +212,18 @@ describe("address lookup client", () => {
   });
 
   test("other keys in the search box are ignored", async () => {
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    using fetchStub = stubFetch(new Error("should not be called"));
     const { searchInput } = setup();
     searchInput.value = "SW1A 2AA";
 
     searchInput.dispatch("keydown", { key: "a", preventDefault: () => {} });
     await flush();
 
-    expect(callCount()).toBe(0);
+    expect(fetchStub.calls.length).toBe(0);
   });
 
   test("no matches shows the no-results message and keeps the select hidden", async () => {
-    stubFetch(() => Promise.resolve(jsonResponse({ addresses: [] })));
+    using _fetch = stubFetch(jsonResponse({ addresses: [] }));
     const { findButton, resultsLabel, searchInput, status } = setup();
     searchInput.value = "ZZ99 9ZZ";
 
@@ -250,26 +248,26 @@ describe("address lookup client", () => {
   };
 
   test("a server error shows the server's message", async () => {
-    stubFetch(() =>
-      Promise.resolve(jsonResponse({ error: "Not a valid postcode" }, 400)),
+    using _fetch = stubFetch(
+      jsonResponse({ error: "Not a valid postcode" }, 400),
     );
     await searchExpectingStatus("Not a valid postcode");
   });
 
   test("a 200 with no address list falls back to the panel's error copy", async () => {
-    stubFetch(() => Promise.resolve(jsonResponse({})));
+    using _fetch = stubFetch(jsonResponse({}));
     await searchExpectingStatus("Lookup failed");
   });
 
   test("a network failure falls back to the panel's error copy", async () => {
-    stubFetch(() => Promise.reject(new Error("offline")));
+    using _fetch = stubFetch(new Error("offline"));
     await searchExpectingStatus("Lookup failed");
   });
 
   test("a panel missing a copy attribute falls back to empty text", async () => {
     // The server always renders every data-* string; if one is missing the
     // status simply stays blank instead of showing "undefined".
-    stubFetch(() => Promise.resolve(jsonResponse({ addresses: [] })));
+    using _fetch = stubFetch(jsonResponse({ addresses: [] }));
     const bare = panelSpec();
     bare.data = { addressLookup: "" };
     const [form] = installFakeDom([

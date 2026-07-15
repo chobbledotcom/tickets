@@ -215,7 +215,7 @@ describeWithEnv(
     });
 
     test("settings page shows host Google Wallet label when env vars configured", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie,
@@ -226,7 +226,7 @@ describeWithEnv(
     });
 
     test("settings page shows overriding label when both DB and env configured", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       await configureGoogleWallet();
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/settings-advanced", {

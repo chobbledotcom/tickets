@@ -2,9 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   applyAttendeeAtomicEdit,
-  createAttendeeAtomic,
-} from "#shared/db/attendees/api.ts";
-import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
+  loadExistingLines,
+} from "#shared/db/attendees/atomic-update.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { getAttendee, getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -12,7 +12,7 @@ import {
   t,
 } from "#i18n";
 import en from "#locales/en/index.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describe("i18n", () => {
   describe("t", () => {
@@ -225,12 +225,11 @@ describe("i18n", () => {
       spec: string | undefined,
       fn: () => void,
     ): void => {
-      const restore = setTestEnv({ I18N_REPLACEMENTS: spec });
+      using _env = withEnv({ I18N_REPLACEMENTS: spec });
       resetI18nForTest(); // force a rebuild + recompile from the new env
       try {
         fn();
       } finally {
-        restore();
         resetI18nForTest(); // reset caches for the next test/file
       }
     };

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getGroupIdsByListingId } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -23,7 +23,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         201,
       );
-      expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
+      expect(await listingGroups.getIds(body.listing.id)).toEqual([group.id]);
     });
 
     test("creates a default-standard listing in an existing group without listing_type", async () => {
@@ -54,7 +54,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         201,
       );
-      expect(await getGroupIdsByListingId(body.listing.id)).toEqual([group.id]);
+      expect(await listingGroups.getIds(body.listing.id)).toEqual([group.id]);
     });
 
     test("listing responses include group_ids so clients can round-trip them", async () => {
@@ -120,7 +120,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         201,
       );
-      expect(await getGroupIdsByListingId(created.listing.id)).toEqual([
+      expect(await listingGroups.getIds(created.listing.id)).toEqual([
         groupA.id,
       ]);
 
@@ -134,7 +134,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         200,
       );
       expect(updated.listing.group_ids).toEqual([groupB.id]);
-      expect(await getGroupIdsByListingId(created.listing.id)).toEqual([
+      expect(await listingGroups.getIds(created.listing.id)).toEqual([
         groupB.id,
       ]);
     });

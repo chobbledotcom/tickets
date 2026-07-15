@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAvailableDates } from "#shared/dates.ts";
-import {
-  checkBatchAvailability,
-  hasAvailableSpots,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
@@ -157,7 +154,7 @@ describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
       });
 
       expect(
-        await checkBatchAvailability(
+        await attendeesApi.checkBatchAvailability(
           [
             { durationDays: 2, listingId: listingA.id, quantity: 2 },
             { durationDays: 4, listingId: listingB.id, quantity: 2 },
@@ -186,7 +183,7 @@ describeWithEnv("e2e: multi-day bookings — edge cases", { db: true }, () => {
 
       // The 2 existing attendees (no date) should still block capacity.
       // hasAvailableSpots with no date checks total.
-      expect(await hasAvailableSpots(listing.id, 1)).toBe(false);
+      expect(await attendeesApi.hasAvailableSpots(listing.id, 1)).toBe(false);
     });
 
     test("10: duration longer than booking window yields fewer available dates", async () => {

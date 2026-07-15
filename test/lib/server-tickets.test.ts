@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { groups } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { clearTokenAttempts } from "#shared/db/token-attempts.ts";
@@ -465,7 +465,7 @@ describeWithEnv(
       // package (package_group_id 0 on its rows) must render normally, never
       // collapsed/renamed to the hidden package.
       const { widget } = await hiddenOneMemberPackage();
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: widget.id, quantity: 1 }],
         email: "standalone@test.com",
         name: "Standalone",
@@ -480,7 +480,7 @@ describeWithEnv(
 
     test("the same listing booked as the package IS collapsed under the package name", async () => {
       const { group, widget } = await hiddenOneMemberPackage();
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: widget.id, packageGroupId: group.id, quantity: 1 },
         ],
@@ -503,7 +503,7 @@ describeWithEnv(
       listingId: number,
       quantity: number,
     ): Promise<string> => {
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId, packageGroupId: groupId, quantity }],
         email: "pkgbook@test.com",
         name: "Package Buyer",
@@ -537,7 +537,7 @@ describeWithEnv(
         attachmentName: "Handbook.pdf",
         attachmentUrl: "handbook.pdf",
       });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: member.id, packageGroupId: group.id, quantity: 1 },
         ],
@@ -583,7 +583,7 @@ describeWithEnv(
       const date = addDays(todayInTz("UTC"), 2);
       // Booked narrow → widest → narrow, so the widest-member scan must both
       // REPLACE a narrower card and KEEP the widest over a later narrower one.
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { date, listingId: oneDay.id, packageGroupId: group.id, quantity: 1 },
           // The real booking flow stores a fixed daily member's duration
@@ -644,7 +644,7 @@ describeWithEnv(
         name: "Flex Firepit",
       });
       const date = addDays(todayInTz("UTC"), 2);
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           {
             date,
@@ -679,7 +679,7 @@ describeWithEnv(
       // a shared `tokens[0]` used to disable collapsing here and leak the member.
       const { group, widget } = await hiddenOneMemberPackage();
       const book = async (email: string) => {
-        const result = await createAttendeeAtomic({
+        const result = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { listingId: widget.id, packageGroupId: group.id, quantity: 1 },
           ],
@@ -708,7 +708,7 @@ describeWithEnv(
       // booking still renders — the mixed set must not fall back to per-row cards.
       const { group, widget } = await hiddenOneMemberPackage();
       const standalone = await createTestListing({ name: "Standalone Ticket" });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: widget.id, packageGroupId: group.id, quantity: 1 },
           { listingId: standalone.id, packageGroupId: group.id, quantity: 1 },

@@ -8,11 +8,12 @@ import { t } from "#i18n";
 import {
   CONTENT_FORM,
   CONTENT_MULTIPART,
+  formGuard,
   requireContentOr,
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import type { IdRouteHandler } from "#routes/entity.ts";
+import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -30,7 +31,7 @@ import { getAllListingOptions } from "#shared/db/listings/records.ts";
 import { getNewsPostNames } from "#shared/db/news-posts.ts";
 import { sitePages } from "#shared/db/site-pages.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
+import { featureGate } from "#shared/response-steps.ts";
 import {
   deleteImageStorageFilesStrict,
   isStorageEnabled,
@@ -49,7 +50,6 @@ import {
   adminImagesPage,
   type ImageItemOption,
 } from "#templates/admin/images.tsx";
-import { withEntityFromParam } from "./entity-handlers.ts";
 import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
 // jscpd:ignore-end
@@ -58,6 +58,20 @@ const imagePath = (id: number): string => `/admin/images/${id}/edit`;
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   redirect("/admin/images", t("images.storage_off"), false),
 );
+const imageHandler = createIdEntityHandler<Image>(getImageById);
+type ImagePost = (
+  image: Image,
+  form: FormParams,
+  adminLevel: AdminLevel,
+) => Promise<Response>;
+const imagePost = imageHandler(formGuard(CONTENT_FORM));
+const imageHandlers = {
+  get: imageHandler(requireContentOr),
+  post: (action: ImagePost): IdRouteHandler =>
+    imagePost((image, session, form) =>
+      withStorageEnabled(() => action(image, form, session.adminLevel)),
+    ),
+};
 
 const handleImagesListGet: TypedRouteHandler<"GET /admin/images"> = (request) =>
   requireContentOr(request, async (session) => {
@@ -135,24 +149,19 @@ const selectedUses = async (imageId: number): Promise<Set<string>> =>
     ),
   );
 
-const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> = (
-  request,
-  { id },
-) =>
-  requireContentOr(request, (session) =>
-    withEntityFromParam(id, getImageById, async (image) => {
-      applyFlash(request);
-      return withStorageEnabled(async () => {
-        const [options, selected] = await Promise.all([
-          imageItemOptions(session.adminLevel),
-          selectedUses(image.id),
-        ]);
-        return htmlResponse(
-          adminImageEditPage({ image, options, selected, session }),
-        );
-      });
-    }),
-  );
+const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> =
+  imageHandlers.get(async (image, session, request) => {
+    applyFlash(request);
+    return withStorageEnabled(async () => {
+      const [options, selected] = await Promise.all([
+        imageItemOptions(session.adminLevel),
+        selectedUses(image.id),
+      ]);
+      return htmlResponse(
+        adminImageEditPage({ image, options, selected, session }),
+      );
+    });
+  });
 
 const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
   form
@@ -165,32 +174,6 @@ const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
         : null;
     })
     .filter((target): target is ImageUseTarget => target !== null);
-
-const withStorageImageForm = (
-  request: Request,
-  id: number,
-  action: ResponseHandler<
-    [image: Image, form: FormParams, adminLevel: AdminLevel]
-  >,
-): Promise<Response> =>
-  withAuth(request, CONTENT_FORM, (session, form) =>
-    withEntityFromParam(id, getImageById, (image) =>
-      withStorageEnabled(() => action(image, form, session.adminLevel)),
-    ),
-  );
-
-/** A `:id` image POST route that loads the image behind the storage/form gate
- * and hands it to `action`. Shared by the edit and delete handlers. */
-const storageImageFormRoute =
-  (
-    action: (
-      image: Image,
-      form: FormParams,
-      adminLevel: AdminLevel,
-    ) => Promise<Response>,
-  ): IdRouteHandler =>
-  (request, { id }) =>
-    withStorageImageForm(request, id, action);
 
 /** The image-use item types that are public Site content (owner + editor):
  * news posts and pages. An image on either surfaces publicly, so a manager may
@@ -233,7 +216,7 @@ const allowedImageTargets = (
     : submitted.filter((target) => !isSiteContentImageType(target.itemType));
 
 const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
-  storageImageFormRoute(async (image, form, adminLevel) => {
+  imageHandlers.post(async (image, form, adminLevel) => {
     const blocked = await siteContentImageGate(
       adminLevel,
       image.id,
@@ -253,17 +236,13 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
     return redirect(imagePath(image.id), t("images.updated"), true);
   });
 
-const handleImageDeleteGet: TypedRouteHandler<
-  "GET /admin/images/:id/delete"
-> = (request, { id }) =>
-  requireContentOr(request, (session) =>
-    withEntityFromParam(id, getImageById, (image) => {
-      applyFlash(request);
-      return withStorageEnabled(() =>
-        htmlResponse(adminImageDeletePage(image, session)),
-      );
-    }),
-  );
+const handleImageDeleteGet: TypedRouteHandler<"GET /admin/images/:id/delete"> =
+  imageHandlers.get((image, session, request) => {
+    applyFlash(request);
+    return withStorageEnabled(() =>
+      htmlResponse(adminImageDeletePage(image, session)),
+    );
+  });
 
 const confirmDelete = (form: FormParams, image: Image): string | null =>
   form.getString("confirm_identifier") === image.name
@@ -271,7 +250,7 @@ const confirmDelete = (form: FormParams, image: Image): string | null =>
     : t("images.delete.mismatch");
 
 const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> =
-  storageImageFormRoute(async (image, form, adminLevel) => {
+  imageHandlers.post(async (image, form, adminLevel) => {
     const deletePath = `/admin/images/${image.id}/delete`;
     // deleteImageRecord prunes every use, including a news one, so a non-Site
     // role may not delete an image a news post uses (public Site content).

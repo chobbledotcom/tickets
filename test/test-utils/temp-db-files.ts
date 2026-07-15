@@ -1,33 +1,29 @@
 import { lazyRef } from "#fp";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 export const DB_FILE_SUFFIXES = ["", "-journal", "-shm", "-wal"];
 
 const trackedDbFiles = new Set<string>();
-const [getCreatedTempDir, setCreatedTempDir] = lazyRef<string | null>(
+const [getCreatedTempDir, setCreatedTempDir] = lazyRef<TempPath | null>(
   () => null,
 );
 
 const ignoreCleanupError = (): void => {};
 
-const makeRemover =
-  (options?: Deno.RemoveOptions) =>
-  (path: string): void => {
-    try {
-      Deno.removeSync(path, options);
-    } catch {
-      ignoreCleanupError();
-    }
-  };
-
-const removeIfPresent = makeRemover();
-const removeDirIfPresent = makeRemover({ recursive: true });
+const removeIfPresent = (path: string): void => {
+  try {
+    Deno.removeSync(path);
+  } catch {
+    ignoreCleanupError();
+  }
+};
 
 const getTempDir = (): string => {
   const existing = getCreatedTempDir();
-  if (existing) return existing;
-  const dir = Deno.makeTempDirSync({ prefix: "tickets-test-db-" });
+  if (existing) return existing.path;
+  const dir = tempDir({ prefix: "tickets-test-db-" });
   setCreatedTempDir(dir);
-  return dir;
+  return dir.path;
 };
 
 export const createTrackedTestDbFile = async (
@@ -51,7 +47,7 @@ export const cleanupTrackedTestDbFiles = (): void => {
   }
   const dir = getCreatedTempDir();
   if (!dir) return;
-  removeDirIfPresent(dir);
+  dir.dispose();
   setCreatedTempDir(null);
 };
 

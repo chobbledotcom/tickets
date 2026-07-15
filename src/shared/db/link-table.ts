@@ -15,13 +15,13 @@
  * constants, never user input.
  */
 
-import { reduce, unique } from "#fp";
+import { reduce, requiredMapValue, unique } from "#fp";
 import {
   deleteByField,
   executeBatch,
   inPlaceholders,
   queryAll,
-  queryIdColumn,
+  resultRows,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
@@ -48,6 +48,9 @@ export type LinkTableSide = {
   ) => Promise<void>;
   /** The linked ids for a key, ascending. */
   getIds: (keyId: number) => Promise<number[]>;
+  /** Like {@link LinkTableSide.getIds} but read on an existing write
+   * transaction, including the transaction's own earlier writes. */
+  getIdsTx: (tx: TxScope, keyId: number) => Promise<number[]>;
   /** The linked ids for several keys in one bounded query. Every requested key
    * is present in the map, including keys with no links. */
   getIdsByKeys: (keyIds: readonly number[]) => Promise<Map<number, number[]>>;
@@ -82,6 +85,16 @@ export const linkTableSide = (
   // submitted list must collapse to one row each before inserting.
   const dedupe = (ids: readonly number[]): number[] => unique([...ids]);
 
+  const idsStatement = (keyId: number): SqlStatement => ({
+    args: [keyId],
+    sql: `SELECT ${valueColumn} AS id FROM ${table} WHERE ${keyColumn} = ? ORDER BY ${valueColumn} ASC`,
+  });
+
+  const readIds = async (
+    run: (statement: SqlStatement) => Promise<{ id: number }[]>,
+    keyId: number,
+  ): Promise<number[]> => (await run(idsStatement(keyId))).map((row) => row.id);
+
   const replaceStatements = (
     keyId: number,
     ids: readonly number[],
@@ -108,10 +121,7 @@ export const linkTableSide = (
       });
     },
     getIds: (keyId) =>
-      queryIdColumn(
-        `SELECT ${valueColumn} AS id FROM ${table} WHERE ${keyColumn} = ? ORDER BY ${valueColumn} ASC`,
-        [keyId],
-      ),
+      readIds(({ sql, args }) => queryAll<{ id: number }>(sql, args), keyId),
     getIdsByKeys: async (keyIds) => {
       const keys = unique([...keyIds]);
       const idsByKey = new Map(keys.map((id) => [id, [] as number[]]));
@@ -128,12 +138,20 @@ export const linkTableSide = (
           acc: Map<number, number[]>,
           row: { key_id: number; value_id: number },
         ) => {
-          acc.get(row.key_id)!.push(row.value_id);
+          requiredMapValue(acc, row.key_id, "Unexpected link key").push(
+            row.value_id,
+          );
           return acc;
         },
         idsByKey,
       )(rows);
     },
+    getIdsTx: (tx, keyId) =>
+      readIds(
+        async (statement) =>
+          resultRows<{ id: number }>(await tx.execute(statement)),
+        keyId,
+      ),
     setIds: (keyId, ids) => executeBatch(replaceStatements(keyId, ids)),
     setIdsTx: async (tx, keyId, ids) => {
       for (const stmt of replaceStatements(keyId, ids)) {

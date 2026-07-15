@@ -20,7 +20,7 @@ import {
 } from "#shared/booking/model.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -192,7 +192,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         name: "Secret Widget",
       });
       // Fill the member's only spot so the package reservation can't be created.
-      const first = await createAttendeeAtomic({
+      const first = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: member.id, quantity: 1 }],
         email: "first@test.com",
         name: "First",

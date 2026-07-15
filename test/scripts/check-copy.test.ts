@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
 import {
   type CopyEntry,
   findIssues,
@@ -130,14 +131,14 @@ describe("check-copy rules", () => {
 });
 
 describe("check-copy runner", () => {
-  let dir: string;
+  let dir: TempPath;
 
-  beforeEach(async () => {
-    dir = await Deno.makeTempDir();
+  beforeEach(() => {
+    dir = tempDir();
   });
 
-  afterEach(async () => {
-    await Deno.remove(dir, { recursive: true });
+  afterEach(() => {
+    dir.dispose();
   });
 
   /** Write one catalog file, run the check over the temp folder, and hand back
@@ -146,11 +147,11 @@ describe("check-copy runner", () => {
     fileName: string,
     contents: Record<string, unknown>,
   ) => {
-    Deno.writeTextFileSync(`${dir}/${fileName}`, JSON.stringify(contents));
+    Deno.writeTextFileSync(`${dir.path}/${fileName}`, JSON.stringify(contents));
     const out: string[] = [];
     const errors: string[] = [];
     const code = runCopyCheck(
-      dir,
+      dir.path,
       (l) => out.push(l),
       (l) => errors.push(l),
     );
@@ -159,16 +160,16 @@ describe("check-copy runner", () => {
 
   test("reads string values from every .json file, sorted, skipping the rest", () => {
     Deno.writeTextFileSync(
-      `${dir}/b.json`,
+      `${dir.path}/b.json`,
       JSON.stringify({ "b.one": "first", "b.two": "second" }),
     );
     Deno.writeTextFileSync(
-      `${dir}/a.json`,
+      `${dir.path}/a.json`,
       JSON.stringify({ "a.count": 3, "a.text": "hello" }),
     );
-    Deno.writeTextFileSync(`${dir}/notes.txt`, "ignored");
+    Deno.writeTextFileSync(`${dir.path}/notes.txt`, "ignored");
 
-    expect(readCatalog(dir)).toEqual([
+    expect(readCatalog(dir.path)).toEqual([
       { file: "a.json", key: "a.text", value: "hello" },
       { file: "b.json", key: "b.one", value: "first" },
       { file: "b.json", key: "b.two", value: "second" },
@@ -183,7 +184,7 @@ describe("check-copy runner", () => {
     expect(code).toBe(0);
     expect(errors).toEqual([]);
     expect(out).toEqual([
-      `All user-facing copy in ${dir} passes the simple-language checks.`,
+      `All user-facing copy in ${dir.path} passes the simple-language checks.`,
     ]);
   });
 

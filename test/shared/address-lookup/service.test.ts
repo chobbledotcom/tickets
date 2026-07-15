@@ -14,7 +14,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { setupFetchStub } from "#test-utils/fetch-stub.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const PROVIDER_BODY = JSON.stringify([
   {
@@ -31,7 +31,6 @@ const DOWNING_STREET_MATCH = {
 };
 
 describeWithEnv("address lookup service", { db: true }, () => {
-  const { callCount, stubFetch } = setupFetchStub();
   const errors = setupErrorSpy();
 
   beforeEach(() => {
@@ -39,18 +38,18 @@ describeWithEnv("address lookup service", { db: true }, () => {
   });
 
   test("rejects a search the provider's rules can't normalise", async () => {
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    using fetchStub = stubFetch(new Error("should not be called"));
     const outcome = await lookupAddresses("easypostcodes", "not a postcode");
     expect(outcome).toEqual({
       error: "That doesn't look like a valid postcode",
       ok: false,
     });
-    expect(callCount()).toBe(0);
+    expect(fetchStub.calls.length).toBe(0);
   });
 
   test("fetches on a miss, using the stored API key, and caches the result", async () => {
     let sentKey: string | null = null;
-    stubFetch((_url, init) => {
+    using _fetch = stubFetch((_url, init) => {
       sentKey = new Headers(init?.headers).get("Key");
       return Promise.resolve(new Response(PROVIDER_BODY));
     });
@@ -68,7 +67,7 @@ describeWithEnv("address lookup service", { db: true }, () => {
   });
 
   test("serves a cached search without touching the provider", async () => {
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    using fetchStub = stubFetch(new Error("should not be called"));
     const index = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
     await storeCachedAddresses(index, [
       { lat: "51.5", line: "Cached Address Line", lng: "-0.1" },
@@ -81,22 +80,22 @@ describeWithEnv("address lookup service", { db: true }, () => {
       addresses: [{ lat: "51.5", line: "Cached Address Line", lng: "-0.1" }],
       ok: true,
     });
-    expect(callCount()).toBe(0);
+    expect(fetchStub.calls.length).toBe(0);
   });
 
   test("serves a cached empty result without re-fetching", async () => {
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    using fetchStub = stubFetch(new Error("should not be called"));
     const index = await computeAddressSearchIndex("easypostcodes", "ZZ99 9ZZ");
     await storeCachedAddresses(index, []);
 
     const outcome = await lookupAddresses("easypostcodes", "zz999zz");
 
     expect(outcome).toEqual({ addresses: [], ok: true });
-    expect(callCount()).toBe(0);
+    expect(fetchStub.calls.length).toBe(0);
   });
 
   test("a provider failure logs the detail and reports a generic error", async () => {
-    stubFetch(() => Promise.resolve(new Response("denied", { status: 403 })));
+    using _fetch = stubFetch(new Response("denied", { status: 403 }));
 
     const outcome = await lookupAddresses("easypostcodes", "SW1A 2AA");
 

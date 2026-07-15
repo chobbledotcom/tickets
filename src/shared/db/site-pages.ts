@@ -17,7 +17,8 @@ import {
   queryAll,
   queryOne,
   resultRows,
-  withTransaction,
+  type TxScope,
+  useTransaction,
 } from "#shared/db/client.ts";
 import {
   defineIdTable,
@@ -25,9 +26,13 @@ import {
 } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
-import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
+import {
+  unclaimedSiteSlugCondition,
+  updateRowWithUnclaimedSlug,
+} from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import { cachedTable, col } from "#shared/db/table.ts";
+import { cachedTable, col, writeTableRow } from "#shared/db/table.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -105,17 +110,6 @@ export const getSitePageBySlugIndex = (
 export const getSitePageById = (id: number): Promise<SitePage | null> =>
   querySitePage("id = ?", id);
 
-/** Is `slug` already used by a listing, group, or another page? Delegates to the
- * shared cross-table registry. Reserved-word rejection is a separate check. */
-export const isSitePageSlugTaken = (
-  slug: string,
-  excludeId?: number,
-): Promise<boolean> =>
-  isSlugTakenAnywhere(
-    slug,
-    excludeId ? { id: excludeId, table: "site_pages" } : undefined,
-  );
-
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move
  * together by construction — a drifted index would break lookups and the
@@ -130,36 +124,30 @@ export type SitePageWriteInput = Omit<
  * the row inserted in **one write transaction**, so the whole create rolls back
  * as a unit — no orphan row on a mid-write failure — and two concurrent creates
  * serialise on the write lock to get distinct orders (equal orders would make a
- * reorder swap a no-op, leaving the pages unreorderable). The returned row is
- * built from the input + the assigned id/order, never read back. */
+ * reorder swap a no-op, leaving the pages unreorderable). Slug availability is
+ * part of the INSERT, so a concurrent owner returns `slugTaken`. */
 export const createSitePage = async (
   input: SitePageWriteInput,
-): Promise<SitePage> => {
+  transaction?: TxScope,
+): Promise<Result<SitePage, "slugTaken">> => {
   const slugIndex = await computeSitePageSlugIndex(input.slug);
-  const { id, sortOrder } = await withTransaction(async (tx) => {
+  return useTransaction(transaction, async (tx) => {
     const res = await tx.execute({
       args: [],
       sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_pages",
     });
     const nextOrder = Number(resultRows<{ next: number }>(res)[0]!.next);
-    const stmt = await rawSitePagesTable.insertStatement!({
-      ...input,
-      slugIndex,
-      sortOrder: nextOrder,
+    const row = await writeTableRow(tx, rawSitePagesTable, {
+      condition: unclaimedSiteSlugCondition(slugIndex),
+      input: {
+        ...input,
+        slugIndex,
+        sortOrder: nextOrder,
+      },
+      kind: "insert",
     });
-    const result = await tx.execute(stmt);
-    return { id: Number(result.lastInsertRowid), sortOrder: nextOrder };
+    return row ? okResult(row) : errorResult("slugTaken");
   });
-  return {
-    content: input.content,
-    id,
-    meta_description: input.metaDescription,
-    meta_title: input.metaTitle,
-    name: input.name,
-    slug: input.slug,
-    slug_index: slugIndex,
-    sort_order: sortOrder,
-  };
 };
 
 /** Update a page's editable fields (all but id/sort_order) — every field, every
@@ -168,11 +156,17 @@ export const createSitePage = async (
 export const updateSitePage = async (
   id: number,
   input: SitePageWriteInput,
-): Promise<SitePage | null> =>
-  sitePages.table.update(id, {
-    ...input,
-    slugIndex: await computeSitePageSlugIndex(input.slug),
-  });
+  transaction?: TxScope,
+): Promise<Result<SitePage, "notFound" | "slugTaken">> => {
+  const slugIndex = await computeSitePageSlugIndex(input.slug);
+  return updateRowWithUnclaimedSlug(
+    sitePages.table,
+    id,
+    { ...input, slugIndex },
+    unclaimedSiteSlugCondition(slugIndex, { id, table: "site_pages" }),
+    transaction,
+  );
+};
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */
 export const swapSitePageOrder = (id1: number, id2: number): Promise<void> =>

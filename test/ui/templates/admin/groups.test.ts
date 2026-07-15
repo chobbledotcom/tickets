@@ -206,6 +206,15 @@ describe("GroupOverviewPanel", () => {
     expect(html).toContain('href="/admin/ledger?group=8"');
   });
 
+  test("shows ledger income in the group detail table", () => {
+    const html = overviewHtml({
+      group: testGroup({ id: 8 }),
+      hasPaidListing: false,
+      money: moneyTotals({ recognisedIncome: 2500 }),
+    });
+    expect(html).toContain("<th>Total Revenue</th><td>£25</td>");
+  });
+
   test("shows money and its ledger link for a free group with only outside costs", () => {
     const html = overviewHtml({
       group: testGroup({ id: 8 }),

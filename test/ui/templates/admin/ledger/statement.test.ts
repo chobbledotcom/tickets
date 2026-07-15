@@ -18,7 +18,7 @@ import {
   AccountStatementSection,
   adminAccountStatementPage,
 } from "#templates/admin/ledger/statement.tsx";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
 
@@ -251,29 +251,25 @@ describe("adminAccountStatementPage", () => {
   });
 
   test("suppresses add and edit actions in read-only mode", () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
-    try {
-      const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
-      const html = adminAccountStatementPage(
-        acct,
-        statementFor(acct)([
-          transfer({
-            destination: account("attendee", 7),
-            id: 77,
-            kind: MANUAL_ATTENDEE_PAYMENT,
-            source: account("external", "world"),
-          }),
-        ]),
-        refs,
-        SESSION,
-      );
-      expect(html).not.toContain("/admin/ledger/attendee/7/add");
-      expect(html).not.toContain("/admin/ledger/entries/77/edit");
-    } finally {
-      restore();
-    }
+    const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
+    const html = adminAccountStatementPage(
+      acct,
+      statementFor(acct)([
+        transfer({
+          destination: account("attendee", 7),
+          id: 77,
+          kind: MANUAL_ATTENDEE_PAYMENT,
+          source: account("external", "world"),
+        }),
+      ]),
+      refs,
+      SESSION,
+    );
+    expect(html).not.toContain("/admin/ledger/attendee/7/add");
+    expect(html).not.toContain("/admin/ledger/entries/77/edit");
   });
 
   test("keeps the full-ledger action for accounts that cannot add entries", () => {

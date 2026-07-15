@@ -15,7 +15,8 @@ import {
   withBuildSiteMocks,
 } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 const BUILD_INPUT = {
@@ -42,10 +43,7 @@ const ERROR_CASES: {
   {
     error: "Failed to fetch release",
     input: BUILD_INPUT,
-    mocks: () =>
-      stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("Not Found", { status: 404 })),
-      ),
+    mocks: () => stubFetch(new Response("Not Found", { status: 404 })),
     name: "buildSite returns error when GitHub API fails",
   },
   {
@@ -400,33 +398,29 @@ describeWithEnv(
         },
       ));
 
-    test("buildSite on Deno does not include Bunny DNS secrets in env vars", () => {
-      const restore = setTestEnv({
+    test("buildSite on Deno does not include Bunny DNS secrets in env vars", async () => {
+      using _env = withEnv({
         BUNNY_API_KEY: "host-bunny-key",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
         BUNNY_DNS_ZONE_ID: "zone-123",
       });
-      try {
-        return withMocks(
-          () => stubDenoBuilderApis(),
-          async ({ setEnvStub }) => {
-            const result = await builderApi.buildSite({
-              dbToken: "tok",
-              dbUrl: "libsql://test.turso.io",
-              hostingProvider: "deno",
-              siteName: "Deno Site",
-            });
-            expect(result.ok).toBe(true);
-            const secrets = setEnvStub.calls[0]!.args[1] as [string, string][];
-            const names = secrets.map(([name]) => name);
-            expect(names).not.toContain("BUNNY_API_KEY");
-            expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
-            expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
-          },
-        );
-      } finally {
-        restore();
-      }
+      await withMocks(
+        () => stubDenoBuilderApis(),
+        async ({ setEnvStub }) => {
+          const result = await builderApi.buildSite({
+            dbToken: "tok",
+            dbUrl: "libsql://test.turso.io",
+            hostingProvider: "deno",
+            siteName: "Deno Site",
+          });
+          expect(result.ok).toBe(true);
+          const secrets = setEnvStub.calls[0]!.args[1] as [string, string][];
+          const names = secrets.map(([name]) => name);
+          expect(names).not.toContain("BUNNY_API_KEY");
+          expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
+          expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
+        },
+      );
     });
   },
 );

@@ -7,7 +7,7 @@
  */
 
 /* jscpd:ignore-start */
-import { byId, compact, filter, unique } from "#fp";
+import { compact, filter, identity, mapBy, unique } from "#fp";
 import { t } from "#i18n";
 import {
   type AttendeeFormLine,
@@ -39,7 +39,10 @@ import {
   groups,
   packageMemberMaps,
 } from "#shared/db/groups.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  hydrateListingLinks,
+  listingChildren,
+} from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { hasRefundPaymentReference } from "#shared/db/payment-references.ts";
 import type {
@@ -210,7 +213,7 @@ const buildFormLines = (
   packagePaths: PackagePath[],
   preselectedQty: Map<number, number>,
 ): AttendeeFormLine[] => {
-  const listingsById = byId(renderListings);
+  const listingsById = mapBy("id", identity<ListingWithCount>)(renderListings);
   const pricesByListingId = packagesByListingIdFrom(packagePaths);
   const priceOfPath = (listingId: number, groupId: number): number | null =>
     groupId > 0
@@ -405,10 +408,13 @@ const incompleteParentWarnings = async (
   booked: AttendeeFormLine[],
 ): Promise<Map<number, string>> => {
   const bookedIds = new Set(booked.map((line) => line.listingId));
-  const childrenByParent = await getChildrenForParents([...bookedIds]);
+  const { listingsByKey: childrenByParent } = await hydrateListingLinks(
+    listingChildren,
+    [...bookedIds],
+  );
   const warnings = new Map<number, string>();
   for (const line of booked) {
-    // getChildrenForParents only returns listings that ARE parents (≥1 child).
+    // Hydration only returns listings that ARE parents (at least one child).
     const children = childrenByParent.get(line.listingId);
     if (!children || children.some((child) => bookedIds.has(child.id))) {
       continue;

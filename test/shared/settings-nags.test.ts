@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -7,7 +7,7 @@ import {
   getSettingsNagItemsForOwner,
 } from "#shared/settings-nags.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withSetting } from "#test-utils/settings.ts";
 
 // ---------------------------------------------------------------------------
@@ -123,14 +123,8 @@ describeWithEnv(
 // ---------------------------------------------------------------------------
 
 describeWithEnv("getSettingsNagItemsForOwner", { db: true }, () => {
-  let restoreEnv: (() => void) | undefined;
-
-  afterEach(() => {
-    restoreEnv?.();
-  });
-
   test("returns base nags plus superuser nag when env is set, choice empty, user nonexistent", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(true);
@@ -146,39 +140,39 @@ describeWithEnv("getSettingsNagItemsForOwner", { db: true }, () => {
   });
 
   test("does NOT show superuser nag when ADMIN_EMAIL_ADDRESS is unset", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: undefined });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: undefined });
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(false);
   });
 
   test("does NOT show superuser nag when ADMIN_EMAIL_ADDRESS is invalid email", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "not-an-email" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "not-an-email" });
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(false);
   });
 
   test("does NOT show superuser nag when derived username is invalid (dots)", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "john.doe@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "john.doe@example.com" });
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(false);
   });
 
   test("does NOT show superuser nag when superuser_choice is 'self-managed'", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "self-managed" });
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(false);
   });
 
   test("does NOT show superuser nag when superuser_choice is 'enabled'", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "enabled" });
     const items = await getSettingsNagItemsForOwner();
     expect(items.some((i) => i.id === "superuser")).toBe(false);
   });
 
   test("does NOT show superuser nag when derived username exists AND is activated (has wrapped_data_key)", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
     const { createUser } = await import("#shared/db/users.ts");
     const { hashPassword } = await import("#shared/crypto/hashing.ts");
@@ -190,7 +184,7 @@ describeWithEnv("getSettingsNagItemsForOwner", { db: true }, () => {
   });
 
   test("shows superuser nag when derived username exists but is NOT activated (null wrapped_data_key)", async () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    using _env = withEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
     settings.setForTest({ superuser_choice: "" });
     const { createUser } = await import("#shared/db/users.ts");
     await createUser("admin", "", null, "owner");

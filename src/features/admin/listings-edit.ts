@@ -18,6 +18,7 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { formDataToParams } from "#routes/csrf.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
@@ -28,8 +29,8 @@ import {
 } from "#shared/db/attendees/update.ts";
 import {
   anyHiddenPackageGroup,
-  getGroupIdsByListingId,
   groups,
+  listingGroups,
 } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import {
@@ -190,7 +191,7 @@ const copyEdgesFromDuplicateSource = async (
   // carried over, mirroring the children endpoint's package invariant that the
   // create path would otherwise bypass. A visible package renders the member's
   // child selector, so its copy keeps the gate.
-  if (await anyHiddenPackageGroup(await getGroupIdsByListingId(newId))) {
+  if (await anyHiddenPackageGroup(await listingGroups.getIds(newId))) {
     return t("listings_table.duplicate_children_dropped", {
       reason: t("error.package_member_no_children"),
     });
@@ -332,7 +333,7 @@ export const getListingAndGroups = async (
     // row (and the editor webhook lock below preserves the real stored URL).
     getStoredListingWithCount(listingId),
     groups.cache.getAll(),
-    getGroupIdsByListingId(listingId),
+    listingGroups.getIds(listingId),
   ]);
   return listing
     ? {
@@ -347,25 +348,25 @@ export const getListingAndGroups = async (
 type ListingAndGroups = NonNullable<
   Awaited<ReturnType<typeof getListingAndGroups>>
 >;
+const listingAndGroupsHandler =
+  createIdEntityHandler<ListingAndGroups>(getListingAndGroups)(
+    requireContentOr,
+  );
 
 /**
  * Session-guarded GET handler that loads the listing + groups context and
  * renders a page from it. Shared by the duplicate and edit forms.
  */
-const listingAndGroupsPage =
-  (
-    renderPage: (
-      ctx: ListingAndGroups,
-      session: AdminSession,
-      request: Request,
-    ) => string,
-  ): TypedRouteHandler<"GET /admin/listing/:id"> =>
-  (request, params) =>
-    requireContentOr(request, (session) =>
-      withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
-        htmlResponse(renderPage(ctx, session, request)),
-      ),
-    );
+const listingAndGroupsPage = (
+  renderPage: (
+    ctx: ListingAndGroups,
+    session: AdminSession,
+    request: Request,
+  ) => string,
+): TypedRouteHandler<"GET /admin/listing/:id"> =>
+  listingAndGroupsHandler((ctx, session, request) =>
+    htmlResponse(renderPage(ctx, session, request)),
+  );
 
 /** Handle GET /admin/listing/:id/duplicate */
 export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =
@@ -383,7 +384,7 @@ export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listi
 const firstGroupCapOverflow = async (
   listingId: number,
 ): Promise<string | null> => {
-  for (const groupId of await getGroupIdsByListingId(listingId)) {
+  for (const groupId of await listingGroups.getIds(listingId)) {
     const overDay = await checkGroupCapAfterDurationChange(listingId, groupId);
     if (overDay) return overDay;
   }

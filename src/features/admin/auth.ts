@@ -29,11 +29,7 @@ import {
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
 import { verifySignedCsrfToken } from "#shared/csrf.ts";
-import {
-  clearLoginAttempts,
-  isLoginRateLimited,
-  recordFailedLogin,
-} from "#shared/db/login-attempts.ts";
+import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
 import { createSession, deleteSession } from "#shared/db/sessions.ts";
 import {
   decryptAdminLevel,
@@ -101,7 +97,7 @@ const handleAdminLogin = async (
   const clientIp = getClientIp(request, server);
 
   // Check rate limiting
-  if (await isLoginRateLimited(clientIp)) {
+  if (await loginLimiter.isLimited(clientIp)) {
     return fail("/admin", t("error.too_many_attempts"));
   }
 
@@ -109,7 +105,7 @@ const handleAdminLogin = async (
   // session, so the redirect lands on the login page (not the dashboard).
   const existingToken = parseCookies(request).get(getSessionCookieName());
   const failedCredentialsRedirect = async (): Promise<Response> => {
-    await recordFailedLogin(clientIp);
+    await loginLimiter.record(clientIp);
     if (existingToken) await deleteSession(existingToken);
     return fail("/admin", "Username or password was wrong", {
       ...(existingToken ? { cookie: clearSessionCookie() } : {}),

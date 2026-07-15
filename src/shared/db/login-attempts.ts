@@ -64,14 +64,14 @@ const makeRecordAttempt =
 /**
  * Check whether an IP (namespaced by `prefix`) is currently locked out.
  */
-export const isIpRateLimited = (ip: string, prefix: string): Promise<boolean> =>
+const isIpRateLimited = (ip: string, prefix: string): Promise<boolean> =>
   withHashedIpAttempts(ip, prefix, checkLockout);
 
 /**
  * Record one attempt for an IP (namespaced by `prefix`), locking it out for
  * `lockoutMs` once `maxAttempts` is reached. Returns true if now locked.
  */
-export const recordIpAttempt = (
+const recordIpAttempt = (
   ip: string,
   prefix: string,
   maxAttempts: number,
@@ -97,21 +97,15 @@ export const makeIpRateLimiter = (
   record: (ip) => recordIpAttempt(ip, prefix, maxAttempts, lockoutMs),
 });
 
-/**
- * Check if IP is rate limited for login.
- */
-export const isLoginRateLimited = (ip: string): Promise<boolean> =>
-  isIpRateLimited(ip, "");
+export const loginLimiter = makeIpRateLimiter(
+  "",
+  MAX_LOGIN_ATTEMPTS,
+  LOGIN_LOCKOUT_MS,
+);
 
 /**
- * Record a failed login attempt.
- * Returns true if the account is now locked.
- */
-export const recordFailedLogin = (ip: string): Promise<boolean> =>
-  recordIpAttempt(ip, "", MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_MS);
-
-/**
- * Clear login attempts for an IP (on successful login)
+ * Clear login attempts for an IP on successful login. Clearing is login-only:
+ * successful API-key, booking, and address requests must retain their counters.
  */
 export const clearLoginAttempts: (ip: string) => Promise<void> =
   clearAttemptsFor("login_attempts");

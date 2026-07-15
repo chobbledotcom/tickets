@@ -269,13 +269,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       listingId: number,
       answerId: number,
     ): Promise<void> => {
-      const { createAttendeeAtomic } = await import(
-        "#shared/db/attendees/api.ts"
-      );
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       const { saveAttendeeAnswers } = await import(
         "#shared/db/questions/attendee-answers/save.ts"
       );
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId }],
         email: "booker@test.com",
         name: "Booker",

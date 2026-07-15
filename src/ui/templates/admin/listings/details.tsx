@@ -4,7 +4,6 @@ import { formatCountdown } from "#routes/format.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   availableDayCounts,
   dayPriceFor,
@@ -15,6 +14,7 @@ import {
   CopyableInputRow,
   type CopyableInputRowSpec,
 } from "#templates/admin/copyable-row.tsx";
+import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import { HiddenDetailRow } from "#templates/admin/hidden-row.tsx";
 import {
   PublicTicketLink,
@@ -158,7 +158,7 @@ export const ListingDetailsTable = ({
   embedScriptCode,
   embedIframeCode,
   capacity,
-  sharedRowsHtml,
+  sharedRows,
   isChild,
   isHiddenPackageMember,
 }: {
@@ -169,7 +169,7 @@ export const ListingDetailsTable = ({
   embedScriptCode: string;
   embedIframeCode: string;
   capacity: ListingCapacityRowsProps;
-  sharedRowsHtml: string;
+  sharedRows: DetailRow[];
   isChild: boolean;
   isHiddenPackageMember: boolean;
 }): JSX.Element => {
@@ -208,7 +208,7 @@ export const ListingDetailsTable = ({
   ]);
   return (
     <article>
-      <DetailTable>
+      <DetailTable rows={sharedRows}>
         <tr>
           <th colspan="2">{listing.name}</th>
         </tr>
@@ -289,7 +289,6 @@ export const ListingDetailsTable = ({
           aggregateRecalculation={aggregateRecalculation}
           listing={listing}
         />
-        <Raw html={sharedRowsHtml} />
       </DetailTable>
     </article>
   );

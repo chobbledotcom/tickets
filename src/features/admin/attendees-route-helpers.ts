@@ -4,13 +4,15 @@
 
 /* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
-  createEntityRouteHandlers,
-  withEntityLoader,
-} from "#routes/admin/entity-handlers.ts";
-import type { AuthSession } from "#routes/auth.ts";
+  AUTH_FORM,
+  type AuthSession,
+  formGuard,
+  requireSessionOr,
+} from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import type { IdFormHandler } from "#routes/entity.ts";
+import { createEntityHandler, type IdFormHandler } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
@@ -96,10 +98,14 @@ export type ListingRouteParams = { id: number };
 type AttendeeRouteParams = { listingId: number; attendeeId: number };
 
 /** GET/POST handler pair for the attendee-scoped action routes. */
-const attendeeActionHandlers = createEntityRouteHandlers(
-  loadAttendeeWithHomeListing,
-  ({ attendeeId }: { attendeeId: number }) => attendeeId,
-);
+const attendeeActionHandler = createEntityHandler<
+  AttendeeIdRouteParams,
+  AttendeeWithListing
+>(({ attendeeId }) => loadAttendeeWithHomeListing(attendeeId));
+const attendeeActionHandlers = {
+  get: attendeeActionHandler(requireSessionOr),
+  post: attendeeActionHandler(formGuard(AUTH_FORM)),
+};
 
 /** The canonical URL of an attendee-scoped action (confirm page + POST). */
 export const attendeeActionUrl = (attendeeId: number, action: string): string =>
@@ -133,7 +139,7 @@ export const attendeeActionPage = (
   render: AttendeeActionRenderer,
   guard?: (data: AttendeeWithListing) => Promise<string | null>,
 ) =>
-  attendeeActionHandlers.get(async (request, session, data) => {
+  attendeeActionHandlers.get(async (data, session, request) => {
     const returnUrl = getReturnUrl(request);
     const blocked = guard ? await guard(data) : null;
     if (blocked !== null) {
@@ -150,7 +156,7 @@ export const verifiedAttendeeAction = (
   actionLabel: string | undefined,
   handler: ResponseHandler<[data: AttendeeWithListing, form: FormParams]>,
 ) =>
-  attendeeActionHandlers.post((_session, form, data) => {
+  attendeeActionHandlers.post((data, _session, form) => {
     const error = verifyOrRedirect(
       form,
       data.attendee.name,

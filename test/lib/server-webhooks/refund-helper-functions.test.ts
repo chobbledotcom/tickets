@@ -10,6 +10,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -168,8 +169,7 @@ describeWithEnv(
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.reject(new Error("synthetic create failure")),
       );
-      const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
-      Deno.env.delete("TEST_EXPECT_ERROR");
+      using _env = withEnv({ TEST_EXPECT_ERROR: undefined });
       try {
         // A non-sold-out error is not swallowed as a refund: it propagates.
         await expect(
@@ -183,7 +183,6 @@ describeWithEnv(
         mockRefund.restore();
         mockBooking.restore();
         mockAtomic.restore();
-        if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
       }
     });
 

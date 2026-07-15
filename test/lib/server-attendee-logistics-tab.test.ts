@@ -13,7 +13,7 @@ import {
   startAgentField,
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import {
@@ -66,7 +66,7 @@ describeWithEnv("attendee Logistics tab (GET)", { db: true }, () => {
 describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
   test("saves the address and pin, preserving the rest of the PII blob", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
-    const result = await createAttendeeAtomic({
+    const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id }],
       email: "pin@example.com",
       name: "Pin Person",

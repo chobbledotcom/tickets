@@ -18,7 +18,6 @@
  */
 
 /* jscpd:ignore-start */
-import { groupBy } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 /* jscpd:ignore-end */
@@ -101,7 +100,7 @@ const coveredRefundGroups = async (
  * refunded, so a normal re-submit never reaches this mapper.
  */
 export const accountRefundGroups = (legs: Transfer[]): Transfer[][] => [
-  ...groupBy(
+  ...Map.groupBy(
     legs.filter((leg) => !isRefundLeg(leg.kind)),
     (leg) => leg.eventGroup,
   ).values(),

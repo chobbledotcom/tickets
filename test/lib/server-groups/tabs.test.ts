@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getGroupIdsByListingId } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectFlashRedirect,
@@ -138,8 +138,8 @@ describeWithEnv(
         const listing1 = await createTestListing({ name: "Listing A" });
         const listing2 = await createTestListing({ name: "Listing B" });
 
-        expect(await getGroupIdsByListingId(listing1.id)).toEqual([]);
-        expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
+        expect(await listingGroups.getIds(listing1.id)).toEqual([]);
+        expect(await listingGroups.getIds(listing2.id)).toEqual([]);
 
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
@@ -159,8 +159,8 @@ describeWithEnv(
           "Listings added to group",
         )(response);
 
-        expect(await getGroupIdsByListingId(listing1.id)).toContain(group.id);
-        expect(await getGroupIdsByListingId(listing2.id)).toEqual([]);
+        expect(await listingGroups.getIds(listing1.id)).toContain(group.id);
+        expect(await listingGroups.getIds(listing2.id)).toEqual([]);
         // The assignment is recorded in the activity log.
         const { getAllActivityLog } = await import(
           "#test-utils/activity-log.ts"
@@ -228,7 +228,7 @@ describeWithEnv(
         )(response);
 
         // Verify listing was NOT assigned
-        expect(await getGroupIdsByListingId(dailyListing.id)).toEqual([]);
+        expect(await listingGroups.getIds(dailyListing.id)).toEqual([]);
       });
     });
   },

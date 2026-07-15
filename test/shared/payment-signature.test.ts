@@ -69,6 +69,32 @@ describeWithEnv("payment price signature", { encryptionKey: true }, () => {
     );
   });
 
+  test("keeps the stored signature format stable", () => {
+    expect(signPrice(baseMeta(), TOTAL)).toBe(
+      "KmJL3DIjuZ+ql2T+CAfDlxrTYw2ZfmpmFKD2mi8864A=",
+    );
+  });
+
+  test("does not depend on metadata field order", () => {
+    const reversed = Object.fromEntries(Object.entries(baseMeta()).reverse());
+    expect(signPrice(reversed, TOTAL)).toBe(signPrice(baseMeta(), TOTAL));
+  });
+
+  test("uses stable code-point order for punctuation and non-ASCII keys", () => {
+    const metadata = {
+      _private: "underscore",
+      "!bang": "punctuation",
+      zebra: "latin",
+      Ångström: "ring",
+      éclair: "accent",
+    };
+    const reversed = Object.fromEntries(Object.entries(metadata).reverse());
+    const expected = "rNED72XRirMZIUmalitJ4F4RW0JqKdZl3DJCvXz9nRk=";
+
+    expect(signPrice(metadata, TOTAL)).toBe(expected);
+    expect(signPrice(reversed, TOTAL)).toBe(expected);
+  });
+
   test("a fresh signature verifies", async () => {
     const meta = baseMeta();
     expect(await verifyPrice(meta, TOTAL, await signPrice(meta, TOTAL))).toBe(

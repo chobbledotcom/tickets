@@ -181,10 +181,8 @@ describeWithEnv(
           maxAttendees: 50,
           name: "E2",
         });
-        const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees/api.ts"
-        );
-        const result = await createAttendeeAtomic({
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const result = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { listingId: event1.id, quantity: 1 },
             {

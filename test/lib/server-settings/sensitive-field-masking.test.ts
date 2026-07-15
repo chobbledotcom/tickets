@@ -1,16 +1,15 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
-import { stripeApi } from "#shared/stripe.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
+import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { withSuccessfulStripeWebhook } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -25,20 +24,6 @@ const postSettings = async (
       { csrf_token: await testCsrfToken(), ...fields },
       await testCookie(),
     ),
-  );
-
-/** Run `body` with the Stripe webhook-setup call stubbed to succeed. */
-const withStripeWebhook = (body: () => Promise<void>): Promise<void> =>
-  withMocks(
-    () =>
-      stub(stripeApi, "setupWebhookEndpoint", () =>
-        Promise.resolve({
-          endpointId: "we_test_123",
-          secret: "whsec_test_secret",
-          success: true,
-        }),
-      ),
-    body,
   );
 
 /** Assert the page at `path` masks `secret` behind the sentinel. */
@@ -69,7 +54,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("sensitive field masking", () => {
     test("shows mask sentinel for configured Stripe key", async () => {
       await settings.update.paymentProvider("stripe");
-      await withStripeWebhook(async () => {
+      await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
           stripe_secret_key: "sk_test_real_secret",
         });
@@ -94,7 +79,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("submitting sentinel for Stripe key does not overwrite existing key", async () => {
       await settings.update.paymentProvider("stripe");
-      await withStripeWebhook(async () => {
+      await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
           stripe_secret_key: "sk_test_original",
         });
@@ -147,7 +132,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("submitting new value still updates the key", async () => {
       await settings.update.paymentProvider("stripe");
-      await withStripeWebhook(async () => {
+      await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
           stripe_secret_key: "sk_test_old",
         });
@@ -160,7 +145,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("empty Stripe key with existing key is a no-op", async () => {
       await settings.update.paymentProvider("stripe");
-      await withStripeWebhook(async () => {
+      await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
           stripe_secret_key: "sk_test_keep_me",
         });

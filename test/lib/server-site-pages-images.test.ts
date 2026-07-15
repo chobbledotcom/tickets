@@ -7,7 +7,6 @@ import {
   getImageById,
   getImageUsesForImage,
 } from "#shared/db/images.ts";
-import { createSitePage } from "#shared/db/site-pages.ts";
 import {
   formRequest,
   imageNamesForItem,
@@ -19,6 +18,7 @@ import {
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest, withStorageMock } from "#test-utils/mocks.ts";
 import {
   createTestManagerSession,
@@ -27,13 +27,7 @@ import {
 } from "#test-utils/session.ts";
 
 const makePage = (name: string, slug: string) =>
-  createSitePage({
-    content: "",
-    metaDescription: "",
-    metaTitle: "",
-    name,
-    slug,
-  });
+  createTestSitePage(slug, { name });
 
 describeWithEnv(
   "admin site-page image routes",

@@ -19,10 +19,7 @@ import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
-import {
-  isApiKeyRateLimited,
-  recordApiKeyAttempt,
-} from "#shared/db/api-key-attempts.ts";
+import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import { deleteSession, getSession } from "#shared/db/sessions.ts";
 import {
@@ -178,7 +175,7 @@ export const getAuthenticatedApiKey = async (
   // client with a valid key is never locked out; once an IP is locked, even a
   // correct token is rejected until the lockout expires.
   const ip = getRequestClientIp();
-  if (await isApiKeyRateLimited(ip)) {
+  if (await apiKeyLimiter.isLimited(ip)) {
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
       detail: "API key authentication rate limited",
@@ -188,7 +185,7 @@ export const getAuthenticatedApiKey = async (
 
   const apiKeyRow = await getApiKeyByToken(token);
   if (!apiKeyRow) {
-    await recordApiKeyAttempt(ip);
+    await apiKeyLimiter.record(ip);
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
       detail: "Bearer token does not match any API key",
@@ -441,6 +438,14 @@ export type Guard<TArgs extends unknown[]> = (
 
 /** Session guard: require auth and call handler with session */
 export type SessionGuard<TSession> = Guard<[TSession]>;
+
+/** Turn a form auth policy into a route gate that yields its session and form. */
+export const formGuard =
+  (
+    policy: AuthPolicy<"form">,
+  ): Guard<[session: AuthSession, form: FormParams]> =>
+  (request, handler) =>
+    withAuth(request, policy, (session, form) => handler(session, form));
 
 /** Factory for authenticated GET routes whose builder returns the full
  * Response — for pages that may 404, redirect, or set headers. Applies any

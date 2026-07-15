@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { tempFile } from "#test-utils/files.ts";
 import type { Mutant } from "../../scripts/mutation/generate.ts";
 import {
   type IgnoreList,
@@ -49,47 +50,39 @@ describe("mutation ignore list", () => {
   });
 
   test("loads canonical entries and ignores comments, blanks, and invalid lines", async () => {
-    const path = await Deno.makeTempFile({ prefix: "mutation-ignore-" });
-    try {
-      await Deno.writeTextFile(
-        path,
-        [
-          "# known equivalent mutants",
-          "",
-          "not a valid entry",
-          "src/example.ts:12:5 ?? → || # nullish and or equivalent here",
-        ].join("\n"),
-      );
+    using temp = tempFile({ prefix: "mutation-ignore-" });
+    await Deno.writeTextFile(
+      temp.path,
+      [
+        "# known equivalent mutants",
+        "",
+        "not a valid entry",
+        "src/example.ts:12:5 ?? → || # nullish and or equivalent here",
+      ].join("\n"),
+    );
 
-      const loaded = await loadIgnoreList(path);
+    const loaded = await loadIgnoreList(temp.path);
 
-      expect(loaded.entries).toEqual(["src/example.ts:12:5 ??→||"]);
-      expect(loaded.keys.has("src/example.ts:12:5 ??→||")).toBe(true);
-    } finally {
-      await Deno.remove(path).catch(() => {});
-    }
+    expect(loaded.entries).toEqual(["src/example.ts:12:5 ??→||"]);
+    expect(loaded.keys.has("src/example.ts:12:5 ??→||")).toBe(true);
   });
 
   test("loads an entry with an empty 'from' side, for an already-empty string literal mutant", async () => {
     // stringLiteralMutants displays an empty label when the original literal
     // is already "" (its only replacement is "mutated"), so a legitimate
     // ignore-list entry can have nothing between the location and the arrow.
-    const path = await Deno.makeTempFile({ prefix: "mutation-ignore-" });
-    try {
-      await Deno.writeTextFile(
-        path,
-        [`src/example.ts:12:5  → "mutated" # always-empty date sentinel`].join(
-          "\n",
-        ),
-      );
+    using temp = tempFile({ prefix: "mutation-ignore-" });
+    await Deno.writeTextFile(
+      temp.path,
+      [`src/example.ts:12:5  → "mutated" # always-empty date sentinel`].join(
+        "\n",
+      ),
+    );
 
-      const loaded = await loadIgnoreList(path);
+    const loaded = await loadIgnoreList(temp.path);
 
-      expect(loaded.entries).toEqual(['src/example.ts:12:5 →"mutated"']);
-      expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
-    } finally {
-      await Deno.remove(path).catch(() => {});
-    }
+    expect(loaded.entries).toEqual(['src/example.ts:12:5 →"mutated"']);
+    expect(isIgnored(loaded, file, mutant(12, "", '"mutated"'))).toBe(true);
   });
 
   test("uses an empty ignore list when the file is absent", async () => {

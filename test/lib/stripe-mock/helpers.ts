@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
+import { withTempDir } from "#test-utils/files.ts";
 import { wait } from "#test-utils/mocks.ts";
 import { installLockPath } from "../../../scripts/stripe-mock/install.ts";
 import {
@@ -75,16 +76,11 @@ export const expectStripeMockFails = (
 
 export const withTempStripeMockPaths = async (
   body: (paths: TestStripeMockPaths) => Promise<void>,
-): Promise<void> => {
-  const binDir = await Deno.makeTempDir();
-  const paths = { binaryPath: join(binDir, "stripe-mock"), binDir };
-
-  try {
+): Promise<void> =>
+  await withTempDir(async (binDir) => {
+    const paths = { binaryPath: join(binDir, "stripe-mock"), binDir };
     await body(paths);
-  } finally {
-    await Deno.remove(binDir, { recursive: true });
-  }
-};
+  });
 
 export const withInstallLockHeld = async (
   paths: TestStripeMockPaths,
@@ -397,15 +393,10 @@ export const writeTermIgnoringMock = async (
 export const withFakeCurl = async (
   script: string,
   body: (curlPath: string) => Promise<void>,
-): Promise<void> => {
-  const dir = await Deno.makeTempDir();
-  const fakeCurl = `${dir}/curl`;
-  await Deno.writeTextFile(fakeCurl, `#!/bin/sh\n${script}\n`);
-  await makeExecutable(fakeCurl);
-
-  try {
+): Promise<void> =>
+  await withTempDir(async (dir) => {
+    const fakeCurl = `${dir}/curl`;
+    await Deno.writeTextFile(fakeCurl, `#!/bin/sh\n${script}\n`);
+    await makeExecutable(fakeCurl);
     await body(fakeCurl);
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-};
+  });

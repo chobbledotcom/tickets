@@ -585,7 +585,7 @@ interface TestRequiresAuthOptions {
   method?: "GET" | "POST";
   multipart?: boolean;
   /** Optional per-test preparation. Return a cleanup function to undo any
-   * state the setup switched (e.g. the restore from `setTestEnv`) — module
+   * state the setup switched (e.g. the restore from `withEnv`) — module
    * state left switched leaks into every test that runs after this one. */
   setup?: () => Promise<(() => void) | undefined> | Promise<void>;
 }

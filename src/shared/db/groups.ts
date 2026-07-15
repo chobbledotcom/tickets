@@ -5,12 +5,12 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import {
-  byId,
   flatMap,
-  groupBy,
-  groupToMap,
+  identity,
+  mapBy,
   mapNotNullish,
   mapParallel,
+  requiredMapValue,
 } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
@@ -20,7 +20,6 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
-  queryIdColumn,
   rowExists,
   type SqlStatement,
   type TxScope,
@@ -31,7 +30,8 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { edgeIdsTouchingMany } from "#shared/db/listing-parents.ts";
+import { linkTableSide } from "#shared/db/link-table.ts";
+import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import {
   getGroupDayPrices,
   groupDayPriceStatements,
@@ -46,12 +46,7 @@ import {
   queryListingsWithCounts,
 } from "#shared/db/listings/records.ts";
 import { listingProjectionSql } from "#shared/db/listings/sql.ts";
-import {
-  envNameSource,
-  type ListsByIds,
-  queryAndMap,
-  rowsByIds,
-} from "#shared/db/query.ts";
+import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { col } from "#shared/db/table.ts";
 import {
@@ -146,11 +141,31 @@ export const groups = cachedEntityTable<Group, GroupInput>(
   },
 );
 
+/** The listing ids in a group, and the reverse listing-to-groups side. */
+export const groupListings = linkTableSide(
+  "group_listings",
+  "group_id",
+  "listing_id",
+);
+export const listingGroups = {
+  ...linkTableSide("group_listings", "listing_id", "group_id"),
+  /** Read one of this side's guaranteed batch entries. */
+  idsFor: (
+    idsByListing: ReadonlyMap<number, number[]>,
+    listingId: number,
+  ): number[] =>
+    requiredMapValue(
+      idsByListing,
+      listingId,
+      "Missing listing group membership",
+    ),
+};
+
 /** Every group keyed by id, from the request-cached set — the batched
  * alternative to one findById per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
-  byId(await groups.cache.getAll());
+  mapBy("id", identity<Group>)(await groups.cache.getAll());
 
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
@@ -254,13 +269,6 @@ export const getListingsByGroupIds = async (
   );
 };
 
-/** Active members of several groups, keyed by group id — the public site-nav's
- * liveness gate. */
-export const getActiveListingsByGroupIds = (
-  groupIds: readonly number[],
-): Promise<Map<number, ListingWithCount[]>> =>
-  getListingsByGroupIds(groupIds, true);
-
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */
 export const groupExists = (id: number): Promise<boolean> =>
@@ -334,12 +342,6 @@ export const getListingsNotInGroup = (
     "WHERE listing.id NOT IN (SELECT listing_id FROM group_listings WHERE group_id = ?)",
     [groupId],
   );
-
-/** The ids of every group a listing belongs to, ascending. */
-export const getGroupIdsByListingId = async (
-  listingId: number,
-): Promise<number[]> =>
-  (await getGroupIdsByListingIds([listingId])).get(listingId) ?? [];
 
 /** Whether any of the given group ids satisfies the extra SQL `condition`.
  * Empty input → false (no query). */
@@ -439,11 +441,18 @@ const firstUnpackageableMember = async <
   listings: readonly L[],
   hideListings: boolean | undefined,
 ): Promise<{ listing: L; block: PackageMemberBlock } | null> => {
-  const edges = await edgeIdsTouchingMany(listings.map((l) => l.id));
+  const listingIds = listings.map((listing) => listing.id);
+  const [childrenByParent, parentsByChild] = await Promise.all([
+    listingChildren.getIdsByKeys(listingIds),
+    listingParents.getIdsByKeys(listingIds),
+  ]);
   const blocked = mapNotNullish((listing: L) => {
     const block = packageMemberBlock(
       listing,
-      edges.get(listing.id)!,
+      {
+        childIds: childrenByParent.get(listing.id)!,
+        parentIds: parentsByChild.get(listing.id)!,
+      },
       hideListings,
     );
     return block ? { block, listing } : null;
@@ -533,29 +542,6 @@ export const packageDisplaysForRows = (
 ): Promise<Map<number, PackageDisplay>> =>
   getPackageDisplaysByIds(rows.map((row) => row.attendee.package_group_id));
 
-/** The listing ids that are members of a group, ascending. */
-export const getGroupListingIds = (groupId: number): Promise<number[]> =>
-  queryIdColumn(
-    "SELECT listing_id AS id FROM group_listings WHERE group_id = ? ORDER BY listing_id ASC",
-    [groupId],
-  );
-
-/** Map each listing id to the ids of the groups it belongs to, in one query.
- * Listings that belong to no group are absent from the map. */
-export const getGroupIdsByListingIds: ListsByIds = async (listingIds) =>
-  groupToMap(
-    (row: { group_id: number; listing_id: number }) => row.listing_id,
-    (row) => row.group_id,
-  )(
-    await rowsByIds<{ group_id: number; listing_id: number }>(
-      listingIds,
-      (placeholders) =>
-        `SELECT group_id, listing_id FROM group_listings
-           WHERE listing_id IN (${placeholders})
-         ORDER BY group_id ASC`,
-    ),
-  );
-
 /**
  * Add listings to a group (membership rows), ignoring any already present.
  *
@@ -642,23 +628,6 @@ const listingGroupDiffStatements = (
   return statements;
 };
 
-/** The ids on one side of a listing↔group membership row matching `id` on the
- * other side, read on the caller's open write transaction (so the read sees the
- * transaction's own earlier writes). Shared by the transactional membership
- * writers below. */
-const membershipSideTx = async (
-  tx: TxScope,
-  select: "group_id" | "listing_id",
-  where: "group_id" | "listing_id",
-  id: number,
-): Promise<Set<number>> => {
-  const rows = await tx.execute({
-    args: [id],
-    sql: `SELECT ${select} FROM group_listings WHERE ${where} = ?`,
-  });
-  return new Set(rows.rows.map((row) => Number(row[select])));
-};
-
 /** Read the listing's current group set via `readCurrent`, diff it against the
  * wanted `groupIds`, and hand the change statements to `run` — the shared core
  * of the batch and transactional variants, so they can't drift. */
@@ -686,7 +655,7 @@ export const setListingGroups: SetListingGroups = (listingId, groupIds) =>
   applyListingGroupDiff(
     listingId,
     groupIds,
-    async () => new Set(await getGroupIdsByListingId(listingId)),
+    async () => new Set(await listingGroups.getIds(listingId)),
     executeBatch,
   );
 
@@ -702,7 +671,7 @@ export const setListingGroupsTx = (
   applyListingGroupDiff(
     listingId,
     groupIds,
-    () => membershipSideTx(tx, "group_id", "listing_id", listingId),
+    async () => new Set(await listingGroups.getIdsTx(tx, listingId)),
     async (statements) => {
       for (const stmt of statements) await tx.execute(stmt);
     },
@@ -714,7 +683,7 @@ export const setListingGroupsTx = (
  * price rows key on the group id, so they'd otherwise outlive the deletion.
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
-  await execute("DELETE FROM group_listings WHERE group_id = ?", [groupId]);
+  await groupListings.clear(groupId);
   for (const stmt of [
     ...groupFlatPriceStatements(groupId, []),
     ...groupDayPriceStatements(groupId, []),
@@ -786,7 +755,7 @@ export const loadPackageMemberPricing = async (groupId: number) => {
 export const getGroupPackagePricesByGroupIds = async (
   groupIds: number[],
 ): Promise<Map<number, GroupListing[]>> =>
-  groupBy(
+  Map.groupBy(
     await rowsByIds<GroupListing>(
       groupIds,
       (placeholders) =>
@@ -877,7 +846,7 @@ const memberQuantityStatement = (
   groupId: number,
   valid: PackageMemberInput[],
 ) => {
-  const qtyCases = valid.map(() => "WHEN ? THEN ?").join(" ");
+  const qtyCases = valid.map(() => " WHEN ? THEN ?").join("");
   const args: number[] = [];
   for (const { listingId, quantity } of valid) {
     args.push(listingId, quantity ?? 1);
@@ -960,8 +929,8 @@ export const setGroupPackageMembers = (
     groupId,
     members,
     tx
-      ? () => membershipSideTx(tx, "listing_id", "group_id", groupId)
-      : async () => new Set(await getGroupListingIds(groupId)),
+      ? async () => new Set(await groupListings.getIdsTx(tx, groupId))
+      : async () => new Set(await groupListings.getIds(groupId)),
     tx ? (stmt) => tx.execute(stmt) : (stmt) => execute(stmt.sql, stmt.args),
   );
 

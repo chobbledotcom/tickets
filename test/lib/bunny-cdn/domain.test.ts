@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import {
   buildSubdomainRecordName,
@@ -13,26 +12,19 @@ import {
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  stubFetchRecorder,
-  stubFetchStatus,
-  withMockBunnyCdnApi,
-  withMocks,
-} from "#test-utils/mocks.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withMockBunnyCdnApi } from "#test-utils/mocks.ts";
 
 /** Register the standard test subdomain under a 204 fetch stub, asserting the
  * canonical success result. */
-const registerMyListingOk = (): Promise<void> =>
-  withMocks(
-    () => stubFetchStatus(204),
-    async () => {
-      const result = await registerBunnySubdomain("mylisting");
-      expect(result).toEqual({
-        fullDomain: "mylisting.tickets.example.com",
-        ok: true,
-      });
-    },
-  );
+const registerMyListingOk = async (): Promise<void> => {
+  using _fetch = stubFetch(new Response(null, { status: 204 }));
+  const result = await registerBunnySubdomain("mylisting");
+  expect(result).toEqual({
+    fullDomain: "mylisting.tickets.example.com",
+    ok: true,
+  });
+};
 
 // ---------------------------------------------------------------------------
 // buildSubdomainRecordName
@@ -75,17 +67,10 @@ describeWithEnv(
 
     test("returns ok when all API calls succeed", async () => {
       await withMockBunnyCdnApi(fixedPullZone, async () => {
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () =>
-              Promise.resolve(new Response(null, { status: 204 })),
-            ),
-          async () => {
-            const result =
-              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(result).toEqual({ ok: true });
-          },
-        );
+        using _fetch = stubFetch(new Response(null, { status: 204 }));
+        const result =
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+        expect(result).toEqual({ ok: true });
       });
     });
 
@@ -111,22 +96,15 @@ describeWithEnv(
 
     test("returns error when addHostname fails", async () => {
       await withMockBunnyCdnApi(fixedPullZone, async () => {
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () =>
-              Promise.resolve(
-                new Response("Hostname already exists", { status: 400 }),
-              ),
-            ),
-          async () => {
-            const result =
-              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(result).toEqual({
-              error: "Add hostname failed (400): Hostname already exists",
-              ok: false,
-            });
-          },
+        using _fetch = stubFetch(
+          new Response("Hostname already exists", { status: 400 }),
         );
+        const result =
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+        expect(result).toEqual({
+          error: "Add hostname failed (400): Hostname already exists",
+          ok: false,
+        });
       });
     });
 
@@ -136,119 +114,74 @@ describeWithEnv(
           ErrorKey: "pullzone.some_other_error",
           Message: "Something went wrong.",
         });
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () =>
-              Promise.resolve(new Response(jsonBody, { status: 400 })),
-            ),
-          async () => {
-            const result =
-              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(result).toEqual({
-              error: "Add hostname failed (400): Something went wrong.",
-              errorKey: "pullzone.some_other_error",
-              ok: false,
-            });
-          },
-        );
+        using _fetch = stubFetch(new Response(jsonBody, { status: 400 }));
+        const result =
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+        expect(result).toEqual({
+          error: "Add hostname failed (400): Something went wrong.",
+          errorKey: "pullzone.some_other_error",
+          ok: false,
+        });
       });
     });
 
     test("treats hostname_already_registered as success and continues", async () => {
       await withMockBunnyCdnApi(fixedPullZone, async () => {
-        let callCount = 0;
         const jsonBody = JSON.stringify({
           ErrorKey: "pullzone.hostname_already_registered",
           Message: "The hostname is already registered.",
         });
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () => {
-              callCount++;
-              if (callCount === 1) {
-                return Promise.resolve(new Response(jsonBody, { status: 400 }));
-              }
-              return Promise.resolve(new Response(null, { status: 204 }));
-            }),
-          async () => {
-            const result =
-              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(result).toEqual({ ok: true });
-            expect(callCount).toBe(3);
-          },
+        using fetchStub = stubFetch(
+          new Response(jsonBody, { status: 400 }),
+          new Response(null, { status: 204 }),
+          new Response(null, { status: 204 }),
         );
+        const result =
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+        expect(result).toEqual({ ok: true });
+        expect(fetchStub.calls).toHaveLength(3);
       });
     });
 
     test("stops on addHostname failure without calling subsequent APIs", async () => {
       await withMockBunnyCdnApi(fixedPullZone, async () => {
-        let callCount = 0;
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () => {
-              callCount++;
-              return Promise.resolve(
-                new Response("Bad request", { status: 400 }),
-              );
-            }),
-          async () => {
-            await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(callCount).toBe(1);
-          },
+        using fetchStub = stubFetch(
+          new Response("Bad request", { status: 400 }),
         );
+        await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+        expect(fetchStub.calls).toHaveLength(1);
       });
     });
 
     test("returns error when loadFreeCertificate fails", async () => {
       await withMockBunnyCdnApi(fixedPullZone, async () => {
-        let callCount = 0;
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () => {
-              callCount++;
-              if (callCount === 1) {
-                return Promise.resolve(new Response(null, { status: 204 }));
-              }
-              return Promise.resolve(
-                new Response("Certificate error", { status: 400 }),
-              );
-            }),
-          async () => {
-            const result =
-              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(result).toEqual({
-              error: "Load free certificate failed (400): Certificate error",
-              ok: false,
-            });
-            expect(callCount).toBe(2);
-          },
+        using fetchStub = stubFetch(
+          new Response(null, { status: 204 }),
+          new Response("Certificate error", { status: 400 }),
         );
+        const result =
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+        expect(result).toEqual({
+          error: "Load free certificate failed (400): Certificate error",
+          ok: false,
+        });
+        expect(fetchStub.calls).toHaveLength(2);
       });
     });
 
     test("returns error when setForceSSL fails", async () => {
       await withMockBunnyCdnApi(fixedPullZone, async () => {
-        let callCount = 0;
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () => {
-              callCount++;
-              if (callCount <= 2) {
-                return Promise.resolve(new Response(null, { status: 204 }));
-              }
-              return Promise.resolve(
-                new Response("SSL error", { status: 500 }),
-              );
-            }),
-          async () => {
-            const result =
-              await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(result).toEqual({
-              error: "Set force SSL failed (500): SSL error",
-              ok: false,
-            });
-          },
+        using _fetch = stubFetch(
+          new Response(null, { status: 204 }),
+          new Response(null, { status: 204 }),
+          new Response("SSL error", { status: 500 }),
         );
+        const result =
+          await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+        expect(result).toEqual({
+          error: "Set force SSL failed (500): SSL error",
+          ok: false,
+        });
       });
     });
   },
@@ -268,29 +201,18 @@ describeWithEnv(
         Id: 42,
         Records: [{ Id: 1, Name: "existing", Type: 2, Value: "target.com" }],
       };
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response(JSON.stringify(zone))),
-          ),
-        async () => {
-          const result = await bunnyCdnApi.getDnsZone();
-          expect(result).toEqual({ ok: true, zone });
-        },
-      );
+      using _fetch = stubFetch(new Response(JSON.stringify(zone)));
+      const result = await bunnyCdnApi.getDnsZone();
+      expect(result).toEqual({ ok: true, zone });
     });
 
     test("returns error when API fails", async () => {
-      await withMocks(
-        () => stubFetchStatus(404, "Not found"),
-        async () => {
-          const result = await bunnyCdnApi.getDnsZone();
-          expect(result).toEqual({
-            error: "Get DNS zone failed (404): Not found",
-            ok: false,
-          });
-        },
-      );
+      using _fetch = stubFetch(new Response("Not found", { status: 404 }));
+      const result = await bunnyCdnApi.getDnsZone();
+      expect(result).toEqual({
+        error: "Get DNS zone failed (404): Not found",
+        ok: false,
+      });
     });
   },
 );
@@ -402,29 +324,25 @@ describeWithEnv(
   { env: { BUNNY_API_KEY: "test-key", BUNNY_DNS_ZONE_ID: "42" } },
   () => {
     test("sends DELETE request and returns ok", async () => {
-      await withMocks(
-        () => stubFetchRecorder(),
-        async (recorder) => {
-          const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
-          expect(result).toEqual({ ok: true });
-          expect(recorder.calls).toHaveLength(1);
-          expect(recorder.calls[0]!.url).toContain("/dnszone/42/records/999");
-          expect(recorder.calls[0]!.init!.method).toBe("DELETE");
-        },
+      using fetchStub = stubFetch(new Response(null, { status: 204 }));
+      const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
+      expect(result).toEqual({ ok: true });
+      expect(fetchStub.calls).toHaveLength(1);
+      expect(String(fetchStub.calls[0]!.args[0])).toContain(
+        "/dnszone/42/records/999",
+      );
+      expect((fetchStub.calls[0]!.args[1] as RequestInit).method).toBe(
+        "DELETE",
       );
     });
 
     test("returns error when API fails", async () => {
-      await withMocks(
-        () => stubFetchStatus(404, "Not found"),
-        async () => {
-          const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
-          expect(result).toEqual({
-            error: "Delete DNS record failed (404): Not found",
-            ok: false,
-          });
-        },
-      );
+      using _fetch = stubFetch(new Response("Not found", { status: 404 }));
+      const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
+      expect(result).toEqual({
+        error: "Delete DNS record failed (404): Not found",
+        ok: false,
+      });
     });
   },
 );
@@ -497,26 +415,26 @@ describeWithEnv(
           validateCustomDomain: () => Promise.resolve({ ok: true as const }),
         },
         async () => {
-          await withMocks(
-            () => stubFetchRecorder(),
-            async (recorder) => {
-              const result = await registerBunnySubdomain("mylisting");
-              expect(result).toEqual({
-                fullDomain: "mylisting.tickets.example.com",
-                ok: true,
-              });
-              expect(recorder.calls).toHaveLength(1);
-              expect(recorder.calls[0]!.url).toContain("/dnszone/42/records");
-              expect(
-                JSON.parse(recorder.calls[0]!.init!.body as string),
-              ).toEqual({
-                Name: "mylisting.tickets",
-                Ttl: 300,
-                Type: 2,
-                Value: "mysite.b-cdn.net",
-              });
-            },
+          using fetchStub = stubFetch(new Response(null, { status: 204 }));
+          const result = await registerBunnySubdomain("mylisting");
+          expect(result).toEqual({
+            fullDomain: "mylisting.tickets.example.com",
+            ok: true,
+          });
+          expect(fetchStub.calls).toHaveLength(1);
+          expect(String(fetchStub.calls[0]!.args[0])).toContain(
+            "/dnszone/42/records",
           );
+          expect(
+            JSON.parse(
+              (fetchStub.calls[0]!.args[1] as RequestInit).body as string,
+            ),
+          ).toEqual({
+            Name: "mylisting.tickets",
+            Ttl: 300,
+            Type: 2,
+            Value: "mysite.b-cdn.net",
+          });
         },
       );
     });
@@ -537,19 +455,12 @@ describeWithEnv(
 
     test("returns error when DNS record creation fails", async () => {
       await withMockBunnyCdnApi(availableMock, async () => {
-        await withMocks(
-          () =>
-            stub(globalThis, "fetch", () =>
-              Promise.resolve(new Response("DNS error", { status: 500 })),
-            ),
-          async () => {
-            const result = await registerBunnySubdomain("mylisting");
-            expect(result).toEqual({
-              error: "Add DNS CNAME record failed (500): DNS error",
-              ok: false,
-            });
-          },
-        );
+        using _fetch = stubFetch(new Response("DNS error", { status: 500 }));
+        const result = await registerBunnySubdomain("mylisting");
+        expect(result).toEqual({
+          error: "Add DNS CNAME record failed (500): DNS error",
+          ok: false,
+        });
       });
     });
 
@@ -597,20 +508,11 @@ describeWithEnv(
           },
         },
         async () => {
-          await withMocks(
-            () =>
-              stub(globalThis, "fetch", () =>
-                Promise.resolve(
-                  new Response(JSON.stringify({ Id: 999 }), { status: 200 }),
-                ),
-              ),
-            async () => {
-              const result = await registerBunnySubdomain("mylisting");
-              expect(result).toEqual({ error: "SSL failed", ok: false });
-              expect(validateCallCount).toBe(5);
-              expect(deletedRecordId).toBe(999);
-            },
-          );
+          using _fetch = stubFetch(new Response(JSON.stringify({ Id: 999 })));
+          const result = await registerBunnySubdomain("mylisting");
+          expect(result).toEqual({ error: "SSL failed", ok: false });
+          expect(validateCallCount).toBe(5);
+          expect(deletedRecordId).toBe(999);
         },
       );
     });
@@ -629,17 +531,10 @@ describeWithEnv(
             Promise.resolve({ error: "SSL failed", ok: false as const }),
         },
         async () => {
-          await withMocks(
-            () =>
-              stub(globalThis, "fetch", () =>
-                Promise.resolve(new Response("not json", { status: 200 })),
-              ),
-            async () => {
-              const result = await registerBunnySubdomain("mylisting");
-              expect(result.ok).toBe(false);
-              expect(deleteWasCalled).toBe(false);
-            },
-          );
+          using _fetch = stubFetch(new Response("not json"));
+          const result = await registerBunnySubdomain("mylisting");
+          expect(result.ok).toBe(false);
+          expect(deleteWasCalled).toBe(false);
         },
       );
     });

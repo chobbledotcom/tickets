@@ -10,7 +10,7 @@ import {
   adminAddNotePage,
   adminDeleteNotePage,
 } from "#templates/admin/attendee-notes.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 
 const SESSION: AdminSession = { adminLevel: "owner" };
 
@@ -89,14 +89,10 @@ describe("AttendeeNotesSection", () => {
   });
 
   test("hides the delete link in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
-      expect(html).toContain("Refunded");
-      expect(html).not.toContain("/admin/attendee/5/note/1/delete");
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
+    expect(html).toContain("Refunded");
+    expect(html).not.toContain("/admin/attendee/5/note/1/delete");
   });
 });
 

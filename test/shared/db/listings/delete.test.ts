@@ -5,7 +5,7 @@ import {
   getListingActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   getAttendeeRaw,
   getAttendeesRaw,
@@ -129,7 +129,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     const bookAttendeeOnTwoListings = async () => {
       const listing1 = await createTestListing({ maxAttendees: 50 });
       const listing2 = await createTestListing({ maxAttendees: 50 });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: listing1.id, quantity: 2 },
           { listingId: listing2.id, quantity: 3 },

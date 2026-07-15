@@ -21,7 +21,9 @@ import {
   queryAll,
   queryOne,
   queryOnePrimary,
+  resultRows,
   type SqlStatement,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -129,7 +131,10 @@ export interface Table<Row, Input> {
   insert: (input: Input) => Promise<Row>;
   /** Build the INSERT statement without executing it (for transactional callers).
    * Optional: only resources with a CRUD side effect need it; façade tables omit it. */
-  insertStatement?: (input: Input) => Promise<SqlStatement>;
+  insertStatement?: (
+    input: Input,
+    condition?: SqlStatement,
+  ) => Promise<SqlStatement>;
   name: string;
   primaryKey: keyof Row & string;
 
@@ -156,7 +161,55 @@ export interface Table<Row, Input> {
   updateStatement?: (
     id: InValue,
     input: Partial<Input>,
+    condition?: SqlStatement,
   ) => Promise<SqlStatement>;
+}
+
+type TableRowInsert<Input, Condition = SqlStatement | undefined> = {
+  condition?: Condition;
+  input: Input;
+  kind: "insert";
+};
+
+type TableRowUpdate<Input> = {
+  condition?: SqlStatement;
+  id: InValue;
+  input: Partial<Input>;
+  kind: "update";
+};
+
+type TableRowWrite<Input> = TableRowInsert<Input> | TableRowUpdate<Input>;
+
+type TableRowWriteArgs<Row, Input, Write = TableRowWrite<Input>> = [
+  transaction: TxScope,
+  table: Table<Row, Input>,
+  write: Write,
+];
+
+/** Execute one table-built INSERT/UPDATE on an open transaction and return the
+ * affected row. A conditional write returns null when its condition is false. */
+export function writeTableRow<Row, Input>(
+  ...args: TableRowWriteArgs<Row, Input, TableRowInsert<Input, undefined>>
+): Promise<Row>;
+export function writeTableRow<Row, Input>(
+  ...args: TableRowWriteArgs<Row, Input>
+): Promise<Row | null>;
+export async function writeTableRow<Row, Input>(
+  ...[transaction, table, write]: TableRowWriteArgs<Row, Input>
+): Promise<Row | null> {
+  const statement =
+    write.kind === "insert"
+      ? await table.insertStatement!(write.input, write.condition)
+      : await table.updateStatement!(write.id, write.input, write.condition);
+  const returning =
+    write.kind === "insert"
+      ? {
+          ...statement,
+          sql: `${statement.sql} RETURNING ${table.columns.join(", ")}`,
+        }
+      : statement;
+  const row = resultRows<Row>(await transaction.execute(returning))[0];
+  return row ? table.fromDb(row) : null;
 }
 
 /** Get value for a column with default applied */
@@ -179,9 +232,16 @@ const applyWriteTransform = <T>(
 };
 
 /** Build INSERT SQL */
-const buildInsertSql = (name: string, columns: string[]): string => {
+const buildInsertSql = (
+  name: string,
+  columns: string[],
+  condition?: string,
+): string => {
   const placeholders = columns.map(() => "?").join(", ");
-  return `INSERT INTO ${name} (${columns.join(", ")}) VALUES (${placeholders})`;
+  const values = condition
+    ? `SELECT ${placeholders} WHERE ${condition}`
+    : `VALUES (${placeholders})`;
+  return `INSERT INTO ${name} (${columns.join(", ")}) ${values}`;
 };
 
 /** Build UPDATE SQL with RETURNING to get updated row in one round trip */
@@ -190,9 +250,11 @@ const buildUpdateSql = (
   columns: string[],
   primaryKey: string,
   returningColumns: string,
+  condition?: string,
 ): string => {
   const setClauses = columns.map((col) => `${col} = ?`).join(", ");
-  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ? RETURNING ${returningColumns}`;
+  const extraCondition = condition ? ` AND (${condition})` : "";
+  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ?${extraCondition} RETURNING ${returningColumns}`;
 };
 
 /** The shape that defines a table: its name, primary key, and column schema. */
@@ -296,6 +358,7 @@ export const defineTable = <Row, Input = Row>(
     input: Input,
   ): Promise<{
     args: InValue[];
+    columns: string[];
     dbValues: Record<string, InValue>;
     sql: string;
   }> => {
@@ -303,6 +366,7 @@ export const defineTable = <Row, Input = Row>(
     const columns = Object.keys(dbValues);
     return {
       args: columns.map((col) => dbValues[col] as InValue),
+      columns,
       dbValues,
       sql: buildInsertSql(name, columns),
     };
@@ -326,9 +390,17 @@ export const defineTable = <Row, Input = Row>(
   /** Build the INSERT statement without executing it — for callers that run the
    * write inside their own transaction (e.g. the CRUD side-effect path, which
    * inserts the row and its relationship edges atomically). */
-  const insertStatement = async (input: Input): Promise<SqlStatement> => {
-    const { args, sql } = await buildInsert(input);
-    return { args, sql };
+  const insertStatement = async (
+    input: Input,
+    condition?: SqlStatement,
+  ): Promise<SqlStatement> => {
+    const { args, columns, sql } = await buildInsert(input);
+    return condition
+      ? {
+          args: [...args, ...condition.args],
+          sql: buildInsertSql(name, columns, condition.sql),
+        }
+      : { args, sql };
   };
 
   /** Build the UPDATE statement for `input` (which must provide ≥1 column — the
@@ -337,16 +409,22 @@ export const defineTable = <Row, Input = Row>(
   const updateStatement = async (
     id: InValue,
     input: Partial<Input>,
+    condition?: SqlStatement,
   ): Promise<SqlStatement> => {
     const dbValues = await toDbValues(input);
     const providedColumns = getProvidedColumns(input);
     return {
-      args: [...providedColumns.map((col) => dbValues[col] as InValue), id],
+      args: [
+        ...providedColumns.map((col) => dbValues[col] as InValue),
+        id,
+        ...(condition?.args ?? []),
+      ],
       sql: buildUpdateSql(
         name,
         providedColumns,
         primaryKey,
         physicalColumnsSql,
+        condition?.sql,
       ),
     };
   };

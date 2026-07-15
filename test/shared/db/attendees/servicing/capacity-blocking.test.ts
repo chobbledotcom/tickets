@@ -17,7 +17,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hasAvailableSpots } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { checkListingAvailability } from "#shared/db/attendees/capacity/checks.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity/groups.ts";
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
@@ -133,8 +133,8 @@ describeWithEnv("servicing §2 — capacity blocking", { db: true }, () => {
       quantity: 2,
     });
     // A date-less standard listing tracks a single cumulative total: 5 − 2 = 3.
-    expect(await hasAvailableSpots(listing.id, 1)).toBe(true);
-    expect(await hasAvailableSpots(listing.id, 4)).toBe(false);
+    expect(await attendeesApi.hasAvailableSpots(listing.id, 1)).toBe(true);
+    expect(await attendeesApi.hasAvailableSpots(listing.id, 4)).toBe(false);
   });
 
   test("servicing may overbook when allowOverbook is set (close a day past the cap)", async () => {

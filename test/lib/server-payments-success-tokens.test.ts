@@ -7,7 +7,7 @@ import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -109,25 +109,21 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      const restore = setTestEnv({
+      using _env = withEnv({
         HOST_EMAIL_API_KEY: "re_test123",
         HOST_EMAIL_FROM_ADDRESS: "noreply@tickets.com",
         HOST_EMAIL_PROVIDER: "resend",
       });
 
-      try {
-        const response = await handleRequest(
-          mockRequest(
-            `/payment/success?tokens=${encodeURIComponent(
-              result.attendees[0]!.ticket_token,
-            )}`,
-          ),
-        );
-        const html = await expectHtmlResponse(response, 200, "Junk/Spam");
-        expect(html).toContain("noreply@tickets.com");
-      } finally {
-        restore();
-      }
+      const response = await handleRequest(
+        mockRequest(
+          `/payment/success?tokens=${encodeURIComponent(
+            result.attendees[0]!.ticket_token,
+          )}`,
+        ),
+      );
+      const html = await expectHtmlResponse(response, 200, "Junk/Spam");
+      expect(html).toContain("noreply@tickets.com");
     });
   });
 });

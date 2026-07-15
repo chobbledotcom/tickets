@@ -1,21 +1,20 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
+import { type Stub, spy } from "@std/testing/mock";
 import { ErrorCode } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
-  let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
+  let fetchStub: Stub;
 
   beforeEach(() => {
-    fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response()),
-    );
+    fetchStub = stubFetch(() => new Response());
   });
 
   afterEach(() => {
-    fetchStub.restore();
+    if (!fetchStub.restored) fetchStub.restore();
   });
 
   describe("sendNtfyError", () => {
@@ -60,9 +59,7 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
     test("logs error locally when fetch fails", async () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
       fetchStub.restore();
-      fetchStub = stub(globalThis, "fetch", () =>
-        Promise.reject(new Error("Network error")),
-      );
+      using failedFetch = stubFetch(new Error("Network error"));
       const errorSpy = spy(console, "error");
 
       sendNtfyError(ErrorCode.WEBHOOK_SEND);
@@ -70,7 +67,7 @@ describeWithEnv("ntfy", { env: { NTFY_URL: undefined } }, () => {
       // Wait for the rejected promise's .catch handler to run
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(fetchStub.calls.length).toBe(1);
+      expect(failedFetch.calls.length).toBe(1);
       expect(errorSpy.calls.length).toBe(1);
       expect(errorSpy.calls[0]!.args[0]).toContain("[Error] E_CDN_REQUEST");
       expect(errorSpy.calls[0]!.args[0]).toContain("ntfy send failed");

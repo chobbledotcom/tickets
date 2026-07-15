@@ -18,7 +18,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { byId, groupBy, mapNotNullish, unique } from "#fp";
+import { identity, mapBy, mapNotNullish, unique } from "#fp";
 import {
   assertEventMatches,
   assertReversesAgainst,
@@ -177,8 +177,8 @@ const loadBatchSnapshot = async (
     selectByColumnIn(read, "id", reversesIds),
   ]);
   return {
-    existingByGroup: groupBy(existing, (leg) => leg.eventGroup),
-    originalsById: byId(originals),
+    existingByGroup: Map.groupBy(existing, (leg) => leg.eventGroup),
+    originalsById: mapBy("id", identity<Transfer>)(originals),
     storedByReference: new Map(stored.map((leg) => [leg.reference, leg])),
   };
 };

@@ -161,12 +161,10 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   });
 
   test("editing an attendee who booked both parent and child shows no missing-child warning", async () => {
-    const { createAttendeeAtomic } = await import(
-      "#shared/db/attendees/api.ts"
-    );
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
     const { parent, child } = await linkedParentChild();
     // Both lines booked on the one attendee — the gate is satisfied.
-    const result = await createAttendeeAtomic({
+    const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: parent.id }, { listingId: child.id }],
       email: "a@b.com",
       name: "Ada",
