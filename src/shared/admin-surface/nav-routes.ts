@@ -59,7 +59,7 @@ export const ADMIN_NAV_ROUTES = [
     STAFF_ADMIN_LEVELS,
     "nav.deliveries",
     "link",
-    (ctx) => ctx.hasLogistics,
+    (ctx) => ctx.enabledFeatures.logistics,
   ),
   view(
     "servicing",
@@ -130,6 +130,8 @@ export const ADMIN_NAV_ROUTES = [
     "/admin/api-keys",
     OWNER_AUDIENCE,
     "nav.sub.api_keys",
+    "link",
+    (ctx) => ctx.enabledFeatures.apiKeys,
   ),
   view(
     "groups",
@@ -291,6 +293,8 @@ export const ADMIN_NAV_ROUTES = [
     "/admin/logistics",
     OWNER_AUDIENCE,
     "nav.logistics",
+    "link",
+    (ctx) => ctx.enabledFeatures.logistics,
   ),
   view(
     "emails",

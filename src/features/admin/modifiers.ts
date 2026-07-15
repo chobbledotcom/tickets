@@ -27,6 +27,7 @@ import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { ensureAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { getGroupIdsByListingIds, groups } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
@@ -301,6 +302,7 @@ const getModifiersResource = once(() =>
 // (Row = ModifierRow). The edit GET/POST are served by the projection-aware
 // handleEditGet/handleEditPost below, so this CRUD config omits renderEdit.
 const crud = createCrudHandlers({
+  afterCreate: () => ensureAdminFeatureEnabled("modifiers"),
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
   listPath: "/admin/modifiers",
@@ -413,6 +415,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     }
     const result = await getModifiersResource().update(id, form);
     if (result.ok) {
+      await ensureAdminFeatureEnabled("modifiers");
       if (aggregates.input) {
         await updateModifierAggregateValues(id, aggregates.input);
       }

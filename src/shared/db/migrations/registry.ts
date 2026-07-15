@@ -336,6 +336,12 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-12_remove_broken_image_records",
     () => import("./2026-07-12_remove_broken_image_records.ts"),
   ),
+  // Replace the old logistics switch with one plain feature-visibility map,
+  // enabling entries that already have saved records.
+  entry(
+    "2026-07-15_enabled_features",
+    () => import("./2026-07-15_enabled_features.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

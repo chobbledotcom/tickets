@@ -284,6 +284,36 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
+    test("moves feature visibility on a site upgrading from the previous release", async () => {
+      await getDb().execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('has_logistics', 'true')",
+      );
+      await getDb().execute(
+        "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
+      );
+      await simulateUpgradeFromRelease(
+        "Delete image records whose stored filename is an encrypted empty string.",
+        "2026-07-15_enabled_features",
+      );
+
+      await initDb();
+
+      const stored = await settingValue("enabled_features");
+      if (!stored) throw new Error("enabled_features was not migrated");
+      expect(JSON.parse(stored)).toEqual({
+        apiKeys: false,
+        logistics: true,
+        modifiers: true,
+        money: false,
+        servingEvents: false,
+      });
+      expect(await settingValue("has_logistics")).toBeUndefined();
+      expect(await appliedMigrationIds()).toContain(
+        "2026-07-15_enabled_features",
+      );
+      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+    });
+
     test("initDb restores stale markers after a crash between recording migrations and writing markers", async () => {
       // Crash state: all named migrations recorded in schema_migrations,
       // but the isolate died before refreshing the settings markers.

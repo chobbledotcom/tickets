@@ -1,19 +1,24 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminModifierRecalculatePage,
   ModifierRunningTotalsSection,
 } from "#templates/admin/modifiers/aggregates.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testModifier } from "#test-utils/factories.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 const SESSION = { adminLevel: "owner" as const };
 
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
+  settings.setForTest(featureSetting("modifiers"));
 });
+
+afterAll(() => settings.clearTestOverride("enabled_features"));
 
 describe("ModifierRunningTotalsSection", () => {
   test("renders the two count aggregates and a recalculate link", () => {

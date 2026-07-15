@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -69,6 +70,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.calc_kind).toBe("percent");
       expect(modifier.calc_value).toBe(10);
       expect(modifier.direction).toBe("discount");
+      expect(settings.enabledFeatures.modifiers).toBe(true);
     });
 
     test("creates an active modifier when the toggle is checked", async () => {

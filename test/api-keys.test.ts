@@ -20,6 +20,7 @@ import {
 } from "#shared/db/api-keys.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { createSession } from "#shared/db/sessions.ts";
+import { settings } from "#shared/db/settings.ts";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import {
   assertJson,
@@ -247,6 +248,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       const html = await redirectResponse.text();
       expect(html).toContain("API key created");
       expect(html).toContain("Copy your API key now");
+      expect(settings.enabledFeatures.apiKeys).toBe(true);
     });
 
     test("POST /admin/api-keys rejects empty name", async () => {

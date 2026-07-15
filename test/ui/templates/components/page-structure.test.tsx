@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   PageBlock,
   PageRegions,
+  TitledArticle,
 } from "#templates/components/page-structure.tsx";
 
 describe("page structure components", () => {
@@ -34,6 +35,19 @@ describe("page structure components", () => {
   test("preserves semantic regions when a block requests one", () => {
     expect(String(<PageBlock as="section">content</PageBlock>)).toBe(
       '<section class="page-block">content</section>',
+    );
+  });
+
+  test("renders a titled article with an optional id", () => {
+    expect(
+      String(
+        <TitledArticle id="summary" title="Summary">
+          <p>Details</p>
+        </TitledArticle>,
+      ),
+    ).toBe('<article id="summary"><h2>Summary</h2><p>Details</p></article>');
+    expect(String(<TitledArticle title="Plain">Body</TitledArticle>)).toBe(
+      "<article><h2>Plain</h2>Body</article>",
     );
   });
 });

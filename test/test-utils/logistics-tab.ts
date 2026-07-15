@@ -13,6 +13,7 @@ import { settings } from "#shared/db/settings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 /** Create an attendee with the given bookings, returning their id. */
 export const makeAttendee = async (
@@ -57,7 +58,7 @@ export const deliveredListingSetup = async (
   agentName: string,
   attendeeName: string,
 ) => {
-  settings.setForTest({ has_logistics: true });
+  settings.setForTest(featureSetting("logistics"));
   const listing = await createTestListing({ maxAttendees: 10 });
   await listingsTable.update(listing.id, { usesLogistics: true });
   const van = await logisticsAgents.table.insert({ name: agentName });

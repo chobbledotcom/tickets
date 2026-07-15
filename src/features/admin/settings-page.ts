@@ -7,12 +7,14 @@
 /* jscpd:ignore-start */
 import { type AuthSession, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { enabledFeaturesWithUsage } from "#shared/admin-features.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
   getBunnyDnsSubdomainSuffix,
   isBunnyCdnEnabled,
   isBunnyDnsEnabled,
 } from "#shared/config.ts";
+import { getAdminFeatureUsage } from "#shared/db/admin-features.ts";
 import { settings } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -29,13 +31,20 @@ import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.ts
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
 const getSettingsPageState = async () => {
-  const superuser = await getSuperuserState();
+  const [superuser, featureUsage] = await Promise.all([
+    getSuperuserState(),
+    getAdminFeatureUsage(),
+  ]);
   return {
     bookingFee: settings.bookingFee,
     businessEmail: settings.businessEmail,
     calendarFeedsEnabled: settings.calendarFeedsEnabled,
     calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
     embedHosts: settings.embedHosts,
+    enabledFeatures: enabledFeaturesWithUsage(
+      settings.enabledFeatures,
+      featureUsage,
+    ),
     headerImageUrl: settings.headerImageUrl,
     paymentProvider: settings.paymentProvider ?? "",
     showPublicSite: settings.showPublicSite,

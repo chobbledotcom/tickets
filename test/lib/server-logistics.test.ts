@@ -20,6 +20,7 @@ import {
   createTestAgentSession,
   createTestEditorSession,
 } from "#test-utils/session.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 const createAgent = async (name: string): Promise<number> => {
   const { response } = await adminFormPost("/admin/logistics", { name });
@@ -53,72 +54,31 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
   describe("GET /admin/logistics", () => {
     testRequiresAuth("/admin/logistics");
 
-    test("shows the logistics toggle, hiding agents when disabled", async () => {
+    test("shows logistics agent management", async () => {
       const response = await adminGet("/admin/logistics");
-      await expectHtmlResponse(response, 200, "Logistics", "has_logistics");
-      const body = await (await adminGet("/admin/logistics")).text();
-      expect(body).not.toContain("Logistics Agents");
+      await expectHtmlResponse(response, 200, "Logistics", "Logistics Agents");
     });
 
-    test("shows the agents section when logistics is enabled", async () => {
-      settings.setForTest({ has_logistics: true });
-      const response = await adminGet("/admin/logistics");
-      await expectHtmlResponse(response, 200, "Logistics Agents", "Add Agent");
-    });
-
-    test("nav shows a Logistics link for owners", async () => {
+    test("nav hides Logistics until the feature is enabled", async () => {
       const body = await (await adminGet("/admin/logistics")).text();
-      expect(body).toContain('href="/admin/logistics"');
-      expect(body).toContain(">Logistics<");
+      expect(body).not.toContain('class="active" href="/admin/logistics"');
+      await enableFeature("logistics");
+      const enabledBody = await (await adminGet("/admin/logistics")).text();
+      expect(enabledBody).toContain('class="active" href="/admin/logistics"');
     });
 
     test("highlights the Logistics sub-nav link on the logistics page", async () => {
       // Regression: the main /admin/logistics page used the admin-page helper's
       // default active route (/admin/settings), so the Logistics sub-nav link
       // never lit up on the page users actually land on.
+      await enableFeature("logistics");
       const body = await (await adminGet("/admin/logistics")).text();
       expect(body).toContain('class="active" href="/admin/logistics"');
     });
   });
 
-  describe("POST /admin/logistics/has-logistics", () => {
-    testRequiresAuth("/admin/logistics/has-logistics", {
-      body: { has_logistics: "true" },
-      method: "POST",
-    });
-
-    test("enabling persists and reveals the agents section", async () => {
-      const { response } = await adminFormPost(
-        "/admin/logistics/has-logistics",
-        {
-          has_logistics: "true",
-        },
-      );
-      await expectFlashRedirect(
-        "/admin/logistics",
-        "Logistics enabled",
-      )(response);
-      const body = await (await adminGet("/admin/logistics")).text();
-      expect(body).toContain("Logistics Agents");
-    });
-
-    test("disabling reports it", async () => {
-      const { response } = await adminFormPost(
-        "/admin/logistics/has-logistics",
-        {
-          has_logistics: "false",
-        },
-      );
-      await expectFlashRedirect(
-        "/admin/logistics",
-        "Logistics disabled",
-      )(response);
-    });
-  });
-
   describe("logistics agent CRUD", () => {
     test("creates an agent and lists it", async () => {
-      settings.setForTest({ has_logistics: true });
       const { response } = await adminFormPost("/admin/logistics", {
         name: "Van 1",
       });
@@ -129,6 +89,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const list = await adminGet("/admin/logistics");
       // The agent name links to its edit page; delete lives on that page now.
       await expectHtmlResponse(list, 200, "Van 1", "/edit");
+      expect(settings.enabledFeatures.logistics).toBe(true);
     });
 
     test("rejects an empty agent name", async () => {
@@ -200,7 +161,6 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("does not offer or accept editors as logistics drivers", async () => {
-      settings.setForTest({ has_logistics: true });
       const id = await createAgent("No Editors Van");
       const { userId: agentUserId } = await createTestAgentSession({
         username: "drivableagent",

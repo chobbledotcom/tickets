@@ -187,7 +187,7 @@ export const buildAttendeeLogisticsData = async (
   lines: AttendeeFormLine[],
   attendee: Attendee | null,
 ): Promise<AttendeeLogisticsData | undefined> => {
-  if (!settings.hasLogistics) return;
+  if (!settings.enabledFeatures.logistics) return;
   const delivered = deliveredBookedLines(lines);
   if (delivered.length === 0) return;
   const agents = await logisticsAgents.getAll();

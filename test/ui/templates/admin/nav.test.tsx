@@ -7,9 +7,22 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
-import { withSetting } from "#test-utils/settings.ts";
+import {
+  featureSetting,
+  useSetting,
+  withSetting,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("AdminNav", {}, () => {
+  useSetting(
+    featureSetting(
+      "apiKeys",
+      "logistics",
+      "modifiers",
+      "money",
+      "servingEvents",
+    ),
+  );
   /** Assert every role in `adminLevels` sees a nav link to `href` labelled
    *  `text` (rendered from the "/admin/" landing nav). */
   const expectLinkForRoles = (
@@ -247,15 +260,43 @@ describeWithEnv("AdminNav", {}, () => {
       { active: "/admin/site/pages", href: "/admin/site/pages" },
     ];
     for (const { active, href } of deepPages) {
-      const settingOverrides =
-        active === "/admin/deliveries" ? { has_logistics: true } : {};
-      withSetting(settingOverrides, () => {
-        const html = String(
-          AdminNav({ active, session: { adminLevel: "owner" } }),
-        );
-        expect(html, active).toContain(`class="active" href="${href}"`);
-      });
+      const html = String(
+        AdminNav({ active, session: { adminLevel: "owner" } }),
+      );
+      expect(html, active).toContain(`class="active" href="${href}"`);
     }
+  });
+
+  test("AdminNav hides optional features when they are disabled", async () => {
+    await withSetting(featureSetting(), () => {
+      const html = String(
+        AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+      );
+      for (const href of [
+        "/admin/servicing",
+        "/admin/modifiers",
+        "/admin/ledger",
+      ]) {
+        expect(html, href).not.toContain(`href="${href}"`);
+      }
+      expect(html).toContain('href="/admin/attendees"');
+    });
+  });
+
+  test("AdminNav hides feature links inside Users and Settings", async () => {
+    await withSetting(featureSetting(), () => {
+      const users = String(
+        AdminNav({ active: "/admin/users", session: { adminLevel: "owner" } }),
+      );
+      const settings = String(
+        AdminNav({
+          active: "/admin/settings",
+          session: { adminLevel: "owner" },
+        }),
+      );
+      expect(users).not.toContain('href="/admin/api-keys"');
+      expect(settings).not.toContain('href="/admin/logistics"');
+    });
   });
 
   test("AdminNav shows Money to owners but not managers", () => {

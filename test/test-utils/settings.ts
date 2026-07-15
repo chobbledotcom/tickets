@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import {
+  type AdminFeatureKey,
+  parseEnabledFeatures,
+  serializeEnabledFeatures,
+  setFeatureEnabled,
+} from "#shared/admin-features.ts";
 import type { SettingsData } from "#shared/db/settings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -54,6 +60,23 @@ export const useSetting = (overrides: Partial<SettingsData>): void => {
   afterEach(() => {
     settings.clearTestOverride(...keys);
   });
+};
+
+export const featureSetting = (
+  ...enabled: AdminFeatureKey[]
+): Pick<SettingsData, "enabled_features"> => ({
+  enabled_features: serializeEnabledFeatures(
+    enabled.reduce(
+      (features, key) => setFeatureEnabled(features, key, true),
+      parseEnabledFeatures(""),
+    ),
+  ),
+});
+
+export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
+  await settings.update.enabledFeatures(
+    setFeatureEnabled(settings.enabledFeatures, key, true),
+  );
 };
 
 export const testWithSetting = (

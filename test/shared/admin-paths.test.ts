@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import {
   entityReturnPath,
   readOnlyGetRoutePatterns,
@@ -12,6 +13,8 @@ import {
   adminDestinationAllowed,
   adminPath,
 } from "#shared/admin-surface.ts";
+
+const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
 describe("admin surface paths", () => {
   test("fills every named route parameter", () => {
@@ -95,7 +98,7 @@ describe("admin surface paths", () => {
         active: "/admin",
         adminLevel: "editor",
         builder: false,
-        hasLogistics: false,
+        enabledFeatures: DEFAULT_ENABLED_FEATURES,
         isReadOnly: false,
         showPublicSite: false,
         storage: false,
@@ -109,7 +112,7 @@ describe("admin surface paths", () => {
       active: "/admin/settings",
       adminLevel: "owner" as const,
       builder: false,
-      hasLogistics: false,
+      enabledFeatures: DEFAULT_ENABLED_FEATURES,
       isReadOnly: false,
       showPublicSite: true,
       storage: false,
@@ -132,7 +135,7 @@ describe("admin surface paths", () => {
       active: "/admin/ledger",
       adminLevel: "owner",
       builder: false,
-      hasLogistics: false,
+      enabledFeatures: DEFAULT_ENABLED_FEATURES,
       isReadOnly: false,
       showPublicSite: true,
       storage: false,

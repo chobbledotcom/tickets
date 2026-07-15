@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { settings } from "#shared/db/settings.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   adminModifierDeletePage,
@@ -11,6 +12,7 @@ import {
 } from "#templates/admin/modifiers/pages.tsx";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testModifier } from "#test-utils/factories.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 const SESSION = { adminLevel: "owner" as const };
 const mod = testModifier;
@@ -18,7 +20,10 @@ const mod = testModifier;
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
+  settings.setForTest(featureSetting("modifiers"));
 });
+
+afterAll(() => settings.clearTestOverride("enabled_features"));
 
 describe("adminModifiersPage", () => {
   test("renders a rule summary and edit link for each modifier", () => {

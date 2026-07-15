@@ -48,8 +48,9 @@ describeWithEnv(
       // attendee-listings-tag settings rewrite (data-only; covered by its own
       // data test), listing_image_thumb (historically added a column that
       // first_class_images now drops), and remove_broken_image_records
-      // (data-only; covered by its own data test).
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 18);
+      // (data-only; covered by its own data test), and enabled_features (the
+      // data-only move from has_logistics into one feature map).
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 19);
     });
 
     test("verify reads the live schema from the primary, not a replica", async () => {

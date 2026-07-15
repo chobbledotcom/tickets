@@ -107,7 +107,6 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
     data.orphan_purge_retention =
       raw && isOrphanRetentionValue(raw) ? raw : DEFAULT_ORPHAN_RETENTION;
   },
-  [CONFIG_KEYS.HAS_LOGISTICS]: boolApply("has_logistics"),
   [CONFIG_KEYS.PAYMENT_PROVIDER]: (raw) => {
     data.payment_provider = raw && isPaymentProvider(raw) ? raw : null;
     data.payment_provider_setting =

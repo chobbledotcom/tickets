@@ -26,6 +26,7 @@ import {
   setupListingAndLogin,
   testCookie,
 } from "#test-utils/session.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -46,7 +47,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
     });
 
     test("redirects to picker when posting a logistics template with logistics disabled", async () => {
-      settings.setForTest({ has_logistics: false });
+      settings.setForTest(featureSetting());
       const { response } = await adminMultipartPost("/admin/listing", {
         max_attendees: "100",
         max_quantity: "1",

@@ -66,7 +66,6 @@ type SpecificFields = {
   calendar_feeds_group_by: string;
   contact_form_enabled: boolean;
   order_enabled: boolean;
-  has_logistics: boolean;
   payment_provider: PaymentProviderType | null;
   payment_provider_setting: PaymentProviderSetting | null;
   booking_fee: string;
@@ -92,7 +91,6 @@ export const data: SettingsData = {
   country: DEFAULT_COUNTRY,
   currency: "GBP",
   external_order_enabled: false,
-  has_logistics: false,
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
   payment_provider: null,

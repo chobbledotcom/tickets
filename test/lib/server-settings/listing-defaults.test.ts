@@ -11,6 +11,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 import { extractFormEntries } from "#test-utils/test-browser.ts";
 
 const findByName = async (name: string) =>
@@ -145,7 +146,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("accepts the logistics default once logistics is enabled", async () => {
-      await settings.update.hasLogistics(true);
+      await enableFeature("logistics");
       await adminFormPost("/admin/listing-defaults", {
         default_uses_logistics: "1",
       });
@@ -153,7 +154,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("disabling logistics clears the saved logistics default", async () => {
-      await settings.update.hasLogistics(true);
+      await enableFeature("logistics");
       await adminFormPost("/admin/listing-defaults", {
         default_hidden: "1",
         default_uses_logistics: "1",
@@ -162,8 +163,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
       // Turning the feature off removes the logistics default (but keeps others),
       // so re-enabling later can't resurrect it onto Use-defaults listings.
-      await adminFormPost("/admin/logistics/has-logistics", {
-        has_logistics: "false",
+      await adminFormPost("/admin/features/logistics", {
+        enabled: "false",
       });
       expect("usesLogistics" in settings.listingDefaults).toBe(false);
       expect(settings.listingDefaults.hidden).toBe(true);
@@ -230,7 +231,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("disabling logistics drops an inherited logistics value live", async () => {
-      await settings.update.hasLogistics(true);
+      await enableFeature("logistics");
       await adminFormPost("/admin/listing-defaults", {
         default_uses_logistics: "1",
       });
@@ -245,8 +246,8 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
       // Disabling logistics clears the default and must invalidate the listings
       // cache itself, or the warm row keeps reading as a logistics listing.
-      await adminFormPost("/admin/logistics/has-logistics", {
-        has_logistics: "false",
+      await adminFormPost("/admin/features/logistics", {
+        enabled: "false",
       });
       expect((await findByName("Logistics inheritor"))?.uses_logistics).toBe(
         false,
@@ -267,7 +268,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
 
   describe("listing form integration", () => {
     test("new listing form shows the toggle and hides defaulted fields", async () => {
-      await settings.update.hasLogistics(true);
+      await enableFeature("logistics");
       // Set every default so the create form pre-fills each defaulted field.
       await adminFormPost("/admin/listing-defaults", {
         default_bookable_days: "Monday",
@@ -293,7 +294,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("a template-picked new listing keeps Use-defaults off so the template wins", async () => {
-      await settings.update.hasLogistics(true);
+      await enableFeature("logistics");
       // A logistics=no default would otherwise un-logistic the Hireable card.
       await adminFormPost("/admin/listing-defaults", {
         default_uses_logistics: "0",
