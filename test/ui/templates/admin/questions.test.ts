@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { settings } from "#shared/db/settings.ts";
 import { buildAnswerSummaryRows } from "#templates/admin/listings/aggregates.tsx";
 import {
   ListingOverviewPanel,
@@ -26,6 +27,7 @@ import {
   testQuestion,
   unselectedAnswerQuestionData,
 } from "#test-utils/factories.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 const TEST_LISTINGS = [
   testListingWithCount({ id: 1, name: "Spring Gig" }),
@@ -46,7 +48,12 @@ const tShirtQuestion = testQuestion({
 
 beforeAll(async () => {
   setupTestEncryptionKey();
+  settings.setForTest(featureSetting("questions"));
   await signCsrfToken();
+});
+
+afterAll(() => {
+  settings.clearTestOverride("enabled_features");
 });
 
 describe("adminQuestionsPage", () => {

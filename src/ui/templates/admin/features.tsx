@@ -5,6 +5,7 @@ import {
   type AdminFeatureDefinition,
   type EnabledFeatures,
 } from "#shared/admin-features.ts";
+import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms.tsx";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
@@ -84,14 +85,20 @@ export const adminFeaturePage = ({
       <h1>{t(feature.labelKey)}</h1>
       <Flash error={error} success={success} />
       <p>{t(feature.descriptionKey)}</p>
-      {inUse ? (
+      {inUse || isReadOnly() ? (
         <>
           <p>
             <strong>{t("features.status_label")}</strong>{" "}
-            {t("features.status.enabled")}
+            {t(
+              enabled ? "features.status.enabled" : "features.status.disabled",
+            )}
           </p>
-          <p>{t("features.in_use")}</p>
-          <p>{t("features.in_use_help")}</p>
+          {inUse && (
+            <>
+              <p>{t("features.in_use")}</p>
+              <p>{t("features.in_use_help")}</p>
+            </>
+          )}
         </>
       ) : (
         <SaveForm

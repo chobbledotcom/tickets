@@ -6,6 +6,8 @@ import {
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import { execute } from "#shared/db/client.ts";
 import type { SettingsData } from "#shared/db/settings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -74,9 +76,26 @@ export const featureSetting = (
 });
 
 export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
-  await settings.update.features(
-    setFeatureEnabled(settings.features, key, true),
-  );
+  await setAdminFeatureEnabled(key, true);
+};
+
+/** Run an action while every attempt to persist the feature setting fails. */
+export const withFeatureWriteFailure = async <T>(
+  run: () => Promise<T>,
+): Promise<T> => {
+  await execute(`
+    CREATE TRIGGER fail_feature_write
+    BEFORE INSERT ON settings
+    WHEN NEW.key = '${CONFIG_KEYS.ENABLED_FEATURES}'
+    BEGIN
+      SELECT RAISE(ABORT, 'feature enable failed');
+    END
+  `);
+  try {
+    return await run();
+  } finally {
+    await execute("DROP TRIGGER IF EXISTS fail_feature_write");
+  }
 };
 
 export const testWithSetting = (
@@ -103,12 +122,9 @@ export const enablePublicApi = async (): Promise<void> => {
   await s.update.showPublicApi(true);
 };
 
-/** Turn the public site on for the current test DB — mirrors
- *  {@link enablePublicApi} for the few tests that flip the site-visible
- *  toggle (e.g. `/listings` CTA suppression). */
+/** Turn the Site feature on for the current test DB. */
 export const enablePublicSite = async (): Promise<void> => {
-  const { settings: s } = await import("#shared/db/settings.ts");
-  await s.update.showPublicSite(true);
+  await enableFeature("site");
 };
 
 export const stubWebhookVerify = async (listingData: {

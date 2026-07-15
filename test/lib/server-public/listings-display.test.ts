@@ -13,6 +13,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -40,13 +41,13 @@ describeWithEnv(
       };
 
       test("redirects legacy /events to /listings when public site is enabled", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(mockRequest("/events"));
         expectRedirect(response, /^\/listings$/);
       });
 
       test("does not redirect legacy /events subpaths", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(mockRequest("/events/archive"));
         expect(response.status).toBe(404);
       });
@@ -57,7 +58,7 @@ describeWithEnv(
       });
 
       test("shows no listings message when enabled but no listings exist", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const html = await assertPublicHtml("/listings", "No listings listed.");
         // The login footer is a homepage-only affordance (#69) — /listings
         // never shows it.
@@ -65,7 +66,7 @@ describeWithEnv(
       });
 
       test("shows website title with no listings message", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.websiteTitle("My Listings");
         await assertPublicHtml(
           "/listings",
@@ -75,7 +76,7 @@ describeWithEnv(
       });
 
       test("shows active listings with book now links", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const listing = await createTestListing({
           maxAttendees: 100,
           name: "Concert",
@@ -89,7 +90,7 @@ describeWithEnv(
       });
 
       test("shows Buy now link for purchase_only listings", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({
           maxAttendees: 100,
           name: "Raffle",
@@ -100,7 +101,7 @@ describeWithEnv(
       });
 
       test("does not show inactive listings", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const listing = await createTestListing({
           maxAttendees: 100,
           name: "Hidden Listing",
@@ -111,14 +112,14 @@ describeWithEnv(
       });
 
       test("does not show hidden listings in public listings list", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({ hidden: true, name: "Secret Listing" });
         const html = await assertPublicHtml("/listings", "No listings listed.");
         expect(html).not.toContain("Secret Listing");
       });
 
       test("shows non-hidden listings alongside hidden ones", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({ name: "Visible Listing" });
         await createTestListing({ hidden: true, name: "Secret Listing" });
         const html = await assertPublicHtml("/listings", "Visible Listing");
@@ -158,7 +159,7 @@ describeWithEnv(
       });
 
       test("shows groups with active listings on listings page", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const group = await createTestGroup({
           name: "Summer Festival",
           slug: "summer-festival",
@@ -177,7 +178,7 @@ describeWithEnv(
       });
 
       test("lists package groups under a Packages heading above regular ones", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         // Two package groups (out of alpha order) prove the name sort runs.
         const pkgZ = await createTestGroup({
           isPackage: true,
@@ -231,7 +232,7 @@ describeWithEnv(
         // A group with no active (standalone-bookable) member has no valid
         // `/ticket/<group>` entry point (its group page 404s), so its Book CTA must
         // be suppressed on /listings rather than advertise a dead link.
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const group = await createTestGroup({
           name: "Empty Group",
           slug: "empty-group",
@@ -245,7 +246,7 @@ describeWithEnv(
         // A package is all-or-nothing: if any member can't be booked the whole
         // bundle's count caps at 0, so its /listings Book CTA must be suppressed
         // rather than land the buyer on a page that can only fail.
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const pkg = await createTestGroup({
           isPackage: true,
           name: "Half Bundle",
@@ -267,7 +268,7 @@ describeWithEnv(
       test("suppresses a package CTA when a member is inactive", async () => {
         // A package is all-or-nothing: an inactive member makes the whole bundle
         // unavailable rather than silently selling only the active subset.
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const pkg = await createTestGroup({
           isPackage: true,
           name: "Partial Bundle",
@@ -288,7 +289,7 @@ describeWithEnv(
       });
 
       test("suppresses a package CTA when the group has no members", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const empty = await createTestGroup({
           isPackage: true,
           name: "Empty Bundle",
@@ -298,7 +299,7 @@ describeWithEnv(
       });
 
       test("shows group description on listings page", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const group = await createTestGroup({
           description: "A wonderful summer celebration",
           name: "Described Festival",
@@ -317,7 +318,7 @@ describeWithEnv(
       });
 
       test("does not show hidden groups on listings page", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const group = await createTestGroup({
           hidden: true,
           name: "Secret Group",
@@ -350,7 +351,7 @@ describeWithEnv(
       });
 
       test("grouped listings also appear individually on listings page", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const group = await createTestGroup({
           name: "My Group",
           slug: "my-group",

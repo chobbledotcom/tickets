@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { parseEnabledFeatures } from "#shared/admin-features.ts";
+import {
+  parseEnabledFeatures,
+  serializeEnabledFeatures,
+} from "#shared/admin-features.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import enabledFeaturesMigration from "#shared/db/migrations/2026-07-15_enabled_features.ts";
 import { CONFIG_KEYS } from "#shared/db/settings.ts";
@@ -31,6 +34,10 @@ describeWithEnv(
     });
 
     test("enables features that already have saved records", async () => {
+      await execute("INSERT INTO attributes (name) VALUES ('Level')");
+      await execute(
+        "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
+      );
       await execute(
         "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
       );
@@ -48,26 +55,38 @@ describeWithEnv(
 
       expect(await storedFeatures()).toEqual({
         apiKeys: true,
+        attributes: true,
         logistics: true,
         modifiers: true,
         money: false,
-        servingEvents: true,
+        questions: true,
+        servicing: true,
+        site: false,
       });
     });
 
-    test("moves the old logistics setting and removes its row", async () => {
+    test("moves old feature settings and removes their rows", async () => {
       await execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES ('has_logistics', 'true')",
+      );
+      await execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')",
       );
       await runMigration();
 
       expect(await storedFeatures()).toEqual({
         ...DEFAULT_ENABLED_FEATURES,
         logistics: true,
+        site: true,
       });
       expect(
         await queryOne(
           "SELECT value FROM settings WHERE key = 'has_logistics'",
+        ),
+      ).toBeNull();
+      expect(
+        await queryOne(
+          "SELECT value FROM settings WHERE key = 'show_public_site'",
         ),
       ).toBeNull();
     });
@@ -82,6 +101,32 @@ describeWithEnv(
         ...DEFAULT_ENABLED_FEATURES,
         logistics: true,
       });
+    });
+
+    test("keeps Site enabled when the migration runs again", async () => {
+      await execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')",
+      );
+      await runMigration();
+      await runMigration();
+      expect(await storedFeatures()).toEqual({
+        ...DEFAULT_ENABLED_FEATURES,
+        site: true,
+      });
+    });
+
+    test("keeps every explicit feature choice when the migration runs again", async () => {
+      const enabled = Object.fromEntries(
+        Object.keys(DEFAULT_ENABLED_FEATURES).map((key) => [key, true]),
+      ) as typeof DEFAULT_ENABLED_FEATURES;
+      await execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        [CONFIG_KEYS.ENABLED_FEATURES, serializeEnabledFeatures(enabled)],
+      );
+
+      await runMigration();
+
+      expect(await storedFeatures()).toEqual(enabled);
     });
 
     test("keeps its recorded marker identity", () => {

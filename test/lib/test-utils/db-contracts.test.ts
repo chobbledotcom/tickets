@@ -39,6 +39,7 @@ import {
   withTestSession,
 } from "#test-utils/session.ts";
 import {
+  featureSetting,
   testWithSetting,
   useSetting,
   withSetting,
@@ -328,14 +329,14 @@ describe("test-utils — db-backed & settings contracts", () => {
 
     test("applies multiple overrides at once", async () => {
       const seen: Record<string, unknown> = {};
-      await withSetting({ currency: "USD", show_public_site: true }, () => {
+      await withSetting({ currency: "USD", ...featureSetting("site") }, () => {
         seen.currency = settings.currency;
-        seen.showPublicSite = settings.showPublicSite;
+        seen.site = settings.features.site;
       });
       expect(seen.currency).toBe("USD");
-      expect(seen.showPublicSite).toBe(true);
+      expect(seen.site).toBe(true);
       expect(settings.currency).not.toBe("USD");
-      expect(settings.showPublicSite).not.toBe(true);
+      expect(settings.features.site).toBe(false);
     });
   });
 

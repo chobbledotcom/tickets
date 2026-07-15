@@ -1,6 +1,9 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#shared/db/client.ts";
+import { stub } from "@std/testing/mock";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import { execute, getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
@@ -9,6 +12,7 @@ import {
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { setTestEnv } from "#test-utils/env.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { describeAdminSettings } from "#test-utils/settings.ts";
 
@@ -33,8 +37,11 @@ describeAdminSettings(() => {
 
   test("shows the feature table last on the settings page", async () => {
     const html = await (await adminGet("/admin/settings")).text();
+    expect(html).toContain('href="/admin/features/site"');
+    expect(html).toContain('href="/admin/features/attributes"');
+    expect(html).toContain('href="/admin/features/questions"');
     expect(html).toContain('href="/admin/features/modifiers"');
-    expect(html).toContain('href="/admin/features/serving-events"');
+    expect(html).toContain('href="/admin/features/servicing"');
     expect(html).toContain("Disabled");
     expect(html.indexOf("Features")).toBeGreaterThan(
       html.indexOf("Calendar feeds"),
@@ -63,6 +70,50 @@ describeAdminSettings(() => {
     );
   });
 
+  test("shows feature status without a form in read-only mode", async () => {
+    const restore = setTestEnv({
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+    });
+    try {
+      const html = await (await adminGet("/admin/features/modifiers")).text();
+      expect(html).toContain("Status:");
+      expect(html).toContain("Disabled");
+      expect(html).not.toContain('action="/admin/features/modifiers"');
+    } finally {
+      restore();
+    }
+  });
+
+  test("explains Site", async () => {
+    const response = await adminGet("/admin/features/site");
+    await expectHtmlResponse(
+      response,
+      200,
+      "Site",
+      "Publish the public site and show its editing tools in the admin menu.",
+    );
+  });
+
+  test("explains Attributes", async () => {
+    const response = await adminGet("/admin/features/attributes");
+    await expectHtmlResponse(
+      response,
+      200,
+      "Attributes",
+      "Show tools for adding reusable details to listings.",
+    );
+  });
+
+  test("explains Questions", async () => {
+    const response = await adminGet("/admin/features/questions");
+    await expectHtmlResponse(
+      response,
+      200,
+      "Questions",
+      "Show tools for asking people questions when they book.",
+    );
+  });
+
   test("explains API keys", async () => {
     const response = await adminGet("/admin/features/api-keys");
     await expectHtmlResponse(
@@ -73,12 +124,12 @@ describeAdminSettings(() => {
     );
   });
 
-  test("explains Serving events", async () => {
-    const response = await adminGet("/admin/features/serving-events");
+  test("explains Servicing", async () => {
+    const response = await adminGet("/admin/features/servicing");
     await expectHtmlResponse(
       response,
       200,
-      "Serving events",
+      "Servicing",
       "Show tools for reserving listing capacity for your own work.",
     );
   });
@@ -102,6 +153,14 @@ describeAdminSettings(() => {
     expect(settings.features.money).toBe(false);
   });
 
+  test("publishes and unpublishes Site", async () => {
+    await expectFeatureSaved("site", true, "Site enabled.");
+    expect(settings.features.site).toBe(true);
+
+    await expectFeatureSaved("site", false, "Site disabled.");
+    expect(settings.features.site).toBe(false);
+  });
+
   test("enables and disables unused Logistics", async () => {
     await settings.update.listingDefaults({
       ...settings.listingDefaults,
@@ -123,10 +182,7 @@ describeAdminSettings(() => {
     await execute(
       "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
     );
-    await settings.update.features({
-      ...settings.features,
-      modifiers: true,
-    });
+    await setAdminFeatureEnabled("modifiers", true);
 
     const page = await (await adminGet("/admin/features/modifiers")).text();
     expect(page).toContain("This feature is in use.");
@@ -141,6 +197,37 @@ describeAdminSettings(() => {
       "This feature is in use. Remove its saved items before you disable it.",
       false,
     );
+    expect(settings.features.modifiers).toBe(true);
+  });
+
+  test("keeps a feature enabled when its first record appears during disable", async () => {
+    await setAdminFeatureEnabled("modifiers", true);
+    const db = getDb();
+    const originalExecute = db.execute.bind(db);
+    let inserted = false;
+    const executeStub = stub(db, "execute", async (statement: InStatement) => {
+      const result = await originalExecute(statement);
+      const sql = typeof statement === "string" ? statement : statement.sql;
+      if (!inserted && sql.includes("SELECT json_object")) {
+        inserted = true;
+        await originalExecute(
+          "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
+        );
+      }
+      return result;
+    });
+    try {
+      const { response } = await adminFormPost("/admin/features/modifiers", {
+        enabled: "false",
+      });
+      expectFlash(
+        response,
+        "This feature is in use. Remove its saved items before you disable it.",
+        false,
+      );
+    } finally {
+      executeStub.restore();
+    }
     expect(settings.features.modifiers).toBe(true);
   });
 });

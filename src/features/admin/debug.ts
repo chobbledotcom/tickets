@@ -236,7 +236,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       country: settings.country,
       currency: settings.currency,
       publicApi: settings.showPublicApi,
-      publicSite: settings.showPublicSite,
+      publicSite: settings.features.site,
       spamProtection: isBotpoisonEnabled(),
       timezone: settings.timezone,
     },

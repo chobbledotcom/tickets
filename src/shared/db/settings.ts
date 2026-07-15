@@ -33,7 +33,6 @@ import { isAddressLookupSetting } from "#shared/address-lookup/types.ts";
 import {
   type EnabledFeatures,
   parseEnabledFeatures,
-  serializeEnabledFeatures,
 } from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
@@ -55,6 +54,7 @@ import {
 } from "#shared/db/settings/cache.ts";
 import { keyModeOf } from "#shared/db/settings/constants.ts";
 import { withCurrentTask } from "#shared/db/settings/current-task.ts";
+import { removeEncryptedJsonField } from "#shared/db/settings/json-field.ts";
 import { invalidateCache, loadKeys } from "#shared/db/settings/load.ts";
 import { updateUserPassword } from "#shared/db/settings/password.ts";
 import {
@@ -121,6 +121,13 @@ const withProperties = <T extends object, P extends object>(
 ): T & P => {
   Object.defineProperties(target, Object.getOwnPropertyDescriptors(props));
   return target as T & P;
+};
+
+const removeListingDefaultUsesLogistics = (raw: string): string | null => {
+  const defaults = parseListingDefaults(raw);
+  if (defaults.usesLogistics === undefined) return null;
+  delete defaults.usesLogistics;
+  return serializeListingDefaults(defaults);
 };
 
 /** The card-provider getters shared by Stripe and SumUp: whether a secret key
@@ -275,10 +282,6 @@ const settingsBase = {
   get showPublicApi(): boolean {
     return snap("show_public_api");
   },
-  get showPublicSite(): boolean {
-    return snap("show_public_site");
-  },
-
   // --- SMS gateway ---
   smsGateway: {
     get hasPassphrase(): boolean {
@@ -385,6 +388,11 @@ const settingsBase = {
       CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY,
       "calendar_feeds_group_by",
     ) as (v: "attendees" | "listings") => Promise<void>,
+    clearListingDefaultUsesLogistics: (): Promise<boolean> =>
+      removeEncryptedJsonField(
+        CONFIG_KEYS.LISTING_DEFAULTS,
+        removeListingDefaultUsesLogistics,
+      ),
     clearPaymentProvider: async (): Promise<void> => {
       await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
       data.payment_provider = null;
@@ -418,11 +426,6 @@ const settingsBase = {
       CONFIG_KEYS.EXTERNAL_ORDER_ENABLED,
       "external_order_enabled",
     ),
-    features: async (v: EnabledFeatures): Promise<void> => {
-      await plaintextUpdate(CONFIG_KEYS.ENABLED_FEATURES)(
-        serializeEnabledFeatures(v),
-      );
-    },
     // --- Google Wallet writes ---
     googleWallet: googleWallet.createUpdateSettings(encryptedUpdate),
     listingDefaults: async (v: ListingDefaults): Promise<void> => {
@@ -446,10 +449,6 @@ const settingsBase = {
       data.payment_provider_setting = "none";
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
-    showPublicSite: boolUpdate(
-      CONFIG_KEYS.SHOW_PUBLIC_SITE,
-      "show_public_site",
-    ),
 
     // --- Square writes ---
     square: {

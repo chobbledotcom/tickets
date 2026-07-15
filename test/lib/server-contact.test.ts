@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
@@ -18,6 +19,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 const BOTPOISON_ENV = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",
@@ -42,7 +44,7 @@ const installContactFetch = (opts: {
 
 /** Configure everything the public contact form needs to be active. */
 const activate = async (): Promise<void> => {
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   await settings.update.businessEmail("owner@example.com");
   await settings.update.contactFormEnabled(true);
   await settings.update.email.provider("resend");
@@ -182,19 +184,19 @@ describeWithEnv(
       });
 
       test("404s when the form is off and there is no contact text", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(mockRequest("/contact"));
         expect(response.status).toBe(404);
       });
 
       test("omits the form when the toggle is off", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.businessEmail("owner@example.com");
         await expectContactFormOmitted();
       });
 
       test("omits the form when no business email is set", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.contactFormEnabled(true);
         await expectContactFormOmitted();
       });
@@ -284,7 +286,7 @@ describeWithEnv(
 
       test("redirects to login when the public site is disabled", async () => {
         await activate();
-        await settings.update.showPublicSite(false);
+        await setAdminFeatureEnabled("site", false);
         const response = await handleRequest(
           mockFormRequest("/contact", {
             email: "visitor@example.com",
@@ -329,7 +331,7 @@ describeWithEnv(
       });
 
       test("404s when the form is not active", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(
           mockFormRequest("/contact", {
             email: "visitor@example.com",
@@ -405,7 +407,7 @@ describeWithEnv(
     });
 
     test("404s when the form is not enabled", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await settings.update.businessEmail("owner@example.com");
       const response = await handleRequest(
         mockFormRequest("/contact", {
@@ -417,7 +419,7 @@ describeWithEnv(
     });
 
     test("omits the Botpoison connect-src from the CSP", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/"));
       const csp = getHeader(response, "content-security-policy");
       expect(csp).not.toContain("api.botpoison.com");

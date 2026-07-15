@@ -289,6 +289,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "INSERT OR REPLACE INTO settings (key, value) VALUES ('has_logistics', 'true')",
       );
       await getDb().execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES ('show_public_site', 'true')",
+      );
+      await getDb().execute(
         "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
       );
       await simulateUpgradeFromRelease(
@@ -302,12 +305,16 @@ describeWithEnv("db > migrations", { db: true }, () => {
       if (!stored) throw new Error("enabled_features was not migrated");
       expect(JSON.parse(stored)).toEqual({
         apiKeys: false,
+        attributes: false,
         logistics: true,
         modifiers: true,
         money: false,
-        servingEvents: false,
+        questions: false,
+        servicing: false,
+        site: true,
       });
       expect(await settingValue("has_logistics")).toBeUndefined();
+      expect(await settingValue("show_public_site")).toBeUndefined();
       expect(await appliedMigrationIds()).toContain(
         "2026-07-15_enabled_features",
       );

@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { parseEnabledFeatures } from "#shared/admin-features.ts";
+import {
+  parseEnabledFeatures,
+  setFeatureEnabled,
+} from "#shared/admin-features.ts";
 import {
   entityReturnPath,
   readOnlyGetRoutePatterns,
@@ -92,17 +95,27 @@ describe("admin surface paths", () => {
     expect(adminDestination("modifiers").intent).toBe("view");
   });
 
-  test("shows the Site section to editors when the public site is hidden", () => {
+  test("shows the Site section to editors only when Site is enabled", () => {
+    const context = {
+      active: "/admin",
+      adminLevel: "editor" as const,
+      builder: false,
+      enabledFeatures: DEFAULT_ENABLED_FEATURES,
+      isReadOnly: false,
+      storage: false,
+      support: false,
+    };
+    expect(visibleTopLevel(context).map((link) => link.href)).not.toContain(
+      "/admin/site",
+    );
     expect(
       visibleTopLevel({
-        active: "/admin",
-        adminLevel: "editor",
-        builder: false,
-        enabledFeatures: DEFAULT_ENABLED_FEATURES,
-        isReadOnly: false,
-        showPublicSite: false,
-        storage: false,
-        support: false,
+        ...context,
+        enabledFeatures: setFeatureEnabled(
+          DEFAULT_ENABLED_FEATURES,
+          "site",
+          true,
+        ),
       }).map((link) => link.href),
     ).toContain("/admin/site");
   });
@@ -114,7 +127,6 @@ describe("admin surface paths", () => {
       builder: false,
       enabledFeatures: DEFAULT_ENABLED_FEATURES,
       isReadOnly: false,
-      showPublicSite: true,
       storage: false,
       support: false,
     };
@@ -126,8 +138,22 @@ describe("admin surface paths", () => {
     }).flatMap((section) => section.items);
     expect(hidden.map((link) => link.href)).not.toContain("/admin/built-sites");
     expect(hidden.map((link) => link.href)).not.toContain("/admin/support");
+    expect(hidden.map((link) => link.href)).not.toContain("/admin/attributes");
+    expect(hidden.map((link) => link.href)).not.toContain("/admin/questions");
     expect(visible.map((link) => link.href)).toContain("/admin/built-sites");
     expect(visible.map((link) => link.href)).toContain("/admin/support");
+    const featureLinks = visibleSections({
+      ...context,
+      enabledFeatures: setFeatureEnabled(
+        setFeatureEnabled(DEFAULT_ENABLED_FEATURES, "attributes", true),
+        "questions",
+        true,
+      ),
+    }).flatMap((section) => section.items);
+    expect(featureLinks.map((link) => link.href)).toContain(
+      "/admin/attributes",
+    );
+    expect(featureLinks.map((link) => link.href)).toContain("/admin/questions");
   });
 
   test("omits sections with no sub-navigation", () => {
@@ -137,7 +163,6 @@ describe("admin surface paths", () => {
       builder: false,
       enabledFeatures: DEFAULT_ENABLED_FEATURES,
       isReadOnly: false,
-      showPublicSite: true,
       storage: false,
       support: false,
     });

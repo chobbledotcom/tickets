@@ -44,7 +44,6 @@ const getSettingsPageState = async () => {
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
     headerImageUrl: settings.headerImageUrl,
     paymentProvider: settings.paymentProvider ?? "",
-    showPublicSite: settings.showPublicSite,
     squareSandbox: settings.square.sandbox,
     squareTokenConfigured: settings.square.hasToken,
     squareWebhookConfigured: settings.square.webhookSignatureKey !== "",

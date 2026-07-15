@@ -64,7 +64,10 @@ src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error messag
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
-src/shared/db/admin-features.ts:16:49  ?? → ||   # inUseSql: a non-empty SQL string|null, so only null reaches the fallback
+src/shared/db/admin-features.ts:23:49  ?? → ||   # inUseSql: a non-empty SQL string|null, so only null reaches the fallback
+src/shared/db/admin-features.ts:54:13  === → ==   # writeBooleanJsonField returns string|null and cannot return undefined, so strict and loose null checks agree
+src/shared/db/settings/json-field.ts:63:15  === → ==   # queryOnePrimary returns a row or null, never undefined, so strict and loose null checks agree
+src/shared/db/settings/json-field.ts:66:13  === → ==   # remove returns string|null and cannot return undefined, so strict and loose null checks agree
 
 # Collection cache generation values are only compared for equality. Their
 # absolute value and direction do not matter: every invalidation changes the

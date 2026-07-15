@@ -18,7 +18,7 @@ import {
 } from "#shared/admin-api-example.ts";
 import { unwrapSessionDataKey } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { ensureAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import { createWithAdminFeature } from "#shared/db/admin-features.ts";
 import {
   createApiKey,
   deleteApiKey,
@@ -93,13 +93,9 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
       // Unwrap the DATA_KEY from the current session
       const dataKey = await unwrapSessionDataKey(session);
 
-      const { apiKey } = await createApiKey(
-        session.userId,
-        name,
-        dataKey,
-        generateSecureToken,
+      const { apiKey } = await createWithAdminFeature("apiKeys", () =>
+        createApiKey(session.userId, name, dataKey, generateSecureToken),
       );
-      await ensureAdminFeatureEnabled("apiKeys");
 
       (session as Record<string, unknown>).createdApiKey = apiKey;
     },

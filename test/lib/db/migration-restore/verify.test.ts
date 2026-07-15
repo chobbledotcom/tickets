@@ -49,7 +49,7 @@ describeWithEnv(
       // data test), listing_image_thumb (historically added a column that
       // first_class_images now drops), and remove_broken_image_records
       // (data-only; covered by its own data test), and enabled_features (the
-      // data-only move from has_logistics into one feature map).
+      // data-only move from old switches and saved records into one feature map).
       expect(additiveMigrations.length).toBe(MIGRATIONS.length - 19);
     });
 

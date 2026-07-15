@@ -24,6 +24,7 @@ import {
 } from "#test-utils/modifiers.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { adminFormPost, getTestSession } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** A group member child wired as a child of an outside (non-member) parent.
  * The group name varies between tests; everything else is identical. */
@@ -425,8 +426,7 @@ describeWithEnv(
       // End-to-end consequence: the cloned child is a child, so its
       // standalone /ticket/<clonedChild> page must 404 (a booking can never start
       // from a child) instead of letting it be booked standalone.
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const { group } = await makeExternalBundle("Outside-parent bundle");
 
       const copies = await duplicateGroup(

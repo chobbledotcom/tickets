@@ -20,6 +20,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { isPublicListing } from "#shared/listing-visibility.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
 import {
   adminSiteContactPage,
@@ -88,7 +89,7 @@ export const siteOrderForm = defineForm({
 /** Count active, visible listings — every one appears on the order page. */
 const countOrderListings = async (): Promise<number> => {
   const listings = await getAllListings();
-  return listings.filter((e) => e.active && !e.hidden).length;
+  return listings.filter(isPublicListing).length;
 };
 
 type PageRenderer = (

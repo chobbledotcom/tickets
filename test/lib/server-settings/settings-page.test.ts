@@ -105,8 +105,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(html).toContain('id="settings-embed-hosts"');
       expect(html).toContain('id="settings-terms"');
       expect(html).toContain('id="settings-password"');
-      expect(html).toContain('id="settings-show-public-site"');
       expect(html).toContain('id="settings-theme"');
+      expect(html).not.toContain("/admin/settings/show-public-site");
     });
 
     test("shows settings sub-navigation", async () => {

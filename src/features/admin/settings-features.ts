@@ -14,10 +14,12 @@ import {
   type AdminFeatureKey,
   enabledFeaturesWithUsage,
   featureBySlug,
-  setFeatureEnabled,
 } from "#shared/admin-features.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getAdminFeatureUsage } from "#shared/db/admin-features.ts";
+import {
+  getAdminFeatureUsage,
+  setAdminFeatureEnabled,
+} from "#shared/db/admin-features.ts";
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { adminFeaturePage } from "#templates/admin/features.tsx";
@@ -27,23 +29,23 @@ import { adminFeaturePage } from "#templates/admin/features.tsx";
 const noFeatureSave = (): Promise<void> => Promise.resolve();
 
 const clearLogisticsDefault = async (): Promise<void> => {
-  const defaults = settings.listingDefaults;
-  if (defaults.usesLogistics === undefined) return;
-  const next = { ...defaults };
-  delete next.usesLogistics;
-  await settings.update.listingDefaults(next);
-  invalidateListingsCache();
+  if (await settings.update.clearListingDefaultUsesLogistics()) {
+    invalidateListingsCache();
+  }
 };
 
-const afterFeatureSave: Record<
+const beforeFeatureSave: Record<
   AdminFeatureKey,
   (enabled: boolean) => Promise<void>
 > = {
   apiKeys: noFeatureSave,
+  attributes: noFeatureSave,
   logistics: (enabled) => (enabled ? noFeatureSave() : clearLogisticsDefault()),
   modifiers: noFeatureSave,
   money: noFeatureSave,
-  servingEvents: noFeatureSave,
+  questions: noFeatureSave,
+  servicing: noFeatureSave,
+  site: noFeatureSave,
 };
 
 const withAdminFeature = (
@@ -92,10 +94,10 @@ export const handleFeaturePost: TypedRouteHandler<
       if (!enabled && (await getAdminFeatureUsage())[feature.key]) {
         return errorRedirect(path, t("features.in_use_help"));
       }
-      await settings.update.features(
-        setFeatureEnabled(settings.features, feature.key, enabled),
-      );
-      await afterFeatureSave[feature.key](enabled);
+      await beforeFeatureSave[feature.key](enabled);
+      if (!(await setAdminFeatureEnabled(feature.key, enabled))) {
+        return errorRedirect(path, t("features.in_use_help"));
+      }
       const message = t(
         enabled ? "features.enabled_success" : "features.disabled_success",
         { feature: t(feature.labelKey) },

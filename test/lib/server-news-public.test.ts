@@ -12,7 +12,11 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { useSetting, withSetting } from "#test-utils/settings.ts";
+import {
+  featureSetting,
+  useSetting,
+  withSetting,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("server (public news)", { db: true }, () => {
   describe("gate + resolution", () => {
@@ -29,7 +33,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
     });
 
     test("404s the list when no posts exist and unknown post ids", () =>
-      withSetting({ show_public_site: true }, async () => {
+      withSetting(featureSetting("site"), async () => {
         expectStatus(404)(await handleRequest(mockRequest("/news")));
         expectStatus(404)(
           await handleRequest(mockRequest("/news/no-such-post")),
@@ -38,7 +42,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
   });
 
   describe("/news list", () => {
-    useSetting({ show_public_site: true });
+    useSetting(featureSetting("site"));
 
     test("lists posts newest first as linked cards with name, snippet, and first image", () =>
       withSetting({ website_title: "Acme Site" }, async () => {
@@ -90,7 +94,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
   });
 
   describe("/news/:slug post page", () => {
-    useSetting({ show_public_site: true });
+    useSetting(featureSetting("site"));
 
     test("renders the name, date, markdown content, and SEO meta", () =>
       withSetting({ website_title: "Acme Site" }, async () => {

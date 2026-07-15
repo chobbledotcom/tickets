@@ -31,6 +31,10 @@ import {
   createAuthedHandler,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  createWithAdminFeature,
+  ensureAdminFeatureEnabled,
+} from "#shared/db/admin-features.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
@@ -169,11 +173,15 @@ const handleQuestionsPost = createAuthedFormRoute({
   form: questionTextForm,
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { display_type, text } }) => {
-    const question = await questionsTable.insert({
-      displayType: requireQuestionDisplayType(display_type),
-      text,
+    const displayType = requireQuestionDisplayType(display_type);
+    const question = await createWithAdminFeature("questions", async () => {
+      const created = await questionsTable.insert({
+        displayType,
+        text,
+      });
+      await assignNextQuestionSortOrder(created.id);
+      return created;
     });
-    await assignNextQuestionSortOrder(question.id);
     await logActivity(`Question '${text}' created`);
     return redirect(
       `/admin/questions/${question.id}`,
@@ -233,6 +241,7 @@ const handleQuestionEdit = createAuthedFormRoute<
       existing.display_type === "free_text" || requested === "free_text"
         ? existing.display_type
         : requested;
+    await ensureAdminFeatureEnabled("questions");
     await questionsTable.update(params.id, { displayType, text });
     await logActivity(`Question '${text}' updated`);
     return redirect(`/admin/questions/${params.id}`, "Question updated", true);
@@ -565,6 +574,7 @@ const handleMoveQuestionUp = moveQuestionHandler("up");
 const handleMoveQuestionDown = moveQuestionHandler("down");
 
 const handleListingQuestionsPost = createListingChoicePost({
+  feature: "questions",
   fieldName: "question_ids",
   label: "Questions",
   noun: "question",

@@ -34,7 +34,6 @@ import {
   handlePaymentProviderPost,
   handleResetDatabasePost,
   handleShowPublicApiPost,
-  handleShowPublicSitePost,
   handleTermsPost,
   handleThemePost,
 } from "#routes/admin/settings-general.ts";
@@ -98,7 +97,6 @@ export const adminHandlers = handlersFor("settings")({
   postSettingsPaymentProvider: handlePaymentProviderPost,
   postSettingsResetDatabase: handleResetDatabasePost,
   postSettingsShowPublicApi: handleShowPublicApiPost,
-  postSettingsShowPublicSite: handleShowPublicSitePost,
   postSettingsSmsGateway: handleSmsGatewayPost,
   postSettingsSquare: squareRoutes.save,
   postSettingsSquareTest: squareRoutes.test,

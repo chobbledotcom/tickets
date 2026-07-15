@@ -61,8 +61,6 @@ type CrudConfig<Row, Input, Display = Row> = {
   renderEdit?: (row: Row, session: AdminSession, error?: string) => string;
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
   getName: (row: Row) => string;
-  /** Run after a successful create, before activity is logged. */
-  afterCreate?: (row: Row) => Promise<void>;
   /** Optional delete guard: a returned message blocks the deletion and renders
    * on the confirmation page (see confirmation.ts `guardError`). */
   deleteGuard?: (row: Row, id: number) => Promise<string | null>;
@@ -154,7 +152,6 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
     const createHandler: FormHandler = async (session, form) => {
       const result = await resource().create(form);
       if (!result.ok) return errorRedirect(`${cfg.listPath}/new`, result.error);
-      await cfg.afterCreate?.(result.row);
       return logAndRedirect("created", result.row, session);
     };
 

@@ -148,12 +148,6 @@ export const routes = [
     "/admin/settings/show-public-api",
   ),
   route(
-    "postSettingsShowPublicSite",
-    "settings",
-    "POST",
-    "/admin/settings/show-public-site",
-  ),
-  route(
     "postSettingsSmsGateway",
     "settings",
     "POST",

@@ -87,7 +87,6 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
     data.theme = raw === "dark" ? "dark" : "light";
   },
   [CONFIG_KEYS.UNDERLINE_LINKS]: boolApply("underline_links"),
-  [CONFIG_KEYS.SHOW_PUBLIC_SITE]: boolApply("show_public_site"),
   [CONFIG_KEYS.SHOW_PUBLIC_API]: boolApply("show_public_api"),
   [CONFIG_KEYS.EXTERNAL_ORDER_ENABLED]: boolApply("external_order_enabled"),
   [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: boolApply("calendar_feeds_enabled"),

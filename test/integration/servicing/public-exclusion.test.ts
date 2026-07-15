@@ -25,15 +25,11 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { createServicingHold, kindOf } from "#test-utils/servicing.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { enablePublicSite, setupStripe } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
 const HOLD_NAME = "Boiler Service";
-
-const enablePublicSite = async (): Promise<void> => {
-  await settings.update.showPublicSite(true);
-};
 
 const enablePublicApi = async (): Promise<void> => {
   await settings.update.showPublicApi(true);

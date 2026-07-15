@@ -30,7 +30,6 @@ const defaultState = (): SettingsPageState => ({
   enabledFeatures: DEFAULT_ENABLED_FEATURES,
   headerImageUrl: "",
   paymentProvider: "",
-  showPublicSite: false,
   squareSandbox: false,
   squareTokenConfigured: false,
   squareWebhookConfigured: false,

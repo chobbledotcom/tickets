@@ -1,4 +1,8 @@
-import { OWNER_AUDIENCE, view } from "#shared/admin-surface/definitions.ts";
+import {
+  featureVisible,
+  OWNER_AUDIENCE,
+  view,
+} from "#shared/admin-surface/definitions.ts";
 import {
   CONTENT_ADMIN_LEVELS,
   SITE_ADMIN_LEVELS,
@@ -59,7 +63,7 @@ export const ADMIN_NAV_ROUTES = [
     STAFF_ADMIN_LEVELS,
     "nav.deliveries",
     "link",
-    (ctx) => ctx.enabledFeatures.logistics,
+    featureVisible("logistics"),
   ),
   view(
     "servicing",
@@ -131,7 +135,7 @@ export const ADMIN_NAV_ROUTES = [
     OWNER_AUDIENCE,
     "nav.sub.api_keys",
     "link",
-    (ctx) => ctx.enabledFeatures.apiKeys,
+    featureVisible("apiKeys"),
   ),
   view(
     "groups",
@@ -277,6 +281,8 @@ export const ADMIN_NAV_ROUTES = [
     "/admin/attributes",
     OWNER_AUDIENCE,
     "terms.attributes",
+    "link",
+    featureVisible("attributes"),
   ),
   view(
     "questions",
@@ -285,6 +291,8 @@ export const ADMIN_NAV_ROUTES = [
     "/admin/questions",
     OWNER_AUDIENCE,
     "terms.questions",
+    "link",
+    featureVisible("questions"),
   ),
   view(
     "logistics",
@@ -294,7 +302,7 @@ export const ADMIN_NAV_ROUTES = [
     OWNER_AUDIENCE,
     "nav.logistics",
     "link",
-    (ctx) => ctx.enabledFeatures.logistics,
+    featureVisible("logistics"),
   ),
   view(
     "emails",

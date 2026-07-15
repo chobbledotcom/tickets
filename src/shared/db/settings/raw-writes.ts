@@ -61,11 +61,16 @@ const afterSettingChange = async (
   await bumpSettingsVersion();
 };
 
+/** Mirror a setting value already written by a specialised database statement
+ * into this isolate's cache, then notify other isolates. */
+export const syncWrittenSetting = (key: string, value: string): Promise<void> =>
+  afterSettingChange(key, (values) => values.set(key, value));
+
 /** Write a setting to the DB, update the raw cache in-place, and bump the
  *  shared version so other isolates reload on their next request. */
 export const writeRaw = async (key: string, value: string): Promise<void> => {
   await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
-  await afterSettingChange(key, (values) => values.set(key, value));
+  await syncWrittenSetting(key, value);
 };
 
 /** Persist several related settings in one transaction and one version bump. */

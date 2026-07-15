@@ -23,7 +23,10 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { ensureAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import {
+  createWithAdminFeature,
+  ensureAdminFeatureEnabled,
+} from "#shared/db/admin-features.ts";
 import {
   costBelongsToServicing,
   createServicingEvent,
@@ -142,12 +145,6 @@ const parseCreateInput = async (form: FormParams) => {
 const servicingErrorRedirect = (id: number, error: unknown): Response =>
   redirect(`/admin/servicing/${id}`, (error as Error).message, false);
 
-const saveServicingEvent = async <T,>(save: () => Promise<T>): Promise<T> => {
-  const result = await save();
-  await ensureAdminFeatureEnabled("servingEvents");
-  return result;
-};
-
 const handleCostPost = async (
   id: number,
   form: FormParams,
@@ -196,8 +193,9 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
 ) =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
     try {
-      const event = await saveServicingEvent(async () =>
-        createServicingEvent(await parseCreateInput(form)),
+      const input = await parseCreateInput(form);
+      const event = await createWithAdminFeature("servicing", () =>
+        createServicingEvent(input),
       );
       return redirect(
         `/admin/servicing/${event.id}`,
@@ -258,10 +256,11 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
     if (costResponse) return costResponse;
     return redirectServicingResult(
       id,
-      () =>
-        saveServicingEvent(async () =>
-          updateServicingEvent(id, await parseCreateInput(form)),
-        ),
+      async () => {
+        const input = await parseCreateInput(form);
+        await ensureAdminFeatureEnabled("servicing");
+        return updateServicingEvent(id, input);
+      },
       (updated) => t("servicing.success.updated", { name: updated.name }),
     );
   });
@@ -276,7 +275,10 @@ const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id
   servicingEventPost((id) =>
     redirectServicingResult(
       id,
-      () => saveServicingEvent(() => duplicateServicingEvent(id)),
+      async () => {
+        await ensureAdminFeatureEnabled("servicing");
+        return duplicateServicingEvent(id);
+      },
       (copy) => t("servicing.success.duplicated", { name: copy.name }),
     ),
   );

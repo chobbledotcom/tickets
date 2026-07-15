@@ -1,10 +1,13 @@
 import { ownerFormById } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
+import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 
 type ListingChoicePostConfig = {
+  feature: AdminFeatureKey;
   fieldName: string;
   label: string;
   noun: string;
@@ -17,6 +20,7 @@ const countLabel = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 export const createListingChoicePost = ({
+  feature,
   fieldName,
   label,
   noun,
@@ -25,6 +29,7 @@ export const createListingChoicePost = ({
   tab,
 }: ListingChoicePostConfig) =>
   ownerFormById(async (id, _session, form) => {
+    if (!settings.features[feature]) return notFoundResponse();
     const listing = await getListingWithCount(id);
     if (!listing) return notFoundResponse();
     const ids = readIds ? await readIds(form) : form.getNumberArray(fieldName);

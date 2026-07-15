@@ -17,10 +17,13 @@ describeWithEnv("AdminNav", {}, () => {
   useSetting(
     featureSetting(
       "apiKeys",
+      "attributes",
       "logistics",
       "modifiers",
       "money",
-      "servingEvents",
+      "questions",
+      "servicing",
+      "site",
     ),
   );
   /** Assert every role in `adminLevels` sees a nav link to `href` labelled
@@ -295,7 +298,9 @@ describeWithEnv("AdminNav", {}, () => {
         }),
       );
       expect(users).not.toContain('href="/admin/api-keys"');
+      expect(settings).not.toContain('href="/admin/attributes"');
       expect(settings).not.toContain('href="/admin/logistics"');
+      expect(settings).not.toContain('href="/admin/questions"');
     });
   });
 
@@ -405,81 +410,60 @@ describeWithEnv("AdminNav", {}, () => {
     expect(html).not.toContain("Finish setting up your site");
   });
 
-  test("owner sees a top-level Site link when the public site is enabled", () =>
-    withSetting({ show_public_site: true }, () => {
-      const html = String(
-        AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
-      );
-      expect(html).toContain('href="/admin/site"');
-    }));
+  test("owner sees a top-level Site link when Site is enabled", () => {
+    const html = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+    );
+    expect(html).toContain('href="/admin/site"');
+  });
 
-  test("owner does not see Site when the public site is disabled", () =>
-    withSetting({ show_public_site: false }, () => {
+  test("owner does not see Site when Site is disabled", () =>
+    withSetting(featureSetting(), () => {
       const html = String(
         AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
       );
       expect(html).not.toContain('href="/admin/site"');
     }));
 
-  test("owner keeps the Site parent on the Site editor even when disabled", () =>
-    withSetting({ show_public_site: false }, () => {
-      const html = String(
-        AdminNav({ active: "/admin/site", session: { adminLevel: "owner" } }),
-      );
-      // The top-level Site parent stays so the desktop sub-nav has something to
-      // nest under (otherwise Homepage/Contact/Order vanish on desktop).
-      expect(html).toContain('href="/admin/site"');
-      expect(html).toContain('href="/admin/site/contact"');
-    }));
-
-  // Regression (PR #1600 review): now that the Site sub-pages pass their own
-  // route, a Site *sub-page* (not just /admin/site) must also keep the top-level
-  // Site parent when the public site is off — otherwise the desktop sub-nav that
-  // nests under the active Site parent would have nothing to hang from.
-  test("owner keeps the Site parent on a Site sub-page when disabled", () =>
-    withSetting({ show_public_site: false }, () => {
-      for (const active of ["/admin/site/contact", "/admin/site/pages"]) {
+  test("Site routes stay out of the nav while Site is disabled", () =>
+    withSetting(featureSetting(), () => {
+      for (const active of ["/admin/site", "/admin/site/contact"]) {
         const html = String(
           AdminNav({ active, session: { adminLevel: "owner" } }),
         );
-        expect(html, active).toContain('href="/admin/site"');
-        expect(html, active).toContain('href="/admin/site/contact"');
-        // The current sub-page is highlighted in the sub-nav.
-        expect(html, active).toContain(`class="active" href="${active}"`);
+        expect(html, active).not.toContain('href="/admin/site"');
+        expect(html, active).not.toContain('href="/admin/site/contact"');
       }
     }));
 
-  test("managers and agents never see the Site link", () =>
-    withSetting({ show_public_site: true }, () => {
-      for (const adminLevel of ["manager", "agent"] as const) {
-        const html = String(
-          AdminNav({ active: "/admin/", session: { adminLevel } }),
-        );
-        expect(html, adminLevel).not.toContain('href="/admin/site"');
-      }
-    }));
-
-  test("the Site section sub-nav shows for owner and editor on /admin/site", () =>
-    withSetting({ show_public_site: true }, () => {
-      for (const adminLevel of ["owner", "editor"] as const) {
-        const html = String(
-          AdminNav({ active: "/admin/site", session: { adminLevel } }),
-        );
-        expect(html).toContain('href="/admin/site/contact"');
-        expect(html).toContain('href="/admin/site/order"');
-      }
-    }));
-
-  test("editors get no section sub-nav away from the Site editor", () =>
-    withSetting({ show_public_site: true }, () => {
+  test("managers and agents never see the Site link", () => {
+    for (const adminLevel of ["manager", "agent"] as const) {
       const html = String(
-        AdminNav({
-          active: "/admin/listings",
-          session: { adminLevel: "editor" },
-        }),
+        AdminNav({ active: "/admin/", session: { adminLevel } }),
       );
-      expect(html).not.toContain('href="/admin/site/contact"');
-    }));
+      expect(html, adminLevel).not.toContain('href="/admin/site"');
+    }
+  });
+
+  test("the Site section sub-nav shows for owner and editor on /admin/site", () => {
+    for (const adminLevel of ["owner", "editor"] as const) {
+      const html = String(
+        AdminNav({ active: "/admin/site", session: { adminLevel } }),
+      );
+      expect(html).toContain('href="/admin/site/contact"');
+      expect(html).toContain('href="/admin/site/order"');
+    }
+  });
+
+  test("editors get no section sub-nav away from the Site editor", () => {
+    const html = String(
+      AdminNav({
+        active: "/admin/listings",
+        session: { adminLevel: "editor" },
+      }),
+    );
+    expect(html).not.toContain('href="/admin/site/contact"');
+  });
 
   test("the Images section sub-nav offers an Add link when storage is enabled", () =>
     withStorageEnabled(() => {

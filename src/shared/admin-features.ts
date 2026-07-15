@@ -7,6 +7,27 @@ import * as v from "valibot";
  */
 export const ADMIN_FEATURES = [
   {
+    descriptionKey: "features.site.description",
+    inUseSql: null,
+    key: "site",
+    labelKey: "features.site.name",
+    slug: "site",
+  },
+  {
+    descriptionKey: "features.attributes.description",
+    inUseSql: "EXISTS (SELECT 1 FROM attributes AS attribute)",
+    key: "attributes",
+    labelKey: "features.attributes.name",
+    slug: "attributes",
+  },
+  {
+    descriptionKey: "features.questions.description",
+    inUseSql: "EXISTS (SELECT 1 FROM questions AS question)",
+    key: "questions",
+    labelKey: "features.questions.name",
+    slug: "questions",
+  },
+  {
     descriptionKey: "features.modifiers.description",
     inUseSql: "EXISTS (SELECT 1 FROM modifiers AS modifier)",
     key: "modifiers",
@@ -29,12 +50,12 @@ export const ADMIN_FEATURES = [
     slug: "api-keys",
   },
   {
-    descriptionKey: "features.serving_events.description",
+    descriptionKey: "features.servicing.description",
     inUseSql:
       "EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.kind = 'servicing')",
-    key: "servingEvents",
-    labelKey: "features.serving_events.name",
-    slug: "serving-events",
+    key: "servicing",
+    labelKey: "features.servicing.name",
+    slug: "servicing",
   },
   {
     descriptionKey: "features.money.description",

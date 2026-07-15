@@ -7,7 +7,6 @@ export interface AdminSurfaceContext {
   readonly builder: boolean;
   readonly enabledFeatures: EnabledFeatures;
   readonly isReadOnly: boolean;
-  readonly showPublicSite: boolean;
   readonly storage: boolean;
   readonly support: boolean;
 }
@@ -110,13 +109,10 @@ export const operation = <
 
 export const OWNER_AUDIENCE = ["owner"] as const;
 
-const featureVisible =
+export const featureVisible =
   (feature: keyof EnabledFeatures) =>
   (ctx: AdminSurfaceContext): boolean =>
     ctx.enabledFeatures[feature];
-
-const isSiteRoute = (active: string): boolean =>
-  active === "/admin/site" || active.startsWith("/admin/site/");
 
 export const ADMIN_SECTIONS = [
   { id: "home", labelKey: "nav.public.home", landing: "home" },
@@ -132,7 +128,7 @@ export const ADMIN_SECTIONS = [
     id: "servicing",
     labelKey: "nav.servicing",
     landing: "servicing",
-    visible: featureVisible("servingEvents"),
+    visible: featureVisible("servicing"),
   },
   { id: "attendees", labelKey: "terms.attendees", landing: "attendees" },
   { id: "users", labelKey: "terms.users", landing: "users" },
@@ -165,10 +161,7 @@ export const ADMIN_SECTIONS = [
     id: "site",
     labelKey: "nav.site",
     landing: "site",
-    visible: (ctx: AdminSurfaceContext) =>
-      ctx.adminLevel === "editor" ||
-      ctx.showPublicSite ||
-      isSiteRoute(ctx.active),
+    visible: featureVisible("site"),
   },
   { id: "settings", labelKey: "nav.settings", landing: "settings" },
 ] as const;

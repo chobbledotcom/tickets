@@ -17,6 +17,7 @@ import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Assert a 302 redirect with a flash cookie containing the given text */
 const expectRedirectContaining = (response: Response, text: string) => {
@@ -103,6 +104,15 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
       expect(settings.websiteTitle).toBe("My Site");
       expect(settings.homepageText).toBe("Welcome!");
+    });
+
+    test("saving Site content does not publish Site", async () => {
+      const { response } = await adminFormPost("/admin/site", {
+        homepage_text: "Draft",
+        website_title: "Draft site",
+      });
+      response.body?.cancel();
+      expect(settings.features.site).toBe(false);
     });
 
     test("clears values when empty", async () => {
@@ -381,6 +391,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
   describe("site subnav", () => {
     /** Fetch a site admin page and assert it contains subnav links */
     const expectSubnav = async (path: string) => {
+      await enablePublicSite();
       const response = await awaitTestRequest(path, {
         cookie: await testCookie(),
       });
@@ -408,7 +419,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
 
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await adminGet("/admin/site");
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');

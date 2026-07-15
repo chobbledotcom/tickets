@@ -14,10 +14,13 @@ const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 describe("admin features", () => {
   test("defines the complete feature list in display order", () => {
     expect(ADMIN_FEATURES.map(({ key, slug }) => ({ key, slug }))).toEqual([
+      { key: "site", slug: "site" },
+      { key: "attributes", slug: "attributes" },
+      { key: "questions", slug: "questions" },
       { key: "modifiers", slug: "modifiers" },
       { key: "logistics", slug: "logistics" },
       { key: "apiKeys", slug: "api-keys" },
-      { key: "servingEvents", slug: "serving-events" },
+      { key: "servicing", slug: "servicing" },
       { key: "money", slug: "money" },
     ]);
   });
@@ -25,10 +28,13 @@ describe("admin features", () => {
   test("defaults every feature to disabled", () => {
     expect(DEFAULT_ENABLED_FEATURES).toEqual({
       apiKeys: false,
+      attributes: false,
       logistics: false,
       modifiers: false,
       money: false,
-      servingEvents: false,
+      questions: false,
+      servicing: false,
+      site: false,
     });
   });
 
@@ -98,7 +104,7 @@ describe("admin features", () => {
   });
 
   test("finds a feature by slug and returns null for an unknown slug", () => {
-    expect(featureBySlug("serving-events")?.key).toBe("servingEvents");
+    expect(featureBySlug("site")?.key).toBe("site");
     expect(featureBySlug("unknown")).toBeNull();
   });
 });

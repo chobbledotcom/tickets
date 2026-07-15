@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlashRedirect,
@@ -18,6 +19,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -151,6 +153,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("GET /admin/listing/:id/questions", () => {
+    beforeEach(() => enableFeature("questions"));
+
     testRequiresAuth("/admin/listing/1/questions", {
       setup: async () => {
         await createTestListing({ name: "Auth Listing" });
@@ -160,6 +164,21 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("returns 404 for non-existent listing", async () => {
       const response = await adminGet("/admin/listing/999/questions");
       expectStatus(404)(response);
+    });
+
+    test("returns 404 while Questions is disabled", async () => {
+      const listing = await createTestListing({ name: "Hidden questions" });
+      await setAdminFeatureEnabled("questions", false);
+      expectStatus(404)(
+        await adminGet(`/admin/listing/${listing.id}/questions`),
+      );
+      expectStatus(404)(
+        (
+          await adminFormPost(`/admin/listing/${listing.id}/questions`, {
+            question_ids: "1",
+          })
+        ).response,
+      );
     });
 
     test("shows empty state when no questions exist", async () => {
@@ -292,6 +311,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("assigns no questions when none selected", async () => {
+      await enableFeature("questions");
       const listing = await createTestListing({ name: "No Questions" });
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/questions`,
@@ -335,6 +355,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("logs activity with plural when multiple questions assigned", async () => {
+      await enableFeature("questions");
       const listing = await createTestListing({ name: "Plural Log" });
 
       // Assign 0 questions to test the plural form (0 questions)

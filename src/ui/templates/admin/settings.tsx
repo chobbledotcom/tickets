@@ -41,7 +41,6 @@ export type SettingsPageState = {
   businessEmail: string;
   theme: Theme;
   underlineLinks: boolean;
-  showPublicSite: boolean;
   headerImageUrl: string;
   storageEnabled: boolean;
   superuser: SuperuserState;
@@ -56,12 +55,11 @@ export type SettingsPageState = {
  * 1. Business Email - basic setup
  * 2. Header Image - branding
  * 3. Site Theme - appearance
- * 4. Show Public Site - appearance
- * 5. Payment Provider + Stripe/Square/Webhook/Booking Fee
- * 6. Terms and Conditions
- * 7. Embed Hosts - niche
- * 8. Change Password - rare maintenance
- * 9. Calendar Feeds - niche read-only feed
+ * 4. Payment Provider + Stripe/Square/Webhook/Booking Fee
+ * 5. Terms and Conditions
+ * 6. Embed Hosts - niche
+ * 7. Change Password - rare maintenance
+ * 8. Calendar Feeds - niche read-only feed
  *
  * Country/locale is intentionally absent: it is set once during /setup and is
  * write-once thereafter (only an admin editing the database can change it).
@@ -75,7 +73,6 @@ export const adminSettingsPage = (
       {settingsForm(SETTINGS_FORMS.businessEmail, s)}
       {HeaderImageForm(s)}
       {ThemeForm(s)}
-      {settingsForm(SETTINGS_FORMS.showPublicSite, s)}
 
       {PaymentProviderForm(s)}
       {StripeForm(s)}

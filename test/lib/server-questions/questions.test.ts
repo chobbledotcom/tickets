@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -15,6 +17,7 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
+import { withFeatureWriteFailure } from "#test-utils/settings.ts";
 import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -62,6 +65,31 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("creates question and redirects", async () => {
       const id = await createQuestion("What size?");
       expect(id).toBeGreaterThan(0);
+      expect(settings.features.questions).toBe(true);
+    });
+
+    test("does not enable Questions for an invalid create", async () => {
+      const { response } = await adminFormPost("/admin/questions", {
+        display_type: "radio",
+        text: "",
+      });
+      response.body?.cancel();
+      expect(settings.features.questions).toBe(false);
+    });
+
+    test("does not create a question when enabling the feature fails", async () => {
+      await expect(
+        withFeatureWriteFailure(async () => {
+          await adminFormPost("/admin/questions", {
+            display_type: "radio",
+            text: "Hidden?",
+          });
+        }),
+      ).rejects.toThrow("feature enable failed");
+      const { getAllQuestionsWithAnswers } = await import(
+        "#shared/db/questions/queries.ts"
+      );
+      expect(await getAllQuestionsWithAnswers()).toEqual([]);
     });
 
     test("redirects to the new question's detail page", async () => {
@@ -234,6 +262,26 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { questionsTable } = await import("#shared/db/questions/tables.ts");
       const updated = await questionsTable.findById(id);
       expect(updated!.text).toBe("After edit");
+    });
+
+    test("does not update a question when enabling the feature fails", async () => {
+      const { questionsTable } = await import("#shared/db/questions/tables.ts");
+      const question = await questionsTable.insert({
+        displayType: "radio",
+        text: "Before?",
+      });
+      await setAdminFeatureEnabled("questions", false);
+      await expect(
+        withFeatureWriteFailure(async () => {
+          await adminFormPost(`/admin/questions/${question.id}/edit`, {
+            display_type: "radio",
+            text: "After?",
+          });
+        }),
+      ).rejects.toThrow("feature enable failed");
+      expect((await questionsTable.findById(question.id))?.text).toBe(
+        "Before?",
+      );
     });
 
     test("rejects empty text with error page", async () => {

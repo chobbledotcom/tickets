@@ -18,8 +18,9 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
-import { insertModifierUsage } from "#test-utils/modifiers.ts";
+import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { withFeatureWriteFailure } from "#test-utils/settings.ts";
 import { createData, lastModifier } from "./helpers.ts";
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
@@ -130,6 +131,23 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("updated"));
       expect(entry?.message).toBe("Modifier 'After' updated");
+    });
+
+    test("does not update a modifier when enabling the feature fails", async () => {
+      const { id } = await insertModifier({ calcValue: 10, name: "Before" });
+
+      await expect(
+        withFeatureWriteFailure(async () => {
+          await adminFormPost(
+            `/admin/modifiers/${id}/edit`,
+            createData({ calc_value: "20", name: "After" }),
+          );
+        }),
+      ).rejects.toThrow("feature enable failed");
+
+      const unchanged = await getModifier(id);
+      expect(unchanged?.name).toBe("Before");
+      expect(unchanged?.calc_value).toBe(10);
     });
 
     test("updates modifier running totals from the edit form", async () => {

@@ -1,6 +1,6 @@
 /**
  * ICS and RSS feed routes for listing syndication (e.g. Mobilizon integration)
- * Gated behind the "show public site" setting.
+ * Gated behind the Site feature.
  */
 
 import { byId, map, pipe } from "#fp";
@@ -17,11 +17,7 @@ import {
   publicGroupSummary,
 } from "#routes/public/group-liveness.ts";
 /* jscpd:ignore-end */
-import {
-  icsResponse,
-  redirectResponse,
-  rssResponse,
-} from "#routes/response.ts";
+import { icsResponse, rssResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
@@ -34,7 +30,9 @@ import {
 import { getNewsPostSummaries } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
+import { isPublicListing } from "#shared/listing-visibility.ts";
 import { nowIso } from "#shared/now.ts";
+import { requirePublicSite } from "#shared/public-site.ts";
 import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type ListingWithCount,
@@ -99,8 +97,7 @@ type FeedData = { items: FeedItem[]; domain: string; title: string };
  * though its member listings are dropped. */
 const loadFeedData = async (): Promise<FeedData> => {
   const { listings: allListings } = await loadSortedListings(
-    (e) =>
-      e.active && !e.hidden && !e.purchase_only && !isRegistrationClosed(e),
+    (e) => isPublicListing(e) && !e.purchase_only && !isRegistrationClosed(e),
   );
   // A hidden package's members are never syndicated standalone — only the
   // package name is public.
@@ -130,10 +127,6 @@ const loadFeedData = async (): Promise<FeedData> => {
     title: settings.websiteTitle || "Listings",
   };
 };
-
-/** Guard: redirect to admin login if public site is disabled */
-const requirePublicSite = <T>(fn: () => Promise<T>): Promise<T> | Response =>
-  settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Append the shared DTSTART/LOCATION lines for anything carrying a date and
  * location — feed items and (via the admin calendar's VEVENTs) listings. */

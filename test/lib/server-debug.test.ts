@@ -21,6 +21,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Build a complete DebugPageState, overriding only the fields a test cares about. */
 const makeDebugState = (
@@ -548,7 +549,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Visible/Enabled badges and the booking fee when features are on", async () => {
       await Promise.all([
-        settings.update.showPublicSite(true),
+        enablePublicSite(),
         settings.update.showPublicApi(true),
         settings.update.contactFormEnabled(true),
         settings.update.bookingFee("2.5"),

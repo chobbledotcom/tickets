@@ -22,7 +22,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { ensureAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import { adminFeatureWriteSteps } from "#shared/db/admin-features.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
   type LogisticsAgentInput,
@@ -59,6 +59,7 @@ const extractLogisticsAgentInput = (
 /** Logistics agents resource for REST create/update/delete. Deleting an agent
  * first clears any booking references so no attendee points at a missing id. */
 const logisticsAgentsResource = defineNamedResource({
+  ...adminFeatureWriteSteps("logistics"),
   fields: logisticsAgentFields,
   nameField: "name",
   onDelete: async (id: InValue): Promise<void> => {
@@ -71,7 +72,6 @@ const logisticsAgentsResource = defineNamedResource({
 });
 
 const crud = createOwnerCrudHandlers({
-  afterCreate: () => ensureAdminFeatureEnabled("logistics"),
   getAll: logisticsAgents.getAll,
   getName: (a) => a.name,
   listPath: "/admin/logistics",
@@ -127,7 +127,6 @@ const handleAgentEditPost: IdRouteHandler = (request, { id }) =>
       if ("notFound" in result) return notFoundResponse();
       return errorRedirect(`/admin/logistics/${id}/edit`, result.error);
     }
-    await ensureAdminFeatureEnabled("logistics");
     await agentUsers.setIds(id, await parseAssignedUserIds(form));
     await logActivity(`Logistics agent '${result.row.name}' updated`);
     return redirect("/admin/logistics", "Logistics agent updated", true);

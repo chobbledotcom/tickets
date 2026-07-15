@@ -59,7 +59,6 @@ type SpecificFields = {
   country: string;
   theme: Theme;
   underline_links: boolean;
-  show_public_site: boolean;
   show_public_api: boolean;
   external_order_enabled: boolean;
   calendar_feeds_enabled: boolean;
@@ -97,7 +96,6 @@ export const data: SettingsData = {
   payment_provider_setting: null,
   phone_prefix: "+44",
   show_public_api: false,
-  show_public_site: false,
   square_sandbox: false,
   theme: "light",
   timezone: DEFAULT_TIMEZONE,

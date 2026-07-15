@@ -74,22 +74,6 @@ export const SETTINGS_FORM_DEFINITIONS = [
     stateField: "businessEmail",
   }),
   form({
-    action: "/admin/settings/show-public-site",
-    copy: {
-      descriptionHtml: true,
-      descriptionKey: "settings.show_public_site_hint",
-      titleKey: "settings.show_public_site",
-    },
-    fieldName: "show_public_site",
-    formId: "settings-show-public-site",
-    key: CONFIG_KEYS.SHOW_PUBLIC_SITE,
-    kind: "boolean",
-    name: "showPublicSite",
-    page: "main",
-    routeLabel: "Public site",
-    stateField: "showPublicSite",
-  }),
-  form({
     action: "/admin/settings/terms",
     copy: {
       descriptionKey: "settings.terms_hint",

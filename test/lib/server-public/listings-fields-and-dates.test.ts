@@ -15,6 +15,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -24,7 +25,7 @@ describeWithEnv(
   () => {
     describe("GET /listings", () => {
       test("shows sold out for listings at capacity", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const listing = await createTestListing({
           maxAttendees: 1,
           name: "Full Listing",
@@ -47,7 +48,7 @@ describeWithEnv(
         // #51: a daily listing's cumulative bookings span every date, so its
         // card and booking page must not claim "sold out" without a date — the
         // date-aware submit gate judges the chosen date instead.
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const listing = await createTestListing({
           listingType: "daily",
           maxAttendees: 1,
@@ -76,7 +77,7 @@ describeWithEnv(
         // #51: daily cards claim nothing date-lessly, so the page invites a
         // date; with one chosen, each daily card answers for THAT date and a
         // bookable card's CTA carries the date into its booking page.
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const date = addDays(todayInTz("UTC"), 2);
         const fullDaily = await createTestListing({
           listingType: "daily",
@@ -151,7 +152,7 @@ describeWithEnv(
       });
 
       test("shows a package as sold out when its member is unavailable on the searched date", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const date = addDays(todayInTz("UTC"), 2);
         const pkg = await createTestGroup({
           isPackage: true,
@@ -198,7 +199,7 @@ describeWithEnv(
         // A package books as one whole bundle — every member together — so a
         // single member with no room on the searched date makes the whole
         // package unbookable that day, even while its other members are free.
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const date = addDays(todayInTz("UTC"), 2);
         const pkg = await createTestGroup({
           isPackage: true,
@@ -250,7 +251,7 @@ describeWithEnv(
         // With hide_package_listings the daily member never appears as its own
         // card, so the page has no date-filter form — but a ?date= URL must
         // still judge the package and move it into the Unavailable section.
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const date = addDays(todayInTz("UTC"), 2);
         const pkg = await createTestGroup({
           isPackage: true,
@@ -285,14 +286,14 @@ describeWithEnv(
       });
 
       test("shows no date filter when no daily listings are listed", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({ maxAttendees: 5, name: "Standard Only" });
         const html = await assertPublicHtml("/listings", "Standard Only");
         expect(html).not.toContain("listings-date-filter");
       });
 
       test("shows registration closed for listings past closes_at", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({
           closesAt: pastCloseTime(),
           maxAttendees: 100,
@@ -302,7 +303,7 @@ describeWithEnv(
       });
 
       test("shows listing location when set", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({
           location: "Town Hall",
           maxAttendees: 100,
@@ -312,7 +313,7 @@ describeWithEnv(
       });
 
       test("shows listing date when set", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({
           date: "2026-06-15T14:00",
           maxAttendees: 100,
@@ -322,7 +323,7 @@ describeWithEnv(
       });
 
       test("shows listing description when set", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await createTestListing({
           description: "A great listing",
           maxAttendees: 100,
@@ -332,14 +333,14 @@ describeWithEnv(
       });
 
       test("shows website title on listings page", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.websiteTitle("My Listings Site");
         await createTestListing({ maxAttendees: 100, name: "Concert" });
         await assertPublicHtml("/listings", "My Listings Site");
       });
 
       test("shows public nav on listings page", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.terms("Some terms");
         await settings.update.contactPageText("Contact us");
         await assertPublicHtml(
@@ -352,7 +353,7 @@ describeWithEnv(
       });
 
       test("returns 404 for POST requests", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(
           mockFormRequest("/listings", { name: "Test" }),
         );
@@ -360,7 +361,7 @@ describeWithEnv(
       });
 
       test("includes RSS and ICS feed discovery tags", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await assertPublicHtml(
           "/listings",
           rssDiscoveryTag(),
