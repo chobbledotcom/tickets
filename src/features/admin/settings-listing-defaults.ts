@@ -130,7 +130,7 @@ export const handleListingDefaultsGet: TypedRouteHandler<"GET /admin/listing-def
     adminListingDefaultsPage(
       session,
       settings.listingDefaults,
-      settings.enabledFeatures.logistics,
+      settings.features.logistics,
       flash.error,
       flash.success,
     ),
@@ -139,7 +139,7 @@ export const handleListingDefaultsGet: TypedRouteHandler<"GET /admin/listing-def
 /** POST /admin/listing-defaults — owner only. */
 export const handleListingDefaultsPost = settingsHandler<ParseResult>({
   extract: (form) =>
-    parseListingDefaultsForm(form, settings.enabledFeatures.logistics),
+    parseListingDefaultsForm(form, settings.features.logistics),
   label: "Listing defaults",
   log: () => t("listing_defaults.saved"),
   redirectTo: "/admin/listing-defaults",

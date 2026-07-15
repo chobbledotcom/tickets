@@ -60,7 +60,7 @@ export const handleFeatureGet: TypedRouteHandler<
   requireOwnerOr(request, (session) =>
     withAdminFeature(slug, async (feature) => {
       const usage = await getAdminFeatureUsage();
-      const enabled = enabledFeaturesWithUsage(settings.enabledFeatures, usage)[
+      const enabled = enabledFeaturesWithUsage(settings.features, usage)[
         feature.key
       ];
       const flash = applyFlash(request);
@@ -92,8 +92,8 @@ export const handleFeaturePost: TypedRouteHandler<
       if (!enabled && (await getAdminFeatureUsage())[feature.key]) {
         return errorRedirect(path, t("features.in_use_help"));
       }
-      await settings.update.enabledFeatures(
-        setFeatureEnabled(settings.enabledFeatures, feature.key, enabled),
+      await settings.update.features(
+        setFeatureEnabled(settings.features, feature.key, enabled),
       );
       await afterFeatureSave[feature.key](enabled);
       const message = t(

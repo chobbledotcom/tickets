@@ -197,7 +197,7 @@ const extractCommonFields = (
     unitPrice,
     useDefaults: form.getFlag("use_defaults"),
     usesLogistics:
-      settings.enabledFeatures.logistics && form.getFlag("uses_logistics"),
+      settings.features.logistics && form.getFlag("uses_logistics"),
     webhookUrl,
   };
 };

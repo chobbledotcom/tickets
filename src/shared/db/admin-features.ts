@@ -32,8 +32,8 @@ export const getAdminFeatureUsage = async (): Promise<EnabledFeatures> => {
 export const ensureAdminFeatureEnabled = async (
   key: AdminFeatureKey,
 ): Promise<void> => {
-  if (settings.enabledFeatures[key]) return;
-  await settings.update.enabledFeatures(
-    setFeatureEnabled(settings.enabledFeatures, key, true),
+  if (settings.features[key]) return;
+  await settings.update.features(
+    setFeatureEnabled(settings.features, key, true),
   );
 };

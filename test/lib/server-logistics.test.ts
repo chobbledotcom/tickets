@@ -89,7 +89,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const list = await adminGet("/admin/logistics");
       // The agent name links to its edit page; delete lives on that page now.
       await expectHtmlResponse(list, 200, "Van 1", "/edit");
-      expect(settings.enabledFeatures.logistics).toBe(true);
+      expect(settings.features.logistics).toBe(true);
     });
 
     test("rejects an empty agent name", async () => {

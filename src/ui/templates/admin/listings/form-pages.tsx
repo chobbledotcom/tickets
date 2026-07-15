@@ -100,8 +100,7 @@ export const adminListingPickerPage = (session: AdminSession): string =>
       <p>{t("listings_table.listing_type_picker_subheading")}</p>
       <div class="listing-type-picker">
         {LISTING_TEMPLATES.filter(
-          (tmpl) =>
-            !tmpl.requiresLogistics || settings.enabledFeatures.logistics,
+          (tmpl) => !tmpl.requiresLogistics || settings.features.logistics,
         ).map((tmpl) => (
           <a
             class="listing-type-card"
@@ -112,8 +111,7 @@ export const adminListingPickerPage = (session: AdminSession): string =>
           </a>
         ))}
         {LISTING_TEMPLATES.some(
-          (tmpl) =>
-            tmpl.requiresLogistics && !settings.enabledFeatures.logistics,
+          (tmpl) => tmpl.requiresLogistics && !settings.features.logistics,
         ) && (
           <div class="listing-type-card listing-type-card--disabled">
             <strong>{t("listings_table.template_hireable_item")}</strong>

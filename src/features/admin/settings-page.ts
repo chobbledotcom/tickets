@@ -41,10 +41,7 @@ const getSettingsPageState = async () => {
     calendarFeedsEnabled: settings.calendarFeedsEnabled,
     calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
     embedHosts: settings.embedHosts,
-    enabledFeatures: enabledFeaturesWithUsage(
-      settings.enabledFeatures,
-      featureUsage,
-    ),
+    enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
     headerImageUrl: settings.headerImageUrl,
     paymentProvider: settings.paymentProvider ?? "",
     showPublicSite: settings.showPublicSite,

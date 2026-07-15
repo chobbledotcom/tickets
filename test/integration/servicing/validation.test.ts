@@ -104,7 +104,7 @@ describeWithEnv(
       expect(bookings).toHaveLength(1);
       expect(bookings[0]?.listingId).toBe(listingB.id);
       expect(bookings[0]?.quantity).toBe(2);
-      expect(settings.enabledFeatures.servingEvents).toBe(true);
+      expect(settings.features.servingEvents).toBe(true);
     });
 
     test("updating a servicing event with a daily listing but no start_date redirects back with an error (update catch block)", async () => {

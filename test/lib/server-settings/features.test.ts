@@ -91,15 +91,15 @@ describeAdminSettings(() => {
     const { response } = await adminFormPost("/admin/features/money", {});
     expect(response.status).toBe(302);
     expectFlash(response, "Choose whether to enable this feature.", false);
-    expect(settings.enabledFeatures.money).toBe(false);
+    expect(settings.features.money).toBe(false);
   });
 
   test("enables and disables Money", async () => {
     await expectFeatureSaved("money", true, "Money enabled.");
-    expect(settings.enabledFeatures.money).toBe(true);
+    expect(settings.features.money).toBe(true);
 
     await expectFeatureSaved("money", false, "Money disabled.");
-    expect(settings.enabledFeatures.money).toBe(false);
+    expect(settings.features.money).toBe(false);
   });
 
   test("enables and disables unused Logistics", async () => {
@@ -123,8 +123,8 @@ describeAdminSettings(() => {
     await execute(
       "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
     );
-    await settings.update.enabledFeatures({
-      ...settings.enabledFeatures,
+    await settings.update.features({
+      ...settings.features,
       modifiers: true,
     });
 
@@ -141,6 +141,6 @@ describeAdminSettings(() => {
       "This feature is in use. Remove its saved items before you disable it.",
       false,
     );
-    expect(settings.enabledFeatures.modifiers).toBe(true);
+    expect(settings.features.modifiers).toBe(true);
   });
 });

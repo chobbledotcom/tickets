@@ -74,8 +74,8 @@ export const featureSetting = (
 });
 
 export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
-  await settings.update.enabledFeatures(
-    setFeatureEnabled(settings.enabledFeatures, key, true),
+  await settings.update.features(
+    setFeatureEnabled(settings.features, key, true),
   );
 };
 

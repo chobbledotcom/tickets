@@ -116,7 +116,7 @@ const chosenTemplateOrPicker = (
 ): { template: ListingTemplate | null } | { picker: Response } => {
   const template =
     LISTING_TEMPLATES.find((candidate) => candidate.id === templateId) ?? null;
-  return template?.requiresLogistics && !settings.enabledFeatures.logistics
+  return template?.requiresLogistics && !settings.features.logistics
     ? { picker: htmlResponse(adminListingPickerPage(session)) }
     : { template };
 };

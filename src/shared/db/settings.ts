@@ -219,12 +219,12 @@ const settingsBase = {
       };
     },
   },
-
-  get enabledFeatures(): EnabledFeatures {
-    return parseEnabledFeatures(snap(CONFIG_KEYS.ENABLED_FEATURES));
-  },
   get externalOrderEnabled(): boolean {
     return snap("external_order_enabled");
+  },
+
+  get features(): EnabledFeatures {
+    return parseEnabledFeatures(snap(CONFIG_KEYS.ENABLED_FEATURES));
   },
   /** Read a raw (possibly encrypted) value from the cache. */
   getCachedRaw: getRawCached,
@@ -414,15 +414,15 @@ const settingsBase = {
         setSnapshotField(key, content);
       },
     },
-    enabledFeatures: async (v: EnabledFeatures): Promise<void> => {
-      await plaintextUpdate(CONFIG_KEYS.ENABLED_FEATURES)(
-        serializeEnabledFeatures(v),
-      );
-    },
     externalOrderEnabled: boolUpdate(
       CONFIG_KEYS.EXTERNAL_ORDER_ENABLED,
       "external_order_enabled",
     ),
+    features: async (v: EnabledFeatures): Promise<void> => {
+      await plaintextUpdate(CONFIG_KEYS.ENABLED_FEATURES)(
+        serializeEnabledFeatures(v),
+      );
+    },
     // --- Google Wallet writes ---
     googleWallet: googleWallet.createUpdateSettings(encryptedUpdate),
     listingDefaults: async (v: ListingDefaults): Promise<void> => {

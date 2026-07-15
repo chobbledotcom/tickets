@@ -53,7 +53,7 @@ describeWithEnv("db > admin features", { db: true }, () => {
 
   test("enables one feature without changing the others", async () => {
     await ensureAdminFeatureEnabled("modifiers");
-    expect(settings.enabledFeatures).toEqual({
+    expect(settings.features).toEqual({
       apiKeys: false,
       logistics: false,
       modifiers: true,
@@ -66,12 +66,12 @@ describeWithEnv("db > admin features", { db: true }, () => {
     );
     if (!row) throw new Error("enabled_features was not stored");
     expect(row.value.startsWith("{")).toBe(true);
-    expect(JSON.parse(row.value)).toEqual(settings.enabledFeatures);
+    expect(JSON.parse(row.value)).toEqual(settings.features);
   });
 
   test("does not write when the feature is already enabled", async () => {
-    await settings.update.enabledFeatures({
-      ...settings.enabledFeatures,
+    await settings.update.features({
+      ...settings.features,
       modifiers: true,
     });
     const before = settings.version;
