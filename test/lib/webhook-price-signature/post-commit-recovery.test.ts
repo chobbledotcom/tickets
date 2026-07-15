@@ -303,15 +303,26 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
 
     await runWebhook({ id: sessionId, metadata }, async (refund) => {
       const createBooking = attendeesApi.createBookingAtomic;
-      const enteredBooking = Promise.withResolvers<void>();
+      const committedBooking = Promise.withResolvers<{
+        attendeeId: number;
+        ticketToken: string;
+      }>();
       const releaseBooking = Promise.withResolvers<void>();
       const pauseBooking = stub(
         attendeesApi,
         "createBookingAtomic",
         async (...args) => {
-          enteredBooking.resolve();
+          const result = await createBooking(...args);
+          if (result === "sold-out" || !result.success) {
+            throw new Error("Expected booking to commit");
+          }
+          const attendee = result.attendees[0]!;
+          committedBooking.resolve({
+            attendeeId: attendee.id,
+            ticketToken: attendee.ticket_token,
+          });
           await releaseBooking.promise;
-          return createBooking(...args);
+          return result;
         },
       );
       const retrieve = stubRetrieveCheckoutSession({
@@ -322,9 +333,14 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       });
       try {
         const firstWebhook = webhookRequest();
-        await enteredBooking.promise;
+        const committed = await committedBooking.promise;
         const competingRedirect = await redirectRequest(sessionId);
-        expect(competingRedirect.status).toBe(409);
+        expect(competingRedirect.status).toBe(302);
+        expect(competingRedirect.headers.get("location")).toBe(
+          `/payment/success?tokens=${encodeURIComponent(
+            committed.ticketToken,
+          )}`,
+        );
         releaseBooking.resolve();
         await assertJson(firstWebhook, 200, (json) => {
           expect(json.processed).toBe(true);
@@ -333,22 +349,22 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
           expect(json.processed).toBe(true);
         });
         const redirect = await redirectRequest(sessionId);
-        expect([200, 302]).toContain(redirect.status);
-        const [attendee] = await getAttendeesRaw(listing.id);
-        expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
+        expect(redirect.status).toBe(200);
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees).toHaveLength(1);
+        const attendee = attendees[0]!;
         const [decrypted] = await decryptAttendees(
-          [attendee!],
+          [attendee],
           await getTestPrivateKey(),
         );
-        if (redirect.status === 302) {
-          expect(redirect.headers.get("location")).toContain(
-            encodeURIComponent(decrypted!.ticket_token),
-          );
-        }
+        expect(decrypted!.id).toBe(committed.attendeeId);
+        expect(decrypted!.ticket_token).toBe(committed.ticketToken);
         const processed = await isSessionProcessed(sessionId);
-        expect(processed!.attendee_id).toBe(attendee!.id);
+        expect(processed!.attendee_id).toBe(committed.attendeeId);
+        expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe("");
         const replayedRedirect = await redirectRequest(sessionId);
-        expect([200, 302]).toContain(replayedRedirect.status);
+        expect(replayedRedirect.status).toBe(200);
+        expect(await getAttendeesRaw(listing.id)).toEqual(attendees);
         expect(refund.calls.length).toBe(0);
       } finally {
         releaseBooking.resolve();
