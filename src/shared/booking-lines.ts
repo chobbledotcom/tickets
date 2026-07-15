@@ -64,11 +64,15 @@ export type OrderBookingsInput = {
    *  when no selected listing is customisable — modelled as optional to
    *  mirror the genuinely optional `BookingIntent.dayCount` (a legacy session
    *  without `day_count` still means one day via {@link bookingDateFields}'s
-   *  default). */
-  dayCount?: number;
+   *  default). Typed `number | undefined` (not bare `?: number`) so an
+   *  intent's `dayCount` can be passed through directly under
+   *  `exactOptionalPropertyTypes`. */
+  dayCount?: number | undefined;
   /** Per-(child, parent) allocations from the fold, carried through the signed
-   *  metadata. Absent or empty for legacy/no-parent orders. */
-  allocations?: ChildAllocation[];
+   *  metadata. Absent or empty for legacy/no-parent orders. Typed
+   *  `ChildAllocation[] | undefined` so an intent's `allocations` can be
+   *  passed through directly under `exactOptionalPropertyTypes`. */
+  allocations?: ChildAllocation[] | undefined;
 };
 
 /**

@@ -85,8 +85,12 @@ describe("orderBookings > allocations", () => {
       lines: [line({ listingId: 7 }), line({ listingId: 8 })],
     });
     expect(result).toHaveLength(2);
-    expect(result.every((r) => r.orderToken === undefined)).toBe(true);
-    expect(result.every((r) => r.parentListingId === undefined)).toBe(true);
+    // Per-row: a mutation that silently drops one row's token keeps the
+    // aggregate green, so assert each row directly.
+    for (const row of result) {
+      expect(row.orderToken).toBeUndefined();
+      expect(row.parentListingId).toBeUndefined();
+    }
   });
 
   test("multiple allocations expand into one row per (child, parent), sharing one order token", () => {
@@ -105,12 +109,16 @@ describe("orderBookings > allocations", () => {
     expect(result).toHaveLength(4);
     const token = result[0]!.orderToken;
     expect(token).toBeTruthy();
-    expect(result.every((r) => r.orderToken === token)).toBe(true);
+    for (const row of result) {
+      expect(row.orderToken).toBe(token);
+    }
     const childRows = result.filter((r) => r.listingId === 20);
     expect(childRows).toHaveLength(2);
     expect(childRows.some((r) => r.parentListingId === 10)).toBe(true);
     expect(childRows.some((r) => r.parentListingId === 30)).toBe(true);
-    expect(childRows.every((r) => r.quantity === 1)).toBe(true);
+    for (const row of childRows) {
+      expect(row.quantity).toBe(1);
+    }
   });
 
   test("a parent-less remainder row keeps the shared order token", () => {
@@ -158,8 +166,11 @@ describe("orderBookings > allocations", () => {
 describe("orderBookings > package stamping", () => {
   /** The package stamped onto child 20's folded row for the given parent
    *  lines (child folded under parent 10 once), so each stamping case reads
-   *  only the parent paths it varies. */
-  const childPackageFor = (parentLines: SignedPaidLine[]): number =>
+   *  only the parent paths it varies. Returns the row's `packageGroupId`
+   *  verbatim (no `?? 0` fallback): the builder always sets it, so an
+   *  unexpected `undefined` is a real bug the assertion should surface, not
+   *  one to coerce away. */
+  const childPackageFor = (parentLines: SignedPaidLine[]): number | undefined =>
     orderBookings({
       allocations: [alloc(20, 10, 1)],
       date: null,
@@ -167,7 +178,7 @@ describe("orderBookings > package stamping", () => {
         ...parentLines,
         line({ listingId: 20, packageGroupId: 0, quantity: 1 }),
       ],
-    }).find((r) => r.listingId === 20)!.packageGroupId ?? 0;
+    }).find((r) => r.listingId === 20)!.packageGroupId;
 
   test("a folded child is stamped with its parent's sole package", () => {
     expect(

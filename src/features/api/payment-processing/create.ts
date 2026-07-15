@@ -258,19 +258,24 @@ export const createAttendeeForSession = async (
   // 1:1 by index with validatedItems. `paidByIntentItem.get(...)` is always
   // defined for a priced item (every intent item produces a priced line), so
   // the raw value flows straight through — a genuine `0` (a free line that
-  // was still signed) stays `0`, and a line that carries no price stays
-  // unpriced, the distinction `orderBookings` preserves onto the rows.
+  // was still signed) stays `0`. The conditional spread is for
+  // `exactOptionalPropertyTypes`: an explicit `undefined` cannot be assigned
+  // to an optional `number`, so `pricePaid` is omitted when absent (the DB
+  // layer then coerces it to `0` at insert, matching the prior `?? 0`).
   const paidByIntentItem = paidByItem(pricedOrder);
   const bookings = orderBookings({
     allocations: intent.allocations,
     date: intent.date,
     dayCount: intent.dayCount,
-    lines: validatedItems.map(({ item, listing }, index) => ({
-      ...bookingSlot(item),
-      listing,
-      pricePaid: paidByIntentItem.get(pricingIntent.items[index]!),
-      quantity: item.q,
-    })),
+    lines: validatedItems.map(({ item, listing }, index) => {
+      const pricePaid = paidByIntentItem.get(pricingIntent.items[index]!);
+      return {
+        ...bookingSlot(item),
+        listing,
+        ...(pricePaid !== undefined ? { pricePaid } : {}),
+        quantity: item.q,
+      };
+    }),
   });
   const fullTotal = pricedOrder.fullSubtotal;
   const depositTotal = orderLineTotal(pricedOrder);
