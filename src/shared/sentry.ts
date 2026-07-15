@@ -37,25 +37,44 @@ const FLUSH_TIMEOUT_MS = 2000;
 export const releaseFromCommit = (commit: string): string | undefined =>
   commit ? `chobble-tickets@${commit}` : undefined;
 
+/** Load and initialize the configured SDK, or return null when Sentry is off. */
+const loadSentry = async (): Promise<SentrySdk | null> => {
+  const dsn = getEnv("SENTRY_URL");
+  if (!dsn) return null;
+
+  const Sentry =
+    getSentrySdk() ?? (await import("#shared/sentry-sdk.ts")).sentrySdk;
+  setSentrySdk(Sentry);
+  if (!Sentry.isInitialized()) {
+    Sentry.init({
+      dsn,
+      release: releaseFromCommit(BUILD_COMMIT),
+    });
+  }
+  return Sentry;
+};
+
 /**
  * Initialize the Sentry SDK. No-op (returns false) when `SENTRY_URL` is unset —
  * without even loading the SDK. Safe to call more than once: only the first
  * call with a DSN loads and initializes.
  */
-export const initSentry = async (): Promise<boolean> => {
-  const dsn = getEnv("SENTRY_URL");
-  if (!dsn) return false;
+export const initSentry = async (): Promise<boolean> =>
+  (await loadSentry()) !== null;
 
-  const Sentry =
-    getSentrySdk() ?? (await import("#shared/sentry-sdk.ts")).sentrySdk;
-  setSentrySdk(Sentry);
-  if (Sentry.isInitialized()) return true;
+/** Send a real test error and wait for the Sentry transport to finish. */
+export const sendSentryTest = async (): Promise<boolean> => {
+  const Sentry = await loadSentry();
+  if (!Sentry) return false;
 
-  Sentry.init({
-    dsn,
-    release: releaseFromCommit(BUILD_COMMIT),
-  });
-  return true;
+  Sentry.captureException(
+    new Error("Test Sentry notification from the admin debug page."),
+    {
+      level: "error",
+      tags: { source: "admin-debug", test: "true" },
+    },
+  );
+  return Sentry.flush(FLUSH_TIMEOUT_MS);
 };
 
 /** Per-event tags so errors can be filtered by class in the Sentry UI. */

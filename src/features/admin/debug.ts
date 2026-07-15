@@ -7,12 +7,10 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 /* jscpd:ignore-start */
-import { ownerPage } from "#routes/auth.ts";
+import { t } from "#i18n";
+import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import {
-  isValidPemCertificate,
-  isValidPemPrivateKey,
-} from "#shared/apple-wallet.ts";
+import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
@@ -24,6 +22,7 @@ import {
   isPaymentsEnabled,
   providerValue,
 } from "#shared/config.ts";
+import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getHostEmailConfig } from "#shared/email.ts";
@@ -37,11 +36,14 @@ import {
 import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
+import { fail, ok } from "#shared/response.ts";
 import { getRuntimeInfo } from "#shared/runtime.ts";
+import { sendSentryTest } from "#shared/sentry.ts";
 import { getStorageBackend } from "#shared/storage.ts";
 import {
   adminDebugPage,
   type DebugPageState,
+  SENTRY_TEST_FORM_ID,
 } from "#templates/admin/debug.tsx";
 
 /* jscpd:ignore-end */
@@ -65,13 +67,15 @@ const validateAppleWalletCerts = (
   }
 
   return {
-    signingCert: isValidPemCertificate(config.signingCert)
+    signingCert: isValidAppleCertificate(config.signingCert)
       ? "Valid"
       : "Invalid PEM",
-    signingKey: isValidPemPrivateKey(config.signingKey)
+    signingKey: isValidRsaPrivateKey(config.signingKey)
       ? "Valid"
       : "Invalid PEM",
-    wwdrCert: isValidPemCertificate(config.wwdrCert) ? "Valid" : "Invalid PEM",
+    wwdrCert: isValidAppleCertificate(config.wwdrCert)
+      ? "Valid"
+      : "Invalid PEM",
   };
 };
 
@@ -213,8 +217,9 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       ),
     },
     limits: LIMIT_ENTRIES,
-    ntfy: {
-      configured: !!getEnv("NTFY_URL"),
+    notifications: {
+      ntfyConfigured: !!getEnv("NTFY_URL"),
+      sentryConfigured: !!getEnv("SENTRY_URL"),
     },
     payment: {
       keyConfigured: isPaymentsEnabled(),
@@ -261,7 +266,21 @@ const handleAdminDebugGet: TypedRouteHandler<"GET /admin/debug"> = ownerPage(
   },
 );
 
+/** Send an owner-requested Sentry test and report whether it was delivered. */
+const handleSentryTestPost: TypedRouteHandler<"POST /admin/debug/sentry"> =
+  gatedPost(OWNER_FORM)(async () => {
+    const sent = await sendSentryTest();
+    return sent
+      ? ok("/admin/debug", t("debug.sentry_test_sent"), {
+          formId: SENTRY_TEST_FORM_ID,
+        })
+      : fail("/admin/debug", t("debug.sentry_test_failed"), {
+          formId: SENTRY_TEST_FORM_ID,
+        });
+  });
+
 /** Debug routes */
 export const adminHandlers = handlersFor("debug")({
   getDebug: handleAdminDebugGet,
+  postSentryTest: handleSentryTestPost,
 });

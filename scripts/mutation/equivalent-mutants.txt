@@ -845,12 +845,20 @@ src/shared/db/contact-tokens.ts:289:18  ?? → ||    # `removedSource ?? sync.so
 src/shared/db/attendees/tokens.ts:159:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
 src/shared/db/attendees/tokens.ts:162:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
 src/shared/db/attendees/tokens.ts:175:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
-src/shared/sentry.ts:50:19  ?? → ||    # getSentrySdk(): SentrySdk|null — a loaded module namespace object is always truthy, never falsy-but-non-null, so ?? and || agree
+src/shared/sentry.ts:46:19  ?? → ||    # getSentrySdk(): SentrySdk|null — a loaded module namespace object is always truthy, never falsy-but-non-null, so ?? and || agree
+src/shared/sentry.ts:63:23  !== → !=    # loadSentry(): SentrySdk|null never returns undefined, so strict and loose null comparisons agree
 
 # bundle-composition/model.ts — SourceMapSegment is either the one-value
 # unmapped tuple or a mapped tuple carrying both source index and original line,
 # so indexes 1 and 2 are present or absent together.
 scripts/bench/bundle-composition/model.ts:64:11  1 → 2    # isMappedSegment: segment[1] and segment[2] are both defined exactly for mapped tuples
+
+# crypto/der.ts — these values are written into Uint8Array elements. Adding or
+# subtracting 128 produces the same low eight bits, and Uint8Array discards all
+# higher bits. The base-128 continuation byte is therefore identical either way.
+src/shared/crypto/der.ts:40:26  128 → -128    # DER long-length marker: 128+n and -128+n have identical low eight bits
+src/shared/crypto/der.ts:88:44  + → -    # base-128 continuation: low7+128 and low7-128 have identical low eight bits
+src/shared/crypto/der.ts:88:47  128 → -128    # base-128 continuation marker is unchanged after Uint8Array conversion
 
 # db/capacity.ts — duration defaults that normalizeDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a

@@ -11,10 +11,8 @@ import {
   saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
-import {
-  isValidPemCertificate,
-  isValidPemPrivateKey,
-} from "#shared/apple-wallet.ts";
+import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
+import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 
@@ -102,19 +100,19 @@ const APPLE_SECRET_FIELDS: readonly AppleSecretField[] = [
   {
     fromForm: (d) => d.cert,
     invalidKey: "error.apple_signing_cert_invalid",
-    looksValid: isValidPemCertificate,
+    looksValid: isValidAppleCertificate,
     missingKey: "error.apple_signing_cert_required",
   },
   {
     fromForm: (d) => d.key,
     invalidKey: "error.apple_signing_key_invalid",
-    looksValid: isValidPemPrivateKey,
+    looksValid: isValidRsaPrivateKey,
     missingKey: "error.apple_signing_key_required",
   },
   {
     fromForm: (d) => d.wwdr,
     invalidKey: "error.apple_wwdr_cert_invalid",
-    looksValid: isValidPemCertificate,
+    looksValid: isValidAppleCertificate,
     missingKey: "error.apple_wwdr_cert_required",
   },
 ];

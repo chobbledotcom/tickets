@@ -9,6 +9,7 @@ import {
   initSentry,
   releaseFromCommit,
   resetSentryForTest,
+  sendSentryTest,
 } from "#shared/sentry.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 
@@ -37,6 +38,11 @@ describe("sentry", () => {
     // Detach the client so the global Sentry state never leaks into other files.
     resetSentryForTest();
   });
+
+  const firstFetchBody = (): string => {
+    const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+    return bodyText(options.body);
+  };
 
   describe("releaseFromCommit", () => {
     test("prefixes the commit SHA with the project name", () => {
@@ -94,8 +100,7 @@ describe("sentry", () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
       await initSentry();
       await captureServerError({ code: ErrorCode.DB_QUERY });
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      return bodyText(options.body);
+      return firstFetchBody();
     };
 
     test("does nothing when Sentry is not initialized", async () => {
@@ -137,8 +142,7 @@ describe("sentry", () => {
       await captureServerError(context);
 
       expect(fetchStub.calls.length).toBe(1);
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      const body = bodyText(options.body);
+      const body = firstFetchBody();
       expect(body).toContain(formatErrorMessage(context));
     });
 
@@ -152,8 +156,7 @@ describe("sentry", () => {
         listingId: 42,
       });
 
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      const body = bodyText(options.body);
+      const body = firstFetchBody();
       expect(body).toContain('"listingId":"42"');
       expect(body).toContain('"attendeeId":"99"');
     });
@@ -170,8 +173,7 @@ describe("sentry", () => {
         error: new Error("kaboom"),
       });
 
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      expect(bodyText(options.body)).toContain(
+      expect(firstFetchBody()).toContain(
         '"extra":{"detail":"structured-detail-marker"}',
       );
     });
@@ -242,6 +244,27 @@ describe("sentry", () => {
       } finally {
         time.restore();
       }
+    });
+  });
+
+  describe("sendSentryTest", () => {
+    test("returns false without loading Sentry when it is not configured", async () => {
+      restoreEnv = setTestEnv({ SENTRY_URL: undefined });
+      expect(await sendSentryTest()).toBe(false);
+      expect(fetchStub.calls.length).toBe(0);
+    });
+
+    test("sends a tagged test error with its stack trace", async () => {
+      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      expect(await sendSentryTest()).toBe(true);
+      expect(fetchStub.calls.length).toBe(1);
+      const body = firstFetchBody();
+      expect(body).toContain(
+        '"value":"Test Sentry notification from the admin debug page."',
+      );
+      expect(body).toContain('"source":"admin-debug"');
+      expect(body).toContain('"test":"true"');
+      expect(body).toContain("stacktrace");
     });
   });
 });

@@ -69,7 +69,7 @@ const makeDebugState = (
     source: "",
   },
   limits: [],
-  ntfy: { configured: false },
+  notifications: { ntfyConfigured: false, sentryConfigured: false },
   payment: {
     keyConfigured: false,
     mode: "",
@@ -192,7 +192,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows Notifications section", async () => {
-      await assertAdminHtml("/admin/debug", "Notifications (ntfy)", "NTFY URL");
+      await assertAdminHtml("/admin/debug", "Notifications", "NTFY URL");
     });
 
     test("shows combined Bunny section with storage, CDN, and DNS", async () => {

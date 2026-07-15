@@ -198,7 +198,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     expect(passJson.passTypeIdentifier).toBe("pass.com.test.tickets");
     expect(passJson.teamIdentifier).toBe("TESTTEAM01");
     expect(passJson.serialNumber).toBe(token);
-    expect(passJson.listingTicket.primaryFields[0].value).toBe(listing.name);
+    expect(passJson.eventTicket.primaryFields[0].value).toBe(listing.name);
   });
 
   test("pass.json includes webServiceURL and authenticationToken for auto-updates", async () => {

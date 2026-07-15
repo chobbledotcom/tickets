@@ -11,6 +11,7 @@
 
 import { t } from "#i18n";
 import type { WalletPassData } from "#routes/tickets/token-utils.ts";
+import { rsaPrivateKeyBytes } from "#shared/crypto/rsa-private-key.ts";
 import { getDecimalPlaces } from "#shared/currency.ts";
 import { startOfHour } from "#shared/dates.ts";
 
@@ -39,18 +40,9 @@ const base64url = (data: Uint8Array): string =>
 const base64urlStr = (str: string): string =>
   base64url(new TextEncoder().encode(str));
 
-/** Strip PEM headers/footers and decode base64 to raw bytes */
-const pemToBytes = (pem: string): Uint8Array => {
-  const b64 = pem
-    .replace(/-----BEGIN [A-Z ]+-----/g, "")
-    .replace(/-----END [A-Z ]+-----/g, "")
-    .replace(/\s/g, "");
-  return Uint8Array.fromBase64(b64);
-};
-
 /** Import a PEM RSA private key for RS256 signing */
 const importPrivateKey = (pem: string): Promise<CryptoKey> => {
-  const bytes = pemToBytes(pem);
+  const bytes = rsaPrivateKeyBytes(pem);
   return crypto.subtle.importKey(
     "pkcs8",
     bytes.buffer as ArrayBuffer,

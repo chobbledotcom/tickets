@@ -72,7 +72,6 @@
     "npm:liquidjs@^10.25.5": "10.25.7",
     "npm:mailgun.js@*": "13.2.0",
     "npm:marked@18": "18.0.2",
-    "npm:node-forge@^1.4.0": "1.4.0",
     "npm:oxc-parser@0.132.0": "0.132.0",
     "npm:playwright@1.61.1": "1.61.1",
     "npm:postmark@*": "4.0.7",
@@ -1403,9 +1402,6 @@
         "formdata-polyfill"
       ]
     },
-    "node-forge@1.4.0": {
-      "integrity": "sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ=="
-    },
     "orderedmap@2.1.1": {
       "integrity": "sha512-TvAWxi0nDe1j/rtMcWcIj94+Ffe6n7zhow33h40SKxmsmozs6dz/e+EajymfoFcHd7sxNn8yHM8839uixMOV6g=="
     },
@@ -1741,7 +1737,6 @@
       "npm:leaflet@^1.9.4",
       "npm:liquidjs@^10.25.5",
       "npm:marked@18",
-      "npm:node-forge@^1.4.0",
       "npm:prosemirror-commands@^1.7.0",
       "npm:prosemirror-history@^1.4.1",
       "npm:prosemirror-inputrules@^1.5.0",
