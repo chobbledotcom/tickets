@@ -15,6 +15,7 @@
  * decimal places (the shared currency helpers).
  */
 
+/* jscpd:ignore-start */
 import type { CheckoutSuccess, Currency } from "@sumup/sdk";
 import { SumUp } from "@sumup/sdk";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -24,15 +25,17 @@ import {
   setSumupCheckoutId,
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,
   createWithClient,
-  errorMessage,
 } from "#shared/payment-helpers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+
+/* jscpd:ignore-end */
 
 /** Currencies SumUp's checkout API accepts (mirrors the SDK's Currency union).
  * Many site currencies (e.g. AUD, CAD, INR, JPY) are NOT supported — validated

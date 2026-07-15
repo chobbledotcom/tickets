@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetSentryForTest } from "#shared/sentry.ts";
 import {
@@ -9,7 +8,8 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -29,16 +29,12 @@ const expectDebugRedirect = (response: Response): void => {
 const sendAcceptedSentryTest = async (
   env: Record<string, string> = {},
 ): Promise<{ requests: number; response: Response }> => {
-  const restoreEnv = setTestEnv({ SENTRY_URL: SENTRY_DSN, ...env });
-  const fetchStub = stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response(null, { status: 200 })),
-  );
+  using _env = withEnv({ SENTRY_URL: SENTRY_DSN, ...env });
+  using fetchStub = stubFetch(new Response(null, { status: 200 }));
   try {
     const { response } = await adminFormPost("/admin/debug/sentry");
     return { requests: fetchStub.calls.length, response };
   } finally {
-    fetchStub.restore();
-    restoreEnv();
     resetSentryForTest();
   }
 };
@@ -47,29 +43,21 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
   testRequiresAuth("/admin/debug/sentry", { method: "POST" });
 
   test("shows an inline test form when Sentry is configured", async () => {
-    const restoreEnv = setTestEnv({ SENTRY_URL: SENTRY_DSN });
-    try {
-      const response = await adminGet("/admin/debug");
-      const html = await response.text();
-      expect(response.status).toBe(200);
-      expect(html).toContain('action="/admin/debug/sentry"');
-      expect(html).toContain('class="inline"');
-      expect(html).toContain('id="debug-sentry-test"');
-      expect(html).toContain(">Test Sentry</button>");
-    } finally {
-      restoreEnv();
-    }
+    using _env = withEnv({ SENTRY_URL: SENTRY_DSN });
+    const response = await adminGet("/admin/debug");
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('action="/admin/debug/sentry"');
+    expect(html).toContain('class="inline"');
+    expect(html).toContain('id="debug-sentry-test"');
+    expect(html).toContain(">Test Sentry</button>");
   });
 
   test("hides the test form when Sentry is not configured", async () => {
-    const restoreEnv = setTestEnv({ SENTRY_URL: undefined });
-    try {
-      const html = await (await adminGet("/admin/debug")).text();
-      expect(html).toContain("Sentry URL");
-      expect(html).not.toContain('action="/admin/debug/sentry"');
-    } finally {
-      restoreEnv();
-    }
+    using _env = withEnv({ SENTRY_URL: undefined });
+    const html = await (await adminGet("/admin/debug")).text();
+    expect(html).toContain("Sentry URL");
+    expect(html).not.toContain('action="/admin/debug/sentry"');
   });
 
   test("sends a tagged test error and confirms delivery", async () => {
@@ -89,7 +77,7 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
   });
 
   test("reports when Sentry is not configured", async () => {
-    const restoreEnv = setTestEnv({ SENTRY_URL: undefined });
+    using _env = withEnv({ SENTRY_URL: undefined });
     try {
       const { response } = await adminFormPost("/admin/debug/sentry");
       expectDebugRedirect(response);
@@ -99,16 +87,13 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
         false,
       );
     } finally {
-      restoreEnv();
       resetSentryForTest();
     }
   });
 
   test("reports when Sentry rejects the test event", async () => {
-    const restoreEnv = setTestEnv({ SENTRY_URL: SENTRY_DSN });
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response(null, { status: 403 })),
-    );
+    using _env = withEnv({ SENTRY_URL: SENTRY_DSN });
+    using fetchStub = stubFetch(new Response(null, { status: 403 }));
     try {
       const { response } = await adminFormPost("/admin/debug/sentry");
       expectDebugRedirect(response);
@@ -119,8 +104,6 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
       );
       expect(fetchStub.calls.length).toBe(1);
     } finally {
-      fetchStub.restore();
-      restoreEnv();
       resetSentryForTest();
     }
   });

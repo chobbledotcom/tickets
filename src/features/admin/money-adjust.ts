@@ -18,14 +18,11 @@
  * overshooting the target.
  */
 
-/* jscpd:ignore-start */
-import { withOwnerForm } from "#routes/admin/owner-form-handler.ts";
-import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { formGuard, OWNER_FORM } from "#routes/auth.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
+import { errorRedirect, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import { parseSignedMinorUnits } from "#shared/validation/money.ts";
-
-/* jscpd:ignore-end */
 
 /** Configuration for one entity's money-correction handler. */
 type MoneyAdjustConfig<Entity> = {
@@ -44,28 +41,20 @@ type MoneyAdjustConfig<Entity> = {
   editPath: (id: number) => string;
 };
 
-/**
- * Build the POST handler for one entity's money correction. Owner-only; loads the
- * entity, parses the new figure, posts the delta as a `writeoff` adjustment, logs
- * a neutral message, and redirects back to the edit page with a success flash.
- */
-const applyMoneyAdjust = async <Entity>(
+/** Build one owner-only money-correction handler on the shared entity route. */
+export const makeMoneyAdjustHandler = <Entity>(
   config: MoneyAdjustConfig<Entity>,
-  id: number,
-  form: FormParams,
-): Promise<Response> => {
-  const entity = await config.load(id);
-  if (!entity) return notFoundResponse();
-  const target = parseSignedMinorUnits(form.getString(config.field));
-  if (target === null) {
-    return errorRedirect(config.editPath(id), "Enter a valid amount");
-  }
-  await config.adjust(entity, target);
-  await logActivity(config.logMessage(entity));
-  return redirect(config.editPath(id), config.successMessage, true);
+): ((request: Request, id: number) => Promise<Response>) => {
+  const route = createIdEntityHandler<Entity>(config.load)(
+    formGuard(OWNER_FORM),
+  )(async (entity, _session, form, _request, { id }) => {
+    const target = parseSignedMinorUnits(form.getString(config.field));
+    if (target === null) {
+      return errorRedirect(config.editPath(id), "Enter a valid amount");
+    }
+    await config.adjust(entity, target);
+    await logActivity(config.logMessage(entity));
+    return redirect(config.editPath(id), config.successMessage, true);
+  });
+  return (request, id) => route(request, { id });
 };
-
-export const makeMoneyAdjustHandler =
-  <Entity>(config: MoneyAdjustConfig<Entity>) =>
-  (request: Request, id: number): Promise<Response> =>
-    withOwnerForm(request, (form) => applyMoneyAdjust(config, id, form));

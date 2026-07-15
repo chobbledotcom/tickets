@@ -142,7 +142,7 @@ describeWithEnv(
     });
 
     test("returns config when all env vars are set", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       const config = settings.googleWallet.hostConfig;
       expect(config).not.toBeNull();
       expect(config!.issuerId).toBe("9876543210");
@@ -170,20 +170,20 @@ describeWithEnv(
     });
 
     test("hasGoogleWalletConfig returns true with env vars when DB not configured", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       expect(settings.googleWallet.hasDbConfig).toBe(false);
       expect(settings.googleWallet.hasConfig).toBe(true);
     });
 
     test("getGoogleWalletConfig falls back to env vars when DB not configured", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       const config = settings.googleWallet.config;
       expect(config).not.toBeNull();
       expect(config!.issuerId).toBe("9876543210");
     });
 
     test("getGoogleWalletConfig prefers DB config over env vars", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       await configureGoogleWallet();
       const config = settings.googleWallet.config;
       expect(config).not.toBeNull();
@@ -191,7 +191,7 @@ describeWithEnv(
     });
 
     test("gwallet route works with env var config", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       const { token } = await createTestAttendeeWithToken(
         "Alice",
         "alice@test.com",
@@ -204,7 +204,7 @@ describeWithEnv(
     });
 
     test("ticket view shows google wallet link with env var config", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       const { token } = await createTestAttendeeWithToken(
         "Alice",
         "alice@test.com",

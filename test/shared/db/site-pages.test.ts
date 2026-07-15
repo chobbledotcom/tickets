@@ -23,10 +23,8 @@ import {
 } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
-  createSitePage,
   getSitePageById,
   getSitePageBySlugIndex,
-  isSitePageSlugTaken,
   type SitePageInput,
   sitePages,
   swapSitePageOrder,
@@ -37,8 +35,8 @@ import type { SitePage } from "#shared/types.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 
 const makePage = async (
   slug: string,
@@ -102,12 +100,11 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("createSitePage assigns distinct, increasing trailing orders", async () => {
       const make = async (slug: string): Promise<number> =>
         (
-          await createSitePage({
+          await createTestSitePage(slug, {
             content: "",
             metaDescription: "",
             metaTitle: "",
             name: `Name ${slug}`,
-            slug,
           })
         ).sort_order;
       const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
@@ -125,12 +122,11 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       // without the new page.
       runWithRequestCache(async () => {
         await sitePages.getAll(); // populate the cached projection
-        const created = await createSitePage({
+        const created = await createTestSitePage("fresh-cache", {
           content: "Body",
           metaDescription: "Desc",
           metaTitle: "Meta",
           name: "Fresh",
-          slug: "fresh-cache",
         });
         const slugs = (await sitePages.getAll()).map((r) => r.slug);
         expect(slugs).toContain("fresh-cache");
@@ -141,12 +137,11 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       }));
 
     test("updateSitePage rewrites the fields and moves the blind index with the slug", async () => {
-      const created = await createSitePage({
+      const created = await createTestSitePage("before-move", {
         content: "old",
         metaDescription: "old",
         metaTitle: "old",
         name: "Old",
-        slug: "before-move",
       });
       const updated = await updateSitePage(created.id, {
         content: "new",
@@ -155,8 +150,9 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         name: "New",
         slug: "after-move",
       });
-      expect(updated?.name).toBe("New");
-      expect(updated?.content).toBe("new");
+      if (!updated.ok) throw new Error(`page update failed: ${updated.error}`);
+      expect(updated.value.name).toBe("New");
+      expect(updated.value.content).toBe("new");
       // slug_index is computed inside the write, so the renamed slug is
       // findable and the old one is freed - the pair can never desync.
       const byNew = await getSitePageBySlugIndex(
@@ -170,7 +166,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ).toBeNull();
     });
 
-    test("updateSitePage reports null for a missing id", async () => {
+    test("updateSitePage reports a missing id", async () => {
       expect(
         await updateSitePage(99_999, {
           content: "",
@@ -179,31 +175,11 @@ describeWithEnv("db > site-pages", { db: true }, () => {
           name: "Ghost",
           slug: "ghost-page",
         }),
-      ).toBeNull();
-    });
-  });
-
-  describe("isSitePageSlugTaken", () => {
-    test("true for an existing page slug, false for a fresh one", async () => {
-      await makePage("taken");
-      expect(await isSitePageSlugTaken("taken")).toBe(true);
-      expect(await isSitePageSlugTaken("free")).toBe(false);
+      ).toEqual({ error: "notFound", ok: false });
     });
 
-    test("excludeId lets a page keep its own slug", async () => {
-      const p = await makePage("keepme");
-      expect(await isSitePageSlugTaken("keepme", p.id)).toBe(false);
-      expect(await isSitePageSlugTaken("keepme")).toBe(true);
-    });
-
-    test("collides with an existing group slug", async () => {
-      await createTestGroup({ name: "G", slug: "shared-with-group" });
-      expect(await isSitePageSlugTaken("shared-with-group")).toBe(true);
-    });
-
-    test("collides with an existing listing slug", async () => {
+    test("loads listing names without loading full listing rows", async () => {
       const listing = await createTestListing({ name: "L" });
-      expect(await isSitePageSlugTaken(listing.slug)).toBe(true);
       // The id-keyed name lookup short-circuits on empty ids (no query) and
       // decrypts names for real ids — the projection page labels lean on.
       expect((await getListingNamesByIds([])).size).toBe(0);

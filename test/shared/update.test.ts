@@ -10,6 +10,7 @@ import {
   isNewerVersion,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 
 describe("update", () => {
@@ -66,9 +67,7 @@ describe("update", () => {
 
 describe("deployRelease", () => {
   test("downloads an asset URL and deploys to a Bunny script", async () => {
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("console.log('asset')", { status: 200 })),
-    );
+    using _fetch = stubFetch(new Response("console.log('asset')"));
     const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
       Promise.resolve({ ok: true as const }),
     );
@@ -77,14 +76,11 @@ describe("deployRelease", () => {
       expect(deployStub.calls).toHaveLength(1);
     } finally {
       deployStub.restore();
-      fetchStub.restore();
     }
   });
 
   test("throws when the deploy fails", async () => {
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("code", { status: 200 })),
-    );
+    using _fetch = stubFetch(new Response("code"));
     const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
       Promise.resolve({ error: "upload failed", ok: false as const }),
     );
@@ -94,14 +90,13 @@ describe("deployRelease", () => {
       ).rejects.toThrow("upload failed");
     } finally {
       deployStub.restore();
-      fetchStub.restore();
     }
   });
 });
 
 describe("deployLatestReleaseToDeno", () => {
   test("fetches the latest release and deploys it to a Deno app", async () => {
-    const fetchStub = stubReleaseFetch();
+    using _fetch = stubReleaseFetch();
     const deployStub = stub(denoDeployApi, "deployCode", () =>
       Promise.resolve({
         hostname: "https://app.deno.dev",
@@ -115,7 +110,6 @@ describe("deployLatestReleaseToDeno", () => {
       expect(deployStub.calls[0]!.args[0]).toBe("app_123");
     } finally {
       deployStub.restore();
-      fetchStub.restore();
     }
   });
 });

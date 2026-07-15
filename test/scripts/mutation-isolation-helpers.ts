@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { stub } from "@std/testing/mock";
+import { withTempDir as withSharedTempDir } from "#test-utils/files.ts";
 import { runIsolatedMutationCommand } from "../../scripts/mutation/isolation.ts";
 import {
   markFinished,
@@ -10,14 +11,8 @@ import {
 
 export const withTempDir = async (
   run: (dir: string) => Promise<void>,
-): Promise<void> => {
-  const dir = await Deno.makeTempDir({ prefix: "mutation-isolation-" });
-  try {
-    await run(dir);
-  } finally {
-    await Deno.remove(dir, { recursive: true }).catch(() => {});
-  }
-};
+): Promise<void> =>
+  await withSharedTempDir(run, { prefix: "mutation-isolation-" });
 
 const lineFrom = (values: unknown[]): string => values.map(String).join(" ");
 

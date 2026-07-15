@@ -8,7 +8,7 @@
 
 /* jscpd:ignore-start */
 import { map } from "#fp";
-import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
@@ -175,7 +175,7 @@ export const encryptAttendeeFields = async (
   });
 
   const [ticketTokenIndex, encryptedPiiBlob] = await Promise.all([
-    computeTicketTokenIndex(ticketToken),
+    hmacHash(ticketToken),
     encryptPiiBlob(piiJson, publicKeyJwk),
   ]);
 

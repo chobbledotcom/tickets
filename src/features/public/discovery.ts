@@ -6,7 +6,7 @@
  * booked. The final date-specific check still happens when the buyer submits.
  */
 
-import { byId, mapNotNullish, unique } from "#fp";
+import { identity, mapBy, mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   buildTicketListing,
@@ -23,16 +23,12 @@ import {
   getGroupRemainingByListingId,
   getSharedGroupCapacities,
 } from "#shared/db/attendees/capacity/groups.ts";
-import {
-  getGroupIdsByListingIds,
-  getHiddenPackageMemberIds,
-} from "#shared/db/groups.ts";
+import { getHiddenPackageMemberIds, listingGroups } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
-  getChildListingIds,
-  getChildrenForParents,
   getNonStandaloneChildIds,
-  getParentsForChildren,
+  listingIdsWithLinks,
+  loadParentAndChildLinks,
 } from "#shared/db/listing-parents.ts";
 import {
   availableDayCounts,
@@ -171,30 +167,33 @@ const childCanBeBookedForParent = (
   child: ListingWithCount,
   caps: ChildCapacityInfo,
   holidays: Holiday[],
-): boolean =>
-  childCanBeBooked(
-    buildTicketListing(
-      child,
-      isRegistrationClosed(child),
-      caps.childOwnRemaining.get(child.id),
-    ),
-    holidays,
-    parentOfferedDayCounts(parent),
-    // A daily child must be bookable on a date the PARENT can serve, not merely on
-    // its own calendar: else disjoint weekdays leave the parent advertised
-    // while `getTicketContext`'s date union renders no valid date. A non-daily
-    // parent has no date calendar (null), which the daily-only overlap test ignores
-    // for a (necessarily standard) child.
-    parentDatesOf(parent, holidays),
-  ) &&
-  parentAndChildFitGroup(
+): boolean => {
+  const capacityFits = parentAndChildFitGroup(
     sharedGroupCapacity(
-      caps.membership.get(parent.id) ?? [],
-      caps.membership.get(child.id) ?? [],
+      listingGroups.idsFor(caps.membership, parent.id),
+      listingGroups.idsFor(caps.membership, child.id),
       caps.staticCapByGroupId,
       caps.remainingByGroupId,
     ),
   );
+  return (
+    childCanBeBooked(
+      buildTicketListing(
+        child,
+        isRegistrationClosed(child),
+        caps.childOwnRemaining.get(child.id),
+      ),
+      holidays,
+      parentOfferedDayCounts(parent),
+      // A daily child must be bookable on a date the PARENT can serve, not merely on
+      // its own calendar: else disjoint weekdays leave the parent advertised
+      // while `getTicketContext`'s date union renders no valid date. A non-daily
+      // parent has no date calendar (null), which the daily-only overlap test ignores
+      // for a (necessarily standard) child.
+      parentDatesOf(parent, holidays),
+    ) && capacityFits
+  );
+};
 
 /**
  * Classify the given listings for a discovery surface (see
@@ -209,14 +208,13 @@ export const classifyForDiscovery = async (
   listings: readonly ListingWithCount[],
 ): Promise<DiscoveryClassification> => {
   const ids = listings.map((l) => l.id);
-  const [childIds, nonStandaloneChildIds, childrenByParent, parentsByChild] =
-    await Promise.all([
-      getChildListingIds(ids),
-      getNonStandaloneChildIds(ids),
-      getChildrenForParents(ids),
-      getParentsForChildren(ids),
-    ]);
-  const listingById = byId(listings);
+  const [nonStandaloneChildIds, links] = await Promise.all([
+    getNonStandaloneChildIds(ids),
+    loadParentAndChildLinks(ids),
+  ]);
+  const { childrenByParent, parentIdsByChild, parentsByChild } = links;
+  const childIds = listingIdsWithLinks(parentIdsByChild);
+  const listingById = mapBy("id", identity<ListingWithCount>)(listings);
   const everyChild = [...childrenByParent.values()].flat();
   // Displayed children whose add-on label we are deciding (keys of parentsByChild
   // are among the displayed `ids`, so they are in `listingById`). Their own group-remaining
@@ -237,7 +235,7 @@ export const classifyForDiscovery = async (
     getGroupRemainingByListingId(allChildren),
     getGroupRemainingByListingId(everyParent),
     getActiveHolidays(),
-    getGroupIdsByListingIds(
+    listingGroups.getIdsByKeys(
       unique([
         ...listingById.keys(),
         ...everyChild.map((c) => c.id),

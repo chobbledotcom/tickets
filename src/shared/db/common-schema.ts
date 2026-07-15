@@ -17,6 +17,12 @@ export { defineIdTable } from "#shared/db/define-id-table.ts";
 // cache by hand rather than through cachedEntityTable.
 export { createKeyedCache, registerCache, registerTableInvalidation };
 
+/** Input shared by ordered tables whose only required value is a name. */
+export interface NamedSortOrderInput {
+  name: string;
+  sortOrder?: number;
+}
+
 /**
  * Wire a keyed cache to an id-table in one step: build the cache, register it
  * for the debug-footer stats, and register it with the table→cache invalidation

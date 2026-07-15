@@ -76,14 +76,12 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
 
   test("a servicing event's stored token index is the HMAC of its ticket token", async () => {
     const { event } = await createServicingHold();
-    const { computeTicketTokenIndex } = await import(
-      "#shared/crypto/hashing.ts"
-    );
+    const { hmacHash } = await import("#shared/crypto/hashing.ts");
     // A real (non-empty) token, and the stored index is exactly its HMAC — so a
     // mutant that stores a blank or wrong index (breaking token lookups) fails.
     expect(event.ticketToken).toMatch(/\S/);
     expect(await tokenIndexOf(event.id)).toBe(
-      await computeTicketTokenIndex(event.ticketToken),
+      await hmacHash(event.ticketToken),
     );
   });
 

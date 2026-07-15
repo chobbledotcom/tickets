@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { recomputeListingBookingRanges } from "#shared/db/attendees/update.ts";
 import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,7 +28,7 @@ describeWithEnv(
         maxAttendees: 5,
         maximumDaysAfter: 30,
       });
-      await createAttendeeAtomic({
+      await attendeesApi.createAttendeeAtomic({
         bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
         email: "fmt@example.com",
         name: "Fmt",
@@ -44,7 +44,7 @@ describeWithEnv(
         maxAttendees: 5,
         maximumDaysAfter: 30,
       });
-      await createAttendeeAtomic({
+      await attendeesApi.createAttendeeAtomic({
         bookings: [
           {
             date: "2026-05-01",
@@ -74,7 +74,7 @@ describeWithEnv(
         maxAttendees: 5,
         maximumDaysAfter: 30,
       });
-      await createAttendeeAtomic({
+      await attendeesApi.createAttendeeAtomic({
         bookings: [
           { date: "2026-05-01", listingId: target.id, quantity: 1 },
           { date: "2026-05-01", listingId: other.id, quantity: 1 },
@@ -103,7 +103,7 @@ describeWithEnv(
         listingType: "standard",
         maxAttendees: 5,
       });
-      await createAttendeeAtomic({
+      await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: standard.id, quantity: 1 },
           { date: "2026-05-01", listingId: daily.id, quantity: 1 },

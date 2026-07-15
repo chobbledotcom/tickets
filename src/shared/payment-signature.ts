@@ -32,7 +32,6 @@
 
 import {
   constantTimeEqualBytes,
-  hmacHash,
   hmacHashSync,
 } from "#shared/crypto/hashing.ts";
 
@@ -71,23 +70,12 @@ const canonicalPricePayload = (
       (entry): entry is [string, string] =>
         !!entry[1] && !UNSIGNED_KEYS.has(entry[0]),
     )
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    .sort(([left], [right]) => (left < right ? -1 : 1));
   return JSON.stringify([PRICE_SIG_VERSION, total, entries]);
 };
 
 /** HMAC the canonical payload with the server encryption key. */
-export const signPrice = (
-  metadata: SignedMetadata,
-  total: number,
-): Promise<string> =>
-  hmacHash(`price-sig:${canonicalPricePayload(metadata, total)}`);
-
-/** Synchronous signPrice, for callers (buildItemsMetadata, test factories) that
- * build metadata outside an async context. Produces the identical digest. */
-export const signPriceSync = (
-  metadata: SignedMetadata,
-  total: number,
-): string =>
+export const signPrice = (metadata: SignedMetadata, total: number): string =>
   hmacHashSync(`price-sig:${canonicalPricePayload(metadata, total)}`);
 
 /** Whether `signature` is a valid server signature for `metadata` at `total`.
@@ -100,7 +88,7 @@ export const verifyPrice = async (
   if (!signature) return false;
   // Compare digest bytes in constant time (lengths, fixed for a digest, may
   // leak). Reuses the crypto module's comparison rather than re-rolling one.
-  const expected = new TextEncoder().encode(await signPrice(metadata, total));
+  const expected = new TextEncoder().encode(signPrice(metadata, total));
   const provided = new TextEncoder().encode(signature);
   return (
     expected.length === provided.length &&

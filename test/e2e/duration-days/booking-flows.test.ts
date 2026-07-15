@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
-import {
-  checkBatchAvailability,
-  hasAvailableSpots,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { checkGroupCapAfterDurationChange } from "#shared/db/attendees/update.ts";
 import { describeWithEnv, rawListingRange } from "#test-utils/db.ts";
@@ -30,13 +27,13 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       await bookAttendee(listing, { date: "2026-08-10", durationDays: 2 });
 
       // Days 12–13 must be bookable (no overlap with 10–11).
-      expect(await hasAvailableSpots(listing.id, 1, "2026-08-12", 2)).toBe(
-        true,
-      );
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-08-12", 2),
+      ).toBe(true);
       // But days 11–12 overlap on day 11.
-      expect(await hasAvailableSpots(listing.id, 1, "2026-08-11", 2)).toBe(
-        false,
-      );
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-08-11", 2),
+      ).toBe(false);
     });
 
     test("expand-book-shrink cycle keeps all ranges consistent", async () => {
@@ -51,8 +48,12 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       // Expand to 3-day: A now covers days 1–3.
       await updateTestListing(listing.id, { durationDays: 3 });
       // Day 2 now has A (qty=1), cap=2 → room for 1 more but not 2.
-      expect(await hasAvailableSpots(listing.id, 2, "2026-09-02")).toBe(false);
-      expect(await hasAvailableSpots(listing.id, 1, "2026-09-02")).toBe(true);
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 2, "2026-09-02"),
+      ).toBe(false);
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-09-02"),
+      ).toBe(true);
 
       // Book attendee B on day 1 (room for 1 more since cap=2).
       await bookAttendee(listing, {
@@ -62,20 +63,26 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       });
 
       // Now at capacity on days 1–3. Day 4 should still be free.
-      expect(await hasAvailableSpots(listing.id, 1, "2026-09-04", 3)).toBe(
-        true,
-      );
-      expect(await hasAvailableSpots(listing.id, 1, "2026-09-01", 3)).toBe(
-        false,
-      );
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-09-04", 3),
+      ).toBe(true);
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-09-01", 3),
+      ).toBe(false);
 
       // Shrink back to 1-day: both bookings collapse to day 1 only.
       await updateTestListing(listing.id, { durationDays: 1 });
       // Days 2 and 3 are now free.
-      expect(await hasAvailableSpots(listing.id, 1, "2026-09-02")).toBe(true);
-      expect(await hasAvailableSpots(listing.id, 1, "2026-09-03")).toBe(true);
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-09-02"),
+      ).toBe(true);
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-09-03"),
+      ).toBe(true);
       // Day 1 still full (2 bookings, cap 2).
-      expect(await hasAvailableSpots(listing.id, 1, "2026-09-01")).toBe(false);
+      expect(
+        await attendeesApi.hasAvailableSpots(listing.id, 1, "2026-09-01"),
+      ).toBe(false);
     });
 
     test("multi-day booking across a group boundary respects both listing and group caps", async () => {
@@ -96,7 +103,7 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       // listingA 2-day booking on day 1–2: day 1 is fine, day 2 is
       // group-full. Must reject even though listingA's own cap has room.
       expect(
-        await checkBatchAvailability(
+        await attendeesApi.checkBatchAvailability(
           [{ durationDays: 2, listingId: listingA.id, quantity: 1 }],
           "2026-10-01",
         ),
@@ -104,7 +111,7 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
 
       // A 1-day booking on day 1 alone should be fine.
       expect(
-        await checkBatchAvailability(
+        await attendeesApi.checkBatchAvailability(
           [{ durationDays: 1, listingId: listingA.id, quantity: 1 }],
           "2026-10-01",
         ),
@@ -290,10 +297,8 @@ describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () =>
       await bookAttendee(listing, { date: "2026-10-01", quantity: 5 });
       // Simulate a legacy attendee with NULL start_at (pre-daily migration).
       const { getDb } = await import("#shared/db/client.ts");
-      const { createAttendeeAtomic } = await import(
-        "#shared/db/attendees/api.ts"
-      );
-      const legacy = await createAttendeeAtomic({
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const legacy = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 5 }],
         email: "legacy@example.com",
         name: "Legacy",

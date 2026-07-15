@@ -3,15 +3,16 @@
  */
 
 /* jscpd:ignore-start */
-import { joinStrings, map, reduce, sumOf } from "#fp";
+import { map, reduce, sumOf } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import { questionTextFlat } from "#templates/admin/questions.tsx";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import {
+  CapacityMeter,
   capacityLevel,
-  capacityMeterHtml,
   capacityMeterText,
 } from "#templates/components/capacity.tsx";
 /* jscpd:ignore-end */
@@ -19,16 +20,8 @@ import {
 /** A key/value row for the listing-details-table */
 export type DetailRow = {
   key: string;
-  value: string;
+  value: Child;
 };
-
-/** Render an array of DetailRows as <tr><th>…</th><td>…</td></tr> HTML */
-export const renderDetailRows = (rows: DetailRow[]): string =>
-  joinStrings(
-    map((r: DetailRow) => `<tr><th>${r.key}</th><td>${r.value}</td></tr>`)(
-      rows,
-    ),
-  );
 
 // ---------------------------------------------------------------------------
 // Attendee stats helpers
@@ -129,10 +122,15 @@ const buildCheckedInRows = (
 /** A question's answer option */
 type QuestionAnswer = { id: number; text: string };
 
+const answerCount = (counts: Map<number, number>, id: number): number => {
+  const count = counts.get(id);
+  return count === undefined ? 0 : count;
+};
+
 /** Count how many times each answer was selected across all attendees */
 const countAnswers = (answerMap: Map<number, number[]>): Map<number, number> =>
   reduce((counts: Map<number, number>, ids: number[]) => {
-    for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+    for (const id of ids) counts.set(id, answerCount(counts, id) + 1);
     return counts;
   }, new Map())([...answerMap.values()]);
 
@@ -141,12 +139,12 @@ const formatAnswerSummary = (
   answers: QuestionAnswer[],
   counts: Map<number, number>,
 ): string =>
-  map((a: QuestionAnswer) => `${a.text} (${counts.get(a.id) ?? 0})`)(
+  map((a: QuestionAnswer) => `${a.text} (${answerCount(counts, a.id)})`)(
     answers,
   ).join(", ");
 
 /** Build answer count summary as DetailRows */
-export const buildAnswerSummaryRows = (
+const buildAnswerSummaryRows = (
   questionData: TableQuestionData | undefined,
 ): DetailRow[] => {
   if (!questionData || questionData.questions.length === 0) return [];
@@ -168,6 +166,7 @@ export type SharedDetailInput = {
   attendees: Attendee[];
   attendeeCount: number;
   maxCapacity: number;
+  /** Calculate attendee revenue when no authoritative total is supplied. */
   hasPaidListing: boolean;
   questionData?: TableQuestionData | undefined;
   labelSuffix?: string;
@@ -189,7 +188,7 @@ const buildAttendeeRow = (
   key: `${t("terms.attendees")}${suffix}`,
   value:
     maxCapacity > 0
-      ? capacityMeterHtml({
+      ? CapacityMeter({
           count,
           danger: capacityLevel(count, maxCapacity).nearLimit,
           max: maxCapacity,
@@ -204,16 +203,15 @@ const buildRevenueRow = (revenue: number): DetailRow => ({
 });
 
 /** The stat rows shared by the attendee-derived and SQL-derived detail tables:
- *  check-in progress, the (paid-only) revenue total, and the answer summary. The
+ *  check-in progress, an optional revenue total, and the answer summary. The
  *  attendee-count row is prepended separately by {@link buildSharedDetailRows},
  *  since a stat-only caller renders its own count. */
 export type StatDetailInput = {
   checkedInStats: CheckedInStats;
-  hasPaidListing: boolean;
-  /** Received revenue in minor units — only rendered for a paid listing. */
-  revenue: number;
+  /** Received revenue in minor units. Omit this row when no total applies. */
+  revenue?: number | undefined;
   questionData?: TableQuestionData | undefined;
-  labelSuffix?: string;
+  labelSuffix: string;
 };
 
 /** Build the check-in / revenue / answer-summary rows from precomputed stats.
@@ -221,13 +219,12 @@ export type StatDetailInput = {
  *  pages (in-memory attendee lists) render byte-identical rows. */
 export const buildStatDetailRows = ({
   checkedInStats,
-  hasPaidListing,
   revenue,
   questionData,
-  labelSuffix = "",
+  labelSuffix,
 }: StatDetailInput): DetailRow[] => [
   ...buildCheckedInRows(checkedInStats, labelSuffix),
-  ...(hasPaidListing ? [buildRevenueRow(revenue)] : []),
+  ...(revenue !== undefined ? [buildRevenueRow(revenue)] : []),
   ...buildAnswerSummaryRows(questionData),
 ];
 
@@ -247,11 +244,10 @@ export const buildSharedDetailRows = ({
     : [buildAttendeeRow(attendeeCount, maxCapacity, labelSuffix)]),
   ...buildStatDetailRows({
     checkedInStats: getCheckedInStats(attendees),
-    hasPaidListing,
-    // Compute the attendee-summed revenue only for a paid listing (it is the
-    // only case the row renders), matching the prior lazy `??` evaluation.
-    revenue: hasPaidListing ? (revenue ?? calculateTotalRevenue(attendees)) : 0,
-    ...(questionData !== undefined ? { questionData } : {}),
     labelSuffix,
+    questionData,
+    revenue:
+      revenue ??
+      (hasPaidListing ? calculateTotalRevenue(attendees) : undefined),
   }),
 ];

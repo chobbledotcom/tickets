@@ -9,8 +9,8 @@ import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { execute } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
-  getGroupIdsByListingId,
   getGroupPackagePrices,
+  listingGroups,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
@@ -83,7 +83,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(imported.unit_price).toBe(1500);
       // Slug is freshly minted, never copied from the source.
       expect(imported.slug).not.toBe(child.slug);
-      expect(await getGroupIdsByListingId(result.id)).toEqual([group.id]);
+      expect(await listingGroups.getIds(result.id)).toEqual([group.id]);
       expect(await listingParents.getIds(result.id)).toEqual([parent.id]);
     });
 
@@ -661,7 +661,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getGroupIdsByListingId(result.id)).length).toBe(30);
+    expect((await listingGroups.getIds(result.id)).length).toBe(30);
   });
 
   test("imports a child listing that also belongs to a regular group", async () => {
@@ -679,7 +679,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     });
     if (!result.ok) throw new Error(result.error);
     expect((await listingParents.getIds(result.id)).length).toBe(1);
-    expect((await getGroupIdsByListingId(result.id)).length).toBe(1);
+    expect((await listingGroups.getIds(result.id)).length).toBe(1);
   });
 
   test("hides the webhook URL from an editor export", async () => {

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   expectHtmlResponse,
   expectListingRowQuantity,
@@ -38,7 +38,7 @@ describeWithEnv(
           maxQuantity: 5,
           name: "Canoe Trip",
         });
-        const created = await createAttendeeAtomic({
+        const created = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { listingId: kayak.id, quantity: 2 },
             { listingId: canoe.id, quantity: 3 },
@@ -149,9 +149,11 @@ describeWithEnv(
     describe("daily defaults + mixed-timing alert on the edit page", () => {
       /** Book an attendee across `bookings` and return its rendered edit page. */
       const editPageHtmlForBookings = async (
-        bookings: Parameters<typeof createAttendeeAtomic>[0]["bookings"],
+        bookings: Parameters<
+          typeof attendeesApi.createAttendeeAtomic
+        >[0]["bookings"],
       ): Promise<string> => {
-        const result = await createAttendeeAtomic({
+        const result = await attendeesApi.createAttendeeAtomic({
           bookings,
           email: "",
           name: "Timing",
@@ -201,7 +203,7 @@ describeWithEnv(
           durationDays: 2,
           name: "Two Day",
         });
-        const result = await createAttendeeAtomic({
+        const result = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { date: "2026-05-01", durationDays: 3, listingId: oneDay.id },
             { date: "2026-05-01", durationDays: 3, listingId: twoDay.id },

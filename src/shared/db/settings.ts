@@ -456,20 +456,26 @@ const settingsBase = {
     },
     // --- Stripe writes ---
     stripe: {
-      secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
-      webhookConfig: async (config: {
-        secret: string;
-        endpointId: string;
+      credentials: async (config: {
+        secretKey: string;
+        webhookSecret: string;
+        webhookEndpointId: string;
       }): Promise<void> => {
-        // Save both values in one atomic batch so a partial write can never
-        // leave a new secret paired with an old endpoint ID (or vice versa).
+        // The API key and webhook pair belong to one Stripe account. Save all
+        // three together so a failed write leaves the prior account usable.
         await writeRawBatch([
-          [CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, await encrypt(config.secret)],
-          [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.endpointId],
+          [CONFIG_KEYS.STRIPE_SECRET_KEY, await encrypt(config.secretKey)],
+          [
+            CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
+            await encrypt(config.webhookSecret),
+          ],
+          [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.webhookEndpointId],
         ]);
-        data.stripe_webhook_secret = config.secret;
-        data.stripe_webhook_endpoint_id = config.endpointId;
+        data.stripe_secret_key = config.secretKey;
+        data.stripe_webhook_secret = config.webhookSecret;
+        data.stripe_webhook_endpoint_id = config.webhookEndpointId;
       },
+      secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
     },
     // --- SumUp writes ---
     sumup: {

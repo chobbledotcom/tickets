@@ -20,7 +20,7 @@ import {
   PAYMENT_PROVIDERS,
   type PaymentProviderMeta,
 } from "#shared/payment-providers.ts";
-import { signPriceSync } from "#shared/payment-signature.ts";
+import { signPrice } from "#shared/payment-signature.ts";
 import type {
   BookingIntent,
   BookingItem,
@@ -33,10 +33,6 @@ import type {
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
-
-/** Extract a human-readable message from an unknown caught value */
-export const errorMessage = (err: unknown): string =>
-  err instanceof Error ? err.message : "Unknown error";
 
 /**
  * Normalise a provider timestamp to the ledger's canonical ISO 8601 form
@@ -238,7 +234,7 @@ export const singleListingAnswerIds = (
  * post-completion redirect and the LAST-priority optional field to drop, so an
  * over-cap URL (by either limit) is **omitted before signing** (the order
  * completes and falls back to the generic success page). Dropping it *before*
- * `signPriceSync` keeps the signed payload and the emitted metadata identical,
+ * `signPrice` keeps the signed payload and the emitted metadata identical,
  * so the webhook's unpack-then-verify never sees a key the proof was signed with
  * but the wire omitted (which would classify the paid session as tampered).
  * The entry count is judged against the **packed** shape (the
@@ -305,7 +301,7 @@ export const buildItemsMetadata = async (
   // and at their full per-value headroom. Signing is over this logical shape,
   // which the webhook reproduces after unpacking, so packing never changes the
   // digest.
-  const sig = signPriceSync(base, total);
+  const sig = signPrice(base, total);
   return { ...base, price_proof: `${total}.${sig}` };
 };
 
@@ -563,7 +559,7 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
  * field that must not fail the checkout (a long operator URL on a folded paid
  * parent is purely a post-completion redirect), so an over-cap URL is dropped
  * **before** the metadata is signed, in `buildItemsMetadata`. Capping it here —
- * after `signPriceSync` — would strip a key the proof was signed with, so the
+ * after `signPrice` — would strip a key the proof was signed with, so the
  * webhook's verification would classify the paid session as tampered. Bounding
  * it pre-sign keeps the signed payload and the emitted metadata identical.
  */

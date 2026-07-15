@@ -13,15 +13,14 @@ import {
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { setupFetchStub } from "#test-utils/fetch-stub.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describeSquare(() => {
   describe("getSquareClient", () => {
-    const { stubFetch } = setupFetchStub();
     let calledUrl = "";
 
     /** Install one fetch stub for this test that records the URL it was given. */
-    const trackFetch = () =>
+    const trackFetch = (): Disposable =>
       stubFetch((url) => {
         calledUrl = String(url);
         return Promise.resolve(new Response(JSON.stringify({ locations: [] })));
@@ -62,7 +61,7 @@ describeSquare(() => {
       const client = await getSquareClient();
       expect(client).not.toBeNull();
       // Sandbox mode must route requests to the sandbox host.
-      trackFetch();
+      using _fetch = trackFetch();
       expect(await hostFor(client!)).toBe("connect.squareupsandbox.com");
     });
 
@@ -71,7 +70,7 @@ describeSquare(() => {
       await settings.update.square.sandbox(false);
       const client1 = await getSquareClient();
       expect(client1).not.toBeNull();
-      trackFetch();
+      using _fetch = trackFetch();
       expect(await hostFor(client1!)).toBe("connect.squareup.com");
 
       // Toggling sandbox creates a new client configured for the sandbox host.

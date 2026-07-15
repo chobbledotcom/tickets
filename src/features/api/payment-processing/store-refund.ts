@@ -30,7 +30,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { createSystemNote } from "#shared/db/system-notes.ts";
@@ -77,7 +77,7 @@ export const datelessGhostBookings = (items: readonly BookingItem[]) =>
   items.map((item) => ({ ...bookingSlot(item), pricePaid: 0, quantity: 0 }));
 
 type PlaceholderBookings = Parameters<
-  typeof createAttendeeAtomic
+  typeof attendeesApi.createAttendeeAtomic
 >[0]["bookings"];
 
 /**
@@ -162,7 +162,7 @@ export const storeRefundedBooking = async (
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
-  const stored = await createAttendeeAtomic({
+  const stored = await attendeesApi.createAttendeeAtomic({
     ...(await attendeeBaseFields(session, intent)),
     allowOverbook: true,
     bookings,

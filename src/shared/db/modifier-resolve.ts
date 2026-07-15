@@ -18,6 +18,7 @@ import {
   hashEmail,
   hashPhone,
 } from "#shared/db/contact-preferences.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
   getActiveModifiers,
@@ -545,15 +546,15 @@ export type ListingGroupMembership = {
   active?: boolean;
 };
 
-/** Build the in-memory membership view of one listing from a
- * listingId→groupIds map (absent → no groups). Shared by the would-be-scope
- * builders so they agree on the shape. */
+/** Build the in-memory membership view of one listing from the complete
+ * listingId→groupIds map returned for its listing set. Shared by the
+ * would-be-scope builders so they agree on the shape. */
 export const toListingGroupMembership = (
   listing: { id: number; active: boolean },
   membership: Map<number, number[]>,
 ): ListingGroupMembership => ({
   active: listing.active,
-  groupIds: membership.get(listing.id) ?? [],
+  groupIds: listingGroups.idsFor(membership, listing.id),
   id: listing.id,
 });
 

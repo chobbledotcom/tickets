@@ -10,10 +10,7 @@ import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
-import {
-  createAttendeeAtomic,
-  hasAvailableSpots,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
@@ -51,7 +48,12 @@ export const listingHasSpots = (
   quantity: number,
   date: string | null | undefined,
 ): Promise<boolean> =>
-  hasAvailableSpots(listing.id, quantity, date, listing.duration_days);
+  attendeesApi.hasAvailableSpots(
+    listing.id,
+    quantity,
+    date,
+    listing.duration_days,
+  );
 
 /** Booking result — callers map this to their response format */
 export type BookingResult =
@@ -120,7 +122,7 @@ export const processBooking = async (
   const remainingBalance = paymentsEnabled
     ? 0
     : Math.max(0, unitPrice * quantity);
-  const result = await createAttendeeAtomic(
+  const result = await attendeesApi.createAttendeeAtomic(
     {
       ...contact,
       bookings: [

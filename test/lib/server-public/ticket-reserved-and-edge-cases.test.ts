@@ -20,7 +20,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -85,20 +85,16 @@ describeWithEnv(
           "Resv",
           "resv@example.com",
         );
-        const restore = setTestEnv({
+        using _env = withEnv({
           HOST_EMAIL_API_KEY: "re_test123",
           HOST_EMAIL_FROM_ADDRESS: "tickets@mysite.com",
           HOST_EMAIL_PROVIDER: "resend",
         });
-        try {
-          await assertPublicHtml(
-            `/ticket/reserved?tokens=${token}`,
-            "Junk/Spam",
-            "tickets@mysite.com",
-          );
-        } finally {
-          restore();
-        }
+        await assertPublicHtml(
+          `/ticket/reserved?tokens=${token}`,
+          "Junk/Spam",
+          "tickets@mysite.com",
+        );
       });
 
       test("does not show email notice when email is not configured", async () => {

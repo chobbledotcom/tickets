@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -21,8 +21,9 @@ import {
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { nonRsaCertificatePem } from "#test-utils/der.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { setStripeCredentials } from "#test-utils/settings.ts";
 
 /** Build a complete DebugPageState, overriding only the fields a test cares about. */
 const makeDebugState = (
@@ -254,32 +255,28 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows exact empty and unconfigured values", async () => {
-      const restoreEnv = setTestEnv({
+      using _env = withEnv({
         DB_URL: undefined,
         NTFY_URL: undefined,
         SENTRY_URL: undefined,
       });
-      try {
-        await settings.update.customDomain("hidden.example.test");
-        await assertAdminHtml(
-          "/admin/debug",
-          debugRow("Provider", "None"),
-          debugRow("Mode", "—"),
-          debugStatusRow("API key", false),
-          debugStatusRow("Webhook", false),
-          debugRow("From address", "—"),
-          debugRow("Host provider (env)", "None"),
-          debugStatusRow("NTFY URL", false),
-          debugStatusRow("Sentry URL", false),
-          debugRow("CDN hostname", "—"),
-          debugRow("Custom domain", "—"),
-          debugStatusRow("DB_URL", false),
-          debugRow("Read-only from", "—"),
-          debugStatusRow("Renewal URL", false),
-        );
-      } finally {
-        restoreEnv();
-      }
+      await settings.update.customDomain("hidden.example.test");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Provider", "None"),
+        debugRow("Mode", "—"),
+        debugStatusRow("API key", false),
+        debugStatusRow("Webhook", false),
+        debugRow("From address", "—"),
+        debugRow("Host provider (env)", "None"),
+        debugStatusRow("NTFY URL", false),
+        debugStatusRow("Sentry URL", false),
+        debugRow("CDN hostname", "—"),
+        debugRow("Custom domain", "—"),
+        debugStatusRow("DB_URL", false),
+        debugRow("Read-only from", "—"),
+        debugStatusRow("Renewal URL", false),
+      );
     });
 
     test("shows no secrets disclaimer", async () => {
@@ -290,11 +287,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug with Stripe configured", () => {
     test("shows stripe as provider with key and webhook status", async () => {
       await settings.update.paymentProvider("stripe");
-      await settings.update.stripe.secretKey("sk_test_fake");
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_fake",
-        secret: "whsec_fake",
-      });
+      await setStripeCredentials("whsec_fake", "we_fake", "sk_test_fake");
       await assertAdminHtml("/admin/debug", "stripe", "Configured");
     });
 
@@ -430,13 +423,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with Apple Wallet env vars", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Environment variables as source when env configured", async () => {
       const certs = generateTestCerts();
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.test",
         APPLE_WALLET_SIGNING_CERT: certs.signingCert,
         APPLE_WALLET_SIGNING_KEY: certs.signingKey,
@@ -452,12 +441,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with host email env vars", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows host email provider when env configured", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         HOST_EMAIL_API_KEY: "re_test_key",
         HOST_EMAIL_FROM_ADDRESS: "test@example.com",
         HOST_EMAIL_PROVIDER: "resend",
@@ -515,13 +500,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with Google Wallet env vars", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Environment variables as source when env configured", async () => {
       const creds = await generateGoogleTestCreds();
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         GOOGLE_WALLET_ISSUER_ID: "9876543210",
         GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "env@test.iam.gserviceaccount.com",
         GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: creds.serviceAccountKey,
@@ -535,12 +516,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with Bunny CDN enabled", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows CDN as configured when Bunny CDN is enabled", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_SCRIPT_ID: "99",
       });
@@ -560,7 +537,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows empty CDN hostname when edge script API fails", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_SCRIPT_ID: "99",
       });
@@ -577,12 +554,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with Bunny storage backend", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Bunny CDN badge when storage zone is configured", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         STORAGE_ZONE_KEY: "zone-key",
         STORAGE_ZONE_NAME: "my-zone",
       });
@@ -590,7 +563,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows Local filesystem badge when local storage is configured", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         LOCAL_STORAGE_PATH: "/tmp/test-storage",
       });
       await assertAdminHtml("/admin/debug", "Local filesystem");
@@ -598,12 +571,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with Bunny DNS enabled", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows DNS subdomain as configured with suffix", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
         BUNNY_DNS_ZONE_ID: "12345",
@@ -664,12 +633,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("Site section with spam protection configured", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows spam protection as configured when Botpoison keys are set", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BOTPOISON_PUBLIC_KEY: "test-public",
         BOTPOISON_SECRET_KEY: "test-secret",
       });
@@ -692,12 +657,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("Availability section with read-only mode", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Read-only state, the cutoff, and the renewal badge", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         READ_ONLY_FROM: "2000-01-01T00:00:00Z",
         RENEWAL_URL: "https://example.com/renew",
       });
@@ -711,7 +672,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Expiring soon when within the warning window", async () => {
       const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
-      restoreEnv = setTestEnv({ READ_ONLY_FROM: soon });
+      using _env = withEnv({ READ_ONLY_FROM: soon });
       await assertAdminHtml("/admin/debug", "Expiring soon");
     });
   });

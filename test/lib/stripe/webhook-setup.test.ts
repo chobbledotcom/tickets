@@ -7,8 +7,9 @@ import {
   setupWebhookEndpoint,
   stripeApi,
 } from "#shared/stripe.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withFetchMock } from "#test-utils/mocks.ts";
+import { setStripeCredentials } from "#test-utils/settings.ts";
 import { describeStripe } from "./harness.ts";
 import {
   newWebhookApiCalls,
@@ -20,13 +21,12 @@ const withStripeClient = async (
   env: Record<string, string | undefined>,
   check: (client: Awaited<ReturnType<typeof getStripeClient>>) => void,
 ): Promise<void> => {
-  const restore = setTestEnv(env);
   try {
+    using _env = withEnv(env);
     resetStripeClient();
     await settings.update.stripe.secretKey("sk_test_123");
     check(await getStripeClient());
   } finally {
-    restore();
     resetStripeClient();
   }
 };
@@ -98,11 +98,11 @@ describeStripe("Stripe webhook setup", () => {
       expectFailedResultWithNoDeletes(result, calls);
     });
 
-    test("deletes old recorded endpoint on limit error, then retries", async () => {
+    test("deletes same-URL strays on limit error, then retries", async () => {
       // When Stripe rejects the create because the account is at its webhook
-      // endpoint cap, setup deletes the OLD RECORDED endpoint by ID (not
-      // same-URL strays) to free a slot, then retries. Same-URL strays are
-      // preserved — the main cleanup (after DB save) deletes them.
+      // endpoint cap, setup may free a stale same-URL slot. It must preserve
+      // the endpoint named by the current database credentials until the new
+      // endpoint has been created and saved.
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -121,8 +121,55 @@ describeStripe("Stripe webhook setup", () => {
         success: true,
       });
       expect(calls.createAttempts).toBe(2);
-      // Only the recorded endpoint is deleted; strays survive.
-      expect(calls.deleted).toEqual(["we_recorded"]);
+      expect(calls.deleted).toEqual(["we_stray"]);
+      expect(calls.liveEndpointIds.has("we_recorded")).toBe(true);
+    });
+
+    test("keeps the recorded endpoint live when the cap retry fails", async () => {
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
+      await setStripeCredentials("whsec_recorded", "we_recorded");
+
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        calls,
+        settings.stripe.webhookEndpointId,
+        {
+          createFails: true,
+          createLimitError: true,
+          recordedInListing: true,
+        },
+      );
+
+      expect(result).toEqual({ error: expect.any(String), success: false });
+      expect(settings.stripe.secretKey).toBe("sk_test_mock");
+      expect(settings.stripe.webhookEndpointId).toBe("we_recorded");
+      expect(settings.stripe.webhookSecret).toBe("whsec_recorded");
+      expect(calls.deleted).toEqual(["we_stray"]);
+      expect(calls.liveEndpointIds.has(settings.stripe.webhookEndpointId)).toBe(
+        true,
+      );
+    });
+
+    test("keeps the recorded endpoint when no stale slot can be freed", async () => {
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
+
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        calls,
+        "we_recorded",
+        {
+          createLimitError: true,
+          recordedInListing: true,
+          sameUrlStray: false,
+        },
+      );
+
+      expect(result).toEqual({ error: expect.any(String), success: false });
+      expect(calls.createAttempts).toBe(1);
+      expect(calls.deleted).toEqual([]);
+      expect(calls.liveEndpointIds.has("we_recorded")).toBe(true);
     });
 
     test("falls back when create error message says maximum", async () => {

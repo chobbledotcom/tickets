@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getGroupIdsByListingId } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
   expectFlash,
@@ -242,7 +242,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         groupId: group.id,
         name: "Grouped Listing",
       });
-      expect(await getGroupIdsByListingId(listing.id)).toContain(group.id);
+      expect(await listingGroups.getIds(listing.id)).toContain(group.id);
 
       await deleteTestGroup(group.id);
 
@@ -255,7 +255,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const existingListing = await getListingWithCount(listing.id);
       expect(existingListing).not.toBeNull();
       // Group delete prunes membership rows, leaving the listing ungrouped.
-      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
+      expect(await listingGroups.getIds(listing.id)).toEqual([]);
     });
 
     test("returns 404 when deleting a non-existent group", async () => {

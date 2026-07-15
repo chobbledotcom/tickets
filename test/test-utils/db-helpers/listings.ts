@@ -102,7 +102,7 @@ export const updateTestListing = async (
   if (!existing) {
     throw new Error(`Listing not found: ${listingId}`);
   }
-  const { getGroupIdsByListingId, setListingGroups } = await import(
+  const { listingGroups, setListingGroups } = await import(
     "#shared/db/groups.ts"
   );
   // The real edit form carries membership as pre-checked group_ids checkboxes;
@@ -110,7 +110,7 @@ export const updateTestListing = async (
   // current membership) and submit its first id so the handler preserves
   // membership during the request (e.g. its group-cap overflow check sees the
   // group). Re-apply the full set afterwards for multi-group cases.
-  const previousGroups = await getGroupIdsByListingId(listingId);
+  const previousGroups = await listingGroups.getIds(listingId);
   const groupIds =
     updates.groupId !== undefined || updates.groupIds !== undefined
       ? resolveTestGroupIds(updates)

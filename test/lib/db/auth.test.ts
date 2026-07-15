@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptWithKey } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
   deriveKEKFromPassword,
   importPrivateKey,
@@ -9,14 +10,11 @@ import {
 import type { KeyEncrypted, PasswordHash } from "#shared/crypto/sealed.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb, insert } from "#shared/db/client.ts";
-import {
-  clearLoginAttempts,
-  isLoginRateLimited,
-  recordFailedLogin,
-} from "#shared/db/login-attempts.ts";
+import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
 import { createSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -212,81 +210,101 @@ describeWithEnv("db > auth", { db: true }, () => {
   });
 
   describe("rate limiting", () => {
-    test("isLoginRateLimited returns false for new IP", async () => {
-      const limited = await isLoginRateLimited("192.168.1.1");
+    test("login limiter returns false for new IP", async () => {
+      const limited = await loginLimiter.isLimited("192.168.1.1");
       expect(limited).toBe(false);
     });
 
-    test("recordFailedLogin increments attempts", async () => {
-      const locked1 = await recordFailedLogin("192.168.1.2");
+    test("login limiter records attempts", async () => {
+      const locked1 = await loginLimiter.record("192.168.1.2");
       expect(locked1).toBe(false);
 
-      const locked2 = await recordFailedLogin("192.168.1.2");
+      const locked2 = await loginLimiter.record("192.168.1.2");
       expect(locked2).toBe(false);
     });
 
-    test("recordFailedLogin locks after 5 attempts", async () => {
-      for (let i = 0; i < 4; i++) {
-        const locked = await recordFailedLogin("192.168.1.3");
+    test("stores login attempts under the unprefixed IP hash", async () => {
+      const ip = "192.168.1.8";
+      await loginLimiter.record(ip);
+
+      const row = await getDb().execute({
+        args: [await hmacHash(ip)],
+        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
+      });
+      expect(row.rows).toEqual([{ attempts: 1 }]);
+    });
+
+    test("login limiter locks at the configured attempt limit", async () => {
+      for (let i = 0; i < MAX_LOGIN_ATTEMPTS - 1; i++) {
+        const locked = await loginLimiter.record("192.168.1.3");
         expect(locked).toBe(false);
       }
 
-      const locked = await recordFailedLogin("192.168.1.3");
+      const locked = await loginLimiter.record("192.168.1.3");
       expect(locked).toBe(true);
     });
 
-    test("isLoginRateLimited returns true when locked", async () => {
-      for (let i = 0; i < 5; i++) {
-        await recordFailedLogin("192.168.1.4");
+    test("login limiter returns true when locked", async () => {
+      for (let i = 0; i < MAX_LOGIN_ATTEMPTS; i++) {
+        await loginLimiter.record("192.168.1.4");
       }
 
-      const limited = await isLoginRateLimited("192.168.1.4");
+      const limited = await loginLimiter.isLimited("192.168.1.4");
       expect(limited).toBe(true);
     });
 
     test("clearLoginAttempts clears attempts", async () => {
-      await recordFailedLogin("192.168.1.5");
-      await recordFailedLogin("192.168.1.5");
+      const ip = "192.168.1.5";
+      for (let attempt = 0; attempt < MAX_LOGIN_ATTEMPTS; attempt++) {
+        await loginLimiter.record(ip);
+      }
+      expect(await loginLimiter.isLimited(ip)).toBe(true);
 
-      await clearLoginAttempts("192.168.1.5");
+      await clearLoginAttempts(ip);
 
-      const limited = await isLoginRateLimited("192.168.1.5");
-      expect(limited).toBe(false);
+      expect(await loginLimiter.isLimited(ip)).toBe(false);
     });
 
-    test("isLoginRateLimited clears expired lockout", async () => {
+    test("login limiter clears expired lockout", async () => {
+      const ip = "192.168.1.6";
+      const ipHash = await hmacHash(ip);
       await getDb().execute(
         insert("login_attempts", {
-          attempts: 5,
-          ip: "192.168.1.6",
+          attempts: MAX_LOGIN_ATTEMPTS,
+          ip: ipHash,
           locked_until: Date.now() - 1000,
         }),
       );
 
-      const limited = await isLoginRateLimited("192.168.1.6");
-      expect(limited).toBe(false);
+      expect(await loginLimiter.isLimited(ip)).toBe(false);
+      const row = await getDb().execute({
+        args: [ipHash],
+        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
+      });
+      expect(row.rows).toEqual([]);
     });
 
-    test("isLoginRateLimited returns false for attempts below max without lockout", async () => {
+    test("login limiter returns false for attempts below max without lockout", async () => {
+      const ip = "192.168.1.7";
       await getDb().execute(
         insert("login_attempts", {
-          attempts: 3,
-          ip: "192.168.1.7",
+          attempts: MAX_LOGIN_ATTEMPTS - 1,
+          ip: await hmacHash(ip),
           locked_until: null,
         }),
       );
 
-      const limited = await isLoginRateLimited("192.168.1.7");
-      expect(limited).toBe(false);
+      expect(await loginLimiter.isLimited(ip)).toBe(false);
+      expect(await loginLimiter.record(ip)).toBe(true);
     });
 
-    test("isLoginRateLimited resets expired lockout and returns false", async () => {
+    test("login limiter resets expired lockout and returns false", async () => {
       const ip = "192.168.99.1";
 
-      for (let i = 0; i < 5; i++) {
-        await recordFailedLogin(ip);
+      for (let i = 0; i < MAX_LOGIN_ATTEMPTS; i++) {
+        await loginLimiter.record(ip);
       }
-      expect(await isLoginRateLimited(ip)).toBe(true);
+      expect(await loginLimiter.isLimited(ip)).toBe(true);
 
       // Simulate expired lockout
       await getDb().execute({
@@ -296,10 +314,10 @@ describeWithEnv("db > auth", { db: true }, () => {
               WHERE locked_until IS NOT NULL`,
       });
 
-      const limited = await isLoginRateLimited(ip);
+      const limited = await loginLimiter.isLimited(ip);
       expect(limited).toBe(false);
 
-      const locked = await recordFailedLogin(ip);
+      const locked = await loginLimiter.record(ip);
       expect(locked).toBe(false);
     });
   });

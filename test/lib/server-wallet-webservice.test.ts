@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { handleRequest } from "#routes";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -166,7 +166,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
         maxAttendees: 10,
         name: "Secret Member",
       });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: member.id, packageGroupId: group.id, quantity: 1 },
         ],
@@ -198,7 +198,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
         maxAttendees: 10,
         name: "Plain Ticket",
       });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: standalone.id, packageGroupId: group.id, quantity: 1 },
           { listingId: member.id, packageGroupId: group.id, quantity: 1 },

@@ -15,6 +15,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   awaitTestRequest,
   stubReleaseFetch,
@@ -186,21 +187,10 @@ describeWithEnv("server (admin update)", { db: true }, () => {
     });
 
     test("redirects with error on GitHub API failure", async () => {
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Not Found", { status: 404 })),
-          ),
-        async () => {
-          const { response } = await adminFormPost("/admin/update/check");
-          expectRedirect(response, "/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Failed to check"),
-            false,
-          );
-        },
-      );
+      using _fetch = stubFetch(new Response("Not Found", { status: 404 }));
+      const { response } = await adminFormPost("/admin/update/check");
+      expectRedirect(response, "/admin/update");
+      expectFlash(response, expect.stringContaining("Failed to check"), false);
     });
   });
 
@@ -248,26 +238,13 @@ describeWithEnv("server (admin update)", { db: true }, () => {
 
     test("redirects with error when release has no asset", async () => {
       await setupForDeploy();
-
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(
-              new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET), {
-                status: 200,
-              }),
-            ),
-          ),
-        async () => {
-          const { response } = await adminFormPost("/admin/update");
-          expectRedirect(response, "/admin/update");
-          expectFlash(
-            response,
-            expect.stringContaining("Update failed"),
-            false,
-          );
-        },
+      using _fetch = stubFetch(
+        new Response(JSON.stringify(MOCK_RELEASE_NO_ASSET)),
       );
+
+      const { response } = await adminFormPost("/admin/update");
+      expectRedirect(response, "/admin/update");
+      expectFlash(response, expect.stringContaining("Update failed"), false);
     });
 
     test("deploys successfully and redirects with success flash", async () => {

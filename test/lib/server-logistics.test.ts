@@ -278,10 +278,11 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "   ",
       });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
+      await expectFlashRedirect(
         `/admin/logistics/${id}/edit`,
-      );
+        "Agent Name is required",
+        false,
+      )(response);
       const kept = (await logisticsAgents.getAll()).find((a) => a.id === id);
       expect(kept!.name).toBe("Keep Me");
     });

@@ -25,7 +25,13 @@ import type {
   EnvKeyEncrypted,
   OwnerKeyEncrypted,
 } from "#shared/crypto/sealed.ts";
-import { queryAll, queryBatch, resultRows } from "#shared/db/client.ts";
+import {
+  execute,
+  queryAll,
+  queryBatch,
+  resultRows,
+  type TxScope,
+} from "#shared/db/client.ts";
 import { idAndCreatedSchema } from "#shared/db/common-schema.ts";
 import { decryptListingWithCount } from "#shared/db/listings/records.ts";
 import { LISTING_COUNT_SELECT } from "#shared/db/listings/sql.ts";
@@ -121,14 +127,16 @@ const toListingId = (listing?: ListingRef | null): number | null =>
 
 /**
  * Log an activity. Optionally associate it with a listing and/or attendee so
- * admin views can filter the log by either.
+ * admin views can filter the log by either. A caller may pass its open write
+ * transaction so the activity and the action it records commit together.
  */
 export const logActivity = async (
   message: string,
   listing?: ListingRef | null,
   attendeeId?: number | null,
+  transaction?: TxScope,
 ): Promise<ActivityLogEntry> => {
-  const row = await activityLogTable.insert({
+  const statement = await activityLogTable.insertStatement!({
     attendeeId: attendeeId ?? null,
     listingId: toListingId(listing),
     // Encrypt with the owner's public key — a set-up site always has one, so
@@ -136,8 +144,14 @@ export const logActivity = async (
     // reset earlier this request).
     message: await encryptWithOwnerKey(message, await ownerPublicKey()),
   });
-  // insert() echoes the (encrypted) input back; restore the plaintext so the
-  // returned entry stays human-readable for callers and tests.
+  const returning = {
+    ...statement,
+    sql: `${statement.sql} RETURNING ${ACTIVITY_LOG_COLUMNS}`,
+  };
+  const result = transaction
+    ? await transaction.execute(returning)
+    : await execute(returning.sql, returning.args);
+  const row = resultRows<StoredActivityLogEntry>(result)[0]!;
   return { ...row, message };
 };
 

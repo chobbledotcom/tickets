@@ -1,32 +1,49 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  buildAnswerSummaryRows,
   buildSharedDetailRows,
   calculateTotalRevenue,
   countCheckedIn,
   countCheckedInRows,
   type DetailRow,
-  renderDetailRows,
+  type SharedDetailInput,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
+import { DetailTable } from "#templates/components/detail-table.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import {
   singleAnswerSizeQuestionData,
   sizeQuestionAnswerData,
+  testAnswer,
   testAttendee,
+  testQuestion,
   unselectedAnswerQuestionData,
 } from "#test-utils/factories.ts";
 
 describe("detail-rows", () => {
-  describe("renderDetailRows", () => {
-    test("renders empty string for empty array", () => {
-      expect(renderDetailRows([])).toBe("");
+  const answerSummaryRows = (
+    questionData: SharedDetailInput["questionData"],
+  ): DetailRow[] =>
+    buildSharedDetailRows({
+      attendeeCount: 0,
+      attendees: [],
+      hasPaidListing: false,
+      maxCapacity: 0,
+      questionData,
+      skipAttendees: true,
+    }).slice(1);
+
+  describe("DetailTable", () => {
+    test("renders no rows when none are passed", () => {
+      expect(String(DetailTable({}))).toBe(
+        '<div class="table-scroll"><table class="listing-details-table"><tbody></tbody></table></div>',
+      );
     });
 
     test("renders a single row", () => {
       const rows: DetailRow[] = [{ key: "Name", value: "Alice" }];
-      expect(renderDetailRows(rows)).toBe(
-        "<tr><th>Name</th><td>Alice</td></tr>",
+      expect(String(DetailTable({ rows }))).toBe(
+        '<div class="table-scroll"><table class="listing-details-table"><tbody><tr><th>Name</th><td>Alice</td></tr></tbody></table></div>',
       );
     });
 
@@ -35,9 +52,20 @@ describe("detail-rows", () => {
         { key: "A", value: "1" },
         { key: "B", value: "2" },
       ];
-      const html = renderDetailRows(rows);
-      expect(html).toBe(
-        "<tr><th>A</th><td>1</td></tr><tr><th>B</th><td>2</td></tr>",
+      expect(String(DetailTable({ rows }))).toBe(
+        '<div class="table-scroll"><table class="listing-details-table"><tbody><tr><th>A</th><td>1</td></tr><tr><th>B</th><td>2</td></tr></tbody></table></div>',
+      );
+    });
+
+    test("renders custom children before mapped rows", () => {
+      const rows: DetailRow[] = [{ key: "Shared", value: "Second" }];
+      const children = LabelledRow({
+        children: "First",
+        label: "Custom",
+      });
+
+      expect(String(DetailTable({ children, rows }))).toBe(
+        '<div class="table-scroll"><table class="listing-details-table"><tbody><tr><th>Custom</th><td>First</td></tr><tr><th>Shared</th><td>Second</td></tr></tbody></table></div>',
       );
     });
   });
@@ -98,16 +126,22 @@ describe("detail-rows", () => {
       ];
       expect(calculateTotalRevenue(attendees)).toBe(3500);
     });
+
+    test("reads stored revenue as base-10", () => {
+      expect(
+        calculateTotalRevenue([testAttendee({ price_paid: "0x10" })]),
+      ).toBe(0);
+    });
   });
 
-  describe("buildAnswerSummaryRows", () => {
+  describe("answer summary rows", () => {
     test("returns empty array when questionData is undefined", () => {
-      expect(buildAnswerSummaryRows(undefined)).toEqual([]);
+      expect(answerSummaryRows(undefined)).toEqual([]);
     });
 
     test("returns empty array when no questions", () => {
       expect(
-        buildAnswerSummaryRows({
+        answerSummaryRows({
           attendeeAnswerMap: new Map(),
           questions: [],
         }),
@@ -115,13 +149,29 @@ describe("detail-rows", () => {
     });
 
     test("returns DetailRows with answer counts", () => {
-      const rows = buildAnswerSummaryRows(sizeQuestionAnswerData());
+      const rows = answerSummaryRows(sizeQuestionAnswerData());
       expect(rows).toEqual([{ key: "Size?", value: "Small (2), Large (1)" }]);
     });
 
     test("shows zero for answers with no selections", () => {
-      const rows = buildAnswerSummaryRows(unselectedAnswerQuestionData());
+      const rows = answerSummaryRows(unselectedAnswerQuestionData());
       expect(rows).toEqual([{ key: "Q?", value: "A (0)" }]);
+    });
+
+    test("escapes operator-authored question and answer HTML", () => {
+      const rows = answerSummaryRows({
+        attendeeAnswerMap: new Map([[1, [10]]]),
+        questions: [
+          testQuestion({
+            answers: [testAnswer({ text: '<img src="x">' })],
+            text: "<strong>Question?</strong>",
+          }),
+        ],
+      });
+
+      expect(String(DetailTable({ rows }))).toContain(
+        "<th>&lt;strong&gt;Question?&lt;/strong&gt;</th><td>&lt;img src=&quot;x&quot;&gt; (1)</td>",
+      );
     });
   });
 
@@ -131,13 +181,15 @@ describe("detail-rows", () => {
     const attendeesRowValue = (
       attendeeCount: number,
       maxCapacity: number,
-    ): DetailRow["value"] =>
-      buildSharedDetailRows({
-        attendeeCount,
-        attendees: [],
-        hasPaidListing: false,
-        maxCapacity,
-      }).find((r) => r.key === "Attendees")!.value;
+    ): string =>
+      String(
+        buildSharedDetailRows({
+          attendeeCount,
+          attendees: [],
+          hasPaidListing: false,
+          maxCapacity,
+        }).find((r) => r.key === "Attendees")!.value,
+      );
 
     test("includes attendees row with count only when no capacity", () => {
       expect(attendeesRowValue(5, 0)).toBe("5");
@@ -147,6 +199,12 @@ describe("detail-rows", () => {
       const value = attendeesRowValue(5, 20);
       expect(value).toContain("5 / 20");
       expect(value).toContain("15 remain");
+    });
+
+    test("uses a capacity of one", () => {
+      expect(attendeesRowValue(0, 1)).toBe(
+        '<span class="">0 / 1 — 1 remain</span>',
+      );
     });
 
     test("shows danger-text when near capacity", () => {
@@ -233,7 +291,29 @@ describe("detail-rows", () => {
         maxCapacity: 0,
       });
       const revenue = rows.find((r) => r.key === "Total Revenue");
-      expect(revenue).toBeDefined();
+      expect(revenue?.value).toBe("£10");
+    });
+
+    test("uses an authoritative zero revenue total", () => {
+      const rows = buildSharedDetailRows({
+        attendeeCount: 1,
+        attendees: [testAttendee({ price_paid: "1000" })],
+        hasPaidListing: true,
+        maxCapacity: 0,
+        revenue: 0,
+      });
+      expect(rows.find((r) => r.key === "Total Revenue")?.value).toBe("£0");
+    });
+
+    test("keeps authoritative revenue for an unpaid listing", () => {
+      const rows = buildSharedDetailRows({
+        attendeeCount: 1,
+        attendees: [testAttendee({ price_paid: "1000" })],
+        hasPaidListing: false,
+        maxCapacity: 0,
+        revenue: 2500,
+      });
+      expect(rows.find((r) => r.key === "Total Revenue")?.value).toBe("£25");
     });
 
     test("excludes revenue row when hasPaidListing is false", () => {
@@ -244,6 +324,24 @@ describe("detail-rows", () => {
         maxCapacity: 0,
       });
       expect(rows.find((r) => r.key === "Total Revenue")).toBeUndefined();
+    });
+
+    test("does not read attendee revenue for an unpaid listing", () => {
+      const attendee = testAttendee();
+      Object.defineProperty(attendee, "price_paid", {
+        get: () => {
+          throw new Error("price_paid was read");
+        },
+      });
+
+      expect(
+        buildSharedDetailRows({
+          attendeeCount: 1,
+          attendees: [attendee],
+          hasPaidListing: false,
+          maxCapacity: 0,
+        }).find((r) => r.key === "Total Revenue"),
+      ).toBeUndefined();
     });
 
     test("includes question summary rows", () => {

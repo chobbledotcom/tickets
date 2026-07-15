@@ -1,12 +1,14 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { withMocks } from "#test-utils/mocks.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+
+// jscpd:ignore-end
 
 describeWithEnv("server (admin settings: email)", { db: true }, () => {
   afterEach(() => {
@@ -156,66 +158,42 @@ describeWithEnv("server (admin settings: email)", { db: true }, () => {
 
     test("sends test email and redirects with success including status code", async () => {
       await configureEmailForTest();
+      using _fetch = stubFetch(new Response());
 
-      await withMocks(
-        () => stub(globalThis, "fetch", () => Promise.resolve(new Response())),
-        async () => {
-          const { response } = await adminFormPost(
-            "/admin/settings/email/test",
-          );
+      const { response } = await adminFormPost("/admin/settings/email/test");
 
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("Test email sent (status 200)"),
-          );
-        },
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Test email sent (status 200)"),
       );
     });
 
     test("shows error when email API returns non-2xx status", async () => {
       await configureEmailForTest();
+      using _fetch = stubFetch(new Response("Forbidden", { status: 403 }));
 
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Forbidden", { status: 403 })),
-          ),
-        async () => {
-          const { response } = await adminFormPost(
-            "/admin/settings/email/test",
-          );
+      const { response } = await adminFormPost("/admin/settings/email/test");
 
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("Test email failed (status 403)"),
-            false,
-          );
-        },
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Test email failed (status 403)"),
+        false,
       );
     });
 
     test("shows error when email send encounters network error", async () => {
       await configureEmailForTest();
+      using _fetch = stubFetch(new Error("Network error"));
 
-      await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.reject(new Error("Network error")),
-          ),
-        async () => {
-          const { response } = await adminFormPost(
-            "/admin/settings/email/test",
-          );
+      const { response } = await adminFormPost("/admin/settings/email/test");
 
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("Test email failed (no response)"),
-            false,
-          );
-        },
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Test email failed (no response)"),
+        false,
       );
     });
   });

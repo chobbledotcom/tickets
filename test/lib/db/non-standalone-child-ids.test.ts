@@ -35,7 +35,7 @@ describeWithEnv(
 
     test("a bookable_alone child is EXCLUDED — it keeps a standalone page", async () => {
       const { child } = await parentWithChild(true);
-      // Still a child (has parent edges) so getChildListingIds would include it,
+      // Still a child (listingParents has parent ids for it),
       // but the narrowed gate predicate drops it: its own page is allowed.
       const ids = await getNonStandaloneChildIds([child.id]);
       expect(ids.has(child.id)).toBe(false);

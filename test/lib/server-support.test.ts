@@ -5,7 +5,7 @@ import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   awaitTestRequest,
   installRecordingFetch,
@@ -42,31 +42,23 @@ describeWithEnv(
   () => {
     describe("GET /admin/support", () => {
       test("shows the fallback message when SUPPORT_PAGE_TEXT is unset", async () => {
-        const restore = setTestEnv({ SUPPORT_PAGE_TEXT: undefined });
-        try {
-          const response = await adminGet("/admin/support");
-          const html = await response.text();
-          expect(response.status).toBe(200);
-          expect(html).toContain("Your admin hasn't filled in");
-          expect(html).toContain("SUPPORT_PAGE_TEXT");
-        } finally {
-          restore();
-        }
+        using _env = withEnv({ SUPPORT_PAGE_TEXT: undefined });
+        const response = await adminGet("/admin/support");
+        const html = await response.text();
+        expect(response.status).toBe(200);
+        expect(html).toContain("Your admin hasn't filled in");
+        expect(html).toContain("SUPPORT_PAGE_TEXT");
       });
 
       test("renders SUPPORT_PAGE_TEXT as markdown", async () => {
-        const restore = setTestEnv({
+        using _env = withEnv({
           SUPPORT_PAGE_TEXT: "# Help Center\\n\\nReach out anytime",
         });
-        try {
-          const response = await adminGet("/admin/support");
-          const html = await response.text();
-          expect(html).toContain("<h1>Help Center</h1>");
-          expect(html).toContain("Reach out anytime");
-          expect(html).not.toContain("strange message");
-        } finally {
-          restore();
-        }
+        const response = await adminGet("/admin/support");
+        const html = await response.text();
+        expect(html).toContain("<h1>Help Center</h1>");
+        expect(html).toContain("Reach out anytime");
+        expect(html).not.toContain("strange message");
       });
 
       test("renders no form (and no note) when no business email is set", async () => {

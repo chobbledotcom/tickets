@@ -2,9 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#shared/db/client.ts";
 import {
-  getGroupIdsByListingId,
-  getGroupIdsByListingIds,
   getGroupPackagePrices,
+  listingGroups,
   setGroupPackageMembers,
   setListingGroups,
 } from "#shared/db/groups.ts";
@@ -24,7 +23,7 @@ const expectGroupIds = async (
   listingId: number,
   ids: number[],
 ): Promise<void> => {
-  expect(sortNums(await getGroupIdsByListingId(listingId))).toEqual(
+  expect(sortNums(await listingGroups.getIds(listingId))).toEqual(
     sortNums(ids),
   );
 };
@@ -41,13 +40,13 @@ const groupWithTwoMembers = async (slug: string) => {
 };
 
 describeWithEnv("db > group_listings membership", { db: true }, () => {
-  test("getGroupIdsByListingIds returns every group a listing belongs to", async () => {
+  test("listingGroups returns every group a listing belongs to", async () => {
     const g1 = await createTestGroup({ name: "G1", slug: "g1" });
     const g2 = await createTestGroup({ name: "G2", slug: "g2" });
     const listing = await createTestListing({ name: "Multi" });
     await setListingGroups(listing.id, [g1.id, g2.id]);
 
-    const map = await getGroupIdsByListingIds([listing.id]);
+    const map = await listingGroups.getIdsByKeys([listing.id]);
     expect(sortNums(map.get(listing.id) ?? [])).toEqual(
       sortNums([g1.id, g2.id]),
     );
@@ -252,7 +251,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await migration.up();
 
     // The legacy value is migrated into group_listings and the column is gone.
-    expect(await getGroupIdsByListingId(listing.id)).toEqual([77]);
+    expect(await listingGroups.getIds(listing.id)).toEqual([77]);
     const columns = await queryAll<{ name: string }>(
       "PRAGMA table_info(listings)",
     );
@@ -260,6 +259,6 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
 
     // Re-running is a no-op (idempotency guard: the column is already gone).
     await migration.up();
-    expect(await getGroupIdsByListingId(listing.id)).toEqual([77]);
+    expect(await listingGroups.getIds(listing.id)).toEqual([77]);
   });
 });

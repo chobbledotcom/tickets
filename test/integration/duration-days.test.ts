@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -25,7 +25,7 @@ describeWithEnv("integration: duration_days", { db: true }, () => {
         maxAttendees: 10,
         maximumDaysAfter: 60,
       });
-      await createAttendeeAtomic({
+      await attendeesApi.createAttendeeAtomic({
         bookings: [{ date: "2026-08-10", listingId: listing.id, quantity: 1 }],
         email: "edit@example.com",
         name: "Edit",

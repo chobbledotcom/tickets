@@ -3,6 +3,7 @@ import type {
   CreateAttendeeResult,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   type LogisticsAssignment,
   setLogisticsAssignments,
@@ -26,8 +27,7 @@ export const createPaidAttendeeWithoutLedger = async (
   pricePaid = 500,
   quantity = 1,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId, pricePaid, quantity }],
     email,
     name,
@@ -70,7 +70,6 @@ export const bookAttendee = async (
   listing: Pick<Listing, "id">,
   opts: BookAttendeeOpts = {},
 ): Promise<CreateAttendeeResult> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const booking: ListingBooking = {
     listingId: listing.id,
   };
@@ -78,7 +77,7 @@ export const bookAttendee = async (
   if (opts.quantity !== undefined) booking.quantity = opts.quantity;
   if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
   if (opts.durationDays !== undefined) booking.durationDays = opts.durationDays;
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: [booking],
     email: opts.email ?? "x@example.com",
     name: opts.name ?? "X",

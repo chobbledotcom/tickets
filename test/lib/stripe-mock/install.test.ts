@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { tempDir } from "#test-utils/files.ts";
 import { installLockPath } from "../../../scripts/stripe-mock/install.ts";
 import {
   createFakeArchive,
@@ -99,15 +100,15 @@ const expectDownloadWithLockCleanup = async (
 
 describe("stripe-mock install", () => {
   test("downloads a missing binary before trying to start it", async () => {
+    using gate = tempDir();
     const fakeArchive = await createFakeArchive();
     // A gate around the fake download: curl signals `readyPath` once it is
     // running (so the install's temp dir provably exists) and then blocks until
     // the test creates `goPath`. Holding the download open like this lets the
     // test release the lock-refresh write only after the refresh has stopped,
     // so `scheduleNextRefresh` runs with `stopped` already true — deterministically.
-    const gate = await Deno.makeTempDir();
-    const readyPath = join(gate, "curl-ready");
-    const goPath = join(gate, "curl-go");
+    const readyPath = join(gate.path, "curl-ready");
+    const goPath = join(gate.path, "curl-go");
 
     try {
       await withTempStripeMockPaths(async (paths) => {
@@ -162,7 +163,6 @@ describe("stripe-mock install", () => {
       });
     } finally {
       await fakeArchive.cleanup();
-      await Deno.remove(gate, { recursive: true });
     }
   });
 

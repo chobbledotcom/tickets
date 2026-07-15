@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { execute } from "#shared/db/client.ts";
-import { getGroupIdsByListingId } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
@@ -170,7 +170,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         (l) => l.name === "Imported One",
       )!;
       expect(created.unit_price).toBe(900);
-      expect(await getGroupIdsByListingId(created.id)).toEqual([group.id]);
+      expect(await listingGroups.getIds(created.id)).toEqual([group.id]);
       // The import is recorded in the activity log.
       const log = await getAllActivityLog();
       expect(log.some((e) => e.message.includes("Imported One"))).toBe(true);

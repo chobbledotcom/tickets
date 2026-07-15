@@ -4,7 +4,7 @@ import { resetEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { resetHostEmailConfig } from "#shared/email.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
-import { setTestEnv } from "./env.ts";
+import { type EnvScope, withEnv } from "./env.ts";
 
 /**
  * Brand a known-valid address as ValidEmail for tests. Throws when the literal
@@ -19,24 +19,21 @@ export const validEmail = (address: string): ValidEmail => {
 
 /**
  * The per-describe state shared by the contact-form and support-message unit
- * tests: a `fetch` stub installed on demand, a `setTestEnv` handle the tests
+ * tests: a `fetch` stub installed on demand, an env scope the tests
  * can swap mid-test, and a single `teardown` that undoes every side effect
  * `setEnv`/`stubFetch`/`setHostEmailConfigForTest`/`setEffectiveDomainForTest`
- * touched. Owns the mutable `restoreEnv`/`fetchStub` refs so the call sites
- * don't redeclare them — `setEnv` reverts the previous override before
- * applying the next, mirroring the inline `restoreEnv?.(); restoreEnv =
- * setTestEnv(...)` the unit tests used to spell out by hand.
+ * touched. `setEnv` disposes the previous scope before applying the next.
  */
 export const emailTestSandbox = () => {
-  let restoreEnv: (() => void) | undefined;
+  let envScope: EnvScope | undefined;
   let fetchStub: Stub | undefined;
 
   /** Set (or override) the test env for this sandbox. The previous override,
    *  if any, is restored first so a mid-test switch from the `beforeEach` env
    *  to a different env leaves no dangling handlers. */
   const setEnv = (env: Record<string, string | undefined>): void => {
-    restoreEnv?.();
-    restoreEnv = setTestEnv(env);
+    envScope?.dispose();
+    envScope = withEnv(env);
   };
 
   /** Install a `fetch` stub delegating to `impl`. Replaces any prior stub. */
@@ -77,8 +74,8 @@ export const emailTestSandbox = () => {
     resetHostEmailConfig();
     resetEffectiveDomain();
     settings.clearTestOverrides();
-    restoreEnv?.();
-    restoreEnv = undefined;
+    envScope?.dispose();
+    envScope = undefined;
   };
 
   return {

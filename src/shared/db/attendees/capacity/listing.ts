@@ -1,4 +1,4 @@
-import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
@@ -18,4 +18,4 @@ export const useListingById = async <Result>(
 export const getListingGroupMembership = (
   listings: readonly { id: number }[],
 ): Promise<Map<number, number[]>> =>
-  getGroupIdsByListingIds(listings.map((listing) => listing.id));
+  listingGroups.getIdsByKeys(listings.map((listing) => listing.id));

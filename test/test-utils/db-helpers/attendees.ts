@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
@@ -27,7 +27,7 @@ export const bookTestAttendee = async (
   name = "Alice",
   email?: string,
 ): Promise<Attendee> => {
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: listingIds.map((listingId) => ({ listingId })),
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
@@ -134,9 +134,7 @@ export const createTestAttendeeDirect = async (
   address = "",
   special_instructions = "",
 ): Promise<{ attendee: Attendee; token: string }> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
-
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     address,
     bookings: [{ listingId, quantity }],
     email,
@@ -258,8 +256,7 @@ export const createMultiBookingAttendee = async (
   email: string,
   bookings: Array<{ listingId: number; quantity?: number }>,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: bookings.map((booking) => ({
       listingId: booking.listingId,
       quantity: booking.quantity ?? 1,
@@ -316,9 +313,8 @@ export const createDailyTestAttendee = async (
   date: string,
   listingOverrides: Partial<Omit<ListingInput, "slug" | "slugIndex">> = {},
 ): Promise<{ listing: Listing; attendee: Attendee; token: string }> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
   const listing = await createDailyTestListing(listingOverrides);
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: [{ date, listingId: listing.id }],
     email,
     name,

@@ -38,7 +38,7 @@ import {
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -349,7 +349,7 @@ export const writeTestState = async (dir: string): Promise<void> => {
   // also backs createTestDb fixtures that must start without any setup).
   const workPath = join(dir, "setup-work.db");
   await Deno.copyFile(goldenPath, workPath);
-  const restoreEnv = setTestEnv({
+  using _env = withEnv({
     DB_URL: `file:${workPath}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
@@ -362,7 +362,6 @@ export const writeTestState = async (dir: string): Promise<void> => {
   } finally {
     setDb(null);
     client.close();
-    restoreEnv();
     for (const suffix of DB_FILE_SUFFIXES) {
       await Deno.remove(workPath + suffix).catch(() => {
         // scratch side-files may legitimately not exist

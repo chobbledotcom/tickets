@@ -10,7 +10,6 @@ import {
   getNewsPostCards,
   getNewsPostNames,
   hasNewsPosts,
-  isNewsSlugTaken,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
@@ -92,33 +91,21 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         metaTitle: "new title",
         name: "After",
         slug: "edited-slug",
-        slugIndex: await computeNewsSlugIndex("edited-slug"),
         snippet: "new snippet",
       });
-      expect(updated?.name).toBe("After");
-      expect(updated?.snippet).toBe("new snippet");
-      expect(updated?.content).toBe("new content");
-      expect(updated?.meta_title).toBe("new title");
-      expect(updated?.meta_description).toBe("new description");
-      expect(updated?.created).toBe(created.created);
+      if (!updated.ok) throw new Error(`news update failed: ${updated.error}`);
+      expect(updated.value.name).toBe("After");
+      expect(updated.value.snippet).toBe("new snippet");
+      expect(updated.value.content).toBe("new content");
+      expect(updated.value.meta_title).toBe("new title");
+      expect(updated.value.meta_description).toBe("new description");
+      expect(updated.value.created).toBe(created.created);
       // The edited slug (and its blind index) now resolve the post.
-      expect(updated?.slug).toBe("edited-slug");
+      expect(updated.value.slug).toBe("edited-slug");
       const bySlug = await getNewsPostBySlugIndex(
         await computeNewsSlugIndex("edited-slug"),
       );
       expect(bySlug?.id).toBe(created.id);
-    });
-  });
-
-  describe("isNewsSlugTaken", () => {
-    test("reports a slug taken by any post, and free once excluded", async () => {
-      const post = await createTestNewsPost("Owns the slug");
-      // Taken outright…
-      expect(await isNewsSlugTaken(post.slug)).toBe(true);
-      // …but not taken when the owning post is excluded (an edit keeping its
-      // own slug), and an unused slug is free either way.
-      expect(await isNewsSlugTaken(post.slug, post.id)).toBe(false);
-      expect(await isNewsSlugTaken("never-used-slug")).toBe(false);
     });
   });
 
@@ -242,7 +229,6 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         metaTitle: "",
         name: "Renamed",
         slug: post.slug,
-        slugIndex: await computeNewsSlugIndex(post.slug),
         snippet: "",
       });
       const reloaded = await getNewsPostById(post.id);

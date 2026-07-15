@@ -618,6 +618,15 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   return run;
 };
 
+/** Run work on the caller's open transaction, or open one when there is no
+ * caller transaction. Transaction-aware table methods use this so direct calls
+ * and larger atomic operations share the same write path. */
+export const useTransaction = <T>(
+  transaction: TxScope | undefined,
+  work: TransactionWork<T>,
+): Promise<T> =>
+  transaction === undefined ? withTransaction(work) : work(transaction);
+
 /**
  * Write one row `statement` in a fresh write transaction and run `persist` (the
  * coupled join-table writes) on the same `tx`, so the row and its side writes

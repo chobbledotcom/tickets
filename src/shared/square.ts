@@ -10,8 +10,10 @@
  * - Retrieving session data requires fetching the Order by ID
  */
 
+/* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
@@ -24,7 +26,6 @@ import {
   buildProviderLineItems,
   cachedClientFactory,
   createWithClient,
-  errorMessage,
   PaymentUserError,
   type SignedTestWebhook,
   signedTestWebhook,
@@ -36,6 +37,8 @@ import type {
 } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
+
+/* jscpd:ignore-end */
 
 /**
  * Square order metadata constraints (from Square API docs):

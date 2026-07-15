@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { tempDir } from "#test-utils/files.ts";
 import {
   getSetupState,
   invalidateTestDbCache,
@@ -10,7 +11,8 @@ import {
 
 describe("test-state", () => {
   test("writeTestState builds a golden DB and a replayable setup state", async () => {
-    const dir = await Deno.makeTempDir({ prefix: "tickets-test-state-test-" });
+    const temp = tempDir({ prefix: "tickets-test-state-test-" });
+    const dir = temp.path;
     try {
       await writeTestState(dir);
 
@@ -29,7 +31,7 @@ describe("test-state", () => {
       // The scratch DB the ceremony ran on is cleaned away.
       await expect(Deno.stat(`${dir}/setup-work.db`)).rejects.toThrow();
     } finally {
-      await Deno.remove(dir, { recursive: true });
+      temp.dispose();
       resetDb();
     }
   });

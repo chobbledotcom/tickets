@@ -3,7 +3,7 @@
  * Gated behind the "show public site" setting.
  */
 
-import { byId, map, pipe } from "#fp";
+import { identity, map, mapBy, pipe } from "#fp";
 import type { CoreListingFields } from "#routes/api/public-listing.ts";
 import { withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
@@ -340,7 +340,7 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
       const privateKey = await getRequestPrivateKey();
       if (!privateKey) return new Response("Forbidden", { status: 403 });
       const listings = await getAllListings();
-      const listingById = byId(listings);
+      const listingById = mapBy("id", identity<ListingWithCount>)(listings);
       const rawAttendees = await getAttendeesByListingIds(
         listings.map((l) => l.id),
         // Operational ICS feed: exclude no-quantity sentinel lines.
