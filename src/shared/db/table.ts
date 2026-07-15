@@ -165,25 +165,37 @@ export interface Table<Row, Input> {
   ) => Promise<SqlStatement>;
 }
 
-type TableRowWrite<Input> =
-  | {
-      condition?: SqlStatement;
-      input: Input;
-      kind: "insert";
-    }
-  | {
-      condition?: SqlStatement;
-      id: InValue;
-      input: Partial<Input>;
-      kind: "update";
-    };
+type TableRowInsert<Input, Condition = SqlStatement | undefined> = {
+  condition?: Condition;
+  input: Input;
+  kind: "insert";
+};
+
+type TableRowUpdate<Input> = {
+  condition?: SqlStatement;
+  id: InValue;
+  input: Partial<Input>;
+  kind: "update";
+};
+
+type TableRowWrite<Input> = TableRowInsert<Input> | TableRowUpdate<Input>;
+
+type TableRowWriteArgs<Row, Input, Write = TableRowWrite<Input>> = [
+  transaction: TxScope,
+  table: Table<Row, Input>,
+  write: Write,
+];
 
 /** Execute one table-built INSERT/UPDATE on an open transaction and return the
  * affected row. A conditional write returns null when its condition is false. */
+export function writeTableRow<Row, Input>(
+  ...args: TableRowWriteArgs<Row, Input, TableRowInsert<Input, undefined>>
+): Promise<Row>;
+export function writeTableRow<Row, Input>(
+  ...args: TableRowWriteArgs<Row, Input>
+): Promise<Row | null>;
 export async function writeTableRow<Row, Input>(
-  transaction: TxScope,
-  table: Table<Row, Input>,
-  write: TableRowWrite<Input>,
+  ...[transaction, table, write]: TableRowWriteArgs<Row, Input>
 ): Promise<Row | null> {
   const statement =
     write.kind === "insert"

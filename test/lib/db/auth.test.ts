@@ -234,8 +234,8 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(row.rows).toEqual([{ attempts: 1 }]);
     });
 
-    test("login limiter locks after 5 attempts", async () => {
-      for (let i = 0; i < 4; i++) {
+    test("login limiter locks at the configured attempt limit", async () => {
+      for (let i = 0; i < MAX_LOGIN_ATTEMPTS - 1; i++) {
         const locked = await loginLimiter.record("192.168.1.3");
         expect(locked).toBe(false);
       }
@@ -245,7 +245,7 @@ describeWithEnv("db > auth", { db: true }, () => {
     });
 
     test("login limiter returns true when locked", async () => {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < MAX_LOGIN_ATTEMPTS; i++) {
         await loginLimiter.record("192.168.1.4");
       }
 
@@ -301,7 +301,7 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("login limiter resets expired lockout and returns false", async () => {
       const ip = "192.168.99.1";
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < MAX_LOGIN_ATTEMPTS; i++) {
         await loginLimiter.record(ip);
       }
       expect(await loginLimiter.isLimited(ip)).toBe(true);

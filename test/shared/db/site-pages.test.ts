@@ -23,7 +23,6 @@ import {
 } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
-  createSitePage,
   getSitePageById,
   getSitePageBySlugIndex,
   type SitePageInput,
@@ -37,6 +36,7 @@ import { makeImage } from "#test-utils/admin-images.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 
 const makePage = async (
   slug: string,
@@ -50,15 +50,6 @@ const makePage = async (
     sortOrder: 0,
     ...extra,
   });
-};
-
-const createPage = async (
-  input: Parameters<typeof createSitePage>[0],
-): Promise<SitePage> => {
-  const result = await createSitePage(input);
-  if (!result.ok)
-    throw new Error(`site page slug is already used: ${input.slug}`);
-  return result.value;
 };
 
 describeWithEnv("db > site-pages", { db: true }, () => {
@@ -109,12 +100,11 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("createSitePage assigns distinct, increasing trailing orders", async () => {
       const make = async (slug: string): Promise<number> =>
         (
-          await createPage({
+          await createTestSitePage(slug, {
             content: "",
             metaDescription: "",
             metaTitle: "",
             name: `Name ${slug}`,
-            slug,
           })
         ).sort_order;
       const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
@@ -132,12 +122,11 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       // without the new page.
       runWithRequestCache(async () => {
         await sitePages.getAll(); // populate the cached projection
-        const created = await createPage({
+        const created = await createTestSitePage("fresh-cache", {
           content: "Body",
           metaDescription: "Desc",
           metaTitle: "Meta",
           name: "Fresh",
-          slug: "fresh-cache",
         });
         const slugs = (await sitePages.getAll()).map((r) => r.slug);
         expect(slugs).toContain("fresh-cache");
@@ -148,12 +137,11 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       }));
 
     test("updateSitePage rewrites the fields and moves the blind index with the slug", async () => {
-      const created = await createPage({
+      const created = await createTestSitePage("before-move", {
         content: "old",
         metaDescription: "old",
         metaTitle: "old",
         name: "Old",
-        slug: "before-move",
       });
       const updated = await updateSitePage(created.id, {
         content: "new",

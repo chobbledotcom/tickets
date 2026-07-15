@@ -317,30 +317,25 @@ type ProviderCredentialsConfig<T> = {
     fields: T,
     secret: SecretFieldResult,
   ) => string | null | Promise<string | null>;
-  /** Persist the secret (only called when a new value was provided). */
-  saveSecret: (value: string) => Promise<void> | void;
+  /** Persist a newly provided secret and run any provider setup it needs.
+   * Return an error string when an expected setup failure should be shown on
+   * the form. Thrown failures propagate. */
+  saveSecret: (value: string) => Promise<string | null> | Promise<void>;
   /** Persist the non-secret fields (called on every successful save). */
   saveFields?: (fields: T) => Promise<void> | void;
-  /** Side effects for a newly provided secret — e.g. Stripe provisions its
-   * webhook and persists the returned config. Runs before the secret is saved,
-   * so returning an error string aborts the save with nothing persisted. */
-  afterSave?: (value: string) => Promise<string | null> | string | null;
   /** Connection-test function behind the sibling `/test` route. */
   testFn: () => Promise<unknown>;
 };
 
-/** Persist a validated submission: run `afterSave` + save the secret when a new
- * value was provided, then save the extra fields and select the provider.
- * Returns an `afterSave` error string (nothing persisted) or null on success. */
+/** Persist a validated submission, then select the provider. */
 const persistProviderCredentials = async <T>(
   cfg: ProviderCredentialsConfig<T>,
   fields: T,
   secret: SecretFieldResult,
 ): Promise<string | null> => {
   if (secret.action === "provided") {
-    const error = cfg.afterSave ? await cfg.afterSave(secret.value) : null;
+    const error = await cfg.saveSecret(secret.value);
     if (error) return error;
-    await cfg.saveSecret(secret.value);
   }
   if (cfg.saveFields) await cfg.saveFields(fields);
   await settings.update.paymentProvider(cfg.provider);
@@ -349,8 +344,8 @@ const persistProviderCredentials = async <T>(
 
 /**
  * Build the `{ save, test }` route pair for a payment provider's credentials.
- * Stripe passes its webhook provisioning as `afterSave`; the rest differ only
- * in their fields, validation, and persistence.
+ * Stripe includes webhook provisioning in its secret save; the rest differ
+ * only in their fields, validation, and persistence.
  */
 const defineProviderCredentialsRoute = <T>(
   cfg: ProviderCredentialsConfig<T>,

@@ -198,40 +198,32 @@ const fetchWebhookEndpoints = async (
   return endpoints.data;
 };
 
-/**
- * List the IDs of webhook endpoints pointing at the given URL, best-effort.
- * Returns an empty list when listing fails (permissions, rate limit, …) so
- * the recorded endpoint can still be replaced. Never includes endpoints for
- * another URL.
- */
+/** List the IDs of webhook endpoints pointing at the given URL. */
 const listSameUrlEndpointIds = async (
   client: Stripe,
   webhookUrl: string,
 ): Promise<string[]> => {
-  try {
-    const endpoints = await fetchWebhookEndpoints(client);
-    return endpoints.filter((ep) => ep.url === webhookUrl).map((ep) => ep.id);
-  } catch (err) {
-    logDebug(
-      "Stripe",
-      `Webhook endpoint listing failed: ${sanitizeErrorDetail(err)}`,
-    );
-    return [];
-  }
+  const endpoints = await fetchWebhookEndpoints(client);
+  return endpoints.filter((ep) => ep.url === webhookUrl).map((ep) => ep.id);
 };
 
-/** Delete the given endpoint IDs, swallowing per-delete errors. Each delete
- *  is independent — a stray already being gone doesn't abort the batch. */
-const deleteEndpointsBestEffort = async (
+/** List same-URL endpoints other than the one the database currently names. */
+const listStaleEndpointIds = async (
+  client: Stripe,
+  webhookUrl: string,
+  keepEndpointId: string | null | undefined,
+): Promise<string[]> =>
+  (await listSameUrlEndpointIds(client, webhookUrl)).filter(
+    (id) => id !== keepEndpointId,
+  );
+
+/** Delete the given endpoint IDs. */
+const deleteWebhookEndpoints = async (
   client: Stripe,
   ids: string[],
 ): Promise<void> => {
   for (const id of ids) {
-    try {
-      await client.webhookEndpoints.del(id);
-    } catch {
-      // A stray may already be gone; continue with the next.
-    }
+    await client.webhookEndpoints.del(id);
   }
 };
 
@@ -260,16 +252,16 @@ const isEndpointLimitError = (err: unknown): boolean => {
  * Internal implementation of webhook endpoint setup.
  *
  * Creates the new endpoint but does NOT delete old ones — the caller must
- * save the new endpoint ID + secret to the DB first, then call
+ * save all new Stripe credentials to the DB first, then call
  * {@link cleanupOldWebhookEndpoints} to delete stale same-URL endpoints.
  * This ordering ensures a DB-save failure leaves the old endpoint (whose
  * secret matches the DB) in place, so webhooks keep delivering.
  *
  * If Stripe rejects the create because the account is at its webhook-endpoint
- * cap, deletes the old recorded endpoint by ID to free a slot (it may be at
- * a different URL after a domain move, so it is deleted by ID, not via the
- * same-URL listing), then retries the create. Same-URL strays are preserved
- * until the retry succeeds — the main cleanup (after DB save) deletes them.
+ * cap, deletes stale endpoints for the same URL and retries. The endpoint
+ * named by the current database credentials is never deleted here. If no stale
+ * endpoint can free a slot, the cap error is returned and the current endpoint
+ * stays live.
  */
 const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   secretKey,
@@ -285,15 +277,13 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
     } catch (err) {
       if (!isEndpointLimitError(err)) throw err;
 
-      // Free the slot the old recorded endpoint is consuming, then retry.
-      // Delete by ID because it may be at a different URL after a domain
-      // move. Same-URL strays are preserved — if the retry also fails, one
-      // of them may still match the DB's stored secret, so webhooks keep
-      // delivering. The main cleanup (after DB save) deletes remaining
-      // strays once the new endpoint is durably recorded.
-      if (existingEndpointId) {
-        await deleteEndpointsBestEffort(client, [existingEndpointId]);
-      }
+      const staleIds = await listStaleEndpointIds(
+        client,
+        webhookUrl,
+        existingEndpointId,
+      );
+      if (staleIds.length === 0) throw err;
+      await deleteWebhookEndpoints(client, staleIds);
       endpoint = await createCheckoutWebhook(client, webhookUrl);
     }
 
@@ -315,13 +305,7 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   }
 };
 
-/** Implementation of {@link cleanupOldWebhookEndpoints}.
- *
- *  Neither the listing nor the per-delete path can throw out of this function:
- *  `listSameUrlEndpointIds` catches its own errors and returns `[]`, and
- *  `deleteEndpointsBestEffort` catches per-delete errors. If `createStripeClient`
- *  itself throws, the Stripe SDK is already broken — that propagates loudly
- *  rather than being silently swallowed. */
+/** Implementation of {@link cleanupOldWebhookEndpoints}. */
 const cleanupOldWebhookEndpointsImpl = async (
   secretKey: string,
   webhookUrl: string,
@@ -329,15 +313,17 @@ const cleanupOldWebhookEndpointsImpl = async (
   alsoDeleteIds: readonly string[] = [],
 ): Promise<void> => {
   const client = await createStripeClient(secretKey);
-  const sameUrlStaleIds = (
-    await listSameUrlEndpointIds(client, webhookUrl)
-  ).filter((id) => id !== keepEndpointId);
+  const sameUrlStaleIds = await listStaleEndpointIds(
+    client,
+    webhookUrl,
+    keepEndpointId,
+  );
   // Merge same-URL strays with explicit IDs to delete (e.g. the old
   // recorded endpoint after a domain change, which is at a different URL).
   const allIds = [...new Set([...sameUrlStaleIds, ...alsoDeleteIds])].filter(
     (id) => id !== keepEndpointId,
   );
-  await deleteEndpointsBestEffort(client, allIds);
+  await deleteWebhookEndpoints(client, allIds);
 };
 
 /**
@@ -366,9 +352,8 @@ export const stripeApi: {
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 } = {
   /** Delete old webhook endpoints pointing at the same URL, keeping the one
-   *  with the given ID. Called by the settings route AFTER the new endpoint
-   *  ID + secret are saved to the DB, so a DB-save failure leaves the old
-   *  endpoint (whose secret matches the DB) in place. */
+   *  with the given ID. Called by the settings route after all new Stripe
+   *  credentials are saved. */
   cleanupOldWebhookEndpoints: cleanupOldWebhookEndpointsImpl,
   /** Create checkout session for one or more listings */
   createCheckoutSession: async (
@@ -540,10 +525,8 @@ export const setupWebhookEndpoint = (
   ...args: Parameters<typeof setupWebhookEndpointImpl>
 ): Promise<WebhookSetupResult> => stripeApi.setupWebhookEndpoint(...args);
 
-/** Delete old webhook endpoints at the same URL, keeping the one with
- *  `keepEndpointId`. Best-effort: per-delete and listing failures are caught.
- *  Called by the settings route AFTER the DB save so a save failure leaves
- *  the old endpoint in place. */
+/** Delete old webhook endpoints at the same URL, keeping `keepEndpointId`.
+ * Listing and deletion failures propagate to the settings request. */
 export const cleanupOldWebhookEndpoints = (
   ...args: Parameters<typeof cleanupOldWebhookEndpointsImpl>
 ): Promise<void> => stripeApi.cleanupOldWebhookEndpoints(...args);

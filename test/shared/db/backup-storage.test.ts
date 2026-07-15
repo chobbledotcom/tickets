@@ -18,6 +18,7 @@ import { listFiles, uploadRaw } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { tempDir } from "#test-utils/files.ts";
 
 describeWithEnv("backup storage", { db: true }, () => {
   describe("dbName", () => {
@@ -164,93 +165,69 @@ describeWithEnv("backup storage", { db: true }, () => {
       uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp(when)));
 
     test("true when a backup is within the freshness window", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        await seedBackup(new Date(Date.now() - 60_000));
-        expect(await hasRecentBackup()).toBe(true);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      await seedBackup(new Date(Date.now() - 60_000));
+      expect(await hasRecentBackup()).toBe(true);
     });
 
     test("false when the newest backup is older than the window", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        await seedBackup(
-          new Date(Date.now() - BACKUP_REQUIRED_WITHIN_MS - 60_000),
-        );
-        expect(await hasRecentBackup()).toBe(false);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      await seedBackup(
+        new Date(Date.now() - BACKUP_REQUIRED_WITHIN_MS - 60_000),
+      );
+      expect(await hasRecentBackup()).toBe(false);
     });
 
     test("checks a passed maxAge and name (another instance's backup)", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        const site = dbName("libsql://01-client-acme.lite.bunnydb.net");
-        await uploadRaw(
-          new Uint8Array([1]),
-          backupKey(backupTimestamp(new Date(Date.now() - 60_000)), site),
-        );
-        // Found under the site's folder, but not under the current DB's.
-        expect(await hasRecentBackup(60 * 60 * 1000, site)).toBe(true);
-        expect(await hasRecentBackup(60 * 60 * 1000)).toBe(false);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      const site = dbName("libsql://01-client-acme.lite.bunnydb.net");
+      await uploadRaw(
+        new Uint8Array([1]),
+        backupKey(backupTimestamp(new Date(Date.now() - 60_000)), site),
+      );
+      // Found under the site's folder, but not under the current DB's.
+      expect(await hasRecentBackup(60 * 60 * 1000, site)).toBe(true);
+      expect(await hasRecentBackup(60 * 60 * 1000)).toBe(false);
     });
 
     test("a site's backup never satisfies a site whose name it extends", async () => {
       // The reported bug: "tickets" must not pick up "tickets-spencer"'s
       // backups just because one name is a string prefix of the other.
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        await uploadRaw(
-          new Uint8Array([1]),
-          backupKey(
-            backupTimestamp(new Date(Date.now() - 60_000)),
-            "tickets-spencer",
-          ),
-        );
-        expect(await hasRecentBackup(60 * 60 * 1000, "tickets-spencer")).toBe(
-          true,
-        );
-        expect(await hasRecentBackup(60 * 60 * 1000, "tickets")).toBe(false);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      await uploadRaw(
+        new Uint8Array([1]),
+        backupKey(
+          backupTimestamp(new Date(Date.now() - 60_000)),
+          "tickets-spencer",
+        ),
+      );
+      expect(await hasRecentBackup(60 * 60 * 1000, "tickets-spencer")).toBe(
+        true,
+      );
+      expect(await hasRecentBackup(60 * 60 * 1000, "tickets")).toBe(false);
     });
 
     test("false when no backups exist", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        expect(await hasRecentBackup()).toBe(false);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      expect(await hasRecentBackup()).toBe(false);
     });
 
     test("ignores files in the folder that are not valid backups", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        // A fresh file with a valid timestamp tail but not a "backup-…" name
-        // must NOT satisfy the gate — parseBackupTime alone would accept it, so
-        // the recency check filters to real backups first.
-        await uploadRaw(
-          new Uint8Array([1]),
-          `${backupDir()}manual-${backupTimestamp()}.zip`,
-        );
-        expect(await hasRecentBackup()).toBe(false);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      // A fresh file with a valid timestamp tail but not a "backup-…" name
+      // must NOT satisfy the gate — parseBackupTime alone would accept it, so
+      // the recency check filters to real backups first.
+      await uploadRaw(
+        new Uint8Array([1]),
+        `${backupDir()}manual-${backupTimestamp()}.zip`,
+      );
+      expect(await hasRecentBackup()).toBe(false);
     });
   });
 
@@ -259,64 +236,52 @@ describeWithEnv("backup storage", { db: true }, () => {
       uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp(when)));
 
     test("removes the oldest backups beyond the keep count, ignoring non-backup files", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        const d1 = new Date("2024-01-01T00:00:00Z");
-        const d2 = new Date("2024-02-01T00:00:00Z");
-        const d3 = new Date("2024-03-01T00:00:00Z");
-        await seed(d1);
-        await seed(d2);
-        await seed(d3);
-        // A non-backup file in the same folder is ignored entirely.
-        await uploadRaw(new Uint8Array([1]), `${backupDir()}notes.txt`);
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      const d1 = new Date("2024-01-01T00:00:00Z");
+      const d2 = new Date("2024-02-01T00:00:00Z");
+      const d3 = new Date("2024-03-01T00:00:00Z");
+      await seed(d1);
+      await seed(d2);
+      await seed(d3);
+      // A non-backup file in the same folder is ignored entirely.
+      await uploadRaw(new Uint8Array([1]), `${backupDir()}notes.txt`);
 
-        const removed = await pruneOldBackups(2);
+      const removed = await pruneOldBackups(2);
 
-        expect(removed).toEqual([backupKey(backupTimestamp(d1))]);
+      expect(removed).toEqual([backupKey(backupTimestamp(d1))]);
 
-        const remaining = await listFiles(backupDir());
-        expect(remaining).toEqual([
-          backupKey(backupTimestamp(d2)),
-          backupKey(backupTimestamp(d3)),
-          `${backupDir()}notes.txt`,
-        ]);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      const remaining = await listFiles(backupDir());
+      expect(remaining).toEqual([
+        backupKey(backupTimestamp(d2)),
+        backupKey(backupTimestamp(d3)),
+        `${backupDir()}notes.txt`,
+      ]);
     });
 
     test("keeps everything when the count is within the limit", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        await seed(new Date("2024-01-01T00:00:00Z"));
-        const removed = await pruneOldBackups(5);
-        expect(removed).toEqual([]);
-      } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      await seed(new Date("2024-01-01T00:00:00Z"));
+      const removed = await pruneOldBackups(5);
+      expect(removed).toEqual([]);
     });
 
     test("never throws when a delete fails, returning no removed files", async () => {
-      const tmpDir = Deno.makeTempDirSync();
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      await seed(new Date("2024-01-01T00:00:00Z"));
+      await seed(new Date("2024-02-01T00:00:00Z"));
+      setDeleteOverride(new Error("forced delete failure"));
       try {
-        using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir });
-        await seed(new Date("2024-01-01T00:00:00Z"));
-        await seed(new Date("2024-02-01T00:00:00Z"));
-        setDeleteOverride(new Error("forced delete failure"));
-        try {
-          const removed = await pruneOldBackups(0);
-          expect(removed).toEqual([]);
-        } finally {
-          setDeleteOverride(null);
-        }
-        // Both backups survive the failed purge attempt.
-        const remaining = await listFiles(backupDir());
-        expect(remaining).toHaveLength(2);
+        const removed = await pruneOldBackups(0);
+        expect(removed).toEqual([]);
       } finally {
-        Deno.removeSync(tmpDir, { recursive: true });
+        setDeleteOverride(null);
       }
+      // Both backups survive the failed purge attempt.
+      const remaining = await listFiles(backupDir());
+      expect(remaining).toHaveLength(2);
     });
   });
 

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
+import type { Stub } from "@std/testing/mock";
 import { bracket } from "#fp";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -145,7 +145,7 @@ export const withExpectedError = bracket(
   // Overlay-scoped so the flag stays inside this worker: written to the real
   // process env it would make every parallel test worker swallow its errors.
   () => withEnv({ TEST_EXPECT_ERROR: "1" }),
-  (restore) => restore(),
+  (scope) => scope.dispose(),
 );
 
 export const withFetchMock = bracket(
@@ -260,20 +260,14 @@ export const expectFetchSilent = async (
   body: () => Promise<void>,
   assert?: (calls: Stub["calls"]) => void,
 ): Promise<void> => {
-  const fetchStub = stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response("ok")),
-  );
-  try {
-    await body();
-    (
-      assert ??
-      ((calls) => {
-        expect(calls.length).toBe(0);
-      })
-    )(fetchStub.calls);
-  } finally {
-    fetchStub.restore();
-  }
+  using fetchStub = stubFetch(new Response("ok"));
+  await body();
+  (
+    assert ??
+    ((calls) => {
+      expect(calls.length).toBe(0);
+    })
+  )(fetchStub.calls);
 };
 
 /** Core of the storage-mock helpers: run `body` with a fetch mock whose URL

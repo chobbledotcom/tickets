@@ -14,9 +14,9 @@ export type Table = {
 };
 
 /**
- * A SQLite trigger that maintains a precomputed aggregate. Unlike indexes,
- * triggers aren't part of a single table's definition (they fire on one table
- * and write to another), so they live in their own list. `table` is the table
+ * A SQLite trigger that maintains or validates stored data. Unlike indexes,
+ * triggers aren't part of a single table's definition, so they live in their
+ * own list. `table` is the table
  * the trigger fires ON — used to re-create the trigger after that table is
  * rebuilt by {@link recreateTable}, which silently drops attached triggers.
  * `sql` is the full idempotent `CREATE TRIGGER IF NOT EXISTS …` statement.

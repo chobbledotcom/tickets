@@ -16,6 +16,7 @@ import {
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { setStripeCredentials } from "#test-utils/settings.ts";
 import {
   lineFor,
   noWebhooks,
@@ -129,10 +130,7 @@ describeStripe("stripe", () => {
 
     test("returns full success when API key valid and webhooks exist", async () => {
       const client = await stripeClient();
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_valid",
-        secret: "whsec_test",
-      });
+      await setStripeCredentials("whsec_test", "we_test_valid");
 
       await withBalanceAndList(
         client,
@@ -203,10 +201,7 @@ describeStripe("stripe", () => {
       expect(signature).toMatch(/^t=\d+,v1=[a-f0-9]+$/);
 
       // Signature should be verifiable with the same secret (stored in DB)
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_construction",
-        secret,
-      });
+      await setStripeCredentials(secret, "we_test_construction");
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
     });

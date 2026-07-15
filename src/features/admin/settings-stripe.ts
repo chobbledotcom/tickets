@@ -16,9 +16,11 @@ import {
 } from "#shared/stripe.ts";
 
 export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
-  // Provision the Stripe webhook before the key is persisted, so a setup
-  // failure aborts the save leaving nothing configured.
-  afterSave: async (value) => {
+  formId: "settings-stripe",
+  hasSecret: () => settings.stripe.hasKey,
+  logMessage: "Stripe key configured",
+  provider: "stripe",
+  saveSecret: async (value) => {
     const webhookUrl = getPaymentWebhookUrl();
     const previousEndpointId = settings.stripe.webhookEndpointId;
     const result = await setupWebhookEndpoint(
@@ -29,15 +31,13 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     if (!result.success) {
       return `Failed to set up Stripe webhook: ${result.error}`;
     }
-    // Save the new endpoint ID + secret to the DB FIRST. If this fails, the
-    // old endpoint (whose secret matches the DB) stays in place — webhooks
-    // keep delivering with the old config instead of losing the only signed
-    // endpoint mid-replacement.
-    await settings.update.stripe.webhookConfig(result);
-    // Now that the new credentials are saved, delete old endpoints. Pass the
-    // previous endpoint ID explicitly — after a domain change it points at
-    // the old URL, so the same-URL listing won't find it. Cleanup is
-    // best-effort: a failure here doesn't unwind the save.
+    await settings.update.stripe.credentials({
+      secretKey: value,
+      webhookEndpointId: result.endpointId,
+      webhookSecret: result.secret,
+    });
+    // Cleanup can now fail without leaving saved credentials that name a
+    // deleted endpoint. The error still propagates so stale state is visible.
     await cleanupOldWebhookEndpoints(
       value,
       webhookUrl,
@@ -46,11 +46,6 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     );
     return null;
   },
-  formId: "settings-stripe",
-  hasSecret: () => settings.stripe.hasKey,
-  logMessage: "Stripe key configured",
-  provider: "stripe",
-  saveSecret: (value) => settings.update.stripe.secretKey(value),
   secretField: "stripe_secret_key",
   secretRequiredError: t("error.stripe_key_required"),
   successMessage: t("success.stripe_updated"),

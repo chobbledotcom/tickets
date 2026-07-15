@@ -17,7 +17,7 @@ export const TEST_SESSION = { adminLevel: "owner" as const };
 /** Run fn with CAN_BUILD_SITES pinned to `value` in this worker's env overlay
  *  — never the real process env, which every parallel test worker shares. */
 export const withBuilderEnv =
-  (value: string | undefined) =>
+  (value: string | undefined): ((fn: () => void) => void) =>
   (fn: () => void): void => {
     using _env = withEnv({ CAN_BUILD_SITES: value });
     fn();

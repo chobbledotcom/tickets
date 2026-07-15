@@ -69,7 +69,6 @@ export const getRealEnv = (key: string): string | undefined => _realGet(key);
 
 export interface EnvScope extends Disposable {
   dispose(): void;
-  (): void;
 }
 
 export const withEnv = (vars: Record<string, string | undefined>): EnvScope => {
@@ -92,5 +91,5 @@ export const withEnv = (vars: Record<string, string | undefined>): EnvScope => {
     state.active = false;
     setOverlay(prev);
   };
-  return Object.assign(dispose, { dispose, [Symbol.dispose]: dispose });
+  return { dispose, [Symbol.dispose]: dispose };
 };

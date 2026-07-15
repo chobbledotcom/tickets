@@ -8,6 +8,7 @@ export type WebhookApiCalls = {
   createAttempts: number;
   createdBody: URLSearchParams | null;
   deleted: string[];
+  liveEndpointIds: Set<string>;
 };
 
 export type WebhookApiOptions = {
@@ -19,6 +20,7 @@ export type WebhookApiOptions = {
   deleteFails?: boolean;
   listFails?: boolean;
   recordedInListing?: boolean;
+  sameUrlStray?: boolean;
 };
 
 export const webhookEndpointsApi = (
@@ -35,10 +37,13 @@ export const webhookEndpointsApi = (
     deleteFails = false,
     listFails = false,
     recordedInListing = false,
+    sameUrlStray = true,
   } = options;
   const listed = {
     data: [
-      { id: "we_stray", object: "webhook_endpoint", url: webhookUrl },
+      ...(sameUrlStray
+        ? [{ id: "we_stray", object: "webhook_endpoint", url: webhookUrl }]
+        : []),
       {
         id: "we_other",
         object: "webhook_endpoint",
@@ -108,6 +113,7 @@ export const webhookEndpointsApi = (
     }
     if (createFails) return Promise.resolve(createErrorResponse);
     calls.createdBody = new URLSearchParams(String(init?.body ?? ""));
+    calls.liveEndpointIds.add(created.id);
     return Promise.resolve(Response.json(created));
   };
 
@@ -126,7 +132,9 @@ export const webhookEndpointsApi = (
     }
     if (method === "DELETE") {
       if (deleteFails) throw new Error("Delete failed");
-      calls.deleted.push(new URL(url).pathname.split("/").pop()!);
+      const id = new URL(url).pathname.split("/").pop()!;
+      calls.deleted.push(id);
+      calls.liveEndpointIds.delete(id);
       return Promise.resolve(Response.json({ deleted: true }));
     }
     return handleCreatePost(init);
@@ -173,4 +181,5 @@ export const newWebhookApiCalls = (): WebhookApiCalls => ({
   createAttempts: 0,
   createdBody: null,
   deleted: [],
+  liveEndpointIds: new Set(["we_other", "we_recorded", "we_stray"]),
 });

@@ -1,5 +1,5 @@
 import { formGuard, OWNER_FORM } from "#routes/auth.ts";
-import { createIdEntityHandler } from "#routes/entity.ts";
+import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
@@ -24,7 +24,7 @@ export const createListingChoicePost = ({
   readIds,
   saveIds,
   tab,
-}: ListingChoicePostConfig) =>
+}: ListingChoicePostConfig): IdRouteHandler =>
   createIdEntityHandler<
     NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
   >(getListingWithCount)(formGuard(OWNER_FORM))(

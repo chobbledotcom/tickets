@@ -40,6 +40,7 @@ import type {
   MergeMoneyChoice,
   MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
+import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ContactInfo } from "#shared/types.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees.tsx";
@@ -479,22 +480,24 @@ export const loadMergePanel = async (
 };
 
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
-export const handleMergePost = mergeHandler(async (target, _session, form) => {
-  const input = await validateMergePostInput(target.id, form);
-  if (!input.ok) return input.response;
-  const { source, sourceToken } = input;
-  const diff = await buildMergeDiffFor(target, source, target.id);
-  const decision = parseMergeDecisionForm(form, diff);
-  const validation = validateAttendeeMergeDecision(diff, decision);
-  if (!validation.valid) {
-    // Bounce back to the Actions tab's merge panel; the decision radios reset
-    // (they always have), but the errors flash and the search re-runs.
-    return errorRedirect(
-      `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-        sourceToken,
-      )}`,
-      validation.errors.join("; "),
-    );
-  }
-  return applyMergeDecisions(target.id, target, source, diff, decision);
-});
+export const handleMergePost: ParamsRoute<AttendeeRouteParams> = mergeHandler(
+  async (target, _session, form) => {
+    const input = await validateMergePostInput(target.id, form);
+    if (!input.ok) return input.response;
+    const { source, sourceToken } = input;
+    const diff = await buildMergeDiffFor(target, source, target.id);
+    const decision = parseMergeDecisionForm(form, diff);
+    const validation = validateAttendeeMergeDecision(diff, decision);
+    if (!validation.valid) {
+      // Bounce back to the Actions tab's merge panel; the decision radios reset
+      // (they always have), but the errors flash and the search re-runs.
+      return errorRedirect(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
+        validation.errors.join("; "),
+      );
+    }
+    return applyMergeDecisions(target.id, target, source, diff, decision);
+  },
+);

@@ -22,7 +22,8 @@ describeWithEnv("test-utils/assertions", { db: true }, () => {
   testRequiresAuth("/admin/backup", {
     setup: async () => {
       const { withEnv } = await import("#test-utils/env.ts");
-      return withEnv({ BUNNY_API_KEY: "test" });
+      const scope = withEnv({ BUNNY_API_KEY: "test" });
+      return () => scope.dispose();
     },
   });
 

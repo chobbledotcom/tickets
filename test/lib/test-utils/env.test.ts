@@ -12,6 +12,17 @@ describe("withEnv", () => {
     expect(Deno.env.get(SET_KEY)).toBe("inside");
   });
 
+  test("returns an object whose dispose method restores the scope once", () => {
+    using _outside = withEnv({ [SET_KEY]: "outside" });
+    using scope = withEnv({ [SET_KEY]: "inside" });
+    expect(typeof scope).toBe("object");
+    expect(Deno.env.get(SET_KEY)).toBe("inside");
+
+    scope.dispose();
+    expect(Deno.env.get(SET_KEY)).toBe("outside");
+    expect(() => scope.dispose()).not.toThrow();
+  });
+
   test("deletes one value for its scope", () => {
     using _outside = withEnv({ [DELETE_KEY]: "outside" });
     {
