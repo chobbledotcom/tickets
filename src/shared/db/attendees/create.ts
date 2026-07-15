@@ -139,14 +139,12 @@ const prepareAttendeeWrite = async (
     const statement = buildCapacityCheckedInsert(
       booking,
       ATTENDEE_BY_TOKEN_SQL,
-      undefined,
+      enc.ticketTokenIndex,
       allowOverbook,
     );
     return {
       args: [
-        statement.args[0]!,
-        enc.ticketTokenIndex,
-        ...statement.args.slice(1),
+        ...statement.args,
         ...(extraCondition && !allowOverbook ? extraCondition.args : []),
       ] as InValue[],
       sql:

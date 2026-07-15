@@ -1259,9 +1259,9 @@ bookings imports the rest and reports the skip.
       **inside this transaction** (owner-public-key encryption done up front;
       **not** the standalone `createOwnerNote`, which executes outside any caller
       transaction and would survive a rollback);
-    - record a visit **and** the admin booking count for candidates that have ≥1
+    - record a visit **and** increment `admin_booking_count` for candidates that have ≥1
       real (`quantity > 0`) line — atomic booking activity bumps both `visits`
-      and the per-source booking count, so incrementing only `visits` would leave
+      and `admin_booking_count`, so incrementing only `visits` would leave
       `/admin/history/:hmac` omitting imported bookings (see the resolved
       decision) — but **not** for cancelled or quote-only (quantity-0-only)
       candidates. Do **not** reuse the live booking statements as-is: they set
@@ -1748,10 +1748,11 @@ importer-specific additions in item 6 remain.
    - Write cancelled rows and interested-in/quoted products as `quantity = 0`
      lines (never zero lines); confirmed `Equipments` products get real
      quantities.
-   - Record visit counts for candidates with ≥1 real (`quantity > 0`) line only
-     (the writer bypasses `createAttendeeAtomic` and its contact activity), using the
-     source `Date Booked` with `last_activity = MAX(existing, source)` (see step
-     14), within the rollback boundary.
+    - Increment `visits` and `admin_booking_count` for candidates with ≥1 real
+      (`quantity > 0`) line only (the writer bypasses `createAttendeeAtomic` and
+      its contact activity), using the source `Date Booked` with
+      `last_activity = MAX(existing, source)` (see step 14), within the rollback
+      boundary.
    - Allow overbooked legacy rows (active bookings only; quantity-0 lines don't
      count toward capacity).
    - Prove whole-file rollback (attendees, lines, text answers, new strings,

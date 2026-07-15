@@ -365,6 +365,9 @@ const applyCreate = async (
     manualAddLedgerPoster(toLedgerOrder(parsed)),
   );
   if (!createResult.success) {
+    if (createResult.reason === "encryption_error") {
+      throw new Error("Could not encrypt the new attendee");
+    }
     return { ok: false, saveError: t("attendee_form.error_capacity") };
   }
   const { attendees } = createResult;

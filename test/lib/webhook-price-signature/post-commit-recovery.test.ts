@@ -302,6 +302,18 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     });
 
     await runWebhook({ id: sessionId, metadata }, async (refund) => {
+      const createBooking = attendeesApi.createBookingAtomic;
+      const enteredBooking = Promise.withResolvers<void>();
+      const releaseBooking = Promise.withResolvers<void>();
+      const pauseBooking = stub(
+        attendeesApi,
+        "createBookingAtomic",
+        async (...args) => {
+          enteredBooking.resolve();
+          await releaseBooking.promise;
+          return createBooking(...args);
+        },
+      );
       const retrieve = stubRetrieveCheckoutSession({
         amountTotal: 1000,
         metadata,
@@ -309,7 +321,14 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         sessionId,
       });
       try {
-        await Promise.all([webhookRequest(), redirectRequest(sessionId)]);
+        const firstWebhook = webhookRequest();
+        await enteredBooking.promise;
+        const competingRedirect = await redirectRequest(sessionId);
+        expect(competingRedirect.status).toBe(409);
+        releaseBooking.resolve();
+        await assertJson(firstWebhook, 200, (json) => {
+          expect(json.processed).toBe(true);
+        });
         await assertJson(webhookRequest(), 200, (json) => {
           expect(json.processed).toBe(true);
         });
@@ -332,6 +351,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         expect([200, 302]).toContain(replayedRedirect.status);
         expect(refund.calls.length).toBe(0);
       } finally {
+        releaseBooking.resolve();
+        pauseBooking.restore();
         retrieve.restore();
       }
     });

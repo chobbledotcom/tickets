@@ -274,11 +274,12 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       paymentId: decrypted!.payment_id,
       ticketToken: decrypted!.ticket_token,
     }).toEqual({ id: created.id, paymentId: "pi_atomic", ticketToken });
+    const contactHash = await hashEmail("atomic@example.com");
+    const beforeReplay = await getContactRecord(contactHash, privateKey);
+    expect(beforeReplay.visits).toBe(1);
+    expect(beforeReplay.publicBookingCount).toBe(1);
     await seedOrderActivity("atomic@example.com", "", "public", ticketToken);
-    const record = await getContactRecord(
-      await hashEmail("atomic@example.com"),
-      await getTestPrivateKey(),
-    );
+    const record = await getContactRecord(contactHash, privateKey);
     expect(record.visits).toBe(1);
     expect(record.publicBookingCount).toBe(1);
     expect(await getAttendeesRaw(listing.id)).toEqual(rawBeforeReplay);
