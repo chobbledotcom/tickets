@@ -25,15 +25,41 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { CanonicalBooking } from "#shared/booking-lines.ts";
 import { addDays } from "#shared/dates.ts";
 import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity/checks.ts";
 import {
+  bookingStartAt,
   expandDailyRange,
   overlapsDay,
 } from "#shared/db/attendees/capacity/range.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 
 // jscpd:ignore-end
+
+describe("servicing §0 — canonical booking start timestamps", () => {
+  test("returns the exact start timestamp for a dated canonical row", () => {
+    const booking: CanonicalBooking = {
+      date: "2026-06-24",
+      durationDays: 3,
+      listingId: 1,
+      quantity: 2,
+    };
+
+    expect(bookingStartAt(booking)).toBe("2026-06-24T00:00:00Z");
+  });
+
+  test("returns null for a dateless canonical row", () => {
+    const booking: CanonicalBooking = {
+      date: null,
+      durationDays: 1,
+      listingId: 1,
+      quantity: 2,
+    };
+
+    expect(bookingStartAt(booking)).toBeNull();
+  });
+});
 
 describe("servicing §0 — capacity overlap predicate is half-open", () => {
   // `overlapsDay(day)` returns a predicate over rows carrying string

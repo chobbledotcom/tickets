@@ -284,11 +284,11 @@ export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");
   await executeBatch(noArgStatements(fullSchemaCreateStatements()));
   // A compound CREATE TRIGGER … BEGIN … END body carries internal semicolons
-  // that batch transports mis-split, so triggers run one by one, exactly as
-  // syncTriggers sends them.
-  for (const trigger of TRIGGERS) {
-    await runMigration(trigger.sql);
-  }
+  // that batch transports mis-split. executeMultiple parses complete SQL
+  // scripts, so every idempotent trigger is rebuilt in one fixed-cost call.
+  await getDb().executeMultiple(
+    TRIGGERS.map((trigger) => `${trigger.sql};`).join("\n"),
+  );
   await sealFreshSchema();
 };
 

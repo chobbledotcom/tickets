@@ -1,6 +1,6 @@
 import { filter, map, pipe, sumOf } from "#fp";
 import { addDays } from "#shared/dates.ts";
-import type { ListingBooking } from "#shared/db/attendee-types.ts";
+import type { LineBooking } from "#shared/db/attendee-types.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
@@ -16,9 +16,8 @@ export const dateToStartEnd = (
 
 /** The stored start timestamp for a booking line. */
 export const bookingStartAt = (
-  booking: Pick<ListingBooking, "date" | "durationDays">,
-): string | null =>
-  dateToStartEnd(booking.date ?? null, booking.durationDays ?? 1).startAt;
+  booking: Pick<LineBooking, "date">,
+): string | null => dateToStartEnd(booking.date).startAt;
 
 /** Expand a daily-listing range into individual day strings. */
 export const expandDailyRange = (

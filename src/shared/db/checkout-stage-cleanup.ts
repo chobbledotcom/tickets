@@ -22,33 +22,19 @@ const pendingStageAttendees = (where: string): string =>
 /** Delete pending checkout PII only while no payment request has claimed it.
  * The shared purge removes every dependent row, with checkout_stages last so
  * its attendee-id query remains usable throughout the batch. */
-const discardPendingCheckoutsWhere = (
+const discardPendingCheckoutsWhere = async (
   where: string,
   args: InValue[],
   leading: SqlStatement[] = [],
-): Promise<number> => discardPendingCheckouts(where, args, leading);
-
-const discardPendingCheckouts = async (
-  where: string,
-  args: InValue[],
-  leading: SqlStatement[],
 ): Promise<number> => {
   const attendeeIds = { args, sql: pendingStageAttendees(where) };
-  const dependentDeletes = attendeeDependentDeleteStatements(attendeeIds);
-  const stageDelete = dependentDeletes.find((statement) =>
-    statement.sql.startsWith("DELETE FROM checkout_stages "),
-  );
-  if (!stageDelete) {
-    throw new Error("Attendee purge is missing checkout stage cleanup");
-  }
+  const attendeeDelete = {
+    args,
+    sql: `DELETE FROM attendees WHERE id IN (${attendeeIds.sql})`,
+  };
   const results = await executeBatchWithResults([
     ...leading,
-    ...dependentDeletes.filter((statement) => statement !== stageDelete),
-    {
-      args,
-      sql: `DELETE FROM attendees WHERE id IN (${attendeeIds.sql})`,
-    },
-    stageDelete,
+    ...attendeeDependentDeleteStatements(attendeeIds, [attendeeDelete]),
   ]);
   return results[results.length - 1]!.rowsAffected;
 };

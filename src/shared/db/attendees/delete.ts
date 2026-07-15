@@ -53,21 +53,30 @@ const restoreListingContributions = (
  * links it to the attendee. Deleted (in this order) before the attendee row. */
 const DEPENDENT_ROW_TARGETS = [
   { field: "attendee_id", table: "processed_payments" },
-  { field: "attendee_id", table: "checkout_stages" },
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
   { field: "attendee_id", table: "system_notes" },
   { field: "servicing_attendee_id", table: "service_costs" },
+  { field: "attendee_id", table: "checkout_stages" },
 ] as const;
 
-/** Build the common dependent-row deletes for one or many attendee ids. */
+/** Build the common dependent-row deletes for one or many attendee ids.
+ * Checkout stages are always last, so a caller whose id query reads that table
+ * can place related statements immediately before its guaranteed final delete. */
 export const attendeeDependentDeleteStatements = (
   attendeeIds: SqlStatement,
-): SqlStatement[] =>
-  DEPENDENT_ROW_TARGETS.map(({ field, table }) => ({
+  beforeCheckoutStage: SqlStatement[] = [],
+): SqlStatement[] => {
+  const deletes = DEPENDENT_ROW_TARGETS.map(({ field, table }) => ({
     args: attendeeIds.args,
     sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
   }));
+  return [
+    ...deletes.slice(0, -1),
+    ...beforeCheckoutStage,
+    ...deletes.slice(-1),
+  ];
+};
 
 /** Delete an attendee and all dependent data tied to the attendee record. */
 const purgeAttendee = (
