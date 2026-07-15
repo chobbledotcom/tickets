@@ -1151,3 +1151,25 @@ Starting points: `src/features/api/payment-processing/completion.ts`,
 `src/shared/site-assignment.ts`. Tests must interrupt each effect, retry through
 both webhook and redirect paths, and prove answers, activity, messages, site
 assignments, and renewal time are neither lost nor duplicated.
+
+---
+
+## Backup storage edge cases
+
+*Origin: CodeRabbit review of PR #1837.*
+
+PR #1837 only moves the existing backup storage helpers out of
+`src/shared/db/backup.ts`; it deliberately preserves their behavior. These
+possible behavior changes need separate decisions and regression tests:
+
+- **Keep every database namespace non-empty and distinct.** `dbName` in
+  `src/shared/db/backup-storage.ts` returns an empty name for a parseable local
+  `file:` URL and strips the first dashed part from non-Bunny hostnames. Decide
+  the supported URL schemes and hostnames, return a named local folder for local
+  URLs, and only remove Bunny DB's UUID prefix for `.lite.bunnydb.net`. Start
+  with tests for `file:database.db` and two distinct dashed HTTPS hostnames.
+- **Reject future-dated backups from the update gate.** `hasRecentBackup` in
+  `src/shared/db/backup-storage.ts` treats every future timestamp as recent
+  because its age is negative. Decide how much clock skew is acceptable, then
+  require a non-negative age (or a documented tolerance) before applying the
+  maximum age. Add a test with a future backup filename.

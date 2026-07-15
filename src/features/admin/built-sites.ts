@@ -20,7 +20,7 @@ import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/builder.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { dbName, hasRecentBackup } from "#shared/db/backup.ts";
+import { dbName, hasRecentBackup } from "#shared/db/backup-storage.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
   builtSites,
