@@ -441,6 +441,14 @@ export const joinStatements = (
   sql: statements.map((statement) => statement.sql).join(joiner),
 });
 
+/** Join SQL conditions with AND while preserving their argument order. */
+export const andConditions = (
+  conditions: readonly SqlStatement[],
+): SqlStatement => ({
+  args: conditions.flatMap((condition) => condition.args),
+  sql: conditions.map((condition) => `(${condition.sql})`).join(" AND "),
+});
+
 /**
  * Execute a batch with optional query logging, then invalidate caches for every
  * table the batch mutated. Invalidation runs once the transaction has

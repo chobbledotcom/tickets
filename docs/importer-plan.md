@@ -1260,12 +1260,12 @@ bookings imports the rest and reports the skip.
       **not** the standalone `createOwnerNote`, which executes outside any caller
       transaction and would survive a rollback);
     - record a visit **and** the admin booking count for candidates that have ≥1
-      real (`quantity > 0`) line — `recordOrderActivity` bumps both `visits` and
-      the per-source booking count, so incrementing only `visits` would leave
+      real (`quantity > 0`) line — atomic booking activity bumps both `visits`
+      and the per-source booking count, so incrementing only `visits` would leave
       `/admin/history/:hmac` omitting imported bookings (see the resolved
       decision) — but **not** for cancelled or quote-only (quantity-0-only)
-      candidates. Do **not** reuse `recordOrderActivity` / `recordVisit` /
-      `recordBooking` as-is: they set `last_activity = nowMs()`, which makes an old
+      candidates. Do **not** reuse the live booking statements as-is: they set
+      `last_activity = nowMs()`, which makes an old
       imported booking look freshly active to `pruneContacts`. Increment `visits`
       and `admin_booking_count` (imports are admin-initiated) using the **source
       booking date** (`Date Booked`, with the same import-time fallback as
@@ -1749,7 +1749,7 @@ importer-specific additions in item 6 remain.
      lines (never zero lines); confirmed `Equipments` products get real
      quantities.
    - Record visit counts for candidates with ≥1 real (`quantity > 0`) line only
-     (the writer bypasses `createAttendeeAtomic`/`recordOrderActivity`), using the
+     (the writer bypasses `createAttendeeAtomic` and its contact activity), using the
      source `Date Booked` with `last_activity = MAX(existing, source)` (see step
      14), within the rollback boundary.
    - Allow overbooked legacy rows (active bookings only; quantity-0 lines don't
@@ -1872,15 +1872,15 @@ importer-specific additions in item 6 remain.
   duplicated here.
 - The writer records **both** the visit count **and** the source booking count for
   confirmed (real-quantity) imported bookings only, since it bypasses
-  `createAttendeeAtomic`/`recordOrderActivity`. `recordOrderActivity` bumps `visits`
-  **and** the per-source booking count (`recordBooking` →
-  `admin_booking_count`/`public_booking_count`), so incrementing only `visits` would
+  `createAttendeeAtomic` contact activity. A live booking bumps `visits` **and**
+  the matching `admin_booking_count`/`public_booking_count`, so
+  incrementing only `visits` would
   leave imported customers looking like first-time visitors for visit-gated
   modifiers **and** leave `/admin/history/:hmac` booking counts omitting imported
   bookings. The importer must bump the **`admin_booking_count`** column too (imports
-  are admin-initiated), not just `visits`. It must **not** reuse
-  `recordOrderActivity`/`recordVisit`/`recordBooking` as-is (they stamp
-  `last_activity = nowMs()`); increment both counters with the source `Date Booked`
+  are admin-initiated), not just `visits`. It must **not** reuse the live booking
+  statements as-is (they stamp `last_activity = nowMs()`); increment
+  both counters with the source `Date Booked`
   and `last_activity = MAX(existing.last_activity, source)` so old imports don't look
   freshly active to pruning, all within the rollback boundary.
 - The importer fires **no registration side-effects**: it never calls

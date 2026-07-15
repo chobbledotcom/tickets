@@ -6,16 +6,14 @@ import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
-import {
-  finalizeSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee } from "#shared/types.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import { withRefreshPaymentProbe } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
@@ -59,7 +57,12 @@ const setupBalanceRefresh = async (
     },
   ]);
   await reserveSession(balanceSessionId);
-  await finalizeSession(balanceSessionId, attendee.id, [], balancePaymentId);
+  await finalizeReservedPayment(
+    balanceSessionId,
+    attendee.id,
+    "",
+    balancePaymentId,
+  );
   return attendee;
 };
 

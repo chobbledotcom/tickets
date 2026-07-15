@@ -6,10 +6,12 @@
 import { map, sum } from "#fp";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { buildAttendeeInsert } from "#shared/db/attendees/create.ts";
+import { ATTENDEE_BY_TOKEN_SQL } from "#shared/db/attendees/create-batch.ts";
 import { encryptAttendeeFields } from "#shared/db/attendees/pii.ts";
-import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
+import { executeBatch, insert, queryAll } from "#shared/db/client.ts";
 import {
   dayCountPriceStatements,
   syncListingPricesForIds,
@@ -131,23 +133,26 @@ const prepareAttendee = async (
   const pricePaid = unitPrice * quantity;
   const paymentId =
     unitPrice > 0 ? `seed_${listingId}_${quantity}_${pricePaid}` : "";
-  const enc = (await encryptAttendeeFields({
-    address: randomChoice(DEMO_ADDRESSES),
-    email: randomChoice(DEMO_EMAILS),
-    name: randomChoice(DEMO_NAMES),
-    paymentId,
-    phone: randomChoice(DEMO_PHONES),
-    pricePaid,
-    special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
-  }))!;
+  const enc = (await encryptAttendeeFields(
+    {
+      address: randomChoice(DEMO_ADDRESSES),
+      email: randomChoice(DEMO_EMAILS),
+      name: randomChoice(DEMO_NAMES),
+      paymentId,
+      phone: randomChoice(DEMO_PHONES),
+      pricePaid,
+      special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
+    },
+    generateTicketToken(),
+  ))!;
 
   return [
     buildAttendeeInsert(enc, { remainingBalance: 0, statusId: null }),
-    insert("listing_attendees", {
-      attendee_id: rawSql("last_insert_rowid()"),
-      listing_id: listingId,
-      quantity,
-    }),
+    {
+      args: [listingId, enc.ticketTokenIndex, quantity],
+      sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+            VALUES (?, ${ATTENDEE_BY_TOKEN_SQL}, ?)`,
+    },
   ];
 };
 
@@ -235,8 +240,7 @@ export const createSeeds = async (
           chunkQuantities,
         ),
       );
-      // Each pair is [attendee INSERT, listing_attendees INSERT] — flatten in order
-      // so each listing_attendees INSERT follows its attendee (last_insert_rowid works)
+      // Each booking locates its attendee by the caller-supplied stable token.
       await executeBatch(statementPairs.flat());
       totalAttendees += batchSize;
     }

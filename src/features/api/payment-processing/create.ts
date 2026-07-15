@@ -31,7 +31,6 @@ import {
   type createAttendeeAtomic,
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
-import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -143,6 +142,7 @@ export type CreatedEntry = {
  */
 export type HonourResult =
   | { ok: true; entries: CreatedEntry[] }
+  | { ok: null; error: unknown }
   | {
       ok: false;
       reason: "sold_out" | "capacity_exceeded" | "encryption_error";
@@ -238,7 +238,7 @@ export const logPromoCodeModifiers = async (
 
 /**
  * Create the attendee plus per-listing bookings atomically, finalizing the
- * payment session in the SAME batch (see batchFinalizeStatement) so attendee_id
+ * payment session in the SAME batch (see batchFinalizeStatements) so attendee_id
  * is set iff the attendee row exists — closing the crash window between a
  * separate post-transaction finalize and the attendee INSERT. durationDays is
  * listing-scoped and re-read here so the stored range always matches the
@@ -251,6 +251,7 @@ export const createAttendeeForSession = async (
   validatedItems: ValidatedItem[],
   pricingIntent: CheckoutIntent,
   pricedOrder: PricedOrder,
+  ticketToken: string,
 ): Promise<HonourResult> => {
   // Per-LINE paid amounts: a listing booked through two paths is two lines
   // with their own prices, and each becomes its own booking row. The priced
@@ -301,14 +302,18 @@ export const createAttendeeForSession = async (
     { paymentReference: session.paymentReference, sessionId: session.id },
   );
 
-  const result = await createBookingAtomic(
-    {
-      ...(await attendeeBaseFields(session, intent)),
-      bookings,
-      remainingBalance,
-    },
-    plan,
-  );
+  const attendeeInput = {
+    ...(await attendeeBaseFields(session, intent)),
+    bookings,
+    remainingBalance,
+    ticketToken,
+  };
+  let result: Awaited<ReturnType<typeof createBookingAtomic>>;
+  try {
+    result = await createBookingAtomic(attendeeInput, plan);
+  } catch (error) {
+    return { error, ok: null };
+  }
   if (result === "sold-out") {
     return {
       detail: "a chosen add-on or extra sold out during payment",
@@ -318,23 +323,16 @@ export const createAttendeeForSession = async (
   }
 
   // All-or-nothing: a capacity failure rolled the transaction back (no legs).
-  const bookingCheck = await ensureAllBookings(
-    result,
-    bookings.length,
-    "public",
-  );
-  if (!bookingCheck.ok) {
+  if (!result.success) {
     return {
       detail: formatPostPaymentError(
-        bookingCheck.reason,
+        result.reason,
         validatedItems[0]!.listing.name,
       ),
       ok: false,
-      reason: bookingCheck.reason,
+      reason: result.reason,
     };
   }
-  const created = result as Extract<typeof result, { success: true }>;
-
-  const entries = pairEntriesByListing(created.attendees, validatedItems);
+  const entries = pairEntriesByListing(result.attendees, validatedItems);
   return { entries, ok: true };
 };
