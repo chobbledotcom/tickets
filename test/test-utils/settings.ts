@@ -71,13 +71,13 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
   await s.update.paymentProvider("stripe");
 };
 
-/** Store one internally consistent Stripe API key and webhook pair. */
-export const setStripeCredentials = (
+/** Store one internally consistent Stripe API key and webhook pair, and select Stripe. */
+export const activateStripe = (
   webhookSecret: string,
   webhookEndpointId = "we_test_endpoint",
   secretKey = "sk_test_mock",
 ): Promise<void> =>
-  settings.update.stripe.credentials({
+  settings.update.stripe.activate({
     secretKey,
     webhookEndpointId,
     webhookSecret,

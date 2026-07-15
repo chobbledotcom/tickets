@@ -23,7 +23,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { nonRsaCertificatePem } from "#test-utils/der.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
-import { setStripeCredentials } from "#test-utils/settings.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 
 /** Build a complete DebugPageState, overriding only the fields a test cares about. */
 const makeDebugState = (
@@ -287,7 +287,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug with Stripe configured", () => {
     test("shows stripe as provider with key and webhook status", async () => {
       await settings.update.paymentProvider("stripe");
-      await setStripeCredentials("whsec_fake", "we_fake", "sk_test_fake");
+      await activateStripe("whsec_fake", "we_fake", "sk_test_fake");
       await assertAdminHtml("/admin/debug", "stripe", "Configured");
     });
 
