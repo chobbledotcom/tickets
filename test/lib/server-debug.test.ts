@@ -20,6 +20,7 @@ import {
   getMismatchedAppleWalletKey,
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { nonRsaCertificatePem } from "#test-utils/der.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
 
@@ -387,6 +388,15 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         debugRow("Signing certificate", "Invalid PEM"),
         debugRow("Signing key", "Invalid PEM"),
         debugRow("WWDR certificate", "Invalid PEM"),
+      );
+    });
+
+    test("shows a non-RSA WWDR intermediate as valid", async () => {
+      await configureAppleDebug();
+      await settings.update.appleWallet.wwdrCert(nonRsaCertificatePem());
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("WWDR certificate", "Valid"),
       );
     });
 

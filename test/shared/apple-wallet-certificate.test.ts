@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   isValidAppleCertificate,
+  isValidCertificate,
   readAppleCertificate,
 } from "#shared/apple-wallet/certificate.ts";
 import {
@@ -11,7 +12,7 @@ import {
   encodeSequence,
 } from "#shared/crypto/der.ts";
 import { generateTestCerts } from "#test-utils/crypto.ts";
-import { pemFor, rsaAlgorithm } from "#test-utils/der.ts";
+import { nonRsaCertificatePem, pemFor, rsaAlgorithm } from "#test-utils/der.ts";
 import { thrownError } from "#test-utils/errors.ts";
 
 const bitString = (): Uint8Array => encodeDer(0x03, [new Uint8Array([0, 1])]);
@@ -126,6 +127,14 @@ describe("Apple Wallet certificates", () => {
       certificate(body(publicKey)),
       "Certificate public key is not RSA",
     );
+  });
+
+  test("accepts a non-RSA certificate as an intermediate", () => {
+    expect(isValidCertificate(nonRsaCertificatePem())).toBe(true);
+  });
+
+  test("rejects a malformed intermediate", () => {
+    expect(isValidCertificate("not-a-certificate")).toBe(false);
   });
 
   test("rejects incomplete public-key information", () => {

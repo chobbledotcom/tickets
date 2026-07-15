@@ -17,6 +17,7 @@ import {
   generateTestCerts,
   getMismatchedAppleWalletKey,
 } from "#test-utils/crypto.ts";
+import { nonRsaCertificatePem } from "#test-utils/der.ts";
 import { rejectedError } from "#test-utils/errors.ts";
 
 const encoder = new TextEncoder();
@@ -146,6 +147,19 @@ describe("Apple Wallet signing", () => {
     expect(await opensslVerifies(manifest, await sign(manifest, key))).toBe(
       true,
     );
+  });
+
+  test("embeds a non-RSA WWDR intermediate", async () => {
+    const manifest = await createManifest({
+      "pass.json": encoder.encode("pass"),
+    });
+    const signature = await signManifest(
+      manifest,
+      creds.signingCert,
+      creds.signingKey,
+      nonRsaCertificatePem(),
+    );
+    expect(signature.length).toBeGreaterThan(500);
   });
 
   test("binds the detached signature to the exact manifest bytes", async () => {

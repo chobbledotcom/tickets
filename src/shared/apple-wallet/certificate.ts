@@ -21,6 +21,13 @@ export interface AppleCertificate {
   serialNumber: Uint8Array;
 }
 
+type CertificateParts = {
+  bytes: Uint8Array;
+  issuer: DerValue;
+  publicKey: DerValue;
+  serialNumber: DerValue;
+};
+
 const fieldAt = (
   fields: readonly DerValue[],
   index: number,
@@ -45,31 +52,51 @@ const requireRsaPublicKey = (publicKey: DerValue): void => {
   fieldAt(fields, 1, 0x03, "public key");
 };
 
+/** Parse the certificate envelope shared by RSA leaf and intermediate certs. */
+const readCertificateParts = (pem: string): CertificateParts => {
+  const { bytes } = readPem(pem, ["CERTIFICATE", "X509 CERTIFICATE"]);
+  // Certificate contains two 0x30 SEQUENCEs followed by the 0x03 signature
+  // BIT STRING: TBSCertificate, signatureAlgorithm, and signatureValue.
+  const fields = readDerSequence(bytes, "certificate");
+  if (fields.length !== 3) throw new Error("Invalid certificate fields");
+  const body = fieldAt(fields, 0, 0x30, "body");
+  fieldAt(fields, 1, 0x30, "signature algorithm");
+  fieldAt(fields, 2, 0x03, "signature");
+
+  const bodyFields = readDerChildren(body);
+  // TBSCertificate starts with optional [0] EXPLICIT version; absent means v1.
+  // The remaining fixed order is serial, signature, issuer, validity, subject,
+  // then SubjectPublicKeyInfo.
+  const offset = bodyFields[0]?.tag === 0xa0 ? 1 : 0;
+  const serialNumber = fieldAt(bodyFields, offset, 0x02, "serial number");
+  fieldAt(bodyFields, offset + 1, 0x30, "signature algorithm");
+  const issuer = fieldAt(bodyFields, offset + 2, 0x30, "issuer");
+  fieldAt(bodyFields, offset + 3, 0x30, "validity");
+  fieldAt(bodyFields, offset + 4, 0x30, "subject");
+  const publicKey = fieldAt(bodyFields, offset + 5, 0x30, "public key");
+  return { bytes, issuer, publicKey, serialNumber };
+};
+
+/** Return one structurally valid X.509 certificate's DER bytes. */
+export const readCertificateBytes = (pem: string): Uint8Array =>
+  readCertificateParts(pem).bytes;
+
+/** Whether PEM contains one structurally valid X.509 certificate. */
+export const isValidCertificate = (pem: string): boolean => {
+  try {
+    readCertificateParts(pem);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Parse the RSA/X.509 fields needed by CMS. This does not validate the
  * certificate signature, dates, usage, chain, or Apple-specific extensions.
  */
 export const readAppleCertificate = (pem: string): AppleCertificate => {
-  const { bytes } = readPem(pem, ["CERTIFICATE", "X509 CERTIFICATE"]);
-  // Certificate contains TBSCertificate, signatureAlgorithm, and signatureValue.
-  const certificateFields = readDerSequence(bytes, "certificate");
-  if (certificateFields.length !== 3)
-    throw new Error("Invalid certificate fields");
-  const tbs = fieldAt(certificateFields, 0, 0x30, "body");
-  fieldAt(certificateFields, 1, 0x30, "signature algorithm");
-  fieldAt(certificateFields, 2, 0x03, "signature");
-
-  const fields = readDerChildren(tbs);
-  // TBSCertificate starts with optional [0] EXPLICIT version; absent means v1.
-  // The remaining fixed order is serial, signature, issuer, validity, subject,
-  // then SubjectPublicKeyInfo.
-  const offset = fields[0]?.tag === 0xa0 ? 1 : 0;
-  const serialNumber = fieldAt(fields, offset, 0x02, "serial number");
-  fieldAt(fields, offset + 1, 0x30, "signature algorithm");
-  const issuer = fieldAt(fields, offset + 2, 0x30, "issuer");
-  fieldAt(fields, offset + 3, 0x30, "validity");
-  fieldAt(fields, offset + 4, 0x30, "subject");
-  const publicKey = fieldAt(fields, offset + 5, 0x30, "public key");
+  const { bytes, issuer, publicKey, serialNumber } = readCertificateParts(pem);
   requireRsaPublicKey(publicKey);
 
   return {

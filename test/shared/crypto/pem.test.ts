@@ -21,6 +21,19 @@ describe("PEM", () => {
     ).toEqual(new Uint8Array([4, 5]));
   });
 
+  test("reads a PEM block surrounded by export metadata", () => {
+    const pem = [
+      "Bag Attributes",
+      "    localKeyID: 01 02 03",
+      "    friendlyName: Wallet key",
+      "Key Attributes: <No Attributes>",
+      pemFor("PRIVATE KEY", new Uint8Array([6, 7])).trim(),
+      "subject=CN=Exported key",
+      "issuer=CN=Export issuer",
+    ].join("\n");
+    expect(readPem(pem, ["PRIVATE KEY"]).bytes).toEqual(new Uint8Array([6, 7]));
+  });
+
   test("rejects a missing or extra PEM block", () => {
     expect(thrownError(() => readPem("not PEM", ["PRIVATE KEY"])).message).toBe(
       "Expected one PEM block",
@@ -37,6 +50,14 @@ describe("PEM", () => {
         readPem(`x${pemFor("PRIVATE KEY", new Uint8Array([1]))}`, [
           "PRIVATE KEY",
         ]),
+      ).message,
+    ).toBe("Unexpected data outside PEM block");
+    expect(
+      thrownError(() =>
+        readPem(
+          `Bag Attributes\n    unknownValue: no\n${pemFor("PRIVATE KEY", new Uint8Array([1]))}`,
+          ["PRIVATE KEY"],
+        ),
       ).message,
     ).toBe("Unexpected data outside PEM block");
   });

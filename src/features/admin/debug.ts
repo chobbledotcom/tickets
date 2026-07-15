@@ -10,7 +10,10 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import { t } from "#i18n";
 import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
+import {
+  isValidAppleCertificate,
+  isValidCertificate,
+} from "#shared/apple-wallet/certificate.ts";
 import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
@@ -92,7 +95,7 @@ const validateAppleWalletCerts = async (
   const [signingCertValid, signingKeyValid, wwdrCertValid] = await Promise.all([
     isValidAppleCertificate(config.signingCert),
     isValidRsaPrivateKey(config.signingKey),
-    isValidAppleCertificate(config.wwdrCert),
+    isValidCertificate(config.wwdrCert),
   ]);
   const bothValid = signingCertValid && signingKeyValid;
   const pairMatches =

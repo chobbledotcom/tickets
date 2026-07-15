@@ -15,7 +15,7 @@ import {
   importRsaPublicKey,
 } from "#shared/crypto/rsa-private-key.ts";
 import { startOfHour } from "#shared/dates.ts";
-import { readAppleCertificate } from "./certificate.ts";
+import { readAppleCertificate, readCertificateBytes } from "./certificate.ts";
 
 // Registered CMS, PKCS #9, PKCS #1, and NIST identifiers written on the wire.
 const OID = {
@@ -114,7 +114,9 @@ export const signManifest = async (
 ): Promise<Uint8Array> => {
   const signingTime = startOfHour(new Date());
   const manifest = new TextEncoder().encode(manifestData);
-  const wwdrCertificate = readAppleCertificate(wwdrCertPem);
+  // The WWDR intermediate is embedded, not used to verify the RSA signature;
+  // Apple has issued both RSA and ECC WWDR certificates.
+  const wwdrCertificate = readCertificateBytes(wwdrCertPem);
   const manifestDigest = await digest(manifest);
   const attributes = [
     attribute(OID.contentType, encodeOid(OID.data)),
@@ -150,7 +152,7 @@ export const signManifest = async (
     // supplied separately by the pass archive.
     encodeSequence([encodeOid(OID.data)]),
     // Apple needs both the signing and WWDR certificates to build its chain.
-    implicitSet(0xa0, [signingCertificate.bytes, wwdrCertificate.bytes]),
+    implicitSet(0xa0, [signingCertificate.bytes, wwdrCertificate]),
     encodeSet([signerInfo]),
   ]);
   const cms = encodeSequence([

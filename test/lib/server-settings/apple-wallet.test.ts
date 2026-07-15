@@ -16,7 +16,11 @@ import {
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
-import { pemFor, rsaPrivateKey } from "#test-utils/der.ts";
+import {
+  nonRsaCertificatePem,
+  pemFor,
+  rsaPrivateKey,
+} from "#test-utils/der.ts";
 import { setTestEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -415,6 +419,18 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       ),
       false,
     )(response);
+  });
+
+  test("accepts a non-RSA WWDR intermediate", async () => {
+    const wwdrCert = nonRsaCertificatePem();
+    const response = await submitWalletSettingsForm({
+      apple_wallet_wwdr_cert: wwdrCert,
+    });
+    await expectFlashRedirect(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      "Apple Wallet settings updated",
+    )(response);
+    expect(settings.appleWallet.wwdrCert).toBe(wwdrCert.trim());
   });
 
   test("rejects a new signing key that does not match the saved certificate", async () => {

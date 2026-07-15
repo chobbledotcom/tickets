@@ -463,7 +463,7 @@ export const collectionCache = <T>(
   return {
     getAll: async (): Promise<T[]> => {
       const state = getState();
-      if (state.items !== null && now() - state.time < ttlMs) {
+      if (state.items !== null && now() - state.time <= ttlMs) {
         return state.items;
       }
       const gen = generation;

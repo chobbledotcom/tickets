@@ -276,10 +276,11 @@ describe("fp caches and resources", () => {
       await expectRefetched(tracked);
     });
 
-    test("refetches exactly when the TTL is reached", async () => {
+    test("keeps the collection exactly until the TTL is passed", async () => {
       const tracked = await fetchedDynCollection();
       tracked.setTime(100);
-      await expectRefetched(tracked);
+      expect(await tracked.cache.getAll()).toEqual([1]);
+      expect(tracked.calls.length).toBe(1);
     });
 
     test("refetches after invalidate", async () => {

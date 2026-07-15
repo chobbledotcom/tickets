@@ -11,7 +11,10 @@ import {
   saveSecret,
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
-import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
+import {
+  isValidAppleCertificate,
+  isValidCertificate,
+} from "#shared/apple-wallet/certificate.ts";
 import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
 import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -110,7 +113,7 @@ const effectiveSecretValue = (
 type AppleSecretField = {
   fromForm: (d: AppleWalletFormData) => SecretFieldResult;
   invalidKey: string;
-  looksValid: (value: string) => Promise<boolean>;
+  looksValid: (value: string) => boolean | Promise<boolean>;
   missingKey: string;
   savedValue: () => string;
 };
@@ -134,7 +137,7 @@ const APPLE_SECRET_FIELDS = [
   {
     fromForm: (d) => d.wwdr,
     invalidKey: "error.apple_wwdr_cert_invalid",
-    looksValid: isValidAppleCertificate,
+    looksValid: isValidCertificate,
     missingKey: "error.apple_wwdr_cert_required",
     savedValue: () => settings.appleWallet.wwdrCert,
   },
