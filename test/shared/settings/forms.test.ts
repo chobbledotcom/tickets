@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import en from "#locales/en/index.ts";
 import {
   SETTINGS_FORM_DEFINITIONS,
   SETTINGS_FORMS,
 } from "#shared/settings/forms.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import { allEnglishMessages } from "#test-utils/i18n.ts";
+
+const en = await allEnglishMessages(["fields", "settings"]);
 
 type ExpectedFormRow = readonly [
   keyof typeof SETTINGS_FORMS,

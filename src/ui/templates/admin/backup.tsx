@@ -59,7 +59,7 @@ const RetentionNote = ({
 };
 
 export const adminBackupPage = flashDataPage<BackupPageState>(
-  t("backup.page_title"),
+  "backup.page_title",
   "/admin/backup",
   (state) => (
     <>

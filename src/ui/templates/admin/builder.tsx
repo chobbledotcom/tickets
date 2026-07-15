@@ -71,7 +71,7 @@ const BuiltSitesTable = ({
   );
 
 export const adminBuilderPage = flashDataPage<BuiltSiteDisplay[]>(
-  t("builder.site_builder_title"),
+  "builder.site_builder_title",
   undefined,
   (sites) => (
     <>

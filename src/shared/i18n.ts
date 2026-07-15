@@ -7,15 +7,34 @@
 
 import { IntlMessageFormat } from "intl-messageformat";
 import { lazyRef } from "#fp";
-import en from "#locales/en/index.ts";
+import {
+  ENGLISH_MESSAGE_LOADERS,
+  type MessageGroup,
+  type Messages,
+  SYSTEM_MESSAGES,
+} from "#locales/manifest.ts";
 import { getEnv } from "#shared/env.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
 
-/** Message map: flat dot-namespaced keys → ICU message strings */
-type Messages = Record<string, string>;
+const LOCALE_LOADERS = { en: ENGLISH_MESSAGE_LOADERS };
 
-/** Registered locale message maps — English is built-in as the default fallback */
-const locales: Record<string, Messages> = { en };
+interface I18nState {
+  readonly loaded: Set<MessageGroup>;
+  readonly messages: Map<string, string>;
+  readonly owners: Map<string, MessageGroup>;
+  readonly pending: Map<MessageGroup, Promise<void>>;
+}
+
+const createI18nState = (): I18nState => ({
+  loaded: new Set(["system"]),
+  messages: new Map(Object.entries(SYSTEM_MESSAGES)),
+  owners: new Map(
+    Object.keys(SYSTEM_MESSAGES).map((key) => [key, "system"] as const),
+  ),
+  pending: new Map(),
+});
+
+const [getI18nState, setI18nState] = lazyRef(createI18nState);
 
 /**
  * A resolved message is either a plain string (needs no ICU processing at all)
@@ -25,32 +44,75 @@ const locales: Record<string, Messages> = { en };
 type Resolved = string | IntlMessageFormat;
 
 /** ICU parsing is non-trivial, so cache the resolved message by locale + key. */
-const formatCache: Record<string, Resolved | null | undefined> = {};
+const formatCache: Record<string, Resolved | undefined> = {};
 
 /** Get the list of registered locale codes */
-export const getRegisteredLocales = (): string[] => Object.keys(locales);
+export const getRegisteredLocales = (): string[] => Object.keys(LOCALE_LOADERS);
 
 /** Drop every compiled formatter so the next lookups recompile. */
 const clearFormatCache = (): void => {
   for (const key of Object.keys(formatCache)) delete formatCache[key];
 };
 
-/**
- * Merge additional messages into a locale at runtime. Used to load a large,
- * single-page bundle (the admin guide, ~120KB) on demand rather than in the
- * eager `en` merge, keeping its weight off the cold-boot path. The owning route
- * registers its bundle before rendering; a key still missing after that throws
- * in `t()` exactly as a typo would, so the fail-loud contract is preserved.
- *
- * `resolveMessage` caches a `null` for any key it can't resolve, so a lazy key looked
- * up before it is registered would otherwise stay poisoned for the isolate's
- * life. Clearing the format cache after merging lets the next lookup recompile
- * against the new copy instead of returning the stale miss. Registration happens
- * once per isolate (guide load), so recompiling on next use costs nothing real.
- */
-export const registerMessages = (locale: string, extra: Messages): void => {
-  locales[locale] = { ...locales[locale], ...extra };
-  clearFormatCache();
+const registerGroup = (
+  state: I18nState,
+  group: MessageGroup,
+  extra: Messages,
+): void => {
+  for (const [key, message] of Object.entries(extra)) {
+    if (typeof message !== "string") {
+      throw new TypeError(`en/${group} message "${key}" is not a string`);
+    }
+    const owner = state.owners.get(key);
+    if (owner !== undefined && owner !== group) {
+      throw new Error(
+        `Message key "${key}" belongs to both en/${owner} and en/${group}`,
+      );
+    }
+    state.messages.set(key, message);
+    state.owners.set(key, group);
+  }
+  state.loaded.add(group);
+};
+
+const ensureMessageGroup = (
+  state: I18nState,
+  group: MessageGroup,
+): Promise<void> => {
+  if (state.loaded.has(group)) return Promise.resolve();
+  const inFlight = state.pending.get(group);
+  if (inFlight) return inFlight;
+
+  const load = async (): Promise<void> => {
+    try {
+      registerGroup(state, group, await LOCALE_LOADERS.en[group]());
+    } finally {
+      state.pending.delete(group);
+    }
+  };
+  const pending = load();
+  state.pending.set(group, pending);
+  return pending;
+};
+
+/** Load message groups before importing or invoking the route that uses them. */
+export const ensureMessageGroups = async (
+  groups: readonly MessageGroup[],
+): Promise<void> => {
+  const state = getI18nState();
+  await Promise.all(groups.map((group) => ensureMessageGroup(state, group)));
+};
+
+const requestMessageGroups =
+  createScopedValue<ReadonlySet<MessageGroup> | null>(() => null);
+
+/** Load a route's copy, then make only those groups visible inside its work. */
+export const withMessageGroups = async <T>(
+  groups: readonly MessageGroup[],
+  fn: () => T | Promise<T>,
+): Promise<T> => {
+  await ensureMessageGroups(groups);
+  return await requestMessageGroups.run(new Set(["system", ...groups]), fn);
 };
 
 // --- Operator-configurable copy replacements (I18N_REPLACEMENTS) ---
@@ -141,11 +203,13 @@ const [getReplacer, setReplacer] = lazyRef<Replacer>(() =>
 
 /**
  * Test hook: drop the cached replacer and every compiled format so the next
- * render re-reads `I18N_REPLACEMENTS` from the environment.
+ * render re-reads `I18N_REPLACEMENTS` from the environment. Pass true when a
+ * loader test also needs to return to the system-only startup state.
  */
-export const resetI18nForTest = (): void => {
+export const resetI18nForTest = (resetMessages = false): void => {
   setReplacer(null);
   clearFormatCache();
+  if (resetMessages) setI18nState(null);
 };
 
 /**
@@ -163,11 +227,8 @@ const resolveMessage = (locale: string, key: string): Resolved | null => {
   const cacheKey = `${locale}\0${key}`;
   if (cacheKey in formatCache) return formatCache[cacheKey]!;
 
-  const raw = locales[locale]?.[key] ?? locales.en?.[key];
-  if (raw === undefined) {
-    formatCache[cacheKey] = null;
-    return null;
-  }
+  const raw = getI18nState().messages.get(key);
+  if (raw === undefined) return null;
 
   // Rebrand the copy once, here, so interpolated values stay untouched and the
   // compiled (and cached) format does no extra per-render work.
@@ -196,7 +257,12 @@ const resolveMessage = (locale: string, key: string): Resolved | null => {
  */
 export const t = (key: string, values?: Record<string, unknown>): string => {
   const locale = getLocale();
-  const resolved = resolveMessage(locale, key);
+  const owner = getI18nState().owners.get(key);
+  const allowed = requestMessageGroups.read();
+  const resolved =
+    allowed !== null && owner !== undefined && !allowed.has(owner)
+      ? null
+      : resolveMessage(locale, key);
   if (resolved === null) {
     throw new Error(
       `Missing translation for key "${key}" (locale "${locale}")`,

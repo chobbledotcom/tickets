@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import en from "#locales/en/index.ts";
 import {
   hasAnyListingDefault,
   LISTING_DEFAULT_FIELDS,
@@ -16,6 +15,9 @@ import {
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import { testListing } from "#test-utils/factories.ts";
+import { allEnglishMessages } from "#test-utils/i18n.ts";
+
+const en = await allEnglishMessages(["listing-defaults"]);
 
 const messages = en as Record<string, string>;
 

@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// guide.json is loaded lazily at runtime (off the cold-boot path, see
-// src/locales/en/guide.ts), so it is not part of the eager `en` merge. It is
-// still real, coverage-checked copy, so merge it back in here.
-import guide from "#locales/en/guide.json" with { type: "json" };
-import en from "#locales/en/index.ts";
+import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { allEnglishMessages } from "#test-utils/i18n.ts";
 import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
 
 /**
@@ -29,7 +26,7 @@ import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
  * here for review.
  */
 
-const messages = { ...en, ...(guide as Record<string, string>) };
+const messages = await allEnglishMessages();
 
 const SRC_DIR = "src";
 const TEMPLATES_DIR = "src/ui/templates";
@@ -155,6 +152,15 @@ const leftoverLiterals = (src: string, isTs: boolean): string[] => {
 };
 
 describe("i18n coverage", () => {
+  test("the manifest owns every English catalog", () => {
+    const files = Array.from(Deno.readDirSync("src/locales/en"))
+      .filter((entry) => entry.isFile && entry.name.endsWith(".json"))
+      .map((entry) => entry.name.slice(0, -".json".length))
+      .sort();
+
+    expect(files).toEqual([...MESSAGE_GROUPS].sort());
+  });
+
   test('forward: every t("key") in the source resolves to a locale key', () => {
     const missing: string[] = [];
     for (const file of walk(SRC_DIR, [".ts", ".tsx"])) {

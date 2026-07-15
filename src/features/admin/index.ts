@@ -17,6 +17,12 @@
  */
 
 import { once } from "#fp";
+import { withMessageGroups } from "#i18n";
+import {
+  ADMIN_BASE_MESSAGE_GROUPS,
+  type AdminAreaMessageGroup,
+} from "#locales/groups.ts";
+import type { MessageGroup } from "#locales/manifest.ts";
 import { routeMapForArea } from "#routes/admin/handlers.ts";
 import { createRouter } from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
@@ -30,36 +36,47 @@ type HandlerMap = Record<string, (...args: never[]) => unknown>;
 /** One admin area's lazy route-ID handlers. */
 export type AdminAreaLoader = {
   load: () => Promise<HandlerMap>;
+  messageGroups: readonly AdminAreaMessageGroup[];
 };
 
 /** Declare an area without importing its handlers until that area is requested. */
 const area = <M extends { adminHandlers: HandlerMap }>(
   load: () => Promise<M>,
-): AdminAreaLoader => ({ load: async () => (await load()).adminHandlers });
+  messageGroups: readonly AdminAreaMessageGroup[] = [],
+): AdminAreaLoader => ({
+  load: async () => (await load()).adminHandlers,
+  messageGroups,
+});
 
 // Import specifiers stay literal so esbuild can still bundle every target.
 export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   apiKeys: area(() => import("#routes/admin/api-keys.ts")),
-  attendeeNotes: area(() => import("#routes/admin/attendee-notes.ts")),
+  attendeeNotes: area(
+    () => import("#routes/admin/attendee-notes.ts"),
+    ["notes"],
+  ),
   attendeeRefunds: area(() => import("#routes/admin/attendee-refunds.ts")),
-  attendees: area(() => import("#routes/admin/attendees.ts")),
+  attendees: area(() => import("#routes/admin/attendees.ts"), ["notes"]),
   attributes: area(() => import("#routes/admin/attributes.ts")),
   auth: area(() => import("#routes/admin/auth.ts")),
-  backup: area(() => import("#routes/admin/backup.ts")),
-  builder: area(() => import("#routes/admin/builder.ts")),
+  backup: area(() => import("#routes/admin/backup.ts"), ["backup"]),
+  builder: area(() => import("#routes/admin/builder.ts"), ["builder"]),
   builtSites: area(() => import("#routes/admin/built-sites.ts")),
-  bulkActions: area(() => import("#routes/admin/bulk-actions.ts")),
-  bulkEmail: area(() => import("#routes/admin/bulk-email.ts")),
+  bulkActions: area(
+    () => import("#routes/admin/bulk-actions.ts"),
+    ["bulk-actions"],
+  ),
+  bulkEmail: area(() => import("#routes/admin/bulk-email.ts"), ["bulk-email"]),
   calendar: area(() => import("#routes/admin/calendar.ts")),
   catalogTransfer: area(
     () => import("#routes/admin/catalog-transfer/routes.ts"),
   ),
   contactHistory: area(() => import("#routes/admin/contact-history.ts")),
   dashboard: area(() => import("#routes/admin/dashboard.ts")),
-  debug: area(() => import("#routes/admin/debug.ts")),
-  deliveries: area(() => import("#routes/admin/deliveries.ts")),
-  groups: area(() => import("#routes/admin/groups.ts")),
-  guide: area(() => import("#routes/admin/guide.ts")),
+  debug: area(() => import("#routes/admin/debug.ts"), ["debug"]),
+  deliveries: area(() => import("#routes/admin/deliveries.ts"), ["deliveries"]),
+  groups: area(() => import("#routes/admin/groups.ts"), ["groups"]),
+  guide: area(() => import("#routes/admin/guide.ts"), ["builder", "guide"]),
   holidays: area(() => import("#routes/admin/holidays.ts")),
   images: area(() => import("#routes/admin/images.ts")),
   ledger: area(() => import("#routes/admin/ledger.ts")),
@@ -68,11 +85,11 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   markdownPreview: area(() => import("#routes/admin/markdown-preview.ts")),
   modifiers: area(() => import("#routes/admin/modifiers.ts")),
   news: area(() => import("#routes/admin/news.ts")),
-  privacy: area(() => import("#routes/admin/privacy.ts")),
+  privacy: area(() => import("#routes/admin/privacy.ts"), ["privacy"]),
   questions: area(() => import("#routes/admin/questions.ts")),
   scanner: area(() => import("#routes/admin/scanner.ts")),
   seeds: area(() => import("#routes/admin/seeds.ts")),
-  servicing: area(() => import("#routes/admin/servicing.tsx")),
+  servicing: area(() => import("#routes/admin/servicing.tsx"), ["servicing"]),
   sessions: area(() => import("#routes/admin/sessions.ts")),
   settings: area(() => import("#routes/admin/settings.ts")),
   settingsLogistics: area(() => import("#routes/admin/settings-logistics.ts")),
@@ -80,8 +97,8 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   site: area(() => import("#routes/admin/site.ts")),
   sitePages: area(() => import("#routes/admin/site-pages.ts")),
   sms: area(() => import("#routes/admin/sms.ts")),
-  support: area(() => import("#routes/admin/support.ts")),
-  update: area(() => import("#routes/admin/update.ts")),
+  support: area(() => import("#routes/admin/support.ts"), ["support"]),
+  update: area(() => import("#routes/admin/update.ts"), ["update"]),
   users: area(() => import("#routes/admin/users.ts")),
 };
 
@@ -93,10 +110,12 @@ export const adminPathSegment = (path: string): string =>
  * One lazy router per segment, derived from the manifest at module load
  * (pure and cheap — no area module is imported until its `once` fires).
  */
-const buildSegmentRouters = (): Record<
-  string,
-  () => Promise<PathMethodRoute>
-> => {
+type AdminSegment = {
+  load: () => Promise<PathMethodRoute>;
+  messageGroups: readonly MessageGroup[];
+};
+
+const buildSegmentRouters = (): Record<string, AdminSegment> => {
   const areasBySegment: Record<
     string,
     Array<{ id: AdminAreaId; loader: AdminAreaLoader }>
@@ -109,16 +128,24 @@ const buildSegmentRouters = (): Record<
       areasBySegment[segment] = list;
     }
   }
-  const routers: Record<string, () => Promise<PathMethodRoute>> = {};
+  const routers: Record<string, AdminSegment> = {};
   for (const [segment, areas] of Object.entries(areasBySegment)) {
-    routers[segment] = once(async () => {
-      const maps = await Promise.all(
-        areas.map(async ({ id, loader }) =>
-          routeMapForArea(id, await loader.load()),
-        ),
-      );
-      return createRouter(Object.assign({}, ...maps));
-    });
+    routers[segment] = {
+      load: once(async () => {
+        const maps = await Promise.all(
+          areas.map(async ({ id, loader }) =>
+            routeMapForArea(id, await loader.load()),
+          ),
+        );
+        return createRouter(Object.assign({}, ...maps));
+      }),
+      messageGroups: [
+        ...new Set([
+          ...ADMIN_BASE_MESSAGE_GROUPS,
+          ...areas.flatMap(({ loader }) => loader.messageGroups),
+        ]),
+      ],
+    };
   }
   return routers;
 };
@@ -139,19 +166,24 @@ export const routeAdmin: PathMethodRoute = async (
   // An unknown segment 404s before any session work, so probing traffic
   // never costs a session lookup.
   const segment = adminPathSegment(path);
-  if (!Object.hasOwn(segmentRouters, segment)) return null;
+  const segmentRouter = segmentRouters[segment];
+  if (!segmentRouter) return null;
 
-  // Query recording is turned on earlier (prepareRequestEnvironment) for admin
-  // GETs, so the route's settings load is captured. Here we only unlock the
-  // footer for back-office staff — delivery agents and content editors (who are
-  // excluded from operational/debug access) never see the SQL/cache debug menu.
-  const { getAuthenticatedSession } = await import("#routes/auth.ts");
-  const session = await getAuthenticatedSession(request);
+  return await withMessageGroups(segmentRouter.messageGroups, async () => {
+    // Query recording is turned on earlier (prepareRequestEnvironment) for admin
+    // GETs, so the route's settings load is captured. Here we only unlock the
+    // footer for back-office staff — delivery agents and content editors (who are
+    // excluded from operational/debug access) never see the SQL/cache debug menu.
+    const { getAuthenticatedSession } = await import("#routes/auth.ts");
+    const session = await getAuthenticatedSession(request);
 
-  if (method === "GET" && session && isStaffRole(session.adminLevel)) {
-    enableFooterDebug();
-  }
+    if (method === "GET" && session && isStaffRole(session.adminLevel)) {
+      enableFooterDebug();
+    }
 
-  const router = await segmentRouters[segment]!();
-  return router(request, path, method, server);
+    // Copy is loaded before importing an area: some area modules translate form
+    // schemas at module evaluation time.
+    const router = await segmentRouter.load();
+    return router(request, path, method, server);
+  });
 };

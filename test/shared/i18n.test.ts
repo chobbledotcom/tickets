@@ -6,13 +6,14 @@ import {
   getLocale,
   getRegisteredLocales,
   parseAcceptLanguage,
-  registerMessages,
   resetI18nForTest,
   runWithLocale,
   t,
 } from "#i18n";
-import en from "#locales/en/index.ts";
 import { setTestEnv } from "#test-utils/env.ts";
+import { allEnglishMessages } from "#test-utils/i18n.ts";
+
+const en = await allEnglishMessages();
 
 describe("i18n", () => {
   describe("t", () => {
@@ -272,25 +273,6 @@ describe("i18n", () => {
     });
   });
 
-  describe("registerMessages", () => {
-    test("a key looked up before registration resolves after it", () => {
-      // Looking up a missing key caches a `null` miss. registerMessages must
-      // clear that cached miss (via clearFormatCache) so the same key resolves
-      // once its message is added — otherwise the first lookup would poison it
-      // for the isolate's life.
-      const key = "test.register_messages.lazy_key";
-      expect(() => t(key)).toThrow(); // caches the miss
-      try {
-        registerMessages("en", { [key]: "Lazily added" });
-        expect(t(key)).toBe("Lazily added");
-      } finally {
-        // Don't leak the test key into other suites sharing the isolate.
-        registerMessages("en", { [key]: undefined as unknown as string });
-        resetI18nForTest();
-      }
-    });
-  });
-
   describe("runWithLocale", () => {
     test("sets locale within callback", () => {
       const result = runWithLocale("de", () => getLocale());
@@ -357,6 +339,10 @@ describe("i18n", () => {
       // Kills the `: 1` default → `: 0`: "de" has no q, so it must win over a
       // lower explicit q; a 0 default would drop it below en.
       expect(parseAcceptLanguage("de,en;q=0.5", REG)).toBe("de");
+    });
+
+    test("treats a missing quality as equal to an explicit 1", () => {
+      expect(parseAcceptLanguage("en;q=1,de", REG)).toBe("en");
     });
 
     test("drops an entry whose q is zero", () => {
