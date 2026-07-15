@@ -52,6 +52,55 @@ const importRsaKey = (
 const implicitSet = (tag: number, values: readonly Uint8Array[]): Uint8Array =>
   encodeDer(tag, sortDerValues(values));
 
+type AppleSignature = {
+  certificate: ReturnType<typeof readAppleCertificate>;
+  signature: Uint8Array;
+};
+
+/** Sign bytes and prove that the private key belongs to the certificate. */
+const signWithCertificate = async (
+  data: Uint8Array,
+  signingCertPem: string,
+  signingKeyPem: string,
+): Promise<AppleSignature> => {
+  const certificate = readAppleCertificate(signingCertPem);
+  const privateKeyBytes = rsaPrivateKeyBytes(signingKeyPem);
+  const [privateKey, publicKey] = await Promise.all([
+    importRsaKey("pkcs8", privateKeyBytes, "sign"),
+    importRsaKey("spki", certificate.publicKey, "verify"),
+  ]);
+  const signature = new Uint8Array(
+    await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      privateKey,
+      data as BufferSource,
+    ),
+  );
+  const matchesCertificate = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    publicKey,
+    signature,
+    data as BufferSource,
+  );
+  if (!matchesCertificate) {
+    throw new Error("Apple Wallet signing key does not match its certificate");
+  }
+  return { certificate, signature };
+};
+
+/** Whether an Apple signing certificate and private key belong together. */
+export const isValidAppleSigningPair = async (
+  signingCertPem: string,
+  signingKeyPem: string,
+): Promise<boolean> => {
+  try {
+    await signWithCertificate(new Uint8Array(), signingCertPem, signingKeyPem);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /** Create an Apple-compatible detached CMS signature over manifest JSON. */
 export const signManifest = async (
   manifestData: string,
@@ -61,9 +110,7 @@ export const signManifest = async (
 ): Promise<Uint8Array> => {
   const signingTime = startOfHour(new Date());
   const manifest = new TextEncoder().encode(manifestData);
-  const signingCertificate = readAppleCertificate(signingCertPem);
   const wwdrCertificate = readAppleCertificate(wwdrCertPem);
-  const privateKeyBytes = rsaPrivateKeyBytes(signingKeyPem);
   const manifestDigest = await digest(manifest);
   const attributes = [
     attribute(OID.contentType, encodeOid(OID.data)),
@@ -71,26 +118,8 @@ export const signManifest = async (
     attribute(OID.signingTime, encodeTime(signingTime)),
   ];
   const signedAttributes = encodeSet(attributes);
-  const [privateKey, publicKey] = await Promise.all([
-    importRsaKey("pkcs8", privateKeyBytes, "sign"),
-    importRsaKey("spki", signingCertificate.publicKey, "verify"),
-  ]);
-  const signature = new Uint8Array(
-    await crypto.subtle.sign(
-      "RSASSA-PKCS1-v1_5",
-      privateKey,
-      signedAttributes as BufferSource,
-    ),
-  );
-  const matchesCertificate = await crypto.subtle.verify(
-    "RSASSA-PKCS1-v1_5",
-    publicKey,
-    signature,
-    signedAttributes as BufferSource,
-  );
-  if (!matchesCertificate) {
-    throw new Error("Apple Wallet signing key does not match its certificate");
-  }
+  const { certificate: signingCertificate, signature } =
+    await signWithCertificate(signedAttributes, signingCertPem, signingKeyPem);
 
   const digestAlgorithm = algorithmIdentifier(OID.sha256);
   const signerInfo = encodeSequence([

@@ -178,6 +178,9 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       "Google Wallet configuration cleared",
     )(response);
     expect(settings.googleWallet.hasDbConfig).toBe(false);
+    expect(settings.googleWallet.issuerId).toBe("");
+    expect(settings.googleWallet.serviceAccountEmail).toBe("");
+    expect(settings.googleWallet.serviceAccountKey).toBe("");
   });
 
   test("shows Google Wallet section with values when configured", async () => {

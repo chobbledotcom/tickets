@@ -11,6 +11,7 @@ import { t } from "#i18n";
 import { gatedPost, OWNER_FORM, ownerPage } from "#routes/auth.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
+import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { getCdnHostname } from "#shared/bunny-cdn.ts";
 import {
@@ -54,28 +55,50 @@ type CertValidation = {
   wwdrCert: string;
 };
 
-/** Validate Apple Wallet PEM certs/key, returning "Valid", "Invalid PEM", or "Not set" for each */
-const validateAppleWalletCerts = (
+const CERT_STATUS = {
+  invalidPem: "Invalid PEM",
+  notSet: "Not set",
+  valid: "Valid",
+} as const;
+
+/** Debug fields use an empty cell when a setting has no value to display. */
+const EMPTY_DEBUG_VALUE = "";
+
+const showOrEmpty = (value: string | null | undefined): string =>
+  typeof value === "string" ? value : EMPTY_DEBUG_VALUE;
+
+/** Report whether each Apple Wallet certificate and key is usable together. */
+const validateAppleWalletCerts = async (
   config: typeof settings.appleWallet.config,
-): CertValidation => {
+): Promise<CertValidation> => {
   if (!config) {
     return {
-      signingCert: "Not set",
-      signingKey: "Not set",
-      wwdrCert: "Not set",
+      signingCert: CERT_STATUS.notSet,
+      signingKey: CERT_STATUS.notSet,
+      wwdrCert: CERT_STATUS.notSet,
     };
   }
 
+  const signingCertValid = isValidAppleCertificate(config.signingCert);
+  const signingKeyValid = isValidRsaPrivateKey(config.signingKey);
+  const pairMatches = await isValidAppleSigningPair(
+    config.signingCert,
+    config.signingKey,
+  );
   return {
-    signingCert: isValidAppleCertificate(config.signingCert)
-      ? "Valid"
-      : "Invalid PEM",
-    signingKey: isValidRsaPrivateKey(config.signingKey)
-      ? "Valid"
-      : "Invalid PEM",
+    signingCert: !signingCertValid
+      ? CERT_STATUS.invalidPem
+      : pairMatches
+        ? CERT_STATUS.valid
+        : t("debug.apple_signing_cert_mismatch"),
+    signingKey: !signingKeyValid
+      ? CERT_STATUS.invalidPem
+      : pairMatches
+        ? CERT_STATUS.valid
+        : t("debug.apple_signing_key_mismatch"),
     wwdrCert: isValidAppleCertificate(config.wwdrCert)
-      ? "Valid"
-      : "Invalid PEM",
+      ? CERT_STATUS.valid
+      : CERT_STATUS.invalidPem,
   };
 };
 
@@ -86,7 +109,7 @@ const resolveWalletSource = (
 ): string => {
   if (hasDbConfig) return "Database";
   if (envConfigured) return "Environment variables";
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Resolve the effective Apple Wallet pass-type id (db config takes priority). */
@@ -95,7 +118,7 @@ const resolveWalletPassTypeId = (
 ): string => {
   if (appleWallet.hasDbConfig) return appleWallet.passTypeId;
   if (appleWallet.hostConfig) return appleWallet.hostConfig.passTypeId;
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Resolve the effective Google Wallet issuer id (db config takes priority). */
@@ -104,30 +127,32 @@ const resolveGoogleWalletIssuerId = (
 ): string => {
   if (googleWallet.hasDbConfig) return googleWallet.issuerId;
   if (googleWallet.hostConfig) return googleWallet.hostConfig.issuerId;
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Validate the Google private key, returning a status string for the UI. */
 const validateGooglePrivateKey = async (
   config: typeof settings.googleWallet.config,
 ): Promise<string> => {
-  if (!config) return "Not set";
+  if (!config) return CERT_STATUS.notSet;
   return (await isValidGooglePrivateKey(config.serviceAccountKey))
-    ? "Valid"
+    ? CERT_STATUS.valid
     : "Invalid key";
 };
 
 /** Whether the configured payment provider has its webhook config set. */
-const webhookConfiguredFor = (provider: string | null): boolean =>
-  providerValue(provider, {
-    square: settings.square.webhookSignatureKey !== "",
-    stripe: settings.stripe.webhookEndpointId !== "",
+const webhookConfiguredFor = (provider: string | null): boolean => {
+  const configured = providerValue(provider, {
+    square: settings.square.webhookSignatureKey !== EMPTY_DEBUG_VALUE,
+    stripe: settings.stripe.webhookEndpointId !== EMPTY_DEBUG_VALUE,
     sumup: settings.sumup.hasKey,
-  }) ?? false;
+  });
+  return configured === true;
+};
 
 /** Map a `sk_test_`/`sk_live_` key mode to a display label; "" if unrecognized. */
 const paymentModeLabel = (mode: "test" | "live" | null): string =>
-  mode === "live" ? "Live" : mode === "test" ? "Test" : "";
+  mode === "live" ? "Live" : mode === "test" ? "Test" : EMPTY_DEBUG_VALUE;
 
 /**
  * Resolve the active payment provider's environment (Test/Live/Sandbox) for
@@ -140,7 +165,7 @@ const resolvePaymentMode = (provider: string | null): string => {
   if (provider === "square") {
     return settings.square.sandbox ? "Sandbox" : "Live";
   }
-  return "";
+  return EMPTY_DEBUG_VALUE;
 };
 
 /** Resolve the site's write-access state from the read-only env flags. */
@@ -155,7 +180,9 @@ const resolveAvailabilityState =
 const getDebugPageState = async (): Promise<DebugPageState> => {
   const bunnyCdnEnabled = isBunnyCdnEnabled();
   const bunnyCdnResult = bunnyCdnEnabled ? await getCdnHostname() : null;
-  const bunnyCdnCdnHostname = bunnyCdnResult?.ok ? bunnyCdnResult.hostname : "";
+  const bunnyCdnCdnHostname = bunnyCdnResult?.ok
+    ? bunnyCdnResult.hostname
+    : EMPTY_DEBUG_VALUE;
 
   const hostEmailConfig = getHostEmailConfig();
   const appleWalletEnvConfigured = settings.appleWallet.hostConfig !== null;
@@ -164,7 +191,9 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
 
   return {
     appleWallet: {
-      certValidation: validateAppleWalletCerts(settings.appleWallet.config),
+      certValidation: await validateAppleWalletCerts(
+        settings.appleWallet.config,
+      ),
       dbConfigured: settings.appleWallet.hasDbConfig,
       envConfigured: appleWalletEnvConfigured,
       passTypeId: resolveWalletPassTypeId(settings.appleWallet),
@@ -174,7 +203,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       ),
     },
     availability: {
-      cutoff: getReadOnlyCutoffIso() ?? "",
+      cutoff: showOrEmpty(getReadOnlyCutoffIso()),
       renewalConfigured: getRenewalUrl() !== null,
       serverTime: nowIso(),
       state: resolveAvailabilityState(),
@@ -186,7 +215,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     bunny: {
       cdnEnabled: bunnyCdnEnabled,
       cdnHostname: bunnyCdnCdnHostname,
-      customDomain: bunnyCdnEnabled ? settings.customDomain : "",
+      customDomain: bunnyCdnEnabled ? settings.customDomain : EMPTY_DEBUG_VALUE,
       dnsEnabled: isBunnyDnsEnabled(),
       registeredSubdomain: settings.bunnySubdomain,
       storageBackend: getStorageBackend(),
@@ -201,7 +230,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     email: {
       apiKeyConfigured: settings.email.hasApiKey,
       fromAddress: settings.email.fromAddress,
-      hostProvider: hostEmailConfig?.provider ?? "",
+      hostProvider: showOrEmpty(hostEmailConfig?.provider),
       provider: settings.email.provider,
     },
     googleWallet: {
@@ -224,7 +253,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     payment: {
       keyConfigured: isPaymentsEnabled(),
       mode: resolvePaymentMode(paymentProvider),
-      provider: paymentProvider ?? "",
+      provider: showOrEmpty(paymentProvider),
       webhookConfigured: webhookConfiguredFor(paymentProvider),
     },
     prune: {

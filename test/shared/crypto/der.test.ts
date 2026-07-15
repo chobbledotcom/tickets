@@ -60,7 +60,7 @@ describe("DER", () => {
   });
 
   test("rejects unsupported tags", () => {
-    for (const tag of [-2, -1, 0x1f, 0xff, 0x100, 1.5]) {
+    for (const tag of [-2, -1, 0, 0x1f, 0xff, 0x100, 1.5]) {
       expect(thrownError(() => encodeDer(tag, [])).message).toBe(
         `Unsupported DER tag: ${tag}`,
       );
@@ -68,7 +68,7 @@ describe("DER", () => {
   });
 
   test("accepts the lowest and highest supported one-byte tags", () => {
-    expect(encodeDer(0, [])).toEqual(bytes(0, 0));
+    expect(encodeDer(1, [])).toEqual(bytes(1, 0));
     expect(encodeDer(0xfe, [])).toEqual(bytes(0xfe, 0));
   });
 
@@ -177,6 +177,7 @@ describe("DER", () => {
   test("rejects malformed DER encodings", () => {
     const malformed = [
       { bytes: bytes(0x30), error: "Truncated DER value" },
+      { bytes: bytes(0, 0), error: "DER end-of-contents tag is forbidden" },
       { bytes: bytes(0x1f, 0), error: "High-number DER tags are unsupported" },
       { bytes: bytes(0x30, 0x80), error: "Indefinite DER length is forbidden" },
       { bytes: bytes(0x30, 0x84, 1, 0, 0, 0), error: "Invalid DER length" },

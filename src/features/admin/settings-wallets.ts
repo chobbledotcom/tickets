@@ -12,6 +12,7 @@ import {
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
+import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
 import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
@@ -26,6 +27,9 @@ type AppleWalletFormData = {
   key: SecretFieldResult;
   wwdr: SecretFieldResult;
 };
+
+const APPLE_WALLET_LABEL = "Apple Wallet configuration";
+const GOOGLE_WALLET_LABEL = "Google Wallet configuration";
 
 const isAllCleared = (d: AppleWalletFormData): boolean =>
   !d.passTypeId &&
@@ -44,11 +48,11 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     wwdr: processSecretField(form, "apple_wallet_wwdr_cert"),
   }),
   formId: "settings-apple-wallet",
-  label: "Apple Wallet configuration",
+  label: APPLE_WALLET_LABEL,
   log: (d) =>
     isAllCleared(d)
       ? t("success.apple_wallet_cleared")
-      : "Apple Wallet configuration updated",
+      : `${APPLE_WALLET_LABEL} updated`,
   save: async (d) => {
     if (isAllCleared(d)) {
       await Promise.all([
@@ -66,7 +70,7 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     await saveSecret(d.key, settings.update.appleWallet.signingKey);
     await saveSecret(d.wwdr, settings.update.appleWallet.wwdrCert);
   },
-  validate: (d) => {
+  validate: async (d) => {
     if (isAllCleared(d)) return null;
     if (!d.passTypeId) return t("error.apple_pass_type_id_required");
     if (!d.teamId) return t("error.apple_team_id_required");
@@ -77,13 +81,31 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
       );
       if (missing) return missing;
     }
-    return firstAppleSecretProblem(d, (field, secret) =>
+    const invalidSecret = firstAppleSecretProblem(d, (field, secret) =>
       secret.action === "provided" && !field.looksValid(secret.value)
         ? t(field.invalidKey)
         : null,
     );
+    if (invalidSecret) return invalidSecret;
+    const signingCert = effectiveSecretValue(
+      d.cert,
+      settings.appleWallet.signingCert,
+    );
+    const signingKey = effectiveSecretValue(
+      d.key,
+      settings.appleWallet.signingKey,
+    );
+    return (await isValidAppleSigningPair(signingCert, signingKey))
+      ? null
+      : t("error.apple_signing_pair_mismatch");
   },
 });
+
+/** The uploaded secret, or the saved value when the masked field was kept. */
+const effectiveSecretValue = (
+  secret: SecretFieldResult,
+  saved: string,
+): string => (secret.action === "provided" ? secret.value : saved);
 
 /** One Apple Wallet secret upload, described as data: how to read it from the
  * form, the error keys for a missing or malformed value, and the PEM check
@@ -125,10 +147,12 @@ const firstAppleSecretProblem = (
     field: AppleSecretField,
     secret: SecretFieldResult,
   ) => string | null,
-): string | null =>
-  mapNotNullish((field: AppleSecretField) =>
+): string | null => {
+  const [firstProblem] = mapNotNullish((field: AppleSecretField) =>
     problemWith(field, field.fromForm(d)),
-  )(APPLE_SECRET_FIELDS)[0] ?? null;
+  )(APPLE_SECRET_FIELDS);
+  return typeof firstProblem === "string" ? firstProblem : null;
+};
 
 /**
  * Handle POST /admin/settings/google-wallet - owner only
@@ -150,11 +174,11 @@ export const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
     key: processSecretField(form, "google_wallet_service_account_key"),
   }),
   formId: "settings-google-wallet",
-  label: "Google Wallet configuration",
+  label: GOOGLE_WALLET_LABEL,
   log: (d) =>
     isGoogleWalletCleared(d)
       ? t("success.google_wallet_cleared")
-      : "Google Wallet configuration updated",
+      : `${GOOGLE_WALLET_LABEL} updated`,
   save: async (d) => {
     if (isGoogleWalletCleared(d)) {
       await Promise.all([

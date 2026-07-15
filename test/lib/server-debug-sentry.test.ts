@@ -88,6 +88,38 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
     }
   });
 
+  test("reports when Sentry rejects the test event", async () => {
+    const restoreEnv = setTestEnv({ SENTRY_URL: SENTRY_DSN });
+    const fetchStub = stub(globalThis, "fetch", () =>
+      Promise.resolve(new Response(null, { status: 403 })),
+    );
+    try {
+      const { response } = await adminFormPost("/admin/debug/sentry");
+      expectDebugRedirect(response);
+      expectFlash(
+        response,
+        "Sentry could not send the test. Check SENTRY_URL and try again.",
+        false,
+      );
+      expect(fetchStub.calls.length).toBe(1);
+    } finally {
+      fetchStub.restore();
+      restoreEnv();
+      resetSentryForTest();
+    }
+  });
+
+  test("forbids a manager from viewing the debug page", async () => {
+    const response = await handleRequest(
+      new Request("http://localhost/admin/debug", {
+        headers: {
+          cookie: await createTestManagerSession("mgr-debug-page"),
+        },
+      }),
+    );
+    expect(response.status).toBe(403);
+  });
+
   test("forbids a manager from sending a Sentry test", async () => {
     const response = await handleRequest(
       mockFormRequest(

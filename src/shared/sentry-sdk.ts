@@ -48,7 +48,7 @@ const makeFetchTransport: ConstructorParameters<
     };
   });
 
-const init = (options: InitOptions): void => {
+const init = (options: InitOptions): DenoClient => {
   const client = new DenoClient({
     ...options,
     integrations: [],
@@ -58,6 +58,7 @@ const init = (options: InitOptions): void => {
   });
   getCurrentScope().setClient(client);
   client.init();
+  return client;
 };
 
 export const sentrySdk = {

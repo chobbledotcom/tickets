@@ -44,7 +44,12 @@ export const encodeDer = (
   tag: number,
   parts: readonly Uint8Array[],
 ): Uint8Array => {
-  if (!Number.isInteger(tag) || tag >>> 8 !== 0 || (tag & 0x1f) === 0x1f) {
+  if (
+    !Number.isInteger(tag) ||
+    tag === 0 ||
+    tag >>> 8 !== 0 ||
+    (tag & 0x1f) === 0x1f
+  ) {
     throw new Error(`Unsupported DER tag: ${tag}`);
   }
   const contents = joinBytes(parts);
@@ -174,6 +179,7 @@ const readAt = (bytes: Uint8Array, offset: number): ReadResult => {
   if (tag === undefined || firstLength === undefined) {
     throw new Error("Truncated DER value");
   }
+  if (tag === 0) throw new Error("DER end-of-contents tag is forbidden");
   if ((tag & 0x1f) === 0x1f)
     throw new Error("High-number DER tags are unsupported");
   const { contentStart, length } = decodeLength(bytes, offset, firstLength);

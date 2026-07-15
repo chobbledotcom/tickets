@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { signManifest } from "#shared/apple-wallet/cms.ts";
+import {
+  isValidAppleSigningPair,
+  signManifest,
+} from "#shared/apple-wallet/cms.ts";
 import { createManifest, sha1Hex } from "#shared/apple-wallet.ts";
 import {
   encodeInteger,
@@ -157,5 +160,17 @@ describe("Apple Wallet signing", () => {
     expect(
       (await rejectedError(sign("{}", getMismatchedAppleWalletKey()))).message,
     ).toBe("Apple Wallet signing key does not match its certificate");
+  });
+
+  test("reports whether a signing certificate and key belong together", async () => {
+    expect(
+      await isValidAppleSigningPair(creds.signingCert, creds.signingKey),
+    ).toBe(true);
+    expect(
+      await isValidAppleSigningPair(
+        creds.signingCert,
+        getMismatchedAppleWalletKey(),
+      ),
+    ).toBe(false);
   });
 });

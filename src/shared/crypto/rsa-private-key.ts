@@ -12,13 +12,14 @@ import { readPem } from "#shared/crypto/pem.ts";
 
 const RSA_ENCRYPTION_OID = "1.2.840.113549.1.1.1";
 const RSA_PRIVATE_KEY_FIELDS = 9;
+const RSA_ALGORITHM = encodeSequence([
+  encodeOid(RSA_ENCRYPTION_OID),
+  encodeNull(),
+]);
 
 const requireRsaAlgorithm = (algorithm: Uint8Array): void => {
-  const fields = readDerSequence(algorithm, "RSA algorithm");
-  if (
-    !fields[0] ||
-    !bytesEqual(fields[0].encoded, encodeOid(RSA_ENCRYPTION_OID))
-  ) {
+  readDerSequence(algorithm, "RSA algorithm");
+  if (!bytesEqual(algorithm, RSA_ALGORITHM)) {
     throw new Error("Private key is not RSA");
   }
 };
@@ -31,17 +32,16 @@ const requirePkcs1 = (bytes: Uint8Array): void => {
     requireDerTag(field, 0x02, "RSA private key field");
   }
   const version = fields[0]!.contents;
-  if (version.length !== 1 || (version[0] !== 0 && version[0] !== 1)) {
+  if (version.length !== 1 || version[0] !== 0) {
     throw new Error("Unsupported RSA private key version");
+  }
+  if (fields.length !== RSA_PRIVATE_KEY_FIELDS) {
+    throw new Error("Unexpected RSA private key fields");
   }
 };
 
 const wrapPkcs1 = (bytes: Uint8Array): Uint8Array =>
-  encodeSequence([
-    encodeInteger(0),
-    encodeSequence([encodeOid(RSA_ENCRYPTION_OID), encodeNull()]),
-    encodeDer(0x04, [bytes]),
-  ]);
+  encodeSequence([encodeInteger(0), RSA_ALGORITHM, encodeDer(0x04, [bytes])]);
 
 const requirePkcs8 = (bytes: Uint8Array): void => {
   const fields = readDerSequence(bytes, "private key");

@@ -55,6 +55,8 @@
   "debug.test_sentry": "Test Sentry",
   "debug.sentry_test_sent": "Sentry test sent.",
   "debug.sentry_test_failed": "Sentry could not send the test. Check SENTRY_URL and try again.",
+  "debug.apple_signing_cert_mismatch": "Does not match key",
+  "debug.apple_signing_key_mismatch": "Does not match certificate",
   "debug.field.public_site": "Public site",
   "debug.field.public_api": "Public API",
   "debug.field.contact_form": "Contact form",

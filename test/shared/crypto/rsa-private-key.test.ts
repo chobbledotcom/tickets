@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   encodeDer,
   encodeInteger,
+  encodeNull,
   encodeOid,
   encodeSequence,
   readDer,
@@ -16,11 +17,27 @@ import {
   generateGoogleTestCreds,
   generateTestCerts,
 } from "#test-utils/crypto.ts";
-import { pemFor, rsaAlgorithm, rsaPrivateKey } from "#test-utils/der.ts";
+import {
+  pemFor,
+  RSA_ENCRYPTION_OID,
+  rsaAlgorithm,
+  rsaPrivateKey,
+} from "#test-utils/der.ts";
 import { thrownError } from "#test-utils/errors.ts";
 
 const pkcs8 = (key = rsaPrivateKey(), algorithm = rsaAlgorithm()): Uint8Array =>
   encodeSequence([encodeInteger(0), algorithm, encodeDer(0x04, [key])]);
+
+/** Assert that a PKCS#8 AlgorithmIdentifier is rejected as non-RSA. */
+const expectRsaAlgorithmRejected = (algorithm: Uint8Array): void => {
+  expect(
+    thrownError(() =>
+      rsaPrivateKeyBytes(
+        pemFor("PRIVATE KEY", pkcs8(rsaPrivateKey(), algorithm)),
+      ),
+    ).message,
+  ).toBe("Private key is not RSA");
+};
 
 describe("RSA private keys", () => {
   test("accepts the fixed PKCS#1 and PKCS#8 credentials", () => {
@@ -46,10 +63,20 @@ describe("RSA private keys", () => {
     expect(rsaPrivateKeyBytes(pemFor("PRIVATE KEY", encoded))).toEqual(encoded);
   });
 
-  test("accepts the multi-prime RSA version marker", () => {
+  test("rejects an incomplete multi-prime RSA key", () => {
     expect(
-      isValidRsaPrivateKey(pemFor("RSA PRIVATE KEY", rsaPrivateKey(1))),
-    ).toBe(true);
+      thrownError(() =>
+        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", rsaPrivateKey(1))),
+      ).message,
+    ).toBe("Unsupported RSA private key version");
+  });
+
+  test("rejects extra fields on a two-prime RSA key", () => {
+    expect(
+      thrownError(() =>
+        rsaPrivateKeyBytes(pemFor("RSA PRIVATE KEY", rsaPrivateKey(0, 10))),
+      ).message,
+    ).toBe("Unexpected RSA private key fields");
   });
 
   test("rejects incomplete and malformed PKCS#1 keys", () => {
@@ -111,14 +138,29 @@ describe("RSA private keys", () => {
   });
 
   test("rejects a non-RSA PKCS#8 algorithm", () => {
-    const algorithm = encodeSequence([encodeOid("1.2.840.10045.2.1")]);
-    expect(
-      thrownError(() =>
-        rsaPrivateKeyBytes(
-          pemFor("PRIVATE KEY", pkcs8(rsaPrivateKey(), algorithm)),
-        ),
-      ).message,
-    ).toBe("Private key is not RSA");
+    expectRsaAlgorithmRejected(
+      encodeSequence([encodeOid("1.2.840.10045.2.1"), encodeNull()]),
+    );
+  });
+
+  test("rejects an RSA algorithm without NULL parameters", () => {
+    expectRsaAlgorithmRejected(encodeSequence([encodeOid(RSA_ENCRYPTION_OID)]));
+  });
+
+  test("rejects non-NULL RSA algorithm parameters", () => {
+    expectRsaAlgorithmRejected(
+      encodeSequence([encodeOid(RSA_ENCRYPTION_OID), encodeInteger(0)]),
+    );
+  });
+
+  test("rejects extra RSA algorithm parameters", () => {
+    expectRsaAlgorithmRejected(
+      encodeSequence([
+        encodeOid(RSA_ENCRYPTION_OID),
+        encodeNull(),
+        encodeNull(),
+      ]),
+    );
   });
 
   test("rejects a malformed PKCS#8 algorithm", () => {
