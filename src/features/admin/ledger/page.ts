@@ -18,7 +18,7 @@ import {
 import type { LedgerRange } from "#shared/accounting/range.ts";
 import { formatSignedCurrency } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
-import { getAllGroupNames, getGroupListingIds } from "#shared/db/groups.ts";
+import { getAllGroupNames, groupListings } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -153,7 +153,7 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
     );
     const scope = resolveLedgerScope(params, listingOptions, groupOptions);
     const groupListingIds =
-      scope.kind === "group" ? await getGroupListingIds(scope.id) : [];
+      scope.kind === "group" ? await groupListings.getIds(scope.id) : [];
     const fetched = await visibleTransfers(
       range,
       listingIdsForLedgerScope(scope, groupListingIds),

@@ -35,7 +35,7 @@ const _realGet = Deno.env.get.bind(Deno.env);
 const _realSet = Deno.env.set.bind(Deno.env);
 const _realDelete = Deno.env.delete.bind(Deno.env);
 
-// Overlay of test-scoped env vars, layered/restored by setTestEnv. lazyRef
+// Overlay of test-scoped env vars, layered/restored by withEnv. lazyRef
 // gives a resettable cell (set(null) clears it) without module-level `let`.
 const [getOverlay, setOverlay] = lazyRef<Record<
   string,
@@ -67,9 +67,11 @@ Deno.env.delete = (key: string): void => {
  */
 export const getRealEnv = (key: string): string | undefined => _realGet(key);
 
-export const setTestEnv = (
-  vars: Record<string, string | undefined>,
-): (() => void) => {
+export interface EnvScope extends Disposable {
+  dispose(): void;
+}
+
+export const withEnv = (vars: Record<string, string | undefined>): EnvScope => {
   const prev = getOverlay();
   const layer: Record<string, string | undefined> = prev
     ? { ...prev }
@@ -83,7 +85,11 @@ export const setTestEnv = (
     if (value !== undefined) Deno.env.set(key, value);
     else Deno.env.delete(key);
   }
-  return () => {
+  const state = { active: true };
+  const dispose = (): void => {
+    if (!state.active) return;
+    state.active = false;
     setOverlay(prev);
   };
+  return { dispose, [Symbol.dispose]: dispose };
 };

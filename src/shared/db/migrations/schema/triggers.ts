@@ -226,6 +226,33 @@ END`,
   },
 ];
 
+const ATTENDEE_STATUS_VALIDATION_TRIGGERS: Trigger[] = [
+  {
+    name: "trg_attendees_validate_status_insert",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_insert
+BEFORE INSERT ON attendees
+WHEN NEW.status_id IS NOT NULL AND NOT EXISTS (
+  SELECT status.id FROM attendee_statuses AS status WHERE status.id = NEW.status_id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'attendee status does not exist');
+END`,
+    table: "attendees",
+  },
+  {
+    name: "trg_attendees_validate_status_update",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_update
+BEFORE UPDATE OF status_id ON attendees
+WHEN NEW.status_id IS NOT NULL AND NOT EXISTS (
+  SELECT status.id FROM attendee_statuses AS status WHERE status.id = NEW.status_id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'attendee status does not exist');
+END`,
+    table: "attendees",
+  },
+];
+
 const STRING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_strings_insert",
@@ -260,11 +287,12 @@ END`,
   },
 ];
 
-/** Every declared trigger, across all aggregate relationships. */
+/** Every declared aggregate and validation trigger. */
 export const TRIGGERS: Trigger[] = [
   ...LISTING_AGGREGATE_TRIGGERS,
   ...MODIFIER_AGGREGATE_TRIGGERS,
   ...ANSWER_AGGREGATE_TRIGGERS,
   ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
+  ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
   ...STRING_AGGREGATE_TRIGGERS,
 ];

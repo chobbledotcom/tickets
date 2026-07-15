@@ -6,7 +6,7 @@
  * - Bunny Edge: uses process.env (Node.js compatibility)
  *
  * Note: In Deno, process.env is a proxy over Deno.env — they share the
- * same backing store. The test overlay (setTestEnv in test-utils) patches
+ * same backing store. The test overlay (withEnv in test-utils) patches
  * Deno.env.get/set/delete, which automatically affects process.env reads
  * and writes too.
  */

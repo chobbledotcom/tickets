@@ -7,7 +7,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, groupBy, map, mapParallel, reduce } from "#fp";
+import { filter, map, mapParallel, reduce } from "#fp";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/question-types.ts";
@@ -92,7 +92,7 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> =>
       first.q_text,
       answers,
     );
-  })([...groupBy(rows, (r) => r.q_id)]);
+  })([...Map.groupBy(rows, (r) => r.q_id)]);
 
 /** Keep only questions that have at least one answer */
 const withAnswers = filter(

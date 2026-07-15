@@ -29,7 +29,7 @@
  * them.
  */
 
-import { compact, groupBy, mapNotNullish } from "#fp";
+import { compact, mapNotNullish } from "#fp";
 import {
   execute,
   executeBatch,
@@ -246,7 +246,7 @@ export const getGroupDayPricesByGroupIds = async (
   );
   const groupIdOf = (row: GroupDayRow): number =>
     Number(row.price_id.split("/")[0]);
-  const rowsByGroup = groupBy(
+  const rowsByGroup = Map.groupBy(
     (rows.rows as unknown as GroupDayRow[]).filter((row) =>
       wanted.has(groupIdOf(row)),
     ),

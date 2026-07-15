@@ -403,16 +403,14 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       // A package/order can mix a checkable member with a No Check-In
       // (purchase_only) one on the same token; the token check-in must update
       // only the checkable row.
-      const { createAttendeeAtomic } = await import(
-        "#shared/db/attendees/api.ts"
-      );
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       const { queryAll } = await import("#shared/db/client.ts");
       const normal = await createTestListing({ name: "Entry Pass" });
       const merch = await createTestListing({
         name: "Merch Add-on",
         purchaseOnly: true,
       });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: normal.id, quantity: 1 },
           { listingId: merch.id, quantity: 1 },

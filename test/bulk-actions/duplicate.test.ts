@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#shared/db/client.ts";
 import {
-  getGroupIdsByListingId,
   getGroupPackagePrices,
   getListingsByGroupId,
   groups,
+  listingGroups,
 } from "#shared/db/groups.ts";
 import {
   getAllListings,
@@ -119,9 +119,7 @@ describeWithEnv("Admin bulk actions — duplicate", { db: true }, () => {
       const original = await getListingWithCount(sourceListing.id);
       expect(original?.name).toBe("Spring Workshop");
       expect(original?.date).toBe(sourceListing.date);
-      expect(await getGroupIdsByListingId(sourceListing.id)).toContain(
-        group.id,
-      );
+      expect(await listingGroups.getIds(sourceListing.id)).toContain(group.id);
     });
 
     test("syncs listing_prices for cloned listings", async () => {

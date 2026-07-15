@@ -15,7 +15,11 @@ import {
 } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 /* jscpd:ignore-start */
-import { type IdRouteHandler, idRouteFor, withEntity } from "#routes/entity.ts";
+import {
+  createIdEntityHandler,
+  type IdRouteHandler,
+  idRouteFor,
+} from "#routes/entity.ts";
 import {
   errorRedirect,
   htmlResponse,
@@ -110,18 +114,17 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
         auth.withForm(request, handler);
 
     const authHtml = authPage(auth.requireSession);
+    const rowHandler = createIdEntityHandler<Row>((id) =>
+      resource().table.findById(id),
+    )(auth.requireSession);
 
-    const authRowHtml =
-      (
-        render: (row: Row, session: AdminSession, error?: string) => string,
-      ): IdRouteHandler =>
-      (request, { id }) =>
-        auth.requireSession(request, (session) => {
-          const flash = applyFlash(request);
-          return withEntity<Row>((row) =>
-            htmlResponse(render(row, session, flash.error)),
-          )(() => resource().table.findById(id));
-        });
+    const authRowHtml = (
+      render: (row: Row, session: AdminSession, error?: string) => string,
+    ): IdRouteHandler =>
+      rowHandler((row, session, request) => {
+        const flash = applyFlash(request);
+        return htmlResponse(render(row, session, flash.error));
+      });
 
     const logAndRedirect = async (
       verb: string,

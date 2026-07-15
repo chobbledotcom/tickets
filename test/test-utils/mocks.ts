@@ -1,13 +1,15 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
+import type { Stub } from "@std/testing/mock";
 import { bracket } from "#fp";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withTempDir } from "#test-utils/files.ts";
 import {
   TEST_STORAGE_ZONE,
   type TestRequestOptions,
@@ -142,8 +144,8 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
 export const withExpectedError = bracket(
   // Overlay-scoped so the flag stays inside this worker: written to the real
   // process env it would make every parallel test worker swallow its errors.
-  () => setTestEnv({ TEST_EXPECT_ERROR: "1" }),
-  (restore) => restore(),
+  () => withEnv({ TEST_EXPECT_ERROR: "1" }),
+  (scope) => scope.dispose(),
 );
 
 export const withFetchMock = bracket(
@@ -254,26 +256,18 @@ export const installRecordingFetch = (
  *  recorded calls (default: zero calls were made). Returns the stub's calls
  *  for custom assertions. Unifies the "stub fetch then assert it wasn't
  *  called" scaffold from the scheduled-tasks and migration-error tests. */
-export function okResponse(): Promise<Response> {
-  return Promise.resolve(new Response("ok"));
-}
-
 export const expectFetchSilent = async (
   body: () => Promise<void>,
-  assert?: (calls: ReturnType<typeof stub>["calls"]) => void,
+  assert?: (calls: Stub["calls"]) => void,
 ): Promise<void> => {
-  const fetchStub = stub(globalThis, "fetch", okResponse);
-  try {
-    await body();
-    (
-      assert ??
-      ((calls) => {
-        expect(calls.length).toBe(0);
-      })
-    )(fetchStub.calls);
-  } finally {
-    fetchStub.restore();
-  }
+  using fetchStub = stubFetch(new Response("ok"));
+  await body();
+  (
+    assert ??
+    ((calls) => {
+      expect(calls.length).toBe(0);
+    })
+  )(fetchStub.calls);
 };
 
 /** Core of the storage-mock helpers: run `body` with a fetch mock whose URL
@@ -428,32 +422,16 @@ export const withStorageEnabled = <T>(fn: () => T): T =>
 
 export const withLocalStorageEnabled = async <T>(
   fn: (dir: string) => Promise<T>,
-): Promise<T> => {
-  const dir = await Deno.makeTempDir();
-  try {
-    return await runWithStorageConfig(
-      { localPath: dir, zoneKey: "", zoneName: "" },
-      () => fn(dir),
-    );
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-};
+): Promise<T> =>
+  await withTempDir((dir) =>
+    runWithStorageConfig({ localPath: dir, zoneKey: "", zoneName: "" }, () =>
+      fn(dir),
+    ),
+  );
 
 export const mockProviderType = (
   type: import("#shared/payments.ts").PaymentProviderType,
 ): import("#shared/payments.ts").PaymentProviderType | null => type;
-
-export const stubFetchJson = (body: unknown) =>
-  stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response(JSON.stringify(body))),
-  );
-
-/** Stub `fetch` to always resolve with a `Response` of the given status/body. */
-export const stubFetchStatus = (status: number, body: BodyInit | null = null) =>
-  stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response(body, { status })),
-  );
 
 export const MOCK_RELEASE = {
   assets: [
@@ -472,56 +450,29 @@ export const stubReleaseFetch = (
   onDownload: () => Response = () =>
     new Response("console.log('updated')", { status: 200 }),
 ) =>
-  stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
+  stubFetch((url) => {
     if (url.includes("releases/latest")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
-      );
+      return new Response(JSON.stringify(MOCK_RELEASE), { status: 200 });
     }
-    return Promise.resolve(onDownload());
+    return onDownload();
   });
-
-export const stubFetchRecorder = (responseInit?: ResponseInit) => {
-  const calls: import("#test-utils/internal.ts").FetchCall[] = [];
-  const fetchStub = stub(
-    globalThis,
-    "fetch",
-    (input: string | URL | Request, init?: RequestInit) => {
-      calls.push({ init, url: String(input) });
-      return Promise.resolve(
-        new Response(null, { status: 204, ...responseInit }),
-      );
-    },
-  );
-  return {
-    callCount: () => calls.length,
-    calls,
-    restore: () => fetchStub.restore(),
-  };
-};
 
 export const useFetchStub = () => {
   // deno-lint-ignore no-explicit-any
   type FetchStubRef = { current: any };
   const ref: FetchStubRef = { current: null };
-  let originalFetch: typeof fetch;
 
   beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    ref.current = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response()),
-    );
+    ref.current = stubFetch(() => new Response());
   });
 
   afterEach(() => {
     ref.current.restore();
-    globalThis.fetch = originalFetch;
   });
 
   const restubFetch = (impl: () => Promise<Response>): void => {
     ref.current.restore();
-    ref.current = stub(globalThis, "fetch", impl);
+    ref.current = stubFetch(impl);
   };
 
   const callCount = (): number => ref.current.calls.length;
@@ -581,15 +532,11 @@ export const randomString = (length: number): string => {
 
 const NTFY_TEST_TOPIC = "https://ntfy.sh/test-topic";
 
-export function okEmptyResponse(): Promise<Response> {
-  return Promise.resolve(new Response());
-}
-
 export const stubNtfyFetch = (
   env: Record<string, string | undefined> = {},
-): { fetchStub: Stub; restore: () => void } => {
-  const restore = setTestEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
-  const fetchStub = stub(globalThis, "fetch", okEmptyResponse);
+): { fetchStub: Stub; restore: EnvScope } => {
+  const restore = withEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
+  const fetchStub = stubFetch(() => new Response());
   return { fetchStub, restore };
 };
 

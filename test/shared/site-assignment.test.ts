@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
@@ -27,8 +27,9 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
   let counter = 0;
@@ -111,8 +112,7 @@ describeWithEnv(
     env: { CAN_BUILD_SITES: "true" },
   },
   () => {
-    // deno-lint-ignore no-explicit-any
-    let fetchStub: any;
+    let fetchStub: Stub;
     let secretStub: ReturnType<typeof stubEdgeSecretSuccess>;
 
     const assignAndCollectThreeSites = async (): Promise<BuiltSite[]> => {
@@ -137,7 +137,7 @@ describeWithEnv(
 
     const expectLastEmailBody = (expected: Record<string, unknown>) => {
       expect(fetchStub.calls.length).toBe(1);
-      const body = JSON.parse(fetchStub.calls[0].args[1].body) as Record<
+      const body = JSON.parse(fetchStub.calls[0]!.args[1].body) as Record<
         string,
         unknown
       >;
@@ -149,7 +149,7 @@ describeWithEnv(
 
     const expectSetupEmailBody = async (setupUrl: string) => {
       await assignAndNotifyBuiltSites([siteEntry()]);
-      const body = JSON.parse(fetchStub.calls[0].args[1].body);
+      const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
       expect(body.html).toContain(`href="${setupUrl}"`);
       expect(body.text).toContain(setupUrl);
       return body;
@@ -163,9 +163,7 @@ describeWithEnv(
     };
 
     beforeEach(async () => {
-      fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      fetchStub = stubFetch(() => new Response());
       secretStub = stubEdgeSecretSuccess();
       setHostEmailConfigForTest({
         apiKey: "re_test",
@@ -308,7 +306,7 @@ describeWithEnv(
         ]);
 
         expect(fetchStub.calls.length).toBe(1);
-        const body = JSON.parse(fetchStub.calls[0].args[1].body);
+        const body = JSON.parse(fetchStub.calls[0]!.args[1].body);
         expect(body.subject).toContain("2 new sites");
       });
 
@@ -370,16 +368,12 @@ describeWithEnv(
 
     describe("feature flag", () => {
       test("no-ops when CAN_BUILD_SITES is disabled", async () => {
-        const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
-        try {
-          await insertBuiltSite("Site A", "a.test.net", "", "", true);
-          await assignAndNotifyBuiltSites([siteEntry()]);
-          const sites = await builtSites.getAll();
-          expect(sites[0]!.assignable).toBe(true);
-          expect(sites[0]!.assignedAttendeeId).toBeNull();
-        } finally {
-          restore();
-        }
+        using _env = withEnv({ CAN_BUILD_SITES: undefined });
+        await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        await assignAndNotifyBuiltSites([siteEntry()]);
+        const sites = await builtSites.getAll();
+        expect(sites[0]!.assignable).toBe(true);
+        expect(sites[0]!.assignedAttendeeId).toBeNull();
       });
     });
 
@@ -423,7 +417,7 @@ describeWithEnv(
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
-        const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
         const errorSpy = stub(console, "error", () => {});
 
         try {
@@ -432,7 +426,6 @@ describeWithEnv(
           ]);
         } finally {
           errorSpy.restore();
-          restoreEnv();
         }
 
         const sites = await builtSites.getAll();
@@ -449,8 +442,8 @@ describeWithEnv(
         ).toBe(true);
         expect(
           fetchStub.calls.some(
-            (c: { args: [string, RequestInit] }) =>
-              c.args[1]?.body === "DATA_INVALID",
+            (c) =>
+              (c.args[1] as RequestInit | undefined)?.body === "DATA_INVALID",
           ),
         ).toBe(true);
       });
@@ -459,7 +452,7 @@ describeWithEnv(
         await deactivateAllTierListings();
 
         const buildStub = stubBuildSiteSuccess();
-        const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        using _env = withEnv({ NTFY_URL: "https://ntfy.test/topic" });
         const errorSpy = stub(console, "error", () => {});
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
@@ -476,13 +469,13 @@ describeWithEnv(
           ).toBe(true);
           expect(
             fetchStub.calls.some(
-              (c: { args: [string, RequestInit] }) =>
-                c.args[1]?.body === "CONFIG_MISSING",
+              (c) =>
+                (c.args[1] as RequestInit | undefined)?.body ===
+                "CONFIG_MISSING",
             ),
           ).toBe(true);
         } finally {
           errorSpy.restore();
-          restoreEnv();
           buildStub.restore();
         }
       });
@@ -704,14 +697,10 @@ describeWithEnv(
 
 describe("validateSiteAssignmentConfig without builder", () => {
   test("rejects when CAN_BUILD_SITES is disabled", async () => {
-    const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
-    try {
-      const result = await validateSiteAssignmentConfig([siteEntry()]);
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.reason).toBe("builder_disabled");
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ CAN_BUILD_SITES: undefined });
+    const result = await validateSiteAssignmentConfig([siteEntry()]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("builder_disabled");
   });
 });
 

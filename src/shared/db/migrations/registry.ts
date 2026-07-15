@@ -336,6 +336,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-12_remove_broken_image_records",
     () => import("./2026-07-12_remove_broken_image_records.ts"),
   ),
+  // Keep every attendee status reference tied to a live status row.
+  entry(
+    "2026-07-15_attendee_status_integrity",
+    () => import("./2026-07-15_attendee_status_integrity.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

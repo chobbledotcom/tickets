@@ -6,7 +6,10 @@ import {
 } from "#shared/booking/model.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  hydrateListingLinks,
+  listingChildren,
+} from "#shared/db/listing-parents.ts";
 import {
   availableDayCounts,
   dayPriceFor,
@@ -136,7 +139,9 @@ export const mapParentChildren = async <T>(
   map: (child: ListingWithCount) => T | Promise<T>,
 ): Promise<T[] | null> => {
   const children =
-    (await getChildrenForParents([parent.id])).get(parent.id) ?? [];
+    (await hydrateListingLinks(listingChildren, [parent.id])).listingsByKey.get(
+      parent.id,
+    ) ?? [];
   return children.length === 0 ? null : Promise.all(children.map(map));
 };
 

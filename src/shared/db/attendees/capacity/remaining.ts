@@ -2,6 +2,7 @@
 import { filter } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import {
   getGroupPerDayRemaining,
   getGroupRemainingByGroupId,
@@ -68,7 +69,7 @@ export async function getListingRemainingForRange(
   const days = date ? expandDailyRange(date, durationDays) : [];
   const membership = await getListingGroupMembership(listings);
   const groupsOf = (listing: ListingCapacityRow): number[] =>
-    membership.get(listing.id) ?? [];
+    listingGroups.idsFor(membership, listing.id);
 
   const [totalGroupRemaining, overlapByListing, dailyGroupPerDay] =
     await Promise.all([

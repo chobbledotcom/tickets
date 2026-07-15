@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
   CapacityMeter,
   capacityLevel,
@@ -150,18 +150,17 @@ export const ListingCapacityRows = (
 
 export const DailyCapacityDetailTable = ({
   capacity,
-  sharedRowsHtml,
+  sharedRows,
 }: {
   capacity: ListingCapacityRowsProps;
-  sharedRowsHtml: string;
+  sharedRows: DetailRow[];
 }): JSX.Element | null => {
   if (capacity.listing.listing_type !== "daily" || !capacity.dateFilter) {
     return null;
   }
   return (
-    <DetailTable>
+    <DetailTable rows={sharedRows}>
       <ListingCapacityRows {...capacity} />
-      <Raw html={sharedRowsHtml} />
     </DetailTable>
   );
 };

@@ -12,7 +12,7 @@ import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupFetchStub } from "#test-utils/fetch-stub.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   createTestEditorSession,
@@ -68,8 +68,6 @@ const lookupGetSignedIn = async (cookie: string): Promise<Response> => {
 };
 
 describeWithEnv("GET /address-lookup", { db: true }, () => {
-  const { stubFetch } = setupFetchStub();
-
   test("404s while no provider is configured", async () => {
     const response = await lookupGet("SW1A 2AA");
     expect(response.status).toBe(404);
@@ -77,7 +75,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
 
   test("an anonymous lookup gets address lines but never coordinates", async () => {
     await enableEasypostcodes();
-    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    using _fetch = stubFetch(new Response(PROVIDER_BODY));
 
     const response = await lookupGet("sw1a2aa");
 
@@ -87,7 +85,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
 
   test("400s with the validation message for a malformed postcode", async () => {
     await enableEasypostcodes();
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    using _fetch = stubFetch(new Error("should not be called"));
 
     const response = await lookupGet("definitely not a postcode");
 
@@ -99,7 +97,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
 
   test("400s when the search parameter is missing entirely", async () => {
     await enableEasypostcodes();
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    using _fetch = stubFetch(new Error("should not be called"));
 
     const { handleRequest } = await import("#routes");
     const response = await handleRequest(mockRequest("/address-lookup"));
@@ -108,7 +106,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
   });
 
   // Lock the test client's IP ("direct" — getClientIp's fallback) in the
-  // limiter's own namespace exactly as recordIpAttempt would.
+  // limiter's own namespace exactly as the configured limiter does.
   const lockOutTestIp = async (): Promise<void> => {
     await execute(
       "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
@@ -118,7 +116,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
 
   test("429s while the client IP is locked out", async () => {
     await enableEasypostcodes();
-    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    using _fetch = stubFetch(new Response(PROVIDER_BODY));
     await lockOutTestIp();
 
     const response = await lookupGet("SW1A 2AA");
@@ -131,7 +129,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
 
   test("authenticated staff are never rate limited", async () => {
     await enableEasypostcodes();
-    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    using _fetch = stubFetch(new Response(PROVIDER_BODY));
     await lockOutTestIp();
     const { cookie } = await getTestSession();
 
@@ -144,7 +142,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
 
   test("a restricted editor session gets lines but never coordinates", async () => {
     await enableEasypostcodes();
-    stubFetch(() => Promise.resolve(new Response(PROVIDER_BODY)));
+    using _fetch = stubFetch(new Response(PROVIDER_BODY));
     const { cookie } = await createTestEditorSession();
 
     const response = await lookupGetSignedIn(cookie);

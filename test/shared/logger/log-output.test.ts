@@ -8,6 +8,7 @@ import {
   logRequest,
   setSuppressRequestLogs,
 } from "#shared/logger.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describe("logRequest", () => {
   let debugSpy: Spy;
@@ -66,13 +67,9 @@ describe("logRequest", () => {
 
   test("falls back to env var when override is null", () => {
     setSuppressRequestLogs(null);
-    Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
-    try {
-      logRequest({ durationMs: 1, method: "GET", path: "/admin", status: 200 });
-      expect(debugSpy.calls.length).toBe(0);
-    } finally {
-      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
-    }
+    using _env = withEnv({ TEST_SUPPRESS_REQUEST_LOGS: "1" });
+    logRequest({ durationMs: 1, method: "GET", path: "/admin", status: 200 });
+    expect(debugSpy.calls.length).toBe(0);
   });
 });
 
@@ -101,16 +98,10 @@ describe("logDebug", () => {
   });
 
   test("falls back to the TEST_SUPPRESS_DEBUG_LOGS env var when no override is set", () => {
-    const previous = Deno.env.get("TEST_SUPPRESS_DEBUG_LOGS");
     setSuppressDebugLogs(null);
-    Deno.env.set("TEST_SUPPRESS_DEBUG_LOGS", "1");
-    try {
-      logDebug("Migration", "Step 1");
-      expect(debugSpy.calls.length).toBe(0);
-    } finally {
-      if (previous === undefined) Deno.env.delete("TEST_SUPPRESS_DEBUG_LOGS");
-      else Deno.env.set("TEST_SUPPRESS_DEBUG_LOGS", previous);
-    }
+    using _env = withEnv({ TEST_SUPPRESS_DEBUG_LOGS: "1" });
+    logDebug("Migration", "Step 1");
+    expect(debugSpy.calls.length).toBe(0);
   });
 
   test("emits output when setSuppressDebugLogs(false)", () => {

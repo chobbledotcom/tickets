@@ -27,10 +27,7 @@ import type {
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
-import {
-  type createAttendeeAtomic,
-  createBookingAtomic,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -124,7 +121,7 @@ const formatPostPaymentError = capacityErrorFormatter({
 });
 
 type CreatedAttendee = Extract<
-  Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  Awaited<ReturnType<typeof attendeesApi.createAttendeeAtomic>>,
   { success: true }
 >["attendees"][number];
 
@@ -258,8 +255,8 @@ export const createAttendeeForSession = async (
   ticketToken: string,
 ): Promise<HonourResult> => {
   let prepared: {
-    attendeeInput: Parameters<typeof createBookingAtomic>[0];
-    plan: Parameters<typeof createBookingAtomic>[1];
+    attendeeInput: Parameters<typeof attendeesApi.createBookingAtomic>[0];
+    plan: Parameters<typeof attendeesApi.createBookingAtomic>[1];
   };
   try {
     // Per-LINE paid amounts: a listing booked through two paths is two lines
@@ -314,9 +311,12 @@ export const createAttendeeForSession = async (
       reason: "unexpected_error",
     };
   }
-  let result: Awaited<ReturnType<typeof createBookingAtomic>>;
+  let result: Awaited<ReturnType<typeof attendeesApi.createBookingAtomic>>;
   try {
-    result = await createBookingAtomic(prepared.attendeeInput, prepared.plan);
+    result = await attendeesApi.createBookingAtomic(
+      prepared.attendeeInput,
+      prepared.plan,
+    );
   } catch (error) {
     return { error, ok: null };
   }

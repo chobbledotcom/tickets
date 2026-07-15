@@ -1,5 +1,5 @@
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
@@ -31,7 +31,7 @@ const bookAttendeeOwing = async (
   remainingBalance: number,
   options: OwingOptions,
 ): Promise<number> => {
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId, pricePaid: 100, quantity: options.quantity ?? 1 }],
     email: "guest@example.com",
     name: "Guest",

@@ -18,11 +18,9 @@ import {
   installFakeDom,
   restoreDocument,
 } from "#test-utils/fake-dom.ts";
-import { setupFetchStub } from "#test-utils/fetch-stub.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("address lookup fills the pin inputs", () => {
-  const { stubFetch } = setupFetchStub();
-
   afterEach(() => {
     restoreDocument();
   });
@@ -54,7 +52,7 @@ describe("address lookup fills the pin inputs", () => {
     page: ElementSpec = formSpec(),
     typed = "",
   ): Promise<{ form: FakeElement; lat: FakeElement; lng: FakeElement }> => {
-    stubFetch(() => Promise.resolve(new Response(JSON.stringify(body))));
+    using _fetch = stubFetch(new Response(JSON.stringify(body)));
     const [form] = installFakeDom([page]);
     initAddressLookup();
     const one = (selector: string) => form!.querySelector(selector)!;

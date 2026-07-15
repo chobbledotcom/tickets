@@ -7,12 +7,16 @@ import {
   withAuth,
 } from "#routes/auth.ts";
 import { applyFlash, requireCsrfFormWithMessage } from "#routes/csrf.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+} from "#routes/response.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms.tsx";
-import type { ResponseHandler } from "#shared/response-steps.ts";
+import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
 
 export type FormValidator<TValues> = {
@@ -79,19 +83,12 @@ export const createAuthedHandler =
       },
     );
 
-/** A finished authed route: takes the request and its typed params, gives back
- * the response. The shape every {@link createAuthedHandler} factory returns. */
-export type AuthedRoute<TParams> = (
-  request: Request,
-  params: TParams,
-) => Promise<Response>;
-
 /** An owner-only authed form route with no params or loaded context:
  * {@link createAuthedHandler} with the owner policy already applied, so callers
  * pass only their `handle` step. */
 export const ownerFormHandler = (
   handle: AuthedHandleStep<Record<string, never>, void>,
-): AuthedRoute<Record<string, never>> =>
+): ParamsRoute<Record<string, never>> =>
   createAuthedHandler({ auth: OWNER_FORM, handle });
 
 /** Build an authed route from the shared auth/load config plus its own
@@ -101,7 +98,7 @@ export const ownerFormHandler = (
 export const authedHandlerWithStep = <TParams, TContext>(
   config: AuthedBase<TParams, TContext>,
   handle: AuthedHandleStep<TParams, TContext>,
-): AuthedRoute<TParams> =>
+): ParamsRoute<TParams> =>
   createAuthedHandler<TParams, TContext>({ ...config, handle });
 
 // ── createAuthedFormRoute: adds schema validation on top ──────────────
@@ -130,6 +127,26 @@ type FormRouteConfig<TValues, TParams, TContext> = AuthedBase<
   onInvalid: ResponseHandler<[args: InvalidArgs<TParams, TContext>]>;
   onValid: ResponseHandler<[args: HandlerArgs<TValues, TParams, TContext>]>;
 };
+
+/** Collect common typed-form config while leaving persistence at the direct
+ * `createAuthedFormRoute` call. */
+export function authedFormConfig<
+  TValues,
+  TParams = Record<string, never>,
+  TContext = void,
+>(
+  auth: AuthPolicy<"form">,
+  form: FormValidator<TValues>,
+  errorPath: (context: TContext) => string,
+  loadContext?: AuthedBase<TParams, TContext>["loadContext"],
+): Omit<FormRouteConfig<TValues, TParams, TContext>, "onValid"> {
+  return {
+    auth,
+    ...(loadContext ? { loadContext } : {}),
+    form,
+    onInvalid: ({ context, error }) => errorRedirect(errorPath(context), error),
+  };
+}
 
 /** Require auth, optionally load context, validate a typed form, then dispatch. */
 export const createAuthedFormRoute = <

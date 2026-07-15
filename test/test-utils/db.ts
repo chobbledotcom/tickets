@@ -17,10 +17,14 @@ import {
 } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { setStorageConfigForTest } from "#shared/storage.ts";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import {
+  type EnvScope,
+  setupTestEncryptionKey,
+  withEnv,
+} from "#test-utils/env.ts";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
 import {
   type DescribeEnvOptions,
-  getTestStoragePath,
   type RawListingRange,
   resetTestSession,
   resetTestSlugCounter,
@@ -71,7 +75,7 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   const goldenPath = await getOrCreateGoldenDb();
   const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
-  setTestEnv({
+  withEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
@@ -105,7 +109,7 @@ export const setupTransactionalTestDb = async (): Promise<
   const goldenPath = await getOrCreateGoldenDb();
   const path = await createTrackedTestDbFile(".db");
   await Deno.copyFile(goldenPath, path);
-  const restoreEnv = setTestEnv({
+  const env = withEnv({
     DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
   });
@@ -115,7 +119,7 @@ export const setupTransactionalTestDb = async (): Promise<
   return async () => {
     setDb(null);
     client.close();
-    restoreEnv();
+    env.dispose();
     cleanupTestDbPath(path);
   };
 };
@@ -185,9 +189,9 @@ export const resetDb = (): void => {
  * - `"local"`: a fresh temp dir (recorded for `getTestStoragePath`) with empty
  *   zone creds, so ambient Bunny creds can't shadow the local backend.
  */
-const applyStorageConfig = async (
+const applyStorageConfig = (
   storage: DescribeEnvOptions["storage"],
-): Promise<void> => {
+): TempPath | undefined => {
   if (storage === "cdn") {
     setStorageConfigForTest({
       localPath: "",
@@ -197,19 +201,23 @@ const applyStorageConfig = async (
     return;
   }
   if (storage === "local") {
-    const dir = await Deno.makeTempDir();
-    setTestStoragePath(dir);
-    setStorageConfigForTest({ localPath: dir, zoneKey: "", zoneName: "" });
+    const dir = tempDir();
+    setTestStoragePath(dir.path);
+    setStorageConfigForTest({
+      localPath: dir.path,
+      zoneKey: "",
+      zoneName: "",
+    });
+    return dir;
   }
+  return;
 };
 
 /** Clear the suite-level storage config and remove any `"local"` temp dir. */
-const teardownStorageConfig = async (): Promise<void> => {
+const teardownStorageConfig = (dir: TempPath | undefined): void => {
   setStorageConfigForTest(null);
-  const dir = getTestStoragePath();
-  if (!dir) return;
   setTestStoragePath(null);
-  await Deno.remove(dir, { recursive: true });
+  dir?.dispose();
 };
 
 export const describeWithEnv = (
@@ -218,7 +226,8 @@ export const describeWithEnv = (
   fn: () => void,
 ): void => {
   describe(name, () => {
-    let restoreEnv: (() => void) | undefined;
+    let env: EnvScope | undefined;
+    let storageDir: TempPath | undefined;
     beforeEach(async () => {
       if (options.encryptionKey) setupTestEncryptionKey();
       if (options.db) {
@@ -228,14 +237,15 @@ export const describeWithEnv = (
         settings.googleWallet.setHostConfigForTest(null);
         await createTestDbWithSetup("GB", options.triggers ?? false);
       }
-      if (options.env) restoreEnv = setTestEnv(options.env);
-      await applyStorageConfig(options.storage);
+      if (options.env) env = withEnv(options.env);
+      storageDir = applyStorageConfig(options.storage);
     });
-    afterEach(async () => {
+    afterEach(() => {
       if (options.db) resetDb();
-      if (restoreEnv) restoreEnv();
-      restoreEnv = undefined;
-      await teardownStorageConfig();
+      env?.dispose();
+      env = undefined;
+      teardownStorageConfig(storageDir);
+      storageDir = undefined;
     });
     // A small suite may never reach the amortised reclaim threshold, so hand
     // back its leaked descriptors when it finishes (see reclaim-fds.ts).

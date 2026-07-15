@@ -14,7 +14,7 @@ import {
 } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   enableQueryLog,
@@ -46,7 +46,7 @@ const historicalBooking = async (
   bookings: ListingBooking[],
   email = "a@b.c",
 ) => {
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings,
     email,
     name: "Historical",

@@ -7,11 +7,11 @@ import {
   type AuthSession,
   type Guard,
   OWNER_FORM,
-  requireSessionOr,
+  requireOwnerOr,
 } from "#routes/auth.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
+import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -50,10 +50,7 @@ export const withEntity =
 export type IdParam = { id: number };
 
 /** Route handler that takes request + { id } params */
-export type IdRouteHandler = (
-  request: Request,
-  params: IdParam,
-) => Promise<Response>;
+export type IdRouteHandler = ParamsRoute<IdParam>;
 
 /** Wrap a plain `(request, id)` action as an `:id` route handler — unpacking
  * the id from the route params so the action never sees the params shape. */
@@ -71,27 +68,37 @@ export type AttendeeListingRouteParams = {
   listingId: number;
 };
 
-/** An auth gate a `:id` route runs before touching its entity: it yields the
- * gate's context (a session, a parsed form, …) to the inner handler. */
-type EntityGate<C> = Guard<[C]>;
-
 /**
- * Gated `:id` route factory — the one shape behind every "auth, load the
- * entity, 404 when missing, then handle it" route. The gate decides who may
- * pass and what context the handler sees.
+ * Gated entity route factory: authenticate first, load from the typed route
+ * params, return 404 when missing, then run the action. The action also receives
+ * the request and params for routes that need more than the loaded entity.
  */
-export const gatedEntityRoute =
-  <C>(gate: EntityGate<C>) =>
-  <T>(
-    load: EntityLoader<T>,
-    use: ResponseHandler<[entity: T, ctx: C]>,
-  ): IdRouteHandler =>
-  (request, params) => {
-    const loadEntity = () => load(params.id);
-    return gate(request, (ctx) =>
-      withEntity<T>((entity) => use(entity, ctx))(loadEntity),
+export type EntityHandler<TParams, T> = <TContext extends unknown[]>(
+  auth: Guard<TContext>,
+) => (
+  action: ResponseHandler<
+    [entity: T, ...context: TContext, request: Request, params: TParams]
+  >,
+) => ParamsRoute<TParams>;
+
+export const createEntityHandler =
+  <TParams, T>(
+    load: (params: TParams) => Promise<T | null>,
+  ): EntityHandler<TParams, T> =>
+  (auth) =>
+  (action) =>
+  (request, params) =>
+    auth(request, (...context) =>
+      withEntity<T>((entity) => action(entity, ...context, request, params))(
+        () => load(params),
+      ),
     );
-  };
+
+/** The common `:id` form of {@link createEntityHandler}. */
+export const createIdEntityHandler = <T>(
+  load: EntityLoader<T>,
+): EntityHandler<IdParam, T> =>
+  createEntityHandler(({ id }: IdParam) => load(id));
 
 /**
  * Owner GET-by-ID route handler factory.
@@ -101,10 +108,7 @@ export const gatedEntityRoute =
 export const ownerGetById = <T>(
   load: EntityLoader<T>,
   render: ResponseHandler<[entity: T, session: AuthSession]>,
-): IdRouteHandler =>
-  gatedEntityRoute<AuthSession>((request, handler) =>
-    requireSessionOr(request, handler, "owner"),
-  )(load, render);
+): IdRouteHandler => createIdEntityHandler(load)(requireOwnerOr)(render);
 
 /** Owner POST-by-ID + CSRF */
 export const ownerFormById = (handler: IdFormHandler): IdRouteHandler =>

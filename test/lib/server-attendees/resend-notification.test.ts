@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
   expectFlash,
@@ -13,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminAttendeeAction,
@@ -179,55 +179,41 @@ describeWithEnv(
       });
 
       test("re-sends notification with matching name", async () => {
-        const webhookFetch = stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 200 })),
-        );
+        using webhookFetch = stubFetch(new Response());
+        const { response, attendee } = await resendNotificationAction({
+          confirm_identifier: "John Doe",
+        })({
+          webhookUrl: "https://example.com/webhook",
+        });
+        expect(response.status).toBe(302);
+        await expectFlashRedirect(
+          `/admin/attendees/${attendee.id}/actions`,
+          "Notification re-sent",
+        )(response);
 
-        try {
-          const { response, attendee } = await resendNotificationAction({
-            confirm_identifier: "John Doe",
-          })({
-            webhookUrl: "https://example.com/webhook",
-          });
-          expect(response.status).toBe(302);
-          await expectFlashRedirect(
-            `/admin/attendees/${attendee.id}/actions`,
-            "Notification re-sent",
-          )(response);
-
-          // Verify webhook was sent
-          expect(webhookFetch.calls.length).toBeGreaterThan(0);
-        } finally {
-          webhookFetch.restore();
-        }
+        // Verify webhook was sent
+        expect(webhookFetch.calls.length).toBeGreaterThan(0);
       });
 
       test("logs activity when notification is re-sent", async () => {
-        const webhookFetch = stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 200 })),
+        using _fetch = stubFetch(new Response());
+        const { response, listing } = await resendNotificationAction({
+          confirm_identifier: "John Doe",
+        })({
+          webhookUrl: "https://example.com/webhook",
+        });
+        expect(response.status).toBe(302);
+
+        // Verify activity was logged
+        const { getListingActivityLog } = await import(
+          "#test-utils/activity-log.ts"
         );
-
-        try {
-          const { response, listing } = await resendNotificationAction({
-            confirm_identifier: "John Doe",
-          })({
-            webhookUrl: "https://example.com/webhook",
-          });
-          expect(response.status).toBe(302);
-
-          // Verify activity was logged
-          const { getListingActivityLog } = await import(
-            "#test-utils/activity-log.ts"
-          );
-          const logs = await getListingActivityLog(listing.id);
-          const resendLog = logs.find((l: { message: string }) =>
-            l.message.includes("Notification re-sent"),
-          );
-          expect(resendLog).toBeDefined();
-          expect(resendLog?.message).toContain("John Doe");
-        } finally {
-          webhookFetch.restore();
-        }
+        const logs = await getListingActivityLog(listing.id);
+        const resendLog = logs.find((l: { message: string }) =>
+          l.message.includes("Notification re-sent"),
+        );
+        expect(resendLog).toBeDefined();
+        expect(resendLog?.message).toContain("John Doe");
       });
 
       test("a package member's resend rehydrates every line of the package", async () => {
@@ -237,9 +223,7 @@ describeWithEnv(
         const { createTestGroup } = await import(
           "#test-utils/db-helpers/groups.ts"
         );
-        const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees/api.ts"
-        );
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         const group = await createTestGroup({
           isPackage: true,
           name: "Duo Kit",
@@ -253,7 +237,7 @@ describeWithEnv(
           groupId: group.id,
           name: "Duo B",
         });
-        const result = await createAttendeeAtomic({
+        const result = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { listingId: memberA.id, packageGroupId: group.id, quantity: 1 },
             { listingId: memberB.id, packageGroupId: group.id, quantity: 2 },
@@ -263,36 +247,30 @@ describeWithEnv(
         });
         if (!result.success) throw new Error("package booking failed");
 
-        const webhookFetch = stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 200 })),
+        using webhookFetch = stubFetch(new Response());
+        const { response } = await adminFormPost(
+          `/admin/attendees/${result.attendees[0]!.id}/resend-notification`,
+          { confirm_identifier: "Duo Buyer" },
         );
-        try {
-          const { response } = await adminFormPost(
-            `/admin/attendees/${result.attendees[0]!.id}/resend-notification`,
-            { confirm_identifier: "Duo Buyer" },
-          );
-          expect(response.status).toBe(302);
-          // No wait needed: handleRequest flushes pending work (the
-          // fire-and-forget webhook) in its finally before returning the
-          // response, so the dispatch has already completed by here.
-          expect(webhookFetch.calls.length).toBe(1);
-          const [, options] = webhookFetch.calls[0]!.args as [
-            string,
-            RequestInit,
-          ];
-          const body = JSON.parse(options.body as string) as {
-            tickets: { listing_name: string; quantity: number }[];
-          };
-          // BOTH package lines ride the resend, with their own quantities.
-          expect(body.tickets).toHaveLength(2);
-          const byName = new Map(
-            body.tickets.map((t) => [t.listing_name, t.quantity]),
-          );
-          expect(byName.get("Duo A")).toBe(1);
-          expect(byName.get("Duo B")).toBe(2);
-        } finally {
-          webhookFetch.restore();
-        }
+        expect(response.status).toBe(302);
+        // No wait needed: handleRequest flushes pending work (the
+        // fire-and-forget webhook) in its finally before returning the
+        // response, so the dispatch has already completed by here.
+        expect(webhookFetch.calls.length).toBe(1);
+        const [, options] = webhookFetch.calls[0]!.args as [
+          string,
+          RequestInit,
+        ];
+        const body = JSON.parse(options.body as string) as {
+          tickets: { listing_name: string; quantity: number }[];
+        };
+        // BOTH package lines ride the resend, with their own quantities.
+        expect(body.tickets).toHaveLength(2);
+        const byName = new Map(
+          body.tickets.map((t) => [t.listing_name, t.quantity]),
+        );
+        expect(byName.get("Duo A")).toBe(1);
+        expect(byName.get("Duo B")).toBe(2);
       });
     });
   },

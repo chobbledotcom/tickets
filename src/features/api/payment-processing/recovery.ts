@@ -12,7 +12,7 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";
 import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
@@ -77,10 +77,7 @@ export const recoverOrRefundUnexpectedCreate = async ({
   validatedItems,
 }: UnexpectedCreateRecovery): Promise<PaymentResult> => {
   const decision = decideUnexpectedCreate(
-    await loadRecoveryFacts(
-      session.id,
-      await computeTicketTokenIndex(ticketToken),
-    ),
+    await loadRecoveryFacts(session.id, await hmacHash(ticketToken)),
   );
   if (decision.kind === "recover") {
     const entries = await committedEntries(

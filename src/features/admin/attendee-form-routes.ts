@@ -21,7 +21,7 @@
  */
 
 /* jscpd:ignore-start */
-import { byId } from "#fp";
+import { identity, mapBy } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
@@ -61,10 +61,7 @@ import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import {
-  applyAttendeeAtomicEdit,
-  createAttendeeAtomic,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { hasPaidLine } from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
@@ -96,7 +93,7 @@ import {
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   AttendeeFormPanel,
   type AttendeeFormTemplateData,
@@ -212,7 +209,10 @@ const handleSubmitInner = async (
     selectedTextAnswers,
   } = edit;
 
-  const listingsById = byId(await getAllListings());
+  const listingsById = mapBy(
+    "id",
+    identity<ListingWithCount>,
+  )(await getAllListings());
   // Coerce a missing/blank status back to the public default (the form offers
   // no "no status" choice) — the same resolver the template pre-selects with.
   const statuses = await attendeeStatuses.getAll();
@@ -356,7 +356,7 @@ const applyCreate = async (
   // amount projects from the ledger (rather than silently reading back as £0)
   // and lands atomically with the rows. The attendee owes the full gross; an
   // operator records any already-paid portion afterwards through the ledger.
-  const createResult = await createAttendeeAtomic(
+  const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
@@ -440,7 +440,7 @@ const applyEdit = async (
 
   const desired = toDesiredLines(parsed);
   // Admin manual edit may deliberately overbook (warned, not blocked).
-  const editResult = await applyAttendeeAtomicEdit(
+  const editResult = await attendeesApi.applyAttendeeAtomicEdit(
     attendeeId,
     encryptedPiiBlob,
     desired,

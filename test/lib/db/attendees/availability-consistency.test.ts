@@ -4,10 +4,8 @@ import type {
   BatchAvailabilityItem,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import {
-  checkBatchAvailability,
-  createAttendeeAtomic,
-} from "#shared/db/attendees/api.ts";
+import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#shared/db/attendees/capacity/checks.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

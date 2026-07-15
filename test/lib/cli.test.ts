@@ -3,75 +3,53 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { adminApiRoutes } from "#routes/admin/api.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { withTempDir } from "#test-utils/files.ts";
 import { buildRequest, parseBody } from "../../cli/api-request.ts";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
 import { clearScreen, writeErr, writeOut } from "../../cli/io.ts";
 import { parseResource, resourcePath, resources } from "../../cli/resources.ts";
 
-// Run `fn` against a throwaway directory it can populate with a `.env`. The
-// directory is passed in explicitly rather than via Deno.chdir, because the cwd
-// is process-global: changing it here would race with parallel test files that
-// spawn subprocesses inheriting that cwd (see test/e2e/cli-api.test.ts).
-const withTempEnvDir = async <T>(
-  fn: (envDir: string) => Promise<T>,
-): Promise<T> => {
-  const envDir = await Deno.makeTempDir();
-  try {
-    return await fn(envDir);
-  } finally {
-    await Deno.remove(envDir, { recursive: true });
-  }
-};
-
 describe("CLI config", () => {
   test("loads and normalizes environment config", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       API_HOSTNAME: "tickets.example.com/",
       API_KEY: "env-key",
     });
-    try {
-      await withTempEnvDir((envDir) =>
-        expect(loadConfig(envDir)).resolves.toEqual({
-          apiHostname: "https://tickets.example.com",
-          apiKey: "env-key",
-        }),
-      );
-    } finally {
-      restore();
-    }
+    await withTempDir((envDir) =>
+      expect(loadConfig(envDir)).resolves.toEqual({
+        apiHostname: "https://tickets.example.com",
+        apiKey: "env-key",
+      }),
+    );
   });
 
   test("loads quoted dotenv config while skipping comments and invalid lines", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
-    try {
-      await withTempEnvDir(async (envDir) => {
-        await Deno.writeTextFile(
-          join(envDir, ".env"),
-          [
-            "# local CLI config",
-            "not valid",
-            "API_HOSTNAME='http://localhost:4567/'",
-            'API_KEY="dot-key"',
-          ].join("\n"),
-        );
+    await withTempDir(async (envDir) => {
+      await Deno.writeTextFile(
+        join(envDir, ".env"),
+        [
+          "# local CLI config",
+          "not valid",
+          "API_HOSTNAME='http://localhost:4567/'",
+          'API_KEY="dot-key"',
+        ].join("\n"),
+      );
 
-        await expect(loadConfig(envDir)).resolves.toEqual({
-          apiHostname: "http://localhost:4567",
-          apiKey: "dot-key",
-        });
+      await expect(loadConfig(envDir)).resolves.toEqual({
+        apiHostname: "http://localhost:4567",
+        apiKey: "dot-key",
       });
-    } finally {
-      restore();
-    }
+    });
   });
 
   test("prompts for missing config", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
@@ -79,7 +57,7 @@ describe("CLI config", () => {
       label === "API host" ? "prompt.test" : "prompt-key",
     );
     try {
-      await withTempEnvDir((envDir) =>
+      await withTempDir((envDir) =>
         expect(loadConfig(envDir)).resolves.toEqual({
           apiHostname: "https://prompt.test",
           apiKey: "prompt-key",
@@ -87,72 +65,61 @@ describe("CLI config", () => {
       );
     } finally {
       prompt.restore();
-      restore();
     }
   });
 
   test("rejects empty prompted config", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
     const prompt = stub(globalThis, "prompt", () => "");
     try {
-      await withTempEnvDir((envDir) =>
+      await withTempDir((envDir) =>
         expect(loadConfig(envDir)).rejects.toThrow("API host is required"),
       );
     } finally {
       prompt.restore();
-      restore();
     }
   });
 
   test("rejects missing prompted config", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       API_HOSTNAME: undefined,
       API_KEY: undefined,
     });
     const prompt = stub(globalThis, "prompt", () => null);
     try {
-      await withTempEnvDir((envDir) =>
+      await withTempDir((envDir) =>
         expect(loadConfig(envDir)).rejects.toThrow("API host is required"),
       );
     } finally {
       prompt.restore();
-      restore();
     }
   });
 
   test("preserves an explicitly blank environment host", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       API_HOSTNAME: "   ",
       API_KEY: "env-key",
     });
-    try {
-      await withTempEnvDir((envDir) =>
-        expect(loadConfig(envDir)).resolves.toEqual({
-          apiHostname: "",
-          apiKey: "env-key",
-        }),
-      );
-    } finally {
-      restore();
-    }
+    await withTempDir((envDir) =>
+      expect(loadConfig(envDir)).resolves.toEqual({
+        apiHostname: "",
+        apiKey: "env-key",
+      }),
+    );
   });
 
   test("surfaces dotenv read errors that are not missing files", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       API_HOSTNAME: "tickets.example.com",
       API_KEY: "env-key",
     });
-    try {
-      await withTempEnvDir(async (envDir) => {
-        await Deno.mkdir(join(envDir, ".env"));
-        await expect(loadConfig(envDir)).rejects.toThrow();
-      });
-    } finally {
-      restore();
-    }
+    await withTempDir(async (envDir) => {
+      await Deno.mkdir(join(envDir, ".env"));
+      await expect(loadConfig(envDir)).rejects.toThrow();
+    });
   });
 });
 

@@ -4,8 +4,11 @@
 
 /* jscpd:ignore-start */
 import { filter, map, pipe, unique } from "#fp";
-import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
-import type { AttendeeRouteParams } from "#routes/entity.ts";
+import { AUTH_FORM, formGuard } from "#routes/auth.ts";
+import {
+  type AttendeeRouteParams,
+  createEntityHandler,
+} from "#routes/entity.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
@@ -37,6 +40,7 @@ import type {
   MergeMoneyChoice,
   MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
+import type { ParamsRoute } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ContactInfo } from "#shared/types.ts";
 import { AttendeeMergePanel } from "#templates/admin/attendees.tsx";
@@ -445,10 +449,9 @@ const parseMergeDecisionForm = (
   version: form.getString("merge_version"),
 });
 
-const handlers = createEntityRouteHandlers(
-  loadMergeTarget,
-  ({ attendeeId }: AttendeeRouteParams) => attendeeId,
-);
+const mergeHandler = createEntityHandler<AttendeeRouteParams, Attendee>(
+  ({ attendeeId }) => loadMergeTarget(attendeeId),
+)(formGuard(AUTH_FORM));
 
 /**
  * Build the merge panel for the attendee page's Actions tab: the token search
@@ -477,22 +480,24 @@ export const loadMergePanel = async (
 };
 
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
-export const handleMergePost = handlers.post(async (_session, form, target) => {
-  const input = await validateMergePostInput(target.id, form);
-  if (!input.ok) return input.response;
-  const { source, sourceToken } = input;
-  const diff = await buildMergeDiffFor(target, source, target.id);
-  const decision = parseMergeDecisionForm(form, diff);
-  const validation = validateAttendeeMergeDecision(diff, decision);
-  if (!validation.valid) {
-    // Bounce back to the Actions tab's merge panel; the decision radios reset
-    // (they always have), but the errors flash and the search re-runs.
-    return errorRedirect(
-      `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
-        sourceToken,
-      )}`,
-      validation.errors.join("; "),
-    );
-  }
-  return applyMergeDecisions(target.id, target, source, diff, decision);
-});
+export const handleMergePost: ParamsRoute<AttendeeRouteParams> = mergeHandler(
+  async (target, _session, form) => {
+    const input = await validateMergePostInput(target.id, form);
+    if (!input.ok) return input.response;
+    const { source, sourceToken } = input;
+    const diff = await buildMergeDiffFor(target, source, target.id);
+    const decision = parseMergeDecisionForm(form, diff);
+    const validation = validateAttendeeMergeDecision(diff, decision);
+    if (!validation.valid) {
+      // Bounce back to the Actions tab's merge panel; the decision radios reset
+      // (they always have), but the errors flash and the search re-runs.
+      return errorRedirect(
+        `/admin/attendees/${target.id}/actions?token=${encodeURIComponent(
+          sourceToken,
+        )}`,
+        validation.errors.join("; "),
+      );
+    }
+    return applyMergeDecisions(target.id, target, source, diff, decision);
+  },
+);

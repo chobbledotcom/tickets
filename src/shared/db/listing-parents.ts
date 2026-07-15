@@ -11,10 +11,10 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { firstProblem, mapNotNullish } from "#fp";
-import { inPlaceholders, queryAll, queryIdColumn } from "#shared/db/client.ts";
-import { linkTableSide } from "#shared/db/link-table.ts";
-import { getListingsById } from "#shared/db/listings/records.ts";
+import { firstProblem, mapNotNullish, unique } from "#fp";
+import { inPlaceholders, queryIdColumn } from "#shared/db/client.ts";
+import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
+import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import {
   type EdgeListing,
   edgeFieldError,
@@ -42,46 +42,39 @@ export const listingParents = linkTableSide(
   "parent_listing_id",
 );
 
-/** A lookup answering which of the given listing ids are children, per the
- * query shape it was built with (see {@link childIdLookup}). */
-type ChildIdLookup = (ids: readonly number[]) => Promise<Set<number>>;
-
-/** Build a child-id lookup from its query shape: `buildSql` receives the bound
- * `?`-placeholder list for the ids and returns the SQL selecting the matching
- * child ids `AS id`. The returned lookup answers with a set, and empty input
- * short-circuits to an empty set with no query. */
-const childIdLookup =
-  (buildSql: (placeholders: string) => string): ChildIdLookup =>
-  async (ids) =>
-    ids.length === 0
-      ? new Set()
-      : new Set(await queryIdColumn(buildSql(inPlaceholders(ids)), [...ids]));
-
-/** Of the given listing ids, the set that are a child of some parent (i.e. have
- * a `listing_parents` edge naming them as `child_listing_id`). Used to reject
- * child slugs at the booking entry point — a booking can never start from a
- * child. Returns an empty set for an empty input (no query). */
-export const getChildListingIds: ChildIdLookup = childIdLookup(
-  (placeholders) =>
-    `SELECT DISTINCT child_listing_id AS id FROM listing_parents WHERE child_listing_id IN (${placeholders})`,
-);
+/** The requested listing ids that have at least one link on a relationship
+ * side. The side's batched map includes empty keys; structural child checks need
+ * only the keys whose parent-id list is non-empty. */
+export const listingIdsWithLinks = (
+  links: ReadonlyMap<number, readonly number[]>,
+): Set<number> =>
+  new Set(
+    [...links].flatMap(([id, linkedIds]) => (linkedIds.length > 0 ? [id] : [])),
+  );
 
 /** Of the given listing ids, the set that are a child AND are NOT sold on their
  * own (`listings.bookable_alone = 0`). This is the narrowed gate predicate: a
  * child flagged `bookable_alone` keeps its standalone booking page / catalog
  * entry / API eligibility, so it is excluded here even though it still has
- * parent edges. `getChildListingIds` (the unfiltered set) stays the STRUCTURAL
+ * parent edges. `listingParents` (the unfiltered side) stays the STRUCTURAL
  * predicate — "renders under a parent, folds, carries allocations" — while this
  * one answers the GATE question "has no standalone existence". Returns an empty
  * set for empty input (no query). */
-export const getNonStandaloneChildIds: ChildIdLookup = childIdLookup(
-  (placeholders) =>
-    `SELECT DISTINCT listingParent.child_listing_id AS id
-       FROM listing_parents AS listingParent
-       JOIN listings AS listing ON listing.id = listingParent.child_listing_id
-      WHERE listingParent.child_listing_id IN (${placeholders})
-        AND listing.bookable_alone = 0`,
-);
+export const getNonStandaloneChildIds = async (
+  ids: readonly number[],
+): Promise<Set<number>> =>
+  ids.length === 0
+    ? new Set()
+    : new Set(
+        await queryIdColumn(
+          `SELECT DISTINCT listingParent.child_listing_id AS id
+             FROM listing_parents AS listingParent
+             JOIN listings AS listing ON listing.id = listingParent.child_listing_id
+            WHERE listingParent.child_listing_id IN (${inPlaceholders(ids)})
+              AND listing.bookable_alone = 0`,
+          [...ids],
+        ),
+      );
 
 /** Whether any of `ids` is a child with no standalone existence (see
  * {@link getNonStandaloneChildIds}). The gate the explicit-slug entry points
@@ -93,104 +86,77 @@ export const anyNonStandaloneChild = async (
   ids: readonly number[],
 ): Promise<boolean> => (await getNonStandaloneChildIds(ids)).size > 0;
 
-type EdgeColumn = "child_listing_id" | "parent_listing_id";
-
-/**
- * Batch-load `listing_parents` edges filtered by one endpoint and grouped,
- * hydrated, by the opposite one. `keyColumn` is matched against `ids` and keys
- * the result map; `valueColumn` is the opposite endpoint hydrated to full rows
- * (preserving id order, dropping any that no longer exist). One query (no N+1);
- * only keys with at least one surviving listing appear. Shared by {@link
- * getChildrenForParents} and {@link getParentsForChildren} so the two directions
- * never drift. (Column names come from the fixed {@link EdgeColumn} union, never
- * user input, so the interpolation is safe.)
- */
-const groupEdges =
-  (keyColumn: EdgeColumn, valueColumn: EdgeColumn) =>
-  async (ids: readonly number[]): Promise<Map<number, ListingWithCount[]>> => {
-    const result = new Map<number, ListingWithCount[]>();
-    if (ids.length === 0) return result;
-    const byId = await getListingsById();
-    const rows = await queryAll<{ key: number; value: number }>(
-      `SELECT ${keyColumn} AS key, ${valueColumn} AS value
-         FROM listing_parents
-        WHERE ${keyColumn} IN (${inPlaceholders(ids)})
-        ORDER BY ${keyColumn}, ${valueColumn}`,
-      [...ids],
-    );
-    for (const { key, value } of rows) {
-      const listing = byId.get(value);
-      if (!listing) continue;
-      (result.get(key) ?? result.set(key, []).get(key)!).push(listing);
-    }
-    return result;
-  };
-
-/**
- * The children of each of `parentIds`, hydrated to full rows (relationship
- * only — never availability-filtered; see the module note).
- * Each parent's children preserve child-id order and drop any that no longer
- * exist; only parents with at least one surviving child appear in the result.
- */
-export const getChildrenForParents = groupEdges(
-  "parent_listing_id",
-  "child_listing_id",
-);
-
-/**
- * The parents of each of `childIds`, hydrated to full rows (relationship only —
- * never availability-filtered; see the module note). The
- * reverse of {@link getChildrenForParents}, used by discovery to decide whether
- * a child has any **bookable** parent that can offer it as an add-on
- * for public listing cards.
- */
-export const getParentsForChildren = groupEdges(
-  "child_listing_id",
-  "parent_listing_id",
-);
-
-/** The listings `childId` is offered under, hydrated to full rows (relationship
- * only; preserves id order and drops any that no longer exist). */
-export const getParentsOf = async (
-  childId: number,
-): Promise<ListingWithCount[]> => {
-  const ids = await listingParents.getIds(childId);
-  if (ids.length === 0) return [];
-  const byId = await getListingsById();
-  return mapNotNullish((id: number) => byId.get(id))(ids);
+export type HydratedListingLinks = {
+  idsByKey: Map<number, number[]>;
+  listingsByKey: Map<number, ListingWithCount[]>;
 };
 
-/** Both sides of every edge a listing participates in: its children and the
- * parents it is offered under. The shared first step of {@link
- * firstTouchingEdgeError}, the traversal both save-time re-checks run through;
- * also reused to reject parent/child listings as package members. */
-/** The parent/child edge ids touching EACH of `listingIds`, loaded with two
- * batched queries (never per-listing). Every requested id gets an entry (empty
- * arrays when untouched), so callers index without a fallback. */
-export const edgeIdsTouchingMany = async (
-  listingIds: readonly number[],
-): Promise<Map<number, { childIds: number[]; parentIds: number[] }>> => {
-  const [childrenByParent, parentsByChild] = await Promise.all([
-    getChildrenForParents(listingIds),
-    getParentsForChildren(listingIds),
-  ]);
-  const groupedIds = (byListing: Map<number, ListingWithCount[]>, id: number) =>
-    (byListing.get(id) ?? []).map((l) => l.id);
-  return new Map(
-    listingIds.map((id) => [
-      id,
-      {
-        childIds: groupedIds(childrenByParent, id),
-        parentIds: groupedIds(parentsByChild, id),
-      },
-    ]),
+export type ParentAndChildLinkMaps = {
+  childIdsByParent: Map<number, number[]>;
+  childrenByParent: Map<number, ListingWithCount[]>;
+  parentIdsByChild: Map<number, number[]>;
+  parentsByChild: Map<number, ListingWithCount[]>;
+};
+
+const listingsForLinks = (
+  idsByKey: ReadonlyMap<number, readonly number[]>,
+  byId: ReadonlyMap<number, ListingWithCount>,
+): Map<number, ListingWithCount[]> =>
+  new Map(
+    [...idsByKey]
+      .toSorted(([left], [right]) => left - right)
+      .flatMap(([key, ids]) => {
+        const linked = mapNotNullish((id: number) => byId.get(id))(ids);
+        return linked.length > 0 ? [[key, linked] as const] : [];
+      }),
   );
+
+/** Load only the listings named by one or more relationship maps. */
+const listingsByIdFor = async (
+  sides: readonly ReadonlyMap<number, readonly number[]>[],
+): Promise<Map<number, ListingWithCount>> => {
+  const linkedIds = unique(
+    sides.flatMap((links) => [...links.values()].flat()),
+  );
+  const listings = await getListingsWithCountsByIds(linkedIds);
+  return new Map(listings.map((listing) => [listing.id, listing]));
 };
 
-export const edgeIdsTouching = async (
-  listingId: number,
-): Promise<{ childIds: number[]; parentIds: number[] }> =>
-  (await edgeIdsTouchingMany([listingId])).get(listingId)!;
+/** Batch and hydrate one listing relationship side. Only linked listings are
+ * loaded, and hydrated values preserve ascending relationship order. Empty keys
+ * and keys whose linked listings no longer exist are omitted from
+ * `listingsByKey`, matching the old parent/child row loaders. */
+export const hydrateListingLinks = async (
+  side: LinkTableSide,
+  keyIds: readonly number[],
+): Promise<HydratedListingLinks> => {
+  const idsByKey = await side.getIdsByKeys(keyIds);
+  return {
+    idsByKey,
+    listingsByKey: listingsForLinks(
+      idsByKey,
+      await listingsByIdFor([idsByKey]),
+    ),
+  };
+};
+
+/** Load both directions in three bounded queries and return named maps, so a
+ * caller cannot swap parent and child results. */
+export const loadParentAndChildLinks = async (
+  keyIds: readonly number[],
+): Promise<ParentAndChildLinkMaps> => {
+  const [childIdsByParent, parentIdsByChild] = await Promise.all([
+    listingChildren.getIdsByKeys(keyIds),
+    listingParents.getIdsByKeys(keyIds),
+  ]);
+  const byId = await listingsByIdFor([childIdsByParent, parentIdsByChild]);
+  return {
+    childIdsByParent,
+    childrenByParent: listingsForLinks(childIdsByParent, byId),
+    parentIdsByChild,
+    parentsByChild: listingsForLinks(parentIdsByChild, byId),
+  };
+};
 
 /** One directed edge touching the saved listing, with the saved listing's own id
  * fixed on one side (the caller closes over it): `self: "parent"` means it is the
@@ -199,6 +165,22 @@ export const edgeIdsTouching = async (
 export type TouchingEdge = {
   self: "parent" | "child";
   otherId: number;
+};
+
+type TouchingEdgeCheck = (
+  edge: TouchingEdge,
+) => string | null | Promise<string | null>;
+
+const checkTouchingEdges = async (
+  childIds: readonly number[],
+  parentIds: readonly number[],
+  check: TouchingEdgeCheck,
+): Promise<string | null> => {
+  const edges: TouchingEdge[] = [
+    ...childIds.map((otherId): TouchingEdge => ({ otherId, self: "parent" })),
+    ...parentIds.map((otherId): TouchingEdge => ({ otherId, self: "child" })),
+  ];
+  return firstProblem(check)(edges);
 };
 
 /**
@@ -214,14 +196,13 @@ export type TouchingEdge = {
  */
 export const firstTouchingEdgeError = async (
   listingId: number,
-  check: (edge: TouchingEdge) => string | null | Promise<string | null>,
+  check: TouchingEdgeCheck,
 ): Promise<string | null> => {
-  const { childIds, parentIds } = await edgeIdsTouching(listingId);
-  const edges: TouchingEdge[] = [
-    ...childIds.map((otherId): TouchingEdge => ({ otherId, self: "parent" })),
-    ...parentIds.map((otherId): TouchingEdge => ({ otherId, self: "child" })),
-  ];
-  return firstProblem(check)(edges);
+  const [childIds, parentIds] = await Promise.all([
+    listingChildren.getIds(listingId),
+    listingParents.getIds(listingId),
+  ]);
+  return checkTouchingEdges(childIds, parentIds, check);
 };
 
 /**
@@ -229,21 +210,29 @@ export const firstTouchingEdgeError = async (
  * for a listing save (a type / duration / day-price / renewal-tier edit can
  * break an existing edge the booking gate then can't date or price). `updated`
  * carries the post-save fields with the listing's own id; opposite endpoints are
- * hydrated from the listings cache. Returns the first incompatibility's
+ * loaded by their linked ids. Returns the first incompatibility's
  * user-facing error, or null when every edge still holds (including no edges).
  */
 export const edgeIncompatibilityAfterChange = async (
   updated: EdgeListing,
 ): Promise<string | null> => {
-  const byId = await getListingsById();
-  return firstTouchingEdgeError(updated.id, ({ self, otherId }) => {
-    // edgeIdsTouching hydrates through the same listings cache, dropping any
-    // edge whose opposite endpoint no longer exists — so `other` always
-    // resolves here.
-    const other = byId.get(otherId)!;
-    // `updated` stays on its fixed side: parent of each child, child under each parent.
-    return self === "parent"
-      ? edgeFieldError(updated, other)
-      : edgeFieldError(other, updated);
-  });
+  const { childrenByParent, parentsByChild } = await loadParentAndChildLinks([
+    updated.id,
+  ]);
+  const children = childrenByParent.get(updated.id) ?? [];
+  const parents = parentsByChild.get(updated.id) ?? [];
+  const byId = new Map(
+    [...children, ...parents].map((listing) => [listing.id, listing]),
+  );
+  return checkTouchingEdges(
+    children.map((listing) => listing.id),
+    parents.map((listing) => listing.id),
+    ({ self, otherId }) => {
+      const other = byId.get(otherId)!;
+      // `updated` stays on its fixed side: parent of each child, child under each parent.
+      return self === "parent"
+        ? edgeFieldError(updated, other)
+        : edgeFieldError(other, updated);
+    },
+  );
 };

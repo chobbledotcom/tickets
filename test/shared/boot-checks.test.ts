@@ -6,7 +6,7 @@ import {
   validateOptionalMainInstanceKey,
 } from "#shared/boot-checks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { clearTestEncryptionKey, setTestEnv } from "#test-utils/env.ts";
+import { clearTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 
 describeWithEnv("boot checks", { encryptionKey: true }, () => {
   test("lists the global checks run before serving requests", () => {
@@ -17,65 +17,41 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
   });
 
   test("allows MAIN_INSTANCE_KEY to be absent", () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: undefined });
-    try {
-      expect(() => validateOptionalMainInstanceKey()).not.toThrow();
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: undefined });
+    expect(() => validateOptionalMainInstanceKey()).not.toThrow();
   });
 
   test("allows a high-entropy MAIN_INSTANCE_KEY", () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       MAIN_INSTANCE_KEY: "instance-key-0123456789abcdef0123456789abcdef",
     });
-    try {
-      expect(() => validateOptionalMainInstanceKey()).not.toThrow();
-    } finally {
-      restore();
-    }
+    expect(() => validateOptionalMainInstanceKey()).not.toThrow();
   });
 
   test("allows a 32-byte Unicode MAIN_INSTANCE_KEY", () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: "é".repeat(16) });
-    try {
-      expect(() => validateOptionalMainInstanceKey()).not.toThrow();
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: "é".repeat(16) });
+    expect(() => validateOptionalMainInstanceKey()).not.toThrow();
   });
 
   test("rejects a 31-byte Unicode MAIN_INSTANCE_KEY", () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: `${"é".repeat(15)}a` });
-    try {
-      expect(() => validateOptionalMainInstanceKey()).toThrow(
-        "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 31 bytes",
-      );
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: `${"é".repeat(15)}a` });
+    expect(() => validateOptionalMainInstanceKey()).toThrow(
+      "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 31 bytes",
+    );
   });
 
   test("fails fast when MAIN_INSTANCE_KEY is blank", () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: "   " });
-    try {
-      expect(() => validateOptionalMainInstanceKey()).toThrow(
-        "MAIN_INSTANCE_KEY must be blank/unset or at least 32 bytes",
-      );
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: "   " });
+    expect(() => validateOptionalMainInstanceKey()).toThrow(
+      "MAIN_INSTANCE_KEY must be blank/unset or at least 32 bytes",
+    );
   });
 
   test("fails fast when MAIN_INSTANCE_KEY is too short", () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: "short-key" });
-    try {
-      expect(() => validateOptionalMainInstanceKey()).toThrow(
-        "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 9 bytes",
-      );
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: "short-key" });
+    expect(() => validateOptionalMainInstanceKey()).toThrow(
+      "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 9 bytes",
+    );
   });
 
   test("runs DB_ENCRYPTION_KEY validation during boot checks", () => {
@@ -86,13 +62,9 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
   });
 
   test("runs MAIN_INSTANCE_KEY validation during boot checks", () => {
-    const restore = setTestEnv({ MAIN_INSTANCE_KEY: "short-key" });
-    try {
-      expect(() => validateBootChecks()).toThrow(
-        "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 9 bytes",
-      );
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ MAIN_INSTANCE_KEY: "short-key" });
+    expect(() => validateBootChecks()).toThrow(
+      "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 9 bytes",
+    );
   });
 });

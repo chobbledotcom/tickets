@@ -17,14 +17,17 @@ import {
   remainingByListingOverGroups,
 } from "#shared/db/attendees/capacity/groups.ts";
 import {
-  getActiveListingsByGroupIds,
-  getGroupIdsByListingIds,
   getGroupPackagePricesByGroupIds,
   getHiddenPackageMemberIds,
+  getListingsByGroupIds,
   groups,
+  listingGroups,
   packageMemberMaps,
 } from "#shared/db/groups.ts";
-import { getChildrenForParents } from "#shared/db/listing-parents.ts";
+import {
+  hydrateListingLinks,
+  listingChildren,
+} from "#shared/db/listing-parents.ts";
 import type {
   Group,
   GroupWithMembers,
@@ -69,7 +72,10 @@ const membersOf = (
   );
 
 const activeMembersByGroup: LoadGroupMembers = (groupList) =>
-  getActiveListingsByGroupIds(groupList.map((group) => group.id));
+  getListingsByGroupIds(
+    groupList.map((group) => group.id),
+    true,
+  );
 
 const groupKinds = (
   groupList: readonly Group[],
@@ -142,15 +148,19 @@ const bookablePackageIds = async (
 ): Promise<number[]> => {
   if (packages.length === 0) return [];
   const packageMembers = uniqueMembersFor(packages, membersByGroup);
-  const [rowsByGroup, childrenByParent] = await Promise.all([
+  const [rowsByGroup, childLinks] = await Promise.all([
     getGroupPackagePricesByGroupIds(packages.map((group) => group.id)),
-    getChildrenForParents(packageMembers.map((member) => member.id)),
+    hydrateListingLinks(
+      listingChildren,
+      packageMembers.map((member) => member.id),
+    ),
   ]);
+  const childrenByParent = childLinks.listingsByKey;
   const limitListings = uniqueBy((listing: ListingWithCount) => listing.id)([
     ...packageMembers,
     ...[...childrenByParent.values()].flat(),
   ]);
-  const groupIdsByListingId = await getGroupIdsByListingIds(
+  const groupIdsByListingId = await listingGroups.getIdsByKeys(
     limitListings.map((listing) => listing.id),
   );
   const remaining = await getDatelessGroupRemaining(

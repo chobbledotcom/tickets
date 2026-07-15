@@ -4,11 +4,8 @@ import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
-import {
-  createAttendeeAtomic,
-  createBookingAtomic,
-} from "#shared/db/attendees/api.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne } from "#shared/db/client.ts";
@@ -102,7 +99,7 @@ const expectParentRolledBack = async (
 ): Promise<void> => {
   const tokenRow = await queryOne<{ count: number }>(
     "SELECT COUNT(*) AS count FROM attendees WHERE ticket_token_index = ?",
-    [await computeTicketTokenIndex(ticketToken)],
+    [await hmacHash(ticketToken)],
   );
   expect(Number(tokenRow!.count)).toBe(0);
   expect(await attendeeCount()).toBe(countBefore);
@@ -115,7 +112,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
 
     const countBefore = await attendeeCount();
     const ticketToken = "stable-partial";
-    const result = await createBookingAtomic(
+    const result = await attendeesApi.createBookingAtomic(
       input(
         [
           { listingId: open.id, pricePaid: 500, quantity: 1 },
@@ -167,7 +164,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     const countBefore = await attendeeCount();
     const ticketToken = "stable-missing-finalize";
     await expect(
-      createBookingAtomic(
+      attendeesApi.createBookingAtomic(
         input(
           [{ listingId: listing.id, pricePaid: 600, quantity: 1 }],
           ticketToken,
@@ -195,7 +192,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     const countBefore = await attendeeCount();
     const ticketToken = "stable-resolved-finalize";
     await expect(
-      createBookingAtomic(
+      attendeesApi.createBookingAtomic(
         input(
           [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
           ticketToken,
@@ -217,10 +214,12 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       [{ listingId: first.id, pricePaid: 0, quantity: 1 }],
       "stable-db-error",
     );
-    expect((await createAttendeeAtomic(stableInput)).success).toBe(true);
+    expect((await attendeesApi.createAttendeeAtomic(stableInput)).success).toBe(
+      true,
+    );
 
     await expect(
-      createAttendeeAtomic({
+      attendeesApi.createAttendeeAtomic({
         ...stableInput,
         bookings: [{ listingId: second.id, pricePaid: 0, quantity: 1 }],
       }),
@@ -240,7 +239,7 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     const ticketToken = "stable-contact-token";
     await reserveSession(sessionId);
 
-    const result = await createBookingAtomic(
+    const result = await attendeesApi.createBookingAtomic(
       input(
         [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
         ticketToken,

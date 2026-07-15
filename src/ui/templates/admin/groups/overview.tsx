@@ -19,7 +19,6 @@ import {
 import { CopyableInputRow } from "#templates/admin/copyable-row.tsx";
 import {
   buildSharedDetailRows,
-  renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
 import {
@@ -215,7 +214,7 @@ export const GroupOverviewPanel = ({
   return (
     <PageRegions>
       <article>
-        <DetailTable>
+        <DetailTable rows={sharedRows}>
           <tr>
             <th colspan="2">{group.name}</th>
           </tr>
@@ -233,7 +232,6 @@ export const GroupOverviewPanel = ({
             attendees={attendees}
             listings={listings}
           />
-          <Raw html={renderDetailRows(sharedRows)} />
         </DetailTable>
       </article>
 

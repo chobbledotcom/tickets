@@ -28,7 +28,8 @@ import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import {
   anyNonStandaloneChild,
-  getChildrenForParents,
+  hydrateListingLinks,
+  listingChildren,
 } from "#shared/db/listing-parents.ts";
 import { getListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
@@ -252,7 +253,7 @@ export const loadListingRosterPanel = async (
   const filteredByDate = filterByDate(attendees, dateFilter);
   const [
     questionData,
-    childrenByParent,
+    childrenLinks,
     groupContext,
     systemNotes,
     paymentReferenceAttendeeIds,
@@ -261,7 +262,7 @@ export const loadListingRosterPanel = async (
       listing.id,
       filteredByDate.map((a) => a.id),
     ),
-    getChildrenForParents([listing.id]),
+    hydrateListingLinks(listingChildren, [listing.id]),
     // The date-scoped group cap for the per-date capacity summary; a no-op
     // (null date) when no daily date is selected.
     loadGroupContext(listing, dateFilter),
@@ -278,7 +279,7 @@ export const loadListingRosterPanel = async (
     allowedDomain: getEffectiveDomain(),
     attendees: filteredByDate,
     availableDates: availableDatesFor(listing, attendees),
-    childNames: (childrenByParent.get(listing.id) ?? []).map(
+    childNames: (childrenLinks.listingsByKey.get(listing.id) ?? []).map(
       (child) => child.name,
     ),
     dateFilter,

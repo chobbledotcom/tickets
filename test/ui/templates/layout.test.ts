@@ -21,7 +21,7 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 
@@ -32,14 +32,10 @@ const EDITOR_SESSION = { adminLevel: "editor" as const };
  *  and clean up the env var. Both the read-only and warning-banner describe
  *  blocks repeat this exact sequence. */
 const expectRenewalLink = async (): Promise<void> => {
-  Deno.env.set("RENEWAL_URL", "https://example.com/renew");
-  try {
-    const html = String(AdminNav({ active: "/admin/", session: TEST_SESSION }));
-    expect(html).toContain("Renew now");
-    expect(html).toContain("https://example.com/renew");
-  } finally {
-    Deno.env.delete("RENEWAL_URL");
-  }
+  using _env = withEnv({ RENEWAL_URL: "https://example.com/renew" });
+  const html = String(AdminNav({ active: "/admin/", session: TEST_SESSION }));
+  expect(html).toContain("Renew now");
+  expect(html).toContain("https://example.com/renew");
 };
 
 beforeAll(async () => {

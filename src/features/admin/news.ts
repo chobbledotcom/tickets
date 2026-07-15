@@ -3,7 +3,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * Admin CRUD for news posts, under Site → News. Owner + editor (the shared
  * Site-tab gates in `site-content.ts`). Posts are a flat newest-first list with
  * no ordering controls; the `/news/:slug` permalink is auto-generated on
- * create (never entered) and shown read-only on the edit page, which also
+ * create (never entered) and editable on the edit page, which also
  * carries the shared images panel (image_uses with item_type 'news').
  */
 
@@ -13,20 +13,17 @@ import {
   type ConfirmedHandlers,
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
-import { SITE_FORM, SITE_MULTIPART } from "#routes/auth.ts";
-import { errorRedirect } from "#routes/response.ts";
+import { SITE_FORM, SITE_MULTIPART, sitePage } from "#routes/auth.ts";
+import { authedFormConfig, createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
-  computeNewsSlugIndex,
   createNewsPost,
   deleteNewsPostWithImages,
   getNewsPostById,
   getNewsPostSummaries,
-  isNewsSlugTaken,
   type NewsPostWriteInput,
   updateNewsPost,
 } from "#shared/db/news-posts.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import type { AdminSession, NewsPost } from "#shared/types.ts";
 import {
@@ -34,90 +31,90 @@ import {
   adminNewsListPage,
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
-import { checkContentForm } from "./check-content-form.ts";
-import { seoContentInput } from "./content-form-fields.ts";
+import { seoContentInput, textOrEmpty } from "./content-form-fields.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
 import { newsPage } from "./news-page.ts";
 import {
-  savedContentResponse,
+  contentWriteOrError,
+  saveContent,
   siteConfirmAuth,
-  siteContentGet,
   siteContentPaths,
-  siteEntityPost,
-  validateContentFormOr,
+  siteListPage,
 } from "./site-content.ts";
-import { siteCreatePost } from "./site-content-create.ts";
 
 /* jscpd:ignore-end */
 
 const paths = siteContentPaths("/admin/site/news");
 
-/** Validate the shared form fields and fold them into a write input, or
- * return the error redirect to bounce back to `errorPath`. */
-const validateFields = (
-  form: FormParams,
-  errorPath: string,
-):
-  | { ok: true; input: NewsPostWriteInput }
-  | { ok: false; response: Response } => {
-  const result = checkContentForm(newsPostForm, form, errorPath);
-  if (!result.ok) return result;
-  return {
-    input: {
-      ...seoContentInput(form, result.values.name),
-      snippet: form.getString("snippet"),
-    },
-    ok: true,
-  };
+type NewsContentValues = Parameters<typeof seoContentInput>[0] & {
+  snippet: string | null;
 };
+
+/** Turn the validated fields shared by both news forms into a write input. */
+const newsContentInput = (values: NewsContentValues): NewsPostWriteInput => ({
+  ...seoContentInput(values),
+  snippet: textOrEmpty(values.snippet),
+});
 
 // ─── Page CRUD ──────────────────────────────────────────────────
 
-const renderList = siteContentGet(async (session) =>
-  adminNewsListPage(await getNewsPostSummaries(), session),
+const renderList = siteListPage(getNewsPostSummaries, adminNewsListPage);
+
+const renderNew = sitePage((session, _request, flash) =>
+  adminNewsNewPage(session, flash.error),
 );
 
-const renderNew = siteContentGet(adminNewsNewPage);
-
-const handleCreate = siteCreatePost(
-  paths.newPage,
-  validateFields,
-  async (fields) => {
-    const post = await createNewsPost(fields.input);
-    return {
-      flashMessage: t("news.created"),
-      logMessage: `News post '${post.name}' created`,
-      path: paths.edit(post.id),
-    };
+const loadPost = ({ id }: { id: number }): Promise<NewsPost | null> =>
+  getNewsPostById(id);
+const postEditPath = (post: NewsPost): string => paths.edit(post.id);
+const createPostForm = authedFormConfig(
+  SITE_FORM,
+  newsPostForm,
+  () => paths.newPage,
+);
+const editPostForm = authedFormConfig(
+  SITE_FORM,
+  newsPostEditForm,
+  postEditPath,
+  loadPost,
+);
+const handleCreate = createAuthedFormRoute({
+  ...createPostForm,
+  onValid: async ({ values }) =>
+    saveContent(
+      (transaction) => createNewsPost(newsContentInput(values), transaction),
+      (post) => ({
+        flashMessage: t("news.created"),
+        logMessage: `News post '${post.name}' created`,
+        path: paths.edit(post.id),
+      }),
+    ),
+});
+const handleUpdate = createAuthedFormRoute({
+  ...editPostForm,
+  onValid: async ({ context: post, values }) => {
+    const editPath = paths.edit(post.id);
+    // The form validator already checked the normalized slug's format.
+    const slug = normalizeSlug(values.slug);
+    return saveContent(
+      async (transaction) =>
+        contentWriteOrError(
+          await updateNewsPost(
+            post.id,
+            { ...newsContentInput(values), slug },
+            transaction,
+          ),
+          editPath,
+          t("news.error.slug_taken"),
+        ),
+      () => ({
+        flashMessage: t("news.updated"),
+        logMessage: `News post '${values.name}' updated`,
+        path: editPath,
+      }),
+    );
   },
-);
-
-const handleUpdate = siteEntityPost(getNewsPostById)(async (post, form) => {
-  const editPath = paths.edit(post.id);
-  // The edit form carries an editable slug on top of the shared content fields.
-  const result = validateContentFormOr(
-    newsPostEditForm.validate(form),
-    editPath,
-  );
-  if (!result.ok) return result.response;
-  // The slug field's validator already ran `validateSlug(normalizeSlug())`, so
-  // the format is known-good; re-normalise for the uniqueness check and storage.
-  const slug = normalizeSlug(result.values.slug);
-  if (await isNewsSlugTaken(slug, post.id)) {
-    return errorRedirect(editPath, t("news.error.slug_taken"));
-  }
-  await updateNewsPost(post.id, {
-    ...seoContentInput(form, result.values.name),
-    slug,
-    slugIndex: await computeNewsSlugIndex(slug),
-    snippet: form.getString("snippet"),
-  });
-  return savedContentResponse(
-    editPath,
-    `News post '${result.values.name}' updated`,
-    t("news.updated"),
-  );
 });
 
 const postDelete: ConfirmedHandlers = createConfirmedHandlers<

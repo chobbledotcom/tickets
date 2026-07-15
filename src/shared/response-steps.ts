@@ -10,6 +10,12 @@ export type ResponseHandler<Args extends unknown[] = []> = (
 /** A finished route: takes the request, gives back the response. */
 export type RequestRoute = (request: Request) => Promise<Response>;
 
+/** A finished route that also receives its typed path params. */
+export type ParamsRoute<TParams> = (
+  request: Request,
+  params: TParams,
+) => Promise<Response>;
+
 /** A gate that runs the caller's action, or returns the blocked response. */
 export type FeatureGate = ResponseHandler<[action: ResponseHandler]>;
 

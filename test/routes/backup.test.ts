@@ -9,6 +9,7 @@ import {
 } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { tempDir } from "#test-utils/files.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import {
   installUrlHandler,
@@ -115,7 +116,8 @@ describeWithEnv("backup routes", { db: true }, () => {
         ),
       });
 
-      const dir = await Deno.makeTempDir();
+      const temp = tempDir();
+      const dir = temp.path;
       try {
         // Upload the zip as a pending restore file
         const tempFilename = `restore-pending-${crypto.randomUUID()}.zip`;
@@ -157,7 +159,7 @@ describeWithEnv("backup routes", { db: true }, () => {
         );
       } finally {
         await Deno.chmod(dir, 0o700).catch(() => {});
-        await Deno.remove(dir, { recursive: true });
+        temp.dispose();
       }
     });
   });

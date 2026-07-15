@@ -1,29 +1,26 @@
 import { afterEach, beforeAll } from "@std/testing/bdd";
+import { mapBy } from "#fp";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
+import type { Attendee } from "#shared/types.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import {
   ListingOverviewPanel,
   overviewStatsFromAttendees,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 
 export const TEST_SESSION = { adminLevel: "owner" as const };
 
 /** Run fn with CAN_BUILD_SITES pinned to `value` in this worker's env overlay
  *  — never the real process env, which every parallel test worker shares. */
 export const withBuilderEnv =
-  (value: string | undefined) =>
+  (value: string | undefined): ((fn: () => void) => void) =>
   (fn: () => void): void => {
-    const restore = setTestEnv({ CAN_BUILD_SITES: value });
-    try {
-      fn();
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ CAN_BUILD_SITES: value });
+    fn();
   };
 export const withBuilder = withBuilderEnv("true");
 export const withoutBuilder = withBuilderEnv(undefined);
@@ -50,7 +47,10 @@ export const renderListingDetail = (
       // The Overview now takes precomputed stats + note-author names instead of
       // the raw attendee list; derive them from the fixture's attendees so these
       // tests exercise the same rendered output the SQL path produces.
-      noteNames: idNameMap(opts.attendees),
+      noteNames: mapBy(
+        "id",
+        (attendee: Attendee) => attendee.name,
+      )(opts.attendees),
       questionData: opts.questionData,
       stats: overviewStatsFromAttendees(
         opts.listing,

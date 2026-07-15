@@ -144,10 +144,3 @@ export const hmacHashSync = (value: string): BlindIndex => {
 
 export const hmacHash = async (value: string): Promise<BlindIndex> =>
   hmacHashSync(value);
-
-/**
- * Compute ticket token index using HMAC for blind lookups
- * Similar to slug_index for listings - allows lookup without decrypting
- */
-export const computeTicketTokenIndex = (token: string): Promise<BlindIndex> =>
-  hmacHash(token);

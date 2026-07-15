@@ -302,14 +302,12 @@ describeWithEnv(
       expect((await listingChildren.getIds(outsideParent.id)).sort()).toEqual(
         [child.id, childCopy.id].sort(),
       );
-      // The clone is itself a child (in getChildListingIds), so its standalone
+      // The clone is itself a child, so its standalone
       // /ticket page 404s rather than booking standalone.
-      const { getChildListingIds } = await import(
-        "#shared/db/listing-parents.ts"
-      );
-      expect((await getChildListingIds([childCopy.id])).has(childCopy.id)).toBe(
-        true,
-      );
+      const { listingParents } = await import("#shared/db/listing-parents.ts");
+      expect(
+        (await listingParents.getIds(childCopy.id)).length,
+      ).toBeGreaterThan(0);
       // The clone is not itself a parent (no children of its own).
       expect(await listingChildren.getIds(childCopy.id)).toEqual([]);
     });

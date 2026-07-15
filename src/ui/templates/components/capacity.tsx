@@ -36,20 +36,7 @@ export type CapacityMeterProps = {
   remaining?: number | undefined;
 };
 
-/** Meter for string-built tables: plain text normally, wrapped in a danger
- * span when the caller's warning flag is on (these tables add no span at all
- * when the level is safe). */
-export const capacityMeterHtml = ({
-  count,
-  max,
-  danger,
-  remaining,
-}: CapacityMeterProps): string => {
-  const text = capacityMeterText(count, max, remaining);
-  return danger ? `<span class="danger-text">${text}</span>` : text;
-};
-
-/** Meter for JSX tables: a span that turns red when the warning flag is on. */
+/** Capacity meter that turns red when the warning flag is on. */
 export const CapacityMeter = ({
   count,
   max,

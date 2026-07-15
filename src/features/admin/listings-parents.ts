@@ -6,20 +6,15 @@
 import { unique } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
-import { CONTENT_FORM, withAuth } from "#routes/auth.ts";
+import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
+import { listingGroups, packageChildEdgeConflict } from "#shared/db/groups.ts";
 import {
-  getGroupIdsByListingId,
-  getGroupIdsByListingIds,
-  packageChildEdgeConflict,
-} from "#shared/db/groups.ts";
-import {
-  getChildrenForParents,
-  getParentsForChildren,
-  getParentsOf,
+  hydrateListingLinks,
   listingChildren,
   listingParents,
 } from "#shared/db/listing-parents.ts";
@@ -32,6 +27,7 @@ import {
   childOnlyAddOnName,
   childOnlyAddOnNameForListings,
   type ListingGroupMembership,
+  toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import {
   type EdgeListing,
@@ -40,7 +36,6 @@ import {
 import { packageChildEdgeError } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
-import { withEntityFromParam } from "./entity-handlers.ts";
 
 /** Error shown when a child (named `name`) would hide an opt-in add-on that is
  * only reachable through it — named after the add-on. Shared by the edge editor
@@ -77,18 +72,19 @@ const childEdgeIneligibility = (
 export const loadListingParentsSection = async (
   listing: ListingWithCount,
 ): Promise<ListingParentsSection> => {
-  const [allListings, childIds, offeredUnder] = await Promise.all([
+  const [allListings, childIds, offeredUnderLinks] = await Promise.all([
     getAllListings(),
     listingChildren.getIds(listing.id),
-    getParentsOf(listing.id),
+    hydrateListingLinks(listingParents, [listing.id]),
   ]);
+  const offeredUnder = offeredUnderLinks.listingsByKey.get(listing.id) ?? [];
   const others = allListings.filter((other) => other.id !== listing.id);
   // Single-level nesting: a listing already offered as a child can't also be a
   // parent, so every candidate is ineligible in that case.
   const parentIsChild = offeredUnder.length > 0;
   // One query for which candidates are themselves parents (so can't be a child),
   // instead of an N+1 over each candidate's children.
-  const childrenOf = await getChildrenForParents(
+  const childrenOf = await listingChildren.getIdsByKeys(
     others.map((other) => other.id),
   );
   const candidates = others.map((candidate) => ({
@@ -96,7 +92,7 @@ export const loadListingParentsSection = async (
       listing,
       candidate,
       parentIsChild,
-      (childrenOf.get(candidate.id)?.length ?? 0) > 0,
+      childrenOf.get(candidate.id)!.length > 0,
     ),
     listing: candidate,
   }));
@@ -186,16 +182,14 @@ const childOnlyAddOnResolver = async (
 ): Promise<ChildOnlyAddOnResolver> => {
   if (!options) return childOnlyAddOnName;
   const live = await getAllListings();
-  const membership = await getGroupIdsByListingIds(live.map((l) => l.id));
+  const membership = await listingGroups.getIdsByKeys(live.map((l) => l.id));
   const hasParent = live.some((listing) => listing.id === parent.id);
-  const base: ListingGroupMembership[] = live.map((listing) => ({
-    active: listing.active,
-    groupIds:
-      listing.id === parent.id
-        ? options.wouldBeGroupIds
-        : (membership.get(listing.id) ?? []),
-    id: listing.id,
-  }));
+  const base: ListingGroupMembership[] = live.map((listing) => {
+    const withGroups = toListingGroupMembership(listing, membership);
+    return listing.id === parent.id
+      ? { ...withGroups, groupIds: options.wouldBeGroupIds }
+      : withGroups;
+  });
   // On create the parent row doesn't exist in `live` yet, so append a
   // placeholder carrying its would-be group set (active — it serves a page).
   const allListings: ListingGroupMembership[] = hasParent
@@ -238,15 +232,15 @@ export const validateChildEdges = async (
     ),
   );
   // Nesting state: whether this listing is already a child (parentIds), and
-  // which chosen children are themselves parents (childChildIds).
-  const [parentIds, resolveChildOnlyAddOn, ...childChildIds] =
+  // which chosen children are themselves parents (childrenByParent).
+  const [parentIds, resolveChildOnlyAddOn, childrenByParent] =
     await Promise.all([
       listingParents.getIds(parent.id),
       childOnlyAddOnResolver(parent, options),
-      ...childIds.map((childId) => listingChildren.getIds(childId)),
+      listingChildren.getIdsByKeys(childIds),
     ]);
-  const children = childIds.map((childId, index) => ({
-    isParent: childChildIds[index]!.length > 0,
+  const children = childIds.map((childId) => ({
+    isParent: childrenByParent.get(childId)!.length > 0,
     listing: byId.get(childId)!,
   }));
   const error = await childEdgeError(
@@ -330,23 +324,18 @@ const addChildrenToParent = async (
  * caller warn the operator instead of silently producing a gateless standalone
  * clone. An empty array means every edge copied cleanly.
  */
-const listingIdsAt = (
-  listingsById: ReadonlyMap<number, ListingWithCount[]>,
-  id: number,
-): number[] => (listingsById.get(id) ?? []).map((listing) => listing.id);
-
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
 ): Promise<string[]> => {
   const errors: string[] = [];
   const sourceIds = [...idMap.keys()];
   const [childrenByParent, parentsByChild] = await Promise.all([
-    getChildrenForParents(sourceIds),
-    getParentsForChildren(sourceIds),
+    listingChildren.getIdsByKeys(sourceIds),
+    listingParents.getIdsByKeys(sourceIds),
   ]);
   // Direction 1: outgoing edges of each cloned parent.
   for (const [sourceId, newId] of idMap) {
-    const sourceChildIds = listingIdsAt(childrenByParent, sourceId);
+    const sourceChildIds = childrenByParent.get(sourceId)!;
     if (sourceChildIds.length === 0) continue;
     const remapped = sourceChildIds.map(
       (childId) => idMap.get(childId) ?? childId,
@@ -363,7 +352,7 @@ export const remapDuplicatedGroupEdges = async (
   // preserved).
   const outsidePairs: { parentId: number; cloneId: number }[] = [];
   for (const [sourceId, cloneId] of idMap) {
-    const parentIds = listingIdsAt(parentsByChild, sourceId);
+    const parentIds = parentsByChild.get(sourceId)!;
     for (const parentId of parentIds) {
       if (!idMap.has(parentId)) outsidePairs.push({ cloneId, parentId });
     }
@@ -380,45 +369,45 @@ export const remapDuplicatedGroupEdges = async (
 };
 
 /** Handle POST /admin/listing/:id/children (set the required child listings). */
-export const handleAdminListingChildren: TypedRouteHandler<
-  "POST /admin/listing/:id/children"
-> = (request, { id }) =>
-  withAuth(request, CONTENT_FORM, (_session, form) =>
-    withEntityFromParam(id, getListingWithCount, async (listing) => {
-      const result = await validateChildEdges(
-        listing,
-        form.getNumberArray("child_listing_ids"),
-      );
-      if (!result.ok) {
-        return redirect(`/admin/listing/${id}/edit`, result.error, false);
-      }
-      const { childIds } = result;
-      // A HIDDEN package's member can't gain children (its child selector would
-      // name the collapsed members), nor can a package member be chosen AS a
-      // child. A visible package member may gate children — the package page
-      // renders its selector. Block the conflicts before persisting the edges.
-      const packageConflict = await packageChildEdgeConflict(
-        await getGroupIdsByListingId(id),
-        childIds,
-      );
-      if (packageConflict) {
-        return redirect(
-          `/admin/listing/${id}/edit`,
-          packageChildEdgeError(packageConflict),
-          false,
-        );
-      }
-      await listingChildren.setIds(id, childIds);
-      await logActivity(
-        `Listing '${listing.name}' required children set to ${childIds.length} listing${
-          childIds.length === 1 ? "" : "s"
-        }`,
-        listing,
-      );
+const listingChildrenHandler = createIdEntityHandler<ListingWithCount>(
+  getListingWithCount,
+)(formGuard(CONTENT_FORM));
+
+export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/:id/children"> =
+  listingChildrenHandler(async (listing, _session, form, _request, { id }) => {
+    const result = await validateChildEdges(
+      listing,
+      form.getNumberArray("child_listing_ids"),
+    );
+    if (!result.ok) {
+      return redirect(`/admin/listing/${id}/edit`, result.error, false);
+    }
+    const { childIds } = result;
+    // A HIDDEN package's member can't gain children (its child selector would
+    // name the collapsed members), nor can a package member be chosen AS a
+    // child. A visible package member may gate children — the package page
+    // renders its selector. Block the conflicts before persisting the edges.
+    const packageConflict = await packageChildEdgeConflict(
+      await listingGroups.getIds(id),
+      childIds,
+    );
+    if (packageConflict) {
       return redirect(
         `/admin/listing/${id}/edit`,
-        "Required children updated",
-        true,
+        packageChildEdgeError(packageConflict),
+        false,
       );
-    }),
-  );
+    }
+    await listingChildren.setIds(id, childIds);
+    await logActivity(
+      `Listing '${listing.name}' required children set to ${childIds.length} listing${
+        childIds.length === 1 ? "" : "s"
+      }`,
+      listing,
+    );
+    return redirect(
+      `/admin/listing/${id}/edit`,
+      "Required children updated",
+      true,
+    );
+  });

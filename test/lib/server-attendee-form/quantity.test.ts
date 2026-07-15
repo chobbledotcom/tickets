@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   attendeeLineIndex,
@@ -67,7 +67,7 @@ describeWithEnv(
           quantity: number;
         },
       ): Promise<number> => {
-        const created = await createAttendeeAtomic({
+        const created = await attendeesApi.createAttendeeAtomic({
           bookings: [{ listingId, quantity: details.quantity }],
           email: details.email,
           name: details.name,

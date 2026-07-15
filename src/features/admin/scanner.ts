@@ -6,9 +6,8 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 import { filter, map, pipe } from "#fp";
-import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr, SCANNER_JSON, withAuth } from "#routes/auth.ts";
-import type { IdRouteHandler } from "#routes/entity.ts";
+import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
 import {
   decryptTokenEntries,
@@ -30,30 +29,27 @@ import {
 import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
-const withListing = withEntityLoader(getListingWithCount);
-
 /** Handle GET /admin/listing/:id/scanner - render scanner page */
-const handleScannerGet: IdRouteHandler = (request, { id }) =>
-  requireSessionOr(request, (session) =>
-    withListing(id)(async (listing) => {
-      const privateKey = await requireRequestPrivateKey();
-      const rawAttendees = await getAttendeesRaw(listing.id);
-      const attendees = await decryptAttendees(rawAttendees, privateKey);
-      const uncheckedIn = pipe(
-        // A no-quantity sentinel isn't a manual check-in candidate
-        // (updateCheckedIn would refuse it anyway).
-        filter(
-          (a: Attendee) => !a.checked_in && !a.refunded && hasTicketQuantity(a),
-        ),
-        map((a) => ({
-          name: a.name,
-          quantity: a.quantity,
-          token: a.ticket_token,
-        })),
-      )(attendees);
-      return htmlResponse(adminScannerPage(listing, session, uncheckedIn));
-    }),
-  );
+const handleScannerGet: IdRouteHandler = createIdEntityHandler<
+  NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
+>(getListingWithCount)(requireSessionOr)(async (listing, session) => {
+  const privateKey = await requireRequestPrivateKey();
+  const rawAttendees = await getAttendeesRaw(listing.id);
+  const attendees = await decryptAttendees(rawAttendees, privateKey);
+  const uncheckedIn = pipe(
+    // A no-quantity sentinel isn't a manual check-in candidate
+    // (updateCheckedIn would refuse it anyway).
+    filter(
+      (a: Attendee) => !a.checked_in && !a.refunded && hasTicketQuantity(a),
+    ),
+    map((a) => ({
+      name: a.name,
+      quantity: a.quantity,
+      token: a.ticket_token,
+    })),
+  )(attendees);
+  return htmlResponse(adminScannerPage(listing, session, uncheckedIn));
+});
 
 /** Resolve an AttendeeWithBookings to decrypted entries */
 const resolveTokenEntries = async (

@@ -10,7 +10,6 @@ import {
   buildStatDetailRows,
   calculateTotalRevenue,
   getCheckedInStats,
-  renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
@@ -105,10 +104,9 @@ export const ListingOverviewPanel = (
   );
   const sharedRows = buildStatDetailRows({
     checkedInStats: stats.checkedInStats,
-    hasPaidListing: isPaidListing(listing),
-    revenue: stats.completeRevenue,
-    ...(questionData !== undefined ? { questionData } : {}),
+    ...(isPaidListing(listing) ? { revenue: stats.completeRevenue } : {}),
     labelSuffix: dailySuffix,
+    questionData,
   });
   return (
     <PageRegions>
@@ -121,7 +119,7 @@ export const ListingOverviewPanel = (
         isChild={isChild}
         isHiddenPackageMember={isHiddenPackageMember}
         listing={listing}
-        sharedRowsHtml={renderDetailRows(sharedRows)}
+        sharedRows={sharedRows}
         ticketUrl={links.ticketUrl}
       />
       {moneyTotals && (

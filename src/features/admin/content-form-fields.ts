@@ -7,7 +7,6 @@
 
 // jscpd:ignore-start
 import { t } from "#i18n";
-import type { FormParams } from "#shared/form-data.ts";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -166,10 +165,27 @@ export const contentFieldValues = (row: {
   slug: row.slug,
 });
 
-/** The submitted SEO/content columns shared by create and update. */
-export const seoContentInput = (form: FormParams, name: string) => ({
-  content: form.getString("content"),
-  metaDescription: form.getString("meta_description"),
-  metaTitle: form.getString("meta_title"),
-  name,
+type SeoContentValues = {
+  content: string | null;
+  meta_description: string | null;
+  meta_title: string | null;
+  name: string;
+};
+
+type SeoContentInput = {
+  content: string;
+  metaDescription: string;
+  metaTitle: string;
+  name: string;
+};
+
+export const textOrEmpty = (value: string | null): string =>
+  value === null ? "" : value;
+
+/** The validated SEO/content columns shared by create and update. */
+export const seoContentInput = (values: SeoContentValues): SeoContentInput => ({
+  content: textOrEmpty(values.content),
+  metaDescription: textOrEmpty(values.meta_description),
+  metaTitle: textOrEmpty(values.meta_title),
+  name: values.name,
 });

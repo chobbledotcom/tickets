@@ -9,17 +9,17 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
-  getGroupIdsByListingIds,
   getGroupsById,
   getListingsByGroupIds,
   groupListingTypeError,
+  listingGroups,
 } from "#shared/db/groups.ts";
 import {
-  edgeIdsTouching,
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
-  getChildListingIds,
   getNonStandaloneChildIds,
+  listingChildren,
+  listingIdsWithLinks,
   listingParents,
 } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
@@ -118,9 +118,13 @@ const packageMembershipError = async (
   // A create has no edges yet; only an existing listing can be an add-on child
   // or gate its own children.
   if (existingId === undefined) return null;
+  const [childIds, parentIds] = await Promise.all([
+    listingChildren.getIds(existingId),
+    listingParents.getIds(existingId),
+  ]);
   const block = packageMemberBlock(
     { can_pay_more: false },
-    await edgeIdsTouching(existingId),
+    { childIds, parentIds },
     group.hide_package_listings,
   );
   return block ? packageMemberBlockError(name, block) : null;
@@ -236,7 +240,7 @@ const listingsWithGroups = async (
   override: (listing: ListingWithCount) => Partial<ListingGroupMembership>,
 ): Promise<ListingGroupMembership[]> => {
   const all = await getAllListings();
-  const membership = await getGroupIdsByListingIds(all.map((l) => l.id));
+  const membership = await listingGroups.getIdsByKeys(all.map((l) => l.id));
   return all.map((listing) => ({
     ...toListingGroupMembership(listing, membership),
     ...override(listing),
@@ -329,7 +333,8 @@ export const deactivationOrphanedAddOnError = async (
   // child (a child of some parent whose flag is still set) into the suppressed
   // set, matching the edit-save path's strippedPageOrphanedAddOn.
   const ids = [...inactiveIds];
-  const childIds = await getChildListingIds(ids);
+  const childLinks = await listingParents.getIdsByKeys(ids);
+  const childIds = listingIdsWithLinks(childLinks);
   const nonStandalone = await getNonStandaloneChildIds([...childIds]);
   const flaggedChildren = [...childIds].filter((id) => !nonStandalone.has(id));
   // Apply the would-be inactive state of every target listing to the in-memory set.

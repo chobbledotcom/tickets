@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { tempDir } from "#test-utils/files.ts";
 import {
   detectAliasing,
   detectModuleLevelLet,
@@ -38,36 +39,26 @@ const mapOf = (entries: [string, string][]): Map<string, string> =>
 
 describe("getAllFilesWithExt", () => {
   test("collects matching files recursively and ignores other extensions", async () => {
-    const dir = await Deno.makeTempDir();
-    try {
-      await Deno.mkdir(join(dir, "sub"));
-      await Deno.writeTextFile(join(dir, "a.ts"), "");
-      await Deno.writeTextFile(join(dir, "b.tsx"), "");
-      await Deno.writeTextFile(join(dir, "c.txt"), "");
-      await Deno.writeTextFile(join(dir, "sub", "d.ts"), "");
-      await Deno.writeTextFile(join(dir, "sub", "e.tsx"), "");
+    using temp = tempDir();
+    const dir = temp.path;
+    await Deno.mkdir(join(dir, "sub"));
+    await Deno.writeTextFile(join(dir, "a.ts"), "");
+    await Deno.writeTextFile(join(dir, "b.tsx"), "");
+    await Deno.writeTextFile(join(dir, "c.txt"), "");
+    await Deno.writeTextFile(join(dir, "sub", "d.ts"), "");
+    await Deno.writeTextFile(join(dir, "sub", "e.tsx"), "");
 
-      const ts = await getAllFilesWithExt(dir, ".ts");
-      expect(ts.sort()).toEqual([join(dir, "a.ts"), join(dir, "sub", "d.ts")]);
+    const ts = await getAllFilesWithExt(dir, ".ts");
+    expect(ts.sort()).toEqual([join(dir, "a.ts"), join(dir, "sub", "d.ts")]);
 
-      const tsx = await getAllFilesWithExt(dir, ".tsx");
-      expect(tsx.sort()).toEqual([
-        join(dir, "b.tsx"),
-        join(dir, "sub", "e.tsx"),
-      ]);
-    } finally {
-      await Deno.remove(dir, { recursive: true });
-    }
+    const tsx = await getAllFilesWithExt(dir, ".tsx");
+    expect(tsx.sort()).toEqual([join(dir, "b.tsx"), join(dir, "sub", "e.tsx")]);
   });
 
   test("returns an empty list for a directory with no matches", async () => {
-    const dir = await Deno.makeTempDir();
-    try {
-      await Deno.writeTextFile(join(dir, "only.md"), "");
-      expect(await getAllFilesWithExt(dir, ".ts")).toEqual([]);
-    } finally {
-      await Deno.remove(dir, { recursive: true });
-    }
+    using temp = tempDir();
+    await Deno.writeTextFile(join(temp.path, "only.md"), "");
+    expect(await getAllFilesWithExt(temp.path, ".ts")).toEqual([]);
   });
 });
 

@@ -11,7 +11,7 @@ import {
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { postTransfersTx } from "#shared/accounting/store.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
@@ -53,7 +53,7 @@ describeWithEnv(
         await postTransfersTx(tx, saleAndPayment(listing.id, attendeeId));
       };
 
-      const result = await createAttendeeAtomic(
+      const result = await attendeesApi.createAttendeeAtomic(
         {
           bookings: [{ listingId: listing.id, quantity: 1 }],
           email: "a@b.c",
@@ -80,7 +80,7 @@ describeWithEnv(
       };
 
       await expect(
-        createAttendeeAtomic(
+        attendeesApi.createAttendeeAtomic(
           {
             bookings: [{ listingId: listing.id, quantity: 1 }],
             email: "a@b.c",
@@ -118,7 +118,7 @@ describeWithEnv(
       const full = await createTestListing({ maxAttendees: 1 });
       const { posted, postLedger } = makeTrackingPostLedger(open.id);
 
-      const result = await createAttendeeAtomic(
+      const result = await attendeesApi.createAttendeeAtomic(
         {
           bookings: [
             { listingId: open.id, quantity: 1 },
@@ -140,7 +140,7 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 1 });
       const { posted, postLedger } = makeTrackingPostLedger(listing.id);
 
-      const result = await createAttendeeAtomic(
+      const result = await attendeesApi.createAttendeeAtomic(
         {
           bookings: [{ listingId: listing.id, quantity: 2 }],
           email: "a@b.c",
