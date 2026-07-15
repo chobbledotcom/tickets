@@ -12,7 +12,7 @@ import {
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne, type SqlStatement } from "#shared/db/client.ts";
 import {
   type ContactChannel,
   contactHash,
@@ -107,55 +107,81 @@ const parseTokenEntry = async (
   return { source: TAG_SOURCE[decoded[0]!]!, token: decoded.slice(1) };
 };
 
-/** The conflict update for appending one encrypted ticket token. */
-const tokenAppendUpdate = (column: BookingCountColumn | null): string =>
-  [
-    ...(column === null ? [] : [`${column} = ${column} + 1`]),
-    "last_activity = excluded.last_activity",
-    "attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob",
-  ].join(",\n       ");
+type TokenEntryInput = {
+  hash: string;
+  source: BookingSource;
+  ticketToken: string;
+};
 
-/** Append one encrypted ticket token, optionally bumping a source count too. */
-const appendBookingToken = async (
-  hash: string,
-  source: BookingSource,
-  ticketToken: string,
-  column: BookingCountColumn | null,
-): Promise<void> => {
-  const countColumn = column === null ? "" : `, ${column}`;
-  const countValue = column === null ? "" : ", 1";
+const preparedTokenEntry = async ({
+  hash,
+  source,
+  ticketToken,
+}: TokenEntryInput): Promise<{
+  args: [string, number, string];
+  marker: BlindIndex;
+}> => {
+  const [encrypted, marker] = await Promise.all([
+    encryptTokenEntry(hash, source, ticketToken),
+    tokenMarkerFor(hash, ticketToken),
+  ]);
+  return { args: [hash, nowMs(), encrypted], marker };
+};
+
+/** Build the replay-safe visit + booking write for one contact. The marker is
+ * checked by the conflict update, so a retry neither appends nor increments. */
+const bookingActivityStatement = async (
+  input: TokenEntryInput,
+): Promise<SqlStatement> => {
+  const { source } = input;
+  const column = BOOKING_COLUMN[source];
+  const entry = await preparedTokenEntry(input);
+  return {
+    args: [...entry.args, `${entry.marker}${TOKEN_LINE_SEPARATOR}`],
+    sql: `INSERT INTO contact_preferences
+            (contact_hash, last_activity, visits, ${column}, attendee_tokens_blob)
+          VALUES (?, ?, 1, 1, ?)
+          ON CONFLICT(contact_hash) DO UPDATE SET
+            visits = visits + 1,
+            ${column} = ${column} + 1,
+            last_activity = excluded.last_activity,
+            attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob
+          WHERE INSTR(attendee_tokens_blob, ?) = 0`,
+  };
+};
+
+/** Append one encrypted ticket token without changing booking counts. */
+const appendBookingToken = async (input: TokenEntryInput): Promise<void> => {
+  const entry = await preparedTokenEntry(input);
   await execute(
-    `INSERT INTO contact_preferences (contact_hash, last_activity${countColumn}, attendee_tokens_blob)
-     VALUES (?, ?${countValue}, ?)
+    `INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
+     VALUES (?, ?, ?)
      ON CONFLICT(contact_hash) DO UPDATE SET
-       ${tokenAppendUpdate(column)}`,
-    [hash, nowMs(), await encryptTokenEntry(hash, source, ticketToken)],
+       last_activity = excluded.last_activity,
+       attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob`,
+    entry.args,
   );
 };
 
-/**
- * Record one booking against a contact: bump its source's plaintext count and
- * append the booked ticket token to the encrypted, append-only token list.
- */
-export const recordBooking = async (
-  hash: string,
+/** Build one replay-safe activity statement for each non-empty contact on an
+ * order. These statements can be included in the booking transaction. */
+export const orderActivityStatements = async (
+  email: unknown,
+  phone: unknown,
   source: BookingSource,
   ticketToken: string,
-): Promise<void> => {
-  await appendBookingToken(hash, source, ticketToken, BOOKING_COLUMN[source]);
-};
-
-/** Reverse a {@link recordBooking}'s count, e.g. when an order is rolled back.
- * The token entry is left in place: a rollback deletes the attendee, so its
- * token resolves to nothing and is filtered out on read. */
-export const unrecordBooking = async (
-  hash: string,
-  source: BookingSource,
-): Promise<void> => {
-  const column = BOOKING_COLUMN[source];
-  await execute(
-    `UPDATE contact_preferences SET ${column} = MAX(${column} - 1, 0), last_activity = ? WHERE contact_hash = ?`,
-    [nowMs(), hash],
+): Promise<SqlStatement[]> => {
+  const contacts: [ContactChannel, string][] = [];
+  if (typeof email === "string" && email.trim())
+    contacts.push(["email", email]);
+  if (typeof phone === "string" && phone.trim()) contacts.push(["sms", phone]);
+  const hashes = await Promise.all(
+    contacts.map(([channel, value]) => contactHash(channel, value)),
+  );
+  return Promise.all(
+    hashes.map((hash) =>
+      bookingActivityStatement({ hash, source, ticketToken }),
+    ),
   );
 };
 
@@ -165,7 +191,7 @@ const addBookingToken = async (
   ticketToken: string,
   source: BookingSource,
 ): Promise<void> => {
-  await appendBookingToken(hash, source, ticketToken, null);
+  await appendBookingToken({ hash, source, ticketToken });
 };
 
 /** Load a contact's encrypted token blob, or null when no row exists. */

@@ -83,12 +83,10 @@ src/fp.ts:480:49  ?? → ||   # items?.length is undefined or a non-negative int
 # What stays here are `?? F` vs `|| F` sites whose left operand can never be a
 # falsy-but-non-null value (a Map/object/array is always truthy, and the only
 # falsy number is 0 with 0??0===0||0), so the two operators always agree.
-src/features/public/ticket-payment.ts:382:43  ?? → ||   # base.quantities.get(): Map<number,number>|undefined; the only falsy number is 0, 0??0===0||0
-src/features/public/ticket-payment.ts:483:35  ?? → ||   # packageGroupId ?? 0: number|null; the only falsy number is 0, 0??0===0||0, and null→0 either way
-src/features/public/ticket-payment.ts:494:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
-src/features/public/ticket-payment.ts:683:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
-src/features/public/ticket-payment.ts:872:39  ?? → ||   # packageMaps?.prices: ReadonlyMap|undefined — a Map is always truthy, undefined→null either way
-src/features/public/ticket-payment.ts:873:47  ?? → ||   # packageMaps?.quantities: ReadonlyMap|undefined — a Map is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:345:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
+src/features/public/ticket-payment.ts:418:42  ?? → ||   # packageGroupId: number|undefined; the only falsy number is 0, 0??0===0||0, and undefined→0 either way
+src/features/public/ticket-payment.ts:446:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
+src/features/public/ticket-payment.ts:596:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
 
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
@@ -721,7 +719,7 @@ src/shared/db/attendees/update.ts:188:43  ?? → ||   # Map<string,number>.get d
 src/shared/db/attendees/update.ts:189:39  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 
 # DB client (client.ts) — extractUpdateColumns assignment guard.
-src/shared/db/client.ts:58:17  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
+src/shared/db/client.ts:63:16  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
 
 # DB client (client.ts) — write-verb classification. The WriteVerb produced by
 # invalidateForSql is consumed ONLY by invalidateCachesForWrite, whose single
@@ -729,13 +727,13 @@ src/shared/db/client.ts:58:17  0 → 1   # eqIdx===0 means the fragment starts w
 # `verb === "update"` check happens before these sites take effect. Any two
 # non-"update" verb values are therefore indistinguishable by every possible
 # test, so mutants that only reclassify/rename a non-update verb are equivalent.
-src/shared/db/client.ts:98:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
-src/shared/db/client.ts:98:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
-src/shared/db/client.ts:100:9  insert → ""   # non-delete/update/replace statements get verb "" instead of "insert": both non-"update", identical invalidation
-src/shared/db/client.ts:105:67  insert → ""   # unparseable-UPDATE fallback fires with verb "" instead of "insert": both non-"update", identical (unconditional) invalidation
+src/shared/db/client.ts:103:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
+src/shared/db/client.ts:103:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
+src/shared/db/client.ts:105:9  insert → ""   # non-delete/update/replace statements get verb "" instead of "insert": both non-"update", identical invalidation
+src/shared/db/client.ts:110:67  insert → ""   # unparseable-UPDATE fallback fires with verb "" instead of "insert": both non-"update", identical (unconditional) invalidation
 
 # DB client (client.ts) — rawSql sentinel symbol.
-src/shared/db/client.ts:509:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
+src/shared/db/client.ts:645:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
 
 # Payment references (payment-references.ts) — `getRefundPaymentReferences`
 # consolidates rows for the same reference into a single entry by folding
@@ -839,10 +837,9 @@ src/features/admin/attendees-merge.ts:408:10  return undefined → return undefi
 # contact-tokens.ts — `?? → ||` and `return null → return undefined` sites whose
 # operand can never be a falsy-but-non-null value, or whose result is only ever
 # consumed by a nullish check. Each is provably equivalent from the types.
-src/shared/db/contact-tokens.ts:92:30  - → +    # splitTokenBlob's `separatorAt === -1`: every app-written line has a tab at the marker-length position (64), and a malformed separator-less line's first-chars marker can never equal a real BlindIndex (an hmac hex), and its ciphertext never decrypts, so taking the else-branch for a tab-less line (marker = raw.slice(0, -1)) is unobservable through ensureBookingToken/removeBookingToken/getRecentBookingTokens
-src/shared/db/contact-tokens.ts:177:35  ?? → ||    # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
-src/shared/db/contact-tokens.ts:218:22  return null → return undefined    # removeBookingToken's no-match return; removedSource is only ever consumed by `removedSource ?? sync.source`, and null and undefined agree under ??
-src/shared/db/contact-tokens.ts:289:18  ?? → ||    # `removedSource ?? sync.source`: removedSource is BookingSource|null, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
+src/shared/db/contact-tokens.ts:203:35  ?? → ||    # loadTokenBlob's `row?.attendee_tokens_blob ?? null`: attendee_tokens_blob is string|undefined; the only falsy-non-null is "" and tokenLinesFrom("") === tokenLinesFrom(null) === [], so ?? and || agree
+src/shared/db/contact-tokens.ts:244:22  return null → return undefined    # removeBookingToken's no-match return; removedSource is only ever consumed by `removedSource ?? sync.source`, and null and undefined agree under ??
+src/shared/db/contact-tokens.ts:315:18  ?? → ||    # `removedSource ?? sync.source`: removedSource is BookingSource|null, and both BookingSource values ("admin","public") are non-empty truthy strings, so it is never falsy-but-non-null; ?? and || agree
 
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),

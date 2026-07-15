@@ -11,21 +11,17 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type {
   AttendeeInput,
-  CreateAttendeeResult,
   DesiredListingLine,
   ListingAttendeeRow,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import {
   applyAttendeeAtomicEdit,
   type ExistingLine,
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
 import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
-import {
-  createAttendeeAtomicImpl as createAttendeeAtomic,
-  ensureAllBookings,
-} from "#shared/db/attendees/create.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
@@ -168,49 +164,6 @@ const joinedListingNames = async (ids: number[]): Promise<string> => {
     .join(", ");
 };
 
-/** The requested listing ids among `bookings` that did NOT land a booking row
- *  in create `result` — a multiset diff by listing id, so a listing requested
- *  twice and fulfilled only once is still named. When NOTHING landed at all
- *  (the create's own failure shape, `result.success === false` — e.g. a
- *  single-listing hold that didn't fit), every requested listing is named:
- *  there's no partial attendee to diff against, and for a single booking that
- *  IS the specific listing that failed. */
-const unfulfilledListingIds = (
-  bookings: ListingBooking[],
-  result: CreateAttendeeResult,
-): number[] => {
-  if (!result.success) return unique(bookings.map((b) => b.listingId));
-  const remaining = new Map<number, number>();
-  for (const attendee of result.attendees) {
-    remaining.set(
-      attendee.listing_id,
-      (remaining.get(attendee.listing_id) ?? 0) + 1,
-    );
-  }
-  const failed: number[] = [];
-  for (const booking of bookings) {
-    const have = remaining.get(booking.listingId) ?? 0;
-    if (have > 0) remaining.set(booking.listingId, have - 1);
-    else failed.push(booking.listingId);
-  }
-  return unique(failed);
-};
-
-const ensureServicingCreateBookings = async (
-  result: CreateAttendeeResult,
-  bookings: ListingBooking[],
-): Promise<Extract<CreateAttendeeResult, { success: true }>> => {
-  const check = await ensureAllBookings(result, bookings.length, "admin");
-  if (!check.ok) {
-    const names =
-      check.reason === "capacity_exceeded"
-        ? await joinedListingNames(unfulfilledListingIds(bookings, result))
-        : "";
-    throw new Error(formatServicingCapacityError(check.reason, names));
-  }
-  return result as Extract<CreateAttendeeResult, { success: true }>;
-};
-
 const normalizedCreateInput = (
   input: ServicingEventInput,
   name: string,
@@ -313,10 +266,18 @@ export const createServicingEvent = async (
   input: ServicingEventInput,
 ): Promise<ServicingEvent> => {
   const name = assertServicingInput(input);
-  const createResult = await ensureServicingCreateBookings(
-    await createAttendeeAtomic(normalizedCreateInput(input, name)),
-    input.bookings,
+  const createResult = await createAttendeeAtomic(
+    normalizedCreateInput(input, name),
   );
+  if (!createResult.success) {
+    const names =
+      createResult.reason === "capacity_exceeded"
+        ? await joinedListingNames(
+            unique(input.bookings.map((booking) => booking.listingId)),
+          )
+        : "";
+    throw new Error(formatServicingCapacityError(createResult.reason, names));
+  }
   const id = createResult.attendees[0]!.id;
   // The attendee + bookings are committed by the atomic create; the remaining
   // side effects (answers, activity log) are a separate batch. Nested batches

@@ -1,43 +1,16 @@
 /**
- * Payment processing - the shared payment state machine.
+ * Shared paid-payment state machine: validate, reserve, process, then record the
+ * outcome. A valid payment becomes an atomically finalized ticket or balance
+ * settlement. Expected booking failures become terminal stored refunds.
  *
- * A payment session moves through a small, fixed lifecycle:
- *
- *   unreserved → reserved → (finalized success | terminal failure)
- *
- * via the steps: validate → reserve → process → record-outcome.
- *
- * 1. validate  — `validatePaidSession` (classify.ts) confirms with the provider
- *    that the session is paid and `classifySession` proves (via a signed price
- *    proof) that the session is ours, yielding the `ValidatedSession` the rest of
- *    the machine runs on.
- * 2. reserve   — `processPaymentSession` claims the idempotency lock
- *    (`reserveSession`); a conflict replays the already-recorded outcome
- *    (`handleReservationConflict`) instead of re-processing.
- * 3. process   — `processReservedSession`, holding the lock, turns the signed
- *    session into either a real ticket (`createAttendeeForSession`) / a settled
- *    balance (`settleBalanceSession`), or — for ANY reason it can't be honoured
- *    (charge mismatch, a price edited mid-checkout, a sold-out extra, a full
- *    event, a since-deleted listing, or an unexpected error after the charge) —
- *    a quantity-0 placeholder that is refunded (`storeRefundedBooking`), so a
- *    paid customer is never dropped.
- * 4. record-outcome — `processPaymentSession` records a handled failure as the
- *    session's terminal outcome (`markSessionFailed`) so a later redirect/webhook
- *    replays the same result, or releases the reservation when a real refund
- *    failed so the next provider redelivery re-attempts it.
- *
- * The HTTP plumbing (redirect + webhook handlers, routing) lives in
- * `webhooks.ts` and calls into this module. The steps above are split across
- * sibling files (metadata, classify, cancel, refunds, items, package-pricing,
- * pricing, create, store-refund); this file is the orchestration that wires
- * them into the two-phase locked lifecycle.
+ * An uncertain ticket create is resolved from primary payment and token state.
+ * HTTP redirect and webhook handling lives in `webhooks.ts`.
  */
 
+import { completePaidBooking } from "#routes/api/payment-processing/completion.ts";
 import {
   alreadyProcessedResult,
   createAttendeeForSession,
-  logPromoCodeModifiers,
-  saveSessionAnswers,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
 import { validateAllItems } from "#routes/api/payment-processing/items.ts";
@@ -45,10 +18,10 @@ import {
   checkoutIntentForSession,
   paidPricingRefund,
 } from "#routes/api/payment-processing/pricing.ts";
+import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import {
   chargeMismatchSpec,
   deletedListingSpec,
-  refundSpec,
   refuseMismatch,
 } from "#routes/api/payment-processing/refunds.ts";
 import {
@@ -66,6 +39,7 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
+import { generateTicketToken } from "#shared/crypto/utils.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -75,13 +49,9 @@ import {
   parseSessionFailure,
   releaseReservation,
   reserveSession,
-  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { logDebug } from "#shared/logger.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
-
-type SessionProcessorOptions = { storeTokens?: boolean };
 
 /** The shared shape of the two-phase session processors: reserve/process a paid
  * session by id, given its validated data, and resolve to a {@link
@@ -89,7 +59,6 @@ type SessionProcessorOptions = { storeTokens?: boolean };
 type SessionProcessor = (
   sessionId: string,
   data: ValidatedSession,
-  options?: SessionProcessorOptions,
 ) => Promise<PaymentResult>;
 
 /** Handle the "already reserved" branch of reserveSession */
@@ -168,13 +137,19 @@ const alreadyHandledSession = (
 const replaySessionFromLedger = async (
   sessionId: string,
   listingId: number,
+  paymentReference: string,
 ): Promise<PaymentResult | null> => {
   const disposition = await bookingLedgerDisposition(sessionId);
   switch (disposition.status) {
     case "unrecorded":
       return null;
     case "booked":
-      return replaySuccess(sessionId, disposition.attendeeId, listingId);
+      return replaySuccess(
+        sessionId,
+        disposition.attendeeId,
+        listingId,
+        paymentReference,
+      );
     case "orphaned":
       return alreadyHandledSession(sessionId, listingId);
   }
@@ -207,11 +182,7 @@ const replayBalanceFromLedger = async (
  * records it so a later redirect/webhook replays the same result instead of
  * re-running refunds or stalling behind the idempotency lock.
  */
-const processReservedSession: SessionProcessor = async (
-  sessionId,
-  data,
-  options,
-) => {
+const processReservedSession: SessionProcessor = async (sessionId, data) => {
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
 
@@ -241,7 +212,11 @@ const processReservedSession: SessionProcessor = async (
   // or refund path runs below — so a late delivery (after the prunable idempotency
   // row is gone) never refunds a live ticket via the deleted-listing, price-change,
   // inactive-listing, or capacity paths, nor double-books it.
-  const replay = await replaySessionFromLedger(sessionId, signedListingId);
+  const replay = await replaySessionFromLedger(
+    sessionId,
+    signedListingId,
+    session.paymentReference,
+  );
   if (replay) return replay;
 
   // Phase 2: Validate listings.
@@ -294,28 +269,40 @@ const processReservedSession: SessionProcessor = async (
     return storeRefundedBooking(session, intent, placeholders, knownRefund);
   }
 
-  // Otherwise try to honour it at the charged price. ANY failure keeps the
-  // booking at quantity 0 and refunds rather than dropping a paid customer: a
-  // structured sold-out/capacity/encryption result, OR an unexpected throw after
-  // the charge (which would otherwise crash-loop the webhook over paid money).
-  let honoured: Awaited<ReturnType<typeof createAttendeeForSession>>;
-  try {
-    honoured = await createAttendeeForSession(
-      session,
+  // Otherwise try to honour it at the charged price. Expected refusal keeps a
+  // quantity-0 placeholder. An uncertain atomic result is checked on the primary
+  // and refunded only when committed state proves that the batch rolled back.
+  const ticketToken = generateTicketToken();
+  const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
+  const complete = (
+    entries: Parameters<typeof completePaidBooking>[0],
+    ticketTokens: string[],
+  ) =>
+    completePaidBooking(
+      entries,
       intent,
-      validatedItems,
-      pricingIntent,
-      pricedOrder,
+      codeSpecs,
+      pricedOrder.modifierApplications,
+      ticketTokens,
     );
-  } catch (error) {
-    return storeRefundedBooking(
-      session,
+  const honoured = await createAttendeeForSession(
+    session,
+    intent,
+    validatedItems,
+    pricingIntent,
+    pricedOrder,
+    ticketToken,
+  );
+  if (honoured.ok === null) {
+    return recoverOrRefundUnexpectedCreate({
+      complete,
+      error: honoured.error,
       intent,
       placeholders,
-      refundSpec("unexpected_error")(
-        `Unexpected error completing session ${session.id}: ${String(error)}`,
-      ),
-    );
+      session,
+      ticketToken,
+      validatedItems,
+    });
   }
   if (!honoured.ok) {
     return storeRefundedBooking(
@@ -328,36 +315,13 @@ const processReservedSession: SessionProcessor = async (
 
   // Success: a real ticket, finalized atomically in the creation transaction.
   const createdEntries = honoured.entries;
-  await saveSessionAnswers(createdEntries, intent);
   const firstAttendee = createdEntries[0]!;
-  const ticketToken = firstAttendee.attendee.ticket_token;
-
-  // Persist the ticket token for webhook replay when the caller needs it.
-  if (options?.storeTokens !== false) {
-    await setSessionTicketTokens(sessionId, [ticketToken]);
-  }
-
-  const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
-  if (codeSpecs.length > 0) {
-    await logPromoCodeModifiers(
-      codeSpecs,
-      pricedOrder.modifierApplications,
-      firstAttendee.listing,
-      firstAttendee.attendee.id,
-    );
-  }
-
-  await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
-
-  return sessionSuccess(firstAttendee.attendee.id, firstAttendee.listing.id, [
-    ticketToken,
-  ]);
+  return complete(createdEntries, [firstAttendee.attendee.ticket_token]);
 };
 
 export const processPaymentSession: SessionProcessor = async (
   sessionId,
   data,
-  options,
 ) => {
   // Phase 1: Reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
@@ -365,7 +329,7 @@ export const processPaymentSession: SessionProcessor = async (
     return handleReservationConflict(data.intent, reservation.existing);
   }
 
-  const result = await processReservedSession(sessionId, data, options);
+  const result = await processReservedSession(sessionId, data);
 
   // A refund of a real payment that FAILED must stay retryable, and the very
   // next provider redelivery should re-attempt it. Releasing the reservation

@@ -3,11 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
-import {
-  finalizeSession as finalizePaymentSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
   expectFlashRedirect,
@@ -18,6 +15,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import {
   expectSingleRefundIssued,
   postRefundAll,
@@ -88,14 +86,12 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
     attendee.id,
     1500,
     settle("balance_refund_session"),
-    [
-      await balanceFinalizeStatement(
-        "balance_refund_session",
-        attendee.id,
-        1500,
-        "pi_balance_refund",
-      ),
-    ],
+    await balanceFinalizeStatements(
+      "balance_refund_session",
+      attendee.id,
+      1500,
+      "pi_balance_refund",
+    ),
   );
   return refundCtx(attendee, listing);
 };
@@ -128,10 +124,10 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     listingId: listing.id,
   });
   await reserveSession("reservation_deposit_session");
-  await finalizePaymentSession(
+  await finalizeReservedPayment(
     "reservation_deposit_session",
     attendee.id,
-    [],
+    "",
     "pi_reservation_deposit",
   );
   await reserveSession("reservation_balance_session");
@@ -139,14 +135,12 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     attendee.id,
     8000,
     settle("reservation_balance_session"),
-    [
-      await balanceFinalizeStatement(
-        "reservation_balance_session",
-        attendee.id,
-        8000,
-        "pi_reservation_balance",
-      ),
-    ],
+    await balanceFinalizeStatements(
+      "reservation_balance_session",
+      attendee.id,
+      8000,
+      "pi_reservation_balance",
+    ),
   );
   return refundCtx(attendee, listing);
 };

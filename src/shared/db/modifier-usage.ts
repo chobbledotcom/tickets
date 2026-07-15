@@ -9,8 +9,8 @@
  */
 
 import type { InValue } from "@libsql/client";
-import type { SqlStatement } from "#shared/db/client.ts";
-import { columnMapByIds, mapByIds } from "#shared/db/query.ts";
+import { queryOnePrimary, type SqlStatement } from "#shared/db/client.ts";
+import { mapByIds } from "#shared/db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
@@ -41,7 +41,7 @@ export const modifierUsedQuantities = (
  * concurrency guard) and by the booking insert that must refuse to land when a
  * chosen modifier sold out mid-payment. Wrapped in parens so several can be
  * AND-ed safely. */
-export const modifierStockCondition = (usage: ModifierUsage): SqlStatement => ({
+const modifierStockCondition = (usage: ModifierUsage): SqlStatement => ({
   args: [usage.modifierId, usage.modifierId, usage.modifierId, usage.quantity],
   sql: `((SELECT stock FROM modifiers WHERE id = ?) IS NULL
            OR (SELECT stock FROM modifiers WHERE id = ?)
@@ -73,10 +73,8 @@ export const allModifiersInStockCondition = (
  * literal `?` (its value in `attendeeIdArgs`) for the direct insert, or a
  * `(SELECT MAX(id) …)` subquery for the single-batch booking path where the
  * attendee row is inserted earlier in the same batch. The row lands only while
- * `guard` holds — the live stock count for a direct insert (its own concurrency
- * guard), or the all-bookings-landed gate for the batch path (where the booking
- * insert it accompanies already refused to land unless every modifier had
- * stock, so no separate stock guard is needed here). */
+ * `guard` holds. The batch writer performs its rollback check immediately
+ * before these inserts, so no later compensating check is needed here. */
 export const usageInsert = (
   usage: ModifierUsage,
   attendeeIdExpr: string,
@@ -106,18 +104,21 @@ export const usageInsert = (
 export const anyModifierSoldOut = async (
   usages: ModifierUsage[],
 ): Promise<boolean> => {
-  const ids = usages.map((u) => u.modifierId);
-  if (ids.length === 0) return false;
-  const used = await modifierUsedQuantities(ids);
-  const stockById = await columnMapByIds<number | null>(
-    "modifiers",
-    "modifier",
-    "stock",
-    ids,
+  if (usages.length === 0) return false;
+  const row = await queryOnePrimary<{ sold_out: number }>(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM json_each(?) AS requestedUsage
+       JOIN modifiers AS modifier
+         ON modifier.id = json_extract(requestedUsage.value, '$.modifierId')
+       WHERE modifier.stock IS NOT NULL
+         AND modifier.stock - COALESCE((
+           SELECT SUM(storedUsage.quantity)
+           FROM modifier_usages AS storedUsage
+           WHERE storedUsage.modifier_id = modifier.id
+         ), 0) < CAST(json_extract(requestedUsage.value, '$.quantity') AS INTEGER)
+     ) AS sold_out`,
+    [JSON.stringify(usages)],
   );
-  return usages.some((u) => {
-    const stock = stockById.get(u.modifierId);
-    if (stock === null || stock === undefined) return false;
-    return stock - (used.get(u.modifierId) ?? 0) < u.quantity;
-  });
+  return Number(row!.sold_out) === 1;
 };

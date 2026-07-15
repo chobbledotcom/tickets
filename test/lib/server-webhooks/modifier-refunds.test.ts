@@ -107,10 +107,8 @@ describeWithEnv(
         stock: 1,
       });
       // Exhaust the single unit before the webhook arrives.
-      const { consumeModifierStock } = await import("#test-utils/modifiers.ts");
-      await consumeModifierStock(999, [
-        { amountApplied: 100, modifierId: modifier.id, quantity: 1 },
-      ]);
+      const { insertModifierUsage } = await import("#test-utils/modifiers.ts");
+      await insertModifierUsage(modifier.id, 999, 1, 100);
 
       const { mockRefund } = await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({

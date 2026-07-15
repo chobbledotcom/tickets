@@ -1710,7 +1710,6 @@
       "jsr:@std/collections@^1.2.0",
       "jsr:@std/expect@^1.0.18",
       "jsr:@std/http@^1.1.1",
-      "jsr:@std/media-types@^1.1.0",
       "jsr:@std/path@^1.1.4",
       "jsr:@std/testing@^1.0.17",
       "npm:@botpoison/browser@~0.1.30",

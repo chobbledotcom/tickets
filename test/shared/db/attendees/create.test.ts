@@ -373,37 +373,4 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       (await isSessionProcessed("sess_batch_existing_ledger"))!.attendee_id,
     ).toBe(null);
   });
-
-  test("posts no legs and does not finalize when a multi-listing cart only partly lands", async () => {
-    const open = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
-    const full = await createTestListing({ maxAttendees: 0, unitPrice: 500 });
-    const { plan } = await buildPlan({
-      eventId: "sess_batch_partial",
-      fullSubtotal: 1000,
-      lines: [line(open.id, 500, 1), line(full.id, 500, 1)],
-      sessionId: "sess_batch_partial",
-      total: 1000,
-    });
-
-    const result = await createBookingAtomic(
-      {
-        bookings: [
-          { listingId: open.id, pricePaid: 500, quantity: 1 },
-          { listingId: full.id, pricePaid: 500, quantity: 1 },
-        ],
-        email: "partial@example.com",
-        name: "Partial",
-      },
-      plan,
-    );
-
-    // Greedy create: the open listing's booking landed, the full one didn't.
-    expect(expectBookingOk(result).attendees.length).toBe(1);
-    // The all-bookings-landed guard held back every leg and the finalize, so the
-    // caller's ensureAllBookings can roll the partial booking back cleanly.
-    expect((await allTransfers()).length).toBe(0);
-    expect((await isSessionProcessed("sess_batch_partial"))!.attendee_id).toBe(
-      null,
-    );
-  });
 });

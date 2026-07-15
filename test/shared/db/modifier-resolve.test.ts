@@ -2,11 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import {
-  hashEmail,
-  hashPhone,
-  recordVisit,
-} from "#shared/db/contact-preferences.ts";
+import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
 import {
   ADDON_MAX_QUANTITY,
   type AddOnReachabilityCheck,
@@ -26,11 +22,12 @@ import {
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { checkoutItem } from "#test-utils/checkout.ts";
+import { setContactVisits } from "#test-utils/contact-preferences.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
-  consumeModifierStock,
   insertModifier,
+  insertModifierUsage,
   linkModifierGroup,
   linkModifierListing,
   patchModifier,
@@ -166,9 +163,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
 
     test("excludes a modifier whose stock is used up", async () => {
       const m = await insertModifier({ name: "Limited", stock: 1 });
-      await consumeModifierStock(1, [
-        { amountApplied: 500, modifierId: m.id, quantity: 1 },
-      ]);
+      await insertModifierUsage(m.id, 1, 1, 500);
       const specs = await resolveModifiers([checkoutItem()]);
       expect(specs.map((s) => s.name)).not.toContain("Limited");
     });
@@ -385,9 +380,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("oversubscribedAnswerTiers accounts for stock already consumed", async () => {
       const m = await insertModifier({ name: "Limited", stock: 5 });
       await patchModifier(m.id, { trigger: "answer" });
-      await consumeModifierStock(1, [
-        { amountApplied: 0, modifierId: m.id, quantity: 4 },
-      ]);
+      await insertModifierUsage(m.id, 1, 4, 0);
       const items = [checkoutItem()];
       // 1 remaining: requesting 2 over-subscribes, 1 is fine.
       expect(
@@ -519,9 +512,8 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     });
 
     test("reads the max visit count across email and phone", async () => {
-      await recordVisit(await hashEmail("seen@example.com"));
-      await recordVisit(await hashPhone("07700 900123"));
-      await recordVisit(await hashPhone("07700 900123"));
+      await setContactVisits(await hashEmail("seen@example.com"), 1);
+      await setContactVisits(await hashPhone("07700 900123"), 2);
 
       expect(await buyerVisits("seen@example.com", "07700 900123")).toBe(2);
     });
@@ -596,9 +588,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("omits a sold-out add-on", async () => {
       const m = await insertModifier({ name: "Sold out", stock: 1 });
       await patchModifier(m.id, { trigger: "optional" });
-      await consumeModifierStock(1, [
-        { amountApplied: 500, modifierId: m.id, quantity: 1 },
-      ]);
+      await insertModifierUsage(m.id, 1, 1, 500);
       expect(await getOptionalAddOns([1])).toEqual([]);
     });
 

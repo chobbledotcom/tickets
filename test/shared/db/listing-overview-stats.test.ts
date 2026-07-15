@@ -11,10 +11,7 @@ import { execute } from "#shared/db/client.ts";
 import { getListingOverviewStats } from "#shared/db/listing-overview-stats.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import {
-  finalizeSession,
-  reserveSession,
-} from "#shared/db/processed-payments.ts";
+import { reserveSession } from "#shared/db/processed-payments.ts";
 import { isPaidListing } from "#shared/types.ts";
 import {
   overviewStatsFromAttendees,
@@ -28,6 +25,7 @@ import {
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
+import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>
   execute(
@@ -199,10 +197,10 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
       },
     ]);
     await reserveSession("overview_balance_paid");
-    await finalizeSession(
+    await finalizeReservedPayment(
       "overview_balance_paid",
       attendee.id,
-      [],
+      "",
       "pi_overview_balance_paid",
     );
 

@@ -334,18 +334,6 @@ recorded here because the split PR was a pure reorganisation — changing this
 behaviour there would be out of scope — and CodeRabbit flagged them as worth a
 look.
 
-- **Refund after a committed booking** (`src/features/api/payment-processing/index.ts`,
-  the `try { honoured = await createAttendeeForSession(...) } catch` in
-  `processReservedSession`). `createAttendeeForSession` commits the attendee +
-  bookings atomically, then runs `ensureAllBookings` (a post-commit read). If
-  that post-write step *threw*, the `catch` would route to `storeRefundedBooking`
-  — refunding a booking that actually persisted. Today `ensureAllBookings`
-  returns a structured `{ ok: false }` rather than throwing on the capacity path,
-  so the window is theoretical, but it isn't guarded structurally. Fix direction:
-  narrow the `try` to the pre-commit call only, or guarantee the post-commit
-  cleanup path is non-throwing, so a persisted booking can never be refunded.
-  Add a regression test that makes the post-commit step throw and asserts no
-  refund is issued.
 - **Per-item DB reads not batched** (`src/features/api/payment-processing/items.ts`
   `validateAllItems`, and `package-pricing.ts` `loadPackagePricingByGroup`).
   `validateAllItems` calls `getListingWithCount` once per item in a loop, and
@@ -1106,8 +1094,9 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   each missing-column ALTER separately. Move long migrations out of band or
   make progress resumable in bounded request-sized steps, and batch safe ALTERs.
 - **Large in-app backups and storage cleanup.** After the first-page batch,
-  `exportTable` in `src/shared/db/backup.ts` still needs one call per later page;
-  a 25,000-row table at the default page size needs about 50 pages by itself.
+  `exportTable` in `src/shared/db/backup-snapshot.ts` still needs one call per
+  later page; a 25,000-row table at the default page size needs about 50 pages
+  by itself.
   `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
   `pruneOldBackups` make one storage delete per stale object. Send large backups
   through the existing out-of-band workflow and cap cleanup work per request.
@@ -1130,3 +1119,79 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
 The `scripts/backup.ts` command and fleet loops in GitHub Actions run outside
 Bunny and are not subject to this per-request limit. Restore replay and catalog
 import already use bounded batches.
+
+---
+
+## Resumable paid-booking completion
+
+*Origin: CodeRabbit review of PR #1833.*
+
+The attendee, booking rows, ledger, modifier use, contact activity, and payment
+finalization commit atomically, but `completePaidBooking` then saves answers,
+logs promo-code use, and calls `logAndNotifyRegistration` after that commit. If
+one of those effects fails, `processed_payments.attendee_id` already marks the
+session as finished. A later webhook or redirect therefore replays success
+without retrying the unfinished work. This gap predates PR #1833, but that PR
+made the boundary easier to see. It deliberately excludes schema changes, so a
+durable completion system is outside that atomic-write-only change.
+
+Build one resumable completion mechanism rather than retrying these calls ad
+hoc. Store the completion input and per-effect state against the payment session
+in the same transaction that finalizes the booking. Claim unfinished effects
+with a stale lease so racing webhook and redirect requests cannot both run them.
+Make each database effect and its completed marker one transaction. Give
+external deliveries a stable idempotency key where the provider supports one,
+and do not prune payment rows with unfinished work. Fresh completion,
+lost-result recovery, processed-payment replay, and ledger replay must all call
+the same resume function.
+
+Starting points: `src/features/api/payment-processing/completion.ts`,
+`src/features/api/payment-processing/index.ts`,
+`src/shared/db/payment-finalize.ts`, `src/shared/db/processed-payments.ts`,
+`src/shared/db/prune.ts`, `src/shared/webhook.ts`, `src/shared/email.ts`, and
+`src/shared/site-assignment.ts`. Tests must interrupt each effect, retry through
+both webhook and redirect paths, and prove answers, activity, messages, site
+assignments, and renewal time are neither lost nor duplicated.
+
+---
+
+## Consistent database backup snapshots
+
+*Origin: CodeRabbit review of PR #1836.*
+
+`createBackup` batches each table's first page, then `exportTable` reads later
+pages with standalone queries. A write during those reads can make a backup mix
+rows from different database states. PR #1836 only moves the existing exporter
+into `src/shared/db/backup-snapshot.ts`; it deliberately preserves the current
+queries, replica routing, pagination, and round-trip behavior.
+
+Add a dedicated read-only transaction or snapshot API in
+`src/shared/db/client.ts`. Do not reuse `withTransaction`: that helper opens a
+primary-routed write transaction, serializes writers, and enforces a write
+round-trip limit. Keep the first-page multi-table read efficient, account for
+the edge subrequest budget, and use the same snapshot for every later page.
+Add a regression test in `test/shared/db/backup-snapshot.test.ts` that changes
+rows between page reads and proves the exported rows all come from one database
+state.
+
+---
+
+## Backup storage edge cases
+
+*Origin: CodeRabbit review of PR #1837.*
+
+PR #1837 only moves the existing backup storage helpers out of
+`src/shared/db/backup.ts`; it deliberately preserves their behavior. These
+possible behavior changes need separate decisions and regression tests:
+
+- **Keep every database namespace non-empty and distinct.** `dbName` in
+  `src/shared/db/backup-storage.ts` returns an empty name for a parseable local
+  `file:` URL and strips the first dashed part from non-Bunny hostnames. Decide
+  the supported URL schemes and hostnames, return a named local folder for local
+  URLs, and only remove Bunny DB's UUID prefix for `.lite.bunnydb.net`. Start
+  with tests for `file:database.db` and two distinct dashed HTTPS hostnames.
+- **Reject future-dated backups from the update gate.** `hasRecentBackup` in
+  `src/shared/db/backup-storage.ts` treats every future timestamp as recent
+  because its age is negative. Decide how much clock skew is acceptable, then
+  require a non-negative age (or a documented tolerance) before applying the
+  maximum age. Add a test with a future backup filename.
