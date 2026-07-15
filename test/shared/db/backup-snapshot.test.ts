@@ -42,9 +42,9 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     });
 
     test("keyset-paginates across multiple pages without losing rows", async () => {
-      await createTestListing({ name: "Page One" });
-      await createTestListing({ name: "Page Two" });
-      await createTestListing({ name: "Page Three" });
+      const pageOne = await createTestListing({ name: "Page One" });
+      const pageTwo = await createTestListing({ name: "Page Two" });
+      const pageThree = await createTestListing({ name: "Page Three" });
 
       // A page size of 2 forces two reads (2 rows, then 1) so the keyset loop
       // must continue past the first full page and stop on the short one.
@@ -55,6 +55,9 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       // dumped column list.
       expect(sql.match(/INSERT INTO "listings"/g)).toHaveLength(2);
       expect(sql).not.toContain("__backup_rowid__");
+      expect(sql.match(new RegExp(`\\(${pageOne.id},`, "g"))).toHaveLength(1);
+      expect(sql.match(new RegExp(`\\(${pageTwo.id},`, "g"))).toHaveLength(1);
+      expect(sql.match(new RegExp(`\\(${pageThree.id},`, "g"))).toHaveLength(1);
     });
   });
 
