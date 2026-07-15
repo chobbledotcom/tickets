@@ -166,11 +166,14 @@ describe("orderBookings > allocations", () => {
 describe("orderBookings > package stamping", () => {
   /** The package stamped onto child 20's folded row for the given parent
    *  lines (child folded under parent 10 once), so each stamping case reads
-   *  only the parent paths it varies. Returns the row's `packageGroupId`
-   *  verbatim (no `?? 0` fallback): the builder always sets it, so an
-   *  unexpected `undefined` is a real bug the assertion should surface, not
-   *  one to coerce away. */
-  const childPackageFor = (parentLines: SignedPaidLine[]): number | undefined =>
+   *  only the parent paths it varies. Returns the row's `packageGroupId` as a
+   *  `number` (not `number | undefined`): the builder always sets it — every
+   *  row leaves `orderBookings` with a concrete `packageGroupId` (set on the
+   *  raw line, preserved by `expandChildAllocations`'s spread, kept or
+   *  stamped by `stampChildRowPackages`) — so the invariant is asserted here
+   *  with `!` rather than modelled as a state the application says is
+   *  impossible (per the repo's "Trust application invariants" rule). */
+  const childPackageFor = (parentLines: SignedPaidLine[]): number =>
     orderBookings({
       allocations: [alloc(20, 10, 1)],
       date: null,
@@ -178,7 +181,7 @@ describe("orderBookings > package stamping", () => {
         ...parentLines,
         line({ listingId: 20, packageGroupId: 0, quantity: 1 }),
       ],
-    }).find((r) => r.listingId === 20)!.packageGroupId;
+    }).find((r) => r.listingId === 20)!.packageGroupId!;
 
   test("a folded child is stamped with its parent's sole package", () => {
     expect(
