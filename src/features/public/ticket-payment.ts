@@ -46,11 +46,7 @@ import type {
   LineBooking,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import {
-  checkBatchAvailability,
-  createAttendeeAtomic,
-  createBookingAtomic,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getDatelessGroupRemaining } from "#shared/db/attendees/capacity/groups.ts";
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
@@ -192,7 +188,7 @@ export const checkAvailability = (
   date?: string | null,
   dayCount = 1,
 ): Promise<boolean> =>
-  checkBatchAvailability(
+  attendeesApi.checkBatchAvailability(
     buildBookings(
       listingsWithQuantity(listings, quantities),
       date ?? null,
@@ -482,7 +478,7 @@ export const createFreeReservation = async ({
   };
   const result =
     ledgerOrder !== null || modifierUsages.length > 0
-      ? await createBookingAtomic(
+      ? await attendeesApi.createBookingAtomic(
           input,
           await bookingBatchPlan(modifierUsages, {
             eventId: crypto.randomUUID(),
@@ -490,7 +486,7 @@ export const createFreeReservation = async ({
             pricedOrder: ledgerOrder ?? EMPTY_PRICED_ORDER,
           }),
         )
-      : await createAttendeeAtomic(input);
+      : await attendeesApi.createAttendeeAtomic(input);
   if (result === "sold-out") {
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
   }

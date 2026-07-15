@@ -253,8 +253,8 @@ export const createDualPackageAttendee = async (
   name: string,
   email: string,
 ): Promise<Attendee> => {
-  const { createAttendeeAtomic } = await import("#shared/db/attendees/api.ts");
-  const made = await createAttendeeAtomic({
+  const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+  const made = await attendeesApi.createAttendeeAtomic({
     bookings: [
       { listingId, packageGroupId: groupId, quantity: 2 },
       { listingId, quantity: 1 },

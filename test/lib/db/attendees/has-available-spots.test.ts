@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hasAvailableSpots } from "#shared/db/attendees/api.ts";
+import { checkListingAvailability as hasAvailableSpots } from "#shared/db/attendees/capacity/checks.ts";
 import {
   enableQueryLog,
   getQueryLog,

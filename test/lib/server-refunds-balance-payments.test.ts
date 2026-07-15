@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { balanceFinalizeStatement } from "#shared/db/payment-finalize.ts";
 import {
@@ -69,7 +69,7 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
     name: "Confirmed",
     reservationAmount: "0",
   });
-  const created = await createAttendeeAtomic({
+  const created = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId: listing.id, pricePaid: 0, quantity: 1 }],
     email: "balance@example.com",
     name: "John Doe",
@@ -110,7 +110,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     name: "Reserved",
     reservationAmount: "20%",
   });
-  const created = await createAttendeeAtomic({
+  const created = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId: listing.id, pricePaid: 2000, quantity: 1 }],
     email: "reservation@example.com",
     name: "John Doe",

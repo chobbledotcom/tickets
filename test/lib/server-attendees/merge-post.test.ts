@@ -336,10 +336,8 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
         name: "L2",
         unitPrice: 500,
       });
-      const { createAttendeeAtomic } = await import(
-        "#shared/db/attendees/api.ts"
-      );
-      const targetResult = await createAttendeeAtomic({
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+      const targetResult = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: listing1.id, quantity: 1 },
           { listingId: listing2.id, quantity: 1 },
@@ -350,7 +348,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       const target = (
         targetResult as Extract<typeof targetResult, { success: true }>
       ).attendees[0]!;
-      const sourceResult = await createAttendeeAtomic({
+      const sourceResult = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: listing1.id, quantity: 3 },
           { listingId: listing2.id, quantity: 3 },

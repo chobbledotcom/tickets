@@ -84,12 +84,10 @@ describeWithEnv(
         ]);
         // A daily member needs a dated booking; the form helper posts date-less,
         // so book atomically like the checkout would.
-        const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees/api.ts"
-        );
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         const { addDays } = await import("#shared/dates.ts");
         const { todayInTz } = await import("#shared/timezone.ts");
-        const booked = await createAttendeeAtomic({
+        const booked = await attendeesApi.createAttendeeAtomic({
           bookings: [
             {
               date: addDays(todayInTz("UTC"), 2),

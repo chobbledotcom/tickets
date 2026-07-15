@@ -11,7 +11,7 @@ import {
   getPublicStatusId,
   swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -157,7 +157,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
     const status = await getPublicDefaultStatus();
-    const result = await createAttendeeAtomic({
+    const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
       email: "guest@example.com",
       name: "Guest",

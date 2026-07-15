@@ -21,7 +21,7 @@ import {
 } from "#shared/booking/model.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   ensureAllBookings,
   reverseOrderActivity,
@@ -110,7 +110,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     test("ok when every booking in the cart succeeded", async () => {
       const e1 = await createTestListing({ maxAttendees: 10, name: "ok-a" });
       const e2 = await createTestListing({ maxAttendees: 10, name: "ok-b" });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: e1.id, quantity: 1 },
           { listingId: e2.id, quantity: 1 },
@@ -150,7 +150,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         maxAttendees: 10,
         name: "rollback-b",
       });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: e1.id, quantity: 2 },
           { listingId: e2.id, quantity: 2 },
@@ -298,7 +298,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         name: "Secret Widget",
       });
       // Fill the member's only spot so the package reservation can't be created.
-      const first = await createAttendeeAtomic({
+      const first = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: member.id, quantity: 1 }],
         email: "first@test.com",
         name: "First",

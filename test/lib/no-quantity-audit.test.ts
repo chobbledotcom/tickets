@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
@@ -49,7 +49,7 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
       maxAttendees: 50,
       name: "GhostShow",
     });
-    const result = await createAttendeeAtomic({
+    const result = await attendeesApi.createAttendeeAtomic({
       allowOverbook: true,
       bookings: [
         { listingId: real.id, quantity: 1 },
@@ -115,7 +115,7 @@ describeWithEnv("no-quantity audit > attachment auth", { db: true }, () => {
    * (real-booking) status against the exact listing. */
   const lineIsActive = async (quantity: number): Promise<boolean> => {
     const listing = await createTestListing({ maxAttendees: 50 });
-    const result = await createAttendeeAtomic({
+    const result = await attendeesApi.createAttendeeAtomic({
       allowOverbook: true,
       bookings: [{ listingId: listing.id, quantity }],
       email: `q${quantity}@test.com`,
@@ -141,7 +141,7 @@ describeWithEnv(
   () => {
     test("excludes a quantity-0-only attendee from the listing and all audiences", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      const real = await createAttendeeAtomic({
+      const real = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 1 }],
         email: "real@test.com",
         name: "Real",

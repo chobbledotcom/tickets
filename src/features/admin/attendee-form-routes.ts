@@ -64,10 +64,7 @@ import type {
   CreateAttendeeResult,
   ListingAttendeeRow,
 } from "#shared/db/attendee-types.ts";
-import {
-  applyAttendeeAtomicEdit,
-  createAttendeeAtomic,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { hasPaidLine } from "#shared/db/attendees/queries.ts";
@@ -363,7 +360,7 @@ const applyCreate = async (
   // amount projects from the ledger (rather than silently reading back as £0)
   // and lands atomically with the rows. The attendee owes the full gross; an
   // operator records any already-paid portion afterwards through the ledger.
-  const createResult = await createAttendeeAtomic(
+  const createResult = await attendeesApi.createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
@@ -452,7 +449,7 @@ const applyEdit = async (
 
   const desired = toDesiredLines(parsed);
   // Admin manual edit may deliberately overbook (warned, not blocked).
-  const editResult = await applyAttendeeAtomicEdit(
+  const editResult = await attendeesApi.applyAttendeeAtomicEdit(
     attendeeId,
     encryptedPiiBlob,
     desired,

@@ -16,16 +16,13 @@ import type {
   ListingAttendeeRow,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
-  applyAttendeeAtomicEdit,
   type ExistingLine,
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
 import { dateToStartEnd } from "#shared/db/attendees/capacity/range.ts";
-import {
-  createAttendeeAtomicImpl as createAttendeeAtomic,
-  ensureAllBookings,
-} from "#shared/db/attendees/create.ts";
+import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import {
@@ -314,7 +311,7 @@ export const createServicingEvent = async (
 ): Promise<ServicingEvent> => {
   const name = assertServicingInput(input);
   const createResult = await ensureServicingCreateBookings(
-    await createAttendeeAtomic(normalizedCreateInput(input, name)),
+    await attendeesApi.createAttendeeAtomic(normalizedCreateInput(input, name)),
     input.bookings,
   );
   const id = createResult.attendees[0]!.id;
@@ -435,8 +432,8 @@ const desiredLines = (
 
 /** Rebuild the desired-line set from an attendee's current booking rows. Used to
  *  restore the prior state when a post-edit side effect fails — every line
- *  carries its existing key + slot so {@link applyAttendeeAtomicEdit} treats
- *  them as a preserve-style re-apply. */
+ *  carries its existing key + slot so the atomic edit treats it as a
+ *  preserve-style re-apply. */
 const desiredLinesFromExisting = (
   existing: ExistingLine[],
 ): DesiredListingLine[] =>
@@ -487,7 +484,7 @@ const restoreServicingState = async (
     before.name,
     before.ticketToken,
   );
-  await applyAttendeeAtomicEdit(
+  await attendeesApi.applyAttendeeAtomicEdit(
     id,
     restoredPiiBlob,
     desiredLinesFromExisting(existingBefore),
@@ -530,7 +527,7 @@ export const updateServicingEvent = async (
   ]);
   const answersBefore = snapshotAnswerSet(id, answersBeforeBatch);
   const encryptedPiiBlob = await servicingPiiBlob(name, current.ticketToken);
-  const editResult = await applyAttendeeAtomicEdit(
+  const editResult = await attendeesApi.applyAttendeeAtomicEdit(
     id,
     encryptedPiiBlob,
     desiredLines(input, existingBefore),

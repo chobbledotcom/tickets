@@ -6,7 +6,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   assignListingsToGroup,
   getGroupPackagePrices,
@@ -50,7 +50,7 @@ const sellPackageTicket = async (
   listingId: number,
   groupId: number,
 ): Promise<string> => {
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId, packageGroupId: groupId, quantity: 1 }],
     email: "buyer@test.com",
     name: "Buyer",

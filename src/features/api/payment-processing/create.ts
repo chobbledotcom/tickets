@@ -32,10 +32,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import {
-  type createAttendeeAtomic,
-  createBookingAtomic,
-} from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
@@ -131,7 +128,7 @@ const formatPostPaymentError = capacityErrorFormatter({
 });
 
 type CreatedAttendee = Extract<
-  Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  Awaited<ReturnType<typeof attendeesApi.createAttendeeAtomic>>,
   { success: true }
 >["attendees"][number];
 
@@ -312,7 +309,7 @@ export const createAttendeeForSession = async (
     { paymentReference: session.paymentReference, sessionId: session.id },
   );
 
-  const result = await createBookingAtomic(
+  const result = await attendeesApi.createBookingAtomic(
     {
       ...(await attendeeBaseFields(session, intent)),
       bookings,

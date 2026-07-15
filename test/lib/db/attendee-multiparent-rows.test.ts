@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
@@ -47,7 +47,7 @@ describeWithEnv(
           { childId: child.id, parentId: parentB.id, qty: 1 },
         ],
       );
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings,
         email: "multi@example.com",
         name: "Multi Parent",

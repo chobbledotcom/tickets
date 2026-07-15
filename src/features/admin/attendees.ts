@@ -9,7 +9,7 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import {
@@ -274,7 +274,7 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
     onInvalid: ({ error, params }) =>
       redirect(`/admin/listing/${params.listingId}/attendees`, error, false),
     onValid: async ({ context: listing, params, values }) => {
-      const createResult = await createAttendeeAtomic(
+      const createResult = await attendeesApi.createAttendeeAtomic(
         buildCreateAttendeeInput(values, listing),
       );
       if (!createResult.success) {

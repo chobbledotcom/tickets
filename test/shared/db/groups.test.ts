@@ -1,15 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  checkBatchAvailability,
-  createAttendeeAtomic,
-  hasAvailableSpots,
-} from "#shared/db/attendees/api.ts";
+  checkBatchAvailabilityImpl as checkBatchAvailability,
+  checkListingAvailability as hasAvailableSpots,
+} from "#shared/db/attendees/capacity/checks.ts";
 import {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
 } from "#shared/db/attendees/capacity/groups.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   anyListingInPackageGroup,

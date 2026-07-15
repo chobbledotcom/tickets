@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
-import { checkBatchAvailability } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesByListingIds } from "#shared/db/listings/attendees.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
@@ -68,7 +68,7 @@ describeWithEnv("server (mixed standard + daily order)", { db: true }, () => {
 
     // The order-wide date is the shared second arg: it constrains the daily
     // line while the standard line is counted cumulatively (date-independent).
-    const fits = await checkBatchAvailability(
+    const fits = await attendeesApi.checkBatchAvailability(
       [
         { durationDays: 1, listingId: standard.id, quantity: 2 },
         { durationDays: 1, listingId: daily.id, quantity: 2 },
@@ -85,7 +85,7 @@ describeWithEnv("server (mixed standard + daily order)", { db: true }, () => {
     // Fill the daily listing's single seat on that date.
     await bookAttendee(daily, { date, quantity: 1 });
 
-    const fits = await checkBatchAvailability(
+    const fits = await attendeesApi.checkBatchAvailability(
       [
         { durationDays: 1, listingId: standard.id, quantity: 1 },
         { durationDays: 1, listingId: daily.id, quantity: 1 },

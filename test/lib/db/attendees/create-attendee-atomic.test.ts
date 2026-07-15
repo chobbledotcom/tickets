@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import {
   getAttendeeRaw,

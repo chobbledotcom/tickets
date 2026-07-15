@@ -220,10 +220,8 @@ describeWithEnv(
           name: "Two Day Pass",
         });
         const start = orderDate();
-        const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees/api.ts"
-        );
-        const fill = await createAttendeeAtomic({
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const fill = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { date: addDays(start, 1), listingId: daily.id, quantity: 1 },
           ],
@@ -283,10 +281,8 @@ describeWithEnv(
           name: "Day Boat",
         });
         const start = orderDate();
-        const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees/api.ts"
-        );
-        const fill = await createAttendeeAtomic({
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+        const fill = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { date: addDays(start, 1), listingId: dayBoat.id, quantity: 2 },
           ],

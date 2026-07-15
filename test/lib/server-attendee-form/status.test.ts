@@ -4,7 +4,7 @@ import {
   attendeeStatuses,
   getPaidDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
@@ -41,7 +41,7 @@ describeWithEnv(
           maxAttendees: 10,
           unitPrice: 1000,
         });
-        const created = await createAttendeeAtomic({
+        const created = await attendeesApi.createAttendeeAtomic({
           bookings: [{ listingId: listing.id, pricePaid, quantity: 1 }],
           email: "r@example.com",
           name: "Reserver",

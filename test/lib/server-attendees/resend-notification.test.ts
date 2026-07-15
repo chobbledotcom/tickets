@@ -237,9 +237,7 @@ describeWithEnv(
         const { createTestGroup } = await import(
           "#test-utils/db-helpers/groups.ts"
         );
-        const { createAttendeeAtomic } = await import(
-          "#shared/db/attendees/api.ts"
-        );
+        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
         const group = await createTestGroup({
           isPackage: true,
           name: "Duo Kit",
@@ -253,7 +251,7 @@ describeWithEnv(
           groupId: group.id,
           name: "Duo B",
         });
-        const result = await createAttendeeAtomic({
+        const result = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { listingId: memberA.id, packageGroupId: group.id, quantity: 1 },
             { listingId: memberB.id, packageGroupId: group.id, quantity: 2 },
