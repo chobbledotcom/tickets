@@ -341,6 +341,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-15_attendee_status_integrity",
     () => import("./2026-07-15_attendee_status_integrity.ts"),
   ),
+  // Add dormant checkout stage storage and its revision counter.
+  entry(
+    "2026-07-15_checkout_stages",
+    () => import("./2026-07-15_checkout_stages.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

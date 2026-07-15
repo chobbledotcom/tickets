@@ -1195,3 +1195,19 @@ possible behavior changes need separate decisions and regression tests:
   because its age is negative. Decide how much clock skew is acceptable, then
   require a non-negative age (or a documented tolerance) before applying the
   maximum age. Add a test with a future backup filename.
+
+---
+
+## Checkout stage attendee cleanup
+
+*Origin: Codex review of PR #1840.*
+
+Before any runtime path writes `checkout_stages`, include those rows in attendee
+deletion, purge, and merge handling. The table has no foreign key, so leaving the
+current hard-coded dependent-table lists unchanged would keep a stage linked to
+an attendee that no longer exists. Start with
+`src/shared/db/attendees/delete.ts` and
+`src/shared/merge/attendee-merge.ts`. Add direct regressions proving deletion
+removes a stage and merging repoints it without losing the unique attendee
+invariant. If both attendees have stages, require an explicit conflict decision
+instead of silently choosing or deleting one.
