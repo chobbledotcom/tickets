@@ -67,6 +67,17 @@ const EMPTY_DEBUG_VALUE = "";
 const showOrEmpty = (value: string | null | undefined): string =>
   typeof value === "string" ? value : EMPTY_DEBUG_VALUE;
 
+const appleSigningStatus = (
+  valid: boolean,
+  bothValid: boolean,
+  pairMatches: boolean,
+  mismatchKey: string,
+): string => {
+  if (!valid) return CERT_STATUS.invalidPem;
+  if (!bothValid || pairMatches) return CERT_STATUS.valid;
+  return t(mismatchKey);
+};
+
 /** Report whether each Apple Wallet certificate and key is usable together. */
 const validateAppleWalletCerts = async (
   config: typeof settings.appleWallet.config,
@@ -81,21 +92,23 @@ const validateAppleWalletCerts = async (
 
   const signingCertValid = isValidAppleCertificate(config.signingCert);
   const signingKeyValid = isValidRsaPrivateKey(config.signingKey);
-  const pairMatches = await isValidAppleSigningPair(
-    config.signingCert,
-    config.signingKey,
-  );
+  const bothValid = signingCertValid && signingKeyValid;
+  const pairMatches =
+    bothValid &&
+    (await isValidAppleSigningPair(config.signingCert, config.signingKey));
   return {
-    signingCert: !signingCertValid
-      ? CERT_STATUS.invalidPem
-      : pairMatches
-        ? CERT_STATUS.valid
-        : t("debug.apple_signing_cert_mismatch"),
-    signingKey: !signingKeyValid
-      ? CERT_STATUS.invalidPem
-      : pairMatches
-        ? CERT_STATUS.valid
-        : t("debug.apple_signing_key_mismatch"),
+    signingCert: appleSigningStatus(
+      signingCertValid,
+      bothValid,
+      pairMatches,
+      "debug.apple_signing_cert_mismatch",
+    ),
+    signingKey: appleSigningStatus(
+      signingKeyValid,
+      bothValid,
+      pairMatches,
+      "debug.apple_signing_key_mismatch",
+    ),
     wwdrCert: isValidAppleCertificate(config.wwdrCert)
       ? CERT_STATUS.valid
       : CERT_STATUS.invalidPem,

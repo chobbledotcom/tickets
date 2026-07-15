@@ -37,7 +37,6 @@ export const handleEmailPost = settingsHandler<EmailFormData>({
     provider: form.getString("email_provider"),
   }),
   formId: "settings-email",
-  label: "Email settings",
   log: ({ provider }) =>
     provider === ""
       ? t("success.email_provider_disabled")
@@ -68,28 +67,22 @@ export const handleEmailTestPost = advancedSettingsRoute(
   async (_form, errorPage) => {
     const config = await getEmailConfig();
     if (!config) {
-      return errorPage(t("error.email_not_configured"), 400, "settings-email");
+      return errorPage(t("error.email_not_configured"), "settings-email");
     }
     const businessEmail = parseEmail(settings.businessEmail);
     if (!businessEmail) {
-      return errorPage(
-        t("error.no_business_email"),
-        400,
-        "settings-email-test",
-      );
+      return errorPage(t("error.no_business_email"), "settings-email-test");
     }
     const status = await sendTestEmail(config, businessEmail);
     if (!status) {
       return errorPage(
         t("error.test_email_no_response"),
-        502,
         "settings-email-test",
       );
     }
     if (status >= 300) {
       return errorPage(
         `Test email failed (status ${status})`,
-        502,
         "settings-email-test",
       );
     }

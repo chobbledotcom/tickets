@@ -54,52 +54,62 @@ const implicitSet = (tag: number, values: readonly Uint8Array[]): Uint8Array =>
 
 type AppleSignature = {
   certificate: ReturnType<typeof readAppleCertificate>;
+  matchesCertificate: boolean;
   signature: Uint8Array;
 };
 
-/** Sign bytes and prove that the private key belongs to the certificate. */
+/** Sign bytes and check the result against the certificate's public key. */
+const createAppleSignature =
+  (
+    signingCertPem: string,
+    signingKeyPem: string,
+  ): ((data: Uint8Array) => Promise<AppleSignature>) =>
+  async (data) => {
+    const certificate = readAppleCertificate(signingCertPem);
+    const privateKeyBytes = rsaPrivateKeyBytes(signingKeyPem);
+    const [privateKey, publicKey] = await Promise.all([
+      importRsaKey("pkcs8", privateKeyBytes, "sign"),
+      importRsaKey("spki", certificate.publicKey, "verify"),
+    ]);
+    const signature = new Uint8Array(
+      await crypto.subtle.sign(
+        "RSASSA-PKCS1-v1_5",
+        privateKey,
+        data as BufferSource,
+      ),
+    );
+    const matchesCertificate = await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      publicKey,
+      signature,
+      data as BufferSource,
+    );
+    return { certificate, matchesCertificate, signature };
+  };
+
+/** Sign bytes, failing when the private key does not belong to the certificate. */
 const signWithCertificate = async (
   data: Uint8Array,
   signingCertPem: string,
   signingKeyPem: string,
 ): Promise<AppleSignature> => {
-  const certificate = readAppleCertificate(signingCertPem);
-  const privateKeyBytes = rsaPrivateKeyBytes(signingKeyPem);
-  const [privateKey, publicKey] = await Promise.all([
-    importRsaKey("pkcs8", privateKeyBytes, "sign"),
-    importRsaKey("spki", certificate.publicKey, "verify"),
-  ]);
-  const signature = new Uint8Array(
-    await crypto.subtle.sign(
-      "RSASSA-PKCS1-v1_5",
-      privateKey,
-      data as BufferSource,
-    ),
-  );
-  const matchesCertificate = await crypto.subtle.verify(
-    "RSASSA-PKCS1-v1_5",
-    publicKey,
-    signature,
-    data as BufferSource,
-  );
-  if (!matchesCertificate) {
+  const signed = await createAppleSignature(
+    signingCertPem,
+    signingKeyPem,
+  )(data);
+  if (!signed.matchesCertificate) {
     throw new Error("Apple Wallet signing key does not match its certificate");
   }
-  return { certificate, signature };
+  return signed;
 };
 
 /** Whether an Apple signing certificate and private key belong together. */
 export const isValidAppleSigningPair = async (
   signingCertPem: string,
   signingKeyPem: string,
-): Promise<boolean> => {
-  try {
-    await signWithCertificate(new Uint8Array(), signingCertPem, signingKeyPem);
-    return true;
-  } catch {
-    return false;
-  }
-};
+): Promise<boolean> =>
+  (await createAppleSignature(signingCertPem, signingKeyPem)(new Uint8Array()))
+    .matchesCertificate;
 
 /** Create an Apple-compatible detached CMS signature over manifest JSON. */
 export const signManifest = async (

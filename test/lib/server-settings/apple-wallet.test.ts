@@ -283,6 +283,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   });
 
   test("does not clear the config when only Pass Type ID is empty", async () => {
+    await configureAppleWallet();
     const response = await submitWalletSettingsForm({
       apple_wallet_pass_type_id: "",
       apple_wallet_signing_cert: "",
@@ -294,9 +295,11 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
       expect.stringContaining("Pass Type ID is required"),
       false,
     )(response);
+    expect(settings.appleWallet.hasConfig).toBe(true);
   });
 
   test("does not clear the config when IDs are still set", async () => {
+    await configureAppleWallet();
     const response = await submitWalletSettingsForm({
       apple_wallet_signing_cert: "",
       apple_wallet_signing_key: "",
@@ -304,9 +307,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
-      expect.stringContaining("Signing certificate is required"),
-      false,
+      "Apple Wallet settings updated",
     )(response);
+    expect(settings.appleWallet.hasConfig).toBe(true);
   });
 
   test("requires signing certificate on initial setup", async () => {
@@ -401,6 +404,30 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     expect(settings.appleWallet.signingKey).toBe(testCerts.signingKey);
   });
 
+  test("rejects a new signing certificate that does not match the saved key", async () => {
+    await configureAppleWallet();
+    await Promise.all([
+      settings.update.appleWallet.signingCert("saved certificate"),
+      settings.update.appleWallet.signingKey(getMismatchedAppleWalletKey()),
+    ]);
+
+    const response = await submitWalletSettingsForm({
+      apple_wallet_signing_cert: testCerts.signingCert,
+      apple_wallet_signing_key: MASK_SENTINEL,
+      apple_wallet_wwdr_cert: MASK_SENTINEL,
+    });
+
+    await expectFlashRedirect(
+      "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
+      expect.stringContaining(
+        "Signing certificate and private key do not match",
+      ),
+      false,
+    )(response);
+    expect(settings.appleWallet.signingCert).toBe("saved certificate");
+    expect(settings.appleWallet.signingKey).toBe(getMismatchedAppleWalletKey());
+  });
+
   test("saves all settings successfully", async () => {
     const response = await submitWalletSettingsForm({
       apple_wallet_pass_type_id: "pass.com.test.tickets",
@@ -408,7 +435,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
-      "Apple Wallet configuration updated",
+      "Apple Wallet settings updated",
     )(response);
 
     expect(settings.appleWallet.hasConfig).toBe(true);

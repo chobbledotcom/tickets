@@ -75,7 +75,7 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
 
       expect(res.status).toBe(400);
       expect(saveFn).not.toHaveBeenCalled();
-      expect(mockErrorPage).toHaveBeenCalledWith(message, 400, "settings-test");
+      expect(mockErrorPage).toHaveBeenCalledWith(message, "settings-test");
     });
   }
 
@@ -113,14 +113,14 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       expect(location).not.toContain("form=");
     });
 
-    test("passes empty formId to errorPage when formId is not set", async () => {
+    test("passes no formId to errorPage when formId is not set", async () => {
       const { handler } = makeCreate({
         formId: undefined,
         redirectTo: "/admin/site",
         validate: () => "error",
       });
       await runHandler(handler, { value: "x" }, mockErrorPage);
-      expect(mockErrorPage).toHaveBeenCalledWith("error", 400, "");
+      expect(mockErrorPage).toHaveBeenCalledWith("error", undefined);
     });
   });
 });

@@ -28,9 +28,6 @@ type AppleWalletFormData = {
   wwdr: SecretFieldResult;
 };
 
-const APPLE_WALLET_LABEL = "Apple Wallet configuration";
-const GOOGLE_WALLET_LABEL = "Google Wallet configuration";
-
 const isAllCleared = (d: AppleWalletFormData): boolean =>
   !d.passTypeId &&
   !d.teamId &&
@@ -48,11 +45,10 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     wwdr: processSecretField(form, "apple_wallet_wwdr_cert"),
   }),
   formId: "settings-apple-wallet",
-  label: APPLE_WALLET_LABEL,
   log: (d) =>
     isAllCleared(d)
       ? t("success.apple_wallet_cleared")
-      : `${APPLE_WALLET_LABEL} updated`,
+      : t("success.apple_wallet_updated"),
   save: async (d) => {
     if (isAllCleared(d)) {
       await Promise.all([
@@ -174,11 +170,10 @@ export const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
     key: processSecretField(form, "google_wallet_service_account_key"),
   }),
   formId: "settings-google-wallet",
-  label: GOOGLE_WALLET_LABEL,
   log: (d) =>
     isGoogleWalletCleared(d)
       ? t("success.google_wallet_cleared")
-      : `${GOOGLE_WALLET_LABEL} updated`,
+      : t("success.google_wallet_updated"),
   save: async (d) => {
     if (isGoogleWalletCleared(d)) {
       await Promise.all([

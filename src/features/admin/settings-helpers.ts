@@ -30,9 +30,7 @@ import type { PaymentProviderType } from "#shared/types.ts";
 
 // ── Types ───────────────────────────────────────────────────────────
 
-type ErrorPageFn = ResponseHandler<
-  [error: string, status: number, formId: string]
->;
+type ErrorPageFn = ResponseHandler<[error: string, formId?: string]>;
 
 type SettingsFormHandler = ResponseHandler<
   [form: FormParams, errorPage: ErrorPageFn, session: AuthSession]
@@ -54,15 +52,17 @@ type RedirectOpts = {
 const SETTINGS_PATH = "/admin/settings";
 const ADVANCED_PATH = "/admin/settings-advanced";
 
-const pathFor = (opts: RedirectOpts) =>
-  opts.redirectTo ?? (opts.advanced ? ADVANCED_PATH : SETTINGS_PATH);
+const pathFor = (opts: RedirectOpts): string => {
+  if (typeof opts.redirectTo === "string") return opts.redirectTo;
+  return opts.advanced ? ADVANCED_PATH : SETTINGS_PATH;
+};
 
 /** Build a route wrapper that provides auth + errorPage for the given path.
  * Defaults to owner-only; pass a wider policy for pages other roles may save. */
 const wrapRoute = (path: string, auth: AuthPolicy<"form"> = OWNER_FORM) => {
   const mkErrorPage =
     (_session: AuthSession) =>
-    (error: string, _status: number, formId: string): Response =>
+    (error: string, formId?: string): Response =>
       errorRedirect(path, error, formId);
   return (handler: SettingsFormHandler) =>
     (request: Request): Promise<Response> =>
@@ -82,16 +82,21 @@ const advancedSettingsRoute = wrapRoute(ADVANCED_PATH);
 const testRoute = (testFn: () => Promise<unknown>) =>
   gatedPost(OWNER_FORM)(async () => jsonResponse(await testFn()));
 
-/** Run an optional async validator; return error response or null */
-const runValidate = <T>(
+/** Run an optional validator, then continue only when it accepts the value. */
+const afterValidation = async <T>(
   validate: ValidateFn<T> | undefined,
   value: T,
   errorPage: ErrorPageFn,
-  formId: string,
-): Promise<Response | null> =>
-  mapValidationError(validate && (() => validate(value)), (error) =>
-    errorPage(error, 400, formId),
+  formId: string | undefined,
+  onValid: () => Promise<Response>,
+): Promise<Response> => {
+  const invalid = await mapValidationError(
+    validate && (() => validate(value)),
+    (error) => errorPage(error, formId),
   );
+  if (invalid) return invalid;
+  return onValid();
+};
 
 /** Wrap a SettingsFormHandler as a complete route handler with auth */
 const asRoute = (
@@ -108,40 +113,42 @@ const routedSettings =
 
 // ── Core: createSettingsHandler ─────────────────────────────────────
 
-type SettingsHandlerConfig<T> = RedirectOpts & {
-  /** Form ID for flash message targeting (omit for non-settings pages) */
-  formId?: string | undefined;
-  /** Human-readable label — used for default log (default: "${label} updated") */
-  label: string;
-  /** Extract the value from form data */
-  extract: (form: FormParams) => T;
-  /** Validate the value. Return error string or null if valid. */
-  validate?: ValidateFn<T> | undefined;
-  /** Persist the value */
-  save: (value: T) => Promise<void> | void;
-  /** Activity log + flash message (default: "${label} updated") */
-  log?: (value: T) => string;
-};
+type SettingsMessage<T> =
+  | { label: string; log?: undefined }
+  | { label?: never; log: (value: T) => string };
+
+type SettingsHandlerConfig<T> = RedirectOpts &
+  SettingsMessage<T> & {
+    /** Form ID for flash message targeting (omit for non-settings pages) */
+    formId?: string | undefined;
+    /** Extract the value from form data */
+    extract: (form: FormParams) => T;
+    /** Validate the value. Return error string or null if valid. */
+    validate?: ValidateFn<T> | undefined;
+    /** Persist the value */
+    save: (value: T) => Promise<void> | void;
+  };
 
 const createSettingsHandler =
   <T>(cfg: SettingsHandlerConfig<T>): SettingsFormHandler =>
   async (form, errorPage) => {
     const value = cfg.extract(form);
-    const invalid = await runValidate(
+    return afterValidation(
       cfg.validate,
       value,
       errorPage,
-      cfg.formId ?? "",
-    );
-    if (invalid) return invalid;
-    await cfg.save(value);
-    const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
-    await logActivity(msg);
-    return redirect(
-      pathFor(cfg),
-      msg,
-      true,
-      cfg.formId ? { formId: cfg.formId } : undefined,
+      cfg.formId,
+      async () => {
+        await cfg.save(value);
+        const msg = cfg.log ? cfg.log(value) : `${cfg.label} updated`;
+        await logActivity(msg);
+        return redirect(
+          pathFor(cfg),
+          msg,
+          true,
+          cfg.formId ? { formId: cfg.formId } : undefined,
+        );
+      },
     );
   };
 
@@ -164,7 +171,7 @@ type ToggleConfig = SavableFieldConfig<boolean>;
 
 const toggleHandler = (cfg: ToggleConfig): SettingsFormHandler =>
   createSettingsHandler<boolean>({
-    ...cfg,
+    ...withoutLabel(cfg),
     extract: (form) => form.get(cfg.field) === "true",
     log: (v) => `${cfg.label} ${v ? "enabled" : "disabled"}`,
   });
@@ -187,7 +194,7 @@ const clearableFieldHandler = (
   cfg: ClearableFieldConfig,
 ): SettingsFormHandler =>
   createSettingsHandler<string>({
-    ...cfg,
+    ...withoutLabel(cfg),
     extract: (form) => form.getString(cfg.field),
     log: (v) => (v === "" ? `${cfg.label} cleared` : `${cfg.label} updated`),
     validate: (value) => {
@@ -195,6 +202,13 @@ const clearableFieldHandler = (
       return cfg.validate ? cfg.validate(value) : null;
     },
   });
+
+const withoutLabel = <T extends { label: string }>(
+  config: T,
+): Omit<T, "label"> => {
+  const { label: _, ...rest } = config;
+  return rest;
+};
 
 /** Convenience: clearableFieldHandler + route wrapping */
 const settingsClearable: (cfg: ClearableFieldConfig) => RequestRoute =
@@ -243,8 +257,7 @@ const saveSecret = async (
 };
 
 type SecretFieldConfig = FieldConfig & {
-  required?: boolean;
-  afterSave?: (value: string) => Promise<void> | void;
+  formId: string;
 };
 
 const secretFieldHandler =
@@ -252,30 +265,32 @@ const secretFieldHandler =
   async (form, errorPage) => {
     const field = processSecretField(form, cfg.field);
     const to = pathFor(cfg);
-    const fid = cfg.formId ?? "";
-    const formOpts = cfg.formId ? { formId: cfg.formId } : undefined;
+    const formOpts = { formId: cfg.formId };
 
     if (field.action === "unchanged") {
       return redirect(to, `${cfg.label} unchanged`, true, formOpts);
     }
 
     if (field.action === "cleared") {
-      if (cfg.required) return errorPage(`${cfg.label} is required`, 400, fid);
-      return redirect(to, `${cfg.label} cleared`, true, formOpts);
+      return errorPage(`${cfg.label} is required`, cfg.formId);
     }
 
-    const invalid = await runValidate(
+    return afterValidation(
       cfg.validate,
       field.value,
       errorPage,
-      fid,
+      cfg.formId,
+      async () => {
+        await cfg.save(field.value);
+        await logActivity(`${cfg.label} configured`);
+        return redirect(
+          to,
+          `${cfg.label} updated successfully`,
+          true,
+          formOpts,
+        );
+      },
     );
-    if (invalid) return invalid;
-
-    await cfg.save(field.value);
-    if (cfg.afterSave) await cfg.afterSave(field.value);
-    await logActivity(`${cfg.label} configured`);
-    return redirect(to, `${cfg.label} updated successfully`, true, formOpts);
   };
 
 /** Convenience: secretFieldHandler + route wrapping */
@@ -369,9 +384,9 @@ const defineProviderCredentialsRoute = <T>(
 
     // Provider validation + the "secret required unless already stored" guard.
     const invalid = await cfg.validate(fields, secret);
-    if (invalid) return errorPage(invalid, 400, cfg.formId);
+    if (invalid) return errorPage(invalid, cfg.formId);
     if (secret.action === "cleared" && !cfg.hasSecret()) {
-      return errorPage(cfg.secretRequiredError, 400, cfg.formId);
+      return errorPage(cfg.secretRequiredError, cfg.formId);
     }
 
     // A secret-only provider with no new secret is a genuine no-op.
@@ -380,7 +395,7 @@ const defineProviderCredentialsRoute = <T>(
     }
 
     const saveError = await persistProviderCredentials(cfg, fields, secret);
-    if (saveError) return errorPage(saveError, 400, cfg.formId);
+    if (saveError) return errorPage(saveError, cfg.formId);
 
     await logActivity(cfg.logMessage);
     return settingsFlash(cfg.successMessage);

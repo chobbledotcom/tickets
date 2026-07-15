@@ -174,6 +174,7 @@ describeAdminSettings(() => {
       );
       // Flash anchors back to the webhook form — the exact form id.
       expect(redirectFormId(response)).toBe("settings-square-webhook");
+      expect(settings.square.webhookSignatureKey).toBe("sig_key_new");
     });
 
     test("rejects a signature key that looks like an application ID", async () => {

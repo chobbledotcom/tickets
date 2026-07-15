@@ -390,6 +390,25 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       );
     });
 
+    test("shows a valid certificate beside an invalid key", async () => {
+      await configureAppleDebug("not-a-valid-pem");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Signing certificate", "Valid"),
+        debugRow("Signing key", "Invalid PEM"),
+      );
+    });
+
+    test("shows an invalid certificate beside a valid key", async () => {
+      await configureAppleDebug();
+      await settings.update.appleWallet.signingCert("not-a-valid-pem");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Signing certificate", "Invalid PEM"),
+        debugRow("Signing key", "Valid"),
+      );
+    });
+
     test("shows when the signing certificate and key do not match", async () => {
       await configureAppleDebug(getMismatchedAppleWalletKey());
       await assertAdminHtml(

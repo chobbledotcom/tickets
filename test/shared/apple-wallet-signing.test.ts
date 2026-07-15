@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import {
   isValidAppleSigningPair,
   signManifest,
@@ -172,5 +172,18 @@ describe("Apple Wallet signing", () => {
         getMismatchedAppleWalletKey(),
       ),
     ).toBe(false);
+  });
+
+  test("does not turn a signing failure into a credential mismatch", async () => {
+    const signStub = stub(crypto.subtle, "sign", () =>
+      Promise.reject(new Error("crypto unavailable")),
+    );
+    try {
+      await expect(
+        isValidAppleSigningPair(creds.signingCert, creds.signingKey),
+      ).rejects.toThrow("crypto unavailable");
+    } finally {
+      signStub.restore();
+    }
   });
 });
