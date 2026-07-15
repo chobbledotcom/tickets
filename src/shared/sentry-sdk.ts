@@ -57,6 +57,7 @@ const init = (options: InitOptions): void => {
     transport: makeFetchTransport,
   });
   getCurrentScope().setClient(client);
+  client.init();
 };
 
 export const sentrySdk = {

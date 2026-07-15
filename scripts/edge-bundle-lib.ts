@@ -170,7 +170,7 @@ const inlineAssetsPlugin = (
 });
 
 /** Read every static asset ASSET_DEFS references, plus the inlined order widget. */
-const readStaticAssets = async (
+export const readStaticAssets = async (
   minifiedCss: string,
 ): Promise<Record<string, string>> => {
   const staticAssets: Record<string, string> = {

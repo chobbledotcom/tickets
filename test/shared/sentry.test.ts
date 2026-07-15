@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/deno";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
@@ -57,6 +57,17 @@ describe("sentry", () => {
     test("initializes when SENTRY_URL is set", async () => {
       restoreEnv = setTestEnv({ SENTRY_URL: DSN });
       expect(await initSentry()).toBe(true);
+    });
+
+    test("starts the manual SDK client", async () => {
+      restoreEnv = setTestEnv({ SENTRY_URL: DSN });
+      const initSpy = spy(Sentry.DenoClient.prototype, "init");
+      try {
+        expect(await initSentry()).toBe(true);
+        expect(initSpy.calls.length).toBe(1);
+      } finally {
+        initSpy.restore();
+      }
     });
 
     test("is idempotent once initialized", async () => {

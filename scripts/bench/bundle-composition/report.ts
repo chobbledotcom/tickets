@@ -9,6 +9,8 @@
 import { stop, transform } from "esbuild";
 import { utf8ByteLength } from "../../../src/shared/bytes.ts";
 import { ASSETS } from "../../../src/shared/images/wasm-assets.ts";
+import { minifyCss } from "../../css-minify.ts";
+import { readStaticAssets } from "../../edge-bundle-lib.ts";
 import {
   buildAssetPathsModule,
   buildAssetsModule,
@@ -215,20 +217,10 @@ const externalObjects = (staticAssets: Record<string, string>): SourceBytes[] =>
     source: filename,
   }));
 
-const readBuiltAssets = async (): Promise<Record<string, string>> => {
-  const entries = await Promise.all(
-    ASSET_DEFS.map(async ([filename]) => {
-      const content = await Deno.readTextFile(`src/ui/static/${filename}`);
-      if (filename !== "style.css") return [filename, content] as const;
-      const minified = await transform(content, {
-        loader: "css",
-        minify: true,
-      });
-      return [filename, minified.code] as const;
-    }),
+const readBuiltAssets = async (): Promise<Record<string, string>> =>
+  readStaticAssets(
+    await minifyCss(await Deno.readTextFile("./src/ui/static/style.css")),
   );
-  return Object.fromEntries(entries);
-};
 
 const main = async (): Promise<void> => {
   const [cdnArg, ...extraArgs] = Deno.args;
