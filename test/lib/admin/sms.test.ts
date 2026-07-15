@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import { getContactRecord, hashPhone } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -13,6 +12,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 const PHONE = "+447700900123";
@@ -42,34 +42,23 @@ const setup = async (phone = PHONE) => {
   };
 };
 
-const okFetch = () =>
-  stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response('{"id":"msg-9"}', { status: 200 })),
-  );
-
 const queuedLog = async (attendeeId: number) =>
   (await getAttendeeActivityLog(attendeeId)).some((e) =>
     e.message.includes("SMS queued"),
   );
 
 describeWithEnv("admin sms", { db: true }, () => {
-  /** Stub the SMS gateway fetch, POST the form with `message`, assert 302,
-   *  and restore the stub. Collapses the shared `okFetch` + `adminFormPost`
-   *  + `expect(302)` + `finally restore` scaffold. */
+  /** Stub the SMS gateway, post `message`, and assert the redirect. */
   const postSmsAndAssertRedirect = async (
     form: Record<string, string>,
     message: string,
   ): Promise<void> => {
-    const fetchStub = okFetch();
-    try {
-      const { response } = await adminFormPost("/admin/sms", {
-        ...form,
-        message,
-      });
-      expect(response.status).toBe(302);
-    } finally {
-      fetchStub.restore();
-    }
+    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
+    const { response } = await adminFormPost("/admin/sms", {
+      ...form,
+      message,
+    });
+    expect(response.status).toBe(302);
   };
 
   it("GET without a target shows the queue count", async () => {
@@ -183,14 +172,8 @@ describeWithEnv("admin sms", { db: true }, () => {
   it("POST on a gateway error logs the failure and records no row", async () => {
     await configureGateway();
     const { attendee, form } = await setup();
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("boom", { status: 500 })),
-    );
-    try {
-      await adminFormPost("/admin/sms", { ...form, message: "Hi" });
-    } finally {
-      fetchStub.restore();
-    }
+    using _fetch = stubFetch(new Response("boom", { status: 500 }));
+    await adminFormPost("/admin/sms", { ...form, message: "Hi" });
 
     const log = await getAttendeeActivityLog(attendee.id);
     expect(log.some((e) => e.message.includes("could not be queued"))).toBe(
@@ -230,29 +213,21 @@ describeWithEnv("admin sms", { db: true }, () => {
 
   it("POST rejects malformed target ids before sending", async () => {
     await configureGateway();
-    const fetchStub = okFetch();
-    try {
-      const { response } = await adminFormPost("/admin/sms", {
-        attendee: "1",
-        listing: "1x",
-        message: "Hi",
-      });
-      expect(response.status).toBe(302);
-      expect(fetchStub.calls).toHaveLength(0);
-    } finally {
-      fetchStub.restore();
-    }
+    using fetchStub = stubFetch(new Response('{"id":"msg-9"}'));
+    const { response } = await adminFormPost("/admin/sms", {
+      attendee: "1",
+      listing: "1x",
+      message: "Hi",
+    });
+    expect(response.status).toBe(302);
+    expect(fetchStub.calls).toHaveLength(0);
   });
 
   it("GET renders the conversation history from the activity log", async () => {
     await configureGateway();
     const { smsUrl, form } = await setup();
-    const fetchStub = okFetch();
-    try {
-      await adminFormPost("/admin/sms", { ...form, message: "History line" });
-    } finally {
-      fetchStub.restore();
-    }
+    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
+    await adminFormPost("/admin/sms", { ...form, message: "History line" });
 
     const response = await adminGet(smsUrl);
     const html = await response.text();
@@ -262,15 +237,11 @@ describeWithEnv("admin sms", { db: true }, () => {
   it("GET still shows history (and the warning) when unconfigured", async () => {
     await configureGateway();
     const { smsUrl, form } = await setup();
-    const fetchStub = okFetch();
-    try {
-      await adminFormPost("/admin/sms", {
-        ...form,
-        message: "Earlier message",
-      });
-    } finally {
-      fetchStub.restore();
-    }
+    using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
+    await adminFormPost("/admin/sms", {
+      ...form,
+      message: "Earlier message",
+    });
     // Remove the passphrase so the gateway reads as unconfigured
     await settings.update.smsGatewayPassphrase("");
 

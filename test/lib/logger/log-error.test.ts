@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   bestEffort,
   ErrorCode,
@@ -14,6 +13,7 @@ import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 // Outer describe ensures sequential execution — createTestListing() calls
 // handleRequest which sets a request-scoped ID via AsyncLocalStorage.
@@ -83,39 +83,27 @@ describe("log-error", () => {
 
     test("sends ntfy notification when NTFY_URL is configured", async () => {
       using _env = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
+      using fetchStub = stubFetch(new Response());
+
+      await runWithPendingWork(async () => {
+        logError({ code: ErrorCode.DB_QUERY });
+        await flushPendingWork();
+      });
+
+      const ntfyCall = fetchStub.calls.find(
+        (c) => c.args[0] === "https://ntfy.sh/test-topic",
       );
-
-      try {
-        await runWithPendingWork(async () => {
-          logError({ code: ErrorCode.DB_QUERY });
-          await flushPendingWork();
-        });
-
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeDefined();
-        expect((ntfyCall!.args[1] as RequestInit).body).toBe("E_DB_QUERY");
-      } finally {
-        fetchStub.restore();
-      }
+      expect(ntfyCall).toBeDefined();
+      expect((ntfyCall!.args[1] as RequestInit).body).toBe("E_DB_QUERY");
     });
 
     test("skips ntfy and activity log outside pending work scope", () => {
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      using fetchStub = stubFetch(new Response());
       using _env = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
 
-      try {
-        logError({ code: ErrorCode.DB_CONNECTION });
-        expect(spyRef.lastMessage()).toBe("[Error] E_DB_CONNECTION");
-        expect(fetchStub.calls.length).toBe(0);
-      } finally {
-        fetchStub.restore();
-      }
+      logError({ code: ErrorCode.DB_CONNECTION });
+      expect(spyRef.lastMessage()).toBe("[Error] E_DB_CONNECTION");
+      expect(fetchStub.calls.length).toBe(0);
     });
 
     describe("activity log persistence", () => {
@@ -219,16 +207,10 @@ describe("log-error", () => {
 
     test("does not send ntfy notification", () => {
       using _env = withEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      using fetchStub = stubFetch(new Response());
 
-      try {
-        logErrorLocal({ code: ErrorCode.DB_QUERY });
-        expect(fetchStub.calls.length).toBe(0);
-      } finally {
-        fetchStub.restore();
-      }
+      logErrorLocal({ code: ErrorCode.DB_QUERY });
+      expect(fetchStub.calls.length).toBe(0);
     });
   });
 

@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   slugifyForTurso,
   tursoDbProvider as tursoApi,
 } from "#shared/turso-api.ts";
 import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 const TURSO_ENV = {
@@ -25,34 +25,24 @@ const stubTursoFetch = (
   jwt: string,
   onRequest?: (url: string, init?: RequestInit) => void,
 ) =>
-  stub(
-    globalThis,
-    "fetch",
-    (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      onRequest?.(url, init);
-      if (url.includes("/databases") && !url.includes("/auth")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              database: {
-                DbId: dbId,
-                Hostname: `${dbName}.turso.io`,
-                Name: dbName,
-              },
-            }),
-            { status: 200 },
-          ),
-        );
-      }
-      if (url.includes("/auth/tokens")) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ jwt }), { status: 200 }),
-        );
-      }
-      return Promise.resolve(new Response("unexpected", { status: 500 }));
-    },
-  );
+  stubFetch((url, init) => {
+    onRequest?.(url, init);
+    if (url.includes("/databases") && !url.includes("/auth")) {
+      return new Response(
+        JSON.stringify({
+          database: {
+            DbId: dbId,
+            Hostname: `${dbName}.turso.io`,
+            Name: dbName,
+          },
+        }),
+      );
+    }
+    if (url.includes("/auth/tokens")) {
+      return new Response(JSON.stringify({ jwt }));
+    }
+    return new Response("unexpected", { status: 500 });
+  });
 
 test("slugifyForTurso lowercases and replaces non-slug chars with hyphens", () => {
   expect(slugifyForTurso("My Site")).toBe("my-site");
@@ -176,12 +166,10 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
   test("createDatabase returns error when create endpoint fails with JSON error", async () => {
     await withMocks(
       () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(
-            new Response(JSON.stringify({ error: "quota exceeded" }), {
-              status: 422,
-            }),
-          ),
+        stubFetch(
+          new Response(JSON.stringify({ error: "quota exceeded" }), {
+            status: 422,
+          }),
         ),
       async () => {
         const result = await tursoApi.createDatabase("Bad");
@@ -197,29 +185,22 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
   test("createDatabase returns error when token endpoint fails", async () => {
     await withMocks(
       () =>
-        stub(globalThis, "fetch", (input: string | URL | Request) => {
-          const url = String(input);
-
+        stubFetch((url) => {
           if (url.includes("/databases") && !url.includes("/auth")) {
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  database: {
-                    DbId: "db_tok_fail",
-                    Hostname: "t.turso.io",
-                    Name: "t",
-                  },
-                }),
-                { status: 200 },
-              ),
+            return new Response(
+              JSON.stringify({
+                database: {
+                  DbId: "db_tok_fail",
+                  Hostname: "t.turso.io",
+                  Name: "t",
+                },
+              }),
             );
           }
 
-          return Promise.resolve(
-            new Response(JSON.stringify({ message: "Unauthorized" }), {
-              status: 401,
-            }),
-          );
+          return new Response(JSON.stringify({ message: "Unauthorized" }), {
+            status: 401,
+          });
         }),
       async () => {
         const result = await tursoApi.createDatabase("t");

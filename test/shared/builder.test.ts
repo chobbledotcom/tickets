@@ -16,6 +16,7 @@ import {
 } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 const BUILD_INPUT = {
@@ -42,10 +43,7 @@ const ERROR_CASES: {
   {
     error: "Failed to fetch release",
     input: BUILD_INPUT,
-    mocks: () =>
-      stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("Not Found", { status: 404 })),
-      ),
+    mocks: () => stubFetch(new Response("Not Found", { status: 404 })),
     name: "buildSite returns error when GitHub API fails",
   },
   {

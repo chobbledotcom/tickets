@@ -10,6 +10,7 @@ import type {
   PluginBuild,
 } from "esbuild";
 import { ASSETS } from "#shared/images/wasm-assets.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   buildModule,
   buildPackageModule,
@@ -125,21 +126,12 @@ describe("buildRemoteModule", () => {
         "webpEnc.wasm": "https://assets.example.com/release/webpEnc.wasm",
       },
     );
-    const originalFetch = globalThis.fetch;
-    const requested: string[] = [];
-    globalThis.fetch = (input) => {
-      requested.push(String(input));
-      return Promise.resolve(new Response(new Uint8Array([4, 5])));
-    };
-    try {
-      const generated = await importGeneratedModule(source);
-      expect([...(await generated.webpEnc())]).toEqual([4, 5]);
-      expect(requested).toEqual([
-        "https://assets.example.com/release/webpEnc.wasm",
-      ]);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    using fetchStub = stubFetch(new Response(new Uint8Array([4, 5])));
+    const generated = await importGeneratedModule(source);
+    expect([...(await generated.webpEnc())]).toEqual([4, 5]);
+    expect(fetchStub.calls.map((call) => String(call.args[0]))).toEqual([
+      "https://assets.example.com/release/webpEnc.wasm",
+    ]);
   });
 
   test("reports the URL and status when published wasm cannot load", async () => {
@@ -147,17 +139,11 @@ describe("buildRemoteModule", () => {
     const source = buildRemoteModule([{ exportName: "webpEnc" }] as const, {
       "webpEnc.wasm": url,
     });
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = () =>
-      Promise.resolve(new Response(null, { status: 503 }));
-    try {
-      const generated = await importGeneratedModule(source);
-      await expect(generated.webpEnc()).rejects.toThrow(
-        `Failed to load image codec ${url}: HTTP 503`,
-      );
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    using _fetch = stubFetch(new Response(null, { status: 503 }));
+    const generated = await importGeneratedModule(source);
+    await expect(generated.webpEnc()).rejects.toThrow(
+      `Failed to load image codec ${url}: HTTP 503`,
+    );
   });
 
   test("aborts a stalled published wasm request after 30 seconds", async () => {

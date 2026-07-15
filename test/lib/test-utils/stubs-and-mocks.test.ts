@@ -19,7 +19,6 @@ import {
   expectNtfyNotification,
   mockFormRequest,
   mockRequest,
-  okResponse,
   randomString,
   stubNtfyFetch,
   testRequest,
@@ -86,12 +85,18 @@ describe("test-utils — stubs, caches & request mocks", () => {
     test("stubs fetch and asserts zero calls when body does not fetch", async () => {
       await expectFetchSilent(() => Promise.resolve());
     });
-  });
 
-  describe("okResponse", () => {
-    test("resolves with a 200 Response", async () => {
-      const response = await okResponse();
-      expect(response.status).toBe(200);
+    test("passes fetch calls to a custom assertion", async () => {
+      let callCount = 0;
+      await expectFetchSilent(
+        async () => {
+          await fetch("https://example.com/check");
+        },
+        (calls) => {
+          callCount = calls.length;
+        },
+      );
+      expect(callCount).toBe(1);
     });
   });
 
@@ -99,15 +104,12 @@ describe("test-utils — stubs, caches & request mocks", () => {
     test("stubs globalThis.fetch and sets NTFY_URL env", async () => {
       const { fetchStub, restore } = stubNtfyFetch();
       using _env = restore;
-      try {
-        await globalThis.fetch("https://ntfy.sh/test-topic", {
-          body: "hello",
-          method: "POST",
-        });
-        expectNtfyNotification(fetchStub, "hello");
-      } finally {
-        fetchStub.restore();
-      }
+      using _fetch = fetchStub;
+      await globalThis.fetch("https://ntfy.sh/test-topic", {
+        body: "hello",
+        method: "POST",
+      });
+      expectNtfyNotification(fetchStub, "hello");
     });
   });
   describe("internal caches", () => {

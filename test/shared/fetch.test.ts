@@ -1,23 +1,15 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { describe, it as test } from "@std/testing/bdd";
 import { fetchText, parseApiError } from "#shared/fetch.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("fetchText", () => {
-  let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
-
-  afterEach(() => {
-    fetchStub?.restore();
-  });
-
   test("returns status, ok, text, and headers from a successful response", async () => {
-    fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(
-        new Response('{"id":1}', {
-          headers: { "Content-Type": "application/json" },
-          status: 200,
-        }),
-      ),
+    using _fetch = stubFetch(
+      new Response('{"id":1}', {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      }),
     );
 
     const result = await fetchText("https://example.com/api");
@@ -29,9 +21,7 @@ describe("fetchText", () => {
   });
 
   test("returns ok false for error status codes", async () => {
-    fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("Not Found", { status: 404 })),
-    );
+    using _fetch = stubFetch(new Response("Not Found", { status: 404 }));
 
     const result = await fetchText("https://example.com/missing");
 
@@ -41,9 +31,7 @@ describe("fetchText", () => {
   });
 
   test("handles empty response body", async () => {
-    fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response(null, { status: 204 })),
-    );
+    using _fetch = stubFetch(new Response(null, { status: 204 }));
 
     const result = await fetchText("https://example.com/empty");
 
@@ -53,9 +41,7 @@ describe("fetchText", () => {
   });
 
   test("forwards request init options", async () => {
-    fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("ok")),
-    );
+    using fetchStub = stubFetch(new Response("ok"));
 
     await fetchText("https://example.com/post", {
       body: "payload",
@@ -74,9 +60,7 @@ describe("fetchText", () => {
   });
 
   test("propagates fetch errors", async () => {
-    fetchStub = stub(globalThis, "fetch", () =>
-      Promise.reject(new TypeError("Network error")),
-    );
+    using _fetch = stubFetch(new TypeError("Network error"));
 
     await expect(fetchText("https://example.com/fail")).rejects.toThrow(
       "Network error",

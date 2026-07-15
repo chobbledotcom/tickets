@@ -28,6 +28,7 @@ import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { getEmbeddableTicketResponse } from "#test-utils/db-helpers/misc.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   mockFormRequest,
   mockRequest,
@@ -809,9 +810,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       const db = getDbFn();
       // Stale schema hash makes initDb see a pending migration; a fresh lock
       // makes it believe another isolate is already running that migration.
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      using _fetch = stubFetch(new Response());
       try {
         await db.execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -832,7 +831,6 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         );
         expect(html).not.toContain("Temporary Error");
       } finally {
-        fetchStub.restore();
         await db.execute("DELETE FROM settings WHERE key = 'migration_lock'");
         await db.execute({
           args: [SCHEMA_HASH],

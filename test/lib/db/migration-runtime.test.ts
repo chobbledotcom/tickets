@@ -62,10 +62,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       "write",
     );
 
-  const restoreLockTest = async (
-    fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
-  ) => {
-    fetchStub.restore();
+  const restoreLockTest = async () => {
     await restoreLockSettings();
   };
 
@@ -99,6 +96,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     test("sends ntfy notification with DB_URL when migration lock is held", async () => {
       const { fetchStub, restore } = stubNtfyFetch({ DB_URL: TEST_DB_URL });
       using _env = restore;
+      using _fetch = fetchStub;
       try {
         await setStaleSchemaAndLock(new Date());
         invalidateInitDbCache();
@@ -107,7 +105,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         expectNtfyNotification(fetchStub, `E_DB_MIGRATION_LOCK ${TEST_DB_URL}`);
       } finally {
-        await restoreLockTest(fetchStub);
+        await restoreLockTest();
       }
     });
   });
@@ -116,6 +114,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     test("fails fast when a concurrent migration holds the lock", async () => {
       const { fetchStub, restore } = stubNtfyFetch();
       using _env = restore;
+      using _fetch = fetchStub;
       try {
         await setStaleSchemaAndLock(new Date());
         invalidateInitDbCache();
@@ -126,7 +125,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         expectNtfyNotification(fetchStub);
       } finally {
-        await restoreLockTest(fetchStub);
+        await restoreLockTest();
       }
     });
 

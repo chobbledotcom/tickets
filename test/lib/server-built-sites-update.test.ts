@@ -68,7 +68,7 @@ describeWithEnv(
         name: "Update Me",
       });
       await seedSiteBackup(SITE_DB_URL);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
         Promise.resolve({ ok: true as const }),
       );
@@ -94,7 +94,6 @@ describeWithEnv(
         ).toBe(true);
       } finally {
         deployStub.restore();
-        fetchStub.restore();
       }
     });
 
@@ -110,7 +109,7 @@ describeWithEnv(
         name: "Deploy Fails",
       });
       await seedSiteBackup(SITE_DB_URL);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
         Promise.resolve({ error: "upload failed (500)", ok: false as const }),
       );
@@ -125,7 +124,6 @@ describeWithEnv(
         )(response);
       } finally {
         deployStub.restore();
-        fetchStub.restore();
       }
     });
 
@@ -139,7 +137,7 @@ describeWithEnv(
       await settings.update.currentTask("other-task");
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       try {
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/update`,
@@ -150,7 +148,6 @@ describeWithEnv(
           false,
         )(response);
       } finally {
-        fetchStub.restore();
         await settings.update.currentTask("");
       }
     });
@@ -243,7 +240,7 @@ describeWithEnv(
         name: "Deno Deploy Site",
       });
       await seedSiteBackup(SITE_DB_URL);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       const deployStub = stub(denoDeployApi, "deployCode", () =>
         Promise.resolve({
           hostname: "https://app.deno.dev",
@@ -264,7 +261,6 @@ describeWithEnv(
         expect(deployStub.calls[0]!.args[0]).toBe("app_deno_8700");
       } finally {
         deployStub.restore();
-        fetchStub.restore();
         getEnvVarNamesStub.restore();
       }
     });

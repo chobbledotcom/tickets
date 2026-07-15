@@ -32,7 +32,7 @@ import { times } from "#test-utils/arrays.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
-import { stubFetchStatus, withMocks } from "#test-utils/mocks.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withRandomBytes } from "#test-utils/random.ts";
 
 const captureConsoleErrors = <T>(
@@ -585,27 +585,6 @@ describeWithEnv("createActivatedSuperuser", { db: true }, () => {
 // ---------------------------------------------------------------------------
 
 describe("sendSuperuserCredentialsEmail", () => {
-  /** Capture fetch calls and parse Resend API request bodies */
-  const captureEmailCall = () => {
-    const calls: { body: Record<string, unknown> }[] = [];
-    const fetchStub = stub(
-      globalThis,
-      "fetch",
-      (input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input);
-        if (url.includes("api.resend.com")) {
-          const body = JSON.parse((init?.body as string) ?? "{}") as Record<
-            string,
-            unknown
-          >;
-          calls.push({ body });
-        }
-        return Promise.resolve(new Response(null, { status: 200 }));
-      },
-    );
-    return { calls, restore: () => fetchStub.restore() };
-  };
-
   const EMAIL_CONFIG = {
     apiKey: "test",
     fromAddress: validEmail("from@test.com"),
@@ -626,16 +605,17 @@ describe("sendSuperuserCredentialsEmail", () => {
     callCount: number;
     body: Record<string, unknown>;
   }> => {
-    const { calls, restore } = captureEmailCall();
-    try {
-      const result = await sendSuperuserCredentialsEmail(EMAIL_CONFIG, {
-        ...RECIPIENT,
-        ...overrides,
-      });
-      return { body: calls[0]!.body, callCount: calls.length, result };
-    } finally {
-      restore();
-    }
+    using fetchStub = stubFetch(new Response());
+    const result = await sendSuperuserCredentialsEmail(EMAIL_CONFIG, {
+      ...RECIPIENT,
+      ...overrides,
+    });
+    const [, init] = fetchStub.calls[0]!.args as [string, RequestInit];
+    return {
+      body: JSON.parse(init.body as string),
+      callCount: fetchStub.calls.length,
+      result,
+    };
   };
 
   const expectEmailBodyContains =
@@ -696,29 +676,22 @@ describe("sendSuperuserCredentialsEmail", () => {
   ];
 
   for (const { status, expected } of STATUS_RESULTS) {
-    test(`returns ${expected} for status ${status}`, () =>
-      withMocks(
-        () => stubFetchStatus(status),
-        async () => {
-          const result = await sendSuperuserCredentialsEmail(
-            EMAIL_CONFIG,
-            RECIPIENT,
-          );
-          expect(result).toBe(expected);
-        },
-      ));
+    test(`returns ${expected} for status ${status}`, async () => {
+      using _fetch = stubFetch(new Response(null, { status }));
+      const result = await sendSuperuserCredentialsEmail(
+        EMAIL_CONFIG,
+        RECIPIENT,
+      );
+      expect(result).toBe(expected);
+    });
   }
 
   test("does not log the password", async () => {
     const logSpy = spy(console, "log");
     const errSpy = spy(console, "error");
     try {
-      await withMocks(
-        () => stubFetchStatus(200),
-        async () => {
-          await sendSuperuserCredentialsEmail(EMAIL_CONFIG, RECIPIENT);
-        },
-      );
+      using _fetch = stubFetch(new Response());
+      await sendSuperuserCredentialsEmail(EMAIL_CONFIG, RECIPIENT);
       const allArgs = [...logSpy.calls, ...errSpy.calls].flatMap((c) => c.args);
       expect(allArgs.some((a) => String(a).includes("a1b2c3d4e5f6"))).toBe(
         false,

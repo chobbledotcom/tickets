@@ -24,10 +24,10 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
-  stubFetchStatus,
   withMocks,
 } from "#test-utils/mocks.ts";
 import {
@@ -46,8 +46,10 @@ const postChoice = (superuser_choice?: string) =>
   );
 
 /** Run `body` with the credentials email succeeding (fetch → 200). */
-const withEmailOk = (body: () => Promise<void>): Promise<void> =>
-  withMocks(() => stubFetchStatus(200), body);
+const withEmailOk = async (body: () => Promise<void>): Promise<void> => {
+  using _fetch = stubFetch(new Response());
+  await body();
+};
 
 /** restoreAdminEmail + POST self-managed; returns the handler response. */
 const postSelfManaged = (): ReturnType<typeof postChoice> => {
@@ -78,23 +80,20 @@ const withEnableSuperuser = (
 
 /** Run `body` with the credentials email succeeding; `body` receives the
  *  `{ value }` ref into which the emailed password is recorded. */
-const withCapturedPassword = (
+const withCapturedPassword = async (
   body: (captured: { value: string }) => Promise<void>,
 ): Promise<void> => {
   const captured = { value: "" };
-  return withMocks(
-    () =>
-      stub(globalThis, "fetch", (_input, init) => {
-        const reqBody = JSON.parse((init?.body as string) ?? "{}") as Record<
-          string,
-          unknown
-        >;
-        const match = String(reqBody.text ?? "").match(/Password: (.+)/);
-        if (match) captured.value = match[1]!;
-        return Promise.resolve(new Response(null, { status: 200 }));
-      }),
-    () => body(captured),
-  );
+  using _fetch = stubFetch((_url, init) => {
+    const reqBody = JSON.parse((init?.body as string) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    const match = String(reqBody.text ?? "").match(/Password: (.+)/);
+    if (match) captured.value = match[1]!;
+    return new Response();
+  });
+  await body(captured);
 };
 
 // ---------------------------------------------------------------------------
@@ -350,36 +349,29 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
   // ---------------------------------------------------------------------------
 
   describe("POST enable-superuser — error: email sending fails", () => {
-    const EMAIL_FAILURES: {
-      name: string;
-      fetchMock: () => { restore(): void };
-    }[] = [
+    const EMAIL_FAILURES = [
       {
-        fetchMock: () => stubFetchStatus(500, "Error"),
         name: "when email returns non-2xx status, the newly created user is deleted",
+        reply: new Response("Error", { status: 500 }),
       },
       {
-        fetchMock: () =>
-          stub(globalThis, "fetch", () =>
-            Promise.reject(new Error("NetworkError")),
-          ),
         name: "when email.send throws an exception, the user is deleted",
+        reply: new Error("NetworkError"),
       },
       {
-        fetchMock: () => stubFetchStatus(400, "Bad Request"),
         name: "when email returns status 400, user is still deleted",
+        reply: new Response("Bad Request", { status: 400 }),
       },
     ];
 
-    for (const { name, fetchMock } of EMAIL_FAILURES) {
+    for (const { name, reply } of EMAIL_FAILURES) {
       test(name, async () => {
         await setupForEnable("admin@example.com");
-        await withMocks(fetchMock, async () => {
-          const { response } = await postChoice("enable-superuser");
-          expect(response.status).toBe(302);
-          const user = await getUserByUsername("admin");
-          expect(user).toBeNull();
-        });
+        using _fetch = stubFetch(reply);
+        const { response } = await postChoice("enable-superuser");
+        expect(response.status).toBe(302);
+        const user = await getUserByUsername("admin");
+        expect(user).toBeNull();
       });
     }
 
@@ -403,7 +395,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
             batchStub: stub(getDbFn(), "batch", () =>
               Promise.reject(rejection),
             ),
-            fetchStub: stubFetchStatus(500, "Error"),
+            fetchStub: stubFetch(new Response("Error", { status: 500 })),
           }),
           async () => {
             const { response } = await postChoice("enable-superuser");
