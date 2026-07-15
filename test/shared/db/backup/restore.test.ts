@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   createBackupZip,
-  exportTable,
   PostResetError,
   restoreFromSql,
   restoreFromZip,
 } from "#shared/db/backup.ts";
+import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
