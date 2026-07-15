@@ -16,9 +16,10 @@ import {
   type ConfirmedHandlers,
   createConfirmedHandlers,
 } from "#routes/admin/confirmation.ts";
-import { SITE_FORM, SITE_MULTIPART, withAuth } from "#routes/auth.ts";
+import { SITE_FORM, SITE_MULTIPART, sitePage, withAuth } from "#routes/auth.ts";
 import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import { authedFormConfig, createAuthedFormRoute } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupExists } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
@@ -34,6 +35,7 @@ import {
   createSitePage,
   getSitePageById,
   isSitePageSlugTaken,
+  type SitePageWriteInput,
   swapSitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
@@ -59,19 +61,17 @@ import {
   adminSitePageNewPage,
   adminSitePagesListPage,
 } from "#templates/admin/site-pages.tsx";
-import { checkContentForm } from "./check-content-form.ts";
 import { seoContentInput } from "./content-form-fields.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import {
   savedContentResponse,
   siteConfirmAuth,
-  siteContentGet,
   siteContentPaths,
   siteEntityPost,
+  siteListPage,
 } from "./site-content.ts";
-import { siteCreatePost } from "./site-content-create.ts";
 import { buildListModel, offerableListing } from "./site-pages-data.ts";
-import { sitePageForm } from "./site-pages-form.ts";
+import { sitePageEditForm, sitePageForm } from "./site-pages-form.ts";
 import { sitePageEntityPage } from "./site-pages-page.ts";
 
 const paths = siteContentPaths("/admin/site/pages");
@@ -85,36 +85,31 @@ const imagesPath = (id: number): string => `${LIST_PATH}/${id}/images`;
 // ─── Field validation ───────────────────────────────────────────
 
 /** The encrypted content columns shared by create and update. */
-const contentFields = (form: FormParams, name: string, slug: string) => ({
-  ...seoContentInput(form, name),
+const contentFields = (
+  values: Parameters<typeof seoContentInput>[0],
+  slug: string,
+): SitePageWriteInput => ({
+  ...seoContentInput(values),
   slug,
 });
 
-/** Validate name + slug (format, reserved words, cross-table uniqueness).
- * On failure returns the error redirect to bounce back to `errorPath`. */
-const validateFields = async (
-  form: FormParams,
+/** Check a validated slug against reserved words and all public content. */
+const availableSlugOrError = async (
+  value: string,
   errorPath: string,
   excludeId?: number,
-): Promise<
-  { ok: true; name: string; slug: string } | { ok: false; response: Response }
-> => {
-  const result = checkContentForm(sitePageForm, form, errorPath);
-  if (!result.ok) return result;
-  // Bounce back to the form with the named error flash.
-  const fail = (key: string): { ok: false; response: Response } => ({
-    ok: false,
-    response: errorRedirect(errorPath, t(key)),
-  });
+): Promise<string | Response> => {
   // The slug field's own validator already ran `validateSlug(normalizeSlug())`
   // (so the format is known-good here); re-normalise for the reserved/uniqueness
   // checks and storage.
-  const slug = normalizeSlug(result.values.slug);
-  if (isReservedSlug(slug)) return fail("site.pages.error.reserved");
-  if (await isSitePageSlugTaken(slug, excludeId)) {
-    return fail("site.pages.error.slug_taken");
+  const slug = normalizeSlug(value);
+  if (isReservedSlug(slug)) {
+    return errorRedirect(errorPath, t("site.pages.error.reserved"));
   }
-  return { name: result.values.name, ok: true, slug };
+  if (await isSitePageSlugTaken(slug, excludeId)) {
+    return errorRedirect(errorPath, t("site.pages.error.slug_taken"));
+  }
+  return slug;
 };
 
 // ─── Handler wrappers ───────────────────────────────────────────
@@ -155,36 +150,52 @@ const itemPost =
 
 // ─── Page CRUD ──────────────────────────────────────────────────
 
-const renderList = siteContentGet(async (session) =>
-  adminSitePagesListPage(await buildListModel(), session),
+const renderList = siteListPage(buildListModel, adminSitePagesListPage);
+
+const renderNew = sitePage((session, _request, flash) =>
+  adminSitePageNewPage(session, flash.error),
 );
 
-const renderNew = siteContentGet(adminSitePageNewPage);
-
-const handleCreate = siteCreatePost(
-  paths.newPage,
-  validateFields,
-  async (fields, form) => {
-    const page = await createSitePage(
-      contentFields(form, fields.name, fields.slug),
+const loadPage = ({ id }: { id: number }): Promise<SitePage | null> =>
+  getSitePageById(id);
+const pageEditPath = (page: SitePage): string => editPath(page.id);
+const createPageForm = authedFormConfig(
+  SITE_FORM,
+  sitePageForm,
+  () => paths.newPage,
+);
+const editPageForm = authedFormConfig(
+  SITE_FORM,
+  sitePageEditForm,
+  pageEditPath,
+  loadPage,
+);
+const handleCreate = createAuthedFormRoute({
+  ...createPageForm,
+  onValid: async ({ values }) => {
+    const slug = await availableSlugOrError(values.slug, paths.newPage);
+    if (slug instanceof Response) return slug;
+    const page = await createSitePage(contentFields(values, slug));
+    return savedContentResponse(
+      editPath(page.id),
+      `Page '${values.name}' created`,
+      t("site.pages.created"),
     );
-    return {
-      flashMessage: t("site.pages.created"),
-      logMessage: `Page '${fields.name}' created`,
-      path: editPath(page.id),
-    };
   },
-);
-
-const handleUpdate = siteEntityPost(getSitePageById)(async (page, form) => {
-  const fields = await validateFields(form, editPath(page.id), page.id);
-  if (!fields.ok) return fields.response;
-  await updateSitePage(page.id, contentFields(form, fields.name, fields.slug));
-  return savedContentResponse(
-    editPath(page.id),
-    `Page '${fields.name}' updated`,
-    t("site.pages.updated"),
-  );
+});
+const handleUpdate = createAuthedFormRoute({
+  ...editPageForm,
+  onValid: async ({ context: page, values }) => {
+    const path = editPath(page.id);
+    const slug = await availableSlugOrError(values.slug, path, page.id);
+    if (slug instanceof Response) return slug;
+    await updateSitePage(page.id, contentFields(values, slug));
+    return savedContentResponse(
+      path,
+      `Page '${values.name}' updated`,
+      t("site.pages.updated"),
+    );
+  },
 });
 
 const pageDelete: ConfirmedHandlers = createConfirmedHandlers<

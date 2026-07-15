@@ -1,38 +1,47 @@
 /**
- * Shared wiring for the Site tab's hand-wired content editors (Pages, News):
- * the owner+editor route gates, the standard list/new/edit paths, the
- * validate-or-bounce step both create/update flows open with, and the shared
- * save completion (activity log + flash redirect).
+ * Shared wiring for the Site tab's content editors (Pages, News): standard
+ * list/new/edit paths, entity sub-action and confirmation gates, and save
+ * completion (activity log + flash redirect).
  */
 
 /* jscpd:ignore-start */
 import type { FormGuard } from "#routes/admin/confirmation.ts";
-import { formPost, requireSiteOr, SITE_FORM, withAuth } from "#routes/auth.ts";
+import {
+  formPost,
+  requireSiteOr,
+  SITE_FORM,
+  sitePage,
+  withAuth,
+} from "#routes/auth.ts";
 import { type EntityLoader, gatedEntityRoute } from "#routes/entity.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { ValidationResult } from "#shared/forms.tsx";
+import type { RequestRoute } from "#shared/response-steps.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** Standard list/new/edit paths for a Site-tab collection under `base`. */
-export const siteContentPaths = (base: string) => ({
+export const siteContentPaths = (
+  base: string,
+): {
+  edit: (id: number) => string;
+  list: string;
+  newPage: string;
+} => ({
   edit: (id: number): string => `${base}/${id}/edit`,
   list: base,
   newPage: `${base}/new`,
 });
 
-/** GET route rendering for a Site-level (owner + editor) session. */
-export const siteContentGet =
-  (render: (session: AdminSession) => string | Promise<string>) =>
-  (request: Request): Promise<Response> =>
-    requireSiteOr(request, async (session) =>
-      htmlResponse(await render(session)),
-    );
-
-/** POST route behind the Site-level form gate. */
-export const siteContentPost = formPost(SITE_FORM);
+/** Load and render a Site collection list with its success flash. */
+export const siteListPage = <T>(
+  load: () => Promise<T>,
+  render: (items: T, session: AdminSession, success?: string) => string,
+): RequestRoute =>
+  sitePage(async (session, _request, flash) =>
+    render(await load(), session, flash.success),
+  );
 
 /** Curried POST `:id` route: Site form gate, then load the entity (404 when
  * missing) and hand it to the mutation. */
@@ -51,16 +60,6 @@ export const siteConfirmAuth: {
   requireSession: requireSiteOr,
   withForm: (r, h) => withAuth(r, SITE_FORM, h),
 };
-
-/** Fold a form's validation outcome into the editor flow: carry the values
- * forward, or bounce back to `errorPath` with the error flash. */
-export const validateContentFormOr = <V>(
-  result: ValidationResult<V>,
-  errorPath: string,
-): { ok: true; values: V } | { ok: false; response: Response } =>
-  result.valid
-    ? { ok: true, values: result.values }
-    : { ok: false, response: errorRedirect(errorPath, result.error) };
 
 /** Save completion: record the activity and flash back to `path`. */
 export const savedContentResponse = async (

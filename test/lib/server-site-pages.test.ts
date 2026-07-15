@@ -105,14 +105,6 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(await wasLogged("Page 'Name about' created")).toBe(true);
     });
 
-    test("rejects a missing name", async () => {
-      const { response } = await adminFormPost(BASE, { slug: "no-name" });
-      expectRedirect(response);
-      expect((await sitePages.getAll()).some((r) => r.slug === "no-name")).toBe(
-        false,
-      );
-    });
-
     test("rejects a missing slug", async () => {
       const { response } = await adminFormPost(BASE, { name: "No Slug" });
       expectRedirect(response);
@@ -249,6 +241,19 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       });
       expectRedirect(response);
       expect((await getSitePageById(b.id))?.slug).toBe("keep-b");
+    });
+
+    test("update rejects a missing name and changes nothing", async () => {
+      await create("unchanged");
+      const page = await findPage("unchanged");
+      const { response } = await adminFormPost(`${BASE}/${page.id}/edit`, {
+        name: "",
+        slug: "changed",
+      });
+      expectErrorFlash(response, "Page Name is required");
+      const unchanged = await getSitePageById(page.id);
+      expect(unchanged?.name).toBe("Name unchanged");
+      expect(unchanged?.slug).toBe("unchanged");
     });
 
     test("update 404s for a missing page", async () => {
