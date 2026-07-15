@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   compact,
   filter,
+  firstProblem,
   flatMap,
   groupToMap,
   identity,
@@ -60,6 +61,22 @@ describe("fp collections", () => {
         [],
         [1, 2],
       ]);
+    });
+  });
+
+  describe("firstProblem", () => {
+    test("stops after the first reported problem", async () => {
+      const checked: number[] = [];
+      const problem = await firstProblem(async (value: number) => {
+        checked.push(value);
+        return value === 2 ? "Two is blocked" : null;
+      })([1, 2, 3]);
+      expect(problem).toBe("Two is blocked");
+      expect(checked).toEqual([1, 2]);
+    });
+
+    test("returns null when every item passes", async () => {
+      expect(await firstProblem(() => null)([1, 2])).toBeNull();
     });
   });
 

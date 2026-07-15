@@ -3,7 +3,7 @@
  * Owner-only access enforced via settingsHandler
  */
 
-import { mapNotNullish } from "#fp";
+import { firstProblem } from "#fp";
 import { t } from "#i18n";
 import {
   processSecretField,
@@ -12,11 +12,12 @@ import {
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import {
-  isValidPemCertificate,
-  isValidPemPrivateKey,
-} from "#shared/apple-wallet.ts";
+  isValidAppleCertificate,
+  isValidCertificate,
+} from "#shared/apple-wallet/certificate.ts";
+import { isValidAppleSigningPair } from "#shared/apple-wallet/cms.ts";
+import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { settings } from "#shared/db/settings.ts";
-import { isValidGooglePrivateKey } from "#shared/google-wallet.ts";
 
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
@@ -46,11 +47,10 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     wwdr: processSecretField(form, "apple_wallet_wwdr_cert"),
   }),
   formId: "settings-apple-wallet",
-  label: "Apple Wallet configuration",
   log: (d) =>
     isAllCleared(d)
       ? t("success.apple_wallet_cleared")
-      : "Apple Wallet configuration updated",
+      : t("success.apple_wallet_updated"),
   save: async (d) => {
     if (isAllCleared(d)) {
       await Promise.all([
@@ -68,69 +68,96 @@ export const handleAppleWalletPost = settingsHandler<AppleWalletFormData>({
     await saveSecret(d.key, settings.update.appleWallet.signingKey);
     await saveSecret(d.wwdr, settings.update.appleWallet.wwdrCert);
   },
-  validate: (d) => {
+  validate: async (d) => {
     if (isAllCleared(d)) return null;
     if (!d.passTypeId) return t("error.apple_pass_type_id_required");
     if (!d.teamId) return t("error.apple_team_id_required");
     if (!settings.appleWallet.hasDbConfig) {
       // No saved config to fall back on, so every secret must be uploaded now.
-      const missing = firstAppleSecretProblem(d, (field, secret) =>
+      const missing = await firstAppleSecretProblem(d)((field, secret) =>
         secret.action === "provided" ? null : t(field.missingKey),
       );
       if (missing) return missing;
     }
-    return firstAppleSecretProblem(d, (field, secret) =>
-      secret.action === "provided" && !field.looksValid(secret.value)
-        ? t(field.invalidKey)
-        : null,
+    const invalidSecret = await firstAppleSecretProblem(d)(
+      async (field, secret) =>
+        (await field.looksValid(
+          effectiveSecretValue(secret, field.savedValue()),
+        ))
+          ? null
+          : t(field.invalidKey),
     );
+    if (invalidSecret) return invalidSecret;
+    const signingCert = effectiveSecretValue(
+      d.cert,
+      settings.appleWallet.signingCert,
+    );
+    const signingKey = effectiveSecretValue(
+      d.key,
+      settings.appleWallet.signingKey,
+    );
+    return (await isValidAppleSigningPair(signingCert, signingKey))
+      ? null
+      : t("error.apple_signing_pair_mismatch");
   },
 });
 
+/** The uploaded secret, or the saved value when the masked field was kept. */
+const effectiveSecretValue = (
+  secret: SecretFieldResult,
+  saved: string,
+): string => (secret.action === "provided" ? secret.value : saved);
+
 /** One Apple Wallet secret upload, described as data: how to read it from the
- * form, the error keys for a missing or malformed value, and the PEM check
- * that decides "malformed". */
+ * form, where to load its saved value, and how to validate it. */
 type AppleSecretField = {
   fromForm: (d: AppleWalletFormData) => SecretFieldResult;
   invalidKey: string;
-  looksValid: (value: string) => boolean;
+  looksValid: (value: string) => boolean | Promise<boolean>;
   missingKey: string;
+  savedValue: () => string;
 };
 
 /** The three secret uploads on the Apple Wallet form. */
-const APPLE_SECRET_FIELDS: readonly AppleSecretField[] = [
+const APPLE_SECRET_FIELDS = [
   {
     fromForm: (d) => d.cert,
     invalidKey: "error.apple_signing_cert_invalid",
-    looksValid: isValidPemCertificate,
+    looksValid: isValidAppleCertificate,
     missingKey: "error.apple_signing_cert_required",
+    savedValue: () => settings.appleWallet.signingCert,
   },
   {
     fromForm: (d) => d.key,
     invalidKey: "error.apple_signing_key_invalid",
-    looksValid: isValidPemPrivateKey,
+    looksValid: isValidRsaPrivateKey,
     missingKey: "error.apple_signing_key_required",
+    savedValue: () => settings.appleWallet.signingKey,
   },
   {
     fromForm: (d) => d.wwdr,
     invalidKey: "error.apple_wwdr_cert_invalid",
-    looksValid: isValidPemCertificate,
+    looksValid: isValidCertificate,
     missingKey: "error.apple_wwdr_cert_required",
+    savedValue: () => settings.appleWallet.wwdrCert,
   },
-];
+] satisfies AppleSecretField[];
 
 /** First problem found across the Apple secret fields, checked in form order.
  * Null when every field passes — the expected outcome for a valid submit. */
-const firstAppleSecretProblem = (
-  d: AppleWalletFormData,
-  problemWith: (
-    field: AppleSecretField,
-    secret: SecretFieldResult,
-  ) => string | null,
-): string | null =>
-  mapNotNullish((field: AppleSecretField) =>
-    problemWith(field, field.fromForm(d)),
-  )(APPLE_SECRET_FIELDS)[0] ?? null;
+const firstAppleSecretProblem =
+  (
+    d: AppleWalletFormData,
+  ): ((
+    problemWith: (
+      field: AppleSecretField,
+      secret: SecretFieldResult,
+    ) => string | null | Promise<string | null>,
+  ) => Promise<string | null>) =>
+  (problemWith) =>
+    firstProblem((field: AppleSecretField) =>
+      problemWith(field, field.fromForm(d)),
+    )(APPLE_SECRET_FIELDS);
 
 /**
  * Handle POST /admin/settings/google-wallet - owner only
@@ -152,11 +179,10 @@ export const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
     key: processSecretField(form, "google_wallet_service_account_key"),
   }),
   formId: "settings-google-wallet",
-  label: "Google Wallet configuration",
   log: (d) =>
     isGoogleWalletCleared(d)
       ? t("success.google_wallet_cleared")
-      : "Google Wallet configuration updated",
+      : t("success.google_wallet_updated"),
   save: async (d) => {
     if (isGoogleWalletCleared(d)) {
       await Promise.all([
@@ -177,10 +203,11 @@ export const handleGoogleWalletPost = settingsHandler<GoogleWalletFormData>({
     if (!settings.googleWallet.hasDbConfig && d.key.action !== "provided") {
       return t("error.google_service_key_required");
     }
-    if (
-      d.key.action === "provided" &&
-      !(await isValidGooglePrivateKey(d.key.value))
-    ) {
+    const key = effectiveSecretValue(
+      d.key,
+      settings.googleWallet.serviceAccountKey,
+    );
+    if (!(await isValidRsaPrivateKey(key))) {
       return t("error.google_service_key_invalid");
     }
     return null;

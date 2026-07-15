@@ -11,7 +11,7 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { mapNotNullish, unique } from "#fp";
+import { firstProblem, mapNotNullish, unique } from "#fp";
 import { inPlaceholders, queryIdColumn } from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
@@ -180,11 +180,7 @@ const checkTouchingEdges = async (
     ...childIds.map((otherId): TouchingEdge => ({ otherId, self: "parent" })),
     ...parentIds.map((otherId): TouchingEdge => ({ otherId, self: "child" })),
   ];
-  for (const edge of edges) {
-    const error = await check(edge);
-    if (error) return error;
-  }
-  return null;
+  return firstProblem(check)(edges);
 };
 
 /**

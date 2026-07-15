@@ -43,7 +43,6 @@ const rollbackSuperuser = async (
   }
   return errorPage(
     "Failed to send superuser credentials email. The user has not been created.",
-    502,
     "settings-superuser",
   );
 };
@@ -55,20 +54,20 @@ export const handleSuperuserPost = settingsRoute(
   async (form, errorPage, session) => {
     const superuser = await getSuperuserState();
     if (!superuser.available) {
-      return errorPage("Superuser is not available", 400, "settings-superuser");
+      return errorPage("Superuser is not available", "settings-superuser");
     }
 
     const choice = form.getString("superuser_choice");
 
     if (choice !== "self-managed" && choice !== "enable-superuser") {
-      return errorPage("Invalid choice", 400, "settings-superuser");
+      return errorPage("Invalid choice", "settings-superuser");
     }
 
     if (superuser.userExists) {
       const existingUserMessage = superuser.activated
         ? `Superuser ${superuser.username} is already activated. You can delete them from your users page.`
         : `Username ${superuser.username} already exists. You can delete them from your users page before enabling a superuser.`;
-      return errorPage(existingUserMessage, 400, "settings-superuser");
+      return errorPage(existingUserMessage, "settings-superuser");
     }
 
     if (choice === "self-managed") {
@@ -84,7 +83,6 @@ export const handleSuperuserPost = settingsRoute(
     if (!config) {
       return errorPage(
         "Email must be configured before enabling a superuser",
-        400,
         "settings-superuser",
       );
     }
@@ -92,7 +90,6 @@ export const handleSuperuserPost = settingsRoute(
     if (!session.wrappedDataKey) {
       return errorPage(
         "Cannot enable superuser: session lacks data key",
-        500,
         "settings-superuser",
       );
     }

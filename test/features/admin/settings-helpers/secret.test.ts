@@ -85,25 +85,15 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
   });
 
   test("returns error when required field is cleared", async () => {
-    const { handler, saveFn } = makeSecret({ required: true });
+    const { handler, saveFn } = makeSecret();
     const res = await runHandler(handler, { api_key: "" }, mockErrorPage);
 
     expect(res.status).toBe(400);
     expect(saveFn).not.toHaveBeenCalled();
     expect(mockErrorPage).toHaveBeenCalledWith(
       "API key is required",
-      400,
       "settings-secret",
     );
-  });
-
-  test("redirects with 'cleared' flash when optional field is cleared", async () => {
-    const { handler, saveFn } = makeSecret({ required: false });
-    const res = await runHandler(handler, { api_key: "" }, mockErrorPage);
-
-    expectRedirect(res, "/admin/settings");
-    expect(saveFn).not.toHaveBeenCalled();
-    expectFlash(res, "API key cleared");
   });
 
   test("saves, logs, and flashes 'updated successfully' for a new value", async () => {
@@ -135,21 +125,8 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
     expect(saveFn).not.toHaveBeenCalled();
     expect(mockErrorPage).toHaveBeenCalledWith(
       "Key must start with sk_",
-      400,
       "settings-secret",
     );
-  });
-
-  test("calls afterSave with the new value after saving", async () => {
-    const afterSaveFn = fn(() => Promise.resolve());
-    const { handler, saveFn } = makeSecret({
-      afterSave: afterSaveFn as (v: string) => Promise<void>,
-    });
-
-    await runHandler(handler, { api_key: "new_value" }, mockErrorPage);
-
-    expect(saveFn).toHaveBeenCalledWith("new_value");
-    expect(afterSaveFn).toHaveBeenCalledWith("new_value");
   });
 
   describe("advanced redirect", () => {
@@ -162,7 +139,6 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
         name: "redirects to advanced page for an 'unchanged' action",
         value: MASK_SENTINEL,
       },
-      { name: "redirects to advanced page for a 'cleared' action", value: "" },
     ];
 
     for (const { name, value } of ADVANCED_VALUES) {
@@ -176,17 +152,5 @@ describeWithEnv("secretFieldHandler", { db: true }, () => {
         expectRedirect(res, "/admin/settings-advanced");
       });
     }
-  });
-
-  test("omits form= param from redirect when formId is not provided", async () => {
-    const { handler } = makeSecret({ formId: undefined });
-    const res = await runHandler(
-      handler,
-      { api_key: "new_value" },
-      mockErrorPage,
-    );
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location") ?? "").not.toContain("form=");
   });
 });

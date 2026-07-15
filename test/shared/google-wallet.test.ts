@@ -4,7 +4,6 @@ import type { WalletPassData } from "#routes/tickets/token-utils.ts";
 import {
   buildGoogleWalletUrl,
   buildJwtPayload,
-  isValidGooglePrivateKey,
   signJwt,
 } from "#shared/google-wallet.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
@@ -222,20 +221,6 @@ describe("google-wallet", () => {
       const jwt = url.replace("https://pay.google.com/gp/v/save/", "");
       const parts = jwt.split(".");
       expect(parts).toHaveLength(3);
-    });
-  });
-
-  describe("isValidGooglePrivateKey", () => {
-    test("returns true for a valid PKCS8 PEM key", async () => {
-      expect(await isValidGooglePrivateKey(creds.serviceAccountKey)).toBe(true);
-    });
-
-    test("returns false for garbage input", async () => {
-      expect(await isValidGooglePrivateKey("not a key")).toBe(false);
-    });
-
-    test("returns false for empty string", async () => {
-      expect(await isValidGooglePrivateKey("")).toBe(false);
     });
   });
 });

@@ -9,8 +9,9 @@ import {
   initSentry,
   releaseFromCommit,
   resetSentryForTest,
+  sendSentryTest,
 } from "#shared/sentry.ts";
-import { withEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const DSN = "https://abc123@bugs.example.test/2";
@@ -33,6 +34,35 @@ describe("sentry", () => {
     // Detach the client so the global Sentry state never leaks into other files.
     resetSentryForTest();
   });
+
+  const firstFetchBody = (): string => {
+    const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+    return bodyText(options.body);
+  };
+
+  const useHungTransport = async (): Promise<EnvScope> => {
+    const env = withEnv({ SENTRY_URL: DSN });
+    await initSentry();
+    fetchStub.restore();
+    fetchStub = stubFetch(() => new Promise<Response>(() => {}));
+    return env;
+  };
+
+  const trackSettlement = <T>(pending: Promise<T>) => {
+    const state = { settled: false };
+    return {
+      pending: pending.finally(() => {
+        state.settled = true;
+      }),
+      state,
+    };
+  };
+
+  const responseWithStatus = (status: number): Response => {
+    const response = Response.error();
+    Object.defineProperty(response, "status", { value: status });
+    return response;
+  };
 
   describe("releaseFromCommit", () => {
     test("prefixes the commit SHA with the project name", () => {
@@ -90,8 +120,7 @@ describe("sentry", () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       await initSentry();
       await captureServerError({ code: ErrorCode.DB_QUERY });
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      return bodyText(options.body);
+      return firstFetchBody();
     };
 
     test("does nothing when Sentry is not initialized", async () => {
@@ -133,8 +162,7 @@ describe("sentry", () => {
       await captureServerError(context);
 
       expect(fetchStub.calls.length).toBe(1);
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      const body = bodyText(options.body);
+      const body = firstFetchBody();
       expect(body).toContain(formatErrorMessage(context));
     });
 
@@ -148,8 +176,7 @@ describe("sentry", () => {
         listingId: 42,
       });
 
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      const body = bodyText(options.body);
+      const body = firstFetchBody();
       expect(body).toContain('"listingId":"42"');
       expect(body).toContain('"attendeeId":"99"');
     });
@@ -166,8 +193,7 @@ describe("sentry", () => {
         error: new Error("kaboom"),
       });
 
-      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
-      expect(bodyText(options.body)).toContain(
+      expect(firstFetchBody()).toContain(
         '"extra":{"detail":"structured-detail-marker"}',
       );
     });
@@ -201,23 +227,16 @@ describe("sentry", () => {
     });
 
     test("gives up on a hung transport after the flush timeout, not sooner", async () => {
-      using _env = withEnv({ SENTRY_URL: DSN });
-      await initSentry();
+      using _env = await useHungTransport();
       // A transport that never settles: capture must still resolve — after
       // the 2s flush timeout, not immediately (a zero timeout would report
       // "flushed" before the transport had any chance to deliver). The SDK
       // first finishes client processing, then gives the transport exactly 2s.
-      fetchStub.restore();
-      fetchStub = stubFetch(() => new Promise<Response>(() => {}));
-
       const time = new FakeTime();
       try {
-        const state = { settled: false };
-        const pending = captureServerError({
-          code: ErrorCode.DB_QUERY,
-        }).finally(() => {
-          state.settled = true;
-        });
+        const { pending, state } = trackSettlement(
+          captureServerError({ code: ErrorCode.DB_QUERY }),
+        );
         await time.nextAsync();
         await time.tickAsync(1998);
         await time.runMicrotasks();
@@ -229,6 +248,112 @@ describe("sentry", () => {
         await time.runMicrotasks();
         expect(state.settled).toBe(true);
         await pending;
+      } finally {
+        time.restore();
+      }
+    });
+  });
+
+  describe("sendSentryTest", () => {
+    test("returns false without loading Sentry when it is not configured", async () => {
+      using _env = withEnv({ SENTRY_URL: undefined });
+      expect(await sendSentryTest()).toBe(false);
+      expect(fetchStub.calls.length).toBe(0);
+    });
+
+    test("sends a tagged test error with its stack trace", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      expect(await sendSentryTest()).toBe(true);
+      expect(fetchStub.calls.length).toBe(1);
+      const body = firstFetchBody();
+      expect(body).toContain(
+        '"value":"Test Sentry notification from the admin debug page."',
+      );
+      expect(body).toContain('"source":"admin-debug"');
+      expect(body).toContain('"test":"true"');
+      expect(body).toContain("stacktrace");
+    });
+
+    test("accepts only a 2xx Sentry response", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      for (const [status, accepted] of [
+        [199, false],
+        [200, true],
+        [299, true],
+        [300, false],
+        [403, false],
+      ] as const) {
+        fetchStub.restore();
+        fetchStub = stubFetch(responseWithStatus(status));
+        expect(await sendSentryTest()).toBe(accepted);
+      }
+    });
+
+    test("returns false when the Sentry request fails", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      fetchStub.restore();
+      fetchStub = stubFetch(new Error("network failed"));
+
+      expect(await sendSentryTest()).toBe(false);
+      expect(fetchStub.calls.length).toBe(1);
+    });
+
+    test("keeps the result tied to its event", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+      const client = Sentry.getClient();
+      if (!client) throw new Error("Expected initialized Sentry client");
+
+      let finishFetch = (_response: Response): void => {};
+      fetchStub.restore();
+      fetchStub = stubFetch(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishFetch = resolve;
+          }),
+      );
+      const eventReady = Promise.withResolvers<Sentry.Event>();
+      const stopCapturing = client.on("beforeSendEvent", (event) =>
+        eventReady.resolve(event),
+      );
+      try {
+        const { pending, state } = trackSettlement(sendSentryTest());
+        const event = await eventReady.promise;
+        client.emit(
+          "afterSendEvent",
+          { ...event, event_id: "another-event" },
+          { statusCode: 200 },
+        );
+        await Promise.resolve();
+        expect(state.settled).toBe(false);
+
+        finishFetch(new Response(null, { status: 200 }));
+        expect(await pending).toBe(true);
+        const clearTimeoutSpy = spy(globalThis, "clearTimeout");
+        try {
+          client.emit("afterSendEvent", event, { statusCode: 200 });
+          expect(clearTimeoutSpy.calls.length).toBe(0);
+        } finally {
+          clearTimeoutSpy.restore();
+        }
+      } finally {
+        stopCapturing();
+      }
+    });
+
+    test("returns false when the Sentry test times out", async () => {
+      using _env = await useHungTransport();
+
+      const time = new FakeTime();
+      try {
+        const { pending, state } = trackSettlement(sendSentryTest());
+        await time.runMicrotasks();
+        await time.tickAsync(1999);
+        expect(state.settled).toBe(false);
+        await time.tickAsync(1);
+        await time.runMicrotasks();
+        expect(state.settled).toBe(true);
+        expect(await pending).toBe(false);
       } finally {
         time.restore();
       }

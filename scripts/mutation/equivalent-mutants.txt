@@ -69,10 +69,15 @@ src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: M
 # absolute value and direction do not matter: every invalidation changes the
 # value, so a fetch started before it cannot populate the cache. The unloaded
 # timestamp is never read because `items` is null, and size is an array length.
-src/fp.ts:405:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
-src/fp.ts:407:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
-src/fp.ts:422:17  ++ → --   # either direction changes generation and invalidates every older captured copy
-src/fp.ts:425:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+src/fp.ts:221:32  !== → !=   # compact input is T|null|undefined; loose null comparison removes exactly null and undefined too
+src/fp.ts:277:17  === → ==   # lazyRef set input is T|null and cannot be undefined, so both comparisons select only null
+src/fp.ts:416:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
+src/fp.ts:416:33  0 → -1   # same: the unloaded timestamp is never observed
+src/fp.ts:418:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
+src/fp.ts:418:20  0 → -1   # same: only changes relative to the captured generation matter
+src/fp.ts:422:22  !== → !=   # items is T[]|null and cannot be undefined, so both comparisons select only a loaded array
+src/fp.ts:433:17  ++ → --   # either direction changes generation and invalidates every older captured copy
+src/fp.ts:436:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
@@ -852,12 +857,19 @@ src/shared/db/contact-tokens.ts:315:18  ?? → ||    # `removedSource ?? sync.so
 src/shared/db/attendees/tokens.ts:159:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
 src/shared/db/attendees/tokens.ts:162:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
 src/shared/db/attendees/tokens.ts:175:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
-src/shared/sentry.ts:50:19  ?? → ||    # getSentrySdk(): SentrySdk|null — a loaded module namespace object is always truthy, never falsy-but-non-null, so ?? and || agree
+src/shared/sentry.ts:72:23  !== → !=    # loadSentry(): LoadedSentry|null never returns undefined, so strict and loose null comparisons agree
 
 # bundle-composition/model.ts — SourceMapSegment is either the one-value
 # unmapped tuple or a mapped tuple carrying both source index and original line,
 # so indexes 1 and 2 are present or absent together.
 scripts/bench/bundle-composition/model.ts:64:11  1 → 2    # isMappedSegment: segment[1] and segment[2] are both defined exactly for mapped tuples
+
+# crypto/der.ts — these values are written into Uint8Array elements. Adding or
+# subtracting 128 produces the same low eight bits, and Uint8Array discards all
+# higher bits. The base-128 continuation byte is therefore identical either way.
+src/shared/crypto/der.ts:40:26  128 → -128    # DER long-length marker: 128+n and -128+n have identical low eight bits
+src/shared/crypto/der.ts:93:44  + → -    # base-128 continuation: low7+128 and low7-128 have identical low eight bits
+src/shared/crypto/der.ts:93:47  128 → -128    # base-128 continuation marker is unchanged after Uint8Array conversion
 
 # db/capacity.ts — duration defaults that normalizeDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a

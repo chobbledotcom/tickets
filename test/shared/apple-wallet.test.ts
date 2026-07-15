@@ -1,24 +1,21 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
-import forge from "node-forge";
+import { isValidAppleCertificate } from "#shared/apple-wallet/certificate.ts";
 import {
   buildPkpass,
-  createManifest,
   generatePassJson,
-  isValidPemCertificate,
-  isValidPemPrivateKey,
   type PassData,
   padAuthToken,
   type SigningCredentials,
   sha1Hex,
-  signManifest,
   trimAuthToken,
 } from "#shared/apple-wallet.ts";
+import { isValidRsaPrivateKey } from "#shared/crypto/rsa-private-key.ts";
 import { WALLET_ICONS } from "#shared/wallet-icons.ts";
 import { generateTestCerts } from "#test-utils/crypto.ts";
 
-/** Type for listingTicket field groups in pass.json */
+/** Type for eventTicket field groups in pass.json */
 type TicketFields = {
   primaryFields: Record<string, unknown>[];
   secondaryFields: Record<string, unknown>[];
@@ -51,8 +48,8 @@ describe("apple-wallet", () => {
     const extractPassJson = (pkpass: Uint8Array) =>
       JSON.parse(new TextDecoder().decode(unzipSync(pkpass)["pass.json"]!));
 
-    test("includes all required top-level fields and barcode", () => {
-      const pass = extractPassJson(buildPkpass(makePassData(), creds));
+    test("includes all required top-level fields and barcode", async () => {
+      const pass = extractPassJson(await buildPkpass(makePassData(), creds));
 
       expect(pass.formatVersion).toBe(1);
       expect(pass.passTypeIdentifier).toBe("pass.com.test.tickets");
@@ -67,14 +64,22 @@ describe("apple-wallet", () => {
       expect(barcodes[0]!.message).toBe("https://example.com/checkin/ABC123");
       expect(barcodes[0]!.messageEncoding).toBe("iso-8859-1");
 
-      const ticket = pass.listingTicket as TicketFields;
-      expect(ticket.primaryFields[0]!.value).toBe("Summer Concert");
+      const ticket = pass.eventTicket as TicketFields;
+      expect(pass.listingTicket).toBeUndefined();
+      expect(ticket.primaryFields).toEqual([
+        { key: "listing", label: "LISTING", value: "Summer Concert" },
+      ]);
 
       const dateField = ticket.secondaryFields.find(
         (f: Record<string, unknown>) => f.key === "date",
       );
-      expect(dateField).toBeDefined();
-      expect(dateField!.value).toBe("2026-06-15T19:00:00Z");
+      expect(dateField).toEqual({
+        dateStyle: "PKDateStyleMedium",
+        key: "date",
+        label: "DATE",
+        timeStyle: "PKDateStyleShort",
+        value: "2026-06-15T19:00:00Z",
+      });
 
       const locationField = ticket.secondaryFields.find(
         (f: Record<string, unknown>) => f.key === "location",
@@ -95,9 +100,9 @@ describe("apple-wallet", () => {
       ).toBeGreaterThanOrEqual(16);
     });
 
-    test("omits date, location, qty, and price when data is empty or default", () => {
+    test("omits date, location, qty, and price when data is empty or default", async () => {
       const pass = extractPassJson(
-        buildPkpass(
+        await buildPkpass(
           makePassData({
             listingDate: "",
             listingLocation: "",
@@ -107,7 +112,7 @@ describe("apple-wallet", () => {
           creds,
         ),
       );
-      const ticket = pass.listingTicket as TicketFields;
+      const ticket = pass.eventTicket as TicketFields;
 
       expect(
         ticket.secondaryFields.find(
@@ -135,25 +140,25 @@ describe("apple-wallet", () => {
       ).toBeUndefined();
     });
 
-    test("includes quantity, price, and booking date when present", () => {
+    test("includes quantity, price, and booking date when present", async () => {
       const pass = extractPassJson(
-        buildPkpass(
+        await buildPkpass(
           makePassData({
             attendeeDate: "2026-06-15",
             currencyCode: "EUR",
             pricePaid: 2500,
-            quantity: 3,
+            quantity: 2,
           }),
           creds,
         ),
       );
-      const ticket = pass.listingTicket as TicketFields;
+      const ticket = pass.eventTicket as TicketFields;
 
       const qtyField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "qty",
       );
       expect(qtyField).toBeDefined();
-      expect(qtyField!.value).toBe(3);
+      expect(qtyField!.value).toBe(2);
 
       const priceField = ticket.auxiliaryFields.find(
         (f: Record<string, unknown>) => f.key === "price",
@@ -169,9 +174,9 @@ describe("apple-wallet", () => {
       expect(bookingField!.value).toBe("2026-06-15");
     });
 
-    test("uses custom colors when provided", () => {
+    test("uses custom colors when provided", async () => {
       const pass = extractPassJson(
-        buildPkpass(
+        await buildPkpass(
           makePassData({
             backgroundColor: "rgb(0, 0, 255)",
             foregroundColor: "rgb(255, 0, 0)",
@@ -184,6 +189,31 @@ describe("apple-wallet", () => {
       expect(pass.foregroundColor).toBe("rgb(255, 0, 0)");
       expect(pass.backgroundColor).toBe("rgb(0, 0, 255)");
       expect(pass.labelColor).toBe("rgb(0, 255, 0)");
+    });
+
+    test("uses default colors when optional values are empty", () => {
+      const pass = generatePassJson(
+        makePassData({
+          backgroundColor: "",
+          foregroundColor: "",
+          labelColor: "",
+        }),
+        creds,
+      );
+      expect(pass.backgroundColor).toBe("rgb(255, 255, 255)");
+      expect(pass.foregroundColor).toBe("rgb(0, 0, 0)");
+      expect(pass.labelColor).toBe("rgb(100, 100, 100)");
+    });
+
+    test("includes the smallest positive price", () => {
+      const pass = generatePassJson(makePassData({ pricePaid: 1 }), creds);
+      const ticket = pass.eventTicket as TicketFields;
+      expect(ticket.auxiliaryFields).toContainEqual({
+        currencyCode: "GBP",
+        key: "price",
+        label: "PRICE",
+        value: 0.01,
+      });
     });
   });
 
@@ -213,51 +243,10 @@ describe("apple-wallet", () => {
     });
   });
 
-  describe("createManifest", () => {
-    test("includes all provided files", () => {
-      const a = new TextEncoder().encode("aaa");
-      const b = new TextEncoder().encode("bbb");
-      const manifest = createManifest({ "icon.png": b, "pass.json": a });
-      const parsed = JSON.parse(manifest);
-      expect(Object.keys(parsed)).toHaveLength(2);
-      expect(parsed["pass.json"]).toBeDefined();
-      expect(parsed["icon.png"]).toBeDefined();
-    });
-  });
-
-  describe("signManifest", () => {
-    test("produces valid DER-encoded PKCS#7 signatures", () => {
-      const manifest1 = '{"pass.json":"abc123"}';
-      const manifest2 = '{"pass.json":"def456"}';
-      const sig1 = signManifest(
-        manifest1,
-        creds.signingCert,
-        creds.signingKey,
-        creds.wwdrCert,
-      );
-      const sig2 = signManifest(
-        manifest2,
-        creds.signingCert,
-        creds.signingKey,
-        creds.wwdrCert,
-      );
-
-      // Non-empty Uint8Array
-      expect(sig1).toBeInstanceOf(Uint8Array);
-      expect(sig1.length).toBeGreaterThan(0);
-      expect(sig2.length).toBeGreaterThan(0);
-
-      // Parseable as ASN.1
-      const der = forge.util.binary.raw.encode(sig1);
-      const asn1 = forge.asn1.fromDer(der);
-      expect(asn1).toBeDefined();
-    });
-  });
-
   describe("buildPkpass", () => {
-    test("produces a valid ZIP with pass.json, icons, and manifest hashes", () => {
+    test("produces a valid ZIP with pass.json, icons, and manifest hashes", async () => {
       const data = makePassData();
-      const pkpass = buildPkpass(data, creds);
+      const pkpass = await buildPkpass(data, creds);
       expect(pkpass).toBeInstanceOf(Uint8Array);
       expect(pkpass.length).toBeGreaterThan(0);
 
@@ -280,15 +269,21 @@ describe("apple-wallet", () => {
       const manifest = JSON.parse(
         new TextDecoder().decode(files["manifest.json"]!),
       );
-      expect(manifest["pass.json"]).toBe(sha1Hex(files["pass.json"]!));
-      expect(manifest["icon.png"]).toBe(sha1Hex(files["icon.png"]!));
-      expect(manifest["icon@2x.png"]).toBe(sha1Hex(files["icon@2x.png"]!));
-      expect(manifest["icon@3x.png"]).toBe(sha1Hex(files["icon@3x.png"]!));
+      expect(manifest["pass.json"]).toBe(await sha1Hex(files["pass.json"]!));
+      expect(manifest["icon.png"]).toBe(await sha1Hex(files["icon.png"]!));
+      expect(manifest["icon@2x.png"]).toBe(
+        await sha1Hex(files["icon@2x.png"]!),
+      );
+      expect(manifest["icon@3x.png"]).toBe(
+        await sha1Hex(files["icon@3x.png"]!),
+      );
     });
 
-    test("produces different pkpass for different serial numbers", () => {
-      const a = buildPkpass(makePassData({ serialNumber: "AAA" }), creds);
-      const b = buildPkpass(makePassData({ serialNumber: "BBB" }), creds);
+    test("produces different pkpass for different serial numbers", async () => {
+      const [a, b] = await Promise.all([
+        buildPkpass(makePassData({ serialNumber: "AAA" }), creds),
+        buildPkpass(makePassData({ serialNumber: "BBB" }), creds),
+      ]);
       const aJson = JSON.parse(
         new TextDecoder().decode(unzipSync(a)["pass.json"]!),
       );
@@ -318,31 +313,31 @@ describe("apple-wallet", () => {
     });
   });
 
-  describe("isValidPemCertificate", () => {
-    test("returns true for a valid PEM certificate", () => {
-      expect(isValidPemCertificate(creds.signingCert)).toBe(true);
+  describe("isValidAppleCertificate", () => {
+    test("returns true for a valid PEM certificate", async () => {
+      expect(await isValidAppleCertificate(creds.signingCert)).toBe(true);
     });
 
-    test("returns false for a private key PEM", () => {
-      expect(isValidPemCertificate(creds.signingKey)).toBe(false);
+    test("returns false for a private key PEM", async () => {
+      expect(await isValidAppleCertificate(creds.signingKey)).toBe(false);
     });
 
-    test("returns false for garbage input", () => {
-      expect(isValidPemCertificate("not a certificate")).toBe(false);
+    test("returns false for garbage input", async () => {
+      expect(await isValidAppleCertificate("not a certificate")).toBe(false);
     });
   });
 
-  describe("isValidPemPrivateKey", () => {
-    test("returns true for a valid PEM private key", () => {
-      expect(isValidPemPrivateKey(creds.signingKey)).toBe(true);
+  describe("isValidRsaPrivateKey", () => {
+    test("returns true for a valid PEM private key", async () => {
+      expect(await isValidRsaPrivateKey(creds.signingKey)).toBe(true);
     });
 
-    test("returns false for a certificate PEM", () => {
-      expect(isValidPemPrivateKey(creds.signingCert)).toBe(false);
+    test("returns false for a certificate PEM", async () => {
+      expect(await isValidRsaPrivateKey(creds.signingCert)).toBe(false);
     });
 
-    test("returns false for garbage input", () => {
-      expect(isValidPemPrivateKey("not a key")).toBe(false);
+    test("returns false for garbage input", async () => {
+      expect(await isValidRsaPrivateKey("not a key")).toBe(false);
     });
   });
 
@@ -352,7 +347,7 @@ describe("apple-wallet", () => {
         makePassData({ currencyCode: "JPY", pricePaid: 1000 }),
         creds,
       );
-      const ticket = pass.listingTicket as TicketFields;
+      const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField!.value).toBe(1000);
       expect(priceField!.currencyCode).toBe("JPY");
@@ -363,7 +358,7 @@ describe("apple-wallet", () => {
         makePassData({ currencyCode: "GBP", pricePaid: 2500 }),
         creds,
       );
-      const ticket = pass.listingTicket as TicketFields;
+      const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField!.value).toBe(25);
       expect(priceField!.currencyCode).toBe("GBP");
