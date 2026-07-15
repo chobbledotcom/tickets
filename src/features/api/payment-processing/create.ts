@@ -16,12 +16,8 @@ import type {
   BookingIntent,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { bookingDateFields } from "#routes/public/ticket-payment.ts";
-import {
-  soleParentPackageIds,
-  stampChildRowPackages,
-} from "#shared/booking/page-packages.ts";
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
+import { orderBookings } from "#shared/booking-lines.ts";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
@@ -31,13 +27,11 @@ import type {
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
-import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import {
   type createAttendeeAtomic,
   createBookingAtomic,
 } from "#shared/db/attendees/api.ts";
 import { ensureAllBookings } from "#shared/db/attendees/create.ts";
-import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -261,33 +255,28 @@ export const createAttendeeForSession = async (
   // Per-LINE paid amounts: a listing booked through two paths is two lines
   // with their own prices, and each becomes its own booking row. The priced
   // order's lines reference the pricing intent's item objects, which pair
-  // 1:1 by index with validatedItems.
+  // 1:1 by index with validatedItems. `paidByIntentItem.get(...)` is always
+  // defined for a priced item (every intent item produces a priced line), so
+  // the raw value flows straight through — a genuine `0` (a free line that
+  // was still signed) stays `0`. The conditional spread is for
+  // `exactOptionalPropertyTypes`: an explicit `undefined` cannot be assigned
+  // to an optional `number`, so `pricePaid` is omitted when absent (the DB
+  // layer then coerces it to `0` at insert, matching the prior `?? 0`).
   const paidByIntentItem = paidByItem(pricedOrder);
-  const rawBookings: ListingBooking[] = validatedItems.map(
-    ({ item, listing }, index) => ({
-      ...bookingSlot(item),
-      pricePaid: paidByIntentItem.get(pricingIntent.items[index]!) ?? 0,
-      quantity: item.q,
-      ...bookingDateFields(listing, intent.date, intent.dayCount),
+  const bookings = orderBookings({
+    allocations: intent.allocations,
+    date: intent.date,
+    dayCount: intent.dayCount,
+    lines: validatedItems.map(({ item, listing }, index) => {
+      const pricePaid = paidByIntentItem.get(pricingIntent.items[index]!);
+      return {
+        ...bookingSlot(item),
+        listing,
+        ...(pricePaid !== undefined ? { pricePaid } : {}),
+        quantity: item.q,
+      };
     }),
-  );
-  // Expand summed child bookings into per-parent rows when allocations were
-  // carried through the signed metadata (paid-path provenance): each
-  // allocation becomes its own listing_attendees row with the correct
-  // parentListingId and proportional pricePaid, mirroring the free-path
-  // behaviour in createFreeReservation. Each child row is then stamped with
-  // its parent's package when the parent books through exactly one path.
-  const bookings = stampChildRowPackages(
-    intent.allocations && intent.allocations.length > 0
-      ? expandChildAllocations(rawBookings, intent.allocations)
-      : rawBookings,
-    soleParentPackageIds(
-      intent.items.map((item) => ({
-        listingId: item.e,
-        packageGroupId: lineGroupId(item),
-      })),
-    ),
-  );
+  });
   const fullTotal = pricedOrder.fullSubtotal;
   const depositTotal = orderLineTotal(pricedOrder);
   const remainingBalance =
