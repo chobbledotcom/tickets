@@ -5,10 +5,10 @@
 /* jscpd:ignore-start */
 import * as v from "valibot";
 import {
-  byId,
   flatMap,
-  groupBy,
   groupToMap,
+  identity,
+  mapBy,
   mapNotNullish,
   mapParallel,
 } from "#fp";
@@ -150,7 +150,7 @@ export const groups = cachedEntityTable<Group, GroupInput>(
  * alternative to one findById per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
-  byId(await groups.cache.getAll());
+  mapBy("id", identity<Group>)(await groups.cache.getAll());
 
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
@@ -786,7 +786,7 @@ export const loadPackageMemberPricing = async (groupId: number) => {
 export const getGroupPackagePricesByGroupIds = async (
   groupIds: number[],
 ): Promise<Map<number, GroupListing[]>> =>
-  groupBy(
+  Map.groupBy(
     await rowsByIds<GroupListing>(
       groupIds,
       (placeholders) =>

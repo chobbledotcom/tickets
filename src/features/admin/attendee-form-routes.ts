@@ -21,7 +21,7 @@
  */
 
 /* jscpd:ignore-start */
-import { byId } from "#fp";
+import { identity, mapBy } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
@@ -100,7 +100,7 @@ import {
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
+import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   AttendeeFormPanel,
   type AttendeeFormTemplateData,
@@ -216,7 +216,10 @@ const handleSubmitInner = async (
     selectedTextAnswers,
   } = edit;
 
-  const listingsById = byId(await getAllListings());
+  const listingsById = mapBy(
+    "id",
+    identity<ListingWithCount>,
+  )(await getAllListings());
   // Coerce a missing/blank status back to the public default (the form offers
   // no "no status" choice) — the same resolver the template pre-selects with.
   const statuses = await attendeeStatuses.getAll();

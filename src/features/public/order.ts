@@ -29,7 +29,7 @@
  * child pool read as available here and are refused at the form instead.
  */
 
-import { compact, groupBy, requiredMapValue, uniqueBy } from "#fp";
+import { compact, requiredMapValue, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
   htmlResponse,
@@ -187,7 +187,7 @@ const poolBySpan = async <T>(
   spanOf: (value: T) => number,
   query: (bucket: T[], span: number) => Promise<RemainingById>,
 ): Promise<RemainingById> => {
-  const bySpan = groupBy(values, spanOf);
+  const bySpan = Map.groupBy(values, spanOf);
   const maps = await Promise.all(
     [...bySpan].map(([span, bucket]) => query(bucket, span)),
   );

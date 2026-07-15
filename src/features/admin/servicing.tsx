@@ -1,6 +1,6 @@
 /** Admin servicing-event route shell. */
 
-import { byId, map, unique } from "#fp";
+import { identity, map, mapBy, unique } from "#fp";
 import { t } from "#i18n";
 import { handlersFor } from "#routes/admin/handlers.ts";
 import {
@@ -53,6 +53,7 @@ import {
   selectedStartDate,
 } from "#shared/order-select.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 
@@ -135,7 +136,9 @@ const handleServicingGet: TypedRouteHandler<"GET /admin/servicing/:id"> = (
 const parseCreateInput = async (form: FormParams) => {
   applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
   const listings = await getAllListings();
-  return normalizeServicingForSave(parseServicingForm(form, byId(listings)));
+  return normalizeServicingForSave(
+    parseServicingForm(form, mapBy("id", identity<ListingWithCount>)(listings)),
+  );
 };
 
 const servicingErrorRedirect = (id: number, error: unknown): Response =>

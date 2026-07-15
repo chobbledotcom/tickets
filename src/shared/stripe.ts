@@ -3,11 +3,13 @@
  * Uses lazy loading to avoid importing the Stripe SDK at startup
  */
 
+/* jscpd:ignore-start */
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
@@ -17,7 +19,6 @@ import {
   type CredentialCheck,
   cachedClientFactory,
   createWithClient,
-  errorMessage,
   type SignedTestWebhook,
   signedTestWebhook,
 } from "#shared/payment-helpers.ts";
@@ -29,6 +30,8 @@ import type {
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
+
+/* jscpd:ignore-end */
 
 /** Lazy-load Stripe SDK only when needed */
 const loadStripe = once(async () => {

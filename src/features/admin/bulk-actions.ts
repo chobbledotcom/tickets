@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { byId, requiredMapValue } from "#fp";
+import { identity, mapBy, requiredMapValue } from "#fp";
 import { handlersFor } from "#routes/admin/handlers.ts";
 /* jscpd:ignore-end */
 /**
@@ -193,7 +193,10 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
   const dayOffset = computeDayOffset(dateFind, dateReplace);
 
   const listings = await getListingsByGroupId(group.id);
-  const storedById = byId(
+  const storedById = mapBy(
+    "id",
+    identity<ListingWithCount>,
+  )(
     await getStoredListingsWithCountsByIds(
       listings.map((listing) => listing.id),
     ),

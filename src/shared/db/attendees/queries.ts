@@ -6,7 +6,7 @@
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
-import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
@@ -296,7 +296,7 @@ export const getAttendeePiiBlobsForListings = (
 export const getAttendeePiiBlobForToken = async (
   token: string,
 ): Promise<OwnerKeyEncrypted | null> => {
-  const tokenIndex = await computeTicketTokenIndex(token);
+  const tokenIndex = await hmacHash(token);
   // Apply the real-line guard: an all-ghost (no-quantity-only) attendee has no
   // valid ticket URL, so the single-attendee bulk-email target resolves to no
   // recipient (a genuine one-off transactional mail would be a separate path).

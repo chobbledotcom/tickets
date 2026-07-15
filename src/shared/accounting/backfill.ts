@@ -34,7 +34,7 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { groupBy, sumOf } from "#fp";
+import { sumOf } from "#fp";
 import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
@@ -212,7 +212,7 @@ export const backfillTransfers = async (
     const attendeeIds = await nextPaidAttendeeIds(afterId, pageSize);
     if (attendeeIds.length === 0) return;
     const ledgered = await alreadyLedgered(attendeeIds);
-    const groups = groupBy(await paidRowsForAttendees(attendeeIds), (row) =>
+    const groups = Map.groupBy(await paidRowsForAttendees(attendeeIds), (row) =>
       Number(row.attendee_id),
     );
     const recordedAt = nowIso();

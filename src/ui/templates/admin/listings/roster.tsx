@@ -1,7 +1,6 @@
-import { map, pipe } from "#fp";
+import { map, mapBy, pipe } from "#fp";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import { type Attendee, isPaidListing } from "#shared/types.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import {
@@ -106,7 +105,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
       })}
       <AttendeeNotesSummary
         isOwner={opts.isOwner ?? false}
-        names={idNameMap(attendees)}
+        names={mapBy("id", (attendee: Attendee) => attendee.name)(attendees)}
         notes={systemNotes}
       />
       <AttendeesSection

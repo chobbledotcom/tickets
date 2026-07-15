@@ -19,10 +19,7 @@ import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
-import {
-  isApiKeyRateLimited,
-  recordApiKeyAttempt,
-} from "#shared/db/api-key-attempts.ts";
+import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import { deleteSession, getSession } from "#shared/db/sessions.ts";
 import {
@@ -178,7 +175,7 @@ export const getAuthenticatedApiKey = async (
   // client with a valid key is never locked out; once an IP is locked, even a
   // correct token is rejected until the lockout expires.
   const ip = getRequestClientIp();
-  if (await isApiKeyRateLimited(ip)) {
+  if (await apiKeyLimiter.isLimited(ip)) {
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
       detail: "API key authentication rate limited",
@@ -188,7 +185,7 @@ export const getAuthenticatedApiKey = async (
 
   const apiKeyRow = await getApiKeyByToken(token);
   if (!apiKeyRow) {
-    await recordApiKeyAttempt(ip);
+    await apiKeyLimiter.record(ip);
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
       detail: "Bearer token does not match any API key",

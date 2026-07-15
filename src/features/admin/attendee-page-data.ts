@@ -7,7 +7,7 @@
  */
 
 /* jscpd:ignore-start */
-import { byId, compact, filter, unique } from "#fp";
+import { compact, filter, identity, mapBy, unique } from "#fp";
 import { t } from "#i18n";
 import {
   type AttendeeFormLine,
@@ -210,7 +210,7 @@ const buildFormLines = (
   packagePaths: PackagePath[],
   preselectedQty: Map<number, number>,
 ): AttendeeFormLine[] => {
-  const listingsById = byId(renderListings);
+  const listingsById = mapBy("id", identity<ListingWithCount>)(renderListings);
   const pricesByListingId = packagesByListingIdFrom(packagePaths);
   const priceOfPath = (listingId: number, groupId: number): number | null =>
     groupId > 0

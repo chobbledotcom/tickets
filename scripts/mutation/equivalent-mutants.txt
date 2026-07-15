@@ -68,10 +68,14 @@ src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: M
 # absolute value and direction do not matter: every invalidation changes the
 # value, so a fetch started before it cannot populate the cache. The unloaded
 # timestamp is never read because `items` is null, and size is an array length.
-src/fp.ts:449:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
-src/fp.ts:451:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
-src/fp.ts:466:17  ++ → --   # either direction changes generation and invalidates every older captured copy
-src/fp.ts:469:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+src/fp.ts:405:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
+src/fp.ts:407:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
+src/fp.ts:422:17  ++ → --   # either direction changes generation and invalidates every older captured copy
+src/fp.ts:425:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+
+# Login attempt rows store an integer count. For undefined, null, zero, or any
+# non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
+src/shared/db/login-attempts.ts:46:39  ?? → ||
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.

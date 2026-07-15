@@ -28,7 +28,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { ApiResult } from "#shared/fetch.ts";
-import type { ResponseFn } from "#shared/response-fn.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -486,7 +486,7 @@ export const defineCrudApi = <
   const withValidated = async (
     raw: ParseResult<Input> | Promise<ParseResult<Input>>,
     id: number | undefined,
-    fn: ResponseFn<Input>,
+    fn: ResponseHandler<[value: Input]>,
   ): Promise<Response> => {
     const result = await parseAndValidate(raw, config.validate, id);
     if (!result.ok) return result.response;

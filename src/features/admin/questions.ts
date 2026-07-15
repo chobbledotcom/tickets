@@ -1,11 +1,10 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import { planReorder } from "#shared/reorder.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
 
-import { mapNotNullish } from "#fp";
+import { mapBy, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
@@ -71,7 +70,7 @@ import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
   adminAnswerDeletePage,
@@ -147,7 +146,10 @@ const handleQuestionsGet = ownerPage(async (session) => {
   // Resolve listing ids to their decrypted names for the Listings column,
   // dropping any ids whose listing has since been deleted (listing_questions
   // rows are not pruned on listing deletion, so orphans can linger).
-  const nameById = idNameMap(allListings);
+  const nameById = mapBy(
+    "id",
+    (listing: ListingWithCount) => listing.name,
+  )(allListings);
   const listingNames = new Map(
     [...questionListingIds].map(([questionId, ids]) => [
       questionId,

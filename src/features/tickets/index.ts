@@ -14,7 +14,7 @@ import {
   withTokenRateLimit,
 } from "#routes/tickets/token-utils.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
-import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { packageDisplaysForRows } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import { generateQrSvg } from "#shared/qr.ts";
@@ -61,9 +61,7 @@ const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   // INDEX. Map every URL token to its index, then re-attach the matching token to
   // each card so cards key by their real token.
   const tokenByIndex = new Map(
-    await Promise.all(
-      tokens.map(async (t) => [await computeTicketTokenIndex(t), t] as const),
-    ),
+    await Promise.all(tokens.map(async (t) => [await hmacHash(t), t] as const)),
   );
   const cards = await Promise.all(
     entries.map((entry) =>

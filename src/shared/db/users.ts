@@ -514,29 +514,3 @@ export const pruneExpiredInvites = async (): Promise<number> => {
   }
   return pruned;
 };
-
-/**
- * Stubbable API for testing
- */
-export const usersApi = {
-  acceptInvite,
-  activateKeylessUser,
-  createInvitedUser,
-  createUser,
-  decryptAdminLevel,
-  decryptUsername,
-  deleteUser,
-  getAllUsers,
-  getUserById,
-  getUserByInviteCode,
-  getUserByUsername,
-  getUserDisplayFields,
-  hashInviteCode,
-  invalidateUsersCache,
-  isInviteExpired,
-  isInviteValid,
-  isUsernameTaken,
-  migrateUserToV2Kek,
-  pruneExpiredInvites,
-  verifyUserPassword,
-};

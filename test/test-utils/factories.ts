@@ -9,7 +9,7 @@ import type {
 } from "#shared/db/question-types.ts";
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
-import { signPriceSync } from "#shared/payment-signature.ts";
+import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type {
   Attendee,
@@ -306,7 +306,7 @@ export const signMeta = (
   agreedTotal: number,
 ): Record<string, string> => ({
   ...metadata,
-  price_proof: `${agreedTotal}.${signPriceSync(metadata, agreedTotal)}`,
+  price_proof: `${agreedTotal}.${signPrice(metadata, agreedTotal)}`,
 });
 
 /**

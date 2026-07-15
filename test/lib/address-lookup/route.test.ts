@@ -108,7 +108,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
   });
 
   // Lock the test client's IP ("direct" — getClientIp's fallback) in the
-  // limiter's own namespace exactly as recordIpAttempt would.
+  // limiter's own namespace exactly as the configured limiter does.
   const lockOutTestIp = async (): Promise<void> => {
     await execute(
       "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",

@@ -12,7 +12,7 @@
  */
 
 import * as v from "valibot";
-import { byId, mapNotNullish } from "#fp";
+import { identity, mapBy, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
@@ -69,6 +69,7 @@ import {
   type Group,
   type Listing,
   type ListingType,
+  type ListingWithCount,
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
@@ -486,7 +487,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   const isPackage = group.isPackage ?? false;
   // Each member's day-price overrides must target a day count that member offers.
   if (isPackage) {
-    const listingById = byId(listings);
+    const listingById = mapBy("id", identity<ListingWithCount>)(listings);
     for (let i = 0; i < members.length; i++) {
       const member = listingById.get(memberResolve.ids[i]!)!;
       const dayError = memberDayOverrideError(

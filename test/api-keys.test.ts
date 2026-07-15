@@ -7,7 +7,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { recordApiKeyAttempt } from "#shared/db/api-key-attempts.ts";
+import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import {
   countApiKeysForUser,
   createApiKey,
@@ -473,7 +473,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       // Saturate the failed-attempt limit for the test's "direct" IP. Once
       // locked, even a valid key is rejected until the lockout expires.
       for (let i = 0; i < MAX_APIKEY_ATTEMPTS; i++) {
-        await recordApiKeyAttempt("direct");
+        await apiKeyLimiter.record("direct");
       }
       const response = await handleRequest(
         requestAsApiKey("/api/admin/listings", apiKey),

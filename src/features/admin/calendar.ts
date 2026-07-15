@@ -4,7 +4,16 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 /* jscpd:ignore-start */
-import { filter, flatMap, map, pipe, reduce, sortStrings, unique } from "#fp";
+import {
+  filter,
+  flatMap,
+  map,
+  mapBy,
+  pipe,
+  reduce,
+  sortStrings,
+  unique,
+} from "#fp";
 import {
   csvResponse,
   getDateFilter,
@@ -42,7 +51,6 @@ import {
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
 import { settings } from "#shared/db/settings.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import {
   type AgentFilter,
   assignmentMatchesAgentFilter,
@@ -197,7 +205,7 @@ const buildLogisticsCsvContext = async (
     attendeeIds(attendees),
   );
   return {
-    agentNames: idNameMap(agents),
+    agentNames: mapBy("id", (agent: LogisticsAgent) => agent.name)(agents),
     assignments: new Map(
       rows.map((r) => [bookingAssignmentKey(r.attendeeId, r.listingId), r]),
     ),

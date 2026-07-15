@@ -26,7 +26,7 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
-import { idAndEncryptedName } from "#shared/db/id-and-name-columns.ts";
+import { idAndEncryptedNameSchema } from "#shared/db/common-schema.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import type { ListingOption } from "#shared/db/listings/records.ts";
 import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
@@ -67,7 +67,7 @@ export const attributesTable = defineTable<Attribute, AttributeInput>({
   name: "attributes",
   primaryKey: "id",
   schema: {
-    ...idAndEncryptedName(),
+    ...idAndEncryptedNameSchema(encrypt, decrypt),
     sort_order: col.withDefault(() => 0),
   },
 });

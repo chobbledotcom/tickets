@@ -12,7 +12,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 /* jscpd:ignore-start */
-import { unique } from "#fp";
+import { mapBy, unique } from "#fp";
 import { t } from "#i18n";
 import { getDateFilter, getMonthFilter } from "#routes/admin/actions.ts";
 import {
@@ -36,10 +36,14 @@ import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
-import { type Attendee, isStaffRole } from "#shared/types.ts";
+import {
+  type Attendee,
+  isStaffRole,
+  type ListingWithCount,
+  type LogisticsAgent,
+} from "#shared/types.ts";
 import {
   agentDeliveriesPage,
   type DeliveriesDateNav,
@@ -153,9 +157,12 @@ const loadLegLookups = async (
     if (!attendeeById.has(attendee.id)) attendeeById.set(attendee.id, attendee);
   }
   return {
-    agentNameById: idNameMap(agents),
+    agentNameById: mapBy("id", (agent: LogisticsAgent) => agent.name)(agents),
     attendeeById,
-    listingNameById: idNameMap(listings),
+    listingNameById: mapBy(
+      "id",
+      (listing: ListingWithCount) => listing.name,
+    )(listings),
   };
 };
 

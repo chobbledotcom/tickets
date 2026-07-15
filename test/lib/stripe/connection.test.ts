@@ -378,7 +378,7 @@ describeStripe("stripe", () => {
   describe("refundPayment - non-Error exception", () => {
     test("handles non-Error thrown value in refund", async () => {
       const client = await stripeClient();
-      // Throw a non-Error value (string) to exercise the "unknown" detail path
+      // Throw a non-Error value to exercise the shared string conversion path.
       await withMocks(
         () =>
           stub(client.refunds, "create", () =>
@@ -396,7 +396,7 @@ describeStripe("stripe", () => {
     test("handles non-Error thrown value in balance check", async () => {
       const client = await stripeClient();
       await withFailingBalance(client, "string error", async () => {
-        expectApiKeyError(await testStripeConnection(), "Unknown error");
+        expectApiKeyError(await testStripeConnection(), "string error");
       });
     });
 
@@ -409,7 +409,7 @@ describeStripe("stripe", () => {
         async () => {
           const result = await testStripeConnection();
           expect(result.ok).toBe(false);
-          expect(result.webhookError).toBe("Unknown error");
+          expect(result.webhookError).toBe("webhook string error");
         },
       );
     });
