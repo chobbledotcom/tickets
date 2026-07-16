@@ -151,7 +151,7 @@ test's expected-keys list was updated to include the newly-surfaced entry.
 
 ## 4. Read-only mode patterns — derive from the admin-page schema
 
-**Status: Shipped.** `READ_ONLY_GET_PATTERNS` in `features/index.ts` is now
+**Status: Shipped.** The read-only GET patterns in `features/app/read-only.ts` are now
 derived from the schema's `readOnlyGetRoutePatterns()` fold, which collects
 every subNav create-link href plus every section's `mutatingGetRoutes`
 (edit/delete/duplicate/create-variant patterns). A `routePatternToRegex`

@@ -17,13 +17,31 @@ import {
 } from "#routes/response.ts";
 import { type RouterFn, routeLoaders } from "#routes/route-loaders.ts";
 import { getPrefix } from "#routes/settings-bundles.ts";
-import { readOnlyGetRoutePatterns } from "#shared/admin-pages.ts";
-import { ADMIN_SURFACE } from "#shared/admin-surface.ts";
+import type { PathMethodRoute, ServerContext } from "#routes/types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import { routePathPatternToRegex } from "#shared/route-pattern.ts";
 import { readOnlyPage } from "#templates/public/errors.tsx";
+import { readOnlyBlock } from "./read-only.ts";
+
+type CompletePathMethodRoute = (
+  ...args: Parameters<PathMethodRoute>
+) => Promise<Response>;
+
+type AppRouteRequest = {
+  method: string;
+  path: string;
+  request: Request;
+  server: ServerContext | undefined;
+};
+
+/** Give complete app routes one named request value instead of four arguments. */
+export const defineAppRoute =
+  (
+    handle: (route: AppRouteRequest) => Promise<Response>,
+  ): CompletePathMethodRoute =>
+  (request, path, method, server) =>
+    handle({ method, path, request, server });
 
 /** Create a lazy-loaded route handler (prefix already matched by dispatch map). */
 const lazyRoute =
@@ -61,75 +79,10 @@ const requirePublicSiteGet =
 /** Read-only mode message. */
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
-/** GET create/edit/delete/duplicate form pages blocked in read-only mode. */
-const READ_ONLY_GET_PATTERNS = readOnlyGetRoutePatterns().map(
-  routePathPatternToRegex,
-);
-
-const READ_ONLY_ADMIN_OPERATIONS = ADMIN_SURFACE.routes
-  .filter((route) => route.method !== "GET" && route.readOnly === "allow")
-  .map((route) => ({
-    method: route.method,
-    pattern: routePathPatternToRegex(route.pattern),
-  }));
-
-const isMutatingMethod = (method: string): boolean =>
-  method === "DELETE" ||
-  method === "PATCH" ||
-  method === "POST" ||
-  method === "PUT";
-
-const isAdminMutation = (path: string, method: string): boolean =>
-  isMutatingMethod(method) && (path === "/admin" || path.startsWith("/admin/"));
-
-const isAllowedAdminOperation = (path: string, method: string): boolean =>
-  READ_ONLY_ADMIN_OPERATIONS.some(
-    (route) => route.method === method && route.pattern.test(path),
-  );
-
-/** Paths that remain writable in read-only mode (default-deny allowlist). */
-const READ_ONLY_SAFE_PATHS = [
-  /^\/renew$/,
-  /^\/pay\/[^/]+$/,
-  /^\/payment\/webhook$/,
-  /^\/v1\/devices\/[^/]+\/registrations\/[^/]+\/[^/]+$/,
-  /^\/v1\/log$/,
-  /^\/sms\/webhook$/,
-  /^\/join\/[^/]+$/,
-  /^\/unsubscribe$/,
-  /^\/contact$/,
-  /^\/instance\/site-credentials$/,
-  /^\/scheduled$/,
-  /^\/checkin\/[^/]+$/,
-];
-
-/** Return the read-only response, or null when the request may continue. */
-const readOnlyGuard = (path: string, method: string): Response | null => {
-  if (!isReadOnly()) return null;
-
-  if (path.startsWith("/api/") && isMutatingMethod(method)) {
-    return jsonResponse({ error: READ_ONLY_MESSAGE }, 403);
-  }
-
-  if (method === "GET") {
-    for (const pattern of READ_ONLY_GET_PATTERNS) {
-      if (pattern.test(path)) return redirectResponse("/read-only");
-    }
-  }
-
-  if (isAdminMutation(path, method)) {
-    return isAllowedAdminOperation(path, method)
-      ? null
-      : redirectResponse("/read-only");
-  }
-
-  if (isMutatingMethod(method)) {
-    if (READ_ONLY_SAFE_PATHS.some((pattern) => pattern.test(path))) return null;
-    return redirectResponse("/read-only");
-  }
-
-  return null;
-};
+const readOnlyResponses = {
+  api: (): Response => jsonResponse({ error: READ_ONLY_MESSAGE }, 403),
+  page: (): Response => redirectResponse("/read-only"),
+} as const;
 
 type PublicPagesModule = Awaited<
   ReturnType<(typeof routeLoaders)["publicPages"]>
@@ -351,9 +304,16 @@ const prefixHandlers: Record<string, PrefixRoute> = {
 };
 
 /** Route main application requests after setup is complete. */
-export const routeMainApp: RouterFn = async (request, path, method, server) => {
-  const blocked = readOnlyGuard(path, method);
-  if (blocked) return blocked;
+export const routeMainApp = async ({
+  request,
+  path,
+  method,
+  server,
+}: AppRouteRequest): Promise<Response> => {
+  if (isReadOnly()) {
+    const blocked = readOnlyBlock(path, method);
+    if (blocked) return readOnlyResponses[blocked]();
+  }
 
   const prefix = getPrefix(path);
   const route = Object.hasOwn(prefixHandlers, prefix)

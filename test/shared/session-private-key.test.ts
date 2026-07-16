@@ -4,9 +4,12 @@ import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
+import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getRequestPrivateKey,
+  getSessionPrivateKey,
   requireRequestPrivateKey,
   SessionKeyError,
 } from "#shared/session-private-key.ts";
@@ -14,6 +17,34 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("shared > session private key", { db: true }, () => {
+  test("returns null when an explicit session has no wrapped data key", async () => {
+    expect(
+      await getSessionPrivateKey({ token: "token", wrappedDataKey: null }),
+    ).toBeNull();
+  });
+
+  test("returns null when the stored private key is missing", async () => {
+    await getDb().execute(
+      "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+    );
+    settings.invalidateCache();
+    expect(
+      await getSessionPrivateKey({
+        token: "token",
+        wrappedDataKey: "wrapped" as WrappedKey,
+      }),
+    ).toBeNull();
+  });
+
+  test("returns null when an explicit session key cannot be unwrapped", async () => {
+    expect(
+      await getSessionPrivateKey({
+        token: "token",
+        wrappedDataKey: "corrupt-key-data" as WrappedKey,
+      }),
+    ).toBeNull();
+  });
+
   test("getRequestPrivateKey returns null with no session in scope", async () => {
     expect(await getRequestPrivateKey()).toBeNull();
   });

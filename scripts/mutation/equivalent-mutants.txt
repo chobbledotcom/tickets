@@ -930,8 +930,8 @@ src/shared/dates.ts:432:30  1 → 0    # bookedRangeLabel's `fallbackDurationDay
 
 # Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
 # from the routeAdmin/adminPathSegment run over the manifest + footer suites.
-src/features/admin/index.ts:107:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
-src/features/admin/index.ts:126:43  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
+src/features/admin/index.ts:28:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/features/admin/index.ts:45:43  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
 
 # Logger (logger.ts) — two provably-equivalent survivors from the run over the
 # logger suites.

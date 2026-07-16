@@ -53,7 +53,7 @@ import {
 // SessionKeyError and the session→private-key derivation live in #shared so
 // shared-layer modules (e.g. the activity log) can reach them without importing
 // the feature layer. Re-exported here for the central request error handler
-// (#routes/index.ts), which special-cases it into a re-authenticate response.
+// (app/request.ts), which special-cases it into a re-authenticate response.
 // Route handlers derive the key directly via requireRequestPrivateKey /
 // getRequestPrivateKey (#shared/session-private-key.ts) — the request-scoped,
 // thread-free form that needs no session argument.
