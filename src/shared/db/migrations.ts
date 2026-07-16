@@ -16,11 +16,13 @@ import { lazyRef, once } from "#fp";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import {
   executeBatch,
+  executeBatchWithResults,
   getDb,
   inPlaceholders,
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { stringColumnSet } from "#shared/db/query.ts";
+import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -36,7 +38,10 @@ import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import { SCHEMA, SCHEMA_HASH } from "./migrations/schema/index.ts";
 import { TRIGGERS } from "./migrations/schema/triggers.ts";
 import {
+  DB_SCHEMA_HASH_KEY,
+  LATEST_DB_UPDATE_KEY,
   LATEST_UPDATE,
+  MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
 } from "./migrations/schema/version.ts";
 import {
@@ -48,7 +53,6 @@ import {
   fullSchemaCreateStatements,
   noArgStatements,
   recreateTable,
-  runMigration,
   syncCurrentSchema as syncCurrentSchemaBase,
   syncIndexes,
   syncTriggers,
@@ -110,8 +114,7 @@ type DbProbe = {
   appliedMigrations: number | null;
 };
 
-const SCHEMA_MARKERS_SQL =
-  "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')";
+const SCHEMA_MARKERS_SQL = `SELECT key, value FROM settings WHERE key IN ('${LATEST_DB_UPDATE_KEY}', '${DB_SCHEMA_HASH_KEY}')`;
 
 /** Turn a probe's key/value rows into a lookup map. */
 const rowsToMap = (rows: readonly Record<string, unknown>[]) =>
@@ -119,11 +122,11 @@ const rowsToMap = (rows: readonly Record<string, unknown>[]) =>
 
 /** Read the schema state from the marker rows a probe returned. */
 const markerState = (values: Map<string, string>): DbState => {
-  if (!values.has("latest_db_update") && !values.has("db_schema_hash")) {
+  if (!values.has(LATEST_DB_UPDATE_KEY) && !values.has(DB_SCHEMA_HASH_KEY)) {
     return "uninitialized_settings";
   }
-  return values.get("latest_db_update") === LATEST_UPDATE &&
-    values.get("db_schema_hash") === SCHEMA_HASH
+  return values.get(LATEST_DB_UPDATE_KEY) === LATEST_UPDATE &&
+    values.get(DB_SCHEMA_HASH_KEY) === SCHEMA_HASH
     ? "up_to_date"
     : "needs_migration";
 };
@@ -208,11 +211,11 @@ const ensureDefaultAttendeeStatus = async (): Promise<void> => {
 const schemaMarkerStatements = (): SqlStatement[] => [
   {
     args: [LATEST_UPDATE],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+    sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${LATEST_DB_UPDATE_KEY}', ?)`,
   },
   {
     args: [SCHEMA_HASH],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+    sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${DB_SCHEMA_HASH_KEY}', ?)`,
   },
 ];
 
@@ -331,27 +334,79 @@ const migrationMarkerStatement = (
   sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
 });
 
-const markMigrationApplied = async (migration: Migration): Promise<void> => {
-  await ensureMigrationTrackingTable();
-  await getDb().execute(migrationMarkerStatement(migration, nowIso()));
+const buildMigrationMarkerStatements =
+  (build: (migration: Migration, appliedAt: string) => SqlStatement) =>
+  (migrations: Migration[]): SqlStatement[] => {
+    const appliedAt = nowIso();
+    return migrations.map((migration) => build(migration, appliedAt));
+  };
+
+const migrationMarkerStatements = buildMigrationMarkerStatements(
+  migrationMarkerStatement,
+);
+
+const whileMigrationLockOwned = (
+  sql: string,
+  args: SqlStatement["args"],
+  lockToken: string,
+): SqlStatement => ({
+  args: [...args, MIGRATION_LOCK_KEY, lockToken],
+  sql: `${sql} WHERE EXISTS (SELECT 1 FROM settings WHERE key = ? AND value = ?)`,
+});
+
+const ownedMigrationMarkerStatements = (
+  migrations: Migration[],
+  lockToken: string,
+): SqlStatement[] =>
+  buildMigrationMarkerStatements((migration, appliedAt) =>
+    whileMigrationLockOwned(
+      `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) SELECT ?, ?, ?`,
+      [migration.id, migration.description, appliedAt],
+      lockToken,
+    ),
+  )(migrations);
+
+const ownedSchemaMarkerStatements = (lockToken: string): SqlStatement[] =>
+  (
+    [
+      [LATEST_DB_UPDATE_KEY, LATEST_UPDATE],
+      [DB_SCHEMA_HASH_KEY, SCHEMA_HASH],
+    ] as const
+  ).map(([key, value]) =>
+    whileMigrationLockOwned(
+      "INSERT OR REPLACE INTO settings (key, value) SELECT ?, ?",
+      [key, value],
+      lockToken,
+    ),
+  );
+
+const executeWhileMigrationLockOwned = async (
+  statements: SqlStatement[],
+  lockToken: string,
+): Promise<void> => {
+  const [ownership] = await executeBatchWithResults([
+    {
+      args: [MIGRATION_LOCK_KEY, lockToken],
+      sql: "UPDATE settings SET value = value WHERE key = ? AND value = ?",
+    },
+    ...statements,
+  ]);
+  if (ownership!.rowsAffected !== 1) {
+    throw new MigrationInProgressError(
+      "Database migration lock ownership was lost before completion.",
+    );
+  }
 };
 
 /**
- * Record several migrations as applied in one batch transaction — used by the
- * fresh-install and baseline paths, which mark every migration with no work in
- * between, so one round-trip replaces one per migration. Both callers only pass
- * a non-empty list (baseline returns early when nothing is missing).
+ * Record several completed migrations in one batch transaction, so one
+ * round-trip replaces one write per migration. Callers only pass a non-empty
+ * list.
  */
 const markMigrationsApplied = async (
   migrations: Migration[],
 ): Promise<void> => {
-  const appliedAt = nowIso();
-  await getDb().batch(
-    migrations.map((migration) =>
-      migrationMarkerStatement(migration, appliedAt),
-    ),
-    "write",
-  );
+  await getDb().batch(migrationMarkerStatements(migrations), "write");
 };
 
 const writeSchemaMarkers = async (): Promise<void> => {
@@ -465,11 +520,44 @@ export const applyMigrationWithRetry = async (
   }
 };
 
-const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
-  for (const migration of pending) {
-    logDebug("Migration", `Running ${migration.id}: ${migration.description}`);
-    await applyMigrationWithRetry(migration);
-    await markMigrationApplied(migration);
+const combinedFailures = (
+  message: string,
+  first: unknown,
+  second: unknown,
+): AggregateError => new AggregateError([first, second], message);
+
+const runPendingMigrations = async (
+  pending: Migration[],
+  lockToken: string,
+): Promise<void> => {
+  const completed: Migration[] = [];
+  try {
+    for (const migration of pending) {
+      logDebug(
+        "Migration",
+        `Running ${migration.id}: ${migration.description}`,
+      );
+      await applyMigrationWithRetry(migration);
+      completed.push(migration);
+    }
+  } catch (error) {
+    // Keep successful progress when a later migration fails. The success path
+    // writes these markers with the schema markers and lock release below.
+    if (completed.length > 0) {
+      try {
+        await executeWhileMigrationLockOwned(
+          ownedMigrationMarkerStatements(completed, lockToken),
+          lockToken,
+        );
+      } catch (markerError) {
+        throw combinedFailures(
+          "Database migration failed and completed progress could not be recorded.",
+          error,
+          markerError,
+        );
+      }
+    }
+    throw error;
   }
 };
 
@@ -494,7 +582,29 @@ const restoreStaleSchemaMarkers = async (): Promise<void> => {
   await writeSchemaMarkers();
 };
 
-const MIGRATION_LOCK_KEY = "migration_lock";
+// A batch of four leaves room for the lock, probes, schema checks, and the
+// largest migrations while staying below Bunny's 50-subrequest request cap.
+const MIGRATIONS_PER_REQUEST = 4;
+
+/** Record one migration batch, optionally seal the finished schema, and release
+ * its lock atomically. */
+const recordMigrationBatch = async (
+  migrations: Migration[],
+  finished: boolean,
+  lockToken: string,
+): Promise<void> => {
+  await executeWhileMigrationLockOwned(
+    [
+      ...ownedMigrationMarkerStatements(migrations, lockToken),
+      ...(finished ? ownedSchemaMarkerStatements(lockToken) : []),
+      {
+        args: [MIGRATION_LOCK_KEY, lockToken],
+        sql: "DELETE FROM settings WHERE key = ? AND value = ?",
+      },
+    ],
+    lockToken,
+  );
+};
 
 /**
  * A migration lock older than this is treated as abandoned and stolen.
@@ -506,22 +616,23 @@ export const MIGRATION_LOCK_TTL_MS = 2 * 60 * 1000;
 
 /**
  * Acquire an advisory migration lock via the settings table.
- * Returns true if acquired, false if another process holds a fresh lock.
- * Stored values are ISO-8601 UTC timestamps, which sort lexicographically,
- * so a single atomic UPSERT both takes a free lock and steals an expired
- * one: DO UPDATE only fires when the held lock predates the cutoff, and a
- * fresh lock leaves rowsAffected at 0. Race-free across concurrent isolates
- * without a separate read.
+ * Returns this request's timestamp-prefixed lease token when acquired, or null
+ * when another process holds a fresh lock. The ISO-8601 prefix sorts
+ * lexicographically, so one atomic UPSERT both takes a free lock and steals an
+ * expired one: DO UPDATE only fires when the held lock predates the cutoff, and
+ * a fresh lock leaves rowsAffected at 0. The random suffix lets completion and
+ * cleanup prove they still own this exact lease.
  */
 const acquireMigrationLock = async (
   allowMissingSettings: boolean,
-): Promise<boolean> => {
+): Promise<string | null> => {
   const now = new Date();
   const cutoff = new Date(now.getTime() - MIGRATION_LOCK_TTL_MS).toISOString();
   const stamp = now.toISOString();
+  const lockToken = `${stamp}|${crypto.randomUUID()}`;
   const result = await getDb()
     .execute({
-      args: [MIGRATION_LOCK_KEY, stamp, stamp, cutoff],
+      args: [MIGRATION_LOCK_KEY, lockToken, lockToken, cutoff],
       sql:
         "INSERT INTO settings (key, value) VALUES (?, ?) " +
         "ON CONFLICT(key) DO UPDATE SET value = ? WHERE settings.value < ?",
@@ -532,15 +643,15 @@ const acquireMigrationLock = async (
       }
       throw error;
     });
-  return result === null || result.rowsAffected === 1;
+  return result === null || result.rowsAffected === 1 ? lockToken : null;
 };
 
-/** Release the migration lock */
-const releaseMigrationLock = async (): Promise<void> => {
-  await runMigration(
-    `DELETE FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
-  );
-};
+/** Release only the migration lock lease acquired by this request. */
+const releaseMigrationLock = (lockToken: string): Promise<unknown> =>
+  getDb().execute({
+    args: [MIGRATION_LOCK_KEY, lockToken],
+    sql: "DELETE FROM settings WHERE key = ? AND value = ?",
+  });
 
 type InitDbOptions = {
   /** Only setup/restore/bootstrap callers should create a missing settings table. */
@@ -607,13 +718,72 @@ const finishIfUpToDate = async (probe: DbProbe): Promise<boolean> => {
   return true;
 };
 
+type LockedMigrationResult = "continue" | "release" | "released";
+
+const runAcquiredMigrations = async (
+  lockToken: string,
+): Promise<LockedMigrationResult> => {
+  // Re-check after acquiring lock because another process may have finished.
+  const recheck = await probeDbState();
+  if (await finishIfUpToDate(recheck)) return "release";
+
+  if (
+    recheck.state === "missing_settings" ||
+    recheck.state === "uninitialized_settings"
+  ) {
+    await initializeFreshSchema();
+    return "release";
+  }
+
+  const pending = await missingMigrations();
+  if (pending.length === 0) {
+    await restoreStaleSchemaMarkers();
+    return "release";
+  }
+
+  // Backups run out-of-band because the edge request budget cannot fit a full
+  // dump alongside migrations. Update routes require a recent backup instead.
+  const batch = isDatabaseRoundTripLimited()
+    ? pending.slice(0, MIGRATIONS_PER_REQUEST)
+    : pending;
+  const finished = batch.length === pending.length;
+  await runPendingMigrations(batch, lockToken);
+
+  logDebug(
+    "Migration",
+    finished
+      ? "Updating version marker..."
+      : `Recorded ${batch.length} migrations; continuing on the next request...`,
+  );
+  await recordMigrationBatch(batch, finished, lockToken);
+  return finished ? "released" : "continue";
+};
+
+const releaseAfterMigrationFailure = async (
+  lockToken: string,
+  failure: unknown,
+): Promise<never> => {
+  try {
+    await releaseMigrationLock(lockToken);
+  } catch (releaseError) {
+    throw combinedFailures(
+      `Database migration failed and its lock could not be released: ${errorMessage(
+        failure,
+      )}; ${errorMessage(releaseError)}`,
+      failure,
+      releaseError,
+    );
+  }
+  throw failure;
+};
+
 const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   const probe = await probeDbState();
   if (await finishIfUpToDate(probe)) return;
   requireAllowedInitialDbState(probe.state, allowMissingSettings);
 
-  const acquired = await acquireMigrationLock(allowMissingSettings);
-  if (!acquired) {
+  const lockToken = await acquireMigrationLock(allowMissingSettings);
+  if (lockToken === null) {
     void sendNtfyError(`E_DB_MIGRATION_LOCK ${getEnv("DB_URL") ?? "unknown"}`);
     throw new MigrationInProgressError(
       "Database migration is already in progress (migration_lock held). " +
@@ -623,42 +793,16 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
     );
   }
 
+  let result: LockedMigrationResult;
   try {
-    // Re-check after acquiring lock (another process may have finished)
-    const recheck = await probeDbState();
-    if (await finishIfUpToDate(recheck)) return;
-
-    if (
-      recheck.state === "missing_settings" ||
-      recheck.state === "uninitialized_settings"
-    ) {
-      await initializeFreshSchema();
-      return;
-    }
-
-    const pending = await missingMigrations();
-    if (pending.length === 0) {
-      await restoreStaleSchemaMarkers();
-      return;
-    }
-
-    // Backups are no longer taken inline here: the Bunny edge subrequest budget
-    // can't fit a full dump of a 31-table schema alongside the migration. They
-    // run out-of-band instead — the upgrade GitHub Action backs each site up
-    // first, and /admin/update + the per-site update button refuse to run
-    // without a backup from the last hour (see hasRecentBackup).
-    await runPendingMigrations(pending);
-
-    logDebug("Migration", "Updating version marker...");
-    await writeSchemaMarkers();
-  } finally {
-    // If the isolate is evicted mid-migration this finally will not run, so
-    // stale locks are still reclaimed by MIGRATION_LOCK_TTL_MS.
-    await releaseMigrationLock().catch((error) =>
-      logDebug(
-        "Migration",
-        `Failed to release migration lock: ${errorMessage(error)}`,
-      ),
+    result = await runAcquiredMigrations(lockToken);
+  } catch (error) {
+    return await releaseAfterMigrationFailure(lockToken, error);
+  }
+  if (result === "release") await releaseMigrationLock(lockToken);
+  if (result === "continue") {
+    throw new MigrationInProgressError(
+      "Database update is continuing on the next request.",
     );
   }
 };

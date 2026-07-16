@@ -338,6 +338,32 @@ export const ownsSchemaObjects = (req: SchemaRequirement): boolean =>
       Object.values(req.columns ?? {}).some((cols) => cols.length > 0),
   );
 
+const columnsRemovedByMigration: Partial<Record<string, string[]>> = {
+  "2026-07-05_first_class_images": [
+    "ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''",
+  ],
+};
+
+/** Wind the live schema back to just before these migrations ran. */
+export const restoreSchemaBeforeMigrations = async (
+  migrations: Migration[],
+): Promise<void> => {
+  for (const migration of [...migrations].reverse()) {
+    if (
+      migration.requires &&
+      !migration.requires.absentTables &&
+      ownsSchemaObjects(migration.requires)
+    ) {
+      await dropOwnedObjects(migration.requires);
+    }
+  }
+  for (const migration of migrations) {
+    for (const statement of columnsRemovedByMigration[migration.id] ?? []) {
+      await getDb().execute(statement);
+    }
+  }
+};
+
 // Additive migrations own concrete objects and can be reconstructed by
 // re-running up(). The baseline reconcile (no `requires`), migrations that
 // remove legacy tables, and data-only migrations are covered separately.
@@ -459,15 +485,7 @@ export const defineChainSuite = (shard: number, shardCount: number): void => {
           const pending = MIGRATIONS.slice(
             MIGRATIONS.indexOf(baseMigration) + 1,
           );
-          for (const migration of [...pending].reverse()) {
-            if (
-              migration.requires &&
-              !migration.requires.absentTables &&
-              ownsSchemaObjects(migration.requires)
-            ) {
-              await dropOwnedObjects(migration.requires);
-            }
-          }
+          await restoreSchemaBeforeMigrations(pending);
 
           await markAppliedThrough(baseMigration.id);
           await markSchemaMarkersStale();

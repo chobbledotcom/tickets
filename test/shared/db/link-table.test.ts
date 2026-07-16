@@ -101,6 +101,7 @@ describeWithEnv("db link-table", { db: true }, () => {
     await withTransaction(async (tx) => {
       await byUser.addIdsTx(
         {
+          ...tx,
           execute: (stmt) => {
             statements += 1;
             return tx.execute(stmt);
