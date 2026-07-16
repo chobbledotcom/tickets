@@ -70,6 +70,10 @@ const getState = (): QueryLogState => queryLogScope.current() ?? fallbackState;
 export const runWithQueryLogContext = <T>(fn: () => T): T =>
   queryLogScope.run(freshState(), fn);
 
+/** Whether database calls are currently subject to Bunny's per-request cap. */
+export const isDatabaseRoundTripLimited = (): boolean =>
+  queryLogScope.current() !== undefined;
+
 /** Enable query logging and clear previous entries */
 export const enableQueryLog = (): void => {
   const state = getState();

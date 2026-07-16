@@ -21,6 +21,7 @@ import {
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { stringColumnSet } from "#shared/db/query.ts";
+import { isDatabaseRoundTripLimited } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -331,27 +332,22 @@ const migrationMarkerStatement = (
   sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
 });
 
-const markMigrationApplied = async (migration: Migration): Promise<void> => {
-  await ensureMigrationTrackingTable();
-  await getDb().execute(migrationMarkerStatement(migration, nowIso()));
+const migrationMarkerStatements = (migrations: Migration[]): SqlStatement[] => {
+  const appliedAt = nowIso();
+  return migrations.map((migration) =>
+    migrationMarkerStatement(migration, appliedAt),
+  );
 };
 
 /**
- * Record several migrations as applied in one batch transaction — used by the
- * fresh-install and baseline paths, which mark every migration with no work in
- * between, so one round-trip replaces one per migration. Both callers only pass
- * a non-empty list (baseline returns early when nothing is missing).
+ * Record several completed migrations in one batch transaction, so one
+ * round-trip replaces one write per migration. Callers only pass a non-empty
+ * list.
  */
 const markMigrationsApplied = async (
   migrations: Migration[],
 ): Promise<void> => {
-  const appliedAt = nowIso();
-  await getDb().batch(
-    migrations.map((migration) =>
-      migrationMarkerStatement(migration, appliedAt),
-    ),
-    "write",
-  );
+  await getDb().batch(migrationMarkerStatements(migrations), "write");
 };
 
 const writeSchemaMarkers = async (): Promise<void> => {
@@ -466,10 +462,24 @@ export const applyMigrationWithRetry = async (
 };
 
 const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
-  for (const migration of pending) {
-    logDebug("Migration", `Running ${migration.id}: ${migration.description}`);
-    await applyMigrationWithRetry(migration);
-    await markMigrationApplied(migration);
+  const completed: Migration[] = [];
+  let succeeded = false;
+  try {
+    for (const migration of pending) {
+      logDebug(
+        "Migration",
+        `Running ${migration.id}: ${migration.description}`,
+      );
+      await applyMigrationWithRetry(migration);
+      completed.push(migration);
+    }
+    succeeded = true;
+  } finally {
+    // Keep successful progress when a later migration fails. The success path
+    // writes these markers with the schema markers and lock release below.
+    if (!succeeded && completed.length > 0) {
+      await markMigrationsApplied(completed);
+    }
   }
 };
 
@@ -495,6 +505,25 @@ const restoreStaleSchemaMarkers = async (): Promise<void> => {
 };
 
 const MIGRATION_LOCK_KEY = "migration_lock";
+// A batch of four leaves room for the lock, probes, schema checks, and the
+// largest migrations while staying below Bunny's 50-subrequest request cap.
+const MIGRATIONS_PER_REQUEST = 4;
+
+/** Record one migration batch, optionally seal the finished schema, and release
+ * its lock atomically. */
+const recordMigrationBatch = async (
+  migrations: Migration[],
+  finished: boolean,
+): Promise<void> => {
+  await executeBatch([
+    ...migrationMarkerStatements(migrations),
+    ...(finished ? schemaMarkerStatements() : []),
+    {
+      args: [MIGRATION_LOCK_KEY],
+      sql: "DELETE FROM settings WHERE key = ?",
+    },
+  ]);
+};
 
 /**
  * A migration lock older than this is treated as abandoned and stolen.
@@ -623,6 +652,7 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
     );
   }
 
+  let lockReleased = false;
   try {
     // Re-check after acquiring lock (another process may have finished)
     const recheck = await probeDbState();
@@ -647,19 +677,36 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
     // run out-of-band instead — the upgrade GitHub Action backs each site up
     // first, and /admin/update + the per-site update button refuse to run
     // without a backup from the last hour (see hasRecentBackup).
-    await runPendingMigrations(pending);
+    const batch = isDatabaseRoundTripLimited()
+      ? pending.slice(0, MIGRATIONS_PER_REQUEST)
+      : pending;
+    const finished = batch.length === pending.length;
+    await runPendingMigrations(batch);
 
-    logDebug("Migration", "Updating version marker...");
-    await writeSchemaMarkers();
+    logDebug(
+      "Migration",
+      finished
+        ? "Updating version marker..."
+        : `Recorded ${batch.length} migrations; continuing on the next request...`,
+    );
+    await recordMigrationBatch(batch, finished);
+    lockReleased = true;
+    if (!finished) {
+      throw new MigrationInProgressError(
+        "Database update is continuing on the next request.",
+      );
+    }
   } finally {
     // If the isolate is evicted mid-migration this finally will not run, so
     // stale locks are still reclaimed by MIGRATION_LOCK_TTL_MS.
-    await releaseMigrationLock().catch((error) =>
-      logDebug(
-        "Migration",
-        `Failed to release migration lock: ${errorMessage(error)}`,
-      ),
-    );
+    if (!lockReleased) {
+      await releaseMigrationLock().catch((error) =>
+        logDebug(
+          "Migration",
+          `Failed to release migration lock: ${errorMessage(error)}`,
+        ),
+      );
+    }
   }
 };
 
