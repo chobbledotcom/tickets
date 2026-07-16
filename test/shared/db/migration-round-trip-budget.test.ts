@@ -1,31 +1,39 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
-import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
+  loadMigrations,
+  type Migration,
   MigrationInProgressError,
 } from "#shared/db/migrations.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
+import { restoreSchemaBeforeMigrations } from "#test/lib/db/migration-restore/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const LISTINGS_TAG_MIGRATION_ID = "2026-07-03_attendee_listings_tag";
 const LISTINGS_TAG_REVISION =
   "Rewrite the {{listing}} attendee column-order tag to {{listings}} for the grouped Listings column.";
 
-const migrationsAfterListingsTag = (): string[] => {
-  const appliedIndex = MIGRATION_IDS.indexOf(LISTINGS_TAG_MIGRATION_ID);
+const MIGRATIONS = await loadMigrations();
+
+const migrationsAfterListingsTag = (): Migration[] => {
+  const appliedIndex = MIGRATIONS.findIndex(
+    (migration) => migration.id === LISTINGS_TAG_MIGRATION_ID,
+  );
   if (appliedIndex < 0) {
     throw new Error(`Missing migration ${LISTINGS_TAG_MIGRATION_ID}`);
   }
-  return MIGRATION_IDS.slice(appliedIndex + 1);
+  return MIGRATIONS.slice(appliedIndex + 1);
 };
 
 describeWithEnv("migration request round-trip budget", { db: true }, () => {
   test("upgrades the listings-tag revision within guarded edge requests", async () => {
-    const pendingIds = migrationsAfterListingsTag();
+    const pending = migrationsAfterListingsTag();
+    const pendingIds = pending.map((migration) => migration.id);
+    await restoreSchemaBeforeMigrations(pending);
     await executeBatch([
       {
         args: [LISTINGS_TAG_REVISION],
@@ -37,6 +45,17 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
       },
     ]);
     invalidateInitDbCache();
+
+    const oldListingColumns = await getDb().execute(
+      "SELECT name FROM pragma_table_info('listings')",
+    );
+    expect(oldListingColumns.rows.map((row) => String(row.name))).toContain(
+      "image_url",
+    );
+    const oldImagesTable = await getDb().execute(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'",
+    );
+    expect(oldImagesTable.rows).toHaveLength(0);
 
     let continuations = 0;
     let finished = false;
