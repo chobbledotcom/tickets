@@ -75,6 +75,7 @@ import {
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { requireChoiceOptions } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
@@ -110,15 +111,18 @@ export const questionTextForm = defineForm({
       invalidMessage: questionDisplayTypeError,
       label: "Display as",
       name: "display_type",
-      options: QUESTION_DISPLAY_TYPES.map((value) => ({
-        label:
-          value === "radio"
-            ? "Radio buttons"
-            : value === "select"
-              ? "Select box"
-              : "Free text",
-        value,
-      })),
+      options: requireChoiceOptions(
+        "Display as",
+        QUESTION_DISPLAY_TYPES.map((value) => ({
+          label:
+            value === "radio"
+              ? "Radio buttons"
+              : value === "select"
+                ? "Select box"
+                : "Free text",
+          value,
+        })),
+      ),
       required: true,
       type: "select",
     },

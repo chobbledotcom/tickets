@@ -8,8 +8,16 @@ import { t } from "#i18n";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
-import { defineForm, type FormValues } from "#shared/forms/definition.ts";
-import type { Field, InputField } from "#shared/forms.tsx";
+import {
+  defineForm,
+  type FormDefinition,
+  type FormValues,
+} from "#shared/forms/definition.ts";
+import {
+  type Field,
+  type InputField,
+  requireChoiceOptions,
+} from "#shared/forms.tsx";
 import { formatBytes, MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import {
   ContactFieldSchema,
@@ -141,7 +149,10 @@ const listingFields = (view: ListingFormView = {}) =>
       hint: t("fields.listing.bookable_days_hint"),
       label: t("fields.listing.bookable_days"),
       name: "bookable_days",
-      options: VALID_DAY_NAMES.map((d) => ({ label: d, value: d })),
+      options: requireChoiceOptions(
+        t("fields.listing.bookable_days"),
+        VALID_DAY_NAMES.map((d) => ({ label: d, value: d })),
+      ),
       section: "daily",
       type: "checkbox-group",
       validate: validateBookableDays,
@@ -321,22 +332,23 @@ const listingFields = (view: ListingFormView = {}) =>
     },
   ] as const satisfies readonly Field[];
 
-export const getListingForm = (view: ListingFormView = {}) =>
+type ListingForm = FormDefinition<ReturnType<typeof listingFields>>;
+
+export const getListingForm = (view: ListingFormView = {}): ListingForm =>
   defineForm({ fields: listingFields(view), id: "listing" });
 
-export const getListingEditForm = (view: ListingFormView = {}) =>
-  defineForm({
-    fields: [
-      ...listingFields(view),
-      { ...getSlugField(), section: "advanced" },
-    ] as const,
-    id: "listing-edit",
-  });
+const listingEditFields = (view: ListingFormView) =>
+  [...listingFields(view), { ...getSlugField(), section: "advanced" }] as const;
 
-export type ListingFormValues = FormValues<ReturnType<typeof getListingForm>>;
-export type ListingEditFormValues = FormValues<
-  ReturnType<typeof getListingEditForm>
->;
+type ListingEditForm = FormDefinition<ReturnType<typeof listingEditFields>>;
+
+export const getListingEditForm = (
+  view: ListingFormView = {},
+): ListingEditForm =>
+  defineForm({ fields: listingEditFields(view), id: "listing-edit" });
+
+export type ListingFormValues = FormValues<ListingForm>;
+export type ListingEditFormValues = FormValues<ListingEditForm>;
 
 /** Logistics agent form field definitions
  */

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { resetI18nForTest } from "#i18n";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
@@ -12,6 +13,7 @@ import {
 import { getModifierForm } from "#templates/fields/modifier.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { getSlugField } from "#templates/fields/validators.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { byName } from "#test-utils/fields.ts";
 
 /** Run a field's `validate` (present on the fields under test here). */
@@ -51,11 +53,25 @@ describe("fields behaviour", () => {
 
   describe("modifier fields", () => {
     const modifierFields = getModifierForm().fields;
-    test("is a per-request builder, not a shared module-load array", () => {
-      // Each call builds a fresh array, so the picklist option labels (which
-      // resolve through t()) are compiled per request rather than at module
-      // load — keeping that work off the admin routes' cold-start path.
-      expect(getModifierForm().fields).not.toBe(getModifierForm().fields);
+    test("resolves translated labels when the form is built", () => {
+      const fixedLabelWith = (replacement: string): string => {
+        using _env = withEnv({
+          I18N_REPLACEMENTS: `fixed|${replacement}`,
+        });
+        resetI18nForTest();
+        const field = byName(getModifierForm().fields, "calc_kind");
+        if (field.type !== "select") {
+          throw new Error("calc_kind must be a select field");
+        }
+        return field.options[0].label;
+      };
+
+      try {
+        expect(fixedLabelWith("first")).toBe("First amount");
+        expect(fixedLabelWith("second")).toBe("Second amount");
+      } finally {
+        resetI18nForTest();
+      }
     });
     test("name is required", () => {
       expect(byName(modifierFields, "name").required).toBe(true);

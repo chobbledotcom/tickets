@@ -34,6 +34,7 @@ import { PriceInput } from "#templates/components/price-input.tsx";
 
 export type {
   ChoiceField,
+  ChoiceOptions,
   Field,
   FieldOption,
   FieldType,
@@ -41,6 +42,7 @@ export type {
   InputField,
   TextareaField,
 } from "#shared/forms/field.ts";
+export { requireChoiceOptions } from "#shared/forms/field.ts";
 
 export interface FieldValues {
   [key: string]: string | number | null;
@@ -229,7 +231,15 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
     return renderChoiceFieldInput(field, value);
   }
   if (field.type === "file") {
-    return <input accept={field.accept} name={field.name} type="file" />;
+    return (
+      <input
+        accept={field.accept}
+        id={field.id}
+        name={field.name}
+        required={field.required}
+        type="file"
+      />
+    );
   }
   const special = renderSpecialFieldInput(field, value);
   if (special) return special;
@@ -388,18 +398,21 @@ const parseFieldValue = (
 const choiceSchema = (
   field: ChoiceField<"select" | "checkbox-group">,
 ): v.PicklistSchema<readonly [string, ...string[]], undefined> => {
-  const [first, ...rest] = field.options.map((option) => option.value);
-  if (first === undefined) {
-    throw new Error(`${field.label} must define at least one option`);
-  }
-  return v.picklist([first, ...rest]);
+  const [first, ...rest] = field.options;
+  return v.picklist([first.value, ...rest.map((option) => option.value)]);
 };
 
 const hasInvalidChoice = (
   field: ChoiceField<"select" | "checkbox-group">,
   value: string,
 ): boolean => {
-  const values = field.type === "checkbox-group" ? value.split(",") : [value];
+  const values =
+    field.type === "checkbox-group"
+      ? value
+          .split(",")
+          .map((choice) => choice.trim())
+          .filter(Boolean)
+      : [value];
   const schema = choiceSchema(field);
   return values.some((choice) => !v.safeParse(schema, choice).success);
 };
@@ -443,7 +456,7 @@ const validateFieldText = (field: Field, value: string): string | null => {
   }
   if (
     "maxlength" in field &&
-    field.maxlength &&
+    field.maxlength !== undefined &&
     value.length > field.maxlength
   ) {
     return `${field.label} must be ${field.maxlength} characters or fewer`;

@@ -95,6 +95,13 @@ describe("form field schema", () => {
     const acceptField = (_field: Field): void => {};
     // @ts-expect-error A select without options is not a valid Field.
     acceptField({ label: "Action", name: "action", type: "select" });
+    acceptField({
+      label: "Action",
+      name: "action",
+      // @ts-expect-error A select must offer at least one option.
+      options: [],
+      type: "select",
+    });
     const valid = {
       label: "Action",
       name: "action",
@@ -104,16 +111,45 @@ describe("form field schema", () => {
     expect(renderField(valid)).toContain("<select");
   });
 
-  test("throws when a select has an empty option list", () => {
+  test("throws when defining a select with an empty option list", () => {
+    const defineEmptySelect = () =>
+      defineForm({
+        fields: [
+          {
+            label: "Action",
+            name: "action",
+            options: [],
+            type: "select",
+          } as unknown as Field,
+        ] as const,
+        id: "empty-select",
+      });
+
+    expect(defineEmptySelect).toThrow("Action must define at least one option");
+  });
+
+  test("accepts spaces in comma-separated checkbox choices", () => {
     const form = defineForm({
       fields: [
-        { label: "Action", name: "action", options: [], type: "select" },
+        {
+          label: "Days",
+          name: "days",
+          options: [
+            { label: "Monday", value: "Monday" },
+            { label: "Wednesday", value: "Wednesday" },
+          ],
+          type: "checkbox-group",
+        },
       ] as const,
-      id: "empty-select",
+      id: "spaced-checkboxes",
     });
-    expect(() => form.validate(new FormParams({ action: "pay" }))).toThrow(
-      "Action must define at least one option",
-    );
+
+    expect(
+      form.validate(new FormParams({ days: "Monday, Wednesday" })),
+    ).toEqual({
+      valid: true,
+      values: { days: "Monday, Wednesday" },
+    });
   });
 
   test("renders fields by their typed section id", () => {

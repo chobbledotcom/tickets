@@ -1,7 +1,11 @@
 /** Modifier form fields (same for create and edit — no slug). */
 
 /* jscpd:ignore-start */
-import { defineForm, type FormValues } from "#shared/forms/definition.ts";
+import {
+  defineForm,
+  type FormDefinition,
+  type FormValues,
+} from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms.tsx";
 import {
   CalcKindSchema,
@@ -16,9 +20,9 @@ import { picklistOptions } from "#templates/fields/picklist-options.ts";
 
 /**
  * Modifier form fields (per-request builder). Built on demand rather than at
- * module load so the picklist option labels — which resolve through `t()` and
- * compile their ICU messages — stay off the admin routes' cold-start path, the
- * same way the listing and invite field builders do.
+ * module load so the picklist option labels resolve through `t()` only when the
+ * form is used, keeping that work off the admin routes' cold-start path. The
+ * listing and invite field builders follow the same pattern.
  */
 const getModifierFields = () =>
   [
@@ -125,7 +129,9 @@ const getModifierFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-export const getModifierForm = () =>
+type ModifierForm = FormDefinition<ReturnType<typeof getModifierFields>>;
+
+export const getModifierForm = (): ModifierForm =>
   defineForm({ fields: getModifierFields(), id: "modifier" });
 
-export type ModifierFormValues = FormValues<ReturnType<typeof getModifierForm>>;
+export type ModifierFormValues = FormValues<ModifierForm>;

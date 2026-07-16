@@ -275,6 +275,16 @@ describe("renderField", () => {
       expect(html).toContain('type="file"');
       expect(html).toContain('accept="image/jpeg,image/png"');
     });
+
+    test("renders the required attribute", () => {
+      const html = rendered({
+        label: "Upload Image",
+        name: "image",
+        required: true,
+        type: "file",
+      });
+      expect(html).toContain('name="image" required type="file"');
+    });
   });
 
   describe("checkbox-group type", () => {

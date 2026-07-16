@@ -5,7 +5,11 @@
  */
 
 import { t } from "#i18n";
-import { defineForm, type FormValues } from "#shared/forms/definition.ts";
+import {
+  defineForm,
+  type FormDefinition,
+  type FormValues,
+} from "#shared/forms/definition.ts";
 import type { Field, InputField } from "#shared/forms.tsx";
 import { AdminLevelSchema } from "#shared/types.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
@@ -33,7 +37,9 @@ const getLoginFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-export const getLoginForm = () =>
+type LoginForm = FormDefinition<ReturnType<typeof getLoginFields>>;
+
+export const getLoginForm = (): LoginForm =>
   defineForm({ fields: getLoginFields(), id: "login" });
 
 /**
@@ -65,7 +71,9 @@ const getHolidayFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-export const getHolidayForm = () =>
+type HolidayForm = FormDefinition<ReturnType<typeof getHolidayFields>>;
+
+export const getHolidayForm = (): HolidayForm =>
   defineForm({ fields: getHolidayFields(), id: "holiday" });
 
 /**
@@ -148,7 +156,9 @@ const getBuiltSiteFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-export const getBuiltSiteForm = () =>
+type BuiltSiteForm = FormDefinition<ReturnType<typeof getBuiltSiteFields>>;
+
+export const getBuiltSiteForm = (): BuiltSiteForm =>
   defineForm({ fields: getBuiltSiteFields(), id: "built-site" });
 
 /** Password field with new-password autocomplete (reused across setup, change password, and join forms) */
@@ -199,7 +209,9 @@ const getSetupFields = () =>
     ),
   ] as const satisfies readonly Field[];
 
-export const getSetupForm = () =>
+type SetupForm = FormDefinition<ReturnType<typeof getSetupFields>>;
+
+export const getSetupForm = (): SetupForm =>
   defineForm({ fields: getSetupFields(), id: "setup" });
 
 /**
@@ -222,7 +234,11 @@ const getChangePasswordFields = () =>
     ),
   ] as const satisfies readonly Field[];
 
-export const getChangePasswordForm = () =>
+type ChangePasswordForm = FormDefinition<
+  ReturnType<typeof getChangePasswordFields>
+>;
+
+export const getChangePasswordForm = (): ChangePasswordForm =>
   defineForm({ fields: getChangePasswordFields(), id: "change-password" });
 
 /** A required payment-provider credential field: never autofilled, always
@@ -339,9 +355,9 @@ const getInviteUserFields = () =>
     },
   ] as const satisfies readonly Field[];
 
-export const getInviteUserForm = () =>
+type InviteUserForm = FormDefinition<ReturnType<typeof getInviteUserFields>>;
+
+export const getInviteUserForm = (): InviteUserForm =>
   defineForm({ fields: getInviteUserFields(), id: "invite-user" });
 
-export type InviteUserFormValues = FormValues<
-  ReturnType<typeof getInviteUserForm>
->;
+export type InviteUserFormValues = FormValues<InviteUserForm>;

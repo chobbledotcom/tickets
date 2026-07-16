@@ -14,7 +14,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
+import { entityToFieldValues } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
 import {
@@ -192,10 +192,7 @@ export const logisticsAgentPages = defineAdminResourcePages<
       <fieldset class="listing-section">
         <legend>{t("logistics.agent_details")}</legend>
         <Raw
-          html={renderFields(
-            logisticsAgentForm.fields,
-            logisticsAgentToFieldValues(agent),
-          )}
+          html={logisticsAgentForm.render(logisticsAgentToFieldValues(agent))}
         />
       </fieldset>
     ),

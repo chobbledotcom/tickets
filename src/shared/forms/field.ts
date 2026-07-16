@@ -5,6 +5,22 @@ export interface FieldOption<TValue extends string = string> {
   value: TValue;
 }
 
+export type ChoiceOptions<TValue extends string = string> = readonly [
+  FieldOption<TValue>,
+  ...FieldOption<TValue>[],
+];
+
+export const requireChoiceOptions = <TValue extends string>(
+  label: string,
+  options: readonly FieldOption<TValue>[],
+): ChoiceOptions<TValue> => {
+  const [first, ...rest] = options;
+  if (first === undefined) {
+    throw new Error(`${label} must define at least one option`);
+  }
+  return [first, ...rest];
+};
+
 export type FieldType =
   | InputFieldType
   | "textarea"
@@ -95,7 +111,7 @@ export type ChoiceField<
   TType,
   TName,
   TSection,
-  { options: readonly FieldOption<TValue>[]; parse?: never }
+  { options: ChoiceOptions<TValue>; parse?: never }
 >;
 
 export type FileField<

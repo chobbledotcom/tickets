@@ -216,11 +216,10 @@ export const slugFieldBase = () =>
   }) as const satisfies Field;
 
 /** Slug field for listing/group edit pages */
-export const getSlugField = () =>
-  ({
-    ...slugFieldBase(),
-    hint: t("fields.listing.slug_hint_field"),
-  }) satisfies InputField<"slug">;
+export const getSlugField = (): InputField<"slug"> => ({
+  ...slugFieldBase(),
+  hint: t("fields.listing.slug_hint_field"),
+});
 
 /** Max length for address field (must fit in payment metadata) */
 export const MAX_ADDRESS_LENGTH = 250;

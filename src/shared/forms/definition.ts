@@ -5,6 +5,7 @@ import {
   type FieldValues,
   renderField,
   renderFields,
+  requireChoiceOptions,
   type ValidationResult,
   validateForm,
 } from "#shared/forms.tsx";
@@ -105,7 +106,12 @@ export const defineForm = <
     context: TContext,
   ) => string | null;
 }): FormDefinition<TFields, TContext> => {
-  const fields = [...config.fields];
+  const fields = config.fields.map((field) => {
+    if (field.type === "select" || field.type === "checkbox-group") {
+      requireChoiceOptions(field.label, field.options);
+    }
+    return field;
+  });
   const fieldMap = new Map(fields.map((field) => [field.name, field] as const));
   const sectionIds = [
     ...new Set(

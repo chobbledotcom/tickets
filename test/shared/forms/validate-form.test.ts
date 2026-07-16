@@ -92,6 +92,16 @@ describe("validateForm", () => {
     if (result.valid) expect(result.values.bio).toBe("abcde");
   });
 
+  test("rejects a non-empty value when maxlength is zero", () => {
+    const result = validateForm(new FormParams({ bio: "x" }), [
+      field({ label: "Bio", maxlength: 0, name: "bio" }),
+    ]);
+    expect(result).toEqual({
+      error: "Bio must be 0 characters or fewer",
+      valid: false,
+    });
+  });
+
   test("skips custom validate for empty optional field", () => {
     const fields: Field[] = [
       field({

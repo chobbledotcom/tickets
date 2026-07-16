@@ -2,6 +2,7 @@ import { t } from "#i18n";
 import type { ManualLedgerEntryOption } from "#shared/accounting/manual-entries.ts";
 import { settings } from "#shared/db/settings.ts";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
+import { requireChoiceOptions } from "#shared/forms.tsx";
 import { localToUtc } from "#shared/timezone.ts";
 import { parsePositiveMinorUnits } from "#shared/validation/money.ts";
 
@@ -51,11 +52,14 @@ const ledgerEntryAddFields = (options: LedgerEntryAddOption[]) =>
       invalidMessage: t("admin.ledger.form.entry_type_invalid"),
       label: t("admin.ledger.add.type"),
       name: "entry_type",
-      options: options.map((option) => ({
-        hint: option.hint,
-        label: option.label,
-        value: option.type,
-      })),
+      options: requireChoiceOptions(
+        t("admin.ledger.add.type"),
+        options.map((option) => ({
+          hint: option.hint,
+          label: option.label,
+          value: option.type,
+        })),
+      ),
       required: true,
       requiredMessage: t("admin.ledger.form.entry_type_required"),
       type: "select",
