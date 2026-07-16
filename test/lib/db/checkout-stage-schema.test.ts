@@ -28,12 +28,21 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     test("the migration declares only the checkout stage schema objects", () => {
-      expect(checkoutStagesMigration(context).requires).toEqual({
-        indexes: [
-          "idx_checkout_stages_attendee_id",
-          "idx_checkout_stages_state_created_at",
-        ],
-        newTables: ["checkout_stages"],
+      const migration = checkoutStagesMigration(context);
+      expect({
+        description: migration.description,
+        id: migration.id,
+        requires: migration.requires,
+      }).toEqual({
+        description: "Add dormant checkout stage storage.",
+        id: "2026-07-15_checkout_stages",
+        requires: {
+          indexes: [
+            "idx_checkout_stages_attendee_id",
+            "idx_checkout_stages_state_created_at",
+          ],
+          newTables: ["checkout_stages"],
+        },
       });
     });
 
@@ -132,9 +141,16 @@ describeWithEnv(
     });
 
     test("the cleanup migration declares the legacy table absent", () => {
-      expect(
-        dropCheckoutStageRevisionsMigration(cleanupContext).requires,
-      ).toEqual({ absentTables: ["checkout_stage_revisions"] });
+      const migration = dropCheckoutStageRevisionsMigration(cleanupContext);
+      expect({
+        description: migration.description,
+        id: migration.id,
+        requires: migration.requires,
+      }).toEqual({
+        description: "Remove unused checkout stage revision tracking.",
+        id: "2026-07-16_drop_checkout_stage_revisions",
+        requires: { absentTables: ["checkout_stage_revisions"] },
+      });
     });
 
     test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {
