@@ -87,14 +87,7 @@ BEGIN
 END`,
     table: "listing_attendees",
   },
-].map((trigger) => ({
-  ...trigger,
-  dependencies: {
-    attendees: ["kind"],
-    listing_attendees: ["attendee_id", "listing_id", "quantity"],
-    listings: ["booked_quantity", "tickets_count"],
-  },
-}));
+];
 
 /**
  * Modifier aggregate triggers keep modifiers.total_uses and modifiers.usage_count

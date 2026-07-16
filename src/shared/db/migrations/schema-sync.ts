@@ -201,14 +201,66 @@ export const rebuildTableWithColumns = async (
   await executeBatch(noArgStatements(rebuildStatements(params)));
 };
 
-const triggerDependencies = (
-  trigger: (typeof TRIGGERS)[number],
-): Record<string, readonly string[]> =>
-  trigger.dependencies ?? { [trigger.table]: [] };
+const LISTING_AGGREGATE_TRIGGER_DEPENDENCIES = [
+  "attendees",
+  "listings",
+  "listing_attendees",
+] as const;
+
+const LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES = [
+  ["attendees", ["kind"]],
+  ["listings", ["booked_quantity", "tickets_count"]],
+  ["listing_attendees", ["attendee_id", "listing_id", "quantity"]],
+] as const;
+
+const CHECKOUT_STAGE_PAYMENT_TRIGGER_DEPENDENCIES = [
+  "checkout_stages",
+  "processed_payments",
+] as const;
+
+const CHECKOUT_STAGE_PAYMENT_TRIGGER_COLUMN_DEPENDENCIES = [
+  ["checkout_stages", ["payment_session_id", "attendee_id", "state"]],
+  [
+    "processed_payments",
+    ["payment_session_id", "attendee_id", "checkout_stage_attendee_id"],
+  ],
+] as const;
+
+const isListingAggregateTrigger = (triggerName: string): boolean =>
+  triggerName.startsWith("trg_listing_attendees_aggregates_");
+
+const isCheckoutStagePaymentTrigger = (triggerName: string): boolean =>
+  triggerName.startsWith("trg_processed_payments_checkout_stage_");
+
+const triggerDependencies = (triggerName: string, table: string): string[] =>
+  isListingAggregateTrigger(triggerName)
+    ? [...LISTING_AGGREGATE_TRIGGER_DEPENDENCIES]
+    : isCheckoutStagePaymentTrigger(triggerName)
+      ? [...CHECKOUT_STAGE_PAYMENT_TRIGGER_DEPENDENCIES]
+      : [table];
+
+const triggerColumnDependencies = (
+  triggerName: string,
+  table: string,
+): readonly (readonly [string, readonly string[]])[] =>
+  isListingAggregateTrigger(triggerName)
+    ? LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES
+    : isCheckoutStagePaymentTrigger(triggerName)
+      ? CHECKOUT_STAGE_PAYMENT_TRIGGER_COLUMN_DEPENDENCIES
+      : [[table, []]];
+
+const requiredTriggerColumns = (
+  triggerName: string,
+  table: string,
+  dependency: string,
+): readonly string[] =>
+  triggerColumnDependencies(triggerName, table).find(
+    ([dependencyTable]) => dependencyTable === dependency,
+  )![1];
 
 const triggersDependingOn = (tableName: string) =>
   TRIGGERS.filter((trigger) =>
-    Object.hasOwn(triggerDependencies(trigger), tableName),
+    triggerDependencies(trigger.name, trigger.table).includes(tableName),
   );
 
 const liveColumnsForTriggerDependency = (
@@ -221,23 +273,24 @@ const liveColumnsForTriggerDependency = (
     : liveTables.get(dependency);
 
 const canCreateTrigger = (
-  trigger: (typeof TRIGGERS)[number],
+  triggerName: string,
+  table: string,
   liveTables: LiveTables,
   rebuildingTable?: string,
 ): boolean =>
-  Object.entries(triggerDependencies(trigger)).every(
-    ([dependency, requiredColumns]) => {
-      const columns = liveColumnsForTriggerDependency(
-        dependency,
-        liveTables,
-        rebuildingTable,
-      );
-      return (
-        columns !== undefined &&
-        requiredColumns.every((column) => columns.has(column))
-      );
-    },
-  );
+  triggerDependencies(triggerName, table).every((dependency) => {
+    const columns = liveColumnsForTriggerDependency(
+      dependency,
+      liveTables,
+      rebuildingTable,
+    );
+    return (
+      columns !== undefined &&
+      requiredTriggerColumns(triggerName, table, dependency).every((column) =>
+        columns.has(column),
+      )
+    );
+  });
 
 /**
  * Recreate a table from its SCHEMA definition, preserving data for matching
@@ -294,7 +347,7 @@ export const recreateTable = async (tableName: string): Promise<void> => {
     ...TRIGGERS.filter(
       (trg) =>
         (trg.table === tableName || liveDependentTriggerNames.has(trg.name)) &&
-        canCreateTrigger(trg, live.tables, tableName),
+        canCreateTrigger(trg.name, trg.table, live.tables, tableName),
     ).map((trg) => trg.sql),
   ];
   await withTransaction(async (tx) => {
@@ -515,7 +568,10 @@ export const syncTriggers: () => Promise<void> = fromLiveSchema(
   async (live) => {
     const declaredNames = new Set(TRIGGERS.map((t) => t.name));
     for (const trg of TRIGGERS) {
-      if (!live.triggers.has(trg.name) && canCreateTrigger(trg, live.tables)) {
+      if (
+        !live.triggers.has(trg.name) &&
+        canCreateTrigger(trg.name, trg.table, live.tables)
+      ) {
         await runMigration(trg.sql);
       }
     }

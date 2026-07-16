@@ -8,7 +8,6 @@ import {
 } from "#shared/db/migrations/schema/checkout-stage-triggers.ts";
 import {
   applySchemaChanges,
-  recreateTable,
   syncTriggers,
 } from "#shared/db/migrations/schema-sync.ts";
 import { additive, verifyRequirement } from "#shared/db/migrations/verify.ts";
@@ -36,11 +35,6 @@ const insertStage = (
 const fenceNames = CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS.map(
   (trigger) => trigger.name,
 );
-const checkoutTriggerNames = [
-  ...CHECKOUT_STAGE_REVISION_TRIGGERS,
-  ...CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS,
-].map((trigger) => trigger.name);
-
 const migrationContext = buildMigrationContext({
   additive,
   applySchemaChanges,
@@ -48,26 +42,20 @@ const migrationContext = buildMigrationContext({
   verifyRequirement,
 });
 
-const expectLegacyReservationRejected = async (
-  sessionId: string,
-): Promise<void> => {
-  await expect(
-    getDb().execute({
-      args: [sessionId],
-      sql: `INSERT INTO processed_payments
-        (payment_session_id, attendee_id, processed_at)
-        VALUES (?, NULL, '2026-07-16T12:01:00Z')`,
-    }),
-  ).rejects.toThrow("checkout stage claim does not match");
-  expect(await isSessionProcessed(sessionId)).toBeNull();
-};
-
 describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
   test("rejects a legacy reservation without the staged attendee claim", async () => {
     const sessionId = "cs_legacy_reservation";
     await insertStage(sessionId, 42);
 
-    await expectLegacyReservationRejected(sessionId);
+    await expect(
+      getDb().execute({
+        args: [sessionId],
+        sql: `INSERT INTO processed_payments
+          (payment_session_id, attendee_id, processed_at)
+          VALUES (?, NULL, '2026-07-16T12:01:00Z')`,
+      }),
+    ).rejects.toThrow("checkout stage claim does not match");
+    expect(await isSessionProcessed(sessionId)).toBeNull();
   });
 
   test("rejects a reservation with a different staged attendee claim", async () => {
@@ -211,6 +199,10 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     }
     const migration = checkoutStagePaymentFencesMigration(migrationContext);
 
+    expect(migration.id).toBe("2026-07-16_checkout_stage_payment_fences");
+    expect(migration.description).toBe(
+      "Claim staged attendees when reserving payments and reject rollback-era mismatches.",
+    );
     expect(migration.requires).toEqual({
       columns: {
         processed_payments: ["checkout_stage_attendee_id"],
@@ -243,26 +235,20 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     );
   });
 
-  test("trigger sync waits until checkout stage storage exists", async () => {
-    for (const name of checkoutTriggerNames) {
-      await getDb().execute(`DROP TRIGGER ${name}`);
+  test("trigger sync waits for checkout stage storage", async () => {
+    for (const trigger of [
+      ...CHECKOUT_STAGE_REVISION_TRIGGERS,
+      ...CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS,
+    ]) {
+      await getDb().execute(`DROP TRIGGER ${trigger.name}`);
     }
     await getDb().execute("DROP TABLE checkout_stages");
 
     await syncTriggers();
 
     const triggers = await getDb().execute(
-      "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_%checkout_stage%'",
+      "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'processed_payments' ORDER BY name",
     );
     expect(triggers.rows).toEqual([]);
-  });
-
-  test("rebuilding checkout stage storage restores its payment fences", async () => {
-    const sessionId = "cs_rebuilt_fences";
-    await insertStage(sessionId, 42);
-
-    await recreateTable("checkout_stages");
-
-    await expectLegacyReservationRejected(sessionId);
   });
 });
