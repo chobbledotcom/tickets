@@ -24,6 +24,14 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
     });
     response.body?.cancel();
     expect(await storedFeatureEnabled("servicing")).toBe(true);
+    const rows = await servicingRowsForListing(listing.id);
+    expect(rows).toHaveLength(1);
+    const savedRow = rows[0];
+    if (!savedRow) throw new Error("Servicing event was not stored");
+    expect(await getServicingEvent(savedRow.id)).toMatchObject({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      name: "Boiler service",
+    });
   });
 
   test("a feature write failure does not create a servicing event", async () => {
