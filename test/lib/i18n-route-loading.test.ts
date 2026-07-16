@@ -4,6 +4,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withColdMessages } from "#test-utils/i18n.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -71,6 +73,24 @@ describeWithEnv("route message loading", { db: true }, () => {
         'Missing translation for key "admin.dashboard.guide_link"',
       );
     }));
+
+  test("a ticket page loads QR copy", async () => {
+    const listing = await createTestListing();
+    const { token } = await createTestAttendeeDirect(
+      listing.id,
+      "Cold Ticket",
+      "cold-ticket@test.com",
+    );
+
+    await withColdMessages(async () => {
+      const { handleRequest } = await import("#routes");
+
+      const response = await handleRequest(mockRequest(`/t/${token}`));
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('alt="QR code"');
+    });
+  });
 
   test("an inherited admin segment leaves admin copy unloaded", () =>
     withColdMessages(async () => {

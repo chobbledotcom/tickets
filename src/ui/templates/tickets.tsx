@@ -103,13 +103,17 @@ const renderWalletSection = (
 /** The shared QR + token block (empty for purchase-only listings, which aren't
  * checked in). One attendee's lines all share its token, so a package renders it
  * once on the package card. */
-const renderQrBlock = (token: string, purchaseOnly: boolean): string =>
-  purchaseOnly
-    ? ""
-    : `<div class="ticket-card-qr"><img src="/t/${escapeHtml(
-        token,
-      )}/svg" alt={t("listing_qr.qr_code")} /></div>
-      <div class="ticket-card-token">${escapeHtml(token)}</div>`;
+const renderQrBlock = (token: string, purchaseOnly: boolean): string => {
+  if (purchaseOnly) return "";
+  return String(
+    <>
+      <div class="ticket-card-qr">
+        <img alt={t("listing_qr.qr_code")} src={`/t/${token}/svg`} />
+      </div>
+      <div class="ticket-card-token">{token}</div>
+    </>,
+  );
+};
 
 const renderPackageCard = (
   cards: TicketCard[],

@@ -321,7 +321,7 @@ const prefixHandlers: Record<string, PrefixRoute> = {
   scheduled: prefixRoute([], lazyRoute(routeLoaders.scheduled)),
   sms: prefixRoute([], lazyRoute(routeLoaders.smsWebhook)),
   t: prefixRoute(
-    publicMessageGroups("payment", "tickets"),
+    publicMessageGroups("listing-qr", "payment", "tickets"),
     lazyRoute(routeLoaders.ticketView),
   ),
   ticket: prefixRoute(
