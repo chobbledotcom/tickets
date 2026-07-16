@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import checkoutStagePaymentFencesMigration from "#shared/db/migrations/2026-07-16_checkout_stage_payment_fences.ts";
 import { CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS } from "#shared/db/migrations/schema/checkout-stage-triggers.ts";
+import { ANSWER_AGGREGATE_TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import {
   applySchemaChanges,
   syncTriggers,
@@ -230,5 +231,28 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     expect(triggers.rows.map((row) => row.name)).toEqual(
       [...fenceNames].sort(),
     );
+  });
+
+  test("the migration replaces old answer-only aggregate triggers", async () => {
+    for (const trigger of ANSWER_AGGREGATE_TRIGGERS) {
+      await getDb().execute(`DROP TRIGGER ${trigger.name}`);
+      await getDb().execute(
+        trigger.sql
+          .split("\n")
+          .filter((line) => !line.includes("UPDATE strings"))
+          .join("\n"),
+      );
+    }
+
+    await checkoutStagePaymentFencesMigration(migrationContext).up();
+
+    const triggers = await getDb().execute(
+      `SELECT sql FROM sqlite_master
+       WHERE type = 'trigger' AND name IN (${ANSWER_AGGREGATE_TRIGGERS.map(() => "?").join(", ")})`,
+      ANSWER_AGGREGATE_TRIGGERS.map((trigger) => trigger.name),
+    );
+    expect(
+      triggers.rows.map((row) => String(row.sql).includes("UPDATE strings")),
+    ).toEqual([true, true, true]);
   });
 });

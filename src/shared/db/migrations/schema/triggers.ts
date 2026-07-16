@@ -180,7 +180,7 @@ const ANSWER_AGGREGATE_USES = {
  *
  * Semantics mirror the previous COUNT(*) query over attendee_answers exactly.
  */
-const ANSWER_AGGREGATE_TRIGGERS: Trigger[] = [
+export const ANSWER_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_aggregates_insert",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_insert
