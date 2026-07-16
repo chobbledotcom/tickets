@@ -29,7 +29,6 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { Field } from "#shared/forms.tsx";
 import {
   generateUniqueListingSlug,
   validateListingInput,
@@ -43,16 +42,12 @@ import {
 } from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import {
-  getAssignBuiltSiteField,
-  getInitialSiteMonthsField,
-  getListingFields,
-  getMonthsPerUnitField,
+  getListingEditForm,
+  getListingForm,
+  type ListingEditFormValues,
+  type ListingFormValues,
 } from "#templates/fields/listing.ts";
-import type {
-  ListingEditFormValues,
-  ListingFormValues,
-} from "#templates/fields/types.ts";
-import { getSlugField, splitCsv } from "#templates/fields/validators.ts";
+import { splitCsv } from "#templates/fields/validators.ts";
 
 /* jscpd:ignore-end */
 
@@ -81,11 +76,11 @@ const resolveListingType = (
 
 /** Parse comma-separated day names, applying the submit-mode empty selection policy. */
 const parseBookableDays = (
-  value: string,
+  value: string | null,
   listingType: ListingType,
   mode: ListingWriteMode,
 ): string[] | undefined => {
-  const days = splitCsv(value);
+  const days = splitCsv(value ?? "");
   if (days.length > 0) return days;
   return EMPTY_BOOKABLE_DAYS_POLICY[mode][listingType] === "preserveEmpty"
     ? days
@@ -144,9 +139,12 @@ const validateDayPricesFromForm = (form: FormParams): string | null => {
 
 /** Normalize an optional datetime field to UTC, passing through blanks/undefined. */
 const normalizeOptionalDatetime = (
-  raw: string | undefined,
+  raw: string | null | undefined,
   field: string,
-): string | undefined => (raw ? normalizeDatetime(raw, field) : raw);
+): string | null => (raw ? normalizeDatetime(raw, field) : null);
+
+const enabledChoice = (enabled: boolean, value: string | null): boolean =>
+  enabled && value === "1";
 
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (
@@ -154,13 +152,14 @@ const extractCommonFields = (
   form: FormParams,
   mode: ListingWriteMode,
 ) => {
-  const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
+  const webhookUrl = isDemoMode() ? "" : (values.webhook_url ?? "");
   const durationDays = values.duration_days ?? 1;
   const listingType = resolveListingType(values.listing_type);
   // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free); a valid
   // value is the currency-checked minor-units amount. `unit_price` is always a
   // string here, so no nullish fallback is needed before parsing.
-  const unitPrice = parseOptionalMinorUnits(values.unit_price) ?? undefined;
+  const unitPrice =
+    parseOptionalMinorUnits(values.unit_price ?? "") ?? undefined;
   const bookableDays = parseBookableDays(
     values.bookable_days,
     listingType,
@@ -168,36 +167,41 @@ const extractCommonFields = (
   );
   const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
   return {
-    assignBuiltSite: isBuilderEnabled() && values.assign_built_site === "1",
-    bookableAlone: form.getFlag("bookable_alone"),
+    assignBuiltSite: enabledChoice(
+      isBuilderEnabled(),
+      values.assign_built_site,
+    ),
+    bookableAlone: values.bookable_alone === "1",
     bookableDays,
     canPayMore: values.can_pay_more === "1",
     closesAt,
     customisableDays: values.customisable_days === "1",
     date: normalizeOptionalDatetime(values.date, "date") ?? "",
     dayPrices: parseDayPricesFromForm(form, durationDays),
-    description: values.description,
+    description: values.description ?? "",
     durationDays,
-    fields: values.fields || "",
+    fields: values.fields ?? "",
     groupIds: parseGroupIds(form),
     hidden: values.hidden === "1",
-    initialSiteMonths: Number(values.initial_site_months) || 0,
+    initialSiteMonths: values.initial_site_months ?? 0,
     listingType,
-    location: values.location,
+    location: values.location ?? "",
     maxAttendees: values.max_attendees,
     maximumDaysAfter: values.maximum_days_after ?? 90,
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
     maxQuantity: values.max_quantity,
     minimumDaysBefore: values.minimum_days_before ?? 1,
-    monthsPerUnit: Number(values.months_per_unit) || 0,
+    monthsPerUnit: values.months_per_unit ?? 0,
     name: values.name,
     nonTransferable: values.non_transferable === "1",
     purchaseOnly: values.purchase_only === "1",
-    thankYouUrl: values.thank_you_url || "",
+    thankYouUrl: values.thank_you_url ?? "",
     unitPrice,
     useDefaults: form.getFlag("use_defaults"),
-    usesLogistics:
-      settings.features.logistics && form.getFlag("uses_logistics"),
+    usesLogistics: enabledChoice(
+      settings.features.logistics,
+      values.uses_logistics,
+    ),
     webhookUrl,
   };
 };
@@ -235,16 +239,6 @@ export const extractListingAggregateValues = (
   booked_quantity: values.booked_quantity,
   tickets_count: values.tickets_count,
 });
-
-/** Build listing resource fields for every create/update. Group membership is
- * parsed separately from the `group_ids` checkboxes (see parseGroupIds) and
- * written via afterWrite, so it is not one of the validated single-value fields. */
-const buildListingResourceFields = (): Field[] => [
-  ...getListingFields(),
-  getMonthsPerUnitField(),
-  getInitialSiteMonthsField(),
-  getAssignBuiltSiteField(),
-];
 
 /** Persist the listing's group memberships AND its per-day-count prices in the
  * row write's transaction. extractCommonFields always sets groupIds (parseGroupIds
@@ -296,7 +290,7 @@ export const buildCreateListingResource = (form: FormParams) =>
     // bypasses the listingsTable wrapper that syncs direct writes.
     afterCommit: syncListingPrices,
     afterWrite: writeCreateListingGroups(form),
-    fields: buildListingResourceFields(),
+    form: getListingForm(),
     nameField: "name",
     table: listingsTable,
     toInput: (values: ListingFormValues) => extractListingInput(values, form),
@@ -308,7 +302,7 @@ export const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
     afterCommit: syncListingPrices,
     afterWrite: writeListingGroups,
-    fields: [...buildListingResourceFields(), getSlugField()],
+    form: getListingEditForm(),
     nameField: "name",
     table: listingsTable,
     toInput: (values: ListingEditFormValues) =>

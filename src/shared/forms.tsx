@@ -2,6 +2,7 @@
  * Minimal form framework for declarative form handling
  */
 
+import * as v from "valibot";
 /* jscpd:ignore-start */
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
@@ -15,71 +16,31 @@ import {
 } from "#shared/flash-context.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type {
+  ChoiceField,
+  Field,
+  FieldType,
+  InputField,
+  TextareaField,
+} from "#shared/forms/field.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { createRequestScoped } from "#shared/request-scoped.ts";
 import { ErrorAlert } from "#templates/components/error.tsx";
 import { PriceInput } from "#templates/components/price-input.tsx";
+
 /* jscpd:ignore-end */
 
-export type FieldType =
-  | "text"
-  | "number"
-  | "email"
-  | "url"
-  | "password"
-  | "textarea"
-  | "select"
-  | "checkbox-group"
-  | "date"
-  | "datetime"
-  | "datetime-local"
-  | "money"
-  | "file";
-
-type FieldOption = {
-  value: string;
-  label: string;
-  hint?: string;
-};
-
-export interface Field {
-  accept?: string;
-  autocomplete?: string;
-  autofocus?: boolean;
-  /** Trusted template HTML rendered immediately before the field's label
-   *  (e.g. the address-lookup search panel above the address textarea). */
-  beforeHtml?: string;
-  defaultValue?: string;
-  hint?: string;
-  hintHtml?: string;
-  id?: string;
-  inputmode?: string;
-  invalidMessage?: string;
-  label: string;
-  /** Marks a textarea as markdown-authored, enabling the in-editor preview link. */
-  markdown?: boolean;
-  max?: number;
-  maxlength?: number;
-  min?: number;
-  minlength?: number;
-  name: string;
-  options?: readonly FieldOption[];
-  parse?: (value: string) => string | number | null;
-  pattern?: string;
-  placeholder?: string;
-  /** When set, a value present, renders a "Public link: <path>" line under the
-   *  input, linking (in a new tab) to the public page this field's value maps
-   *  to — e.g. a slug field pointing at `/news/<slug>`. The path is derived
-   *  from the rendered value (the entity's saved slug on a normal edit view). */
-  publicLinkPath?: (value: string) => string;
-  required?: boolean;
-  requiredMessage?: string;
-  title?: string;
-  type: FieldType;
-  validate?: (value: string) => string | null;
-}
+export type {
+  ChoiceField,
+  Field,
+  FieldOption,
+  FieldType,
+  FileField,
+  InputField,
+  TextareaField,
+} from "#shared/forms/field.ts";
 
 export interface FieldValues {
   [key: string]: string | number | null;
@@ -201,7 +162,10 @@ const splitDatetime = (value: string): { date: string; time: string } => {
  *  the `<Raw html={...}/>` shape lives in one place. */
 const rawField = (html: string): JSX.Element => <Raw html={html} />;
 
-const renderTextareaInput = (field: Field, value: string): JSX.Element => (
+const renderTextareaInput = (
+  field: TextareaField,
+  value: string,
+): JSX.Element => (
   <textarea
     autocomplete={field.autocomplete}
     data-markdown-preview={field.markdown || undefined}
@@ -215,31 +179,32 @@ const renderTextareaInput = (field: Field, value: string): JSX.Element => (
   </textarea>
 );
 
-type FieldInputRenderer = (field: Field, value: string) => JSX.Element | null;
-
-const renderChoiceFieldInput: FieldInputRenderer = (field, value) => {
-  if (field.type === "select" && field.options) {
+const renderChoiceFieldInput = (
+  field: ChoiceField<"select" | "checkbox-group">,
+  value: string,
+): JSX.Element => {
+  if (field.type === "select") {
     return rawField(
       `<select name="${escapeHtml(field.name)}" id="${escapeHtml(
         field.id ?? field.name,
-      )}">${renderSelectOptions(
+      )}"${field.required ? " required" : ""}>${renderSelectOptions(
         field.options.map((opt) => ({ ...opt, selected: opt.value === value })),
       )}</select>`,
     );
   }
-  if (field.type === "checkbox-group" && field.options) {
-    return rawField(
-      renderCheckboxGroup(
-        field.name,
-        field.options,
-        new Set(value ? value.split(",").map((v) => v.trim()) : []),
-      ),
-    );
-  }
-  return null;
+  return rawField(
+    renderCheckboxGroup(
+      field.name,
+      field.options,
+      new Set(value ? value.split(",").map((v) => v.trim()) : []),
+    ),
+  );
 };
 
-const renderSpecialFieldInput: FieldInputRenderer = (field, value) => {
+const renderSpecialFieldInput = (
+  field: InputField,
+  value: string,
+): JSX.Element | null => {
   if (field.type === "datetime") {
     return (
       <Raw html={renderDatetimeInputs(field.name, splitDatetime(value))} />
@@ -254,17 +219,18 @@ const renderSpecialFieldInput: FieldInputRenderer = (field, value) => {
       ...(value ? { value } : {}),
     });
   }
-  if (field.type === "file") {
-    return <input accept={field.accept} name={field.name} type="file" />;
-  }
   return null;
 };
 
 /** Render the input element for a field based on its type */
 const renderFieldInput = (field: Field, value: string): JSX.Element => {
   if (field.type === "textarea") return renderTextareaInput(field, value);
-  const choice = renderChoiceFieldInput(field, value);
-  if (choice) return choice;
+  if (field.type === "select" || field.type === "checkbox-group") {
+    return renderChoiceFieldInput(field, value);
+  }
+  if (field.type === "file") {
+    return <input accept={field.accept} name={field.name} type="file" />;
+  }
   const special = renderSpecialFieldInput(field, value);
   if (special) return special;
   return (
@@ -289,10 +255,7 @@ const renderFieldInput = (field: Field, value: string): JSX.Element => {
 };
 
 const selectOptionHints = (field: Field): JSX.Element | null => {
-  if (
-    field.type !== "select" ||
-    !field.options?.some((option) => option.hint)
-  ) {
+  if (field.type !== "select" || !field.options.some((option) => option.hint)) {
     return null;
   }
   return (
@@ -312,7 +275,9 @@ const selectOptionHints = (field: Field): JSX.Element | null => {
  *  the field opts in via {@link Field.publicLinkPath} and has a value, so a new
  *  (unsaved) entity with no slug shows no link. Opens in a new tab. */
 const publicLinkHint = (field: Field, value: string): JSX.Element | null => {
-  if (!field.publicLinkPath || !value) return null;
+  if (!("publicLinkPath" in field) || !field.publicLinkPath || !value) {
+    return null;
+  }
   const path = field.publicLinkPath(value);
   return (
     <small class="public-link">
@@ -364,7 +329,8 @@ const resolveFieldValue = (
   if (explicit != null && explicit !== "") return String(explicit);
   const saved = getSavedValue(field);
   if (saved !== "") return saved;
-  return String(explicit ?? field.defaultValue ?? "");
+  const defaultValue = "defaultValue" in field ? field.defaultValue : undefined;
+  return String(explicit ?? defaultValue ?? "");
 };
 
 /**
@@ -374,19 +340,19 @@ const resolveFieldValue = (
  * restores user input without any changes to individual handlers or templates.
  */
 export const renderFields = (
-  fields: Field[],
+  fields: readonly Field[],
   values: FieldValues = {},
 ): string =>
   pipe(
     map((f: Field) => renderField(f, resolveFieldValue(f, values[f.name]))),
     joinStrings,
-  )(fields);
+  )(fields.filter((field) => field.visible !== false));
 
 export const booleanToCheckbox = (value: boolean): string => (value ? "1" : "");
 
 export const entityToFieldValues = <T,>(
   entity: T | undefined,
-  fields: Field[],
+  fields: readonly Field[],
   formatters: Partial<Record<keyof T, (e: T) => string | number | null>>,
   extra?: Record<string, string | number | null>,
 ): FieldValues => {
@@ -420,6 +386,25 @@ const parseFieldValue = (
         : null
       : trimmed;
 
+const choiceSchema = (
+  field: ChoiceField<"select" | "checkbox-group">,
+): v.PicklistSchema<readonly [string, ...string[]], undefined> => {
+  const [first, ...rest] = field.options.map((option) => option.value);
+  if (first === undefined) {
+    throw new Error(`${field.label} must define at least one option`);
+  }
+  return v.picklist([first, ...rest]);
+};
+
+const hasInvalidChoice = (
+  field: ChoiceField<"select" | "checkbox-group">,
+  value: string,
+): boolean => {
+  const values = field.type === "checkbox-group" ? value.split(",") : [value];
+  const schema = choiceSchema(field);
+  return values.some((choice) => !v.safeParse(schema, choice).success);
+};
+
 const requiredFieldError = (field: Field): FieldValidationResult => ({
   error: field.requiredMessage ?? `${field.label} is required`,
   valid: false,
@@ -449,6 +434,30 @@ const collectFieldValue = (
   return raw;
 };
 
+const validateFieldText = (field: Field, value: string): string | null => {
+  if (field.validate && value) {
+    const error = field.validate(value);
+    if (error) return error;
+  }
+  if (
+    value &&
+    (field.type === "select" || field.type === "checkbox-group") &&
+    hasInvalidChoice(field, value)
+  ) {
+    return (
+      field.invalidMessage ?? t("error.field_invalid", { label: field.label })
+    );
+  }
+  if (
+    "maxlength" in field &&
+    field.maxlength &&
+    value.length > field.maxlength
+  ) {
+    return `${field.label} must be ${field.maxlength} characters or fewer`;
+  }
+  return null;
+};
+
 /**
  * Validate a single field and return its parsed value.
  * For checkbox-group fields, collects all checked values via getAll()
@@ -474,20 +483,8 @@ const validateSingleField = (
     return requiredFieldError(field);
   }
 
-  if (field.validate && trimmed) {
-    const error = field.validate(trimmed);
-    if (error) return { error, valid: false };
-  }
-
-  // Enforce the field's maxlength server-side (the rendered input's maxlength is
-  // only a browser hint). Runs after any custom validator so a field with its
-  // own length rule keeps its domain-specific message.
-  if (field.maxlength && trimmed.length > field.maxlength) {
-    return {
-      error: `${field.label} must be ${field.maxlength} characters or fewer`,
-      valid: false,
-    };
-  }
+  const textError = validateFieldText(field, trimmed);
+  if (textError) return { error: textError, valid: false };
 
   const value = parseFieldValue(field, trimmed);
   if (trimmed && isUnusableParsedValue(value)) {
@@ -504,14 +501,12 @@ const validateSingleField = (
 /**
  * Parse and validate form data against field definitions.
  *
- * Supply a type parameter to get strongly-typed values back:
- *   validateForm<ListingFormValues>(form, getListingFields())
- *
- * Without a type parameter, values default to the loose FieldValues dict.
+ * Prefer `defineForm` for typed values derived from the field declaration.
+ * Direct callers default to the loose FieldValues dictionary.
  */
 export const validateForm = <T = FieldValues>(
   form: FormParams,
-  fields: Field[],
+  fields: readonly Field[],
   normalizeValue: FieldValueNormalizer = (_field, value) => value,
 ): ValidationResult<T> => {
   const values: FieldValues = {};

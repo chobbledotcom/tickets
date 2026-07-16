@@ -35,7 +35,7 @@ import {
 } from "#templates/components/data-table.tsx";
 import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { logisticsAgentFields } from "#templates/fields/listing.ts";
+import { logisticsAgentForm } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */
 
@@ -74,7 +74,7 @@ const AgentsSection = ({
           className="listing-section"
           legend={t("logistics.add_agent")}
         >
-          <Raw html={renderFields(logisticsAgentFields)} />
+          <Raw html={logisticsAgentForm.render()} />
         </SectionFieldset>
       </SaveForm>
     </WritableOnly>
@@ -101,7 +101,7 @@ export const adminLogisticsPage = successListPage<LogisticsAgent[]>(
 export const logisticsAgentToFieldValues = (
   agent?: LogisticsAgent,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(agent, logisticsAgentFields, {});
+  entityToFieldValues(agent, logisticsAgentForm.fields, {});
 
 /** A user that can be assigned to drive a logistics agent. */
 export interface AgentUserOption {
@@ -187,13 +187,13 @@ export const logisticsAgentPages = defineAdminResourcePages<
   ),
   renderFields: (agent) =>
     agent === undefined ? (
-      <Raw html={renderFields(logisticsAgentFields)} />
+      <Raw html={logisticsAgentForm.render()} />
     ) : (
       <fieldset class="listing-section">
         <legend>{t("logistics.agent_details")}</legend>
         <Raw
           html={renderFields(
-            logisticsAgentFields,
+            logisticsAgentForm.fields,
             logisticsAgentToFieldValues(agent),
           )}
         />

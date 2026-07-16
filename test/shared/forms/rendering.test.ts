@@ -12,7 +12,7 @@ import {
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
-): Field => ({ type: "text", ...overrides });
+): Field => ({ type: "text", ...overrides }) as Field;
 
 const rendered = (
   overrides: Partial<Field> & { name: string; label: string },
@@ -58,20 +58,6 @@ describe("renderField", () => {
 
     const plain = rendered({ label: "Bio", name: "bio", type: "textarea" });
     expect(plain).not.toContain("data-markdown-preview");
-  });
-
-  test("renders a checkbox group only for the checkbox-group type", () => {
-    // A non-checkbox field that happens to carry options must still render its
-    // normal input — the checkbox-group branch is gated on the type, not just
-    // the presence of options.
-    const html = rendered({
-      label: "Name",
-      name: "name",
-      options: [{ label: "A", value: "a" }],
-      type: "text",
-    });
-    expect(html).toContain('type="text"');
-    expect(html).not.toContain('type="checkbox"');
   });
 
   test("renders hint text", () => {

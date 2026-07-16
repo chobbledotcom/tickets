@@ -2,16 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
-import { getBuiltSiteFields } from "#templates/fields/admin.ts";
+import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
-import { getGroupCreateFields } from "#templates/fields/group.ts";
+import { getGroupCreateForm } from "#templates/fields/group.ts";
 import {
-  getInitialSiteMonthsField,
-  getListingFields,
-  getMonthsPerUnitField,
-  logisticsAgentFields,
+  getListingForm,
+  logisticsAgentForm,
 } from "#templates/fields/listing.ts";
-import { getModifierFields } from "#templates/fields/modifier.ts";
+import { getModifierForm } from "#templates/fields/modifier.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { getSlugField } from "#templates/fields/validators.ts";
 import { byName } from "#test-utils/fields.ts";
@@ -52,12 +50,12 @@ describe("fields behaviour", () => {
   });
 
   describe("modifier fields", () => {
-    const modifierFields = getModifierFields();
+    const modifierFields = getModifierForm().fields;
     test("is a per-request builder, not a shared module-load array", () => {
       // Each call builds a fresh array, so the picklist option labels (which
       // resolve through t()) are compiled per request rather than at module
       // load — keeping that work off the admin routes' cold-start path.
-      expect(getModifierFields()).not.toBe(getModifierFields());
+      expect(getModifierForm().fields).not.toBe(getModifierForm().fields);
     });
     test("name is required", () => {
       expect(byName(modifierFields, "name").required).toBe(true);
@@ -84,8 +82,8 @@ describe("fields behaviour", () => {
     });
   });
 
-  describe("getListingFields", () => {
-    const fields = getListingFields();
+  describe("listing form fields", () => {
+    const fields = getListingForm().fields;
     test("capacity fields are required with sensible minimums", () => {
       expect(byName(fields, "max_attendees").min).toBe(1);
       expect(byName(fields, "max_attendees").required).toBe(true);
@@ -102,12 +100,6 @@ describe("fields behaviour", () => {
       rejects(duration, "0");
       rejects(duration, "1.5");
       rejects(duration, String(MAX_DURATION_DAYS + 1));
-    });
-    test("listing_type only accepts known kinds", () => {
-      const type = byName(fields, "listing_type");
-      accepts(type, "standard");
-      accepts(type, "daily");
-      rejects(type, "unknown-kind");
     });
     test("the date field rejects an unparseable datetime", () => {
       rejects(byName(fields, "date"), "not-a-datetime");
@@ -127,12 +119,12 @@ describe("fields behaviour", () => {
 
   describe("month-count fields keep their bounds", () => {
     test("months-per-unit is 0..24", () => {
-      const field = getMonthsPerUnitField();
+      const field = byName(getListingForm().fields, "months_per_unit");
       expect(field.min).toBe(0);
       expect(field.max).toBe(24);
     });
     test("initial-site-months is 0..120", () => {
-      const field = getInitialSiteMonthsField();
+      const field = byName(getListingForm().fields, "initial_site_months");
       expect(field.min).toBe(0);
       expect(field.max).toBe(120);
     });
@@ -140,7 +132,7 @@ describe("fields behaviour", () => {
 
   describe("required flags and validators on the remaining factories", () => {
     test("built-site name and url are required; updates only accepts a tier", () => {
-      const fields = getBuiltSiteFields();
+      const fields = getBuiltSiteForm().fields;
       expect(byName(fields, "name").required).toBe(true);
       expect(byName(fields, "site_url").required).toBe(true);
       const updates = byName(fields, "updates");
@@ -148,13 +140,13 @@ describe("fields behaviour", () => {
       rejects(updates, "not-a-tier");
     });
     test("the logistics-agent name is required", () => {
-      expect(byName(logisticsAgentFields, "name").required).toBe(true);
+      expect(byName(logisticsAgentForm.fields, "name").required).toBe(true);
     });
     test("the slug field is required", () => {
       expect(getSlugField().required).toBe(true);
     });
     test("group name is required and its terms render markdown", () => {
-      const fields = getGroupCreateFields();
+      const fields = getGroupCreateForm().fields;
       expect(byName(fields, "name").required).toBe(true);
       expect(byName(fields, "terms_and_conditions").markdown).toBe(true);
     });

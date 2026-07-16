@@ -5,7 +5,7 @@ import { type Field, validateForm } from "#shared/forms.tsx";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
-): Field => ({ type: "text", ...overrides });
+): Field => ({ type: "text", ...overrides }) as Field;
 
 const requiredName: Field[] = [
   field({ label: "Name", name: "name", required: true }),
@@ -105,7 +105,15 @@ describe("validateForm", () => {
 
   test("collects checkbox-group values from multiple form entries", () => {
     const fields: Field[] = [
-      field({ label: "Days", name: "days", type: "checkbox-group" }),
+      field({
+        label: "Days",
+        name: "days",
+        options: [
+          { label: "Monday", value: "Monday" },
+          { label: "Wednesday", value: "Wednesday" },
+        ],
+        type: "checkbox-group",
+      }),
     ];
     const form = new FormParams();
     form.append("days", "Monday");
@@ -117,7 +125,12 @@ describe("validateForm", () => {
 
   test("returns empty string for empty checkbox-group", () => {
     const fields: Field[] = [
-      field({ label: "Days", name: "days", type: "checkbox-group" }),
+      field({
+        label: "Days",
+        name: "days",
+        options: [{ label: "Monday", value: "Monday" }],
+        type: "checkbox-group",
+      }),
     ];
     const result = validateForm(new FormParams(), fields);
     expect(result.valid).toBe(true);

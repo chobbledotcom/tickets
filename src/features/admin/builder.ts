@@ -22,7 +22,11 @@ import {
   isTursoEnabled,
 } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
+import {
+  builtSites,
+  insertBuiltSite,
+  providerOrBunny,
+} from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { defineForm } from "#shared/forms/definition.ts";
@@ -142,18 +146,14 @@ const builderPost = createAuthedFormRoute({
       }
     }
 
-    const hostingProvider =
-      values.hosting_provider === "deno"
-        ? ("deno" as const)
-        : ("bunny" as const);
+    const hostingProvider = providerOrBunny(values.hosting_provider, "deno");
 
     if (hostingProvider === "deno" && !isDenoDeployEnabled()) {
       return errorRedirect(BUILDER_PATH, "Deno Deploy is not configured");
     }
 
     const dbProviderVal = values.db_provider;
-    const dbProvider =
-      dbProviderVal === "turso" ? ("turso" as const) : ("bunny" as const);
+    const dbProvider = providerOrBunny(dbProviderVal, "turso");
 
     const dbError = dbProviderConfigError(dbProviderVal, values.db_url);
     if (dbError) return errorRedirect(BUILDER_PATH, dbError);

@@ -43,7 +43,7 @@ import {
   adminLogisticsPage,
   logisticsAgentPages,
 } from "#templates/admin/logistics.tsx";
-import { logisticsAgentFields } from "#templates/fields/listing.ts";
+import { logisticsAgentForm } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */
 
@@ -58,7 +58,7 @@ const extractLogisticsAgentInput = (
 /** Logistics agents resource for REST create/update/delete. Deleting an agent
  * first clears any booking references so no attendee points at a missing id. */
 const logisticsAgentsResource = defineNamedResource({
-  fields: logisticsAgentFields,
+  form: logisticsAgentForm,
   nameField: "name",
   onDelete: async (id: InValue): Promise<void> => {
     await clearLogisticsAgentReferences(Number(id));

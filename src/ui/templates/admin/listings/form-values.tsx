@@ -23,13 +23,7 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
-import {
-  getAssignBuiltSiteField,
-  getInitialSiteMonthsField,
-  getListingFields,
-  getMonthsPerUnitField,
-  logisticsField,
-} from "#templates/fields/listing.ts";
+import { getListingForm } from "#templates/fields/listing.ts";
 import { formatBookableDays } from "./helpers.ts";
 
 const formatDatetimeLocal = (iso: string | null): string | null =>
@@ -83,18 +77,15 @@ const listingFieldFormatters: Partial<
   uses_logistics: (e) => booleanToCheckbox(e.uses_logistics),
 };
 
-const getAllListingFields = () => [
-  ...getListingFields(),
-  logisticsField,
-  getMonthsPerUnitField(),
-  getInitialSiteMonthsField(),
-  getAssignBuiltSiteField(),
-];
-
 export const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
-  entityToFieldValues(listing, getAllListingFields(), listingFieldFormatters, {
-    slug: listing.slug,
-  });
+  entityToFieldValues(
+    listing,
+    getListingForm().fields,
+    listingFieldFormatters,
+    {
+      slug: listing.slug,
+    },
+  );
 
 const KIND_FORMATTERS: Record<
   ListingDefaultKind,

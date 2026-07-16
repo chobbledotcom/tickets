@@ -55,6 +55,14 @@ export type HostingProvider = "bunny" | "deno";
 /** Database provider for a built site. */
 export type DbProvider = "bunny" | "turso";
 
+/** Use the named provider when selected, otherwise use Bunny. */
+export const providerOrBunny = <
+  TProvider extends Exclude<HostingProvider | DbProvider, "bunny">,
+>(
+  value: string | null | undefined,
+  provider: TProvider,
+): "bunny" | TProvider => (value === provider ? provider : "bunny");
+
 /** Encrypted site data blob shape */
 export interface SiteDataBlob {
   /** Database URL (optional, absent in older blobs) */

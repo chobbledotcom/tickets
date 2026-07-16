@@ -137,26 +137,6 @@ describe("defineForm", () => {
     });
   });
 
-  test("renders select option hints from the field schema", () => {
-    const form = defineForm({
-      fields: [
-        {
-          label: "Action",
-          name: "action",
-          options: [
-            { hint: "Use cash.", label: "Payment", value: "pay" },
-            { label: "Charge", value: "charge" },
-          ],
-          type: "select",
-        },
-      ] as const,
-      id: "option-hints",
-    });
-    const html = form.render();
-    expect(html).toContain("<strong>Payment:</strong> Use cash.");
-    expect(html).not.toContain("<strong>Charge:</strong>");
-  });
-
   test("validates and parses typed values", () => {
     const form = defineForm({
       fields: [

@@ -5,7 +5,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import type { Field } from "#shared/forms.tsx";
+import { defineForm, type FormValues } from "#shared/forms/definition.ts";
+import type { ChoiceField, Field, InputField } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import {
@@ -17,20 +18,25 @@ import {
 /* jscpd:ignore-end */
 
 /** Max attendees field for group forms */
-const getGroupMaxAttendeesField = (): Field => ({
-  hint: t("fields.group.max_attendees_hint"),
-  label: t("fields.group.max_attendees"),
-  name: "max_attendees",
-  type: "number",
-});
+const getGroupMaxAttendeesField = () =>
+  ({
+    hint: t("fields.group.max_attendees_hint"),
+    label: t("fields.group.max_attendees"),
+    name: "max_attendees",
+    type: "number",
+  }) satisfies InputField<"max_attendees">;
 
 /** Group description field */
-const getGroupDescriptionField = (): Field =>
+const getGroupDescriptionField = () =>
   buildDescriptionField(t("fields.group.description_hint"), formattingHint());
 
 /** "Is a package" checkbox for group forms. Toggling it reveals the per-listing
  * price override table on the edit page via the CSS sibling trick. */
-const getIsPackageField = (): Field => ({
+const getIsPackageField = (): ChoiceField<
+  "checkbox-group",
+  "1",
+  "is_package"
+> => ({
   hint: t("fields.group.is_package_hint"),
   label: t("fields.group.is_package"),
   name: "is_package",
@@ -40,7 +46,11 @@ const getIsPackageField = (): Field => ({
 
 /** "Hide listings within package" checkbox. Only meaningful for packages, so the
  * edit page reveals it via the same CSS trick as the price table. */
-const getHidePackageListingsField = (): Field => ({
+const getHidePackageListingsField = (): ChoiceField<
+  "checkbox-group",
+  "1",
+  "hide_package_listings"
+> => ({
   hint: t("fields.group.hide_package_listings_hint"),
   label: t("fields.group.hide_package_listings"),
   name: "hide_package_listings",
@@ -51,7 +61,7 @@ const getHidePackageListingsField = (): Field => ({
 });
 
 /** Group form fields for creation (no slug - auto-generated) */
-export const getGroupCreateFields = (): Field[] => {
+const groupCreateFields = () => {
   const groupHiddenField = buildHiddenField("Group");
   return [
     {
@@ -79,20 +89,39 @@ export const getGroupCreateFields = (): Field[] => {
     groupHiddenField,
     getIsPackageField(),
     getHidePackageListingsField(),
-  ];
+  ] as const satisfies readonly Field[];
 };
 
+export const getGroupCreateForm = () =>
+  defineForm({ fields: groupCreateFields(), id: "group-create" });
+
 /** Group form field definitions (edit - includes slug) */
-export const getGroupFields = (): Field[] => {
-  const creates = getGroupCreateFields();
-  return [
-    creates[0]!,
-    getSlugField(),
-    creates[1]!,
-    creates[2]!,
-    creates[3]!,
-    buildHiddenField("Group"),
-    getIsPackageField(),
-    getHidePackageListingsField(),
-  ];
+export const getGroupForm = () => {
+  const [
+    name,
+    description,
+    maxAttendees,
+    terms,
+    hidden,
+    isPackage,
+    hideListings,
+  ] = groupCreateFields();
+  return defineForm({
+    fields: [
+      name,
+      getSlugField(),
+      description,
+      maxAttendees,
+      terms,
+      hidden,
+      isPackage,
+      hideListings,
+    ] as const,
+    id: "group-edit",
+  });
 };
+
+export type GroupCreateFormValues = FormValues<
+  ReturnType<typeof getGroupCreateForm>
+>;
+export type GroupFormValues = FormValues<ReturnType<typeof getGroupForm>>;

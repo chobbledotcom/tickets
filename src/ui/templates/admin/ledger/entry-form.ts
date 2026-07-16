@@ -56,8 +56,6 @@ const ledgerEntryAddFields = (options: LedgerEntryAddOption[]) =>
         label: option.label,
         value: option.type,
       })),
-      parse: (value: string) =>
-        options.find((option) => option.type === value)?.type ?? null,
       required: true,
       requiredMessage: t("admin.ledger.form.entry_type_required"),
       type: "select",

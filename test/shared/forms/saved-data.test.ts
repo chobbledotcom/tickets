@@ -13,7 +13,7 @@ import {
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
-): Field => ({ type: "text", ...overrides });
+): Field => ({ type: "text", ...overrides }) as Field;
 
 describe("entityToFieldValues", () => {
   const fields = [

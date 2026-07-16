@@ -3,12 +3,13 @@
  * together the running-totals, revenue-adjust, ledger, and link-editor sections.
  */
 
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ModifierRow } from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
 import { AdminPage, flashFormPage } from "#templates/admin/admin-page.tsx";
@@ -25,7 +26,7 @@ import {
 } from "#templates/components/actions.tsx";
 import { CollectionTable } from "#templates/components/data-table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { getModifierFields } from "#templates/fields/modifier.ts";
+import { getModifierForm } from "#templates/fields/modifier.ts";
 import {
   ModifierRunningTotalsSection,
   type ModifierSectionProps,
@@ -38,12 +39,14 @@ import {
 } from "./links.tsx";
 import { modifierToFieldValues, ruleSummary } from "./values.ts";
 
+/* jscpd:ignore-end */
+
 /** Render the modifier form inputs, building the field list once and threading
  * it through both the value map and the renderer so a single page render does
  * not reconstruct the fields (and re-run their picklist i18n) twice. */
 const renderModifierFormFields = (modifier?: Modifier): string => {
-  const fields = getModifierFields();
-  return renderFields(fields, modifierToFieldValues(modifier, fields));
+  const form = getModifierForm();
+  return form.render(modifierToFieldValues(modifier, form.fields));
 };
 
 /** The modifier guide link, rendered at the bottom of every modifier page. */

@@ -43,7 +43,6 @@ import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   type Answer,
-  isQuestionDisplayType,
   QUESTION_DISPLAY_TYPES,
   type QuestionWithAnswers,
   questionDisplayTypeError,
@@ -108,6 +107,7 @@ export const questionTextForm = defineForm({
       type: "textarea",
     },
     {
+      invalidMessage: questionDisplayTypeError,
       label: "Display as",
       name: "display_type",
       options: QUESTION_DISPLAY_TYPES.map((value) => ({
@@ -124,8 +124,6 @@ export const questionTextForm = defineForm({
     },
   ] as const,
   id: "questionText",
-  validate: ({ display_type }) =>
-    isQuestionDisplayType(display_type) ? null : questionDisplayTypeError,
 });
 
 export const answerTextForm = defineForm({

@@ -1,0 +1,125 @@
+/** One value offered by a select or checkbox group. */
+export interface FieldOption<TValue extends string = string> {
+  hint?: string;
+  label: string;
+  value: TValue;
+}
+
+export type FieldType =
+  | InputFieldType
+  | "textarea"
+  | "select"
+  | "checkbox-group"
+  | "file";
+
+export type InputFieldType =
+  | "text"
+  | "number"
+  | "email"
+  | "url"
+  | "password"
+  | "date"
+  | "datetime"
+  | "datetime-local"
+  | "money";
+
+interface FieldBase<
+  TType extends FieldType,
+  TName extends string,
+  TSection extends string,
+> {
+  accept?: never;
+  autocomplete?: string;
+  autofocus?: boolean;
+  /** Trusted template HTML rendered immediately before the field's label. */
+  beforeHtml?: string;
+  defaultValue?: string;
+  hint?: string;
+  hintHtml?: string;
+  id?: string;
+  inputmode?: string;
+  invalidMessage?: string;
+  label: string;
+  markdown?: never;
+  max?: number;
+  maxlength?: number;
+  min?: number;
+  minlength?: number;
+  name: TName;
+  options?: never;
+  parse?: (value: string) => string | number | null;
+  pattern?: string;
+  placeholder?: string;
+  publicLinkPath?: (value: string) => string;
+  required?: boolean;
+  requiredMessage?: string;
+  section?: TSection;
+  title?: string;
+  type: TType;
+  validate?: (value: string) => string | null;
+  /** Excludes the field from rendering without removing it from validation. */
+  visible?: boolean;
+}
+
+export type InputField<
+  TName extends string = string,
+  TSection extends string = string,
+> = FieldBase<InputFieldType, TName, TSection>;
+
+type FieldWithProperties<
+  TType extends FieldType,
+  TName extends string = string,
+  TSection extends string = string,
+  TProperties extends object = object,
+> = Omit<FieldBase<TType, TName, TSection>, keyof TProperties> & TProperties;
+
+export type TextareaField<
+  TName extends string = string,
+  TSection extends string = string,
+> = FieldWithProperties<
+  "textarea",
+  TName,
+  TSection,
+  {
+    /** Marks this as markdown-authored, enabling the in-editor preview link. */
+    markdown?: boolean;
+  }
+>;
+
+export type ChoiceField<
+  TType extends "select" | "checkbox-group",
+  TValue extends string = string,
+  TName extends string = string,
+  TSection extends string = string,
+> = FieldWithProperties<
+  TType,
+  TName,
+  TSection,
+  { options: readonly FieldOption<TValue>[]; parse?: never }
+>;
+
+export type FileField<
+  TName extends string = string,
+  TSection extends string = string,
+> = FieldWithProperties<
+  "file",
+  TName,
+  TSection,
+  {
+    accept?: string;
+    defaultValue?: never;
+    parse?: never;
+    validate?: never;
+  }
+>;
+
+/** A field's `type` controls exactly which properties it may carry. */
+export type Field<
+  TName extends string = string,
+  TSection extends string = string,
+> =
+  | InputField<TName, TSection>
+  | TextareaField<TName, TSection>
+  | ChoiceField<"select", string, TName, TSection>
+  | ChoiceField<"checkbox-group", string, TName, TSection>
+  | FileField<TName, TSection>;
