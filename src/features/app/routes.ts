@@ -32,14 +32,10 @@ import { readOnlyBlock } from "./read-only.ts";
 /* jscpd:ignore-end */
 
 type RouterFn = ReturnType<typeof createRouter>;
-type PrefixRoute = {
-  beforeMessages: (path: string, method: string) => Response | null;
-  handler: RouterFn;
-  messageGroups: readonly MessageGroup[];
-};
 type CompletePathMethodRoute = (
   ...args: Parameters<PathMethodRoute>
 ) => Promise<Response>;
+
 type AppRouteRequest = {
   method: string;
   path: string;
@@ -55,6 +51,40 @@ export const defineAppRoute =
   (request, path, method, server) =>
     handle({ method, path, request, server });
 
+/** Create a lazy-loaded route handler (prefix already matched by dispatch map). */
+const lazyRoute =
+  (load: () => Promise<RouterFn>): RouterFn =>
+  async (request, path, method, server) =>
+    (await load())(request, path, method, server);
+
+type PrefixRoute = {
+  beforeMessages: (path: string, method: string) => Response | null;
+  handler: RouterFn;
+  messageGroups: readonly MessageGroup[];
+};
+
+const continueRoute = (_path: string, _method: string): null => null;
+
+const prefixRoute = (
+  messageGroups: readonly MessageGroup[],
+  handler: RouterFn,
+  beforeMessages: PrefixRoute["beforeMessages"] = continueRoute,
+): PrefixRoute => ({ beforeMessages, handler, messageGroups });
+
+const disabledPublicSiteGet = (
+  _path: string,
+  method: string,
+): Response | null =>
+  method === "GET" && !settings.features.site
+    ? redirectResponse("/admin/login")
+    : null;
+
+const requirePublicSiteGet =
+  (expectedPath: string) =>
+  (path: string, method: string): Response | null =>
+    path === expectedPath ? disabledPublicSiteGet(path, method) : null;
+
+/** Read-only mode message. */
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
 const readOnlyResponses = {
@@ -174,32 +204,6 @@ const exactRouteLoaders = {
   ),
 };
 
-const lazyRoute =
-  (load: () => Promise<RouterFn>): RouterFn =>
-  async (request, path, method, server) =>
-    (await load())(request, path, method, server);
-
-const prefixRoute = (
-  messageGroups: readonly MessageGroup[],
-  handler: RouterFn,
-  beforeMessages: PrefixRoute["beforeMessages"] = continueRoute,
-): PrefixRoute => ({ beforeMessages, handler, messageGroups });
-
-const continueRoute = (_path: string, _method: string): null => null;
-
-const disabledPublicSiteGet = (
-  _path: string,
-  method: string,
-): Response | null =>
-  method === "GET" && !settings.features.site
-    ? redirectResponse("/admin/login")
-    : null;
-
-const requirePublicSiteGet =
-  (expectedPath: string) =>
-  (path: string, method: string): Response | null =>
-    path === expectedPath ? disabledPublicSiteGet(path, method) : null;
-
 type PublicPagesModule = Awaited<ReturnType<typeof loadPublicPages>>;
 
 type PublicGetPageSpec = {
@@ -258,10 +262,16 @@ const contactPrefixHandler: RouterFn = async (request, path, method) => {
   return null;
 };
 
-const legacyEventsRedirectHandler: RouterFn = async (_request, path, method) =>
-  path === "/events" && method === "GET" && settings.features.site
-    ? redirectResponse("/listings")
-    : null;
+const legacyEventsRedirectHandler: RouterFn = async (
+  _request,
+  path,
+  method,
+) => {
+  if (path !== "/events" || method !== "GET" || !settings.features.site) {
+    return null;
+  }
+  return redirectResponse("/listings");
+};
 
 const orderJsPrefixHandler: RouterFn = async (request, path, method) => {
   if (path !== "/order.js" || method !== "GET") return null;
@@ -409,7 +419,7 @@ const prefixHandlers: Record<string, PrefixRoute> = {
   ),
 };
 
-/** Route a request after database and settings setup have completed. */
+/** Route main application requests after setup is complete. */
 export const routeMainApp = async ({
   request,
   path,
