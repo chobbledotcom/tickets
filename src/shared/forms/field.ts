@@ -10,34 +10,35 @@ export type ChoiceOptions<TValue extends string = string> = readonly [
   ...FieldOption<TValue>[],
 ];
 
-export const requireChoiceOptions = <TValue extends string>(
-  label: string,
-  options: readonly FieldOption<TValue>[],
-): ChoiceOptions<TValue> => {
-  const [first, ...rest] = options;
-  if (first === undefined) {
-    throw new Error(`${label} must define at least one option`);
-  }
-  return [first, ...rest];
-};
+interface ChoiceOptionRule {
+  invalid: (value: string) => boolean;
+  message: (label: string) => string;
+}
 
-export const requireCheckboxOptions = <TValue extends string>(
-  label: string,
-  options: readonly FieldOption<TValue>[],
-): ChoiceOptions<TValue> => {
-  const checked = requireChoiceOptions(label, options);
-  if (
-    checked.some(
-      ({ value }) =>
-        value !== value.trim() || value === "" || value.includes(","),
-    )
-  ) {
-    throw new Error(
-      `${label} checkbox option values must be trimmed, non-empty, and contain no commas`,
-    );
-  }
-  return checked;
-};
+const makeRequiredOptions =
+  (rule?: ChoiceOptionRule) =>
+  <TValue extends string>(
+    label: string,
+    options: readonly FieldOption<TValue>[],
+  ): ChoiceOptions<TValue> => {
+    const [first, ...rest] = options;
+    if (first === undefined) {
+      throw new Error(`${label} must define at least one option`);
+    }
+    const checked: ChoiceOptions<TValue> = [first, ...rest];
+    if (rule?.invalid && checked.some(({ value }) => rule.invalid(value))) {
+      throw new Error(rule.message(label));
+    }
+    return checked;
+  };
+
+export const requireChoiceOptions = makeRequiredOptions();
+export const requireCheckboxOptions = makeRequiredOptions({
+  invalid: (value) =>
+    value !== value.trim() || value === "" || value.includes(","),
+  message: (label) =>
+    `${label} checkbox option values must be trimmed, non-empty, and contain no commas`,
+});
 
 export type FieldType =
   | InputFieldType
