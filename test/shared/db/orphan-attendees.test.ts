@@ -6,6 +6,7 @@
  * through the real create path so they carry a genuine booking link.
  */
 
+import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert, queryOne } from "#shared/db/client.ts";
@@ -48,13 +49,17 @@ const attendeeExists = async (id: number): Promise<boolean> => {
 };
 
 /** Count rows in a child table for the given attendee. */
-const childCount = async (table: string, attendeeId: number): Promise<number> =>
-  (
-    await queryOne<{ count: number }>(
-      `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
-      [attendeeId],
-    )
-  )?.count ?? 0;
+const childCount = async (
+  table: string,
+  attendeeId: number,
+): Promise<number> => {
+  const row = await queryOne<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
+    [attendeeId],
+  );
+  assertExists(row);
+  return row.count;
+};
 
 describeWithEnv("db > orphan-attendees", { db: true }, () => {
   describe("countOrphanedAttendees", () => {
