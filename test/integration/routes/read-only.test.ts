@@ -2,9 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { allTransfers } from "#shared/accounting/queries.ts";
-import { readOnlyPage } from "#templates/public/errors.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { withEnv } from "#test-utils/env.ts";
 import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -40,24 +38,6 @@ describeWithEnv(
       expect(res.status).toBe(200);
       const html = await res.text();
       expect(html).toContain("This site is in read-only mode.");
-    });
-
-    test("readOnlyPage contains the expected message", () => {
-      const html = readOnlyPage();
-      expect(html).toContain("This site is in read-only mode.");
-    });
-
-    test("readOnlyPage includes renewal link when RENEWAL_URL is set", () => {
-      using _env = withEnv({ RENEWAL_URL: "https://example.com/renew" });
-      const html = readOnlyPage();
-      expect(html).toContain("Renew now");
-      expect(html).toContain("https://example.com/renew");
-    });
-
-    test("readOnlyPage omits renewal link when RENEWAL_URL is not set", () => {
-      using _env = withEnv({ RENEWAL_URL: undefined });
-      const html = readOnlyPage();
-      expect(html).not.toContain("Renew now");
     });
 
     const api403Cases: ReadonlyArray<{

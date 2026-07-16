@@ -213,6 +213,12 @@ describe("getCleanUrl", () => {
     });
   }
 
+  test("returns the bare path when every query parameter is tracking", () => {
+    expect(
+      getCleanUrl(new URL("https://example.com/page?utm_source=tracking")),
+    ).toBe("/page");
+  });
+
   test("returns null when there is nothing to remove", () => {
     expect(
       getCleanUrl(new URL("https://example.com/page?keep=yes")),
