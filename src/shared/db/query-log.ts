@@ -82,9 +82,6 @@ export const enableQueryLog = (): void => {
   state.startTime = performance.now();
 };
 
-/** Whether query logging is currently active */
-export const isQueryLogEnabled = (): boolean => getState().enabled;
-
 /** Allow the admin debug footer to render the captured queries (staff-only). */
 export const enableFooterDebug = (): void => {
   getState().footerVisible = true;
@@ -95,16 +92,6 @@ export const isFooterDebugEnabled = (): boolean => getState().footerVisible;
 
 /** Return the start time recorded by enableQueryLog() */
 export const getQueryLogStartTime = (): number => getState().startTime;
-
-/** Record a query (no-op when logging is disabled) */
-export const addQueryLogEntry = (
-  sql: string,
-  durationMs: number,
-  startedAtMs: number,
-): void => {
-  const state = getState();
-  if (state.enabled) state.entries.push({ durationMs, sql, startedAtMs });
-};
 
 /** Return a snapshot of all logged queries */
 export const getQueryLog = (): QueryLogEntry[] => [...getState().entries];
@@ -291,22 +278,26 @@ export const enforceTransactionRoundTripGuard = (
  * Run an async DB operation, enforcing the N+1 read guard and logging it when
  * footer tracking is active.
  */
-export const trackQuery = async <T>(
-  sql: string,
+export const trackQueries = async <T>(
+  sqls: string[],
   fn: () => Promise<T>,
 ): Promise<T> => {
   const store = queryLogScope.current();
-  if (store) enforceN1Guard(store, sql);
+  if (store) {
+    for (const sql of sqls) enforceN1Guard(store, sql);
+  }
   const state = store ?? fallbackState;
   const start = performance.now();
   const result = await fn();
+  const durationMs = performance.now() - start;
   if (state.enabled) {
-    state.entries.push({
-      durationMs: performance.now() - start,
-      sql,
-      startedAtMs: start,
-    });
+    state.entries.push(
+      ...sqls.map((sql) => ({ durationMs, sql, startedAtMs: start })),
+    );
   }
-  void logCompletedSql(sql);
+  for (const sql of sqls) void logCompletedSql(sql);
   return result;
 };
+
+export const trackQuery = <T>(sql: string, fn: () => Promise<T>): Promise<T> =>
+  trackQueries([sql], fn);

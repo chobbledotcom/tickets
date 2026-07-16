@@ -63,6 +63,26 @@ describeWithEnv("db > client batch", { db: true }, () => {
     expect(result.rows.map(({ value }) => String(value))).toEqual(["saved"]);
   });
 
+  test("transaction batches track every statement in one shared window", async () => {
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await withTransaction(async (tx) => {
+        await tx.batch([
+          "CREATE TABLE tracked_transaction_batch (value TEXT NOT NULL)",
+          "INSERT INTO tracked_transaction_batch (value) VALUES ('saved')",
+        ]);
+      });
+
+      const entries = getQueryLog();
+      expect(entries.map(({ sql }) => sql)).toEqual([
+        "CREATE TABLE tracked_transaction_batch (value TEXT NOT NULL)",
+        "INSERT INTO tracked_transaction_batch (value) VALUES ('saved')",
+      ]);
+      expect(entries[1]!.startedAtMs).toBe(entries[0]!.startedAtMs);
+      expect(entries[1]!.durationMs).toBe(entries[0]!.durationMs);
+    });
+  });
+
   test("queryBatchPrimary runs its statements in write mode", async () => {
     // "write" mode is the read-your-writes guarantee: Turso always serves it
     // from the primary, so a just-committed row is visible.

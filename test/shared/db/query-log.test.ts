@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
-  addQueryLogEntry,
   countDatabaseRoundTrip,
   enableFooterDebug,
   enableQueryLog,
@@ -10,7 +9,6 @@ import {
   getQueryLog,
   getQueryLogStartTime,
   isFooterDebugEnabled,
-  isQueryLogEnabled,
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
@@ -26,57 +24,11 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
 
 describe("query-log", () => {
-  describe("enableQueryLog", () => {
-    test("starts disabled", async () => {
-      await runWithQueryLogContext(async () => {
-        expect(isQueryLogEnabled()).toBe(false);
-      });
-    });
-
-    test("enableQueryLog enables tracking", async () => {
-      await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        expect(isQueryLogEnabled()).toBe(true);
-      });
-    });
-  });
-
-  describe("addQueryLogEntry", () => {
-    test("records entries when enabled", async () => {
-      await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.5, 100);
-        addQueryLogEntry("SELECT 2", 2.3, 200);
-        const log = getQueryLog();
-        expect(log).toHaveLength(2);
-        expect(log[0]!.sql).toBe("SELECT 1");
-        expect(log[0]!.durationMs).toBe(1.5);
-        expect(log[1]!.sql).toBe("SELECT 2");
-        expect(log[1]!.durationMs).toBe(2.3);
-      });
-    });
-
-    test("records the query start time for wall-clock math", async () => {
-      await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.5, 100);
-        expect(getQueryLog()[0]!.startedAtMs).toBe(100);
-      });
-    });
-
-    test("ignores entries when disabled", async () => {
-      await runWithQueryLogContext(async () => {
-        addQueryLogEntry("SELECT 1", 1.0, 0);
-        expect(getQueryLog()).toHaveLength(0);
-      });
-    });
-  });
-
   describe("enableQueryLog resets previous entries", () => {
     test("clears log on enable", async () => {
       await runWithQueryLogContext(async () => {
         enableQueryLog();
-        addQueryLogEntry("SELECT old", 1.0, 0);
+        await trackQuery("SELECT old", () => Promise.resolve());
         expect(getQueryLog()).toHaveLength(1);
 
         enableQueryLog();
@@ -89,9 +41,9 @@ describe("query-log", () => {
     test("returned array is independent of internal state", async () => {
       await runWithQueryLogContext(async () => {
         enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.0, 0);
+        await trackQuery("SELECT 1", () => Promise.resolve());
         const snapshot = getQueryLog();
-        addQueryLogEntry("SELECT 2", 2.0, 1);
+        await trackQuery("SELECT 2", () => Promise.resolve());
         expect(snapshot).toHaveLength(1);
         expect(getQueryLog()).toHaveLength(2);
       });

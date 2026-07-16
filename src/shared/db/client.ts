@@ -22,11 +22,9 @@ import {
 } from "#shared/cache-registry.ts";
 import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
 import {
-  addQueryLogEntry,
   countDatabaseRoundTrip,
   enforceTransactionRoundTripGuard,
-  isQueryLogEnabled,
-  logCompletedSql,
+  trackQueries,
   trackQuery,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
@@ -460,21 +458,14 @@ const runBatch = async (
   mode: TransactionMode,
   invalidate: boolean,
 ): Promise<ResultSet[]> => {
-  const start = performance.now();
+  const sqls = statements.map(({ sql }) => sql);
   // Batch writes serialize against the single SQLite writer like any other write,
   // so a contended batch waits and retries (then surfaces DatabaseBusyError)
   // rather than throwing raw SQLITE_BUSY — matching execute() and withTransaction.
-  const results = await retryOnDatabaseLock(() =>
-    getDb().batch(statements, mode),
+  const results = await trackQueries(sqls, () =>
+    retryOnDatabaseLock(() => getDb().batch(statements, mode)),
   );
-  if (isQueryLogEnabled()) {
-    const elapsed = performance.now() - start;
-    // Every statement shares the one round-trip window [start, start+elapsed],
-    // so the footer's wall-clock union counts that time once (not N times).
-    for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed, start);
-  }
   for (const stmt of statements) {
-    void logCompletedSql(stmt.sql);
     if (invalidate) invalidateForSql(stmt.sql);
   }
   return results;
@@ -559,7 +550,7 @@ const runWriteTransactionOnce = async <T>(
       writtenSql.push(...sqls);
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
-      return tx.batch(statements);
+      return trackQueries(sqls, () => tx.batch(statements));
     },
     execute: (stmt) => {
       const sql = typeof stmt === "string" ? stmt : stmt.sql;
