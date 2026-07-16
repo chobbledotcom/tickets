@@ -144,9 +144,8 @@ const navCtx = (
   active,
   adminLevel,
   builder: isBuilderEnabled(),
-  hasLogistics: settings.hasLogistics,
+  enabledFeatures: settings.features,
   isReadOnly: isReadOnly(),
-  showPublicSite: settings.showPublicSite,
   storage: isStorageEnabled(),
   support: isSupportEnabled(),
 });

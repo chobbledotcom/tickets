@@ -5,10 +5,11 @@ import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("server (listing logistics field)", { db: true }, () => {
   test("renders the logistics field and stores it when logistics is on", async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     const listing = await createTestListing({ usesLogistics: true });
     const stored = await getListingWithCount(listing.id);
     expect(stored!.uses_logistics).toBe(true);
@@ -20,7 +21,7 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
   });
 
   test("the new and duplicate forms include the logistics field", async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     const listing = await createTestListing({ name: "Original" });
 
     const newForm = await adminGet("/admin/listing/new?template=custom");
@@ -31,13 +32,13 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
   });
 
   test("the new form omits the logistics field when logistics is off", async () => {
-    settings.setForTest({ has_logistics: false });
+    settings.setForTest(featureSetting());
     const newForm = await adminGet("/admin/listing/new?template=custom");
     expect(await newForm.text()).not.toContain('name="uses_logistics"');
   });
 
   test("ignores the Delivered field when logistics is off", async () => {
-    settings.setForTest({ has_logistics: false });
+    settings.setForTest(featureSetting());
     // The form still submits delivered=1, but the gate forces it false.
     const listing = await createTestListing({ usesLogistics: true });
     const stored = await getListingWithCount(listing.id);

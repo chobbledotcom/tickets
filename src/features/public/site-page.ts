@@ -19,10 +19,10 @@ import {
   computeSitePageSlugIndex,
   getSitePageBySlugIndex,
 } from "#shared/db/site-pages.ts";
+import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { targetKey } from "#shared/site-pages/core.ts";
 import { sitePagePage } from "#templates/public/site-page.tsx";
-import { requirePublicSite } from "./pages.ts";
 import { publicNavProps } from "./site-nav.ts";
 
 /** How a resolved content item is turned into its page markup. */

@@ -6,6 +6,7 @@ import { readOnlyPage } from "#templates/public/errors.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { jsonRequest, mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** POST a urlencoded form body to `path` (defaults to a trivial field). */
 const postForm = (path: string, body = "name=test"): Promise<Response> =>
@@ -194,12 +195,11 @@ describeWithEnv(
     });
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
       const { groups, computeGroupSlugIndex, assignListingsToGroup } =
         await import("#shared/db/groups.ts");
       const { listingsTable } = await import("#shared/db/listings/records.ts");
       const { computeSlugIndex } = await import("#shared/db/listings/table.ts");
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const slugIndex = await computeGroupSlugIndex("ro-group");
       const group = await groups.table.insert({
         hidden: false,

@@ -18,6 +18,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
+import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
+import type { Trigger } from "#shared/db/migrations/schema/types.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import {
   initDb,
@@ -96,8 +98,24 @@ const indexesReferencingColumn = async (
 // the migration created.
 export const dropOwnedObjects = async (
   req: SchemaRequirement,
-): Promise<void> => {
-  for (const trigger of req.triggers ?? []) {
+  triggers: readonly Trigger[] = TRIGGERS,
+): Promise<Trigger[]> => {
+  const droppedTables = new Set(req.newTables ?? []);
+  const droppedTriggers = triggers.filter(
+    (trigger) =>
+      (req.triggers ?? []).includes(trigger.name) ||
+      droppedTables.has(trigger.table) ||
+      Object.entries(trigger.uses).some(
+        ([table, columns]) =>
+          droppedTables.has(table) ||
+          columns.some((column) => req.columns?.[table]?.includes(column)),
+      ),
+  );
+  const triggerNames = new Set([
+    ...(req.triggers ?? []),
+    ...droppedTriggers.map(({ name }) => name),
+  ]);
+  for (const trigger of triggerNames) {
     await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
   }
   for (const index of req.indexes ?? []) {
@@ -117,6 +135,7 @@ export const dropOwnedObjects = async (
   for (const table of req.newTables ?? []) {
     await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
   }
+  return droppedTriggers;
 };
 
 export const seedSentinelListing = (): Promise<unknown> =>
@@ -385,7 +404,7 @@ export const defineRestoreCasesSuite = (
           // Precondition: a freshly-migrated DB satisfies the migration.
           await migration.verify();
 
-          await dropOwnedObjects(req);
+          const droppedTriggers = await dropOwnedObjects(req);
 
           // With its objects gone, the migration's verify() must fail.
           await expect(migration.verify()).rejects.toThrow(
@@ -394,6 +413,9 @@ export const defineRestoreCasesSuite = (
 
           // Re-running up() restores exactly those objects...
           await migration.up();
+          for (const trigger of droppedTriggers) {
+            await getDb().execute(trigger.sql);
+          }
           await migration.verify();
 
           // ...and the row that existed before the drop/restore is untouched.

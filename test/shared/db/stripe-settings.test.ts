@@ -6,11 +6,12 @@ import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > Stripe settings", { db: true }, () => {
   test("keeps all prior credentials when the endpoint ID write fails", async () => {
-    await settings.update.stripe.credentials({
+    await settings.update.stripe.activate({
       secretKey: "sk_test_old",
       webhookEndpointId: "we_old",
       webhookSecret: "whsec_old",
     });
+    await settings.update.paymentProvider("square");
     await getDb().execute(`
       CREATE TRIGGER fail_stripe_endpoint_id
       BEFORE INSERT ON settings
@@ -22,7 +23,7 @@ describeWithEnv("db > Stripe settings", { db: true }, () => {
 
     try {
       await expect(
-        settings.update.stripe.credentials({
+        settings.update.stripe.activate({
           secretKey: "sk_test_new",
           webhookEndpointId: "we_new",
           webhookSecret: "whsec_new",
@@ -37,9 +38,11 @@ describeWithEnv("db > Stripe settings", { db: true }, () => {
       CONFIG_KEYS.STRIPE_SECRET_KEY,
       CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
       CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
+      CONFIG_KEYS.PAYMENT_PROVIDER,
     ]);
     expect(settings.stripe.secretKey).toBe("sk_test_old");
     expect(settings.stripe.webhookEndpointId).toBe("we_old");
     expect(settings.stripe.webhookSecret).toBe("whsec_old");
+    expect(settings.paymentProvider).toBe("square");
   });
 });

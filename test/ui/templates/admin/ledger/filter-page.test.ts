@@ -5,11 +5,12 @@ import {
   adminLedgerPage,
   type LedgerPageData,
 } from "#templates/admin/ledger.tsx";
-
+import { featureSetting, useSetting } from "#test-utils/settings.ts";
 import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
 
 describe("adminLedgerPage", () => {
   beforeAll(setUpLedgerPageCrypto);
+  useSetting(featureSetting("money"));
 
   const NO_FILTERS: LedgerFilterState = {
     from: null,

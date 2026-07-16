@@ -24,7 +24,7 @@ export const getPrefix = (path: string): string => {
 /**
  * Keys every request needs regardless of route:
  * - domain resolution (`loadEffectiveDomain`) reads custom_domain + bunny_subdomain
- * - routing gates on setup_complete / show_public_*
+ * - routing gates on setup_complete / enabled_features / show_public_api
  * - the bare `Layout` (rendered by the universal `notFoundResponse` fallback
  *   and every HTML error page) reads theme + underline_links + header_image_url
  * - `applySecurityHeaders` rebuilds the CSP on every routed response, reading
@@ -34,16 +34,16 @@ export const getPrefix = (path: string): string => {
  * - session auth + PII decryption read the key material
  * - listing reads resolve listing defaults at the cache layer
  *   (`resolveListingDefaults`), which can run on any route that loads a listing;
- *   that resolution also reads has_logistics to gate the logistics default
+ *   that resolution also reads enabled_features to gate the public site and
+ *   the logistics default
  */
 const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LISTING_DEFAULTS,
-  CONFIG_KEYS.HAS_LOGISTICS,
+  CONFIG_KEYS.ENABLED_FEATURES,
   CONFIG_KEYS.CUSTOM_DOMAIN,
   CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
   CONFIG_KEYS.BUNNY_SUBDOMAIN,
   CONFIG_KEYS.SETUP_COMPLETE,
-  CONFIG_KEYS.SHOW_PUBLIC_SITE,
   CONFIG_KEYS.SHOW_PUBLIC_API,
   CONFIG_KEYS.THEME,
   CONFIG_KEYS.UNDERLINE_LINKS,

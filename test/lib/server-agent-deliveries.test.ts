@@ -21,6 +21,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { createTestAgentSession, testCookie } from "#test-utils/session.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 /** Assign logistics agents (vans) to the owner test user, so the staff run
  * sheet — scoped to the viewer's own agents — has deliveries to show. */
@@ -385,7 +386,7 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
   });
 
   test("staff can view the run sheet and see the staff nav and Calendar submenu", async () => {
-    await settings.update.hasLogistics(true);
+    await enableFeature("logistics");
     const html = await fetchDeliveriesHtml();
     // Staff (unlike agents) get the full navigation and the Calendar submenu
     // link to the deliveries page.

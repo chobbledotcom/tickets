@@ -27,10 +27,11 @@ import {
   ticketPageStatus,
 } from "#test-utils/parents.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Fetch the gallery body with the public site + order page enabled. */
 const galleryBody = async (): Promise<string> => {
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   await settings.update.orderEnabled(true);
   const response = await handleRequest(mockRequest("/order"));
   return response.text();
@@ -38,7 +39,7 @@ const galleryBody = async (): Promise<string> => {
 
 /** Redirect Location for an /order selection. */
 const orderRedirect = async (ids: number[]): Promise<string> => {
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   await settings.update.orderEnabled(true);
   const query = ids.map((id) => `select_${id}=1`).join("&");
   const response = await handleRequest(mockRequest(`/order?${query}`));
@@ -478,7 +479,7 @@ describeWithEnv(
         });
         await deactivateTestListing(child.id);
         const plain = await createTestListing({ name: "FeedPlain" });
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const rss = await (
           await handleRequest(mockRequest("/feeds/listings.rss"))
         ).text();
@@ -495,7 +496,7 @@ describeWithEnv(
           children: [{ name: "VisChild" }],
           parent: { name: "VisParent" },
         });
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const ics = await (
           await handleRequest(mockRequest("/feeds/listings.ics"))
         ).text();

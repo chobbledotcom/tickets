@@ -119,13 +119,12 @@ The order library is **off by default** and gated by its own setting,
 the settings page ("External order buttons").
 
 This is a privacy boundary, not just a feature flag. A site can run with the
-public site disabled (`show_public_site = false`), in which case its listing
-slugs and names are effectively private — reachable only by someone who already
-holds the direct ticket URL. The embedded catalog would publish that whole
-list. So the order library must **not** be implied by any other setting; it has
-to be turned on explicitly, a deliberate "yes, publish my listing catalog to
-these external sites" decision, independent of `show_public_site`,
-`show_public_api`, and `embed_hosts`.
+Site feature off, in which case its listing slugs and names are effectively
+private — reachable only by someone who already holds the direct ticket URL.
+The embedded catalog would publish that whole list. So the order library must
+**not** be implied by any other setting; it has to be turned on explicitly, a
+deliberate "yes, publish my listing catalog to these external sites" decision,
+independent of the Site feature, `show_public_api`, and `embed_hosts`.
 
 When the setting is **off**, `/order.js` does not 404 (messy for owners who left
 the tag in their template). It returns a tiny, harmless module that logs a
@@ -538,8 +537,8 @@ Server-side, the only failure surface is rendering `/order.js`:
 ## Security And Privacy
 
 - The system is off by default and gated by `external_order_enabled`,
-  independent of `show_public_site`. This is the privacy boundary: a site with
-  the public site disabled keeps its slugs/names private until the owner
+  independent of the Site feature. This is the privacy boundary: a site with
+  the Site feature off keeps its slugs/names private until the owner
   explicitly opts in to publishing the catalog. When off, the served stub
   carries no listing data at all.
 - There is no new server endpoint. `/order.js` is a read-only, public,

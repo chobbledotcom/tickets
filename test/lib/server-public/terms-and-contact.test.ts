@@ -7,6 +7,7 @@ import { icsDiscoveryTag, rssDiscoveryTag } from "#templates/public/shared.tsx";
 import { assertPublicHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -21,7 +22,7 @@ describeWithEnv(
       });
 
       test("shows terms page when enabled", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.terms("Our terms and conditions.");
         const html = await assertPublicHtml(
           "/terms",
@@ -33,13 +34,13 @@ describeWithEnv(
       });
 
       test("returns 404 when terms not configured", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(mockRequest("/terms"));
         expect(response.status).toBe(404);
       });
 
       test("includes RSS and ICS feed discovery tags", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.terms("Some terms");
         await assertPublicHtml("/terms", rssDiscoveryTag(), icsDiscoveryTag());
       });
@@ -52,7 +53,7 @@ describeWithEnv(
       });
 
       test("shows contact page when enabled", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.contactPageText("Get in touch with us");
         const html = await assertPublicHtml(
           "/contact",
@@ -64,13 +65,13 @@ describeWithEnv(
       });
 
       test("returns 404 when contact text not configured", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(mockRequest("/contact"));
         expect(response.status).toBe(404);
       });
 
       test("renders markdown paragraphs in contact text", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.contactPageText(
           "Phone: 123\n\nAddress: 1 High Street",
         );
@@ -89,7 +90,7 @@ describeWithEnv(
       });
 
       test("includes RSS and ICS feed discovery tags", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.contactPageText("Contact us");
         await assertPublicHtml(
           "/contact",

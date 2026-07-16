@@ -55,7 +55,7 @@ carries:
   `CONTENT_ADMIN_LEVELS`, `SITE_ADMIN_LEVELS`, `DELIVERY_ADMIN_LEVELS`) or
   `"owner"` / `"all"`.
 - **`featureFlag?`** — an optional predicate (`isStorageEnabled`,
-  `isSupportEnabled`, `isBuilderEnabled`, `settings.showPublicSite`,
+  `isSupportEnabled`, `isBuilderEnabled`, `settings.features.site`,
   `settings.hasLogistics`, `isReadOnly`).
 - **`subNav?`** — a list of sub-entries, each itself a `{ href, labelKey,
   guard?, featureFlag? }` (so the "Add X" create links, the Settings sub-pages,

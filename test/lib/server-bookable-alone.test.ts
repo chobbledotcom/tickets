@@ -35,6 +35,7 @@ import {
   ticketPageStatus,
 } from "#test-utils/parents.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** A parent with a single `bookable_alone` child (the headline shape). */
 const parentWithFlaggedChild = () =>
@@ -50,7 +51,7 @@ describeWithEnv(
     describe("standalone booking page", () => {
       test("a bookable_alone child's /ticket page renders (200), not 404", async () => {
         const { child } = await parentWithFlaggedChild();
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const response = await handleRequest(
           mockRequest(`/ticket/${child.slug}`),
         );
@@ -85,7 +86,7 @@ describeWithEnv(
 
     describe("/order gallery", () => {
       test("offers a bookable_alone child as a selectable card", async () => {
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         await settings.update.orderEnabled(true);
         const { child } = await parentWithFlaggedChild();
         const body = await (await handleRequest(mockRequest("/order"))).text();
@@ -97,7 +98,7 @@ describeWithEnv(
     describe("RSS/ICS feeds", () => {
       test("keeps a bookable_alone child's own feed item", async () => {
         const { child } = await parentWithFlaggedChild();
-        await settings.update.showPublicSite(true);
+        await enablePublicSite();
         const rss = await (
           await handleRequest(mockRequest("/feeds/listings.rss"))
         ).text();

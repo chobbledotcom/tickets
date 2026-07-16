@@ -154,9 +154,8 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     const createHandler: FormHandler = async (session, form) => {
       const result = await resource().create(form);
-      return result.ok
-        ? await logAndRedirect("created", result.row, session)
-        : errorRedirect(`${cfg.listPath}/new`, result.error);
+      if (!result.ok) return errorRedirect(`${cfg.listPath}/new`, result.error);
+      return logAndRedirect("created", result.row, session);
     };
 
     const createPost = authForm(createHandler);

@@ -1,12 +1,12 @@
+import type { EnabledFeatures } from "#shared/admin-features.ts";
 import type { AdminLevel } from "#shared/types.ts";
 
 export interface AdminSurfaceContext {
   readonly active: string;
   readonly adminLevel: AdminLevel;
   readonly builder: boolean;
-  readonly hasLogistics: boolean;
+  readonly enabledFeatures: EnabledFeatures;
   readonly isReadOnly: boolean;
-  readonly showPublicSite: boolean;
   readonly storage: boolean;
   readonly support: boolean;
 }
@@ -45,7 +45,7 @@ export const ADMIN_SURFACE_AREAS = {
   seeds: ["seeds"],
   servicing: ["servicing"],
   sessions: ["sessions"],
-  settings: ["listing-defaults", "settings", "settings-advanced"],
+  settings: ["features", "listing-defaults", "settings", "settings-advanced"],
   settingsLogistics: ["logistics"],
   settingsStatuses: ["settings"],
   site: ["site"],
@@ -109,8 +109,10 @@ export const operation = <
 
 export const OWNER_AUDIENCE = ["owner"] as const;
 
-const isSiteRoute = (active: string): boolean =>
-  active === "/admin/site" || active.startsWith("/admin/site/");
+export const featureVisible =
+  (feature: keyof EnabledFeatures): ((ctx: AdminSurfaceContext) => boolean) =>
+  (ctx: AdminSurfaceContext): boolean =>
+    ctx.enabledFeatures[feature];
 
 export const ADMIN_SECTIONS = [
   { id: "home", labelKey: "nav.public.home", landing: "home" },
@@ -122,7 +124,12 @@ export const ADMIN_SECTIONS = [
     staffOnlyDetail: true,
   },
   { id: "calendar", labelKey: "nav.calendar", landing: "calendar" },
-  { id: "servicing", labelKey: "nav.servicing", landing: "servicing" },
+  {
+    id: "servicing",
+    labelKey: "nav.servicing",
+    landing: "servicing",
+    visible: featureVisible("servicing"),
+  },
   { id: "attendees", labelKey: "terms.attendees", landing: "attendees" },
   { id: "users", labelKey: "terms.users", landing: "users" },
   {
@@ -138,16 +145,23 @@ export const ADMIN_SECTIONS = [
     landing: "images",
     visible: (ctx: AdminSurfaceContext) => ctx.storage,
   },
-  { id: "modifiers", labelKey: "terms.modifiers", landing: "modifiers" },
-  { id: "ledger", labelKey: "nav.ledger", landing: "ledger" },
+  {
+    id: "modifiers",
+    labelKey: "terms.modifiers",
+    landing: "modifiers",
+    visible: featureVisible("modifiers"),
+  },
+  {
+    id: "ledger",
+    labelKey: "nav.ledger",
+    landing: "ledger",
+    visible: featureVisible("money"),
+  },
   {
     id: "site",
     labelKey: "nav.site",
     landing: "site",
-    visible: (ctx: AdminSurfaceContext) =>
-      ctx.adminLevel === "editor" ||
-      ctx.showPublicSite ||
-      isSiteRoute(ctx.active),
+    visible: featureVisible("site"),
   },
   { id: "settings", labelKey: "nav.settings", landing: "settings" },
 ] as const;
