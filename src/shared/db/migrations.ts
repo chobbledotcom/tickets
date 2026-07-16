@@ -38,7 +38,10 @@ import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import { SCHEMA, SCHEMA_HASH } from "./migrations/schema/index.ts";
 import { TRIGGERS } from "./migrations/schema/triggers.ts";
 import {
+  DB_SCHEMA_HASH_KEY,
+  LATEST_DB_UPDATE_KEY,
   LATEST_UPDATE,
+  MIGRATION_LOCK_KEY,
   SCHEMA_MIGRATIONS_TABLE,
 } from "./migrations/schema/version.ts";
 import {
@@ -111,8 +114,7 @@ type DbProbe = {
   appliedMigrations: number | null;
 };
 
-const SCHEMA_MARKERS_SQL =
-  "SELECT key, value FROM settings WHERE key IN ('latest_db_update', 'db_schema_hash')";
+const SCHEMA_MARKERS_SQL = `SELECT key, value FROM settings WHERE key IN ('${LATEST_DB_UPDATE_KEY}', '${DB_SCHEMA_HASH_KEY}')`;
 
 /** Turn a probe's key/value rows into a lookup map. */
 const rowsToMap = (rows: readonly Record<string, unknown>[]) =>
@@ -120,11 +122,11 @@ const rowsToMap = (rows: readonly Record<string, unknown>[]) =>
 
 /** Read the schema state from the marker rows a probe returned. */
 const markerState = (values: Map<string, string>): DbState => {
-  if (!values.has("latest_db_update") && !values.has("db_schema_hash")) {
+  if (!values.has(LATEST_DB_UPDATE_KEY) && !values.has(DB_SCHEMA_HASH_KEY)) {
     return "uninitialized_settings";
   }
-  return values.get("latest_db_update") === LATEST_UPDATE &&
-    values.get("db_schema_hash") === SCHEMA_HASH
+  return values.get(LATEST_DB_UPDATE_KEY) === LATEST_UPDATE &&
+    values.get(DB_SCHEMA_HASH_KEY) === SCHEMA_HASH
     ? "up_to_date"
     : "needs_migration";
 };
@@ -209,11 +211,11 @@ const ensureDefaultAttendeeStatus = async (): Promise<void> => {
 const schemaMarkerStatements = (): SqlStatement[] => [
   {
     args: [LATEST_UPDATE],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+    sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${LATEST_DB_UPDATE_KEY}', ?)`,
   },
   {
     args: [SCHEMA_HASH],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+    sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('${DB_SCHEMA_HASH_KEY}', ?)`,
   },
 ];
 
@@ -323,8 +325,6 @@ const getAppliedMigrationIds = async (): Promise<Set<string>> => {
   return stringColumnSet(result.rows, "id");
 };
 
-const MIGRATION_LOCK_KEY = "migration_lock";
-
 /** Build the INSERT that records a migration as applied. */
 const migrationMarkerStatement = (
   migration: Migration,
@@ -369,8 +369,8 @@ const ownedMigrationMarkerStatements = (
 const ownedSchemaMarkerStatements = (lockToken: string): SqlStatement[] =>
   (
     [
-      ["latest_db_update", LATEST_UPDATE],
-      ["db_schema_hash", SCHEMA_HASH],
+      [LATEST_DB_UPDATE_KEY, LATEST_UPDATE],
+      [DB_SCHEMA_HASH_KEY, SCHEMA_HASH],
     ] as const
   ).map(([key, value]) =>
     whileMigrationLockOwned(
@@ -520,6 +520,12 @@ export const applyMigrationWithRetry = async (
   }
 };
 
+const combinedFailures = (
+  message: string,
+  first: unknown,
+  second: unknown,
+): AggregateError => new AggregateError([first, second], message);
+
 const runPendingMigrations = async (
   pending: Migration[],
   lockToken: string,
@@ -538,10 +544,18 @@ const runPendingMigrations = async (
     // Keep successful progress when a later migration fails. The success path
     // writes these markers with the schema markers and lock release below.
     if (completed.length > 0) {
-      await executeWhileMigrationLockOwned(
-        ownedMigrationMarkerStatements(completed, lockToken),
-        lockToken,
-      );
+      try {
+        await executeWhileMigrationLockOwned(
+          ownedMigrationMarkerStatements(completed, lockToken),
+          lockToken,
+        );
+      } catch (markerError) {
+        throw combinedFailures(
+          "Database migration failed and completed progress could not be recorded.",
+          error,
+          markerError,
+        );
+      }
     }
     throw error;
   }
@@ -752,11 +766,12 @@ const releaseAfterMigrationFailure = async (
   try {
     await releaseMigrationLock(lockToken);
   } catch (releaseError) {
-    throw new AggregateError(
-      [failure, releaseError],
+    throw combinedFailures(
       `Database migration failed and its lock could not be released: ${errorMessage(
         failure,
       )}; ${errorMessage(releaseError)}`,
+      failure,
+      releaseError,
     );
   }
   throw failure;
