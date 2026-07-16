@@ -15,6 +15,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { installOldAggregateTriggers } from "./legacy-answer-aggregate-triggers.ts";
 
 type StageState = "pending" | "refunding" | "booked" | "failed";
 
@@ -46,44 +47,6 @@ const AGGREGATE_FIXTURE = {
   questionId: 703,
   stringId: 704,
 } as const;
-
-const OLD_STRING_AGGREGATE_TRIGGER_SQL = [
-  `CREATE TRIGGER trg_attendee_answers_strings_insert
-   AFTER INSERT ON attendee_answers
-   WHEN NEW.string_id IS NOT NULL
-   BEGIN
-     UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
-   END`,
-  `CREATE TRIGGER trg_attendee_answers_strings_delete
-   AFTER DELETE ON attendee_answers
-   WHEN OLD.string_id IS NOT NULL
-   BEGIN
-     UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
-   END`,
-  `CREATE TRIGGER trg_attendee_answers_strings_update
-   AFTER UPDATE OF string_id ON attendee_answers
-   WHEN OLD.string_id IS NOT NEW.string_id
-   BEGIN
-     UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
-     UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
-   END`,
-] as const;
-
-const installOldAggregateTriggers = async (): Promise<void> => {
-  for (const trigger of ANSWER_AGGREGATE_TRIGGERS) {
-    await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger.name}`);
-    await getDb().execute(
-      trigger.sql
-        .replace(", string_id", "")
-        .split("\n")
-        .filter((line) => !line.includes("UPDATE strings"))
-        .join("\n"),
-    );
-  }
-  for (const sql of OLD_STRING_AGGREGATE_TRIGGER_SQL) {
-    await getDb().execute(sql);
-  }
-};
 
 const seedAggregateFixture = async (): Promise<void> => {
   const values = AGGREGATE_FIXTURE;
