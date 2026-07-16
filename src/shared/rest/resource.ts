@@ -82,8 +82,6 @@ export interface ResourceConfig<
   Id = InValue,
   Values extends FieldValues = FieldValues,
 > extends AfterCommitConfig {
-  /** Side effect run only after a successful create has committed. */
-  afterCreate?: (id: number) => Promise<void>;
   /** Side-effect run after a successful create/update with the written row's
    * id, the parsed input, and the raw form — e.g. to persist join-table rows (a
    * listing's groups) or dynamic inputs (a group's per-listing package prices)
@@ -96,10 +94,6 @@ export interface ResourceConfig<
     input: Input,
     form: FormParams,
   ) => Promise<void>;
-  /** Side effect that must succeed after validation but before the row is
-   * stored. Used when reporting a failed side effect after the write would make
-   * a retry unsafe. */
-  beforeWrite?: (input: Input, form: FormParams) => Promise<void>;
   fields: Field[];
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
@@ -221,17 +215,8 @@ export const defineResource = <
       id,
     );
     if (!result.ok) return result;
-    await config.beforeWrite?.(result.input, form);
-    const hasAfterCommit =
-      config.afterCommit !== undefined ||
-      (existingId === null && config.afterCreate !== undefined);
     const row = await writeEntity<Row>({
-      afterCommit: hasAfterCommit
-        ? async (rowId): Promise<void> => {
-            await config.afterCommit?.(rowId);
-            if (existingId === null) await config.afterCreate?.(rowId);
-          }
-        : undefined,
+      afterCommit: config.afterCommit,
       buildStatement: () =>
         existingId === null
           ? table.insertStatement!(result.input)

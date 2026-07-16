@@ -110,7 +110,7 @@ export const operation = <
 export const OWNER_AUDIENCE = ["owner"] as const;
 
 export const featureVisible =
-  (feature: keyof EnabledFeatures) =>
+  (feature: keyof EnabledFeatures): ((ctx: AdminSurfaceContext) => boolean) =>
   (ctx: AdminSurfaceContext): boolean =>
     ctx.enabledFeatures[feature];
 

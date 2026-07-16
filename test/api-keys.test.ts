@@ -20,7 +20,6 @@ import {
 } from "#shared/db/api-keys.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { createSession } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import {
   assertJson,
@@ -41,7 +40,11 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import { withFeatureWriteFailure } from "#test-utils/settings.ts";
+import {
+  enableFeature,
+  storedFeatureEnabled,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("API Keys", { db: true }, () => {
   /** POST `fields` to an `/admin/api-keys…` path with a fresh CSRF token +
@@ -249,10 +252,11 @@ describeWithEnv("API Keys", { db: true }, () => {
       const html = await redirectResponse.text();
       expect(html).toContain("API key created");
       expect(html).toContain("Copy your API key now");
-      expect(settings.features.apiKeys).toBe(true);
+      expect(await storedFeatureEnabled("apiKeys")).toBe(true);
     });
 
     test("does not create a key when enabling the feature fails", async () => {
+      await enableFeature("apiKeys");
       await withFeatureWriteFailure(async () => {
         const response = await postApiKeyForm("/admin/api-keys", {
           name: "Unrecoverable key",

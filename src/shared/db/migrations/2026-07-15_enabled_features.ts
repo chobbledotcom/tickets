@@ -5,7 +5,8 @@ import {
   serializeEnabledFeatures,
 } from "#shared/admin-features.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
-import { bareSchemaMigration } from "./define.ts";
+import { schemaMigration } from "./define.ts";
+import { ADMIN_FEATURE_TRIGGER_NAMES } from "./schema/admin-feature-triggers.ts";
 
 const StoredBooleanSchema = v.union([v.literal(0), v.literal(1)]);
 const ExistingFeatureUsageSchema = v.object({
@@ -21,9 +22,10 @@ const ExistingFeatureUsageSchema = v.object({
 
 const asBoolean = (value: 0 | 1): boolean => value === 1;
 
-export default bareSchemaMigration(
+export default schemaMigration(
   "2026-07-15_enabled_features",
-  "Move admin feature visibility into one plain enabled-features setting.",
+  "Move admin feature visibility into one plain enabled-features setting and keep it in step with saved feature data.",
+  { triggers: ADMIN_FEATURE_TRIGGER_NAMES },
   async ({ getDb }) => {
     const result = await getDb().execute(`
       SELECT

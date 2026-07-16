@@ -6,11 +6,17 @@ import {
 } from "#shared/admin-features.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import enabledFeaturesMigration from "#shared/db/migrations/2026-07-15_enabled_features.ts";
+import { ADMIN_FEATURE_TRIGGER_NAMES } from "#shared/db/migrations/schema/admin-feature-triggers.ts";
+import { syncTriggers } from "#shared/db/migrations/schema-sync.ts";
 import { CONFIG_KEYS } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import {
+  SEEDED_FEATURE_RECORDS,
+  seedFeatureRecords,
+} from "#test-utils/settings.ts";
 
-const context = buildMigrationContext({});
+const context = buildMigrationContext({ syncTriggers });
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 const runMigration = (): Promise<void> =>
   enabledFeaturesMigration(context).up();
@@ -34,35 +40,11 @@ describeWithEnv(
     });
 
     test("enables features that already have saved records", async () => {
-      await execute("INSERT INTO attributes (name) VALUES ('Level')");
-      await execute(
-        "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
-      );
-      await execute(
-        "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
-      );
-      await execute(
-        "INSERT INTO logistics_agents (name) VALUES ('Delivery team')",
-      );
-      await execute(
-        "INSERT INTO api_keys (user_id, key_index, wrapped_data_key, name, created) VALUES (1, 'index', 'key', 'Sync', '2026-07-15')",
-      );
-      await execute(
-        "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')",
-      );
+      await seedFeatureRecords();
 
       await runMigration();
 
-      expect(await storedFeatures()).toEqual({
-        apiKeys: true,
-        attributes: true,
-        logistics: true,
-        modifiers: true,
-        money: false,
-        questions: true,
-        servicing: true,
-        site: false,
-      });
+      expect(await storedFeatures()).toEqual(SEEDED_FEATURE_RECORDS);
     });
 
     test("moves old feature settings and removes their rows", async () => {
@@ -133,8 +115,9 @@ describeWithEnv(
       const migration = enabledFeaturesMigration(context);
       expect(migration.id).toBe("2026-07-15_enabled_features");
       expect(migration.description).toBe(
-        "Move admin feature visibility into one plain enabled-features setting.",
+        "Move admin feature visibility into one plain enabled-features setting and keep it in step with saved feature data.",
       );
+      expect(migration.requires?.triggers).toEqual(ADMIN_FEATURE_TRIGGER_NAMES);
     });
   },
 );

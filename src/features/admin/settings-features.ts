@@ -11,7 +11,6 @@ import {
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   type AdminFeatureDefinition,
-  type AdminFeatureKey,
   enabledFeaturesWithUsage,
   featureBySlug,
 } from "#shared/admin-features.ts";
@@ -20,33 +19,10 @@ import {
   getAdminFeatureUsage,
   setAdminFeatureEnabled,
 } from "#shared/db/admin-features.ts";
-import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { adminFeaturePage } from "#templates/admin/features.tsx";
 
 /* jscpd:ignore-end */
-
-const noFeatureSave = (): Promise<void> => Promise.resolve();
-
-const clearLogisticsDefault = async (): Promise<void> => {
-  if (await settings.update.clearListingDefaultUsesLogistics()) {
-    invalidateListingsCache();
-  }
-};
-
-const beforeFeatureSave: Record<
-  AdminFeatureKey,
-  (enabled: boolean) => Promise<void>
-> = {
-  apiKeys: noFeatureSave,
-  attributes: noFeatureSave,
-  logistics: (enabled) => (enabled ? noFeatureSave() : clearLogisticsDefault()),
-  modifiers: noFeatureSave,
-  money: noFeatureSave,
-  questions: noFeatureSave,
-  servicing: noFeatureSave,
-  site: noFeatureSave,
-};
 
 const withAdminFeature = (
   slug: string,
@@ -94,7 +70,6 @@ export const handleFeaturePost: TypedRouteHandler<
       if (!enabled && (await getAdminFeatureUsage())[feature.key]) {
         return errorRedirect(path, t("features.in_use_help"));
       }
-      await beforeFeatureSave[feature.key](enabled);
       if (!(await setAdminFeatureEnabled(feature.key, enabled))) {
         return errorRedirect(path, t("features.in_use_help"));
       }

@@ -1,5 +1,6 @@
-/** Triggers that keep precomputed aggregates in step with their source tables. */
+/** Triggers that keep derived database state in step with its source rows. */
 
+import { ADMIN_FEATURE_TRIGGERS } from "./admin-feature-triggers.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   ticketCountPredicateFor,
@@ -16,6 +17,12 @@ const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
     `${row}.quantity`,
     `${row}.attendee_id`,
   )} THEN 1 ELSE 0 END`;
+
+const LISTING_AGGREGATE_USES = {
+  attendees: ["kind"],
+  listing_attendees: ["attendee_id", "listing_id", "quantity"],
+  listings: ["booked_quantity", "tickets_count"],
+} as const;
 
 /**
  * Triggers that keep the listing count aggregates (booked_quantity,
@@ -50,6 +57,7 @@ BEGIN
   WHERE id = NEW.listing_id;
 END`,
     table: "listing_attendees",
+    uses: LISTING_AGGREGATE_USES,
   },
   {
     name: "trg_listing_attendees_aggregates_delete",
@@ -63,6 +71,7 @@ BEGIN
   WHERE id = OLD.listing_id;
 END`,
     table: "listing_attendees",
+    uses: LISTING_AGGREGATE_USES,
   },
   {
     name: "trg_listing_attendees_aggregates_update",
@@ -82,8 +91,14 @@ BEGIN
   WHERE id = NEW.listing_id;
 END`,
     table: "listing_attendees",
+    uses: LISTING_AGGREGATE_USES,
   },
 ];
+
+const MODIFIER_AGGREGATE_USES = {
+  modifier_usages: ["modifier_id", "quantity"],
+  modifiers: ["total_uses", "usage_count"],
+} as const;
 
 /**
  * Modifier aggregate triggers keep modifiers.total_uses and modifiers.usage_count
@@ -112,6 +127,7 @@ BEGIN
   WHERE id = NEW.modifier_id;
 END`,
     table: "modifier_usages",
+    uses: MODIFIER_AGGREGATE_USES,
   },
   {
     name: "trg_modifier_usages_aggregates_delete",
@@ -125,6 +141,7 @@ BEGIN
   WHERE id = OLD.modifier_id;
 END`,
     table: "modifier_usages",
+    uses: MODIFIER_AGGREGATE_USES,
   },
   {
     name: "trg_modifier_usages_aggregates_update",
@@ -142,8 +159,14 @@ BEGIN
   WHERE id = NEW.modifier_id;
 END`,
     table: "modifier_usages",
+    uses: MODIFIER_AGGREGATE_USES,
   },
 ];
+
+const ANSWER_AGGREGATE_USES = {
+  answers: ["times_selected"],
+  attendee_answers: ["answer_id"],
+} as const;
 
 /**
  * Answer aggregate triggers keep answers.times_selected in step with the
@@ -168,6 +191,7 @@ BEGIN
   WHERE id = NEW.answer_id;
 END`,
     table: "attendee_answers",
+    uses: ANSWER_AGGREGATE_USES,
   },
   {
     name: "trg_attendee_answers_aggregates_delete",
@@ -180,6 +204,7 @@ BEGIN
   WHERE id = OLD.answer_id;
 END`,
     table: "attendee_answers",
+    uses: ANSWER_AGGREGATE_USES,
   },
   {
     name: "trg_attendee_answers_aggregates_update",
@@ -194,8 +219,13 @@ BEGIN
   WHERE id = NEW.answer_id;
 END`,
     table: "attendee_answers",
+    uses: ANSWER_AGGREGATE_USES,
   },
 ];
+
+const ATTENDEE_ANSWER_VALIDATION_USES = {
+  attendee_answers: ["answer_id", "question_id", "string_id"],
+} as const;
 
 const ATTENDEE_ANSWER_VALIDATION_TRIGGERS: Trigger[] = [
   {
@@ -210,6 +240,7 @@ BEGIN
   SELECT RAISE(ABORT, 'invalid attendee answer');
 END`,
     table: "attendee_answers",
+    uses: ATTENDEE_ANSWER_VALIDATION_USES,
   },
   {
     name: "trg_attendee_answers_validate_update",
@@ -223,8 +254,14 @@ BEGIN
   SELECT RAISE(ABORT, 'invalid attendee answer');
 END`,
     table: "attendee_answers",
+    uses: ATTENDEE_ANSWER_VALIDATION_USES,
   },
 ];
+
+const STRING_AGGREGATE_USES = {
+  attendee_answers: ["string_id"],
+  strings: ["used_count"],
+} as const;
 
 const STRING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
@@ -236,6 +273,7 @@ BEGIN
   UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
 END`,
     table: "attendee_answers",
+    uses: STRING_AGGREGATE_USES,
   },
   {
     name: "trg_attendee_answers_strings_delete",
@@ -246,6 +284,7 @@ BEGIN
   UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
 END`,
     table: "attendee_answers",
+    uses: STRING_AGGREGATE_USES,
   },
   {
     name: "trg_attendee_answers_strings_update",
@@ -257,11 +296,13 @@ BEGIN
   UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
 END`,
     table: "attendee_answers",
+    uses: STRING_AGGREGATE_USES,
   },
 ];
 
 /** Every declared trigger, across all aggregate relationships. */
 export const TRIGGERS: Trigger[] = [
+  ...ADMIN_FEATURE_TRIGGERS,
   ...LISTING_AGGREGATE_TRIGGERS,
   ...MODIFIER_AGGREGATE_TRIGGERS,
   ...ANSWER_AGGREGATE_TRIGGERS,

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
@@ -20,7 +19,7 @@ import {
   createTestAgentSession,
   createTestEditorSession,
 } from "#test-utils/session.ts";
-import { enableFeature } from "#test-utils/settings.ts";
+import { enableFeature, storedFeatureEnabled } from "#test-utils/settings.ts";
 
 const createAgent = async (name: string): Promise<number> => {
   const { response } = await adminFormPost("/admin/logistics", { name });
@@ -89,7 +88,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const list = await adminGet("/admin/logistics");
       // The agent name links to its edit page; delete lives on that page now.
       await expectHtmlResponse(list, 200, "Van 1", "/edit");
-      expect(settings.features.logistics).toBe(true);
+      expect(await storedFeatureEnabled("logistics")).toBe(true);
     });
 
     test("rejects an empty agent name", async () => {

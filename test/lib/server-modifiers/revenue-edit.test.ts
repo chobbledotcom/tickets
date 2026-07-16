@@ -20,7 +20,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { withFeatureWriteFailure } from "#test-utils/settings.ts";
+import {
+  enableFeature,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 import { createData, lastModifier } from "./helpers.ts";
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
@@ -135,6 +138,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
     test("does not update a modifier when enabling the feature fails", async () => {
       const { id } = await insertModifier({ calcValue: 10, name: "Before" });
+      await enableFeature("modifiers");
 
       await expect(
         withFeatureWriteFailure(async () => {

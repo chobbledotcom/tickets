@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { execute, getDb } from "#shared/db/client.ts";
-import { settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -13,8 +13,13 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { setTestEnv } from "#test-utils/env.ts";
+import { statementSql } from "#test-utils/record-queries.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import { describeAdminSettings } from "#test-utils/settings.ts";
+import {
+  describeAdminSettings,
+  storedFeatureEnabled,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 
 const expectFeatureSaved = async (
   slug: string,
@@ -178,6 +183,141 @@ describeAdminSettings(() => {
     expect(settings.listingDefaults.usesLogistics).toBeUndefined();
   });
 
+  test("keeps listing defaults that do not use Logistics", async () => {
+    await settings.update.listingDefaults({ hidden: true });
+    await setAdminFeatureEnabled("logistics", true);
+
+    await expectFeatureSaved("logistics", false, "Logistics disabled.");
+
+    expect(settings.listingDefaults).toEqual({ hidden: true });
+  });
+
+  test("keeps a concurrent listing-default change while disabling Logistics", async () => {
+    await settings.update.listingDefaults({
+      hidden: false,
+      usesLogistics: true,
+    });
+    await setAdminFeatureEnabled("logistics", true);
+    const db = getDb();
+    const originalBatch = db.batch.bind(db);
+    let changePending = true;
+    const batchStub = stub(db, "batch", async (statements, mode) => {
+      if (changePending && JSON.stringify(statements).includes("$.logistics")) {
+        changePending = false;
+        await settings.update.listingDefaults({
+          hidden: true,
+          minimumDaysBefore: 5,
+          usesLogistics: true,
+        });
+      }
+      return originalBatch(statements, mode);
+    });
+    try {
+      await expectFeatureSaved("logistics", false, "Logistics disabled.");
+    } finally {
+      batchStub.restore();
+    }
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.LISTING_DEFAULTS]);
+    expect(settings.listingDefaults).toEqual({
+      hidden: true,
+      minimumDaysBefore: 5,
+    });
+  });
+
+  test("fails when listing defaults keep changing during Logistics disable", async () => {
+    await settings.update.listingDefaults({ usesLogistics: true });
+    await setAdminFeatureEnabled("logistics", true);
+    const db = getDb();
+    const originalBatch = db.batch.bind(db);
+    let attempts = 0;
+    const batchStub = stub(db, "batch", async (statements, mode) => {
+      if (JSON.stringify(statements).includes("$.logistics")) {
+        attempts += 1;
+        await settings.update.listingDefaults({
+          hidden: attempts % 2 === 0,
+          usesLogistics: true,
+        });
+      }
+      return originalBatch(statements, mode);
+    });
+    try {
+      await expect(setAdminFeatureEnabled("logistics", false)).rejects.toThrow(
+        "Listing defaults changed too often to disable Logistics",
+      );
+    } finally {
+      batchStub.restore();
+    }
+    expect(attempts).toBe(8);
+  });
+
+  test("keeps the Logistics default when new use rejects disabling", async () => {
+    await settings.update.listingDefaults({ usesLogistics: true });
+    await setAdminFeatureEnabled("logistics", true);
+    const db = getDb();
+    const originalExecute = db.execute.bind(db);
+    const originalBatch = db.batch.bind(db);
+    let inserted = false;
+    const insertUse = async (): Promise<void> => {
+      inserted = true;
+      await originalExecute(
+        "INSERT INTO logistics_agents (name) VALUES ('New delivery team')",
+      );
+    };
+    const executeStub = stub(db, "execute", async (statement: InStatement) => {
+      const result = await originalExecute(statement);
+      const sql = statementSql(statement);
+      if (
+        !inserted &&
+        sql.startsWith("UPDATE settings SET value = ? WHERE key = ?")
+      ) {
+        await insertUse();
+      }
+      return result;
+    });
+    const batchStub = stub(db, "batch", async (statements, mode) => {
+      if (!inserted && JSON.stringify(statements).includes("$.logistics")) {
+        await insertUse();
+      }
+      return originalBatch(statements, mode);
+    });
+    try {
+      const { response } = await adminFormPost("/admin/features/logistics", {
+        enabled: "false",
+      });
+      expectFlash(
+        response,
+        "This feature is in use. Remove its saved items before you disable it.",
+        false,
+      );
+    } finally {
+      executeStub.restore();
+      batchStub.restore();
+    }
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.LISTING_DEFAULTS]);
+    expect(settings.listingDefaults.usesLogistics).toBe(true);
+  });
+
+  test("rolls back Logistics disable when its feature write fails", async () => {
+    await settings.update.listingDefaults({ usesLogistics: true });
+    await setAdminFeatureEnabled("logistics", true);
+
+    await withFeatureWriteFailure(() =>
+      expect(setAdminFeatureEnabled("logistics", false)).rejects.toThrow(
+        "feature enable failed",
+      ),
+    );
+
+    settings.invalidateCache();
+    await settings.loadKeys([
+      CONFIG_KEYS.ENABLED_FEATURES,
+      CONFIG_KEYS.LISTING_DEFAULTS,
+    ]);
+    expect(settings.features.logistics).toBe(true);
+    expect(settings.listingDefaults.usesLogistics).toBe(true);
+  });
+
   test("does not allow a feature in use to be disabled", async () => {
     await execute(
       "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
@@ -197,7 +337,7 @@ describeAdminSettings(() => {
       "This feature is in use. Remove its saved items before you disable it.",
       false,
     );
-    expect(settings.features.modifiers).toBe(true);
+    expect(await storedFeatureEnabled("modifiers")).toBe(true);
   });
 
   test("keeps a feature enabled when its first record appears during disable", async () => {
@@ -207,7 +347,7 @@ describeAdminSettings(() => {
     let inserted = false;
     const executeStub = stub(db, "execute", async (statement: InStatement) => {
       const result = await originalExecute(statement);
-      const sql = typeof statement === "string" ? statement : statement.sql;
+      const sql = statementSql(statement);
       if (!inserted && sql.includes("SELECT json_object")) {
         inserted = true;
         await originalExecute(
@@ -228,6 +368,6 @@ describeAdminSettings(() => {
     } finally {
       executeStub.restore();
     }
-    expect(settings.features.modifiers).toBe(true);
+    expect(await storedFeatureEnabled("modifiers")).toBe(true);
   });
 });

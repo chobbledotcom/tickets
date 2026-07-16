@@ -20,7 +20,7 @@ import {
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setTestEnv } from "#test-utils/env.ts";
-import { adminGet } from "#test-utils/session.ts";
+import { adminGet, getTestSession } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Build a complete DebugPageState, overriding only the fields a test cares about. */
@@ -548,6 +548,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows Visible/Enabled badges and the booking fee when features are on", async () => {
+      await getTestSession();
       await Promise.all([
         enablePublicSite(),
         settings.update.showPublicApi(true),

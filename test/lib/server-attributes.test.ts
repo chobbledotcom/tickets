@@ -7,7 +7,6 @@ import {
   getAttributeWithOptions,
   listingAttributeOptions,
 } from "#shared/db/attributes.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -31,6 +30,7 @@ import {
 } from "#test-utils/session.ts";
 import {
   enableFeature,
+  storedFeatureEnabled,
   withFeatureWriteFailure,
 } from "#test-utils/settings.ts";
 
@@ -99,7 +99,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
 
     test("creates an attribute and redirects to its detail page", async () => {
       const id = await createAttributeViaRoute("Difficulty");
-      expect(settings.features.attributes).toBe(true);
+      expect(await storedFeatureEnabled("attributes")).toBe(true);
 
       await expectHtmlResponse(
         await adminGet(`/admin/attributes/${id}`),
@@ -112,10 +112,11 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
     test("does not enable Attributes for an invalid create", async () => {
       const { response } = await adminFormPost("/admin/attributes");
       response.body?.cancel();
-      expect(settings.features.attributes).toBe(false);
+      expect(await storedFeatureEnabled("attributes")).toBe(false);
     });
 
     test("does not create an attribute when enabling the feature fails", async () => {
+      await enableFeature("attributes");
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost("/admin/attributes", { name: "Hidden" });
@@ -160,6 +161,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
 
     test("does not update an attribute when enabling the feature fails", async () => {
       const attribute = await createTestAttributeWithOptions("Before", []);
+      await enableFeature("attributes");
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost(`/admin/attributes/${attribute.id}/edit`, {

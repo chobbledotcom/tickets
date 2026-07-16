@@ -24,10 +24,6 @@ import {
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
-  createWithAdminFeature,
-  ensureAdminFeatureEnabled,
-} from "#shared/db/admin-features.ts";
-import {
   type AttributeOption,
   type AttributeWithOptions,
   assignNextAttributeSortOrder,
@@ -106,11 +102,8 @@ const handleAttributesPost = createAuthedFormRoute({
   form: attributeNameForm,
   onInvalid: ({ error }) => errorRedirect("/admin/attributes", error),
   onValid: async ({ values: { name } }) => {
-    const attribute = await createWithAdminFeature("attributes", async () => {
-      const created = await attributesTable.insert({ name });
-      await assignNextAttributeSortOrder(created.id);
-      return created;
-    });
+    const attribute = await attributesTable.insert({ name });
+    await assignNextAttributeSortOrder(attribute.id);
     await logActivity(`Attribute '${name}' created`);
     return redirect(
       `/admin/attributes/${attribute.id}`,
@@ -189,7 +182,6 @@ const handleAttributeEdit = createAuthedFormRoute<
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { name } }) =>
     withAttribute(params.id, async () => {
-      await ensureAdminFeatureEnabled("attributes");
       await attributesTable.update(params.id, { name });
       await logActivity(`Attribute '${name}' updated`);
       return redirect(

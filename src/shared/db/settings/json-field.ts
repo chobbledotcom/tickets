@@ -1,13 +1,13 @@
 /* jscpd:ignore-start -- imports */
+import type { InValue } from "@libsql/client";
 import * as v from "valibot";
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
-  executeWithoutCacheInvalidation,
-  queryOnePrimary,
   resultRows,
+  type SqlStatement,
+  withTransaction,
 } from "#shared/db/client.ts";
-import { syncWrittenSetting } from "#shared/db/settings/raw-writes.ts";
+import { settingsVersionIncrement } from "#shared/db/settings/cache.ts";
+import { syncStoredSetting } from "#shared/db/settings/raw-writes.ts";
 import {
   type StringSettingKey,
   setSnapshotField,
@@ -16,63 +16,80 @@ import {
 /* jscpd:ignore-end */
 
 const StoredJsonSchema = v.object({ value: v.string() });
-const JSON_WRITE_ATTEMPTS = 8;
 
-/** Atomically change one boolean inside a stored JSON object. The complete
- * `initialValue` is used when the setting is absent; an existing object changes
- * only at `path`. `whenSql` is an internal SQL condition; no row means the
- * condition blocked the change. */
-export const writeBooleanJsonField = async (
+const parseStoredJson = (row: unknown): string =>
+  v.parse(StoredJsonSchema, row).value;
+
+export interface BooleanJsonField {
+  statement: (whenSql: string, whenArgs?: readonly InValue[]) => SqlStatement;
+  write: (
+    whenSql: string,
+    validate: (stored: string) => void,
+  ) => Promise<string | null>;
+}
+
+/** One boolean field in a stored JSON object, exposed as the same SQL statement
+ * for larger transactions and as a complete standalone write. */
+export const booleanJsonField = (
   key: StringSettingKey,
   initialValue: string,
   path: string,
   value: boolean,
-  whenSql: string,
-): Promise<string | null> => {
-  const result = await executeWithoutCacheInvalidation(
-    `INSERT INTO settings (key, value)
-       SELECT ?, ?
-       WHERE ${whenSql}
-       ON CONFLICT(key) DO UPDATE SET
+): BooleanJsonField => {
+  const jsonType = value ? "true" : "false";
+  const statement = (
+    whenSql: string,
+    whenArgs: readonly InValue[] = [],
+  ): SqlStatement => ({
+    args: [
+      key,
+      initialValue,
+      ...whenArgs,
+      path,
+      jsonType,
+      ...whenArgs,
+      path,
+      jsonType,
+    ],
+    sql: `INSERT INTO settings (key, value)
+        SELECT ?, ?
+        WHERE ${whenSql}
+        ON CONFLICT(key) DO UPDATE SET
           value = json_set(settings.value, ?, json(?))
-       WHERE ${whenSql}
-       RETURNING value`,
-    [key, initialValue, path, value ? "true" : "false"],
-  );
-  const [returned] = resultRows<unknown>(result);
-  if (returned === undefined) return null;
-  const row = v.parse(StoredJsonSchema, returned);
-  const stored = row.value;
-  await syncWrittenSetting(key, stored);
-  setSnapshotField(key, stored);
-  return stored;
-};
+        WHERE (${whenSql})
+          AND json_type(settings.value, ?) IS NOT ?
+        RETURNING value`,
+  });
 
-/** Remove one field from an encrypted JSON setting without replacing changes
- * another request saved to the same object. Returning `null` means the field is
- * already absent. */
-export const removeEncryptedJsonField = async (
-  key: StringSettingKey,
-  remove: (plaintext: string) => string | null,
-): Promise<boolean> => {
-  for (let attempt = 0; attempt < JSON_WRITE_ATTEMPTS; attempt += 1) {
-    const result = await queryOnePrimary<unknown>(
-      "SELECT value FROM settings WHERE key = ?",
-      [key],
-    );
-    if (result === null) return false;
-    const current = v.parse(StoredJsonSchema, result).value;
-    const next = remove(await decrypt(current as EnvKeyEncrypted));
-    if (next === null) return false;
-    const stored = await encrypt(next);
-    const update = await executeWithoutCacheInvalidation(
-      "UPDATE settings SET value = ? WHERE key = ? AND value = ?",
-      [stored, key, current],
-    );
-    if (update.rowsAffected === 0) continue;
-    await syncWrittenSetting(key, stored);
-    setSnapshotField(key, next);
-    return true;
-  }
-  throw new Error(`Setting ${key} changed too often to update`);
+  const write = async (
+    whenSql: string,
+    validate: (stored: string) => void,
+  ): Promise<string | null> => {
+    const stored = await withTransaction(async (tx) => {
+      const result = await tx.execute(statement(whenSql));
+      const [returned] = resultRows<unknown>(result);
+      if (returned === undefined) {
+        const currentResult = await tx.execute({
+          args: [key, path, jsonType],
+          sql: `SELECT value FROM settings
+                WHERE key = ? AND json_type(value, ?) = ?`,
+        });
+        const [current] = resultRows<unknown>(currentResult);
+        if (current === undefined) return null;
+        const unchanged = parseStoredJson(current);
+        validate(unchanged);
+        return unchanged;
+      }
+      const next = parseStoredJson(returned);
+      validate(next);
+      await tx.execute(settingsVersionIncrement());
+      return next;
+    });
+    if (stored === null) return null;
+    syncStoredSetting(key, (values) => values.set(key, stored));
+    setSnapshotField(key, stored);
+    return stored;
+  };
+
+  return { statement, write };
 };

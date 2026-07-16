@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -17,7 +15,11 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
-import { withFeatureWriteFailure } from "#test-utils/settings.ts";
+import {
+  enableFeature,
+  storedFeatureEnabled,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 import { addAnswer, createQuestion } from "./helpers.ts";
 
 describeWithEnv("server (admin questions)", { db: true }, () => {
@@ -65,7 +67,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("creates question and redirects", async () => {
       const id = await createQuestion("What size?");
       expect(id).toBeGreaterThan(0);
-      expect(settings.features.questions).toBe(true);
+      expect(await storedFeatureEnabled("questions")).toBe(true);
     });
 
     test("does not enable Questions for an invalid create", async () => {
@@ -74,10 +76,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         text: "",
       });
       response.body?.cancel();
-      expect(settings.features.questions).toBe(false);
+      expect(await storedFeatureEnabled("questions")).toBe(false);
     });
 
     test("does not create a question when enabling the feature fails", async () => {
+      await enableFeature("questions");
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost("/admin/questions", {
@@ -270,7 +273,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         displayType: "radio",
         text: "Before?",
       });
-      await setAdminFeatureEnabled("questions", false);
+      await enableFeature("questions");
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost(`/admin/questions/${question.id}/edit`, {

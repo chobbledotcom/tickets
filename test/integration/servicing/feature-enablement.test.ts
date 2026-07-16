@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -9,7 +8,11 @@ import {
   getServicingEvent,
   servicingRowsForListing,
 } from "#test-utils/servicing.ts";
-import { withFeatureWriteFailure } from "#test-utils/settings.ts";
+import {
+  enableFeature,
+  storedFeatureEnabled,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("servicing feature enablement", { db: true }, () => {
   test("creating a servicing event enables the feature", async () => {
@@ -19,11 +22,12 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
       name: "Boiler service",
     });
     response.body?.cancel();
-    expect(settings.features.servicing).toBe(true);
+    expect(await storedFeatureEnabled("servicing")).toBe(true);
   });
 
   test("a feature write failure does not create a servicing event", async () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "Room" });
+    await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
       const response = await adminPost("/admin/servicing/new", {
         [`quantity_${listing.id}`]: "1",
@@ -36,6 +40,7 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
 
   test("a feature write failure does not update a servicing event", async () => {
     const { id, listing } = await createServicingHold({ name: "Before" });
+    await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
       const response = await adminPost(`/admin/servicing/${id}`, {
         [`quantity_${listing.id}`]: "2",
@@ -50,6 +55,7 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
 
   test("a feature write failure does not duplicate a servicing event", async () => {
     const { id, listing } = await createServicingHold();
+    await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
       const response = await adminPost(`/admin/servicing/${id}/duplicate`, {});
       response.body?.cancel();

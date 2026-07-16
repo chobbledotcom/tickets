@@ -2,12 +2,13 @@ import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import {
   type AdminFeatureKey,
+  type EnabledFeatures,
   parseEnabledFeatures,
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
 import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, executeBatch, queryOne } from "#shared/db/client.ts";
 import type { SettingsData } from "#shared/db/settings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -77,6 +78,41 @@ export const featureSetting = (
 
 export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
   await setAdminFeatureEnabled(key, true);
+};
+
+export const storedFeatureEnabled = async (
+  key: AdminFeatureKey,
+): Promise<boolean> => {
+  const row = await queryOne<{ value: string }>(
+    "SELECT value FROM settings WHERE key = ?",
+    [CONFIG_KEYS.ENABLED_FEATURES],
+  );
+  return parseEnabledFeatures(row?.value ?? "")[key];
+};
+
+export const seedFeatureRecords = (includeLogistics = true): Promise<void> =>
+  executeBatch(
+    [
+      "INSERT INTO attributes (name) VALUES ('Level')",
+      "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
+      "INSERT INTO modifiers (name, calc_kind, calc_value, direction) VALUES ('Fee', 'fixed', 1, 'increase')",
+      ...(includeLogistics
+        ? ["INSERT INTO logistics_agents (name) VALUES ('Delivery team')"]
+        : []),
+      "INSERT INTO api_keys (user_id, key_index, wrapped_data_key, name, created) VALUES (1, 'index', 'key', 'Sync', '2026-07-15')",
+      "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')",
+    ].map((sql) => ({ args: [], sql })),
+  );
+
+export const SEEDED_FEATURE_RECORDS: EnabledFeatures = {
+  apiKeys: true,
+  attributes: true,
+  logistics: true,
+  modifiers: true,
+  money: false,
+  questions: true,
+  servicing: true,
+  site: false,
 };
 
 /** Run an action while every attempt to persist the feature setting fails. */

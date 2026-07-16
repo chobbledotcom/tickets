@@ -283,12 +283,10 @@ const initializeFreshSchema = async (): Promise<void> => {
 export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");
   await executeBatch(noArgStatements(fullSchemaCreateStatements()));
-  // A compound CREATE TRIGGER … BEGIN … END body carries internal semicolons
-  // that batch transports mis-split, so triggers run one by one, exactly as
-  // syncTriggers sends them.
-  for (const trigger of TRIGGERS) {
-    await runMigration(trigger.sql);
-  }
+  // executeMultiple sends the complete SQL script in one request and lets
+  // SQLite parse each compound trigger body, whose inner semicolons prevent the
+  // ordinary batch transport from splitting it safely.
+  await getDb().executeMultiple(TRIGGERS.map(({ sql }) => sql).join(";\n"));
   await sealFreshSchema();
 };
 

@@ -1,22 +1,32 @@
-import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   parseEnabledFeatures,
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
-import { getDb, queryOnePrimary } from "#shared/db/client.ts";
-import { writeBooleanJsonField } from "#shared/db/settings/json-field.ts";
+import { execute, queryOnePrimary } from "#shared/db/client.ts";
+import { booleanJsonField } from "#shared/db/settings/json-field.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 const emptyFeatures = serializeEnabledFeatures(parseEnabledFeatures(""));
 const enabledMoneyFeatures = serializeEnabledFeatures(
   setFeatureEnabled(parseEnabledFeatures(""), "money", true),
 );
+
+const writeFeatureBoolean = (
+  initialValue: string,
+  path: string,
+  value: boolean,
+  whenSql: string,
+): Promise<string | null> =>
+  booleanJsonField(
+    CONFIG_KEYS.ENABLED_FEATURES,
+    initialValue,
+    path,
+    value,
+  ).write(whenSql, parseEnabledFeatures);
 
 const settingsVersion = async (): Promise<number> => {
   const row = await queryOnePrimary<{ value: string }>(
@@ -30,8 +40,7 @@ const settingsVersion = async (): Promise<number> => {
 describeWithEnv("db > settings JSON fields", { db: true }, () => {
   test("writes booleans and syncs the setting snapshot and version", async () => {
     const beforeEnable = await settingsVersion();
-    const enabled = await writeBooleanJsonField(
-      CONFIG_KEYS.ENABLED_FEATURES,
+    const enabled = await writeFeatureBoolean(
       enabledMoneyFeatures,
       "$.money",
       true,
@@ -43,8 +52,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
     expect(await settingsVersion()).toBe(beforeEnable + 1);
 
     const beforeDisable = await settingsVersion();
-    const disabled = await writeBooleanJsonField(
-      CONFIG_KEYS.ENABLED_FEATURES,
+    const disabled = await writeFeatureBoolean(
       emptyFeatures,
       "$.money",
       false,
@@ -55,8 +63,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
     expect(settings.features.money).toBe(false);
     expect(await settingsVersion()).toBe(beforeDisable + 1);
 
-    const reenabled = await writeBooleanJsonField(
-      CONFIG_KEYS.ENABLED_FEATURES,
+    const reenabled = await writeFeatureBoolean(
       enabledMoneyFeatures,
       "$.money",
       true,
@@ -68,13 +75,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
 
   test("does not store a boolean when its condition is false", async () => {
     expect(
-      await writeBooleanJsonField(
-        CONFIG_KEYS.ENABLED_FEATURES,
-        emptyFeatures,
-        "$.site",
-        true,
-        "FALSE",
-      ),
+      await writeFeatureBoolean(emptyFeatures, "$.site", true, "FALSE"),
     ).toBeNull();
     expect(
       await queryOnePrimary("SELECT value FROM settings WHERE key = ?", [
@@ -83,88 +84,27 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
     ).toBeNull();
   });
 
-  test("does nothing when listing defaults have not been saved", async () => {
-    expect(await settings.update.clearListingDefaultUsesLogistics()).toBe(
-      false,
-    );
-  });
-
-  test("does nothing when the Logistics default is already absent", async () => {
-    await settings.update.listingDefaults({ hidden: true });
-    expect(await settings.update.clearListingDefaultUsesLogistics()).toBe(
-      false,
-    );
-    expect(settings.listingDefaults).toEqual({ hidden: true });
-  });
-
-  test("removes the Logistics default and syncs the snapshot and version", async () => {
-    await settings.update.listingDefaults({
-      hidden: true,
-      usesLogistics: true,
-    });
-    const before = await settingsVersion();
-
-    expect(await settings.update.clearListingDefaultUsesLogistics()).toBe(true);
-    expect(settings.listingDefaults).toEqual({ hidden: true });
-    expect(await settingsVersion()).toBe(before + 1);
-  });
-
-  test("keeps a concurrent listing-default change", async () => {
-    await settings.update.listingDefaults({
-      hidden: false,
-      usesLogistics: true,
-    });
-    const db = getDb();
-    const originalBatch = db.batch.bind(db);
-    let changePending = true;
-    const batchStub = stub(db, "batch", async (statements, mode) => {
-      const results = await originalBatch(statements, mode);
-      if (changePending) {
-        changePending = false;
-        await settings.update.listingDefaults({
-          hidden: true,
-          minimumDaysBefore: 5,
-          usesLogistics: true,
-        });
-      }
-      return results;
-    });
-    try {
-      expect(await settings.update.clearListingDefaultUsesLogistics()).toBe(
-        true,
-      );
-    } finally {
-      batchStub.restore();
-    }
-
-    settings.invalidateCache();
-    await settings.loadKeys([CONFIG_KEYS.LISTING_DEFAULTS]);
-    expect(settings.listingDefaults).toEqual({
-      hidden: true,
-      minimumDaysBefore: 5,
-    });
-  });
-
-  test("fails when the setting keeps changing", async () => {
-    await settings.update.listingDefaults({ usesLogistics: true });
-    const db = getDb();
-    const originalExecute = db.execute.bind(db);
-    let updateAttempts = 0;
-    const executeStub = stub(db, "execute", (statement: InStatement) => {
-      const sql = typeof statement === "string" ? statement : statement.sql;
-      if (!sql.startsWith("UPDATE settings SET value")) {
-        return originalExecute(statement);
-      }
-      updateAttempts += 1;
-      return Promise.resolve(emptyResultSet());
-    });
+  test("rolls back the JSON change when its settings version write fails", async () => {
+    await writeFeatureBoolean(emptyFeatures, "$.money", false, "TRUE");
+    await execute(`
+      CREATE TRIGGER fail_settings_version
+      BEFORE INSERT ON settings
+      WHEN NEW.key = '${CONFIG_KEYS.SETTINGS_VERSION}'
+      BEGIN
+        SELECT RAISE(ABORT, 'version write failed');
+      END
+    `);
     try {
       await expect(
-        settings.update.clearListingDefaultUsesLogistics(),
-      ).rejects.toThrow("Setting listing_defaults changed too often to update");
+        writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, "TRUE"),
+      ).rejects.toThrow("version write failed");
     } finally {
-      executeStub.restore();
+      await execute("DROP TRIGGER IF EXISTS fail_settings_version");
     }
-    expect(updateAttempts).toBe(8);
+    const stored = await queryOnePrimary<{ value: string }>(
+      "SELECT value FROM settings WHERE key = ?",
+      [CONFIG_KEYS.ENABLED_FEATURES],
+    );
+    expect(parseEnabledFeatures(stored!.value).money).toBe(false);
   });
 });

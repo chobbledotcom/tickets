@@ -1,4 +1,4 @@
-import { ownerFormById } from "#routes/entity.ts";
+import { type IdRouteHandler, ownerFormById } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -27,7 +27,7 @@ export const createListingChoicePost = ({
   readIds,
   saveIds,
   tab,
-}: ListingChoicePostConfig) =>
+}: ListingChoicePostConfig): IdRouteHandler =>
   ownerFormById(async (id, _session, form) => {
     if (!settings.features[feature]) return notFoundResponse();
     const listing = await getListingWithCount(id);

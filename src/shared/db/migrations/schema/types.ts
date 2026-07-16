@@ -25,4 +25,6 @@ export type Trigger = {
   name: string;
   table: string;
   sql: string;
+  /** Tables and columns this trigger reads or writes. */
+  uses: Readonly<Record<string, readonly string[]>>;
 };
