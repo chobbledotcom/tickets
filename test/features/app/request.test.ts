@@ -24,12 +24,13 @@ const clearWrappedPrivateKey = async (): Promise<void> => {
 
 describeWithEnv("request pipeline", { db: true }, () => {
   test("rejects a body-bearing POST with no content type", async () => {
-    const response = await handleRequest(
-      new Request("http://localhost/admin/login", {
-        body: "password=test",
-        method: "POST",
-      }),
-    );
+    const request = new Request("http://localhost/admin/login", {
+      body: new Uint8Array([1]),
+      method: "POST",
+    });
+    expect(request.headers.get("content-type")).toBeNull();
+
+    const response = await handleRequest(request);
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("Invalid Content-Type");
   });

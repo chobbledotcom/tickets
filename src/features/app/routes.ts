@@ -278,8 +278,7 @@ export const routeMainApp = async ({
 
   const prefix = getPrefix(path);
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
-  return (
-    (await prefixHandlers[prefix]?.(request, path, method, server)) ??
-    notFoundResponse()
-  );
+  // Object.hasOwn above guarantees this indexed handler exists.
+  const handler = prefixHandlers[prefix]!;
+  return (await handler(request, path, method, server)) ?? notFoundResponse();
 };

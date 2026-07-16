@@ -42,6 +42,54 @@ const isAllowedAdminOperation = (path: string, method: string): boolean =>
     (route) => route.method === method && route.pattern.test(path),
   );
 
+type ReadOnlyRequest = {
+  method: string;
+  mutating: boolean;
+  path: string;
+};
+
+type ReadOnlyDecision = "api" | "page" | null;
+
+type ReadOnlyRule = {
+  decide: (request: ReadOnlyRequest) => ReadOnlyDecision;
+  matches: (request: ReadOnlyRequest) => boolean;
+};
+
+const fixedDecision =
+  (decision: ReadOnlyDecision) =>
+  (_request: ReadOnlyRequest): ReadOnlyDecision =>
+    decision;
+
+/** Ordered from the most specific request to the default public-write rule. */
+const READ_ONLY_RULES: readonly ReadOnlyRule[] = [
+  {
+    decide: fixedDecision("api"),
+    matches: ({ mutating, path }) => mutating && path.startsWith("/api/"),
+  },
+  {
+    decide: fixedDecision("page"),
+    matches: ({ method, path }) =>
+      method === "GET" &&
+      READ_ONLY_GET_PATTERNS.some((pattern) => pattern.test(path)),
+  },
+  {
+    decide: ({ method, path }) =>
+      isAllowedAdminOperation(path, method) ? null : "page",
+    matches: ({ method, path }) => isAdminMutation(path, method),
+  },
+  {
+    decide: fixedDecision(null),
+    matches: ({ mutating }) => !mutating,
+  },
+  {
+    decide: ({ path }) =>
+      READ_ONLY_SAFE_PATHS.some((pattern) => pattern.test(path))
+        ? null
+        : "page",
+    matches: () => true,
+  },
+];
+
 /**
  * Decide whether read-only mode blocks one request. The caller handles the
  * response, keeping environment and request-context reads out of this module.
@@ -49,24 +97,9 @@ const isAllowedAdminOperation = (path: string, method: string): boolean =>
 export const readOnlyBlock = (
   path: string,
   method: string,
-): "api" | "page" | null => {
-  if (path.startsWith("/api/") && isMutatingMethod(method)) {
-    return "api";
-  }
-
-  if (
-    method === "GET" &&
-    READ_ONLY_GET_PATTERNS.some((pattern) => pattern.test(path))
-  ) {
-    return "page";
-  }
-
-  if (isAdminMutation(path, method)) {
-    return isAllowedAdminOperation(path, method) ? null : "page";
-  }
-
-  if (!isMutatingMethod(method)) return null;
-  return READ_ONLY_SAFE_PATHS.some((pattern) => pattern.test(path))
-    ? null
-    : "page";
+): ReadOnlyDecision => {
+  const request = { method, mutating: isMutatingMethod(method), path };
+  // The final rule always matches, so every request has a decision.
+  const rule = READ_ONLY_RULES.find((candidate) => candidate.matches(request))!;
+  return rule.decide(request);
 };
