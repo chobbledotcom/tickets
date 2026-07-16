@@ -4,10 +4,10 @@ import type { Field } from "#shared/forms.tsx";
 import { AdminLevelSchema } from "#shared/types.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {
-  getChangePasswordFields,
-  getInviteUserFields,
-  getLoginFields,
-  getSetupFields,
+  getChangePasswordForm,
+  getInviteUserForm,
+  getLoginForm,
+  getSetupForm,
   getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
@@ -95,7 +95,7 @@ describe("fields contracts", () => {
 
   describe("password fields", () => {
     test("a new-password field enforces an 8-char minimum; its confirm twin does not", () => {
-      const setup = getSetupFields();
+      const setup = getSetupForm().fields;
       const password = byName(setup, "admin_password");
       expect(password.type).toBe("password");
       expect(password.required).toBe(true);
@@ -108,7 +108,7 @@ describe("fields contracts", () => {
     });
 
     test("change-password reuses the same new-password rules", () => {
-      const fields = getChangePasswordFields();
+      const fields = getChangePasswordForm().fields;
       expect(byName(fields, "current_password").required).toBe(true);
       expect(byName(fields, "new_password").minlength).toBe(8);
       expect(byName(fields, "new_password_confirm").minlength).toBeUndefined();
@@ -118,14 +118,14 @@ describe("fields contracts", () => {
   describe("required flags across the settings/auth factories", () => {
     // Each factory's fields are all required; a `required: true -> false` mutant
     // on any of them flips one of these to false.
-    const cases: [string, Field[]][] = [
-      ["login", getLoginFields()],
-      ["setup", getSetupFields()],
+    const cases: [string, readonly Field[]][] = [
+      ["login", getLoginForm().fields],
+      ["setup", getSetupForm().fields],
       ["stripe key", getStripeKeyFields()],
       ["square token", getSquareAccessTokenFields()],
       ["square webhook", getSquareWebhookFields()],
       ["sumup", getSumupFields()],
-      ["invite user", getInviteUserFields()],
+      ["invite user", getInviteUserForm().fields],
     ];
     for (const [label, fields] of cases) {
       test(`every ${label} field is required`, () => {
@@ -137,13 +137,13 @@ describe("fields contracts", () => {
     }
 
     test("the login username field keeps its 2–32 length bounds", () => {
-      const username = byName(getLoginFields(), "username");
+      const username = byName(getLoginForm().fields, "username");
       expect(username.minlength).toBe(2);
       expect(username.maxlength).toBe(32);
     });
 
     test("the invite-user role is a required select", () => {
-      const role = byName(getInviteUserFields(), "admin_level");
+      const role = byName(getInviteUserForm().fields, "admin_level");
       expect(role.type).toBe("select");
       expect(role.required).toBe(true);
     });
@@ -153,7 +153,7 @@ describe("fields contracts", () => {
       // first. Without a blank leading option, an unchanged required select
       // would silently submit owner — a privilege escalation. The blank must
       // lead, owner must still be selectable, and every schema role is offered.
-      const role = byName(getInviteUserFields(), "admin_level");
+      const role = byName(getInviteUserForm().fields, "admin_level");
       const values = (role.options ?? []).map((o) => o.value);
       expect(values[0]).toBe("");
       expect(values).toEqual(["", ...AdminLevelSchema.options]);
@@ -162,7 +162,7 @@ describe("fields contracts", () => {
     test("rejects an invite that leaves the role blank", () => {
       // The blank default plus required means an unchanged form fails closed
       // instead of granting the first schema role (owner).
-      expectInvalid("Role is required")(getInviteUserFields(), {
+      expectInvalid("Role is required")(getInviteUserForm().fields, {
         admin_level: "",
         username: "neweditor",
       });

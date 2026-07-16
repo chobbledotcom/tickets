@@ -48,13 +48,11 @@ import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
 import { adminGroupsPage } from "#templates/admin/groups/list.tsx";
 import {
-  getGroupCreateFields,
-  getGroupFields,
+  type GroupCreateFormValues,
+  type GroupFormValues,
+  getGroupCreateForm,
+  getGroupForm,
 } from "#templates/fields/group.ts";
-import type {
-  GroupCreateFormValues,
-  GroupFormValues,
-} from "#templates/fields/types.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
@@ -285,7 +283,7 @@ const groupResourceBase = {
 
 const groupsCreateResource = defineNamedResource({
   ...groupResourceBase,
-  fields: getGroupCreateFields(),
+  form: getGroupCreateForm(),
   toInput: extractGroupCreateInput,
 });
 
@@ -311,7 +309,7 @@ const writeGroupPackageMembers = (
 const groupsResource = defineNamedResource({
   ...groupResourceBase,
   afterWrite: writeGroupPackageMembers,
-  fields: getGroupFields(),
+  form: getGroupForm(),
   toInput: extractGroupEditInput,
 });
 

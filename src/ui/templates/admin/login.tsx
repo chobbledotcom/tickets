@@ -5,11 +5,11 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { isDemoMode } from "#shared/demo/mode.ts";
-import { Flash, renderFields } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { getLoginFields } from "#templates/fields/admin.ts";
+import { getLoginForm } from "#templates/fields/admin.ts";
 import { layoutPage } from "#templates/layout-page.tsx";
 /* jscpd:ignore-end */
 
@@ -26,7 +26,7 @@ export const adminLoginPage = (error?: string): string =>
         submitIcon="log-in"
         submitLabel={t("login.submit")}
       >
-        <Raw html={renderFields(getLoginFields())} />
+        <Raw html={getLoginForm().render()} />
       </SaveForm>
       {isDemoMode() && (
         <p>

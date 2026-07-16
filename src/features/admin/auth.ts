@@ -37,14 +37,12 @@ import {
   migrateUserToV2Kek,
   verifyUserPassword,
 } from "#shared/db/users.ts";
-import { validateForm } from "#shared/forms.tsx";
 import { nowMs } from "#shared/now.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { adminLogoutPage } from "#templates/admin/logout.tsx";
-import { getLoginFields } from "#templates/fields/admin.ts";
-import type { LoginFormValues } from "#templates/fields/types.ts";
+import { getLoginForm } from "#templates/fields/admin.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
@@ -112,7 +110,7 @@ const handleAdminLogin = async (
     });
   };
 
-  const validation = validateForm<LoginFormValues>(form, getLoginFields());
+  const validation = getLoginForm().validate(form);
 
   if (!validation.valid) {
     return fail("/admin", validation.error);

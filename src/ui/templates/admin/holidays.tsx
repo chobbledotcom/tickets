@@ -10,7 +10,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
+import { entityToFieldValues } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
 import {
@@ -22,7 +22,7 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
-import { getHolidayFields } from "#templates/fields/admin.ts";
+import { getHolidayForm } from "#templates/fields/admin.ts";
 
 /* jscpd:ignore-end */
 
@@ -51,7 +51,7 @@ export const HolidayTable = ({
 export const holidayToFieldValues = (
   holiday?: Holiday,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(holiday, getHolidayFields(), {});
+  entityToFieldValues(holiday, getHolidayForm().fields, {});
 
 export const holidayPages = defineAdminResourcePages<Holiday>({
   active: "/admin/holidays",
@@ -101,8 +101,7 @@ export const holidayPages = defineAdminResourcePages<Holiday>({
   },
   renderFields: (holiday) => (
     <Raw
-      html={renderFields(
-        getHolidayFields(),
+      html={getHolidayForm().render(
         holiday ? holidayToFieldValues(holiday) : {},
       )}
     />

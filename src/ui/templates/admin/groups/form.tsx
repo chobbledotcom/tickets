@@ -4,7 +4,6 @@ import {
   booleanToCheckbox,
   CsrfForm,
   entityToFieldValues,
-  renderFields,
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -17,15 +16,12 @@ import { flashFormPage } from "#templates/admin/admin-page.tsx";
 import { SaveChangesButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
-import {
-  getGroupCreateFields,
-  getGroupFields,
-} from "#templates/fields/group.ts";
+import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
 
 const groupToFieldValues = (
   group?: Group,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(group, getGroupFields(), {
+  entityToFieldValues(group, getGroupForm().fields, {
     hidden: (value) => booleanToCheckbox(value.hidden),
     hide_package_listings: (value) =>
       booleanToCheckbox(value.hide_package_listings),
@@ -40,7 +36,7 @@ export const adminGroupNewPage = flashFormPage(
   () => (
     <NewResourceForm
       action="/admin/groups"
-      fieldsHtml={renderFields(getGroupCreateFields(), groupToFieldValues())}
+      fieldsHtml={getGroupCreateForm().render(groupToFieldValues())}
       submitLabel={t("groups.add.submit")}
       title={t("groups.add.heading")}
     />
@@ -148,7 +144,7 @@ export const GroupEditPanel = ({
   members,
 }: PackageMembersProps & { group: Group }): JSX.Element => (
   <CsrfForm action={`/admin/groups/${group.id}/edit`}>
-    <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
+    <Raw html={getGroupForm().render(groupToFieldValues(group))} />
     <PackageMembersTable listings={listings} members={members} />
     {SaveChangesButton()}
   </CsrfForm>

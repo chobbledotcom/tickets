@@ -21,7 +21,7 @@ const dayPriceFormFields = (
 };
 
 const splitClosesAt = (
-  update: string | undefined,
+  update: string | null | undefined,
   existing: string | null,
 ): { date: string; time: string } => {
   const value = update !== undefined ? update : (existing?.slice(0, 16) ?? "");

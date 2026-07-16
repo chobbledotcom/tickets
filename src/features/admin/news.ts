@@ -31,7 +31,7 @@ import {
   adminNewsListPage,
   adminNewsNewPage,
 } from "#templates/admin/news.tsx";
-import { seoContentInput, textOrEmpty } from "./content-form-fields.ts";
+import { seoContentInput } from "./content-form-fields.ts";
 import { createItemImageHandlers } from "./item-images.ts";
 import { newsPostEditForm, newsPostForm } from "./news-form.ts";
 import { newsPage } from "./news-page.ts";
@@ -48,13 +48,13 @@ import {
 const paths = siteContentPaths("/admin/site/news");
 
 type NewsContentValues = Parameters<typeof seoContentInput>[0] & {
-  snippet: string | null;
+  snippet: string;
 };
 
 /** Turn the validated fields shared by both news forms into a write input. */
 const newsContentInput = (values: NewsContentValues): NewsPostWriteInput => ({
   ...seoContentInput(values),
-  snippet: textOrEmpty(values.snippet),
+  snippet: values.snippet,
 });
 
 // ─── Page CRUD ──────────────────────────────────────────────────
