@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  getNewsPostById,
-  getNewsPostCards,
-  hasNewsPosts,
-} from "#shared/db/news-posts.ts";
+import { getNewsPostById, getNewsPostCards } from "#shared/db/news-posts.ts";
 import type { NewsPost } from "#shared/types.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
@@ -45,6 +41,13 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(html).toContain("Create News Post");
       expect(html).toContain("data-markdown-preview");
       expect(html).toContain('name="snippet"');
+    });
+
+    test("the shared content fields render their input limits", async () => {
+      const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
+      expect(html).toContain('maxlength="128" name="name"');
+      expect(html).toContain('maxlength="64" name="meta_title"');
+      expect(html).toContain('maxlength="160" name="meta_description"');
     });
 
     test("the list shows each post's name and published date, newest first", async () => {
@@ -91,10 +94,13 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(await wasLogged("News post 'Launch' created")).toBe(true);
     });
 
-    test("rejects a missing name and creates nothing", async () => {
-      const { response } = await create("");
-      expectRedirect(response, /^\/admin\/site\/news\/new\?/);
-      expect(await hasNewsPosts()).toBe(false);
+    test("stores omitted optional content fields as empty text", async () => {
+      await create("No optional fields");
+      const post = await findPost("No optional fields");
+      expect(post.content).toBe("");
+      expect(post.meta_title).toBe("");
+      expect(post.meta_description).toBe("");
+      expect(post.snippet).toBe("");
     });
   });
 

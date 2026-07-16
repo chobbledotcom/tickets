@@ -141,6 +141,17 @@ export const mapNotNullish =
   (array: Iterable<T>): U[] =>
     stdMapNotNullish(array, fn);
 
+/** Check items in order and stop at the first reported problem. */
+export const firstProblem =
+  <T>(check: (item: T) => string | null | Promise<string | null>) =>
+  async (items: readonly T[]): Promise<string | null> => {
+    for (const item of items) {
+      const problem = await check(item);
+      if (problem) return problem;
+    }
+    return null;
+  };
+
 /**
  * Curried reduce
  */
@@ -177,33 +188,15 @@ export const uniqueBy =
     stdDistinctBy(array, fn);
 
 /**
- * Group items by a key, accumulating same-key items into one array. The Map's
- * keys appear in first-occurrence order and each array preserves input order —
- * the ordering guarantee callers rely on (which `@std/collections` lacks).
- */
-export const groupBy = <T, K>(
-  array: readonly T[],
-  key: (item: T) => K,
-): Map<K, T[]> => {
-  const groups = new Map<K, T[]>();
-  for (const item of array) {
-    const group = groups.get(key(item));
-    if (group) group.push(item);
-    else groups.set(key(item), [item]);
-  }
-  return groups;
-};
-
-/**
  * Group rows by a key, keeping only the chosen value from each row.
- * Same ordering guarantee as {@link groupBy}: keys appear in first-occurrence
- * order and each value list preserves input order.
+ * Keys appear in first-occurrence order and each value list preserves input
+ * order.
  */
 export const groupToMap =
   <T, K, V>(keyOf: (row: T) => K, valueFrom: (row: T) => V) =>
   (rows: readonly T[]): Map<K, V[]> =>
     new Map(
-      [...groupBy(rows, keyOf)].map(([key, group]) => [
+      [...Map.groupBy(rows, keyOf)].map(([key, group]) => [
         key,
         group.map(valueFrom),
       ]),
@@ -358,7 +351,11 @@ export const sumByKey =
     return totals;
   };
 
-/** Index items by one field and chosen value. Later matching keys win. */
+/** Return a value unchanged. */
+export const identity = <T>(value: T): T => value;
+
+/** Index items by one field and chosen value. Keys keep first-occurrence order,
+ * while later matching items replace the stored value. */
 export const mapBy =
   <T, Key extends keyof T, V>(key: Key, valueFrom: (item: T) => V) =>
   (items: Iterable<T>): Map<T[Key], V> => {
@@ -368,39 +365,9 @@ export const mapBy =
   };
 
 /**
- * Index items by their `id`, so a caller can look one up without scanning the
- * whole list each time. Replaces the common pattern:
- *   new Map(items.map((item) => [item.id, item]))
- */
-export const byId = <T extends { id: number }>(
-  items: Iterable<T>,
-): Map<number, T> => mapBy("id", (item: T) => item)(items);
-
-/**
- * Index items by their `id`, keeping one chosen value per item — the value
- * form of {@link byId}. Curried so the value-picker is fixed once, e.g.
- *   const idNameMap = mapById((item) => item.name)
- * When two items share an id the later one wins, as building the Map by hand
- * would.
- */
-export const mapById =
-  <T extends { id: number }, V>(valueFrom: (item: T) => V) =>
-  (items: Iterable<T>): Map<number, V> =>
-    mapBy("id", valueFrom)(items);
-
-/**
  * A copy of `base` with `extra` entries merged on top (an `extra` key wins over
- * the same key in `base`). Curried so a fixed base — an auth header set, the
- * process environment — can be extended per call.
- */
-export const withEntries =
-  <V>(base: Record<string, V>) =>
-  (extra: Record<string, V>): Record<string, V> => ({ ...base, ...extra });
-
-/**
- * The mirror of {@link withEntries}: fixes the `extra` entries and takes the
- * `base` per call, so a constant overlay (a fixed content type, a default set)
- * can extend whatever record it is given.
+ * the same key in `base`). Curried so a constant overlay (a fixed content type,
+ * a default set) can extend whatever record it is given.
  */
 export const extendedBy =
   <V>(extra: Record<string, V>) =>
@@ -452,7 +419,7 @@ export const collectionCache = <T>(
   return {
     getAll: async (): Promise<T[]> => {
       const state = getState();
-      if (state.items !== null && now() - state.time < ttlMs) {
+      if (state.items !== null && now() - state.time <= ttlMs) {
         return state.items;
       }
       const gen = generation;

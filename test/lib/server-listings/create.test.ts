@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { getGroupIdsByListingId } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import {
   getAllListings,
   getListingWithCount,
@@ -165,7 +165,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       await expectFlashRedirect("/admin", "Listing created")(response);
 
       const listing = await getListingWithCount(1);
-      expect(await getGroupIdsByListingId(listing!.id)).toContain(group.id);
+      expect(await listingGroups.getIds(listing!.id)).toContain(group.id);
     });
 
     test("rejects non-existent group_id on create", async () => {

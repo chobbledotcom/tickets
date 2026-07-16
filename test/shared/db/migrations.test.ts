@@ -87,6 +87,8 @@ describeWithEnv("db > migrations", { db: true }, () => {
       body: () => Promise<void>,
     ): Promise<void> => {
       const { fetchStub, restore } = stubNtfyFetch();
+      using _env = restore;
+      using _fetch = fetchStub;
       setDb(client);
       try {
         await body();
@@ -95,8 +97,6 @@ describeWithEnv("db > migrations", { db: true }, () => {
         );
         expect(ntfyCall).toBeUndefined();
       } finally {
-        fetchStub.restore();
-        restore();
         setDb(null);
       }
     };

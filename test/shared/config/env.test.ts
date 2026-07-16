@@ -27,9 +27,8 @@ import {
   setEffectiveDomainForTest,
   slugifyForProvider,
 } from "#shared/config.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
-type EnvVars = Record<string, string | undefined>;
 type BoolGetter = () => boolean;
 type StringGetter = () => string;
 type MissingValueCheck = {
@@ -37,29 +36,18 @@ type MissingValueCheck = {
   readonly check: (getValue: StringGetter, key: string) => void;
 };
 
-const withEnv = <T>(vars: EnvVars, run: () => T): T => {
-  const restore = setTestEnv(vars);
-  try {
-    return run();
-  } finally {
-    restore();
-  }
-};
-
 const expectEnvGetter =
   (missing: MissingValueCheck) =>
   (name: string, getValue: StringGetter, key: string, value: string) => {
     describe(name, () => {
       test("returns the configured value", () => {
-        withEnv({ [key]: value }, () => {
-          expect(getValue()).toBe(value);
-        });
+        using _env = withEnv({ [key]: value });
+        expect(getValue()).toBe(value);
       });
 
       test(missing.name, () => {
-        withEnv({ [key]: undefined }, () => {
-          missing.check(getValue, key);
-        });
+        using _env = withEnv({ [key]: undefined });
+        missing.check(getValue, key);
       });
     });
   };
@@ -89,16 +77,14 @@ const expectEnabledByAllKeys = (
     );
 
     test("returns true when every required value is set", () => {
-      withEnv(allKeysSet, () => {
-        expect(isEnabled()).toBe(true);
-      });
+      using _env = withEnv(allKeysSet);
+      expect(isEnabled()).toBe(true);
     });
 
     for (const missingKey of keys) {
       test(`returns false when ${missingKey} is missing`, () => {
-        withEnv({ ...allKeysSet, [missingKey]: undefined }, () => {
-          expect(isEnabled()).toBe(false);
-        });
+        using _env = withEnv({ ...allKeysSet, [missingKey]: undefined });
+        expect(isEnabled()).toBe(false);
       });
     }
   });
@@ -152,15 +138,13 @@ expectEnabledByAllKeys("isBunnyDnsEnabled", isBunnyDnsEnabled, [
 
 describe("isBunnyDbEnabled", () => {
   test("returns true when the API key is set", () => {
-    withEnv({ BUNNY_API_KEY: "bunny_key" }, () => {
-      expect(isBunnyDbEnabled()).toBe(true);
-    });
+    using _env = withEnv({ BUNNY_API_KEY: "bunny_key" });
+    expect(isBunnyDbEnabled()).toBe(true);
   });
 
   test("returns false when the API key is missing", () => {
-    withEnv({ BUNNY_API_KEY: undefined }, () => {
-      expect(isBunnyDbEnabled()).toBe(false);
-    });
+    using _env = withEnv({ BUNNY_API_KEY: undefined });
+    expect(isBunnyDbEnabled()).toBe(false);
   });
 });
 
@@ -209,15 +193,13 @@ expectEnabledByAllKeys("isBotpoisonEnabled", isBotpoisonEnabled, [
 
 describe("isInstanceApiEnabled", () => {
   test("returns true when the main instance key is set", () => {
-    withEnv({ MAIN_INSTANCE_KEY: "main_key" }, () => {
-      expect(isInstanceApiEnabled()).toBe(true);
-    });
+    using _env = withEnv({ MAIN_INSTANCE_KEY: "main_key" });
+    expect(isInstanceApiEnabled()).toBe(true);
   });
 
   test("returns false when the main instance key is missing", () => {
-    withEnv({ MAIN_INSTANCE_KEY: undefined }, () => {
-      expect(isInstanceApiEnabled()).toBe(false);
-    });
+    using _env = withEnv({ MAIN_INSTANCE_KEY: undefined });
+    expect(isInstanceApiEnabled()).toBe(false);
   });
 });
 
@@ -247,21 +229,18 @@ expectRequiredEnvGetter(
 
 describe("getDefaultDbProvider", () => {
   test("returns turso only when DEFAULT_DB_HOST is turso", () => {
-    withEnv({ DEFAULT_DB_HOST: "turso" }, () => {
-      expect(getDefaultDbProvider()).toBe("turso");
-    });
+    using _env = withEnv({ DEFAULT_DB_HOST: "turso" });
+    expect(getDefaultDbProvider()).toBe("turso");
   });
 
   test("returns bunny when DEFAULT_DB_HOST is missing", () => {
-    withEnv({ DEFAULT_DB_HOST: undefined }, () => {
-      expect(getDefaultDbProvider()).toBe("bunny");
-    });
+    using _env = withEnv({ DEFAULT_DB_HOST: undefined });
+    expect(getDefaultDbProvider()).toBe("bunny");
   });
 
   test("returns bunny for any other configured value", () => {
-    withEnv({ DEFAULT_DB_HOST: "some-unrecognised-host" }, () => {
-      expect(getDefaultDbProvider()).toBe("bunny");
-    });
+    using _env = withEnv({ DEFAULT_DB_HOST: "some-unrecognised-host" });
+    expect(getDefaultDbProvider()).toBe("bunny");
   });
 });
 

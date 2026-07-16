@@ -46,13 +46,17 @@ const formRoute = (definition: SettingsFormDefinition) => ({
   label: definition.routeLabel,
 });
 
+const formLocation = (definition: SettingsFormDefinition) => {
+  const { label: _, ...location } = formRoute(definition);
+  return location;
+};
+
 /**
  * Handle POST /admin/settings/payment-provider - owner only
  */
 export const handlePaymentProviderPost = settingsHandler({
   extract: (form) => form.getString("payment_provider"),
   formId: "settings-payment-provider",
-  label: "Payment provider",
   log: (v) =>
     v === "none"
       ? t("success.payment_provider_disabled")
@@ -71,7 +75,7 @@ export const handlePaymentProviderPost = settingsHandler({
  * Handle POST /admin/settings/embed-hosts - owner only
  */
 export const handleEmbedHostsPost = settingsHandler({
-  ...formRoute(SETTINGS_FORMS.embedHosts),
+  ...formLocation(SETTINGS_FORMS.embedHosts),
   extract: (form) => form.getString(SETTINGS_FORMS.embedHosts.fieldName),
   log: (v) =>
     v === ""
@@ -89,7 +93,7 @@ export const handleEmbedHostsPost = settingsHandler({
  * Handle POST /admin/settings/terms - owner only
  */
 export const handleTermsPost = settingsHandler({
-  ...formRoute(SETTINGS_FORMS.terms),
+  ...formLocation(SETTINGS_FORMS.terms),
   extract: (form) => {
     applyDemoOverrides(form, TERMS_DEMO_FIELDS);
     return form.getString(SETTINGS_FORMS.terms.fieldName);
@@ -108,7 +112,7 @@ export const handleTermsPost = settingsHandler({
  * Stored verbatim and served as a public stylesheet from /custom.css.
  */
 export const handleCustomCssPost = settingsHandler({
-  ...formRoute(SETTINGS_FORMS.customCss),
+  ...formLocation(SETTINGS_FORMS.customCss),
   extract: (form) => form.getString(SETTINGS_FORMS.customCss.fieldName),
   log: (v) => (v === "" ? "Custom CSS removed" : "Custom CSS updated"),
   save: (v) => settings.update.customCss(v),
@@ -134,7 +138,6 @@ export const handleThemePost = settingsHandler({
     underlineLinks: form.get("underline_links") === "true",
   }),
   formId: "settings-theme",
-  label: "Theme",
   log: (v) => `Theme set to ${v.theme}`,
   save: async (v) => {
     await settings.update.theme(v.theme as Theme);
@@ -163,7 +166,6 @@ export const handleCalendarFeedsPost = settingsHandler({
     groupBy: form.getString("calendar_feeds_group_by"),
   }),
   formId: "settings-calendar-feeds",
-  label: "Calendar feeds",
   log: (v) =>
     v.enabled
       ? `Calendar feeds enabled (${v.groupBy})`
@@ -180,7 +182,6 @@ export const handleCalendarFeedsPost = settingsHandler({
 export const handleBookingFeePost = settingsHandler({
   extract: (form) => Number.parseFloat(form.getString("booking_fee")),
   formId: "settings-booking-fee",
-  label: "Booking fee",
   log: (v) => `Booking fee set to ${v}%`,
   save: (v) => settings.update.bookingFee(String(v)),
   validate: (v) =>
@@ -224,7 +225,7 @@ export const handleResetDatabasePost = advancedSettingsRoute(
   async (form, errorPage) => {
     const phraseResult = demoResetForm.validate(form);
     if (!phraseResult.valid) {
-      return errorPage(phraseResult.error, 400, "settings-reset-database");
+      return errorPage(phraseResult.error, "settings-reset-database");
     }
 
     await logActivity("Database reset initiated");

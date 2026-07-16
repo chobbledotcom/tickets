@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
+import { withEnv } from "#test-utils/env.ts";
 import {
   balancedCycles,
   balancedRotation,
@@ -70,17 +71,13 @@ describe("cold-start benchmark support", () => {
 
   test("requiredEnv returns a configured value", () => {
     const key = "COLD_START_SUPPORT_TEST";
-    Deno.env.set(key, "configured");
-    try {
-      expect(requiredEnv(key)).toBe("configured");
-    } finally {
-      Deno.env.delete(key);
-    }
+    using _env = withEnv({ [key]: "configured" });
+    expect(requiredEnv(key)).toBe("configured");
   });
 
   test("requiredEnv rejects a missing value", () => {
     const key = "COLD_START_SUPPORT_MISSING_TEST";
-    Deno.env.delete(key);
+    using _env = withEnv({ [key]: undefined });
     expect(() => requiredEnv(key)).toThrow(`${key} is required`);
   });
 

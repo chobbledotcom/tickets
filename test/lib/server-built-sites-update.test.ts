@@ -3,7 +3,11 @@ import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { backupKey, backupTimestamp, dbName } from "#shared/db/backup.ts";
+import {
+  backupKey,
+  backupTimestamp,
+  dbName,
+} from "#shared/db/backup-storage.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";
@@ -11,7 +15,8 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { type EnvScope, withEnv } from "#test-utils/env.ts";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 import { useLocalStoragePath } from "./_shared-site-update.ts";
@@ -41,24 +46,24 @@ describeWithEnv(
   "POST /admin/built-sites/:id/update",
   { db: true, env: { CAN_BUILD_SITES: "true" } },
   () => {
-    let storageTmp: string;
-    let restoreEnv: () => void;
+    let storageTmp: TempPath;
+    let env: EnvScope;
 
     beforeEach(() => {
       // The host's Bunny key plus local storage for the per-site backup gate,
       // set as one env layer so teardown can't leak BUNNY_API_KEY into the
       // "without BUNNY_API_KEY" suite below.
-      storageTmp = Deno.makeTempDirSync();
-      restoreEnv = setTestEnv({
+      storageTmp = tempDir();
+      env = withEnv({
         BUNNY_API_KEY: "host-key",
-        LOCAL_STORAGE_PATH: storageTmp,
+        LOCAL_STORAGE_PATH: storageTmp.path,
       });
     });
 
     afterEach(() => {
       settings.clearTestOverrides();
-      restoreEnv?.();
-      if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
+      env.dispose();
+      storageTmp.dispose();
     });
 
     test("deploys the latest release to the site's own script", async () => {
@@ -68,7 +73,7 @@ describeWithEnv(
         name: "Update Me",
       });
       await seedSiteBackup(SITE_DB_URL);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
         Promise.resolve({ ok: true as const }),
       );
@@ -94,7 +99,6 @@ describeWithEnv(
         ).toBe(true);
       } finally {
         deployStub.restore();
-        fetchStub.restore();
       }
     });
 
@@ -110,7 +114,7 @@ describeWithEnv(
         name: "Deploy Fails",
       });
       await seedSiteBackup(SITE_DB_URL);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       const deployStub = stub(bunnyCdnApi, "deployScriptCode", () =>
         Promise.resolve({ error: "upload failed (500)", ok: false as const }),
       );
@@ -125,7 +129,6 @@ describeWithEnv(
         )(response);
       } finally {
         deployStub.restore();
-        fetchStub.restore();
       }
     });
 
@@ -139,7 +142,7 @@ describeWithEnv(
       await settings.update.currentTask("other-task");
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       try {
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/update`,
@@ -150,7 +153,6 @@ describeWithEnv(
           false,
         )(response);
       } finally {
-        fetchStub.restore();
         await settings.update.currentTask("");
       }
     });
@@ -243,7 +245,7 @@ describeWithEnv(
         name: "Deno Deploy Site",
       });
       await seedSiteBackup(SITE_DB_URL);
-      const fetchStub = stubReleaseFetch();
+      using _fetch = stubReleaseFetch();
       const deployStub = stub(denoDeployApi, "deployCode", () =>
         Promise.resolve({
           hostname: "https://app.deno.dev",
@@ -264,7 +266,6 @@ describeWithEnv(
         expect(deployStub.calls[0]!.args[0]).toBe("app_deno_8700");
       } finally {
         deployStub.restore();
-        fetchStub.restore();
         getEnvVarNamesStub.restore();
       }
     });

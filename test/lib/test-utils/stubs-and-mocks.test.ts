@@ -9,7 +9,7 @@ import {
   expectSendNoop,
   rejectedFetch,
 } from "#test-utils/email.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   generateTestListingName,
   resetTestSlugCounter,
@@ -19,7 +19,6 @@ import {
   expectNtfyNotification,
   mockFormRequest,
   mockRequest,
-  okResponse,
   randomString,
   stubNtfyFetch,
   testRequest,
@@ -86,28 +85,31 @@ describe("test-utils — stubs, caches & request mocks", () => {
     test("stubs fetch and asserts zero calls when body does not fetch", async () => {
       await expectFetchSilent(() => Promise.resolve());
     });
-  });
 
-  describe("okResponse", () => {
-    test("resolves with a 200 Response", async () => {
-      const response = await okResponse();
-      expect(response.status).toBe(200);
+    test("passes fetch calls to a custom assertion", async () => {
+      let callCount = 0;
+      await expectFetchSilent(
+        async () => {
+          await fetch("https://example.com/check");
+        },
+        (calls) => {
+          callCount = calls.length;
+        },
+      );
+      expect(callCount).toBe(1);
     });
   });
 
   describe("stubNtfyFetch", () => {
     test("stubs globalThis.fetch and sets NTFY_URL env", async () => {
       const { fetchStub, restore } = stubNtfyFetch();
-      try {
-        await globalThis.fetch("https://ntfy.sh/test-topic", {
-          body: "hello",
-          method: "POST",
-        });
-        expectNtfyNotification(fetchStub, "hello");
-      } finally {
-        fetchStub.restore();
-        restore();
-      }
+      using _env = restore;
+      using _fetch = fetchStub;
+      await globalThis.fetch("https://ntfy.sh/test-topic", {
+        body: "hello",
+        method: "POST",
+      });
+      expectNtfyNotification(fetchStub, "hello");
     });
   });
   describe("internal caches", () => {
@@ -129,13 +131,9 @@ describe("test-utils — stubs, caches & request mocks", () => {
 
   describe("resetDb", () => {
     test("leaves a non-file DB_URL alone (nothing on disk to remove)", async () => {
-      const { setTestEnv } = await import("#test-utils/env.ts");
-      const restore = setTestEnv({ DB_URL: ":memory:" });
-      try {
-        resetDb(); // must not try to close/unlink a file for :memory:
-      } finally {
-        restore();
-      }
+      const { withEnv } = await import("#test-utils/env.ts");
+      using _env = withEnv({ DB_URL: ":memory:" });
+      resetDb(); // must not try to close/unlink a file for :memory:
     });
 
     test("resets database so next createTestDb gives clean state", async () => {
@@ -168,7 +166,6 @@ describe("test-utils — stubs, caches & request mocks", () => {
 
     test("removes the temp database even when closing the client throws", async () => {
       const path = await createTrackedTestDbFile(".db");
-      const restoreEnv = setTestEnv({ DB_URL: `file:${path}` });
       const { setDb } = await import("#shared/db/client.ts");
       setDb({
         close: () => {
@@ -178,6 +175,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
       let cleanupError: unknown;
 
       try {
+        using _env = withEnv({ DB_URL: `file:${path}` });
         expect(() => resetDb()).not.toThrow();
         try {
           await Deno.stat(path);
@@ -186,7 +184,6 @@ describe("test-utils — stubs, caches & request mocks", () => {
           expect(error).toBeInstanceOf(Deno.errors.NotFound);
         }
       } finally {
-        restoreEnv();
         try {
           await Deno.remove(path);
         } catch (error) {

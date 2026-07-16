@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
+import { type Stub, spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
@@ -23,6 +23,7 @@ import {
   makeTestEntry as makeEntry,
   makeTestListing as makeListing,
 } from "#test-utils/factories.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import type { EmailEntry } from "#test-utils/internal.ts";
 
 /** Default single-entry registration (free listing, default attendee) */
@@ -48,29 +49,25 @@ const flushAsync = (): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("webhook", () => {
-  // deno-lint-ignore no-explicit-any
-  let fetchSpy: any;
-  let originalFetch: typeof fetch;
+  let fetchSpy: Stub;
 
   beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    fetchSpy = stub(globalThis, "fetch", () => Promise.resolve(new Response()));
+    fetchSpy = stubFetch(() => new Response());
   });
 
   afterEach(() => {
     fetchSpy.restore();
-    globalThis.fetch = originalFetch;
   });
 
   /** Restore current fetch stub and replace with a custom implementation */
   const restubFetch = (impl: () => Promise<Response>): void => {
     fetchSpy.restore();
-    fetchSpy = stub(globalThis, "fetch", impl);
+    fetchSpy = stubFetch(impl);
   };
 
   /** The parsed JSON body of the first webhook POST the fetch stub captured. */
   const firstWebhookBody = (): WebhookPayload => {
-    const [, options] = fetchSpy.calls[0].args as [string, RequestInit];
+    const [, options] = fetchSpy.calls[0]!.args as [string, RequestInit];
     return JSON.parse(options.body as string) as WebhookPayload;
   };
 
@@ -410,7 +407,7 @@ describe("webhook", () => {
       await sendWebhook("https://example.com/webhook", payload);
 
       expect(fetchSpy.calls.length).toBe(1);
-      const [url, options] = fetchSpy.calls[0].args as [string, RequestInit];
+      const [url, options] = fetchSpy.calls[0]!.args as [string, RequestInit];
       expect(url).toBe("https://example.com/webhook");
       expect(options.method).toBe("POST");
       expect(options.redirect).toBe("manual");
@@ -441,11 +438,11 @@ describe("webhook", () => {
       await sendWebhook("https://example.com/webhook", payload);
 
       expect(fetchSpy.calls.length).toBe(2);
-      const [firstUrl, firstOptions] = fetchSpy.calls[0].args as [
+      const [firstUrl, firstOptions] = fetchSpy.calls[0]!.args as [
         string,
         RequestInit,
       ];
-      const [secondUrl, secondOptions] = fetchSpy.calls[1].args as [
+      const [secondUrl, secondOptions] = fetchSpy.calls[1]!.args as [
         string,
         RequestInit,
       ];
@@ -647,7 +644,7 @@ describe("webhook", () => {
       await sendRegistrationWebhooks(entries, "GBP");
 
       expect(fetchSpy.calls.length).toBe(1);
-      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
+      const [url] = fetchSpy.calls[0]!.args as [string, RequestInit];
       expect(url).toBe("https://hook.com");
     });
 
@@ -688,7 +685,7 @@ describe("webhook", () => {
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
-      const [url, options] = fetchSpy.calls[0].args as [string, RequestInit];
+      const [url, options] = fetchSpy.calls[0]!.args as [string, RequestInit];
       expect(url).toBe("https://example.com/hook");
       const body = JSON.parse(options.body as string) as WebhookPayload;
       expect(body.notification_type).toBe("registration.completed");
@@ -741,7 +738,7 @@ describe("webhook", () => {
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
-      const [, options] = fetchSpy.calls[0].args as [string, RequestInit];
+      const [, options] = fetchSpy.calls[0]!.args as [string, RequestInit];
       const body = JSON.parse(options.body as string) as WebhookPayload;
       expect(body.tickets).toHaveLength(2);
     });

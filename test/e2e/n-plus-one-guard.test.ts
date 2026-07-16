@@ -9,7 +9,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { N_PLUS_ONE_THRESHOLD } from "#shared/db/query-log.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
@@ -121,7 +121,7 @@ const createProtectedFixture = async (): Promise<ProtectedFixture> => {
     attendeeIds.push(booking.attendees[0]!.id);
   }
 
-  const multiBooking = await createAttendeeAtomic({
+  const multiBooking = await attendeesApi.createAttendeeAtomic({
     bookings: listings.map((listing) => ({
       listingId: listing.id,
       pricePaid: 1000,

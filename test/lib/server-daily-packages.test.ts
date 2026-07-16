@@ -102,13 +102,11 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // The package page stays live, the full date is still rejected by the
     // date-aware submit gate, and the next day books normally.
     const { group, tent } = await dailyPackage("Tight", "tight-pkg");
-    const { createAttendeeAtomic } = await import(
-      "#shared/db/attendees/api.ts"
-    );
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
     const { listingsTable } = await import("#shared/db/listings/records.ts");
     const dateA = bookingDate();
     await listingsTable.update(tent.id, { maxAttendees: 1 });
-    const fill = await createAttendeeAtomic({
+    const fill = await attendeesApi.createAttendeeAtomic({
       bookings: [{ date: dateA, listingId: tent.id, quantity: 1 }],
       email: "first@test.com",
       name: "First",
@@ -162,11 +160,9 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       name: "Pool Camper",
       unitPrice: 0,
     });
-    const { createAttendeeAtomic } = await import(
-      "#shared/db/attendees/api.ts"
-    );
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
     const dateA = bookingDate();
-    const fill = await createAttendeeAtomic({
+    const fill = await attendeesApi.createAttendeeAtomic({
       bookings: [{ date: dateA, listingId: camper.id, quantity: 10 }],
       email: "early@test.com",
       name: "Early Group",

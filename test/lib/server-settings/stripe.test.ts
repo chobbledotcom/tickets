@@ -17,7 +17,11 @@ import {
 } from "#test-utils/assertions.ts";
 import { mockFormRequest, withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
-import { describeAdminSettings } from "#test-utils/settings.ts";
+import {
+  activateStripe,
+  describeAdminSettings,
+  withSuccessfulStripeWebhook,
+} from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -31,26 +35,12 @@ describeAdminSettings(() => {
     secretKey: string,
     body: (response: Response) => Promise<void>,
   ): Promise<void> =>
-    withMocks(
-      () => ({
-        cleanupStub: stub(stripeApi, "cleanupOldWebhookEndpoints", () =>
-          Promise.resolve(),
-        ),
-        setupStub: stub(stripeApi, "setupWebhookEndpoint", () =>
-          Promise.resolve({
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-            success: true,
-          }),
-        ),
-      }),
-      async () => {
-        const { response } = await adminFormPost("/admin/settings/stripe", {
-          stripe_secret_key: secretKey,
-        });
-        await body(response);
-      },
-    );
+    withSuccessfulStripeWebhook(async () => {
+      const { response } = await adminFormPost("/admin/settings/stripe", {
+        stripe_secret_key: secretKey,
+      });
+      await body(response);
+    });
 
   const postStripeTest = async (
     stubResult: StripeConnectionTestResult,
@@ -308,6 +298,37 @@ describeAdminSettings(() => {
       } finally {
         mockSetupWebhook.restore();
       }
+    });
+
+    test("surfaces cleanup failure after saving all new credentials", async () => {
+      await activateStripe("whsec_old", "we_old", "sk_test_old_key");
+      await settings.update.paymentProvider("square");
+
+      await withMocks(
+        () => ({
+          cleanupStub: stub(stripeApi, "cleanupOldWebhookEndpoints", () =>
+            Promise.reject(new Error("Stripe cleanup failed")),
+          ),
+          setupStub: stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              endpointId: "we_new",
+              secret: "whsec_new",
+              success: true,
+            }),
+          ),
+        }),
+        async () => {
+          await expect(
+            adminFormPost("/admin/settings/stripe", {
+              stripe_secret_key: "sk_test_new_key",
+            }),
+          ).rejects.toThrow("Stripe cleanup failed");
+          expect(settings.stripe.secretKey).toBe("sk_test_new_key");
+          expect(settings.stripe.webhookEndpointId).toBe("we_new");
+          expect(settings.stripe.webhookSecret).toBe("whsec_new");
+          expect(settings.paymentProvider).toBe("stripe");
+        },
+      );
     });
   });
 

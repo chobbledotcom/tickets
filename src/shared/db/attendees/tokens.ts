@@ -3,7 +3,7 @@
  */
 
 import { groupToMap, map, unique } from "#fp";
-import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type {
   AttendeeWithBookings,
@@ -132,7 +132,7 @@ type TokenIndexedRows<Row extends TokenIndexedRow> = {
 };
 
 const tokenIndexesFor = (tokens: string[]): Promise<BlindIndex[]> =>
-  Promise.all(map((token: string) => computeTicketTokenIndex(token))(tokens));
+  Promise.all(map((token: string) => hmacHash(token))(tokens));
 
 const attendeeRowsForTokens = async <Row extends TokenIndexedRow>(
   tokens: string[],

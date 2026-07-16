@@ -4,7 +4,7 @@
  * listing detail and attendee edit pages.
  */
 
-import { filter, map, unique } from "#fp";
+import { filter, map, mapBy, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
 import {
   generateCalendarCsv,
@@ -29,7 +29,6 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import {
   type ListingFilter,
   listingCategory,
@@ -143,7 +142,7 @@ export const handleAttendeesListGet: TypedRouteHandler<
         hasNext,
         listingId,
         listings,
-        names: idNameMap(decrypted),
+        names: mapBy("id", (attendee: Attendee) => attendee.name)(decrypted),
         page,
         phonePrefix: settings.phonePrefix,
         rows: built,

@@ -1,17 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { buildSessionCookie } from "#shared/cookies.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { recordApiKeyAttempt } from "#shared/db/api-key-attempts.ts";
+import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import {
-  countApiKeysForUser,
   createApiKey,
-  deleteAllApiKeysForUser,
   deleteApiKey,
   getApiKeyByToken,
   getApiKeyForUser,
@@ -118,20 +115,12 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(keys[1]!.name).toBe("Key B");
     });
 
-    test("counts API keys for a user", async () => {
-      const { dataKey } = await createTestApiKeyFull("Key A");
-      await createApiKey(1, "Key B", dataKey, generateSecureToken);
-
-      expect(await countApiKeysForUser(1)).toBe(2);
-      expect(await countApiKeysForUser(999)).toBe(0);
-    });
-
     test("deletes an API key", async () => {
       const { id } = await createTestApiKeyFull();
 
       const deleted = await deleteApiKey(id, 1);
       expect(deleted).toBe(true);
-      expect(await countApiKeysForUser(1)).toBe(0);
+      expect(await getApiKeysForUser(1)).toEqual([]);
     });
 
     test("delete fails for wrong user", async () => {
@@ -139,15 +128,7 @@ describeWithEnv("API Keys", { db: true }, () => {
 
       const deleted = await deleteApiKey(id, 999);
       expect(deleted).toBe(false);
-      expect(await countApiKeysForUser(1)).toBe(1);
-    });
-
-    test("deletes all API keys for a user", async () => {
-      const { dataKey } = await createTestApiKeyFull("Key A");
-      await createApiKey(1, "Key B", dataKey, generateSecureToken);
-
-      await deleteAllApiKeysForUser(1);
-      expect(await countApiKeysForUser(1)).toBe(0);
+      expect(await getApiKeysForUser(1)).toHaveLength(1);
     });
 
     test("touchApiKeyLastUsed stamps last_used on the stored row only", async () => {
@@ -266,7 +247,7 @@ describeWithEnv("API Keys", { db: true }, () => {
           "SQLITE_CONSTRAINT: feature enable failed",
           false,
         );
-        expect(await countApiKeysForUser(1)).toBe(0);
+        expect(await getApiKeysForUser(1)).toEqual([]);
       });
     });
 
@@ -398,7 +379,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       });
 
       expect(response.status).toBe(302);
-      expect(await countApiKeysForUser(1)).toBe(0);
+      expect(await getApiKeysForUser(1)).toEqual([]);
     });
 
     test("POST /admin/api-keys/:id/delete rejects wrong name", async () => {
@@ -415,7 +396,7 @@ describeWithEnv("API Keys", { db: true }, () => {
         expect.stringContaining("does not match"),
         false,
       )(response);
-      expect(await countApiKeysForUser(1)).toBe(1);
+      expect(await getApiKeysForUser(1)).toHaveLength(1);
     });
 
     test("GET /admin/api-keys/:id/delete shows confirmation page", async () => {
@@ -494,7 +475,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       // Saturate the failed-attempt limit for the test's "direct" IP. Once
       // locked, even a valid key is rejected until the lockout expires.
       for (let i = 0; i < MAX_APIKEY_ATTEMPTS; i++) {
-        await recordApiKeyAttempt("direct");
+        await apiKeyLimiter.record("direct");
       }
       const response = await handleRequest(
         requestAsApiKey("/api/admin/listings", apiKey),
@@ -506,27 +487,6 @@ describeWithEnv("API Keys", { db: true }, () => {
       const response = await handleRequest(mockRequest("/admin/api-keys/docs"));
 
       expect(response.status).toBe(302);
-    });
-
-    test("succeeds even when touchApiKeyLastUsed fails", async () => {
-      await createTestListing({ name: "Touch Fail Test" });
-      const { apiKey } = await createTestApiKeyFull("Resilient Auth");
-
-      const apiKeysModule = await import("#shared/db/api-keys.ts");
-      const stubTouch = stub(
-        apiKeysModule.apiKeysApi,
-        "touchApiKeyLastUsed",
-        () => Promise.reject(new Error("DB error")),
-      );
-
-      try {
-        const response = await handleRequest(
-          requestAsApiKey("/api/admin/listings", apiKey),
-        );
-        expect(response.status).toBe(200);
-      } finally {
-        stubTouch.restore();
-      }
     });
   });
 

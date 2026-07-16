@@ -4,7 +4,7 @@ import {
   getDatelessGroupRemaining,
   getGroupStaticCapByGroupId,
 } from "#shared/db/attendees/capacity/groups.ts";
-import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
@@ -33,7 +33,10 @@ describeWithEnv(
         groupId: dailyGroup.id,
         maxAttendees: 5,
       });
-      const membership = await getGroupIdsByListingIds([standard.id, daily.id]);
+      const membership = await listingGroups.getIdsByKeys([
+        standard.id,
+        daily.id,
+      ]);
       // A perDateCap member's group remaining is a per-date fact, so the
       // date-less read must include the standard member's group and exclude
       // the daily member's — not the other way round.

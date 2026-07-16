@@ -7,7 +7,7 @@ import {
   adminUsersPage,
   type DisplayUser,
 } from "#templates/admin/users.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
@@ -149,17 +149,13 @@ describe("adminUserManagePage", () => {
   });
 
   test("hides agent and delete actions in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminUserManagePage(agent(["Van 1"]), TEST_SESSION, {
-        currentUserId: 1,
-      });
-      expect(html).toContain("driver");
-      expect(html).not.toContain('href="/admin/users/4/agents"');
-      expect(html).not.toContain('href="/admin/users/4/delete"');
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminUserManagePage(agent(["Van 1"]), TEST_SESSION, {
+      currentUserId: 1,
+    });
+    expect(html).toContain("driver");
+    expect(html).not.toContain('href="/admin/users/4/agents"');
+    expect(html).not.toContain('href="/admin/users/4/delete"');
   });
 });
 

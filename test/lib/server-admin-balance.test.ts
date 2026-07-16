@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
@@ -31,7 +31,7 @@ const owedAttendee = async (
   remaining: number,
   deposit = 100,
 ): Promise<number> => {
-  const result = await createAttendeeAtomic({
+  const result = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId, pricePaid: deposit, quantity: 1 }],
     email: "guest@example.com",
     name: "Guest",

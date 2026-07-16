@@ -13,6 +13,7 @@ import type { SettingsData } from "#shared/db/settings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "./db.ts";
+import { withMocks } from "./mocks.ts";
 
 /** The standard outer describe for admin-settings tests: scoped to
  *  `"server (admin settings)"` with a fresh test DB per spec and an
@@ -146,6 +147,40 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
   const { settings: s } = await import("#shared/db/settings.ts");
   await s.update.stripe.secretKey(key);
   await s.update.paymentProvider("stripe");
+};
+
+/** Store one internally consistent Stripe API key and webhook pair, and select Stripe. */
+export const activateStripe = (
+  webhookSecret: string,
+  webhookEndpointId = "we_test_endpoint",
+  secretKey = "sk_test_mock",
+): Promise<void> =>
+  settings.update.stripe.activate({
+    secretKey,
+    webhookEndpointId,
+    webhookSecret,
+  });
+
+/** Run `body` with Stripe webhook setup and old-endpoint cleanup succeeding. */
+export const withSuccessfulStripeWebhook = async (
+  body: () => void | Promise<void>,
+): Promise<void> => {
+  const { stripeApi } = await import("#shared/stripe.ts");
+  await withMocks(
+    () => ({
+      cleanupStub: stub(stripeApi, "cleanupOldWebhookEndpoints", () =>
+        Promise.resolve(),
+      ),
+      setupStub: stub(stripeApi, "setupWebhookEndpoint", () =>
+        Promise.resolve({
+          endpointId: "we_test_123",
+          secret: "whsec_test_secret",
+          success: true,
+        }),
+      ),
+    }),
+    body,
+  );
 };
 
 /** Turn the public JSON API on for the current test DB. The single source of

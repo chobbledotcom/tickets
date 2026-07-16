@@ -5,7 +5,7 @@ import { ADMIN_SURFACE, adminDestination } from "#shared/admin-surface.ts";
 import type { AdminLevel } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 import {
   featureSetting,
@@ -172,22 +172,18 @@ describeWithEnv("AdminNav", {}, () => {
   });
 
   test("the Listings Import link hides in read-only mode (it leads to a blocked upload flow)", () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
-    try {
-      const html = String(
-        AdminNav({
-          active: "/admin/listings",
-          session: { adminLevel: "owner" },
-        }),
-      );
-      expect(html).not.toContain('href="/admin/catalog/import"');
-      // The section landing link stays.
-      expect(html).toContain('href="/admin/listings"');
-    } finally {
-      restore();
-    }
+    const html = String(
+      AdminNav({
+        active: "/admin/listings",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    expect(html).not.toContain('href="/admin/catalog/import"');
+    // The section landing link stays.
+    expect(html).toContain('href="/admin/listings"');
   });
 
   test("Invite User stays owner-only", () => {
@@ -198,21 +194,17 @@ describeWithEnv("AdminNav", {}, () => {
   });
 
   test("AdminNav hides every 'Add X' create link in read-only mode, keeping the section links", () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
-    try {
-      // Rendered from inside each section (where the links live), the create
-      // links drop out under read-only while the section landing links stay.
-      for (const { sectionActive, addHref } of addLinkSections) {
-        const html = String(
-          AdminNav({ active: sectionActive, session: { adminLevel: "owner" } }),
-        );
-        expect(html, addHref).not.toContain(`href="${addHref}"`);
-        expect(html, sectionActive).toContain(`href="${sectionActive}"`);
-      }
-    } finally {
-      restore();
+    // Rendered from inside each section (where the links live), the create
+    // links drop out under read-only while the section landing links stay.
+    for (const { sectionActive, addHref } of addLinkSections) {
+      const html = String(
+        AdminNav({ active: sectionActive, session: { adminLevel: "owner" } }),
+      );
+      expect(html, addHref).not.toContain(`href="${addHref}"`);
+      expect(html, sectionActive).toContain(`href="${sectionActive}"`);
     }
   });
 

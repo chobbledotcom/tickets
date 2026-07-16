@@ -29,7 +29,7 @@
  * child pool read as available here and are refused at the form instead.
  */
 
-import { compact, groupBy, requiredMapValue, uniqueBy } from "#fp";
+import { compact, requiredMapValue, uniqueBy } from "#fp";
 import { t } from "#i18n";
 import {
   htmlResponse,
@@ -44,8 +44,8 @@ import { getGroupRemainingForSpan } from "#shared/db/attendees/capacity/groups.t
 import { getListingRemainingForRange } from "#shared/db/attendees/capacity/remaining.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import {
-  getGroupIdsByListingIds,
   getGroupPackagePricesByGroupIds,
+  listingGroups,
   packageMemberMaps,
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -185,7 +185,7 @@ const poolBySpan = async <T>(
   spanOf: (value: T) => number,
   query: (bucket: T[], span: number) => Promise<RemainingById>,
 ): Promise<RemainingById> => {
-  const bySpan = groupBy(values, spanOf);
+  const bySpan = Map.groupBy(values, spanOf);
   const maps = await Promise.all(
     [...bySpan].map(([span, bucket]) => query(bucket, span)),
   );
@@ -216,7 +216,10 @@ const groupRemainingBySpan = (
   const spanByGroupId = new Map<number, number>();
   for (const listing of involved) {
     const span = date === null ? 1 : bookingSpanDays(listing);
-    for (const groupId of groupIdsByListingId.get(listing.id) ?? []) {
+    for (const groupId of listingGroups.idsFor(
+      groupIdsByListingId,
+      listing.id,
+    )) {
       spanByGroupId.set(
         groupId,
         Math.max(span, spanByGroupId.get(groupId) ?? 1),
@@ -249,7 +252,7 @@ const loadOrderPools = async (
     ...catalog.ticketListings.map((info) => info.listing),
     ...catalog.packages.flatMap((pkg) => pkg.members),
   ]);
-  const groupIdsByListingId = await getGroupIdsByListingIds(
+  const groupIdsByListingId = await listingGroups.getIdsByKeys(
     involved.map((listing) => listing.id),
   );
   const [remainingByListingId, remainingByGroupId, holidays] =

@@ -1,5 +1,5 @@
 import type { InValue } from "@libsql/client";
-import { byId, map } from "#fp";
+import { identity, map, mapBy } from "#fp";
 import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
 import type {
   BatchAvailabilityItem,
@@ -12,7 +12,7 @@ import {
   type CapacityBucket,
 } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
-import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { useListingById } from "./listing.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
@@ -171,15 +171,14 @@ export const checkBatchAvailabilityImpl = async (
       WHERE listing.id IN (${inPlaceholders(listingIds)})`,
     listingIds,
   );
-  const listingsById = byId(listingRows);
+  const listingsById = mapBy("id", identity<ListingCapacityRow>)(listingRows);
   if (items.some((item) => !listingsById.has(item.listingId))) return false;
 
-  const membership = await getGroupIdsByListingIds(listingIds);
+  const membership = await listingGroups.getIdsByKeys(listingIds);
   const context: BatchAvailabilityContext = { date, items, listingsById };
   const listingDemand = aggregateDemand(context, (listing) => [listing.id]);
-  const groupDemand = aggregateDemand(
-    context,
-    (_listing, item) => membership.get(item.listingId) ?? [],
+  const groupDemand = aggregateDemand(context, (_listing, item) =>
+    listingGroups.idsFor(membership, item.listingId),
   );
   const { sql, args } = buildBatchCapacitySql(listingDemand, groupDemand);
   const row = (await queryOne<{ fits: number }>(sql, args))!;

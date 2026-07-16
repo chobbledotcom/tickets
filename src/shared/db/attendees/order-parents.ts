@@ -27,27 +27,28 @@
  * remainder row, so no unit — or its price — is ever dropped.
  */
 
+import { reduce } from "#fp";
 import type {
   ChildAllocation,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import { getParentsForChildren } from "#shared/db/listing-parents.ts";
+import { listingParents } from "#shared/db/listing-parents.ts";
 
 /** The first parent of each child that is itself booked in this order, keyed by
  * child listing id. Children with no in-order parent are omitted. */
 const inOrderParentByChild = async (
   listingIds: readonly number[],
 ): Promise<Map<number, number>> => {
-  const parentsByChild = await getParentsForChildren(listingIds);
+  const parentsByChild = await listingParents.getIdsByKeys(listingIds);
   const bookedInOrder = new Set(listingIds);
-  const result = new Map<number, number>();
-  for (const [childId, parents] of parentsByChild) {
-    const inOrderParent = parents.find((parent) =>
-      bookedInOrder.has(parent.id),
+  return reduce((result, [childId, parentIds]: [number, number[]]) => {
+    const inOrderParent = parentIds.find((parentId) =>
+      bookedInOrder.has(parentId),
     );
-    if (inOrderParent) result.set(childId, inOrderParent.id);
-  }
-  return result;
+    return inOrderParent === undefined
+      ? result
+      : result.set(childId, inOrderParent);
+  }, new Map<number, number>())([...parentsByChild]);
 };
 
 /**
@@ -125,8 +126,9 @@ const expandBooking = <T extends ListingBooking>(
   orderToken: string,
 ): T[] => {
   if (!childAllocs) return [{ ...booking, orderToken }] as T[];
-  const totalQty = booking.quantity ?? 1;
   const allocatedQty = childAllocs.reduce((sum, a) => sum + a.qty, 0);
+  const totalQty =
+    booking.quantity === undefined ? allocatedQty : booking.quantity;
   const remainderQty = totalQty - allocatedQty;
   const rows: { parentId?: number; qty: number }[] = [
     ...childAllocs.map((a) => ({ parentId: a.parentId, qty: a.qty })),
@@ -169,12 +171,7 @@ export const expandChildAllocations = <T extends ListingBooking>(
   allocations: ChildAllocation[],
 ): T[] => {
   const orderToken = crypto.randomUUID();
-  const allocByChild = new Map<number, { parentId: number; qty: number }[]>();
-  for (const alloc of allocations) {
-    const list = allocByChild.get(alloc.childId) ?? [];
-    list.push({ parentId: alloc.parentId, qty: alloc.qty });
-    allocByChild.set(alloc.childId, list);
-  }
+  const allocByChild = Map.groupBy(allocations, ({ childId }) => childId);
   return bookings.flatMap((booking) =>
     expandBooking(booking, allocByChild.get(booking.listingId), orderToken),
   );

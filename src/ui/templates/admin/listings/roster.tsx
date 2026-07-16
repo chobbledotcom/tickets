@@ -1,13 +1,9 @@
-import { map, pipe } from "#fp";
+import { map, mapBy, pipe } from "#fp";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import { type Attendee, isPaidListing } from "#shared/types.ts";
 import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
-import {
-  buildSharedDetailRows,
-  renderDetailRows,
-} from "#templates/admin/detail-rows.tsx";
+import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import type { AttendeeTableRow } from "#templates/attendee-table.tsx";
 import {
   AddAttendeeSection,
@@ -102,11 +98,11 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
           v.completeQuantitySum,
           groupContext,
         ),
-        sharedRowsHtml: renderDetailRows(v.sharedRows),
+        sharedRows: v.sharedRows,
       })}
       <AttendeeNotesSummary
         isOwner={opts.isOwner ?? false}
-        names={idNameMap(attendees)}
+        names={mapBy("id", (attendee: Attendee) => attendee.name)(attendees)}
         notes={systemNotes}
       />
       <AttendeesSection

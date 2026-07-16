@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   ADDRESS_CACHE_DAYS,
   ADDRESS_CACHE_MS,
@@ -37,7 +37,7 @@ import {
   STALE_RESERVATION_MS,
   WEBHOOK_RETRY_WINDOW_DAYS,
 } from "#shared/limits.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describe("limits", () => {
   describe("parsePositiveInt", () => {
@@ -69,18 +69,13 @@ describe("limits", () => {
   });
 
   describe("readLimit", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => {
-      restoreEnv?.();
-    });
-
     test("returns default when env var is not set", () => {
+      using _env = withEnv({ NONEXISTENT_LIMIT_VAR: undefined });
       expect(readLimit("NONEXISTENT_LIMIT_VAR", 42)).toBe(42);
     });
 
     test("uses env var value when set to a positive integer", () => {
-      restoreEnv = setTestEnv({ TEST_LIMIT: "100" });
+      using _env = withEnv({ TEST_LIMIT: "100" });
       expect(readLimit("TEST_LIMIT", 42)).toBe(100);
     });
 
@@ -88,9 +83,9 @@ describe("limits", () => {
       // Covers all rejection cases in one table-driven test: bad values never
       // override the default regardless of how they're malformed.
       const invalid = ["", "abc", "0", "-5"];
+      using _env = withEnv({ TEST_LIMIT: undefined });
       for (const value of invalid) {
-        restoreEnv?.();
-        restoreEnv = setTestEnv({ TEST_LIMIT: value });
+        Deno.env.set("TEST_LIMIT", value);
         expect(readLimit("TEST_LIMIT", 42)).toBe(42);
       }
     });

@@ -79,7 +79,6 @@ describeWithEnv("clearableFieldHandler", { db: true }, () => {
     expect(saveFn).not.toHaveBeenCalled();
     expect(mockErrorPage).toHaveBeenCalledWith(
       "Invalid email",
-      400,
       "settings-email",
     );
   });

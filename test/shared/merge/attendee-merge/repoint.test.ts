@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { getRefundPaymentReferences } from "#shared/db/payment-references.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
@@ -117,7 +117,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       "Alice",
       "alice@test.com",
     );
-    const sourceResult = await createAttendeeAtomic({
+    const sourceResult = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: member.id, packageGroupId: group.id }],
       email: "bob@test.com",
       name: "Bob",

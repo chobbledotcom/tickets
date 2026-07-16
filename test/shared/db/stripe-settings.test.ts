@@ -5,11 +5,13 @@ import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > Stripe settings", { db: true }, () => {
-  test("keeps both prior webhook values when the endpoint ID write fails", async () => {
-    await settings.update.stripe.webhookConfig({
-      endpointId: "we_old",
-      secret: "whsec_old",
+  test("keeps all prior credentials when the endpoint ID write fails", async () => {
+    await settings.update.stripe.activate({
+      secretKey: "sk_test_old",
+      webhookEndpointId: "we_old",
+      webhookSecret: "whsec_old",
     });
+    await settings.update.paymentProvider("square");
     await getDb().execute(`
       CREATE TRIGGER fail_stripe_endpoint_id
       BEFORE INSERT ON settings
@@ -21,9 +23,10 @@ describeWithEnv("db > Stripe settings", { db: true }, () => {
 
     try {
       await expect(
-        settings.update.stripe.webhookConfig({
-          endpointId: "we_new",
-          secret: "whsec_new",
+        settings.update.stripe.activate({
+          secretKey: "sk_test_new",
+          webhookEndpointId: "we_new",
+          webhookSecret: "whsec_new",
         }),
       ).rejects.toThrow("endpoint id write failed");
     } finally {
@@ -32,10 +35,14 @@ describeWithEnv("db > Stripe settings", { db: true }, () => {
 
     settings.invalidateCache();
     await settings.loadKeys([
+      CONFIG_KEYS.STRIPE_SECRET_KEY,
       CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
       CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
+      CONFIG_KEYS.PAYMENT_PROVIDER,
     ]);
+    expect(settings.stripe.secretKey).toBe("sk_test_old");
     expect(settings.stripe.webhookEndpointId).toBe("we_old");
     expect(settings.stripe.webhookSecret).toBe("whsec_old");
+    expect(settings.paymentProvider).toBe("square");
   });
 });

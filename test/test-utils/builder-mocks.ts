@@ -4,6 +4,7 @@ import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 type CreateResult = Awaited<ReturnType<typeof bunnyCdnApi.createEdgeScript>>;
@@ -56,14 +57,11 @@ export const stubBuilderFetch = (
     new Response("code", { status: 200 }),
   releaseOpts?: ReleaseOptions,
 ) =>
-  stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
-    return Promise.resolve(
-      url.includes("releases/latest")
-        ? releaseResponse(releaseOpts)
-        : onOther(url),
-    );
-  });
+  stubFetch((url) =>
+    url.includes("releases/latest")
+      ? releaseResponse(releaseOpts)
+      : onOther(url),
+  );
 
 interface BuildSiteMockOptions {
   createDbResult?: CreateDbResult;
@@ -197,17 +195,10 @@ export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
 export const testCreateDatabaseReturnsErrorOn403 = async (api: {
   createDatabase: (name: string) => Promise<{ ok: boolean; error?: string }>;
 }): Promise<void> => {
-  await withMocks(
-    () =>
-      stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("Forbidden", { status: 403 })),
-      ),
-    async () => {
-      const result = await api.createDatabase("Bad");
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error).toContain("Create database failed (403)");
-      }
-    },
-  );
+  using _fetch = stubFetch(new Response("Forbidden", { status: 403 }));
+  const result = await api.createDatabase("Bad");
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error).toContain("Create database failed (403)");
+  }
 };

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { bracket } from "#fp";
+import { withTempFile } from "#test-utils/files.ts";
 import {
   formatSlowTestsReport,
   JUNIT_PATH,
@@ -22,10 +22,9 @@ const testcase = (attrs: Record<string, string>, body = ""): string =>
     .join(" ")}>${body}</testcase>`;
 
 /** Run `body` with a temp file holding `xml`'s content, removed afterwards. */
-const withTempJunitFile = bracket(
-  () => Deno.makeTempFile({ suffix: ".xml" }),
-  (path: string) => Deno.remove(path).catch(() => {}),
-);
+const withTempJunitFile = <Result>(
+  run: (path: string) => Result | Promise<Result>,
+): Promise<Result> => withTempFile(run, { suffix: ".xml" });
 
 /** Parse a JUnit doc built from the given `<testcase>` fragments. */
 const parseCases = (...cases: string[]): TestDuration[] =>

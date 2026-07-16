@@ -10,7 +10,7 @@ import {
   adminImagesPage,
   ItemImagesPanel,
 } from "#templates/admin/images.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 
 const SESSION: AdminSession = { adminLevel: "owner" };
@@ -30,18 +30,14 @@ beforeAll(async () => {
 
 describe("admin image templates", () => {
   test("renders the library table and hides edit actions in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      withStorageEnabled(() => {
-        const html = adminImagesPage([image(7, "Hero")], SESSION);
-        expect(html).toContain("Hero");
-        expect(html).toContain("/image/hero-thumb.webp");
-        expect(html).not.toContain('href="/admin/images/7/edit"');
-        expect(html).not.toContain('href="/admin/images/new"');
-      });
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    withStorageEnabled(() => {
+      const html = adminImagesPage([image(7, "Hero")], SESSION);
+      expect(html).toContain("Hero");
+      expect(html).toContain("/image/hero-thumb.webp");
+      expect(html).not.toContain('href="/admin/images/7/edit"');
+      expect(html).not.toContain('href="/admin/images/new"');
+    });
   });
 
   test("renders the thumbnail from the image thumbnail filename", () => {

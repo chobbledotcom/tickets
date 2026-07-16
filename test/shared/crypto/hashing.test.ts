@@ -5,7 +5,6 @@ import {
   setEncryptionKeyForTest,
 } from "#shared/crypto/encryption.ts";
 import {
-  computeTicketTokenIndex,
   getPbkdf2Iterations,
   hashPassword,
   hashSessionToken,
@@ -192,14 +191,5 @@ describeWithEnv("hmacHash", { encryptionKey: true }, () => {
       ),
     );
     expect(await hmacHash(value)).toBe(expected);
-  });
-});
-
-describeWithEnv("computeTicketTokenIndex", { encryptionKey: true }, () => {
-  it("is an alias for hmacHash", async () => {
-    const token = "ABC1234567";
-    const index = await computeTicketTokenIndex(token);
-    const hash = await hmacHash(token);
-    expect(index).toBe(hash);
   });
 });

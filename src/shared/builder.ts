@@ -27,7 +27,7 @@ import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
-import { failure } from "#shared/result.ts";
+import { errorResult } from "#shared/result.ts";
 import { withSiteDb } from "#shared/site-db.ts";
 import { tryStep } from "#shared/try-step.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
@@ -66,14 +66,8 @@ const HOST_SECRETS: readonly HostSecret[] = [
   { hostInfra: true, name: "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY" },
 ];
 
-/** All host secret names copied to built sites. */
-export const HOST_SECRET_KEYS: readonly string[] = HOST_SECRETS.map(
-  (s) => s.name,
-);
-
-/** The host-level infrastructure credential names among HOST_SECRET_KEYS — the
- * high-privilege subset the backfill UI flags. Derived from the same list, so
- * it can't drift out of sync. */
+/** The host-level infrastructure credential names — the high-privilege subset
+ * the backfill UI flags. Derived from the same list, so it can't drift. */
 export const HOST_INFRA_SECRET_KEYS: readonly string[] = HOST_SECRETS.filter(
   (s) => s.hostInfra,
 ).map((s) => s.name);
@@ -125,7 +119,7 @@ export const testDbConnection = async (
   const result = await withSiteDb({ dbToken, dbUrl }, (client) =>
     client.execute("SELECT 1"),
   );
-  return result.ok ? { ok: true } : failure(result.error);
+  return result.ok ? { ok: true } : errorResult(result.error);
 };
 
 /**

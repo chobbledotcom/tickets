@@ -24,7 +24,7 @@ import {
   getSharedGroupCapacities,
 } from "#shared/db/attendees/capacity/groups.ts";
 import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
-import { getGroupIdsByListingIds } from "#shared/db/groups.ts";
+import { listingGroups } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getImagesForItem } from "#shared/db/images.ts";
 /* jscpd:ignore-start */
@@ -389,7 +389,7 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
     getSharedGroupCapacities(children),
     getGroupRemainingByListingId(children),
     getActiveHolidays(),
-    getGroupIdsByListingIds([
+    listingGroups.getIdsByKeys([
       ...ctx.listings.map((l) => l.listing.id),
       ...children.map((c) => c.id),
     ]),

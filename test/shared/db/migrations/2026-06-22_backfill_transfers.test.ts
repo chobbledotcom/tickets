@@ -5,7 +5,7 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import backfillTransfersMigration from "#shared/db/migrations/2026-06-22_backfill_transfers.ts";
 import {
   applySchemaChanges,
@@ -36,7 +36,7 @@ describeWithEnv(
 
     test("posts the ledger for an existing paid booking in the site currency", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, pricePaid: 4200 }],
         email: "a@b.c",
         name: "Historical",

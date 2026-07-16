@@ -28,6 +28,8 @@ import {
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { getEmbeddableTicketResponse } from "#test-utils/db-helpers/misc.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   mockFormRequest,
   mockRequest,
@@ -810,9 +812,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       const db = getDbFn();
       // Stale schema hash makes initDb see a pending migration; a fresh lock
       // makes it believe another isolate is already running that migration.
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
+      using _fetch = stubFetch(new Response());
       try {
         await db.execute(
           "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
@@ -833,7 +833,6 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         );
         expect(html).not.toContain("Temporary Error");
       } finally {
-        fetchStub.restore();
         await db.execute("DELETE FROM settings WHERE key = 'migration_lock'");
         await db.execute({
           args: [SCHEMA_HASH],
@@ -852,8 +851,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       const db = getDbFn();
       invalidateListingsCache();
       await s.loadKeys(ALL_SETTINGS_KEYS);
-      const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
-      Deno.env.delete("TEST_EXPECT_ERROR");
+      using _env = withEnv({ TEST_EXPECT_ERROR: undefined });
       const executeStub = stub(db, "execute", () => {
         throw new Error("synthetic db failure");
       });
@@ -863,7 +861,6 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         ).rejects.toThrow("synthetic db failure");
       } finally {
         executeStub.restore();
-        if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
       }
     });
 

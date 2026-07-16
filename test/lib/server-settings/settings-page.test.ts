@@ -10,7 +10,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie } from "#test-utils/session.ts";
 
@@ -162,19 +162,15 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("shows host email label when host email is configured", async () => {
-      const restore = setTestEnv({
+      using _env = withEnv({
         HOST_EMAIL_API_KEY: "key-123",
         HOST_EMAIL_FROM_ADDRESS: "noreply@example.com",
         HOST_EMAIL_PROVIDER: "resend",
       });
-      try {
-        const response = await adminGet("/admin/settings-advanced");
-        const html = await response.text();
-        expect(html).toContain("Host Resend (noreply@example.com)");
-        expect(html).not.toContain("None (disabled)");
-      } finally {
-        restore();
-      }
+      const response = await adminGet("/admin/settings-advanced");
+      const html = await response.text();
+      expect(html).toContain("Host Resend (noreply@example.com)");
+      expect(html).not.toContain("None (disabled)");
     });
 
     test("displays success message on the matching form when form param is provided", async () => {

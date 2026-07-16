@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
 import type { StripeWebhookEvent } from "#shared/stripe.ts";
 import {
   constructTestWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 import { signedHeader } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
@@ -15,10 +15,7 @@ describeStripe("stripe", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
 
     test("handles timestamp value that needs parseInt", async () => {
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_ts",
-        secret: TEST_SECRET,
-      });
+      await activateStripe(TEST_SECRET, "we_test_ts");
 
       // Create listing with proper signature
       const listing: StripeWebhookEvent = {
@@ -37,10 +34,7 @@ describeStripe("stripe", () => {
     });
 
     test("parses timestamp with parseInt when t key has value", async () => {
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_parse",
-        secret: TEST_SECRET,
-      });
+      await activateStripe(TEST_SECRET, "we_test_parse");
 
       // A valid number-string timestamp, exercising Number.parseInt
       const payload = '{"id": "evt_parse", "type": "test"}';
@@ -52,10 +46,7 @@ describeStripe("stripe", () => {
     });
 
     test("treats t key without equals as zero timestamp via parseInt fallback", async () => {
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_nullish",
-        secret: TEST_SECRET,
-      });
+      await activateStripe(TEST_SECRET, "we_test_nullish");
 
       // Header "t,v1=abc123" - split("=") on "t" gives ["t"], so value is undefined
       // value ?? "0" gives "0", parseInt("0", 10) gives 0
@@ -71,10 +62,7 @@ describeStripe("stripe", () => {
     });
 
     test("secureCompare handles strings of different lengths", async () => {
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_len",
-        secret: TEST_SECRET,
-      });
+      await activateStripe(TEST_SECRET, "we_test_len");
 
       // Provide a signature that has different length than expected
       const timestamp = Math.floor(Date.now() / 1000);
@@ -94,10 +82,7 @@ describeStripe("stripe", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_detail_tests";
 
     beforeEach(async () => {
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_details",
-        secret: TEST_SECRET,
-      });
+      await activateStripe(TEST_SECRET, "we_test_details");
     });
 
     test("logs 'missing timestamp' when header has signature but no timestamp", async () => {

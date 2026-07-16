@@ -1,4 +1,5 @@
-import { type IdRouteHandler, ownerFormById } from "#routes/entity.ts";
+import { formGuard, OWNER_FORM } from "#routes/auth.ts";
+import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -28,15 +29,22 @@ export const createListingChoicePost = ({
   saveIds,
   tab,
 }: ListingChoicePostConfig): IdRouteHandler =>
-  ownerFormById(async (id, _session, form) => {
-    if (!settings.features[feature]) return notFoundResponse();
-    const listing = await getListingWithCount(id);
-    if (!listing) return notFoundResponse();
-    const ids = readIds ? await readIds(form) : form.getNumberArray(fieldName);
-    await saveIds(id, ids);
-    await logActivity(
-      `${label} updated for '${listing.name}' (${countLabel(ids.length, noun)})`,
-      listing,
-    );
-    return redirect(`/admin/listing/${id}/${tab}`, `${label} updated`, true);
-  });
+  createIdEntityHandler<
+    NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
+  >(getListingWithCount)(formGuard(OWNER_FORM))(
+    async (listing, _session, form, _request, { id }) => {
+      if (!settings.features[feature]) return notFoundResponse();
+      const ids = readIds
+        ? await readIds(form)
+        : form.getNumberArray(fieldName);
+      await saveIds(id, ids);
+      await logActivity(
+        `${label} updated for '${listing.name}' (${countLabel(
+          ids.length,
+          noun,
+        )})`,
+        listing,
+      );
+      return redirect(`/admin/listing/${id}/${tab}`, `${label} updated`, true);
+    },
+  );

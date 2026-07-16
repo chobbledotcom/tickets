@@ -9,16 +9,19 @@ import {
   createConfirmedHandlers,
   createVerifiedFormRoute,
 } from "#routes/admin/confirmation.ts";
-import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
-import { ownerGetById } from "#routes/entity.ts";
 import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+  formGuard,
+  OWNER_FORM,
+  ownerPage,
+  requireOwnerOr,
+} from "#routes/auth.ts";
 import {
-  type AuthedHandlerArgs,
+  createEntityHandler,
+  orNotFound,
+  ownerGetById,
+} from "#routes/entity.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
+import {
   createAuthedFormRoute,
   createAuthedHandler,
 } from "#shared/app-forms.ts";
@@ -45,8 +48,6 @@ import {
 } from "#shared/db/attributes.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
-import type { AdminSession } from "#shared/types.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -154,14 +155,6 @@ const redirectToAttribute = (args: {
 }): Response =>
   errorRedirect(`/admin/attributes/${args.params.id}`, args.error);
 
-const withAttribute = async (
-  id: number,
-  handle: (attribute: AttributeWithOptions) => Promise<Response>,
-): Promise<Response> => {
-  const attribute = await getAttributeWithOptions(id);
-  return attribute ? handle(attribute) : notFoundResponse();
-};
-
 const logAttributeOptionActivity = (
   optionText: string,
   action: string,
@@ -181,7 +174,7 @@ const handleAttributeEdit = createAuthedFormRoute<
   form: attributeNameForm,
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { name } }) =>
-    withAttribute(params.id, async () => {
+    orNotFound(getAttributeWithOptions(params.id), async () => {
       await attributesTable.update(params.id, { name });
       await logActivity(`Attribute '${name}' updated`);
       return redirect(
@@ -200,7 +193,7 @@ const handleAddOption = createAuthedFormRoute<
   form: attributeOptionForm,
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { text } }) =>
-    withAttribute(params.id, async (attribute) => {
+    orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
       await attributeOptionsTable.insert({
         attributeId: params.id,
         sortOrder: await getNextAttributeOptionSortOrder(params.id),
@@ -235,46 +228,41 @@ const loadAttributeOption = async ({
   return attribute && option ? { attribute, option } : null;
 };
 
-const optionRoute =
-  (
-    handler: ResponseHandler<
-      [
-        attribute: AttributeWithOptions,
-        option: AttributeOption,
-        session: AdminSession,
-      ]
-    >,
-  ) =>
-  (request: Request, params: AttributeOptionParams): Promise<Response> =>
-    requireOwnerOr(request, async (session) => {
-      const context = await loadAttributeOption(params);
-      if (!context) return notFoundResponse();
-      return handler(context.attribute, context.option, session);
-    });
+const attributeOptionHandler = createEntityHandler<
+  AttributeOptionParams,
+  AttributeOptionContext
+>(loadAttributeOption);
+const attributeOptionHandlers = {
+  get: attributeOptionHandler(requireOwnerOr),
+  post: attributeOptionHandler(formGuard(OWNER_FORM)),
+};
 
-const handleDeleteOptionGet = optionRoute((attribute, option, session) =>
-  htmlResponse(
-    adminAttributeOptionDeletePage(
-      attribute,
-      option,
-      session,
-      getFlash().error,
+const handleDeleteOptionGet = attributeOptionHandlers.get(
+  ({ attribute, option }, session) =>
+    htmlResponse(
+      adminAttributeOptionDeletePage(
+        attribute,
+        option,
+        session,
+        getFlash().error,
+      ),
     ),
-  ),
 );
 
-const handleEditOptionGet = optionRoute(async (attribute, option, session) => {
-  const { rowsFor } = await loadAttributeListingUse(attribute.id);
-  return htmlResponse(
-    adminAttributeOptionEditPage(
-      attribute,
-      option,
-      session,
-      getFlash().error,
-      rowsFor([option]),
-    ),
-  );
-});
+const handleEditOptionGet = attributeOptionHandlers.get(
+  async ({ attribute, option }, session) => {
+    const { rowsFor } = await loadAttributeListingUse(attribute.id);
+    return htmlResponse(
+      adminAttributeOptionEditPage(
+        attribute,
+        option,
+        session,
+        getFlash().error,
+        rowsFor([option]),
+      ),
+    );
+  },
+);
 
 /** Build the URL of an option sub-action (delete, edit) for a given option. */
 const optionPath =
@@ -328,19 +316,8 @@ const handleEditOptionPost = createAuthedFormRoute<
   },
 });
 
-const optionActionHandler = (
-  handle: ResponseHandler<
-    [args: AuthedHandlerArgs<AttributeOptionParams, AttributeOptionContext>]
-  >,
-) =>
-  createAuthedHandler<AttributeOptionParams, AttributeOptionContext>({
-    auth: OWNER_FORM,
-    handle,
-    loadContext: loadAttributeOption,
-  });
-
 const moveOptionHandler = (dir: "up" | "down") =>
-  optionActionHandler(async ({ context: { attribute, option } }) => {
+  attributeOptionHandlers.post(async ({ attribute, option }) => {
     const pair = planReorder(
       attribute.options.map((item) => item.id),
       option.id,

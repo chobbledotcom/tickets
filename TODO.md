@@ -1094,8 +1094,9 @@ database-only cases fail loudly, but it cannot count provider or storage calls.
   each missing-column ALTER separately. Move long migrations out of band or
   make progress resumable in bounded request-sized steps, and batch safe ALTERs.
 - **Large in-app backups and storage cleanup.** After the first-page batch,
-  `exportTable` in `src/shared/db/backup.ts` still needs one call per later page;
-  a 25,000-row table at the default page size needs about 50 pages by itself.
+  `exportTable` in `src/shared/db/backup-snapshot.ts` still needs one call per
+  later page; a 25,000-row table at the default page size needs about 50 pages
+  by itself.
   `cleanupStalePendingFiles` in `src/features/admin/backup.ts` and
   `pruneOldBackups` make one storage delete per stale object. Send large backups
   through the existing out-of-band workflow and cap cleanup work per request.
@@ -1151,3 +1152,62 @@ Starting points: `src/features/api/payment-processing/completion.ts`,
 `src/shared/site-assignment.ts`. Tests must interrupt each effect, retry through
 both webhook and redirect paths, and prove answers, activity, messages, site
 assignments, and renewal time are neither lost nor duplicated.
+
+---
+
+## Consistent database backup snapshots
+
+*Origin: CodeRabbit review of PR #1836.*
+
+`createBackup` batches each table's first page, then `exportTable` reads later
+pages with standalone queries. A write during those reads can make a backup mix
+rows from different database states. PR #1836 only moves the existing exporter
+into `src/shared/db/backup-snapshot.ts`; it deliberately preserves the current
+queries, replica routing, pagination, and round-trip behavior.
+
+Add a dedicated read-only transaction or snapshot API in
+`src/shared/db/client.ts`. Do not reuse `withTransaction`: that helper opens a
+primary-routed write transaction, serializes writers, and enforces a write
+round-trip limit. Keep the first-page multi-table read efficient, account for
+the edge subrequest budget, and use the same snapshot for every later page.
+Add a regression test in `test/shared/db/backup-snapshot.test.ts` that changes
+rows between page reads and proves the exported rows all come from one database
+state.
+
+---
+
+## Backup storage edge cases
+
+*Origin: CodeRabbit review of PR #1837.*
+
+PR #1837 only moves the existing backup storage helpers out of
+`src/shared/db/backup.ts`; it deliberately preserves their behavior. These
+possible behavior changes need separate decisions and regression tests:
+
+- **Keep every database namespace non-empty and distinct.** `dbName` in
+  `src/shared/db/backup-storage.ts` returns an empty name for a parseable local
+  `file:` URL and strips the first dashed part from non-Bunny hostnames. Decide
+  the supported URL schemes and hostnames, return a named local folder for local
+  URLs, and only remove Bunny DB's UUID prefix for `.lite.bunnydb.net`. Start
+  with tests for `file:database.db` and two distinct dashed HTTPS hostnames.
+- **Reject future-dated backups from the update gate.** `hasRecentBackup` in
+  `src/shared/db/backup-storage.ts` treats every future timestamp as recent
+  because its age is negative. Decide how much clock skew is acceptable, then
+  require a non-negative age (or a documented tolerance) before applying the
+  maximum age. Add a test with a future backup filename.
+
+---
+
+## Checkout stage attendee cleanup
+
+*Origin: Codex review of PR #1840.*
+
+Before any runtime path writes `checkout_stages`, include those rows in attendee
+deletion, purge, and merge handling. The table has no foreign key, so leaving the
+current hard-coded dependent-table lists unchanged would keep a stage linked to
+an attendee that no longer exists. Start with
+`src/shared/db/attendees/delete.ts` and
+`src/shared/merge/attendee-merge.ts`. Add direct regressions proving deletion
+removes a stage and merging repoints it without losing the unique attendee
+invariant. If both attendees have stages, require an explicit conflict decision
+instead of silently choosing or deleting one.

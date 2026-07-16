@@ -8,7 +8,7 @@ import {
   TEST_SESSION,
   withBuilder,
 } from "#test/templates/admin/listings/helpers.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
 /** An edit-panel render with both always-open URLs cleared, so only the field
@@ -233,16 +233,12 @@ describe("adminListingEditPage form sections", () => {
   });
 
   test("hides the recalculate link in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const { html, listing } = renderMismatchPanel();
-      // The mismatch is still surfaced, but the recalculate action would route
-      // to a write page blocked in read-only mode, so its link is dropped.
-      expect(html).toContain("Mismatch");
-      expect(html).not.toContain(`/admin/listings/recalculate/${listing.id}`);
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const { html, listing } = renderMismatchPanel();
+    // The mismatch is still surfaced, but the recalculate action would route
+    // to a write page blocked in read-only mode, so its link is dropped.
+    expect(html).toContain("Mismatch");
+    expect(html).not.toContain(`/admin/listings/recalculate/${listing.id}`);
   });
 });
 

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { loadExistingLines } from "#shared/db/attendees/atomic-update.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { queryAll } from "#shared/db/client.ts";
@@ -53,7 +53,7 @@ const dualPathAttendee = async (
   listing: Listing,
   email: string,
 ): Promise<number> => {
-  const made = await createAttendeeAtomic({
+  const made = await attendeesApi.createAttendeeAtomic({
     bookings: [
       { listingId: listing.id, packageGroupId: group.id, quantity: 2 },
       { listingId: listing.id, quantity: 1 },
@@ -67,7 +67,7 @@ const dualPathAttendee = async (
 
 /** The admin edit-page HTML for the first attendee of a booking result. */
 const firstAttendeeEditHtml = async (
-  made: Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  made: Awaited<ReturnType<typeof attendeesApi.createAttendeeAtomic>>,
 ): Promise<string> => {
   const attendeeId = (made as Extract<typeof made, { success: true }>)
     .attendees[0]!.id;
@@ -248,7 +248,7 @@ describeWithEnv(
     test("a blank package line books a NEW row on that path", async () => {
       const { group, listing } = await packageAndMember("Grow Kit");
       // Booked standalone only; the edit adds the package path beside it.
-      const made = await createAttendeeAtomic({
+      const made = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 1 }],
         email: "grow@example.com",
         name: "Grower",
@@ -302,7 +302,7 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Addon Child",
       });
-      const made = await createAttendeeAtomic({
+      const made = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: parent.id, quantity: 1 },
           { listingId: child.id, parentListingId: parent.id, quantity: 1 },
@@ -324,7 +324,7 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Orphan Child",
       });
-      const made = await createAttendeeAtomic({
+      const made = await attendeesApi.createAttendeeAtomic({
         bookings: [
           { listingId: child.id, parentListingId: parent.id, quantity: 1 },
         ],
@@ -354,7 +354,7 @@ describeWithEnv(
         { listingId: spare.id, price: 500 },
       ]);
       await deactivateTestListing(spare.id);
-      const made = await createAttendeeAtomic({
+      const made = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 1 }],
         email: "idle@example.com",
         name: "Idle Booker",

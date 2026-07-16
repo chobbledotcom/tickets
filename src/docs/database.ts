@@ -23,10 +23,8 @@
 
 export * from "#shared/db/activityLog.ts";
 // The attendee surface spans the split modules under attendees/*. api.ts owns
-// the stubbable wrapper names (createAttendeeAtomic, applyAttendeeAtomicEdit,
-// …), so atomic-update.ts and create.ts are re-exported by explicit list —
-// star-exporting them too would make those names ambiguous and TypeScript
-// would silently drop them from this module.
+// the stubbable atomic operations, while the implementation modules below are
+// re-exported by explicit list to keep one public route to those operations.
 export type {
   ActiveListingStats,
   AttendeeInput,

@@ -13,7 +13,7 @@ import {
   expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { statementSql } from "#test-utils/record-queries.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
@@ -77,17 +77,13 @@ describeAdminSettings(() => {
   });
 
   test("shows feature status without a form in read-only mode", async () => {
-    const restore = setTestEnv({
+    using _env = withEnv({
       READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
     });
-    try {
-      const html = await (await adminGet("/admin/features/modifiers")).text();
-      expect(html).toContain("Status:");
-      expect(html).toContain("Disabled");
-      expect(html).not.toContain('action="/admin/features/modifiers"');
-    } finally {
-      restore();
-    }
+    const html = await (await adminGet("/admin/features/modifiers")).text();
+    expect(html).toContain("Status:");
+    expect(html).toContain("Disabled");
+    expect(html).not.toContain('action="/admin/features/modifiers"');
   });
 
   test("explains Site", async () => {

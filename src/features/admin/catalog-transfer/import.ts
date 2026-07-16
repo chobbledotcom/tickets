@@ -12,22 +12,19 @@
  */
 
 import * as v from "valibot";
-import { byId, mapNotNullish } from "#fp";
+import { identity, mapBy, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
   type GroupInput,
-  getGroupIdsByListingIds,
   getGroupsById,
   groups,
+  listingGroups,
   packageMembersError,
 } from "#shared/db/groups.ts";
-import {
-  getChildListingIds,
-  listingParents,
-} from "#shared/db/listing-parents.ts";
+import { listingParents } from "#shared/db/listing-parents.ts";
 import {
   syncListingPrices,
   writeListingDayCounts,
@@ -69,6 +66,7 @@ import {
   type Group,
   type Listing,
   type ListingType,
+  type ListingWithCount,
   normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
@@ -256,12 +254,13 @@ const validateParentEdges = async (
   // trip the request's N+1 guard): the listing rows, the parents that are
   // themselves children, each parent's group ids, and the whole (cached) group
   // set to identify hidden packages.
-  const [byId, nestedParents, parentGroupIds, allGroups] = await Promise.all([
-    getListingsById(),
-    getChildListingIds(parentIds),
-    getGroupIdsByListingIds([...parentIds]),
-    groups.cache.getAll(),
-  ]);
+  const [byId, nestedParentLinks, parentGroupIds, allGroups] =
+    await Promise.all([
+      getListingsById(),
+      listingParents.getIdsByKeys(parentIds),
+      listingGroups.getIdsByKeys([...parentIds]),
+      groups.cache.getAll(),
+    ]);
   const hiddenPackageIds = new Set(
     allGroups
       .filter((g) => g.is_package && g.hide_package_listings)
@@ -280,7 +279,7 @@ const validateParentEdges = async (
     | ((childId: number, pageIds: readonly number[]) => string | null)
     | null = null;
   if (groupIds.length > 0 && !input.bookableAlone) {
-    const allMembership = await getGroupIdsByListingIds([...byId.keys()]);
+    const allMembership = await listingGroups.getIdsByKeys([...byId.keys()]);
     const wouldBe: ListingGroupMembership[] = [
       ...[...byId.values()].map((l) =>
         toListingGroupMembership(l, allMembership),
@@ -297,7 +296,7 @@ const validateParentEdges = async (
     const parent = byId.get(parentId)!;
     // Single-level nesting only: a parent that is itself a child of another
     // listing can't gain a child (the edge editor rejects the same shape).
-    if (nestedParents.has(parentId)) {
+    if (nestedParentLinks.get(parentId)!.length > 0) {
       return t("listings_table.children_err_parent_is_child", {
         name: parent.name,
       });
@@ -306,7 +305,9 @@ const validateParentEdges = async (
     // child selector, so it may not gain children — the same rule the edge
     // editor enforces via packageChildEdgeConflict.
     if (
-      (parentGroupIds.get(parentId) ?? []).some((g) => hiddenPackageIds.has(g))
+      listingGroups
+        .idsFor(parentGroupIds, parentId)
+        .some((groupId) => hiddenPackageIds.has(groupId))
     ) {
       return `"${parent.name}" is a member of a hidden package, so it cannot offer add-on children.`;
     }
@@ -486,7 +487,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   const isPackage = group.isPackage ?? false;
   // Each member's day-price overrides must target a day count that member offers.
   if (isPackage) {
-    const listingById = byId(listings);
+    const listingById = mapBy("id", identity<ListingWithCount>)(listings);
     for (let i = 0; i < members.length; i++) {
       const member = listingById.get(memberResolve.ids[i]!)!;
       const dayError = memberDayOverrideError(

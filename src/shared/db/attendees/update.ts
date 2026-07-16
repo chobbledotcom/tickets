@@ -41,29 +41,20 @@ export const updateCheckedIn = async (
  * form — it projects from the transfers ledger, and an operator adjusts it
  * through the ledger's manual write-off entries.
  *
- * `clearBalance` is the one exception: when an edit leaves the attendee with no
- * payable line, its stranded receivable (unpayable through the public pay gate)
- * is reconciled to 0 in the SAME transaction as the status write, so the two
- * land atomically — never a moved status with the balance left dangling.
+ * Every assignment uses a write transaction so it serialises with status
+ * deletion. When `clearBalance` is set, a stranded receivable is reconciled to
+ * 0 in that SAME transaction, so the two writes land atomically.
  */
 export const updateAttendeeStatus = async (
   attendeeId: number,
   statusId: number | null,
   clearBalance = false,
 ): Promise<void> => {
-  if (!clearBalance) {
-    await executeUpdate(
-      "attendees",
-      { status_id: statusId },
-      { id: attendeeId },
-    );
-    return;
-  }
   await withTransaction(async (tx) => {
     await tx.execute(
       update("attendees", { status_id: statusId }, { id: attendeeId }),
     );
-    await ledgerTx.correct.owed(tx, attendeeId, 0);
+    if (clearBalance) await ledgerTx.correct.owed(tx, attendeeId, 0);
   });
 };
 

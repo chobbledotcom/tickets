@@ -2,14 +2,9 @@
  * Entity loading patterns for admin route handlers
  */
 
-/* jscpd:ignore-start */
-import type { AuthSession, AuthSessionHandler } from "#routes/auth.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { withEntity } from "#routes/entity.ts";
 import { notFoundResponse } from "#routes/response.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-/* jscpd:ignore-end */
 
 /**
  * Curried factory: creates a wrapper that takes load params, then a handler.
@@ -20,106 +15,6 @@ export const withEntityLoader =
   (...args: P) =>
   (handler: ResponseHandler<[entity: T]>): Promise<Response> =>
     withEntity(handler)(() => load(...args));
-
-type GetEntityHandler<T> = ResponseHandler<
-  [request: Request, session: AuthSession, entity: T]
->;
-
-type PostEntityHandler<T> = ResponseHandler<
-  [session: AuthSession, form: FormParams, entity: T]
->;
-
-/**
- * Generic factory: combine an auth wrapper with entity loading.
- * Eliminates duplication between withSessionAndEntity and withAuthAndEntity.
- */
-const createEntityHandler =
-  <T, H extends GetEntityHandler<T> | PostEntityHandler<T>>(
-    authWrapper: (
-      request: Request,
-      cb: ResponseHandler<[session: AuthSession, ...rest: unknown[]]>,
-    ) => Promise<Response>,
-    adaptHandler: (
-      handler: H,
-      request: Request,
-      ...rest: unknown[]
-    ) => ResponseHandler<[session: AuthSession, entity: T]>,
-  ) =>
-  (loader: (id: number) => Promise<T | null>) =>
-  (request: Request, id: number) =>
-  (handler: H): Promise<Response> =>
-    authWrapper(request, (session, ...rest) =>
-      withEntity((entity: T) =>
-        adaptHandler(handler, request, ...rest)(session, entity),
-      )(() => loader(id)),
-    );
-
-/* jscpd:ignore-start */
-/**
- * Curried: require session, load entity with session-dependent loader, call handler.
- * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
- */
-export const withSessionAndEntity = <T>(
-  loader: (id: number) => Promise<T | null>,
-) =>
-  createEntityHandler<T, GetEntityHandler<T>>(
-    (request, cb) => requireSessionOr(request, cb as AuthSessionHandler),
-    (handler, request) => (session, entity) =>
-      handler(request, session, entity),
-  )(loader);
-
-/**
- * Curried: require auth + CSRF, load entity with session-dependent loader, call handler with form.
- * Eliminates: `withAuth(request, AUTH_FORM, (session, form) => withLoader(session, id)(handler))`
- */
-export const withAuthAndEntity = <T>(
-  loader: (id: number) => Promise<T | null>,
-) =>
-  createEntityHandler<T, PostEntityHandler<T>>(
-    (request, cb) =>
-      withAuth(
-        request,
-        AUTH_FORM,
-        cb as (s: AuthSession, f: FormParams) => Response,
-      ),
-    (handler, _request, form) => (session, entity) =>
-      handler(session, form as FormParams, entity),
-  )(loader);
-
-/**
- * Curried factory for GET/POST entity route handler pairs: auth guard plus
- * entity loading for both verbs in one call.
- *
- * Usage:
- *   const handlers = createEntityRouteHandlers(loader, p => p.attendeeId);
- *   export const get = handlers.get((request, session, entity) => ...);
- *   export const post = handlers.post((session, form, entity) => ...);
- */
-export const createEntityRouteHandlers = <
-  T,
-  TParams extends Record<string, unknown>,
->(
-  loader: (id: number) => Promise<T | null>,
-  getId: (params: TParams) => number,
-) => {
-  const routeHandler =
-    <H>(
-      wrapper: (
-        l: (i: number) => Promise<T | null>,
-      ) => (r: Request, i: number) => (h: H) => Promise<Response>,
-      handler: H,
-    ): ((request: Request, params: TParams) => Promise<Response>) =>
-    (request, params) =>
-      wrapper(loader)(request, getId(params))(handler);
-
-  return {
-    get: (handler: GetEntityHandler<T>) =>
-      routeHandler(withSessionAndEntity, handler),
-    post: (handler: PostEntityHandler<T>) =>
-      routeHandler(withAuthAndEntity, handler),
-  };
-};
-/* jscpd:ignore-end */
 
 /**
  * Generic wrapper for typed route params: parse param as number, load entity,

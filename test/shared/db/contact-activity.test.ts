@@ -36,10 +36,8 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("a multi-listing order records one visit, not one per booking", async () => {
     const a = await createTestListing({ maxAttendees: 5, name: "A" });
     const b = await createTestListing({ maxAttendees: 5, name: "B" });
-    const { createAttendeeAtomic } = await import(
-      "#shared/db/attendees/api.ts"
-    );
-    const result = await createAttendeeAtomic({
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: a.id }, { listingId: b.id }],
       email: "multi@example.com",
       name: "Multi",
@@ -57,10 +55,8 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("a default order counts as a public booking", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Pub" });
-    const { createAttendeeAtomic } = await import(
-      "#shared/db/attendees/api.ts"
-    );
-    await createAttendeeAtomic({
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id }],
       email: "public-buyer@example.com",
       name: "Buyer",
@@ -76,10 +72,8 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("an admin-source order counts as an admin booking", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Adm" });
-    const { createAttendeeAtomic } = await import(
-      "#shared/db/attendees/api.ts"
-    );
-    await createAttendeeAtomic({
+    const { attendeesApi } = await import("#shared/db/attendees/api.ts");
+    await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id }],
       email: "admin-added@example.com",
       name: "Added",

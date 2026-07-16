@@ -16,6 +16,7 @@ import {
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 import {
   lineFor,
   noWebhooks,
@@ -129,10 +130,7 @@ describeStripe("stripe", () => {
 
     test("returns full success when API key valid and webhooks exist", async () => {
       const client = await stripeClient();
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_valid",
-        secret: "whsec_test",
-      });
+      await activateStripe("whsec_test", "we_test_valid");
 
       await withBalanceAndList(
         client,
@@ -203,10 +201,7 @@ describeStripe("stripe", () => {
       expect(signature).toMatch(/^t=\d+,v1=[a-f0-9]+$/);
 
       // Signature should be verifiable with the same secret (stored in DB)
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_test_construction",
-        secret,
-      });
+      await activateStripe(secret, "we_test_construction");
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
     });
@@ -378,7 +373,7 @@ describeStripe("stripe", () => {
   describe("refundPayment - non-Error exception", () => {
     test("handles non-Error thrown value in refund", async () => {
       const client = await stripeClient();
-      // Throw a non-Error value (string) to exercise the "unknown" detail path
+      // Throw a non-Error value to exercise the shared string conversion path.
       await withMocks(
         () =>
           stub(client.refunds, "create", () =>
@@ -396,7 +391,7 @@ describeStripe("stripe", () => {
     test("handles non-Error thrown value in balance check", async () => {
       const client = await stripeClient();
       await withFailingBalance(client, "string error", async () => {
-        expectApiKeyError(await testStripeConnection(), "Unknown error");
+        expectApiKeyError(await testStripeConnection(), "string error");
       });
     });
 
@@ -409,7 +404,7 @@ describeStripe("stripe", () => {
         async () => {
           const result = await testStripeConnection();
           expect(result.ok).toBe(false);
-          expect(result.webhookError).toBe("Unknown error");
+          expect(result.webhookError).toBe("webhook string error");
         },
       );
     });

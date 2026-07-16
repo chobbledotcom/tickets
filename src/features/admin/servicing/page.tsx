@@ -1,4 +1,4 @@
-import { byId, filter, map } from "#fp";
+import { filter, identity, map, mapBy } from "#fp";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
@@ -36,13 +36,6 @@ const emptyServicingPrefill = (): ServicingPrefill => ({
   startDate: "",
 });
 
-const listingNamesById = (listings: ListingWithCount[]): Map<number, string> =>
-  new Map(
-    map((listing: ListingWithCount) => [listing.id, listing.name] as const)(
-      listings,
-    ),
-  );
-
 export const activeServicingListings = (
   listings: ListingWithCount[],
 ): ListingWithCount[] =>
@@ -54,7 +47,7 @@ export const listingsForServicingEdit = (
   allListings: ListingWithCount[],
   event: ServicingEvent,
 ): { deletedHolds: number[]; listings: ListingWithCount[] } => {
-  const listingById = byId(allListings);
+  const listingById = mapBy("id", identity<ListingWithCount>)(allListings);
   const heldIds = new Set(
     map((booking: ServicingEvent["bookings"][number]) => booking.listingId)(
       event.bookings,
@@ -281,7 +274,10 @@ const serviceEventListRows = (
   events: ServicingEventSummary[],
   listings: ListingWithCount[],
 ) => {
-  const listingNames = listingNamesById(listings);
+  const listingNames = mapBy(
+    "id",
+    (listing: ListingWithCount) => listing.name,
+  )(listings);
   return map((event: ServicingEventSummary) => {
     const names = map(
       (booking: { listingId: number }) =>

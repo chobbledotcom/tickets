@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -17,11 +17,13 @@ import {
 import {
   generateGoogleTestCreds,
   generateTestCerts,
+  getMismatchedAppleWalletKey,
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { nonRsaCertificatePem } from "#test-utils/der.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
-import { enablePublicSite } from "#test-utils/settings.ts";
+import { activateStripe, enablePublicSite } from "#test-utils/settings.ts";
 
 /** Build a complete DebugPageState, overriding only the fields a test cares about. */
 const makeDebugState = (
@@ -70,7 +72,7 @@ const makeDebugState = (
     source: "",
   },
   limits: [],
-  ntfy: { configured: false },
+  notifications: { ntfyConfigured: false, sentryConfigured: false },
   payment: {
     keyConfigured: false,
     mode: "",
@@ -109,6 +111,31 @@ const makeDebugState = (
 });
 
 const ownerSession = { adminLevel: "owner" as const };
+
+const debugRow = (label: string, value: string): string =>
+  `<tr><td>${label}</td><td>${value}</td></tr>`;
+
+const debugStatusRow = (label: string, configured: boolean): string =>
+  debugRow(
+    label,
+    configured
+      ? '<span class="badge-ok">Configured</span>'
+      : '<span class="badge-missing">Not configured</span>',
+  );
+
+/** Store a complete Apple Wallet config with the requested signing key. */
+const configureAppleDebug = async (
+  signingKey = generateTestCerts().signingKey,
+): Promise<void> => {
+  const certs = generateTestCerts();
+  await Promise.all([
+    settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
+    settings.update.appleWallet.teamId("TESTTEAM01"),
+    settings.update.appleWallet.signingCert(certs.signingCert),
+    settings.update.appleWallet.signingKey(signingKey),
+    settings.update.appleWallet.wwdrCert(certs.wwdrCert),
+  ]);
+};
 
 describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug", () => {
@@ -165,10 +192,11 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     test("shows Apple Wallet cert validation as Not set when unconfigured", async () => {
       await assertAdminHtml(
         "/admin/debug",
-        "Signing certificate",
-        "Signing key",
-        "WWDR certificate",
-        "Not set",
+        debugRow("Pass Type ID", "—"),
+        debugRow("Active source", "None"),
+        debugRow("Signing certificate", "Not set"),
+        debugRow("Signing key", "Not set"),
+        debugRow("WWDR certificate", "Not set"),
       );
     });
 
@@ -193,7 +221,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows Notifications section", async () => {
-      await assertAdminHtml("/admin/debug", "Notifications (ntfy)", "NTFY URL");
+      await assertAdminHtml("/admin/debug", "Notifications", "NTFY URL");
     });
 
     test("shows combined Bunny section with storage, CDN, and DNS", async () => {
@@ -226,8 +254,29 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       expect(html).not.toContain("ntfy.sh");
     });
 
-    test("shows Configured/Not configured badges", async () => {
-      await assertAdminHtml("/admin/debug", "Not configured");
+    test("shows exact empty and unconfigured values", async () => {
+      using _env = withEnv({
+        DB_URL: undefined,
+        NTFY_URL: undefined,
+        SENTRY_URL: undefined,
+      });
+      await settings.update.customDomain("hidden.example.test");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Provider", "None"),
+        debugRow("Mode", "—"),
+        debugStatusRow("API key", false),
+        debugStatusRow("Webhook", false),
+        debugRow("From address", "—"),
+        debugRow("Host provider (env)", "None"),
+        debugStatusRow("NTFY URL", false),
+        debugStatusRow("Sentry URL", false),
+        debugRow("CDN hostname", "—"),
+        debugRow("Custom domain", "—"),
+        debugStatusRow("DB_URL", false),
+        debugRow("Read-only from", "—"),
+        debugStatusRow("Renewal URL", false),
+      );
     });
 
     test("shows no secrets disclaimer", async () => {
@@ -238,11 +287,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   describe("GET /admin/debug with Stripe configured", () => {
     test("shows stripe as provider with key and webhook status", async () => {
       await settings.update.paymentProvider("stripe");
-      await settings.update.stripe.secretKey("sk_test_fake");
-      await settings.update.stripe.webhookConfig({
-        endpointId: "we_fake",
-        secret: "whsec_fake",
-      });
+      await activateStripe("whsec_fake", "we_fake", "sk_test_fake");
       await assertAdminHtml("/admin/debug", "stripe", "Configured");
     });
 
@@ -262,7 +307,12 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows an em dash for mode when no key is set", async () => {
       await settings.update.paymentProvider("stripe");
-      await assertAdminHtml("/admin/debug", "stripe", "Mode", "—");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Provider", "stripe"),
+        debugRow("Mode", "—"),
+        debugStatusRow("Webhook", false),
+      );
     });
   });
 
@@ -275,7 +325,12 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Live mode when sandbox is disabled", async () => {
       await settings.update.paymentProvider("square");
-      await assertAdminHtml("/admin/debug", "square", "Mode", "Live");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Provider", "square"),
+        debugRow("Mode", "Live"),
+        debugStatusRow("Webhook", false),
+      );
     });
 
     test("shows Sandbox mode when sandbox is enabled", async () => {
@@ -302,19 +357,14 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
   describe("GET /admin/debug with Apple Wallet DB config", () => {
     test("shows Database as source with valid cert status", async () => {
-      const certs = generateTestCerts();
-      await Promise.all([
-        settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
-        settings.update.appleWallet.teamId("TESTTEAM01"),
-        settings.update.appleWallet.signingCert(certs.signingCert),
-        settings.update.appleWallet.signingKey(certs.signingKey),
-        settings.update.appleWallet.wwdrCert(certs.wwdrCert),
-      ]);
+      await configureAppleDebug();
       await assertAdminHtml(
         "/admin/debug",
-        "Database",
-        "pass.com.test.tickets",
-        "Valid",
+        debugRow("Active source", "Database"),
+        debugRow("Pass Type ID", "pass.com.test.tickets"),
+        debugRow("Signing certificate", "Valid"),
+        debugRow("Signing key", "Valid"),
+        debugRow("WWDR certificate", "Valid"),
       );
     });
 
@@ -326,18 +376,56 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         settings.update.appleWallet.signingKey("not-a-valid-pem"),
         settings.update.appleWallet.wwdrCert("not-a-valid-pem"),
       ]);
-      await assertAdminHtml("/admin/debug", "Invalid PEM");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Signing certificate", "Invalid PEM"),
+        debugRow("Signing key", "Invalid PEM"),
+        debugRow("WWDR certificate", "Invalid PEM"),
+      );
+    });
+
+    test("shows a non-RSA WWDR intermediate as valid", async () => {
+      await configureAppleDebug();
+      await settings.update.appleWallet.wwdrCert(nonRsaCertificatePem());
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("WWDR certificate", "Valid"),
+      );
+    });
+
+    test("shows a valid certificate beside an invalid key", async () => {
+      await configureAppleDebug("not-a-valid-pem");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Signing certificate", "Valid"),
+        debugRow("Signing key", "Invalid PEM"),
+      );
+    });
+
+    test("shows an invalid certificate beside a valid key", async () => {
+      await configureAppleDebug();
+      await settings.update.appleWallet.signingCert("not-a-valid-pem");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Signing certificate", "Invalid PEM"),
+        debugRow("Signing key", "Valid"),
+      );
+    });
+
+    test("shows when the signing certificate and key do not match", async () => {
+      await configureAppleDebug(getMismatchedAppleWalletKey());
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Signing certificate", "Does not match key"),
+        debugRow("Signing key", "Does not match certificate"),
+      );
     });
   });
 
   describe("GET /admin/debug with Apple Wallet env vars", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Environment variables as source when env configured", async () => {
       const certs = generateTestCerts();
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         APPLE_WALLET_PASS_TYPE_ID: "pass.com.env.test",
         APPLE_WALLET_SIGNING_CERT: certs.signingCert,
         APPLE_WALLET_SIGNING_KEY: certs.signingKey,
@@ -346,24 +434,23 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       });
       await assertAdminHtml(
         "/admin/debug",
-        "Environment variables",
-        "pass.com.env.test",
+        debugRow("Active source", "Environment variables"),
+        debugRow("Pass Type ID", "pass.com.env.test"),
       );
     });
   });
 
   describe("GET /admin/debug with host email env vars", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows host email provider when env configured", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         HOST_EMAIL_API_KEY: "re_test_key",
         HOST_EMAIL_FROM_ADDRESS: "test@example.com",
         HOST_EMAIL_PROVIDER: "resend",
       });
-      await assertAdminHtml("/admin/debug", "resend");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Host provider (env)", "resend"),
+      );
     });
   });
 
@@ -372,9 +459,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await assertAdminHtml(
         "/admin/debug",
         "Google Wallet",
-        "Issuer ID",
-        "Private key",
-        "Not set",
+        debugRow("Issuer ID", "—"),
+        debugRow("Active source", "None"),
+        debugRow("Private key", "Not set"),
       );
     });
   });
@@ -391,9 +478,9 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       ]);
       await assertAdminHtml(
         "/admin/debug",
-        "Database",
-        creds.issuerId,
-        "Valid",
+        debugRow("Active source", "Database"),
+        debugRow("Issuer ID", creds.issuerId),
+        debugRow("Private key", "Valid"),
       );
     });
 
@@ -405,37 +492,32 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         ),
         settings.update.googleWallet.serviceAccountKey("not-a-valid-key"),
       ]);
-      await assertAdminHtml("/admin/debug", "Invalid key");
+      await assertAdminHtml(
+        "/admin/debug",
+        debugRow("Private key", "Invalid key"),
+      );
     });
   });
 
   describe("GET /admin/debug with Google Wallet env vars", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Environment variables as source when env configured", async () => {
       const creds = await generateGoogleTestCreds();
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         GOOGLE_WALLET_ISSUER_ID: "9876543210",
         GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "env@test.iam.gserviceaccount.com",
         GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: creds.serviceAccountKey,
       });
       await assertAdminHtml(
         "/admin/debug",
-        "Environment variables",
-        "9876543210",
+        debugRow("Active source", "Environment variables"),
+        debugRow("Issuer ID", "9876543210"),
       );
     });
   });
 
   describe("GET /admin/debug with Bunny CDN enabled", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows CDN as configured when Bunny CDN is enabled", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_SCRIPT_ID: "99",
       });
@@ -455,7 +537,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows empty CDN hostname when edge script API fails", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_SCRIPT_ID: "99",
       });
@@ -472,12 +554,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with Bunny storage backend", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Bunny CDN badge when storage zone is configured", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         STORAGE_ZONE_KEY: "zone-key",
         STORAGE_ZONE_NAME: "my-zone",
       });
@@ -485,7 +563,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
     });
 
     test("shows Local filesystem badge when local storage is configured", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         LOCAL_STORAGE_PATH: "/tmp/test-storage",
       });
       await assertAdminHtml("/admin/debug", "Local filesystem");
@@ -493,12 +571,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("GET /admin/debug with Bunny DNS enabled", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows DNS subdomain as configured with suffix", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BUNNY_API_KEY: "test-key",
         BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
         BUNNY_DNS_ZONE_ID: "12345",
@@ -560,12 +634,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("Site section with spam protection configured", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows spam protection as configured when Botpoison keys are set", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         BOTPOISON_PUBLIC_KEY: "test-public",
         BOTPOISON_SECRET_KEY: "test-secret",
       });
@@ -588,12 +658,8 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
   });
 
   describe("Availability section with read-only mode", () => {
-    let restoreEnv: () => void;
-
-    afterEach(() => restoreEnv());
-
     test("shows Read-only state, the cutoff, and the renewal badge", async () => {
-      restoreEnv = setTestEnv({
+      using _env = withEnv({
         READ_ONLY_FROM: "2000-01-01T00:00:00Z",
         RENEWAL_URL: "https://example.com/renew",
       });
@@ -607,7 +673,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
 
     test("shows Expiring soon when within the warning window", async () => {
       const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
-      restoreEnv = setTestEnv({ READ_ONLY_FROM: soon });
+      using _env = withEnv({ READ_ONLY_FROM: soon });
       await assertAdminHtml("/admin/debug", "Expiring soon");
     });
   });

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { settings } from "#shared/db/settings.ts";
-import { buildAnswerSummaryRows } from "#templates/admin/listings/aggregates.tsx";
 import {
   ListingOverviewPanel,
   overviewStatsFromAttendees,
@@ -17,15 +16,13 @@ import {
   ListingQuestionsPanel,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {
   singleAnswerSizeQuestionData,
-  sizeQuestionAnswerData,
   smallLargeAnswers,
   testAnswer,
   testListingWithCount,
   testQuestion,
-  unselectedAnswerQuestionData,
 } from "#test-utils/factories.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -164,16 +161,12 @@ describe("adminQuestionsPage", () => {
   });
 
   test("keeps the list readable without write controls in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
-      expect(html).toContain("Favourite colour?");
-      expect(html).toContain('href="/admin/questions/1"');
-      expect(html).not.toContain('id="new-question"');
-      expect(html).not.toContain("/admin/questions/1/move-");
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
+    expect(html).toContain("Favourite colour?");
+    expect(html).toContain('href="/admin/questions/1"');
+    expect(html).not.toContain('id="new-question"');
+    expect(html).not.toContain("/admin/questions/1/move-");
   });
 });
 
@@ -307,48 +300,40 @@ describe("adminQuestionPage", () => {
   });
 
   test("keeps question details readable without write controls in read-only mode", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminQuestionPage(
-        { ...question, assign_all: false },
-        TEST_SESSION,
-        undefined,
-        new Map([[10, 5]]),
-        TEST_LISTINGS,
-        new Set([1]),
-      );
-      expect(html).toContain("T-shirt size?");
-      expect(html).toContain("<p>Spring Gig</p>");
-      expect(html).not.toContain("<p>Summer Gig</p>");
-      expect(html).not.toContain('action="/admin/questions/1/listings"');
-      expect(html).not.toContain('action="/admin/questions/1/edit"');
-      expect(html).not.toContain("/admin/questions/1/answers/10/edit");
-      expect(html).not.toContain("/admin/questions/1/delete");
-      expect(html).not.toContain("/answers/10/move-");
-      // No reorder Order column on the answers table in read-only mode.
-      expect(html).not.toContain('<th class="col-reorder">');
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminQuestionPage(
+      { ...question, assign_all: false },
+      TEST_SESSION,
+      undefined,
+      new Map([[10, 5]]),
+      TEST_LISTINGS,
+      new Set([1]),
+    );
+    expect(html).toContain("T-shirt size?");
+    expect(html).toContain("<p>Spring Gig</p>");
+    expect(html).not.toContain("<p>Summer Gig</p>");
+    expect(html).not.toContain('action="/admin/questions/1/listings"');
+    expect(html).not.toContain('action="/admin/questions/1/edit"');
+    expect(html).not.toContain("/admin/questions/1/answers/10/edit");
+    expect(html).not.toContain("/admin/questions/1/delete");
+    expect(html).not.toContain("/answers/10/move-");
+    // No reorder Order column on the answers table in read-only mode.
+    expect(html).not.toContain('<th class="col-reorder">');
   });
 
   test("joins multiple assigned listing names with a comma in read-only mode", () => {
     // Read-only shows the assigned listings as plain text; two assigned
     // listings must render comma-separated, not run together into one word.
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminQuestionPage(
-        { ...question, assign_all: false },
-        TEST_SESSION,
-        undefined,
-        undefined,
-        TEST_LISTINGS,
-        new Set([1, 2]),
-      );
-      expect(html).toContain("<p>Spring Gig, Summer Gig</p>");
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminQuestionPage(
+      { ...question, assign_all: false },
+      TEST_SESSION,
+      undefined,
+      undefined,
+      TEST_LISTINGS,
+      new Set([1, 2]),
+    );
+    expect(html).toContain("<p>Spring Gig, Summer Gig</p>");
   });
 
   test("renders empty state when no listings exist", () => {
@@ -809,30 +794,6 @@ describe("adminListingQuestionsPage", () => {
       }),
     );
     expect(html).toContain("3 options: S, M, L)");
-  });
-});
-
-describe("buildAnswerSummaryRows", () => {
-  test("returns empty string when questionData is undefined", () => {
-    expect(buildAnswerSummaryRows(undefined)).toBe("");
-  });
-
-  test("returns empty string when no questions", () => {
-    expect(
-      buildAnswerSummaryRows({ attendeeAnswerMap: new Map(), questions: [] }),
-    ).toBe("");
-  });
-
-  test("renders question with answer counts", () => {
-    const html = buildAnswerSummaryRows(sizeQuestionAnswerData());
-    expect(html).toContain("<th>Size?</th>");
-    expect(html).toContain("Small (2)");
-    expect(html).toContain("Large (1)");
-  });
-
-  test("shows zero for answers with no selections", () => {
-    const html = buildAnswerSummaryRows(unselectedAnswerQuestionData());
-    expect(html).toContain("A (0)");
   });
 });
 

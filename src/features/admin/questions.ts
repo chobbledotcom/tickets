@@ -1,11 +1,10 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
-import { idNameMap } from "#shared/id-name-map.ts";
 import { planReorder } from "#shared/reorder.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
 
-import { mapNotNullish } from "#fp";
+import { mapBy, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
@@ -16,8 +15,17 @@ import {
   createConfirmedHandlers,
   createVerifiedFormRoute,
 } from "#routes/admin/confirmation.ts";
-import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
-import { ownerFormById, ownerGetById } from "#routes/entity.ts";
+import {
+  formGuard,
+  OWNER_FORM,
+  ownerPage,
+  requireOwnerOr,
+} from "#routes/auth.ts";
+import {
+  createEntityHandler,
+  ownerFormById,
+  ownerGetById,
+} from "#routes/entity.ts";
 /* jscpd:ignore-start */
 import {
   errorRedirect,
@@ -26,7 +34,6 @@ import {
   redirect,
 } from "#routes/response.ts";
 import {
-  type AuthedHandlerArgs,
   createAuthedFormRoute,
   createAuthedHandler,
 } from "#shared/app-forms.ts";
@@ -71,7 +78,7 @@ import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
   adminAnswerDeletePage,
@@ -147,7 +154,10 @@ const handleQuestionsGet = ownerPage(async (session) => {
   // Resolve listing ids to their decrypted names for the Listings column,
   // dropping any ids whose listing has since been deleted (listing_questions
   // rows are not pruned on listing deletion, so orphans can linger).
-  const nameById = idNameMap(allListings);
+  const nameById = mapBy(
+    "id",
+    (listing: ListingWithCount) => listing.name,
+  )(allListings);
   const listingNames = new Map(
     [...questionListingIds].map(([questionId, ids]) => [
       questionId,
@@ -320,19 +330,14 @@ const loadQuestionAndAnswer = async ({
   return { answer, question };
 };
 
-/** Owner GET route for answer-scoped pages */
-const answerRoute =
-  (
-    handler: ResponseHandler<
-      [question: QuestionWithAnswers, answer: Answer, session: AdminSession]
-    >,
-  ) =>
-  (request: Request, { id, answerId }: AnswerRouteParams): Promise<Response> =>
-    requireOwnerOr(request, async (session) => {
-      const result = await loadQuestionAndAnswer({ answerId, id });
-      if (!result) return notFoundResponse();
-      return handler(result.question, result.answer, session);
-    });
+const answerEntityHandler = createEntityHandler<
+  AnswerRouteParams,
+  AnswerContext
+>(loadQuestionAndAnswer);
+const answerHandlers = {
+  get: answerEntityHandler(requireOwnerOr),
+  post: answerEntityHandler(formGuard(OWNER_FORM)),
+};
 
 /** Owner GET route for an answer-scoped page that shows the current flash. */
 const answerFlashRoute = (
@@ -344,24 +349,10 @@ const answerFlashRoute = (
       flash: ReturnType<typeof getFlash>,
     ]
   >,
-): ReturnType<typeof answerRoute> =>
-  answerRoute((question, answer, session) =>
+): ReturnType<typeof answerHandlers.get> =>
+  answerHandlers.get(({ answer, question }, session) =>
     render(question, answer, session, getFlash()),
   );
-
-/** Owner POST handler for answer-scoped actions (move, recalculate): the
- * createAuthedHandler counterpart to {@link answerRoute}. Fixes the owner auth
- * policy and the question+answer loader so each action only supplies its body. */
-const answerActionHandler = (
-  handle: ResponseHandler<
-    [args: AuthedHandlerArgs<AnswerRouteParams, AnswerContext>]
-  >,
-) =>
-  createAuthedHandler<AnswerRouteParams, AnswerContext>({
-    auth: OWNER_FORM,
-    handle,
-    loadContext: loadQuestionAndAnswer,
-  });
 
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerGet = answerFlashRoute(
@@ -502,8 +493,8 @@ const handleAnswerRecalculateGet = answerFlashRoute(
 );
 
 /** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
-const handleAnswerRecalculatePost = answerActionHandler(
-  ({ context: { answer, question }, form, params, session }) =>
+const handleAnswerRecalculatePost = answerHandlers.post(
+  ({ answer, question }, session, form, _request, params) =>
     runRecalculatePost({
       fields: ANSWER_AGGREGATE_FIELDS,
       form,
@@ -525,7 +516,7 @@ const handleAnswerRecalculatePost = answerActionHandler(
 
 /** Factory for move-up/move-down handlers */
 const moveAnswerHandler = (dir: "up" | "down") =>
-  answerActionHandler(async ({ context: { answer, question } }) => {
+  answerHandlers.post(async ({ answer, question }) => {
     const pair = planReorder(
       question.answers.map((a) => a.id),
       answer.id,

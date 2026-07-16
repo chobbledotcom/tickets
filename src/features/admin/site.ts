@@ -138,7 +138,6 @@ const handleSiteHomePost = settingsHandler<{ title: string; text: string }>({
       title: form.getString("website_title"),
     };
   },
-  label: "Site homepage",
   log: () => "Homepage updated",
   redirectTo: "/admin/site",
   save: async ({ title, text }) => {
@@ -172,7 +171,6 @@ const handleSiteContactPost = settingsHandler({
     applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
     return form.getString("contact_page_text");
   },
-  label: "Site contact page",
   log: () => "Contact page updated",
   redirectTo: "/admin/site/contact",
   save: (v) => settings.update.contactPageText(v),
@@ -209,7 +207,6 @@ const handleSiteOrderTogglePost = settingsToggle({
 const handleSiteOrderPost = settingsHandler({
   auth: SITE_FORM,
   extract: (form) => form.getString("order_intro_text"),
-  label: "Order page",
   log: () => "Order page updated",
   redirectTo: "/admin/site/order",
   save: (v) => settings.update.orderIntroText(v),

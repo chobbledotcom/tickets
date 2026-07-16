@@ -15,7 +15,6 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import type { BlindIndex, WrappedKey } from "#shared/crypto/sealed.ts";
 import {
-  deleteByField,
   execute,
   executeUpdate,
   queryAll,
@@ -140,17 +139,6 @@ export const getApiKeyForUser = async (
 };
 
 /**
- * Count API keys for a user.
- */
-export const countApiKeysForUser = async (userId: number): Promise<number> => {
-  const result = await queryOne<{ count: number }>(
-    "SELECT COUNT(*) as count FROM api_keys WHERE user_id = ?",
-    [userId],
-  );
-  return result!.count;
-};
-
-/**
  * Delete an API key by ID (must belong to the given user).
  */
 export const deleteApiKey = async (
@@ -165,12 +153,6 @@ export const deleteApiKey = async (
 };
 
 /**
- * Delete all API keys for a user.
- */
-export const deleteAllApiKeysForUser = (userId: number): Promise<void> =>
-  deleteByField("api_keys", "user_id", userId);
-
-/**
  * Update last_used timestamp for an API key.
  * Uses fire-and-forget pattern to avoid slowing down requests.
  */
@@ -178,15 +160,4 @@ export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
   const override = getTouchOverride();
   if (override) throw override;
   await executeUpdate("api_keys", { last_used: nowIso() }, { id });
-};
-
-export const apiKeysApi = {
-  countApiKeysForUser,
-  createApiKey,
-  deleteAllApiKeysForUser,
-  deleteApiKey,
-  getApiKeyByToken,
-  getApiKeyForUser,
-  getApiKeysForUser,
-  touchApiKeyLastUsed,
 };

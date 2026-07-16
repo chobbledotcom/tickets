@@ -11,7 +11,7 @@ import {
   normaliseUkPostcode,
   parseEasypostcodesBody,
 } from "#shared/address-lookup/easypostcodes.ts";
-import { setupFetchStub } from "#test-utils/fetch-stub.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("normaliseUkPostcode", () => {
   // Every Royal Mail outward format: A9, A99, AA9, AA99, A9A, AA9A.
@@ -105,11 +105,9 @@ describe("parseEasypostcodesBody", () => {
 });
 
 describe("fetchEasypostcodesAddresses", () => {
-  const { stubFetch } = setupFetchStub();
-
   test("sends the API key header and the encoded postcode", async () => {
     let captured: { url: string; key: string | null } | null = null;
-    stubFetch((url, init) => {
+    using _fetch = stubFetch((url, init) => {
       captured = { key: new Headers(init?.headers).get("Key"), url };
       return Promise.resolve(new Response("[]"));
     });
@@ -125,17 +123,15 @@ describe("fetchEasypostcodesAddresses", () => {
   });
 
   test("returns the matches from a successful response", async () => {
-    stubFetch(() =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify([
-            {
-              envelopeAddress: { summaryLine: "10 Downing Street" },
-              latitude: "51.503396",
-              longitude: "-0.127640",
-            },
-          ]),
-        ),
+    using _fetch = stubFetch(
+      new Response(
+        JSON.stringify([
+          {
+            envelopeAddress: { summaryLine: "10 Downing Street" },
+            latitude: "51.503396",
+            longitude: "-0.127640",
+          },
+        ]),
       ),
     );
 
@@ -148,9 +144,7 @@ describe("fetchEasypostcodesAddresses", () => {
   });
 
   test("treats a 404 as no matches, not a failure", async () => {
-    stubFetch(() =>
-      Promise.resolve(new Response("Not Found", { status: 404 })),
-    );
+    using _fetch = stubFetch(new Response("Not Found", { status: 404 }));
     expect(await fetchEasypostcodesAddresses("ZZ99 9ZZ", "k")).toEqual({
       addresses: [],
       ok: true,
@@ -158,7 +152,7 @@ describe("fetchEasypostcodesAddresses", () => {
   });
 
   test("reports a provider error with its status", async () => {
-    stubFetch(() => Promise.resolve(new Response("denied", { status: 403 })));
+    using _fetch = stubFetch(new Response("denied", { status: 403 }));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "bad-key");
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -167,14 +161,14 @@ describe("fetchEasypostcodesAddresses", () => {
   });
 
   test("reports a network failure without throwing", async () => {
-    stubFetch(() => Promise.reject(new Error("connection refused")));
+    using _fetch = stubFetch(new Error("connection refused"));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "k");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("connection refused");
   });
 
   test("reports an unexpected response shape as a failure", async () => {
-    stubFetch(() => Promise.resolve(new Response('{"weird":true}')));
+    using _fetch = stubFetch(new Response('{"weird":true}'));
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "k");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("unexpected response");

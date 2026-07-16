@@ -106,6 +106,7 @@
   "error.apple_wwdr_cert_required": "WWDR certificate is required",
   "error.apple_signing_cert_invalid": "Signing certificate is not a valid PEM certificate",
   "error.apple_signing_key_invalid": "Signing private key is not a valid PEM private key",
+  "error.apple_signing_pair_mismatch": "Signing certificate and private key do not match.",
   "error.apple_wwdr_cert_invalid": "WWDR certificate is not a valid PEM certificate",
   "error.google_issuer_id_required": "Issuer ID is required",
   "error.google_service_email_required": "Service account email is required",

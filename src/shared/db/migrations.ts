@@ -205,6 +205,17 @@ const ensureDefaultAttendeeStatus = async (): Promise<void> => {
   await seedDefaultStatus();
 };
 
+const schemaMarkerStatements = (): SqlStatement[] => [
+  {
+    args: [LATEST_UPDATE],
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+  },
+  {
+    args: [SCHEMA_HASH],
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+  },
+];
+
 const migrationContext: MigrationContext = {
   additive,
   applySchemaChanges,
@@ -243,8 +254,14 @@ export const loadMigrations = once(async (): Promise<Migration[]> => {
  *  the restore rebuild. */
 const sealFreshSchema = async (): Promise<void> => {
   await ensureDefaultAttendeeStatus();
-  await writeSchemaMarkers();
-  await markMigrationsApplied(await loadMigrations());
+  const migrations = await loadMigrations();
+  const appliedAt = nowIso();
+  await executeBatch([
+    ...schemaMarkerStatements(),
+    ...migrations.map((migration) =>
+      migrationMarkerStatement(migration, appliedAt),
+    ),
+  ]);
 };
 
 /**
@@ -283,10 +300,11 @@ const initializeFreshSchema = async (): Promise<void> => {
 export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");
   await executeBatch(noArgStatements(fullSchemaCreateStatements()));
-  // executeMultiple sends the complete SQL script in one request and lets
-  // SQLite parse each compound trigger body, whose inner semicolons prevent the
-  // ordinary batch transport from splitting it safely.
-  await getDb().executeMultiple(TRIGGERS.map(({ sql }) => sql).join(";\n"));
+  // executeMultiple accepts a SQL script, so it preserves each compound
+  // trigger body while rebuilding every trigger in one network round trip.
+  await getDb().executeMultiple(
+    `${TRIGGERS.map((trigger) => trigger.sql).join(";\n")};`,
+  );
   await sealFreshSchema();
 };
 
@@ -327,7 +345,6 @@ const markMigrationApplied = async (migration: Migration): Promise<void> => {
 const markMigrationsApplied = async (
   migrations: Migration[],
 ): Promise<void> => {
-  await ensureMigrationTrackingTable();
   const appliedAt = nowIso();
   await getDb().batch(
     migrations.map((migration) =>
@@ -338,14 +355,7 @@ const markMigrationsApplied = async (
 };
 
 const writeSchemaMarkers = async (): Promise<void> => {
-  await getDb().execute({
-    args: [LATEST_UPDATE],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
-  });
-  await getDb().execute({
-    args: [SCHEMA_HASH],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
-  });
+  await executeBatch(schemaMarkerStatements());
 };
 
 /** The migrations whose ids are not yet recorded as applied, in run order.

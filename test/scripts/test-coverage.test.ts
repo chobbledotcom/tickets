@@ -1,20 +1,12 @@
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { bracket } from "#fp";
-import { pathExists } from "#test-utils/files.ts";
+import { pathExists, withTempDir, withTempFile } from "#test-utils/files.ts";
 import { removeOldCoverageOutput } from "../../scripts/coverage-output.ts";
 
-const withTempCoverageDir = bracket(
-  async () => join(await Deno.makeTempDir(), "coverage"),
-  (coverageDir: string) =>
-    Deno.remove(dirname(coverageDir), { recursive: true }).catch(() => {}),
-);
-
-const withTempFile = bracket(
-  () => Deno.makeTempFile(),
-  (path: string) => Deno.remove(path).catch(() => {}),
-);
+const withTempCoverageDir = <Result>(
+  run: (path: string) => Result | Promise<Result>,
+): Promise<Result> => withTempDir((root) => run(join(root, "coverage")));
 
 describe("removeOldCoverageOutput", () => {
   test("removes stale coverage files before a coverage run", async () => {

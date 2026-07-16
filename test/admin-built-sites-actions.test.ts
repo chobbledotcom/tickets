@@ -510,12 +510,11 @@ describeWithEnv(
     });
 
     describe("CSRF validation", () => {
-      test("POST without CSRF token returns 403", async () => {
-        const site = await createTestBuiltSite({ name: "CSRF Test Site" });
+      const postWithoutCsrf = async (siteId: number): Promise<Response> => {
         const cookie = await testCookie();
-        const response = await handleRequest(
+        return handleRequest(
           new Request(
-            `http://localhost/admin/built-sites/${site.id}/bump-deadline`,
+            `http://localhost/admin/built-sites/${siteId}/bump-deadline`,
             {
               body: new URLSearchParams({ months: "1" }).toString(),
               headers: {
@@ -526,7 +525,17 @@ describeWithEnv(
             },
           ),
         );
+      };
+
+      test("POST without CSRF token returns 403", async () => {
+        const site = await createTestBuiltSite({ name: "CSRF Test Site" });
+        const response = await postWithoutCsrf(site.id);
         expect(response.status).toBe(403);
+      });
+
+      test("POST for a missing site returns 404 before CSRF validation", async () => {
+        const response = await postWithoutCsrf(999999);
+        expect(response.status).toBe(404);
       });
     });
   },

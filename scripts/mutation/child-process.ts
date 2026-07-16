@@ -1,4 +1,4 @@
-import { withEntries } from "#fp";
+import { extendedBy } from "#fp";
 import { commandExitCode } from "../deno-command.ts";
 
 /** Run `deno <args>` to completion and return its exit code. An explicit env
@@ -17,7 +17,7 @@ export const denoExitCode = (
  * a spawned child process. */
 export const envWith = (
   extras: Record<string, string>,
-): Record<string, string> => withEntries(Deno.env.toObject())(extras);
+): Record<string, string> => extendedBy(extras)(Deno.env.toObject());
 
 // Signal handling is platform-dependent (e.g. SIGTERM on Windows), so every
 // add/remove is best-effort — callers must still clean up via finally/exit.

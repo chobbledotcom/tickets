@@ -8,7 +8,8 @@
 
 /* jscpd:ignore-start */
 import { compact } from "#fp";
-import { type AuthSession, CONTENT_FORM, withAuth } from "#routes/auth.ts";
+import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
+import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
@@ -29,7 +30,6 @@ import {
   validateAttachment,
 } from "#shared/storage.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { withEntityFromParam } from "./entity-handlers.ts";
 
 /* jscpd:ignore-end */
 
@@ -136,22 +136,9 @@ export const processUploadsAndRedirect = async (
   return redirect(redirectUrl, successMessage, true);
 };
 
-type ListingUploadAction = (
-  session: AuthSession,
-  listing: ListingWithCount,
-  id: number,
-) => Promise<Response>;
-
-const listingUploadHandler =
-  (
-    action: ListingUploadAction,
-  ): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
-  (request, { id }) =>
-    withAuth(request, CONTENT_FORM, (session) =>
-      withEntityFromParam(id, getListingWithCount, (listing) =>
-        action(session, listing, id),
-      ),
-    );
+const listingUploadHandler = createIdEntityHandler<ListingWithCount>(
+  getListingWithCount,
+)(formGuard(CONTENT_FORM));
 
 /** Generic handler for deleting a listing's uploaded file. */
 const handleFileDelete = (
@@ -159,7 +146,7 @@ const handleFileDelete = (
   getUrl: (e: ListingWithCount) => string,
   clearFields: Partial<ListingInput>,
 ): TypedRouteHandler<`POST /admin/listing/:id/${string}/delete`> =>
-  listingUploadHandler(async (session, listing, id) => {
+  listingUploadHandler(async (listing, session, _form, _request, { id }) => {
     // Staff return to the detail page; editors (who can't open it) to edit.
     const returnPath = entityReturnPath(
       "/admin/listings",

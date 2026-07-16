@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
-  assignNextAttendeeStatusSortOrder,
+  type AttendeeStatusWriteInput,
   attendeeStatuses,
+  attendeeStatusWrites,
   DEFAULT_ATTENDEE_STATUS_NAME,
   ensureDefaultAttendeeStatus,
   getAttendeeStatus,
@@ -11,13 +12,56 @@ import {
   getPublicStatusId,
   swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+
+const statusInput = (
+  name: string,
+  defaults: Partial<AttendeeStatusWriteInput> = {},
+): AttendeeStatusWriteInput => ({
+  isPaidDefault: false,
+  isPublicDefault: false,
+  isReservation: false,
+  name,
+  reservationAmount: "0",
+  ...defaults,
+});
+
+const createAttendeeWithStatus = async (statusId: number): Promise<number> => {
+  const attendee = await getDb().execute({
+    args: [new Date().toISOString(), statusId],
+    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
+  });
+  return Number(attendee.lastInsertRowid);
+};
+
+const storedAttendeeStatus = async (attendeeId: number): Promise<number> => {
+  const stored = await getDb().execute({
+    args: [attendeeId],
+    sql: "SELECT attendee.status_id FROM attendees AS attendee WHERE attendee.id = ?",
+  });
+  return Number(stored.rows[0]!.status_id);
+};
+
+const setUpAssignmentRace = async (): Promise<{
+  attendeeId: number;
+  seedId: number;
+  spareId: number;
+}> => {
+  const seed = (await attendeeStatuses.getAll())[0]!;
+  const spare = await attendeeStatuses.table.insert({ name: "Spare" });
+  return {
+    attendeeId: await createAttendeeWithStatus(seed.id),
+    seedId: seed.id,
+    spareId: spare.id,
+  };
+};
 
 describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("the migration seeds a single non-reservation default status", async () => {
@@ -69,7 +113,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       reservationAmount: "10%",
       sortOrder: 2,
     });
-    await attendeeStatuses.table.insert({ name: "Waitlist", sortOrder: 1 });
+    const waitlist = await attendeeStatuses.table.insert({
+      name: "Waitlist",
+      sortOrder: 1,
+    });
 
     const names = (await attendeeStatuses.getAll()).map((s) => s.name);
     // seed (0), Waitlist (1), Reserved (2)
@@ -80,14 +127,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     ]);
     expect(reserved.is_reservation).toBe(true);
     expect(reserved.reservation_amount).toBe("10%");
-  });
-
-  test("assignNextAttendeeStatusSortOrder assigns max + 1", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "New" });
-    await assignNextAttendeeStatusSortOrder(created.id);
-    const updated = await getAttendeeStatus(created.id);
-    // Seed is sort_order 0, so the next value is 1.
-    expect(updated?.sort_order).toBe(1);
+    const storedWaitlist = await getAttendeeStatus(waitlist.id);
+    expect(storedWaitlist?.is_paid_default).toBe(false);
+    expect(storedWaitlist?.is_public_default).toBe(false);
+    expect(storedWaitlist?.is_reservation).toBe(false);
   });
 
   test("swapAttendeeStatusOrder swaps two statuses' sort_order", async () => {
@@ -144,11 +187,176 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
     const statuses = await attendeeStatuses.getAll();
     expect(statuses).toHaveLength(1);
+    expect(statuses[0]).toMatchObject({
+      is_paid_default: true,
+      is_public_default: true,
+      is_reservation: false,
+      name: DEFAULT_ATTENDEE_STATUS_NAME,
+      reservation_amount: "0",
+      sort_order: 0,
+    });
     const backfilled = await getDb().execute({
       args: [attendeeId],
       sql: "SELECT status_id FROM attendees WHERE id = ?",
     });
     expect(Number(backfilled.rows[0]!.status_id)).toBe(statuses[0]!.id);
+  });
+
+  test("concurrent default changes leave one public and paid default", async () => {
+    const first = await attendeeStatuses.table.insert({ name: "First" });
+    const second = await attendeeStatuses.table.insert({ name: "Second" });
+
+    const results = await Promise.all([
+      attendeeStatusWrites.save(
+        first.id,
+        statusInput("First", {
+          isPaidDefault: true,
+          isPublicDefault: true,
+        }),
+      ),
+      attendeeStatusWrites.save(
+        second.id,
+        statusInput("Second", {
+          isPaidDefault: true,
+          isPublicDefault: true,
+        }),
+      ),
+    ]);
+    expect(results).toEqual([
+      { ok: true, value: first.id },
+      { ok: true, value: second.id },
+    ]);
+
+    const defaults = await getDb().execute(
+      `SELECT status.is_public_default, status.is_paid_default
+         FROM attendee_statuses AS status
+        WHERE status.is_public_default = 1 OR status.is_paid_default = 1`,
+    );
+    expect(
+      defaults.rows.filter((status) => status.is_public_default === 1),
+    ).toHaveLength(1);
+    expect(
+      defaults.rows.filter((status) => status.is_paid_default === 1),
+    ).toHaveLength(1);
+  });
+
+  test("a failed default change restores the previous defaults", async () => {
+    const seed = (await attendeeStatuses.getAll())[0]!;
+    const candidate = await attendeeStatuses.table.insert({
+      name: "Candidate",
+    });
+    await getDb().execute(
+      `CREATE TRIGGER fail_candidate_status_update
+       BEFORE UPDATE ON attendee_statuses
+       WHEN NEW.id = ${candidate.id}
+       BEGIN
+         SELECT RAISE(ABORT, 'candidate update failed');
+       END`,
+    );
+
+    await expect(
+      attendeeStatusWrites.save(
+        candidate.id,
+        statusInput("Candidate", {
+          isPaidDefault: true,
+          isPublicDefault: true,
+        }),
+      ),
+    ).rejects.toThrow("candidate update failed");
+
+    const defaults = await getDb().execute(
+      `SELECT status.id, status.is_public_default, status.is_paid_default
+         FROM attendee_statuses AS status
+        ORDER BY status.id`,
+    );
+    expect(defaults.rows).toEqual([
+      { id: seed.id, is_paid_default: 1, is_public_default: 1 },
+      { id: candidate.id, is_paid_default: 0, is_public_default: 0 },
+    ]);
+  });
+
+  test("a stale edit cannot clear a newly selected default", async () => {
+    const candidate = await attendeeStatuses.table.insert({
+      name: "Candidate",
+    });
+
+    const promoted = attendeeStatusWrites.save(
+      candidate.id,
+      statusInput("Candidate", { isPublicDefault: true }),
+    );
+    const staleEdit = attendeeStatusWrites.save(
+      candidate.id,
+      statusInput("Candidate"),
+    );
+
+    expect(await promoted).toEqual({ ok: true, value: candidate.id });
+    expect(await staleEdit).toEqual({
+      error: "public_default_required",
+      ok: false,
+    });
+    expect((await getPublicDefaultStatus())?.id).toBe(candidate.id);
+  });
+
+  test("status writes fail loudly for a missing status", async () => {
+    await expect(
+      attendeeStatusWrites.save(99_999, statusInput("Missing")),
+    ).rejects.toThrow("Attendee status 99999 does not exist");
+    await expect(attendeeStatusWrites.delete(99_999)).rejects.toThrow(
+      "Attendee status 99999 does not exist",
+    );
+  });
+
+  test("attendee creation rejects a missing status", async () => {
+    await expect(
+      getDb().execute({
+        args: [new Date().toISOString(), 99_999],
+        sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
+      }),
+    ).rejects.toThrow("attendee status does not exist");
+  });
+
+  test("concurrent deletion attempts keep the last status", async () => {
+    const seed = (await attendeeStatuses.getAll())[0]!;
+    const spare = await attendeeStatuses.table.insert({ name: "Spare" });
+    await getDb().execute(
+      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
+    );
+
+    const results = await Promise.all([
+      attendeeStatusWrites.delete(seed.id),
+      attendeeStatusWrites.delete(spare.id),
+    ]);
+
+    expect(results).toEqual([
+      { ok: true, value: undefined },
+      { error: "last_status", ok: false },
+    ]);
+    const remaining = await getDb().execute(
+      "SELECT status.id FROM attendee_statuses AS status",
+    );
+    expect(remaining.rows).toEqual([{ id: spare.id }]);
+  });
+
+  test("an attendee assignment queued after deletion cannot use the deleted status", async () => {
+    const { attendeeId, seedId, spareId } = await setUpAssignmentRace();
+
+    const deletion = attendeeStatusWrites.delete(spareId);
+    const assignment = updateAttendeeStatus(attendeeId, spareId);
+
+    expect(await deletion).toEqual({ ok: true, value: undefined });
+    await expect(assignment).rejects.toThrow("attendee status does not exist");
+    expect(await storedAttendeeStatus(attendeeId)).toBe(seedId);
+  });
+
+  test("an attendee assignment queued before deletion makes the status in use", async () => {
+    const { attendeeId, spareId } = await setUpAssignmentRace();
+
+    const assignment = updateAttendeeStatus(attendeeId, spareId);
+    const deletion = attendeeStatusWrites.delete(spareId);
+
+    await assignment;
+    expect(await deletion).toEqual({ error: "status_in_use", ok: false });
+    expect(await storedAttendeeStatus(attendeeId)).toBe(spareId);
   });
 
   test("createAttendeeAtomic persists status_id and remaining_balance", async () => {
@@ -157,7 +365,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
     const status = await getPublicDefaultStatus();
-    const result = await createAttendeeAtomic({
+    const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
       email: "guest@example.com",
       name: "Guest",

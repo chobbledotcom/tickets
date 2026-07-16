@@ -3,41 +3,33 @@
  * shell for the read-only key/value summary tables on admin detail pages
  * (per-user, per-API-key, per-listing, per-group, per-entity).
  *
- * Several pages hand-wrote this shell with either pre-rendered `<tr>` rows (via
- * {@link renderDetailRows} + `<Raw>`) or inline JSX `<tr><th>…</th><td>…</td></tr>`
- * rows. Both shapes go through this one component now so the scroll wrapper,
- * table class, and tbody structure can't drift per page.
- *
- * Pass `rows` ({@link DetailRow}[]) for the shared detail-row builder, or
- * `children` (one `<tr>` per row) for hand-written JSX rows.
+ * Shared {@link DetailRow} data is rendered through {@link LabelledRow}; pages
+ * can also pass custom JSX rows as children when their table needs different
+ * cells. The custom rows come first, followed by the shared rows.
  */
 
 /* jscpd:ignore-start */
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import {
-  type DetailRow,
-  renderDetailRows,
-} from "#templates/admin/detail-rows.tsx";
+import type { DetailRow } from "#templates/admin/detail-rows.tsx";
+import { LabelledRow } from "#templates/components/labelled-row.tsx";
 /* jscpd:ignore-end */
 
 export type DetailTableProps = {
-  /** Detail rows rendered through {@link renderDetailRows} as a HTML string
-   *  of `<tr><th>key</th><td>value</td></tr>` rows. */
   rows?: DetailRow[];
-  /** Hand-written `<tr>` rows — use when a row's value is JSX (links,
-   *  conditional content) rather than a plain string. */
   children?: Child;
 };
 
 export const DetailTable = ({
-  rows,
+  rows = [],
   children,
 }: DetailTableProps): JSX.Element => (
   <div class="table-scroll">
     <table class="listing-details-table">
       <tbody>
-        {rows !== undefined ? <Raw html={renderDetailRows(rows)} /> : children}
+        {children}
+        {rows.map((row) => (
+          <LabelledRow label={row.key}>{row.value}</LabelledRow>
+        ))}
       </tbody>
     </table>
   </div>

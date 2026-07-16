@@ -10,7 +10,6 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import { queryOne } from "#shared/db/client.ts";
@@ -19,6 +18,7 @@ import {
   attendeeExists,
   insertOrphanAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { expectFetchSilent, mockRequest } from "#test-utils/mocks.ts";
 
 /** GET or POST /scheduled. */
@@ -70,45 +70,33 @@ describeWithEnv(
   () => {
     test("POST pokes the least-recently-poked built site with a GET", async () => {
       const site = await insertBuiltSite("Client", "client.b-cdn.net");
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("ok", { status: 200 })),
-      );
-      try {
-        const response = await scheduled("POST");
+      using fetchStub = stubFetch(new Response("ok", { status: 200 }));
+      const response = await scheduled("POST");
 
-        expect(response.status).toBe(200);
-        const body = await response.json();
-        // No client hostname in the response — this endpoint is public.
-        expect(body.poked).toEqual({ ok: true, status: 200 });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      // No client hostname in the response — this endpoint is public.
+      expect(body.poked).toEqual({ ok: true, status: 200 });
 
-        // It poked the client's /scheduled with a plain unauthenticated GET.
-        expect(fetchStub.calls.length).toBe(1);
-        const [url, init] = fetchStub.calls[0]!.args as [string, RequestInit];
-        expect(url).toBe("https://client.b-cdn.net/scheduled");
-        expect(init.method).toBe("GET");
-        expect(init.headers).toBeUndefined();
-        // Redirects are followed only after SSRF re-validation, never blindly.
-        expect(init.redirect).toBe("manual");
+      // It poked the client's /scheduled with a plain unauthenticated GET.
+      expect(fetchStub.calls.length).toBe(1);
+      const [url, init] = fetchStub.calls[0]!.args as [string, RequestInit];
+      expect(url).toBe("https://client.b-cdn.net/scheduled");
+      expect(init.method).toBe("GET");
+      expect(init.headers).toBeUndefined();
+      // Redirects are followed only after SSRF re-validation, never blindly.
+      expect(init.redirect).toBe("manual");
 
-        // The site's rotation stamp was bumped so the next call walks onward.
-        expect(await lastPrunedOf(site.id)).not.toBe("");
-      } finally {
-        fetchStub.restore();
-      }
+      // The site's rotation stamp was bumped so the next call walks onward.
+      expect(await lastPrunedOf(site.id)).not.toBe("");
     });
 
     test("GET does not walk the fleet", async () => {
       await insertBuiltSite("Client", "client.b-cdn.net");
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("ok")),
-      );
-      try {
-        const response = await scheduled("GET");
-        expect((await response.json()).poked).toBe(null);
-        expect(fetchStub.calls.length).toBe(0);
-      } finally {
-        fetchStub.restore();
-      }
+      using fetchStub = stubFetch(new Response("ok"));
+      const response = await scheduled("GET");
+      expect((await response.json()).poked).toBe(null);
+      expect(fetchStub.calls.length).toBe(0);
     });
 
     test("reports poked null when the builder has no built sites", async () => {
@@ -117,16 +105,10 @@ describeWithEnv(
 
     test("reports an error when the built site is unreachable", async () => {
       await insertBuiltSite("Client", "client.b-cdn.net");
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.reject(new Error("network down")),
-      );
-      try {
-        const response = await scheduled("POST");
-        // The failure is reported without leaking the client hostname.
-        expect((await response.json()).poked).toEqual({ failed: true });
-      } finally {
-        fetchStub.restore();
-      }
+      using _fetch = stubFetch(new Error("network down"));
+      const response = await scheduled("POST");
+      // The failure is reported without leaking the client hostname.
+      expect((await response.json()).poked).toEqual({ failed: true });
     });
   },
 );

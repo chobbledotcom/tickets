@@ -68,8 +68,9 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
       line(parentB.id),
       line(child.id),
     ]);
-    const childRow = result.find((b) => b.listingId === child.id)!;
-    expect([parentA.id, parentB.id]).toContain(childRow.parentListingId);
+    expect(result.find((b) => b.listingId === child.id)?.parentListingId).toBe(
+      parentA.id,
+    );
   });
 
   test("skips recomputation when bookings already carry an orderToken", async () => {
@@ -145,16 +146,14 @@ describe("db > attendees > expandChildAllocations", () => {
   });
 
   test("proportional pricePaid split across allocations", () => {
-    // Child booking has pricePaid=100, split 1:3 across two allocations.
+    // Child booking has pricePaid=100, split 3:1 across two allocations.
     const result = expandChildAllocations(
       [booking(10), booking(20, 4, 100)],
-      [alloc(20, 10, 1), alloc(20, 10, 3)],
+      [alloc(20, 10, 3), alloc(20, 10, 1)],
     );
     const childRows = result.filter((r) => r.listingId === 20);
     expect(childRows).toHaveLength(2);
-    // 100 * 1 / 4 = 25; 100 * 3 / 4 = 75.
-    const prices = childRows.map((r) => r.pricePaid).sort((a, b) => a! - b!);
-    expect(prices).toEqual([25, 75]);
+    expect(childRows.map((r) => r.pricePaid)).toEqual([75, 25]);
   });
 
   test("standalone listing (no allocation) gets only the orderToken", () => {
@@ -165,38 +164,41 @@ describe("db > attendees > expandChildAllocations", () => {
     expect(result[0]!.parentListingId ?? 0).toBe(0);
   });
 
-  test("booking without explicit quantity defaults to 1 for price split", () => {
-    // A ListingBooking whose quantity is absent; the ?? 1 guard must treat it
-    // as 1 so price-paid proportioning doesn't divide by undefined.
+  test("booking without explicit quantity uses its allocation total", () => {
     const noQty: import("#shared/db/attendee-types.ts").ListingBooking = {
       listingId: 20,
       pricePaid: 60,
     };
-    const result = expandChildAllocations([noQty], [alloc(20, 10, 1)]);
-    expect(result).toHaveLength(1);
-    // qty from alloc; pricePaid = 60 * 1 / 1 = 60.
-    expect(result[0]!.quantity).toBe(1);
-    expect(result[0]!.pricePaid).toBe(60);
+    const result = expandChildAllocations(
+      [noQty],
+      [alloc(20, 10, 1), alloc(20, 30, 1)],
+    );
+    expect(
+      result.map(({ pricePaid, quantity }) => ({ pricePaid, quantity })),
+    ).toEqual([
+      { pricePaid: 30, quantity: 1 },
+      { pricePaid: 30, quantity: 1 },
+    ]);
   });
 
   test("un-allocated units become a parent-less remainder row", () => {
-    // Booking of 3 units, but only 1 is allocated under a parent — the other 2
-    // were bought standalone in the same order (reachable once a child is
+    // Booking of 2 units, but only 1 is allocated under a parent — the other 1
+    // was bought standalone in the same order (reachable once a child is
     // bookable on its own). The remainder must NOT be dropped: it becomes one
     // parent-less row so no unit vanishes.
     const result = expandChildAllocations(
-      [booking(20, 3, 90)],
+      [booking(20, 2, 90)],
       [alloc(20, 10, 1)],
     );
     expect(result).toHaveLength(2);
     const allocRow = result.find((r) => r.parentListingId === 10)!;
     const remainderRow = result.find((r) => (r.parentListingId ?? 0) === 0)!;
     expect(allocRow.quantity).toBe(1);
-    expect(remainderRow.quantity).toBe(2);
-    // pricePaid split by quantity: 90*1/3 = 30 on the alloc, the rest (60) on
+    expect(remainderRow.quantity).toBe(1);
+    // pricePaid split by quantity: 90*1/2 = 45 on the alloc, the rest (45) on
     // the remainder (which absorbs the residue). Total conserved.
-    expect(allocRow.pricePaid).toBe(30);
-    expect(remainderRow.pricePaid).toBe(60);
+    expect(allocRow.pricePaid).toBe(45);
+    expect(remainderRow.pricePaid).toBe(45);
     expect(allocRow.pricePaid! + remainderRow.pricePaid!).toBe(90);
     // Both rows share the one order token.
     expect(remainderRow.orderToken).toBe(allocRow.orderToken);

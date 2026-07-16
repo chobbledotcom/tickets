@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
 import {
@@ -119,7 +119,7 @@ const makeDualPathBooking = async (
   await setGroupPackageMembers(group.id, [
     { listingId: listing.id, price: 500 },
   ]);
-  const made = await createAttendeeAtomic({
+  const made = await attendeesApi.createAttendeeAtomic({
     bookings: [
       { listingId: listing.id, packageGroupId: group.id, quantity: 2 },
       { listingId: listing.id, quantity: 1 },
@@ -333,7 +333,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       const { attendeeId, listingId } = await makeDualPathBooking(van);
       // A second attendee's delivery on the same listing/van/window stays its
       // own legs — only the SAME booking's path rows collapse.
-      const made = await createAttendeeAtomic({
+      const made = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId, quantity: 1 }],
         email: "solo@example.com",
         name: "Solo",

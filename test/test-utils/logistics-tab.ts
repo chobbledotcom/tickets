@@ -6,7 +6,7 @@
 import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -20,7 +20,11 @@ export const makeAttendee = async (
   name: string,
   bookings: ListingBooking[],
 ): Promise<number> => {
-  const result = await createAttendeeAtomic({ bookings, email: "", name });
+  const result = await attendeesApi.createAttendeeAtomic({
+    bookings,
+    email: "",
+    name,
+  });
   // Callers pass listings with capacity, so the booking always succeeds; cast
   // the union rather than guard (a never-taken failure branch would be an
   // uncovered line).

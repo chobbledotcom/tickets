@@ -252,11 +252,9 @@ describe("test-utils — listing & attendee factories", () => {
       const { createDailyTestListing } = await import(
         "#test-utils/db-helpers/listings.ts"
       );
-      const { createAttendeeAtomic } = await import(
-        "#shared/db/attendees/api.ts"
-      );
+      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       const listing = await createDailyTestListing({ maxAttendees: 10 });
-      const result = await createAttendeeAtomic({
+      const result = await attendeesApi.createAttendeeAtomic({
         bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 3 }],
         email: "alice@test.com",
         name: "Alice",

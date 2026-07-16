@@ -18,6 +18,10 @@ export default schemaMigration(
       "idx_activity_log_attendee_id",
     ],
     newTables: ["attendee_statuses"],
+    triggers: [
+      "trg_attendees_validate_status_insert",
+      "trg_attendees_validate_status_update",
+    ],
   },
   ({ ensureDefaultAttendeeStatus }) => ensureDefaultAttendeeStatus(),
 );

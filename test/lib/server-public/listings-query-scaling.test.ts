@@ -81,9 +81,9 @@ describeWithEnv(
       const first = await recordGroupPageQueries("group", 0, 1);
       const seen = await recordGroupPageQueries("group", 1, 3);
 
-      const childLookups = seen.filter((sql) =>
+      const childLinkBatches = seen.filter((sql) =>
         sql.startsWith(
-          "SELECT DISTINCT child_listing_id AS id FROM listing_parents",
+          "SELECT child_listing_id AS key_id, parent_listing_id AS value_id",
         ),
       );
       const batchedMembers = batchedMemberQueries(seen);
@@ -95,7 +95,7 @@ describeWithEnv(
 
       // One classification decides regular-group liveness; the other decides
       // the individual listing cards. Adding groups must not add either query.
-      expect(childLookups.length).toBe(2);
+      expect(childLinkBatches.length).toBe(2);
       expect(batchedMembers.length).toBe(1);
       expect(singleGroupMembers.length).toBe(0);
       expect(seen.length).toBe(first.length);

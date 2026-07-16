@@ -34,9 +34,10 @@ import {
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import {
-  getChildrenForParents,
   getNonStandaloneChildIds,
-  getParentsForChildren,
+  hydrateListingLinks,
+  listingChildren,
+  listingParents,
 } from "#shared/db/listing-parents.ts";
 import type { BookingItem } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -213,9 +214,11 @@ export const orderEdgeDrifted = async (
       .filter((v) => !fullyFolded(v.item.e, v.item.q))
       .map((v) => buildTicketListing(v.listing, false, undefined)),
   );
-  const childRows = await getChildrenForParents(
+  const childLinks = await hydrateListingLinks(
+    listingChildren,
     topLevel.map((t) => t.listing.id),
   );
+  const childRows = childLinks.listingsByKey;
   const childrenByParentId = new Map(
     [...childRows].map(([parentId, rows]) => [
       parentId,
@@ -283,11 +286,11 @@ export const hasStaleStandaloneChild = async (
   if (nonStandaloneChildIds.size === 0) return false;
   const orderIdSet = new Set(orderIds);
   const allocatedByChild = allocatedUnitsByChild(intent);
-  const parentsByChild = await getParentsForChildren([
+  const parentsByChild = await listingParents.getIdsByKeys([
     ...nonStandaloneChildIds,
   ]);
-  const adoptedByInOrderParent = childIdsMatching(parentsByChild, (parents) =>
-    parents.some((parent) => orderIdSet.has(parent.id)),
+  const adoptedByInOrderParent = childIdsMatching(parentsByChild, (parentIds) =>
+    parentIds.some((parentId) => orderIdSet.has(parentId)),
   );
   return intent.items.some((item) => {
     if (!nonStandaloneChildIds.has(item.e)) return false;

@@ -7,9 +7,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
-  getGroupIdsByListingId,
   getGroupPackagePrices,
   groups,
+  listingGroups,
 } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
@@ -506,7 +506,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
 
       // Deleting the group removes membership; the listing survives, ungrouped.
-      expect(await getGroupIdsByListingId(listing.id)).toEqual([]);
+      expect(await listingGroups.getIds(listing.id)).toEqual([]);
       const listingRow = await getListingWithCount(listing.id);
       expect(listingRow).not.toBeNull();
     });

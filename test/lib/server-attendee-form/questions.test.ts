@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees/api.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
@@ -50,7 +50,7 @@ describeWithEnv(
         });
         await listingQuestions.setIds(eventB.id, [qB.id]);
 
-        const created = await createAttendeeAtomic({
+        const created = await attendeesApi.createAttendeeAtomic({
           bookings: [
             { listingId: eventA.id, quantity: 1 },
             { listingId: eventB.id, quantity: 1 },
@@ -155,7 +155,7 @@ describeWithEnv(
         await listingQuestions.setIds(event.id, [q.id]);
 
         const makeAttendee = async (name: string, email: string) => {
-          const result = await createAttendeeAtomic({
+          const result = await attendeesApi.createAttendeeAtomic({
             bookings: [{ listingId: event.id, quantity: 1 }],
             email,
             name,

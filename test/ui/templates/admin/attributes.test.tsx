@@ -16,7 +16,7 @@ import {
   attributeNameFlat,
   ListingAttributesPanel,
 } from "#templates/admin/attributes.tsx";
-import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
@@ -268,36 +268,28 @@ describe("ListingAttributesPanel", () => {
 
 describe("attribute pages in read-only mode", () => {
   test("keeps the list readable without create or reorder controls", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminAttributesPage([ATTRIBUTE], SESSION);
-      expect(html).toContain("Colour");
-      expect(html).toContain('href="/admin/attributes/1"');
-      expect(html).not.toContain('id="new-attribute"');
-      expect(html).not.toContain('<th class="col-reorder">Order</th>');
-      expect(html).not.toContain("/admin/attributes/1/move-");
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminAttributesPage([ATTRIBUTE], SESSION);
+    expect(html).toContain("Colour");
+    expect(html).toContain('href="/admin/attributes/1"');
+    expect(html).not.toContain('id="new-attribute"');
+    expect(html).not.toContain('<th class="col-reorder">Order</th>');
+    expect(html).not.toContain("/admin/attributes/1/move-");
   });
 
   test("keeps details readable without edit or delete controls", () => {
-    const restore = setTestEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    try {
-      const html = adminAttributePage(ATTRIBUTE, SESSION, undefined, {
-        listingCounts: new Map([[10, 2]]),
-        listings: [],
-      });
-      expect(html).toContain("Red");
-      expect(html).toContain('<td class="col-quantity">2</td>');
-      expect(html).not.toContain('action="/admin/attributes/1/edit"');
-      expect(html).not.toContain("/admin/attributes/1/options/10/edit");
-      expect(html).not.toContain("/admin/attributes/1/delete");
-      expect(html).not.toContain("/options/10/move-");
-      expect(html).not.toContain('<th class="col-reorder">Order</th>');
-    } finally {
-      restore();
-    }
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    const html = adminAttributePage(ATTRIBUTE, SESSION, undefined, {
+      listingCounts: new Map([[10, 2]]),
+      listings: [],
+    });
+    expect(html).toContain("Red");
+    expect(html).toContain('<td class="col-quantity">2</td>');
+    expect(html).not.toContain('action="/admin/attributes/1/edit"');
+    expect(html).not.toContain("/admin/attributes/1/options/10/edit");
+    expect(html).not.toContain("/admin/attributes/1/delete");
+    expect(html).not.toContain("/options/10/move-");
+    expect(html).not.toContain('<th class="col-reorder">Order</th>');
   });
 });
 

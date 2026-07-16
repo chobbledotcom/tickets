@@ -38,6 +38,7 @@ src/shared/config.ts:170:33  ?? → ||    # getEnv(): string|undefined, only fal
 src/shared/config.ts:177:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
+src/shared/app-forms.ts:71:18  ?? → ||    # config.auth is an AuthPolicy object when present, so it is always truthy
 src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
@@ -80,10 +81,19 @@ src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # 
 # absolute value and direction do not matter: every invalidation changes the
 # value, so a fetch started before it cannot populate the cache. The unloaded
 # timestamp is never read because `items` is null, and size is an array length.
-src/fp.ts:449:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
-src/fp.ts:451:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
-src/fp.ts:466:17  ++ → --   # either direction changes generation and invalidates every older captured copy
-src/fp.ts:469:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+src/fp.ts:221:32  !== → !=   # compact input is T|null|undefined; loose null comparison removes exactly null and undefined too
+src/fp.ts:277:17  === → ==   # lazyRef set input is T|null and cannot be undefined, so both comparisons select only null
+src/fp.ts:416:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
+src/fp.ts:416:33  0 → -1   # same: the unloaded timestamp is never observed
+src/fp.ts:418:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
+src/fp.ts:418:20  0 → -1   # same: only changes relative to the captured generation matter
+src/fp.ts:422:22  !== → !=   # items is T[]|null and cannot be undefined, so both comparisons select only a loaded array
+src/fp.ts:433:17  ++ → --   # either direction changes generation and invalidates every older captured copy
+src/fp.ts:436:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+
+# Login attempt rows store an integer count. For undefined, null, zero, or any
+# non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
+src/shared/db/login-attempts.ts:46:39  ?? → ||
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
@@ -106,9 +116,14 @@ src/ui/templates/public/reservations/contact-fields.ts:107:51  ?? → ||   # add
 src/shared/db/attendee-phone-index.ts:36:17  ?? → ||   # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
 
 # Parent/child relationship DB (listing-parents.ts).
-src/shared/db/listing-parents.ts:144:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
-src/shared/db/listing-parents.ts:201:44  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
-src/shared/db/listing-parents.ts:202:43  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts:226:52  ?? → ||   # childrenByParent.get(id): ListingWithCount[]|undefined — an array is always truthy
+src/shared/db/listing-parents.ts:227:49  ?? → ||   # parentsByChild.get(id): ListingWithCount[]|undefined — an array is always truthy
+
+# Group membership and package storage (groups.ts).
+src/shared/db/groups.ts:267:35  ?? → ||   # entriesByGroup.get(id): readonly entry[]|undefined — an array is always truthy
+src/shared/db/groups.ts:460:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
+src/shared/db/groups.ts:719:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
+src/shared/db/groups.ts:852:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -854,12 +869,19 @@ src/shared/db/contact-tokens.ts:315:18  ?? → ||    # `removedSource ?? sync.so
 src/shared/db/attendees/tokens.ts:159:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
 src/shared/db/attendees/tokens.ts:162:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
 src/shared/db/attendees/tokens.ts:175:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
-src/shared/sentry.ts:50:19  ?? → ||    # getSentrySdk(): SentrySdk|null — a loaded module namespace object is always truthy, never falsy-but-non-null, so ?? and || agree
+src/shared/sentry.ts:72:23  !== → !=    # loadSentry(): LoadedSentry|null never returns undefined, so strict and loose null comparisons agree
 
 # bundle-composition/model.ts — SourceMapSegment is either the one-value
 # unmapped tuple or a mapped tuple carrying both source index and original line,
 # so indexes 1 and 2 are present or absent together.
 scripts/bench/bundle-composition/model.ts:64:11  1 → 2    # isMappedSegment: segment[1] and segment[2] are both defined exactly for mapped tuples
+
+# crypto/der.ts — these values are written into Uint8Array elements. Adding or
+# subtracting 128 produces the same low eight bits, and Uint8Array discards all
+# higher bits. The base-128 continuation byte is therefore identical either way.
+src/shared/crypto/der.ts:40:26  128 → -128    # DER long-length marker: 128+n and -128+n have identical low eight bits
+src/shared/crypto/der.ts:93:44  + → -    # base-128 continuation: low7+128 and low7-128 have identical low eight bits
+src/shared/crypto/der.ts:93:47  128 → -128    # base-128 continuation marker is unchanged after Uint8Array conversion
 
 # db/capacity.ts — duration defaults that normalizeDurationDays clamps: a
 # `durationDays` of 0 (the mutant) and 1 (the default) both normalize to a

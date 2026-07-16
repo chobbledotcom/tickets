@@ -145,7 +145,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
 
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
-      "Google Wallet configuration updated",
+      "Google Wallet settings updated",
     )(response);
 
     expect(settings.googleWallet.hasConfig).toBe(true);
@@ -178,6 +178,9 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       "Google Wallet configuration cleared",
     )(response);
     expect(settings.googleWallet.hasDbConfig).toBe(false);
+    expect(settings.googleWallet.issuerId).toBe("");
+    expect(settings.googleWallet.serviceAccountEmail).toBe("");
+    expect(settings.googleWallet.serviceAccountKey).toBe("");
   });
 
   test("shows Google Wallet section with values when configured", async () => {
@@ -212,7 +215,7 @@ describeWithEnv(
     });
 
     test("settings page shows host Google Wallet label when env vars configured", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/settings-advanced", {
         cookie,
@@ -223,7 +226,7 @@ describeWithEnv(
     });
 
     test("settings page shows overriding label when both DB and env configured", async () => {
-      await setGoogleWalletEnvVars();
+      using _env = setGoogleWalletEnvVars();
       await configureGoogleWallet();
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/settings-advanced", {

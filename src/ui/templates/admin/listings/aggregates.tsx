@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { adminPath } from "#shared/admin-surface.ts";
 import type {
@@ -8,23 +9,20 @@ import { isReadOnly } from "#shared/env.ts";
 import type { FieldValues } from "#shared/forms.tsx";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
-  buildAnswerSummaryRows as buildAnswerSummaryDetailRows,
-  renderDetailRows,
-} from "#templates/admin/detail-rows.tsx";
-import {
   driftedRowItems,
   ExpectedActualNotice,
   ExpectedActualTableRow,
 } from "#templates/admin/expected-actual.tsx";
 import type { RecalculateRow } from "#templates/admin/recalculate.tsx";
 import { buildRecalculateRows } from "#templates/admin/recalculate-rows.ts";
-import type { TableQuestionData } from "#templates/attendee-table.tsx";
 import {
   bindRecalculatePage,
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
 import { capacityLevel } from "#templates/components/capacity.tsx";
 import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+
+/* jscpd:ignore-end */
 
 export {
   calculateTotalRevenue,
@@ -33,10 +31,6 @@ export {
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
 export { formatAddressInline } from "#templates/attendee-table.tsx";
-
-export const buildAnswerSummaryRows = (
-  questionData: TableQuestionData | undefined,
-): string => renderDetailRows(buildAnswerSummaryDetailRows(questionData));
 
 export const nearCapacity = (listing: ListingWithCount): boolean =>
   capacityLevel(listing.attendee_count, listing.max_attendees).nearLimit;

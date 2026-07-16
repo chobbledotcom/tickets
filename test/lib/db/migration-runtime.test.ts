@@ -23,7 +23,8 @@ import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setTestEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { tempDir } from "#test-utils/files.ts";
 import { resetTestSession, TEST_ADMIN_PASSWORD } from "#test-utils/internal.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
@@ -62,45 +63,37 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       "write",
     );
 
-  const restoreLockTest = async (
-    fetchStub: ReturnType<typeof stubNtfyFetch>["fetchStub"],
-    restore: ReturnType<typeof stubNtfyFetch>["restore"],
-  ) => {
-    fetchStub.restore();
-    restore();
+  const restoreLockTest = async () => {
     await restoreLockSettings();
   };
 
   describe("migration behaviour", () => {
     test("migrates an existing database without taking an inline backup", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
-      try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-        );
-        await markCurrentSchemaMigrationPending();
-        await initDb();
+      using tmpDir = tempDir();
+      using _env = withEnv({ LOCAL_STORAGE_PATH: tmpDir.path });
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      await markCurrentSchemaMigrationPending();
+      await initDb();
 
-        // The migration completed...
-        const result = await getDb().execute(
-          "SELECT value FROM settings WHERE key = 'db_schema_hash'",
-        );
-        expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+      // The migration completed...
+      const result = await getDb().execute(
+        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+      );
+      expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
 
-        // ...and no backup was written — backups are now taken out-of-band.
-        const files = [...Deno.readDirSync(tmpDir)]
-          .map((e) => e.name)
-          .filter((n) => n.startsWith("backup-"));
-        expect(files.length).toBe(0);
-      } finally {
-        restore();
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
+      // ...and no backup was written — backups are now taken out-of-band.
+      const files = [...Deno.readDirSync(tmpDir.path)]
+        .map((e) => e.name)
+        .filter((n) => n.startsWith("backup-"));
+      expect(files.length).toBe(0);
     });
 
     test("sends ntfy notification with DB_URL when migration lock is held", async () => {
       const { fetchStub, restore } = stubNtfyFetch({ DB_URL: TEST_DB_URL });
+      using _env = restore;
+      using _fetch = fetchStub;
       try {
         await setStaleSchemaAndLock(new Date());
         invalidateInitDbCache();
@@ -109,7 +102,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         expectNtfyNotification(fetchStub, `E_DB_MIGRATION_LOCK ${TEST_DB_URL}`);
       } finally {
-        await restoreLockTest(fetchStub, restore);
+        await restoreLockTest();
       }
     });
   });
@@ -117,6 +110,8 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
   describe("migration lock TTL", () => {
     test("fails fast when a concurrent migration holds the lock", async () => {
       const { fetchStub, restore } = stubNtfyFetch();
+      using _env = restore;
+      using _fetch = fetchStub;
       try {
         await setStaleSchemaAndLock(new Date());
         invalidateInitDbCache();
@@ -127,17 +122,17 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         expectNtfyNotification(fetchStub);
       } finally {
-        await restoreLockTest(fetchStub, restore);
+        await restoreLockTest();
       }
     });
 
     test("reclaims an expired lock so a stalled migration can complete", async () => {
-      const restore = setTestEnv({
-        LOCAL_STORAGE_PATH: undefined,
-        STORAGE_ZONE_KEY: undefined,
-        STORAGE_ZONE_NAME: undefined,
-      });
       try {
+        using _env = withEnv({
+          LOCAL_STORAGE_PATH: undefined,
+          STORAGE_ZONE_KEY: undefined,
+          STORAGE_ZONE_NAME: undefined,
+        });
         await setStaleSchemaAndLock(
           new Date(Date.now() - MIGRATION_LOCK_TTL_MS - 1000),
         );
@@ -150,7 +145,6 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         );
         expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
       } finally {
-        restore();
         await getDb().execute(
           "DELETE FROM settings WHERE key = 'migration_lock'",
         );
