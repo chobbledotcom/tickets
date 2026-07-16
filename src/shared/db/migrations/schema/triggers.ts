@@ -169,17 +169,14 @@ END`,
 
 const ANSWER_AGGREGATE_USES = {
   answers: ["times_selected"],
-  attendee_answers: ["answer_id"],
+  attendee_answers: ["answer_id", "string_id"],
+  strings: ["used_count"],
 } as const;
 
 /**
- * Answer aggregate triggers keep answers.times_selected in step with the
- * attendee_answers join table, the same way the listing and modifier triggers
- * maintain their aggregates. Each attendee_answers row is one selection, so the
- * count is COUNT(*) per answer_id. The UPDATE trigger is scoped to OF answer_id
- * — the only column whose change moves a selection between answers — and it
- * subtracts the OLD answer's contribution and adds the NEW answer's so a
- * reassigned row stays correct.
+ * Answer aggregate triggers keep choice and free-text usage counts in step with
+ * attendee_answers. Each row contributes to either answer_id or string_id. The
+ * UPDATE trigger subtracts the OLD contribution and adds the NEW one.
  *
  * Semantics mirror the previous COUNT(*) query over attendee_answers exactly.
  */
@@ -189,10 +186,10 @@ const ANSWER_AGGREGATE_TRIGGERS: Trigger[] = [
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_insert
 AFTER INSERT ON attendee_answers
 FOR EACH ROW
-WHEN NEW.answer_id IS NOT NULL
 BEGIN
   UPDATE answers SET times_selected = times_selected + 1
   WHERE id = NEW.answer_id;
+  UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
 END`,
     table: "attendee_answers",
     uses: ANSWER_AGGREGATE_USES,
@@ -202,10 +199,10 @@ END`,
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_delete
 AFTER DELETE ON attendee_answers
 FOR EACH ROW
-WHEN OLD.answer_id IS NOT NULL
 BEGIN
   UPDATE answers SET times_selected = times_selected - 1
   WHERE id = OLD.answer_id;
+  UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
 END`,
     table: "attendee_answers",
     uses: ANSWER_AGGREGATE_USES,
@@ -213,14 +210,15 @@ END`,
   {
     name: "trg_attendee_answers_aggregates_update",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_update
-AFTER UPDATE OF answer_id ON attendee_answers
+AFTER UPDATE OF answer_id, string_id ON attendee_answers
 FOR EACH ROW
-WHEN OLD.answer_id IS NOT NEW.answer_id
 BEGIN
   UPDATE answers SET times_selected = times_selected - 1
   WHERE id = OLD.answer_id;
   UPDATE answers SET times_selected = times_selected + 1
   WHERE id = NEW.answer_id;
+  UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
+  UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
 END`,
     table: "attendee_answers",
     uses: ANSWER_AGGREGATE_USES,
@@ -262,11 +260,6 @@ END`,
   },
 ];
 
-const STRING_AGGREGATE_USES = {
-  attendee_answers: ["string_id"],
-  strings: ["used_count"],
-} as const;
-
 const ATTENDEE_STATUS_VALIDATION_USES = {
   attendee_statuses: ["id"],
   attendees: ["status_id"],
@@ -301,43 +294,6 @@ END`,
   },
 ];
 
-const STRING_AGGREGATE_TRIGGERS: Trigger[] = [
-  {
-    name: "trg_attendee_answers_strings_insert",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_insert
-AFTER INSERT ON attendee_answers
-WHEN NEW.string_id IS NOT NULL
-BEGIN
-  UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
-END`,
-    table: "attendee_answers",
-    uses: STRING_AGGREGATE_USES,
-  },
-  {
-    name: "trg_attendee_answers_strings_delete",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_delete
-AFTER DELETE ON attendee_answers
-WHEN OLD.string_id IS NOT NULL
-BEGIN
-  UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
-END`,
-    table: "attendee_answers",
-    uses: STRING_AGGREGATE_USES,
-  },
-  {
-    name: "trg_attendee_answers_strings_update",
-    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_update
-AFTER UPDATE OF string_id ON attendee_answers
-WHEN OLD.string_id IS NOT NEW.string_id
-BEGIN
-  UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
-  UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
-END`,
-    table: "attendee_answers",
-    uses: STRING_AGGREGATE_USES,
-  },
-];
-
 /** Every declared aggregate and validation trigger. */
 export const TRIGGERS: Trigger[] = [
   ...ADMIN_FEATURE_TRIGGERS,
@@ -346,7 +302,6 @@ export const TRIGGERS: Trigger[] = [
   ...ANSWER_AGGREGATE_TRIGGERS,
   ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
   ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
-  ...STRING_AGGREGATE_TRIGGERS,
   ...CHECKOUT_STAGE_REVISION_TRIGGERS,
   ...CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS,
 ];

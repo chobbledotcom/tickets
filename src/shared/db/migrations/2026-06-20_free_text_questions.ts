@@ -17,9 +17,9 @@ export default schemaMigration(
     triggers: [
       "trg_attendee_answers_validate_insert",
       "trg_attendee_answers_validate_update",
-      "trg_attendee_answers_strings_insert",
-      "trg_attendee_answers_strings_delete",
-      "trg_attendee_answers_strings_update",
+      "trg_attendee_answers_aggregates_insert",
+      "trg_attendee_answers_aggregates_delete",
+      "trg_attendee_answers_aggregates_update",
     ],
   },
   async ({ getDb, recreateTable, syncTriggers }) => {

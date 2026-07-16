@@ -264,16 +264,6 @@ const sealFreshSchema = async (): Promise<void> => {
   ]);
 };
 
-const createCurrentSchema = async (): Promise<void> => {
-  await executeBatch(noArgStatements(fullSchemaCreateStatements()));
-  // executeMultiple preserves each compound trigger body while creating the
-  // complete trigger set in one database round trip.
-  await getDb().executeMultiple(
-    `${TRIGGERS.map((trigger) => trigger.sql).join(";\n")};`,
-  );
-  await sealFreshSchema();
-};
-
 /**
  * Initialize a brand-new database directly from the current declarative schema.
  *
@@ -284,7 +274,10 @@ const createCurrentSchema = async (): Promise<void> => {
  */
 const initializeFreshSchema = async (): Promise<void> => {
   logDebug("Migration", "Initializing fresh database from current schema");
-  await createCurrentSchema();
+  await applySchemaChanges();
+  await syncIndexes();
+  await syncTriggers();
+  await sealFreshSchema();
 };
 
 /**
@@ -306,7 +299,13 @@ const initializeFreshSchema = async (): Promise<void> => {
  */
 export const rebuildWipedSchema = async (): Promise<void> => {
   logDebug("Migration", "Rebuilding wiped database from current schema");
-  await createCurrentSchema();
+  await executeBatch(noArgStatements(fullSchemaCreateStatements()));
+  // executeMultiple accepts a SQL script, so it preserves each compound
+  // trigger body while rebuilding every trigger in one network round trip.
+  await getDb().executeMultiple(
+    `${TRIGGERS.map((trigger) => trigger.sql).join(";\n")};`,
+  );
+  await sealFreshSchema();
 };
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {
