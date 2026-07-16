@@ -2,11 +2,15 @@ import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { setDb } from "#shared/db/client.ts";
+import freeTextMigration from "#shared/db/migrations/2026-06-20_free_text_questions.ts";
 import {
   applySchemaChanges,
   recreateTable,
+  syncIndexes,
+  syncTriggers,
 } from "#shared/db/migrations/schema-sync.ts";
 import { resetDb } from "#test-utils/db.ts";
+import { buildMigrationContext } from "#test-utils/migrations.ts";
 import {
   cleanupTestDbPath,
   createTrackedTestDbFile,
@@ -24,6 +28,14 @@ describe("db > free-text migration constraint relaxation", () => {
   // second connection — so this uses a temp file rather than ":memory:" (each
   // ":memory:" connection is its own empty database; see test-utils/db.ts).
   let dbPath: string | undefined;
+  const migration = freeTextMigration(
+    buildMigrationContext({
+      applySchemaChanges,
+      recreateTable,
+      syncIndexes,
+      syncTriggers,
+    }),
+  );
 
   afterEach(async () => {
     resetDb();
@@ -74,12 +86,39 @@ describe("db > free-text migration constraint relaxation", () => {
     ).rejects.toThrow();
   });
 
+  test("declares every free-text schema object", () => {
+    expect({
+      description: migration.description,
+      id: migration.id,
+      requires: migration.requires,
+    }).toEqual({
+      description:
+        "Add free-text custom questions backed by an owner-key encrypted strings repository, with attendee answer references and string usage aggregates",
+      id: "2026-06-20_free_text_questions",
+      requires: {
+        columns: { attendee_answers: ["question_id", "string_id"] },
+        indexes: [
+          "idx_strings_text_index",
+          "idx_attendee_answers_question_id",
+          "idx_attendee_answers_string_id",
+          "idx_attendee_string_answers_unique",
+        ],
+        newTables: ["strings"],
+        triggers: [
+          "trg_attendee_answers_validate_insert",
+          "trg_attendee_answers_validate_update",
+          "trg_attendee_answers_aggregates_insert",
+          "trg_attendee_answers_aggregates_delete",
+          "trg_attendee_answers_aggregates_update",
+        ],
+      },
+    });
+  });
+
   test("rebuilding both tables accepts free-text questions and text answers", async () => {
     const db = await seedLegacyDb();
 
-    // The migration's fix: rebuild both constrained tables from the SCHEMA.
-    await recreateTable("attendee_answers");
-    await recreateTable("questions");
+    await migration.up();
 
     await db.execute(
       "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
