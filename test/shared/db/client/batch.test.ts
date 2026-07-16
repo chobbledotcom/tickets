@@ -2,7 +2,12 @@ import type { TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
-import { getDb, queryBatch, queryBatchPrimary } from "#shared/db/client.ts";
+import {
+  getDb,
+  queryBatch,
+  queryBatchPrimary,
+  withTransaction,
+} from "#shared/db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -42,6 +47,20 @@ describeWithEnv("db > client batch", { db: true }, () => {
     // "read" mode lets Turso serve the batch from a replica; anything else
     // would needlessly pin read-only batches to the primary.
     expect(await captureBatchModes(queryBatch)).toEqual(["read"]);
+  });
+
+  test("transaction batches commit string statements together", async () => {
+    await withTransaction(async (tx) => {
+      await tx.batch([
+        "CREATE TABLE transaction_batch_test (value TEXT NOT NULL)",
+        "INSERT INTO transaction_batch_test (value) VALUES ('saved')",
+      ]);
+    });
+
+    const result = await getDb().execute(
+      "SELECT value FROM transaction_batch_test",
+    );
+    expect(result.rows.map(({ value }) => String(value))).toEqual(["saved"]);
   });
 
   test("queryBatchPrimary runs its statements in write mode", async () => {

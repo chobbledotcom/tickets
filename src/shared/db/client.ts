@@ -527,8 +527,10 @@ export const executeBatch = async (
 };
 
 /** The slice of an open write transaction handed to a {@link withTransaction}
- *  callback: run statements with `execute`; commit/rollback are managed for you. */
+ *  callback: run statements singly or as one batch; commit/rollback are managed
+ *  for you. */
 export type TxScope = {
+  batch: (statements: InStatement[]) => Promise<ResultSet[]>;
   execute: (stmt: InStatement) => Promise<ResultSet>;
 };
 
@@ -550,6 +552,15 @@ const runWriteTransactionOnce = async <T>(
   const writtenSql: string[] = [];
   let statementCount = 0;
   const scope: TxScope = {
+    batch: (statements) => {
+      const sqls = statements.map((statement) =>
+        typeof statement === "string" ? statement : statement.sql,
+      );
+      writtenSql.push(...sqls);
+      statementCount += 1;
+      enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
+      return tx.batch(statements);
+    },
     execute: (stmt) => {
       const sql = typeof stmt === "string" ? stmt : stmt.sql;
       writtenSql.push(sql);

@@ -16,6 +16,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 const LISTINGS_TAG_MIGRATION_ID = "2026-07-03_attendee_listings_tag";
 const LISTINGS_TAG_REVISION =
   "Rewrite the {{listing}} attendee column-order tag to {{listings}} for the grouped Listings column.";
+const FREE_TEXT_MIGRATION_ID = "2026-06-20_free_text_questions";
 
 const MIGRATIONS = await loadMigrations();
 
@@ -30,6 +31,35 @@ const migrationsAfterListingsTag = (): Migration[] => {
 };
 
 describeWithEnv("migration request round-trip budget", { db: true }, () => {
+  test("records the free-text migration within one guarded request", async () => {
+    const migration = MIGRATIONS.find(
+      ({ id }) => id === FREE_TEXT_MIGRATION_ID,
+    );
+    if (!migration) {
+      throw new Error(`Missing migration ${FREE_TEXT_MIGRATION_ID}`);
+    }
+    await restoreSchemaBeforeMigrations([migration]);
+    await executeBatch([
+      {
+        args: [migration.id],
+        sql: "DELETE FROM schema_migrations WHERE id = ?",
+      },
+      {
+        args: [],
+        sql: "UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')",
+      },
+    ]);
+    invalidateInitDbCache();
+
+    await runWithQueryLogContext(() => initDb());
+
+    const marker = await getDb().execute({
+      args: [migration.id],
+      sql: "SELECT id FROM schema_migrations WHERE id = ?",
+    });
+    expect(marker.rows.map((row) => String(row.id))).toEqual([migration.id]);
+  });
+
   test("upgrades the listings-tag revision within guarded edge requests", async () => {
     const pending = migrationsAfterListingsTag();
     const pendingIds = pending.map((migration) => migration.id);
