@@ -17,6 +17,7 @@ import {
   createTestManagerSession,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -176,6 +177,30 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("/admin/listing/1/edit");
       expect(html).toContain(">Edit<");
+    });
+
+    test("hides Attributes and Questions tabs while their features are disabled", async () => {
+      const { listing } = await setupListingAndLogin({
+        name: "Simple listing",
+      });
+      const html = await (
+        await adminGet(`/admin/listing/${listing.id}`)
+      ).text();
+      expect(html).not.toContain(`/admin/listing/${listing.id}/attributes`);
+      expect(html).not.toContain(`/admin/listing/${listing.id}/questions`);
+    });
+
+    test("shows Attributes and Questions tabs when their features are enabled", async () => {
+      const { listing } = await setupListingAndLogin({
+        name: "Detailed listing",
+      });
+      await enableFeature("attributes");
+      await enableFeature("questions");
+      const html = await (
+        await adminGet(`/admin/listing/${listing.id}`)
+      ).text();
+      expect(html).toContain(`/admin/listing/${listing.id}/attributes`);
+      expect(html).toContain(`/admin/listing/${listing.id}/questions`);
     });
   });
 });

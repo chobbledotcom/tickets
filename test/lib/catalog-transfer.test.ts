@@ -20,6 +20,7 @@ import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 /** Unwrap a successful export, failing if it returned null or an
  * (unexpected-in-these-tests) {@link CatalogExportError}. */
@@ -542,7 +543,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
   });
 
   test("keeps uses-logistics when logistics is enabled", async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     const result = await importCatalog({
       kind: "listing",
       listing: { maxAttendees: 1, name: "Logi On", usesLogistics: true },

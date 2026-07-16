@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { settings } from "#shared/db/settings.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 describeWithEnv("integration: theme settings", { db: true }, () => {
   test("default theme is light", async () => {
@@ -33,7 +33,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
   });
 
   test("dark theme is reflected on public pages", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await adminFormPost("/admin/settings/theme", { theme: "dark" });
 
     const response = await handleRequest(mockRequest("/"));
@@ -68,7 +68,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
   });
 
   test("underline links setting is reflected on public pages", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await adminFormPost("/admin/settings/theme", {
       theme: "light",
       underline_links: "true",

@@ -11,6 +11,7 @@ import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { Badge, statusBadge } from "#templates/components/badge.tsx";
+import { TitledArticle } from "#templates/components/page-structure.tsx";
 /* jscpd:ignore-end */
 
 export type DebugPageState = {
@@ -153,14 +154,13 @@ const DebugSection = ({
   title: string;
   rows: readonly RowSpec[];
 }): JSX.Element => (
-  <article>
-    <h2>{title}</h2>
+  <TitledArticle title={title}>
     <div class="table-scroll">
       <table>
         <tbody>{renderRows(rows)}</tbody>
       </table>
     </div>
-  </article>
+  </TitledArticle>
 );
 
 /** A debug section that opens with a prose intro (h2 + paragraph) before the

@@ -19,7 +19,11 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage as makePage } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { useSetting, withSetting } from "#test-utils/settings.ts";
+import {
+  featureSetting,
+  useSetting,
+  withSetting,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("server (public site pages)", { db: true }, () => {
   describe("gate + resolution", () => {
@@ -32,13 +36,13 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
     });
 
     test("404s an unknown slug", () =>
-      withSetting({ show_public_site: true }, async () => {
+      withSetting(featureSetting("site"), async () => {
         expectStatus(404)(await handleRequest(mockRequest("/page/no-such")));
       }));
   });
 
   describe("page rendering", () => {
-    useSetting({ show_public_site: true });
+    useSetting(featureSetting("site"));
 
     test("renders the name, markdown content, and SEO meta", async () => {
       await makePage("about-us", {
@@ -171,7 +175,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
   });
 
   describe("recursive nav", () => {
-    useSetting({ show_public_site: true });
+    useSetting(featureSetting("site"));
 
     test("nav flags follow their settings: no contact/terms/order when unset", () =>
       // The test env's contact form is active (business email set), so switch

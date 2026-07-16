@@ -78,6 +78,9 @@ const seedCatalogue = async (): Promise<void> => {
 const prepareDatabase = async (): Promise<void> => {
   // Dynamic imports: nothing may read the environment before main sets it.
   const { createClient } = await import("@libsql/client");
+  const { setAdminFeatureEnabled } = await import(
+    "#shared/db/admin-features.ts"
+  );
   const { setDb } = await import("#shared/db/client.ts");
   const { initDb } = await import("#shared/db/migrations.ts");
   const { settings } = await import("#shared/db/settings.ts");
@@ -99,7 +102,7 @@ const prepareDatabase = async (): Promise<void> => {
   setDb(createClient({ url: requiredEnv("DB_URL") }));
   await initDb({ allowMissingSettings: true });
   await settings.setup.complete("benchadmin", "bench-password-123", "GB");
-  await settings.update.showPublicSite(true);
+  await setAdminFeatureEnabled("site", true);
   await seedCatalogue();
 
   // Stamp the markers as an earlier isolate of this deploy would have.

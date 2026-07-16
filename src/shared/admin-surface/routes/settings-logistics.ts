@@ -28,10 +28,4 @@ export const routes = [
     "GET",
     "/admin/logistics/:id/edit",
   ),
-  route(
-    "postLogisticsHasLogistics",
-    "settingsLogistics",
-    "POST",
-    "/admin/logistics/has-logistics",
-  ),
 ] as const;

@@ -2,6 +2,11 @@
 
 import type { Trigger } from "./types.ts";
 
+const CHECKOUT_STAGE_REVISION_USES = {
+  checkout_stage_revisions: ["id", "revision"],
+  checkout_stages: [],
+} as const;
+
 const revisionTrigger = (action: "INSERT" | "UPDATE" | "DELETE"): Trigger => {
   const name = `trg_checkout_stages_revision_${action.toLowerCase()}`;
   return {
@@ -14,6 +19,7 @@ BEGIN
   ON CONFLICT(id) DO UPDATE SET revision = revision + 1;
 END`,
     table: "checkout_stages",
+    uses: CHECKOUT_STAGE_REVISION_USES,
   };
 };
 

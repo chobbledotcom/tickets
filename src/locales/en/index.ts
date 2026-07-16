@@ -30,6 +30,7 @@ import deliveries from "./deliveries.json" with { type: "json" };
 import detailRows from "./detail-rows.json" with { type: "json" };
 import entityPages from "./entity-pages.json" with { type: "json" };
 import errors from "./errors.json" with { type: "json" };
+import features from "./features.json" with { type: "json" };
 import fields from "./fields.json" with { type: "json" };
 import groups from "./groups.json" with { type: "json" };
 import holidays from "./holidays.json" with { type: "json" };
@@ -82,6 +83,7 @@ const en: Record<string, string> = {
   ...entityPages,
   ...errors,
   ...fields,
+  ...features,
   ...groups,
   ...holidays,
   ...images,

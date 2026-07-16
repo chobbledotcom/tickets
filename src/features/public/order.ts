@@ -50,6 +50,7 @@ import {
 } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { settings } from "#shared/db/settings.ts";
+import { isPublicListing } from "#shared/listing-visibility.ts";
 import { evaluateOrder } from "#shared/order/evaluate.ts";
 import {
   listingOption,
@@ -78,12 +79,9 @@ import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /* jscpd:ignore-end */
 
-/** Active, visible listings are the items offered on the order page. */
-const isOrderListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
-
 /** Load the bookable listings for the order page, in the standard sorted order. */
 const loadOrderListings = async (): Promise<ListingWithCount[]> =>
-  (await loadSortedListings(isOrderListing)).listings;
+  (await loadSortedListings(isPublicListing)).listings;
 
 /**
  * Guard: the order page is available only when the public site is on and the
@@ -92,7 +90,7 @@ const loadOrderListings = async (): Promise<ListingWithCount[]> =>
  * public pages do) and 404ing when only the order page is disabled.
  */
 const orderUnavailable = (): Response | null => {
-  if (!settings.showPublicSite) return redirectResponse("/admin/login");
+  if (!settings.features.site) return redirectResponse("/admin/login");
   if (!settings.orderEnabled) return notFoundResponse();
   return null;
 };

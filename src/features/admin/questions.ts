@@ -179,8 +179,9 @@ const handleQuestionsPost = createAuthedFormRoute({
   form: questionTextForm,
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { display_type, text } }) => {
+    const displayType = requireQuestionDisplayType(display_type);
     const question = await questionsTable.insert({
-      displayType: requireQuestionDisplayType(display_type),
+      displayType,
       text,
     });
     await assignNextQuestionSortOrder(question.id);
@@ -556,6 +557,7 @@ const handleMoveQuestionUp = moveQuestionHandler("up");
 const handleMoveQuestionDown = moveQuestionHandler("down");
 
 const handleListingQuestionsPost = createListingChoicePost({
+  feature: "questions",
   fieldName: "question_ids",
   label: "Questions",
   noun: "question",

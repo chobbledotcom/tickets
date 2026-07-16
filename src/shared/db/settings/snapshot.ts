@@ -59,14 +59,12 @@ type SpecificFields = {
   country: string;
   theme: Theme;
   underline_links: boolean;
-  show_public_site: boolean;
   show_public_api: boolean;
   external_order_enabled: boolean;
   calendar_feeds_enabled: boolean;
   calendar_feeds_group_by: string;
   contact_form_enabled: boolean;
   order_enabled: boolean;
-  has_logistics: boolean;
   payment_provider: PaymentProviderType | null;
   payment_provider_setting: PaymentProviderSetting | null;
   booking_fee: string;
@@ -92,14 +90,12 @@ export const data: SettingsData = {
   country: DEFAULT_COUNTRY,
   currency: "GBP",
   external_order_enabled: false,
-  has_logistics: false,
   order_enabled: false,
   orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
   payment_provider: null,
   payment_provider_setting: null,
   phone_prefix: "+44",
   show_public_api: false,
-  show_public_site: false,
   square_sandbox: false,
   theme: "light",
   timezone: DEFAULT_TIMEZONE,

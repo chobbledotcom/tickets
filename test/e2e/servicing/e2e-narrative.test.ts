@@ -14,12 +14,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
 import { useE2eBrowser } from "#test-utils/e2e.ts";
 import {
   findServicingLink,
   setupBrowserWithHold,
 } from "#test-utils/servicing.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -88,7 +88,7 @@ describe("e2e: servicing — narrative scenarios", () => {
     await browser.visit("/admin/");
     expect(browser.containsText("Boiler Service")).toBe(true);
     expect(browser.currentHtml).toMatch(/\/admin\/servicing\/\d+/);
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await browser.visit("/");
     expect(browser.containsText("Boiler Service")).toBe(false);
   });

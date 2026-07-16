@@ -19,6 +19,7 @@ import {
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Fetch a feed URL and return the body text */
 const fetchFeedBody = async (feedPath: string): Promise<string> => {
@@ -28,7 +29,7 @@ const fetchFeedBody = async (feedPath: string): Promise<string> => {
 
 /** Assert a deactivated listing is excluded from a feed */
 const expectExcludesInactive = async (feedPath: string, absentTag: string) => {
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   const listing = await createTestListing({
     maxAttendees: 100,
     name: "Hidden",
@@ -44,7 +45,7 @@ const expectExcludesClosedRegistration = async (
   feedPath: string,
   absentTag: string,
 ) => {
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   await createTestListing({
     closesAt: pastCloseTime(),
     maxAttendees: 100,
@@ -57,7 +58,7 @@ const expectExcludesClosedRegistration = async (
 
 const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
   test("excludes hidden listings", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await createTestListing({
       hidden: true,
       maxAttendees: 100,
@@ -69,7 +70,7 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
   });
 
   test("excludes purchase_only listings", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await createTestListing({
       maxAttendees: 100,
       name: "Raffle Tickets",
@@ -81,7 +82,7 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
   });
 
   test("syndicates a hidden package's bundle, never its members", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     const group = await createHiddenPackageGroup("Bundle");
     await createTestListing({
       groupId: group.id,
@@ -97,7 +98,7 @@ const feedExclusionTests = (feedPath: string, emptyMarker: string) => {
   });
 
   test("omits an unbookable package from the feed", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     const group = await createTestGroup({
       isPackage: true,
       name: "Gone Bundle",
@@ -140,7 +141,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns text/calendar content type", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
@@ -149,7 +150,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns valid VCALENDAR wrapper with no listings", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
       expect(body).toContain("BEGIN:VCALENDAR");
@@ -160,7 +161,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("uses website title as calendar name", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await settings.update.websiteTitle("My Listings");
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
@@ -168,14 +169,14 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("defaults calendar name to Listings when no title set", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.ics"));
       const body = await response.text();
       expect(body).toContain("X-WR-CALNAME:Listings");
     });
 
     test("includes VLISTING for active listings", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const listing = await createTestListing({
         maxAttendees: 100,
         name: "Concert",
@@ -189,7 +190,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes UID and DTSTAMP", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Show",
@@ -201,7 +202,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes DTSTART when listing has a date", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         date: "2026-06-15T14:00",
         maxAttendees: 100,
@@ -213,7 +214,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes DESCRIPTION when listing has a description", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         description: "A great listing",
         maxAttendees: 100,
@@ -225,7 +226,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes LOCATION when listing has a location", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         location: "Town Hall",
         maxAttendees: 100,
@@ -250,7 +251,7 @@ describeWithEnv("feeds", { db: true }, () => {
     feedExclusionTests("/feeds/listings.ics", "BEGIN:VLISTING");
 
     test("escapes special characters in listing fields", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         description: "Fun, games; and more",
         location: "Hall A, Floor 2",
@@ -273,7 +274,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns application/rss+xml content type", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
@@ -282,7 +283,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("returns valid RSS wrapper with no listings", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain('<?xml version="1.0"');
@@ -294,7 +295,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("uses website title in channel", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await settings.update.websiteTitle("My Listings");
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
@@ -305,14 +306,14 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("defaults title to Listings when no title set", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/feeds/listings.rss"));
       const body = await response.text();
       expect(body).toContain("<title>Listings</title>");
     });
 
     test("includes items for active listings", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const listing = await createTestListing({
         maxAttendees: 100,
         name: "Concert",
@@ -327,7 +328,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes guid as permalink", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Show",
@@ -339,7 +340,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes description when listing has one", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         description: "A great listing",
         maxAttendees: 100,
@@ -351,7 +352,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes date in description when listing has a date", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         date: "2026-06-15T14:00",
         maxAttendees: 100,
@@ -364,7 +365,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes location in description when listing has a location", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         location: "Town Hall",
         maxAttendees: 100,
@@ -376,7 +377,7 @@ describeWithEnv("feeds", { db: true }, () => {
     });
 
     test("includes description, date, and location together", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         date: "2026-06-15T14:00",
         description: "A great listing",
@@ -402,7 +403,7 @@ describeWithEnv("feeds", { db: true }, () => {
     feedExclusionTests("/feeds/listings.rss", "<item>");
 
     test("XML-escapes special characters", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       await createTestListing({
         description: 'He said "hello" & goodbye',
         maxAttendees: 100,

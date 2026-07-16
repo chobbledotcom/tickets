@@ -340,6 +340,7 @@ const moveAttributeHandler = (dir: "up" | "down") =>
   });
 
 const handleListingAttributesPost = createListingChoicePost({
+  feature: "attributes",
   fieldName: "option_ids",
   label: "Attributes",
   noun: "option",

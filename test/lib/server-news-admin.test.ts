@@ -13,6 +13,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 const BASE = "/admin/site/news";
 
@@ -62,6 +63,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     });
 
     test("the Site sub-nav carries the News tab", async () => {
+      await enablePublicSite();
       const html = await expectHtmlResponse(await adminGet(BASE), 200);
       expect(html).toContain('href="/admin/site/news"');
       expect(html).toContain('href="/admin/site/pages"');
