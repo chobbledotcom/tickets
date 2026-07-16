@@ -17,6 +17,7 @@ import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectRefundReferences } from "#test-utils/payment-references.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
@@ -248,7 +249,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
       const row = (await isSessionProcessed("sess_heal_reference"))!;
       expect(row.attendee_id).toBe(42);
-      expect(row.payment_reference).not.toBe("");
+      await expectRefundReferences(42, ["pi_heal_reference"]);
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import {
   backfillDropColumnMigration,
   schemaMigration,
@@ -55,14 +56,35 @@ describeWithEnv("db > migration definitions", { db: true }, () => {
   });
 
   test("does not backfill or rebuild when the dropped column is already absent", async () => {
+    let columnChecks = 0;
+    let backfills = 0;
+    let rebuilds = 0;
     const migration = backfillDropColumnMigration(
       "test",
       "attendees",
       "missing_column",
       "Test migration",
-      () => Promise.reject(new Error("unexpected backfill")),
-    )(buildMigrationContext());
+      () => {
+        backfills += 1;
+        return Promise.resolve();
+      },
+    )(
+      buildMigrationContext({
+        getDb: () => {
+          columnChecks += 1;
+          return getDb();
+        },
+        recreateTable: () => {
+          rebuilds += 1;
+          return Promise.resolve();
+        },
+      }),
+    );
 
     await migration.up();
+
+    expect(columnChecks).toBe(1);
+    expect(backfills).toBe(0);
+    expect(rebuilds).toBe(0);
   });
 });
