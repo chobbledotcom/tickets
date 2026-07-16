@@ -930,8 +930,12 @@ src/shared/dates.ts:432:30  1 → 0    # bookedRangeLabel's `fallbackDurationDay
 
 # Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
 # from the routeAdmin/adminPathSegment run over the manifest + footer suites.
-src/features/admin/index.ts:107:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
-src/features/admin/index.ts:126:43  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
+src/features/admin/index.ts:28:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/features/admin/index.ts:45:43  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
+
+# App prefix dispatch (app/routes.ts) — two provably-equivalent survivors.
+src/features/app/routes.ts:239:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
+src/features/app/routes.ts:444:59  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
 
 # Logger (logger.ts) — two provably-equivalent survivors from the run over the
 # logger suites.

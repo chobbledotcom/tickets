@@ -60,6 +60,18 @@ describeWithEnv("route message loading", { db: true }, () => {
       );
     }));
 
+  test("a disabled contact page rejects before loading contact copy", () =>
+    withColdMessages(async () => {
+      const { handleRequest } = await import("#routes");
+
+      const response = await handleRequest(mockRequest("/contact"));
+
+      expect(response.status).toBe(302);
+      expect(() => t("public.contact_email_label")).toThrow(
+        'Missing translation for key "public.contact_email_label"',
+      );
+    }));
+
   test("an enabled public page loads public copy but not admin copy", () =>
     withColdMessages(async () => {
       await enablePublicSite();
