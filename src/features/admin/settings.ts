@@ -19,6 +19,10 @@ import {
   handleEmailTemplatePreviewPost,
 } from "#routes/admin/settings-email-templates.ts";
 import {
+  handleFeatureGet,
+  handleFeaturePost,
+} from "#routes/admin/settings-features.ts";
+import {
   handleAttendeeColumnOrderPost,
   handleBookingFeePost,
   handleBusinessEmailPost,
@@ -30,7 +34,6 @@ import {
   handlePaymentProviderPost,
   handleResetDatabasePost,
   handleShowPublicApiPost,
-  handleShowPublicSitePost,
   handleTermsPost,
   handleThemePost,
 } from "#routes/admin/settings-general.ts";
@@ -62,9 +65,11 @@ import {
 
 /** Settings routes */
 export const adminHandlers = handlersFor("settings")({
+  getFeaturesBySlug: handleFeatureGet,
   getListingDefaults: handleListingDefaultsGet,
   getSettings: handleAdminSettingsGet,
   getSettingsAdvanced: handleAdminSettingsAdvancedGet,
+  postFeaturesBySlug: handleFeaturePost,
   postListingDefaults: handleListingDefaultsPost,
   postSettings: handleAdminSettingsPost,
   postSettingsAddressLookup: handleAddressLookupPost,
@@ -92,7 +97,6 @@ export const adminHandlers = handlersFor("settings")({
   postSettingsPaymentProvider: handlePaymentProviderPost,
   postSettingsResetDatabase: handleResetDatabasePost,
   postSettingsShowPublicApi: handleShowPublicApiPost,
-  postSettingsShowPublicSite: handleShowPublicSitePost,
   postSettingsSmsGateway: handleSmsGatewayPost,
   postSettingsSquare: squareRoutes.save,
   postSettingsSquareTest: squareRoutes.test,

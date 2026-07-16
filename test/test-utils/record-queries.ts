@@ -3,9 +3,17 @@ import { getDb, setDb } from "#shared/db/client.ts";
 import { wrapExecute } from "#shared/db/libsql-call.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 
+type BatchStatement = Parameters<ReturnType<typeof getDb>["batch"]>[0][number];
+
 /** The SQL text of a statement in either InStatement form. */
-export const statementSql = (statement: InStatement | string): string =>
-  typeof statement === "string" ? statement : statement.sql;
+export const statementSql = (
+  statement: BatchStatement | InStatement | string,
+): string =>
+  Array.isArray(statement)
+    ? statement[0]
+    : typeof statement === "string"
+      ? statement
+      : statement.sql;
 
 export type DbCallHooks = {
   /** Take over the statement by returning a promise, or null to forward. */

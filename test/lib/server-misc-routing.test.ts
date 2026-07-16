@@ -15,6 +15,7 @@ import {
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { runWithRequestId } from "#shared/logger.ts";
@@ -36,6 +37,7 @@ import {
 } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { testCookie } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 describeWithEnv("server (misc: security and routing)", { db: true }, () => {
   const getTicketPageResponse = getEmbeddableTicketResponse;
@@ -707,12 +709,12 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
 
   describe("routes/index.ts (routeMainApp null fallback)", () => {
     test("redirects legacy /events only when the public site is enabled", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const enabled = await handleRequest(mockRequest("/events"));
       expect(enabled.status).toBe(302);
       expect(enabled.headers.get("location")).toBe("/listings");
 
-      await settings.update.showPublicSite(false);
+      await setAdminFeatureEnabled("site", false);
       const disabled = await handleRequest(mockRequest("/events"));
       expect(disabled.status).toBe(404);
     });

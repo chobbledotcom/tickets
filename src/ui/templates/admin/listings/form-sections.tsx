@@ -53,7 +53,7 @@ export const listingFieldsFor = (
     session,
     opts.nameAutofocus ? fieldsWithNameFocus() : getListingFields(),
   ),
-  ...(settings.hasLogistics ? [logisticsField] : []),
+  ...(settings.features.logistics ? [logisticsField] : []),
   ...(isBuilderEnabled()
     ? [
         getMonthsPerUnitField(),

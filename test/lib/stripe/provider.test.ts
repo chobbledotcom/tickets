@@ -15,7 +15,7 @@ import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { setStripeCredentials } from "#test-utils/settings.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 import { lineFor, stripeClient } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
@@ -288,7 +288,7 @@ describeStripe("stripe-provider", () => {
   describe("verifyWebhookSignature delegation", () => {
     test("delegates to stripe.ts verifyWebhookSignature", async () => {
       const TEST_SECRET = "whsec_provider_verify_test";
-      await setStripeCredentials(TEST_SECRET, "we_provider_test");
+      await activateStripe(TEST_SECRET, "we_provider_test");
 
       const listing: StripeWebhookEvent = {
         data: { object: { id: "cs_test" } },
@@ -315,7 +315,7 @@ describeStripe("stripe-provider", () => {
 
     test("returns error for invalid signature", async () => {
       const TEST_SECRET = "whsec_provider_invalid_test";
-      await setStripeCredentials(TEST_SECRET, "we_provider_inv");
+      await activateStripe(TEST_SECRET, "we_provider_inv");
 
       const timestamp = Math.floor(Date.now() / 1000);
       const body = '{"test": true}';

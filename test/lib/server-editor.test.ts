@@ -31,6 +31,7 @@ import {
   createTestManagerSession,
   getTestSession,
 } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** GET `path` with the given session cookie. */
 const getAs = (path: string, cookie: string): Promise<Response> =>
@@ -409,6 +410,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
     });
 
     test("nav shows only the editor's reachable sections", async () => {
+      await enablePublicSite();
       const { cookie } = await createTestEditorSession();
       const html = await (await getAs("/admin/listings", cookie)).text();
 

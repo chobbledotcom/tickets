@@ -150,8 +150,6 @@
   "success.business_email_cleared": "Business email cleared",
   "success.business_email_updated": "Business email updated",
   "success.theme_updated": "Theme updated to {theme}",
-  "success.public_site_enabled": "Public site enabled",
-  "success.public_site_disabled": "Public site disabled",
   "success.public_api_enabled": "Public API enabled",
   "success.public_api_disabled": "Public API disabled",
   "success.booking_fee_updated": "Booking fee updated to {fee}%",

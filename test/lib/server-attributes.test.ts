@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import {
   getAllAttributesWithOptions,
   getAttributeWithOptions,
@@ -27,6 +28,11 @@ import {
   adminGet,
   getTestSession,
 } from "#test-utils/session.ts";
+import {
+  enableFeature,
+  storedFeatureEnabled,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 
 const postRepeatedOptions = async (
   path: string,
@@ -93,6 +99,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
 
     test("creates an attribute and redirects to its detail page", async () => {
       const id = await createAttributeViaRoute("Difficulty");
+      expect(await storedFeatureEnabled("attributes")).toBe(true);
 
       await expectHtmlResponse(
         await adminGet(`/admin/attributes/${id}`),
@@ -100,6 +107,23 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "Difficulty",
         "No options yet.",
       );
+    });
+
+    test("does not enable Attributes for an invalid create", async () => {
+      await setAdminFeatureEnabled("attributes", false);
+      const { response } = await adminFormPost("/admin/attributes");
+      response.body?.cancel();
+      expect(await storedFeatureEnabled("attributes")).toBe(false);
+    });
+
+    test("does not create an attribute when enabling the feature fails", async () => {
+      await enableFeature("attributes");
+      await expect(
+        withFeatureWriteFailure(async () => {
+          await adminFormPost("/admin/attributes", { name: "Hidden" });
+        }),
+      ).rejects.toThrow("feature enable failed");
+      expect(await getAllAttributesWithOptions()).toEqual([]);
     });
 
     test("redirects invalid attribute forms back to the right page", async () => {
@@ -134,6 +158,21 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
         "Attribute updated",
       )(response);
       expect((await getAttributeWithOptions(id))?.name).toBe("New name");
+    });
+
+    test("does not update an attribute when enabling the feature fails", async () => {
+      const attribute = await createTestAttributeWithOptions("Before", []);
+      await enableFeature("attributes");
+      await expect(
+        withFeatureWriteFailure(async () => {
+          await adminFormPost(`/admin/attributes/${attribute.id}/edit`, {
+            name: "After",
+          });
+        }),
+      ).rejects.toThrow("feature enable failed");
+      expect((await getAttributeWithOptions(attribute.id))?.name).toBe(
+        "Before",
+      );
     });
 
     test("returns 404 when changing a missing attribute", async () => {
@@ -310,6 +349,8 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
   });
 
   describe("listing attributes tab", () => {
+    beforeEach(() => enableFeature("attributes"));
+
     testRequiresAuth("/admin/listing/1/attributes", {
       setup: async () => {
         await createTestListing({ name: "Auth listing" });
@@ -329,6 +370,21 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
       expectStatus(404)(
         await postRepeatedOptions("/admin/listing/999999/attributes", [1]),
       );
+    });
+
+    test("returns 404 without changing choices when Attributes is disabled", async () => {
+      const listing = await createTestListing({ name: "Hidden attributes" });
+      await setAdminFeatureEnabled("attributes", false);
+      expectStatus(404)(
+        await adminGet(`/admin/listing/${listing.id}/attributes`),
+      );
+      expectStatus(404)(
+        await postRepeatedOptions(
+          `/admin/listing/${listing.id}/attributes`,
+          [1],
+        ),
+      );
+      expect(await listingAttributeOptions.getIds(listing.id)).toEqual([]);
     });
 
     test("shows the empty state when no attributes exist", async () => {

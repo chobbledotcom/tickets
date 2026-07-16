@@ -10,6 +10,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -17,7 +18,7 @@ const recordPublicPage = async (
   path: string,
   names: string[],
 ): Promise<string[]> => {
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   groups.cache.invalidate();
   invalidateListingsCache();
   const seen: string[] = [];

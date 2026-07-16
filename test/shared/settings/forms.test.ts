@@ -34,17 +34,6 @@ const EXPECTED_FORM_ROWS = [
     "businessEmail",
   ],
   [
-    "showPublicSite",
-    "main",
-    "SHOW_PUBLIC_SITE",
-    "boolean",
-    "/admin/settings/show-public-site",
-    "settings-show-public-site",
-    "show_public_site",
-    "Public site",
-    "showPublicSite",
-  ],
-  [
     "terms",
     "main",
     "TERMS_AND_CONDITIONS",

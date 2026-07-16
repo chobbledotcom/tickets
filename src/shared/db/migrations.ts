@@ -205,6 +205,17 @@ const ensureDefaultAttendeeStatus = async (): Promise<void> => {
   await seedDefaultStatus();
 };
 
+const schemaMarkerStatements = (): SqlStatement[] => [
+  {
+    args: [LATEST_UPDATE],
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+  },
+  {
+    args: [SCHEMA_HASH],
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+  },
+];
+
 const migrationContext: MigrationContext = {
   additive,
   applySchemaChanges,
@@ -243,8 +254,14 @@ export const loadMigrations = once(async (): Promise<Migration[]> => {
  *  the restore rebuild. */
 const sealFreshSchema = async (): Promise<void> => {
   await ensureDefaultAttendeeStatus();
-  await writeSchemaMarkers();
-  await markMigrationsApplied(await loadMigrations());
+  const migrations = await loadMigrations();
+  const appliedAt = nowIso();
+  await executeBatch([
+    ...schemaMarkerStatements(),
+    ...migrations.map((migration) =>
+      migrationMarkerStatement(migration, appliedAt),
+    ),
+  ]);
 };
 
 /**
@@ -328,7 +345,6 @@ const markMigrationApplied = async (migration: Migration): Promise<void> => {
 const markMigrationsApplied = async (
   migrations: Migration[],
 ): Promise<void> => {
-  await ensureMigrationTrackingTable();
   const appliedAt = nowIso();
   await getDb().batch(
     migrations.map((migration) =>
@@ -339,14 +355,7 @@ const markMigrationsApplied = async (
 };
 
 const writeSchemaMarkers = async (): Promise<void> => {
-  await getDb().execute({
-    args: [LATEST_UPDATE],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
-  });
-  await getDb().execute({
-    args: [SCHEMA_HASH],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
-  });
+  await executeBatch(schemaMarkerStatements());
 };
 
 /** The migrations whose ids are not yet recorded as applied, in run order.

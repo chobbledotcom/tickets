@@ -392,7 +392,7 @@ const legacyEventsRedirectHandler: RouterFn = async (
   reqPath,
   method,
 ) => {
-  if (reqPath !== "/events" || method !== "GET" || !settings.showPublicSite) {
+  if (reqPath !== "/events" || method !== "GET" || !settings.features.site) {
     return null;
   }
   return redirectResponse("/listings");

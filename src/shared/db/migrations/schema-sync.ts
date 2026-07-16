@@ -14,7 +14,7 @@ import {
   ticketCountPredicateFor,
 } from "./schema/listing-aggregates.ts";
 import { TRIGGERS } from "./schema/triggers.ts";
-import type { Column, Index, Table } from "./schema/types.ts";
+import type { Column, Index, Table, Trigger } from "./schema/types.ts";
 import {
   assertColumnsPresent,
   assertLiveTableColumns,
@@ -201,47 +201,13 @@ export const rebuildTableWithColumns = async (
   await executeBatch(noArgStatements(rebuildStatements(params)));
 };
 
-const LISTING_AGGREGATE_TRIGGER_DEPENDENCIES = [
-  "attendees",
-  "listings",
-  "listing_attendees",
-] as const;
-
-const LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES = [
-  ["attendees", ["kind"]],
-  ["listings", ["booked_quantity", "tickets_count"]],
-  ["listing_attendees", ["attendee_id", "listing_id", "quantity"]],
-] as const;
-
-const isListingAggregateTrigger = (triggerName: string): boolean =>
-  triggerName.startsWith("trg_listing_attendees_aggregates_");
-
-const triggerDependencies = (triggerName: string, table: string): string[] =>
-  isListingAggregateTrigger(triggerName)
-    ? [...LISTING_AGGREGATE_TRIGGER_DEPENDENCIES]
-    : [table];
-
-const triggerColumnDependencies = (
-  triggerName: string,
-  table: string,
-): readonly (readonly [string, readonly string[]])[] =>
-  isListingAggregateTrigger(triggerName)
-    ? LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES
-    : [[table, []]];
-
 const requiredTriggerColumns = (
-  triggerName: string,
-  table: string,
+  trigger: Trigger,
   dependency: string,
-): readonly string[] =>
-  triggerColumnDependencies(triggerName, table).find(
-    ([dependencyTable]) => dependencyTable === dependency,
-  )![1];
+): readonly string[] => trigger.uses[dependency]!;
 
 const triggersDependingOn = (tableName: string) =>
-  TRIGGERS.filter((trigger) =>
-    triggerDependencies(trigger.name, trigger.table).includes(tableName),
-  );
+  TRIGGERS.filter((trigger) => tableName in trigger.uses);
 
 const liveColumnsForTriggerDependency = (
   dependency: string,
@@ -253,12 +219,11 @@ const liveColumnsForTriggerDependency = (
     : liveTables.get(dependency);
 
 const canCreateTrigger = (
-  triggerName: string,
-  table: string,
+  trigger: Trigger,
   liveTables: LiveTables,
   rebuildingTable?: string,
 ): boolean =>
-  triggerDependencies(triggerName, table).every((dependency) => {
+  Object.keys(trigger.uses).every((dependency) => {
     const columns = liveColumnsForTriggerDependency(
       dependency,
       liveTables,
@@ -266,7 +231,7 @@ const canCreateTrigger = (
     );
     return (
       columns !== undefined &&
-      requiredTriggerColumns(triggerName, table, dependency).every((column) =>
+      requiredTriggerColumns(trigger, dependency).every((column) =>
         columns.has(column),
       )
     );
@@ -327,7 +292,7 @@ export const recreateTable = async (tableName: string): Promise<void> => {
     ...TRIGGERS.filter(
       (trg) =>
         (trg.table === tableName || liveDependentTriggerNames.has(trg.name)) &&
-        canCreateTrigger(trg.name, trg.table, live.tables, tableName),
+        canCreateTrigger(trg, live.tables, tableName),
     ).map((trg) => trg.sql),
   ];
   await withTransaction(async (tx) => {
@@ -548,10 +513,7 @@ export const syncTriggers: () => Promise<void> = fromLiveSchema(
   async (live) => {
     const declaredNames = new Set(TRIGGERS.map((t) => t.name));
     for (const trg of TRIGGERS) {
-      if (
-        !live.triggers.has(trg.name) &&
-        canCreateTrigger(trg.name, trg.table, live.tables)
-      ) {
+      if (!live.triggers.has(trg.name) && canCreateTrigger(trg, live.tables)) {
         await runMigration(trg.sql);
       }
     }

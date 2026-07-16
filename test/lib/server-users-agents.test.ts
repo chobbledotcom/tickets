@@ -3,7 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { userAgents } from "#shared/db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#shared/db/users.ts";
 import { expectHtml, expectRedirect } from "#test-utils/assertions.ts";
@@ -14,6 +13,7 @@ import {
   adminGet,
   createTestAgentSession,
 } from "#test-utils/session.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 const inviteAgent = (username: string, agentId?: string) =>
   adminFormPost("/admin/users", {
@@ -23,7 +23,7 @@ const inviteAgent = (username: string, agentId?: string) =>
   });
 
 const enableLogisticsWithVan = async () => {
-  await settings.update.hasLogistics(true);
+  await enableFeature("logistics");
   return await logisticsAgents.table.insert({ name: "Van 1" });
 };
 

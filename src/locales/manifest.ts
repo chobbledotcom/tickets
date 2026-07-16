@@ -24,6 +24,7 @@ export const MESSAGE_GROUPS = [
   "detail-rows",
   "entity-pages",
   "errors",
+  "features",
   "fields",
   "groups",
   "guide",
@@ -125,6 +126,9 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   ),
   errors: messagesFrom(
     () => import("./en/errors.json", { with: { type: "json" } }),
+  ),
+  features: messagesFrom(
+    () => import("./en/features.json", { with: { type: "json" } }),
   ),
   fields: messagesFrom(
     () => import("./en/fields.json", { with: { type: "json" } }),

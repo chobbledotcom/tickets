@@ -26,6 +26,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Marker that uniquely identifies the debug footer in a response. */
 const FOOTER_MARKER = '<footer class="admin-footer">';
@@ -57,8 +58,7 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
     }));
 
   test("is NOT injected for public (non-admin) pages", async () => {
-    const { settings } = await import("#shared/db/settings.ts");
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     const response = await handleRequest(mockRequest("/"));
     const html = await response.text();
     expect(html).not.toContain(FOOTER_MARKER);

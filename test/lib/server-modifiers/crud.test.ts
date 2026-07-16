@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
+import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -16,6 +17,11 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
+import {
+  enableFeature,
+  storedFeatureEnabled,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 import { createData, lastModifier } from "./helpers.ts";
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
@@ -69,6 +75,17 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.calc_kind).toBe("percent");
       expect(modifier.calc_value).toBe(10);
       expect(modifier.direction).toBe("discount");
+      expect(await storedFeatureEnabled("modifiers")).toBe(true);
+    });
+
+    test("does not create a modifier when enabling the feature fails", async () => {
+      await enableFeature("modifiers");
+      await expect(
+        withFeatureWriteFailure(async () => {
+          await adminFormPost("/admin/modifiers", createData());
+        }),
+      ).rejects.toThrow("feature enable failed");
+      expect(await getAllModifiers()).toEqual([]);
     });
 
     test("creates an active modifier when the toggle is checked", async () => {

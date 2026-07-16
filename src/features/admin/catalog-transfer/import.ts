@@ -339,7 +339,7 @@ const applyImportPolicy = (
     policed.assignBuiltSite = false;
     policed.initialSiteMonths = 0;
   }
-  if (!settings.hasLogistics) {
+  if (!settings.features.logistics) {
     policed.usesLogistics = false;
   }
   return policed;

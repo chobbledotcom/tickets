@@ -4,15 +4,14 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin logistics settings + logistics-agent management — owner only.
  *
- * The logistics page (`/admin/logistics`) carries the has-logistics toggle and,
- * when enabled, a simple CRUD list of logistics agents. Agent CRUD reuses the
+ * The logistics page (`/admin/logistics`) carries a simple CRUD list of
+ * logistics agents. Agent CRUD reuses the
  * shared owner-CRUD handlers with the logistics page itself as the list view.
  */
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { settingsToggle } from "#routes/admin/settings-helpers.ts";
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
@@ -23,13 +22,11 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
   type LogisticsAgentInput,
   logisticsAgents,
 } from "#shared/db/logistics-agents.ts";
-import { settings } from "#shared/db/settings.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
 import {
   decryptAdminLevel,
@@ -49,34 +46,6 @@ import {
 import { logisticsAgentFields } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */
-
-/**
- * Disabling logistics also clears any saved logistics default, so a later
- * re-enable can't resurrect it onto Use-defaults listings — and listings created
- * while logistics is off are never opted into an inert logistics default.
- */
-const clearLogisticsDefaultWhenDisabled = async (
-  enabled: boolean,
-): Promise<void> => {
-  if (enabled) return;
-  const defaults = settings.listingDefaults;
-  if (defaults.usesLogistics === undefined) return;
-  const next = { ...defaults };
-  delete next.usesLogistics;
-  await settings.update.listingDefaults(next);
-  invalidateListingsCache();
-};
-
-/** Handle POST /admin/logistics/has-logistics — owner only. */
-export const handleHasLogisticsPost = settingsToggle({
-  field: "has_logistics",
-  label: "Logistics",
-  redirectTo: "/admin/logistics",
-  save: async (v) => {
-    await settings.update.hasLogistics(v);
-    await clearLogisticsDefaultWhenDisabled(v);
-  },
-});
 
 /** Extract logistics agent input from validated form values. The `name` field
  * is required, so form validation already rejects blank/whitespace names. */
@@ -171,5 +140,4 @@ export const adminHandlers = handlersFor("settingsLogistics")({
   postLogistics: crud.createPost,
   postLogisticsByIdDelete: crud.deletePost,
   postLogisticsByIdEdit: handleAgentEditPost,
-  postLogisticsHasLogistics: handleHasLogisticsPost,
 });
