@@ -456,13 +456,14 @@ const settingsBase = {
     },
     // --- Stripe writes ---
     stripe: {
-      credentials: async (config: {
+      activate: async (config: {
         secretKey: string;
         webhookSecret: string;
         webhookEndpointId: string;
       }): Promise<void> => {
         // The API key and webhook pair belong to one Stripe account. Save all
-        // three together so a failed write leaves the prior account usable.
+        // three and select Stripe together so a failed write leaves the prior
+        // provider usable, while later endpoint cleanup can fail safely.
         await writeRawBatch([
           [CONFIG_KEYS.STRIPE_SECRET_KEY, await encrypt(config.secretKey)],
           [
@@ -470,10 +471,13 @@ const settingsBase = {
             await encrypt(config.webhookSecret),
           ],
           [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.webhookEndpointId],
+          [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
         ]);
         data.stripe_secret_key = config.secretKey;
         data.stripe_webhook_secret = config.webhookSecret;
         data.stripe_webhook_endpoint_id = config.webhookEndpointId;
+        data.payment_provider = "stripe";
+        data.payment_provider_setting = "stripe";
       },
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
     },
