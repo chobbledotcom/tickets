@@ -7,7 +7,7 @@
  */
 
 /* jscpd:ignore-start */
-import { identity, mapBy } from "#fp";
+import { identity, mapById } from "#fp";
 import { t } from "#i18n";
 import {
   csvDateRange,
@@ -60,7 +60,7 @@ export const toCalendarAttendees = <
   attendees: readonly Attendee[],
   listings: readonly L[],
 ): CalendarAttendee[] => {
-  const listingById = mapBy("id", identity<L>)(listings);
+  const listingById = mapById(identity<L>)(listings);
   return attendees.map((a) => {
     const listing = listingById.get(a.listing_id)!;
     return { ...a, ...listingDetails(listing) };

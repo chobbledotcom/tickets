@@ -1,4 +1,4 @@
-import { filter, identity, map, mapBy } from "#fp";
+import { fieldById, filter, identity, map, mapById } from "#fp";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
@@ -47,7 +47,7 @@ export const listingsForServicingEdit = (
   allListings: ListingWithCount[],
   event: ServicingEvent,
 ): { deletedHolds: number[]; listings: ListingWithCount[] } => {
-  const listingById = mapBy("id", identity<ListingWithCount>)(allListings);
+  const listingById = mapById(identity<ListingWithCount>)(allListings);
   const heldIds = new Set(
     map((booking: ServicingEvent["bookings"][number]) => booking.listingId)(
       event.bookings,
@@ -274,10 +274,7 @@ const serviceEventListRows = (
   events: ServicingEventSummary[],
   listings: ListingWithCount[],
 ) => {
-  const listingNames = mapBy(
-    "id",
-    (listing: ListingWithCount) => listing.name,
-  )(listings);
+  const listingNames = fieldById("name")(listings);
   return map((event: ServicingEventSummary) => {
     const names = map(
       (booking: { listingId: number }) =>

@@ -6,18 +6,8 @@
  */
 
 /* jscpd:ignore-start */
-import {
-  filter,
-  groupToMap,
-  map,
-  mapParallel,
-  reduce,
-  sort,
-  unique,
-  uniqueBy,
-} from "#fp";
+import { filter, groupToMap, map, reduce, sort, unique, uniqueBy } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   deleteByFieldBatch,
   executeBatch,
@@ -31,9 +21,17 @@ import {
   type NamedSortOrderInput,
 } from "#shared/db/common-schema.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
-import type { ListingOption } from "#shared/db/listings/records.ts";
+import {
+  type ListingOption,
+  listingOptionProjection,
+} from "#shared/db/listings/table.ts";
 import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
-import { col, defineTable } from "#shared/db/table.ts";
+import {
+  col,
+  defineTable,
+  type StoredTableProjectionRow,
+} from "#shared/db/table.ts";
+import type { Listing } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 export type Attribute = {
@@ -252,10 +250,11 @@ export const getAttributeIdsOrdered = async (): Promise<number[]> =>
 export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
   new Set(await queryIds("SELECT id FROM attribute_options"));
 
-type OptionListingRow = {
-  listing_active: number;
-  listing_id: number;
-  listing_name: EnvKeyEncrypted;
+type OptionListingRow = StoredTableProjectionRow<
+  Listing,
+  typeof listingOptionProjection.columns
+> & {
+  id: number;
   option_id: number;
 };
 
@@ -275,9 +274,7 @@ export const getAttributeListingUse = async (
 ): Promise<AttributeListingUse> => {
   const rows = await queryAll<OptionListingRow>(
     `SELECT listingAttribute.option_id,
-            listing.id AS listing_id,
-            listing.name AS listing_name,
-            listing.active AS listing_active
+            ${listingOptionProjection.columnsSql("listing")}
        FROM listing_attribute_options AS listingAttribute
        JOIN attribute_options AS attributeOption
          ON attributeOption.id = listingAttribute.option_id
@@ -288,18 +285,14 @@ export const getAttributeListingUse = async (
     [attributeId],
   );
   const usedListings = sort(
-    (a: OptionListingRow, b: OptionListingRow) => a.listing_id - b.listing_id,
-  )(uniqueBy((row: OptionListingRow) => row.listing_id)(rows));
+    (a: OptionListingRow, b: OptionListingRow) => a.id - b.id,
+  )(uniqueBy((row: OptionListingRow) => row.id)(rows));
   return {
     listingIdsByOption: groupToMap(
       (row: OptionListingRow) => row.option_id,
-      (row) => row.listing_id,
+      (row) => row.id,
     )(rows),
-    listings: await mapParallel(async (row: OptionListingRow) => ({
-      active: row.listing_active === 1,
-      id: row.listing_id,
-      name: await decrypt(row.listing_name),
-    }))(usedListings),
+    listings: await listingOptionProjection.readAll(usedListings),
   };
 };
 

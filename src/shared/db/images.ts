@@ -3,17 +3,20 @@
  */
 
 /* jscpd:ignore-start */
-import { mapParallel } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   queryAll,
+  queryOne,
   type SqlStatement,
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
-import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
-import { type ColumnDef, col } from "#shared/db/table.ts";
+import {
+  type ColumnDef,
+  col,
+  defineTableProjection,
+  type StoredTableProjectionRow,
+} from "#shared/db/table.ts";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type {
   Image,
@@ -38,8 +41,6 @@ export type ImageUseTarget = {
 
 export type OrderedImage = Image & { sort_order: number };
 
-const IMAGE_COLUMNS = "id, name, filename, filename_thumb, alt_text";
-
 /** Encrypted filename column: sealed on write; on read, a value that will not
  * decrypt to a real filename becomes the broken-image marker (reported, never
  * thrown — one broken record must not take down every page that lists images).
@@ -59,14 +60,24 @@ export const imagesTable = defineIdTable<Image, ImageInput>("images", {
   name: col.encryptedText(encrypt, decrypt),
 });
 
-const fromDbImages = (rows: Image[]): Promise<Image[]> =>
-  mapParallel(imagesTable.fromDb)(rows);
+const imageProjection = defineTableProjection(imagesTable, [
+  "id",
+  "name",
+  "filename",
+  "filename_thumb",
+  "alt_text",
+]);
 
-export const getAllImages = async (): Promise<Image[]> =>
-  fromDbImages(
-    await queryAll<Image>(
-      `SELECT ${IMAGE_COLUMNS} FROM images ORDER BY id DESC`,
-    ),
+const imageFileProjection = defineTableProjection(imagesTable, [
+  "id",
+  "filename",
+  "filename_thumb",
+  "alt_text",
+]);
+
+export const getAllImages = (): Promise<Image[]> =>
+  imageProjection.queryAll(
+    `SELECT ${imageProjection.columnsSql()} FROM images ORDER BY id DESC`,
   );
 
 export const getImageById = (id: number): Promise<Image | null> =>
@@ -105,13 +116,12 @@ export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
 ): Promise<ItemImageProjection> => {
-  const rows = await queryAll<{
-    alt_text: EnvKeyEncrypted | "";
-    filename: EnvKeyEncrypted;
-    filename_thumb: EnvKeyEncrypted;
-    id: number;
-  }>(
-    `SELECT image.id, image.filename, image.filename_thumb, image.alt_text
+  type ImageFileRow = StoredTableProjectionRow<
+    Image,
+    typeof imageFileProjection.columns
+  > & { id: number };
+  const stored = await queryOne<ImageFileRow>(
+    `SELECT ${imageFileProjection.columnsSql("image")}
        FROM image_uses AS imageUse
        JOIN images AS image ON image.id = imageUse.image_id
       WHERE imageUse.item_type = ? AND imageUse.item_id = ?
@@ -119,16 +129,16 @@ export const getImageFilenamesForItem = async (
       LIMIT 1`,
     [itemType, itemId],
   );
-  const row = rows[0];
-  if (!row) return { image_alt_text: "", image_thumb_url: "", image_url: "" };
-  const imageRef = `image ${row.id} (first image of ${itemType} ${itemId})`;
+  if (!stored)
+    return { image_alt_text: "", image_thumb_url: "", image_url: "" };
+  const image = await imageFileProjection.read(
+    stored,
+    `${stored.id} (first image of ${itemType} ${itemId})`,
+  );
   return {
-    image_alt_text: await decryptTextOrEmpty(row.alt_text),
-    image_thumb_url: await decryptImageFilename(
-      row.filename_thumb,
-      `${imageRef} thumbnail filename`,
-    ),
-    image_url: await decryptImageFilename(row.filename, `${imageRef} filename`),
+    image_alt_text: image.alt_text,
+    image_thumb_url: image.filename_thumb,
+    image_url: image.filename,
   };
 };
 
@@ -136,8 +146,12 @@ export const getImagesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
 ): Promise<OrderedImage[]> => {
-  const rows = await queryAll<Image & { sort_order: number }>(
-    `SELECT image.${IMAGE_COLUMNS.replaceAll(", ", ", image.")},
+  type OrderedImageRow = StoredTableProjectionRow<
+    Image,
+    typeof imageProjection.columns
+  > & { sort_order: number };
+  const rows = await queryAll<OrderedImageRow>(
+    `SELECT ${imageProjection.columnsSql("image")},
             imageUse.sort_order
        FROM image_uses AS imageUse
        JOIN images AS image ON image.id = imageUse.image_id
@@ -145,7 +159,7 @@ export const getImagesForItem = async (
       ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC`,
     [itemType, itemId],
   );
-  const images = await fromDbImages(rows);
+  const images = await imageProjection.readAll(rows);
   return images.map((image, index) => ({
     ...image,
     sort_order: rows[index]!.sort_order,

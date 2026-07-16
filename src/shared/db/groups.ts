@@ -7,7 +7,7 @@ import * as v from "valibot";
 import {
   flatMap,
   identity,
-  mapBy,
+  mapById,
   mapNotNullish,
   mapParallel,
   requiredMapValue,
@@ -165,7 +165,7 @@ export const listingGroups = {
  * alternative to one findById per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
-  mapBy("id", identity<Group>)(await groups.cache.getAll());
+  mapById(identity<Group>)(await groups.cache.getAll());
 
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */

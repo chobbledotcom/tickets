@@ -78,7 +78,7 @@
   "fields.listing.assign_built_site_label": "Assign a site on booking",
   "fields.listing.slug_hint": "URL-friendly identifier (lowercase letters, numbers, hyphens, and underscores). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   "fields.listing.slug_title": "Lowercase letters, numbers, hyphens, and underscores only",
-  "fields.listing.image": "Listing Image (JPEG, PNG, GIF, WebP — max {size})",
+  "fields.listing.image": "Listing Image (JPEG, PNG, or WebP — max {size})",
   "fields.listing.attachment": "Attachment (any file — max {size})",
   "fields.login.username_title": "Letters, numbers, hyphens, and underscores only",
   "fields.login.password": "Password",

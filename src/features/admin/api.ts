@@ -8,7 +8,7 @@
  */
 
 /* jscpd:ignore-start */
-import { mapBy, reduce } from "#fp";
+import { mapById, reduce } from "#fp";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
@@ -544,7 +544,7 @@ const hydrateListingGroupIds = async (
   const groupIdsByListing = await listingGroups.getIdsByKeys(
     rows.map((r) => r.id),
   );
-  return mapBy("id", (row: (typeof rows)[number]) => ({
+  return mapById((row: (typeof rows)[number]) => ({
     group_ids: listingGroups.idsFor(groupIdsByListing, row.id),
   }))(rows);
 };
