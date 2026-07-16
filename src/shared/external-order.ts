@@ -8,6 +8,7 @@
  * listings, currency, and request origin.
  */
 
+import { isPublicListing } from "#shared/listing-visibility.ts";
 import type { ListingType } from "#shared/types.ts";
 
 /** The minimal listing shape the catalog is built from — only the columns the
@@ -163,7 +164,7 @@ export const buildCatalog = (params: {
   generatedAt: params.generatedAt,
   listings: Object.fromEntries(
     params.listings
-      .filter((listing) => listing.active && !listing.hidden)
+      .filter(isPublicListing)
       .map((listing) => [listing.slug, buildCatalogEntry(listing)]),
   ),
   origin: params.origin,

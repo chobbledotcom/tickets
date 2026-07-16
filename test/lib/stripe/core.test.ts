@@ -18,7 +18,7 @@ import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { setStripeCredentials } from "#test-utils/settings.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 import {
   type CreatedSessionParams,
   lineFor,
@@ -309,7 +309,7 @@ describeStripe("stripe", () => {
 
     beforeEach(async () => {
       // Set webhook secret in database (encrypted)
-      await setStripeCredentials(TEST_SECRET);
+      await activateStripe(TEST_SECRET);
     });
 
     test("returns error when webhook secret not configured", async () => {

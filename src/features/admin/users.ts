@@ -69,7 +69,7 @@ const VALID_ADMIN_LEVELS = ["owner", "manager", "agent", "editor"] as const;
 
 /** The logistics agents an owner can assign — only when logistics is enabled. */
 const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
-  settings.hasLogistics ? logisticsAgents.getAll() : Promise.resolve([]);
+  settings.features.logistics ? logisticsAgents.getAll() : Promise.resolve([]);
 
 /** Wrap the shared DATA_KEY under a new invitee's single-use invite code for the
  * keyed roles (owner/manager/agent). Returns an error Response when the inviting

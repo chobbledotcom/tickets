@@ -49,7 +49,7 @@ const disabledPublicSiteGet = (
   _path: string,
   method: string,
 ): Response | null =>
-  method === "GET" && !settings.showPublicSite
+  method === "GET" && !settings.features.site
     ? redirectResponse("/admin/login")
     : null;
 
@@ -197,7 +197,7 @@ const legacyEventsRedirectHandler: RouterFn = async (
   path,
   method,
 ) => {
-  if (path !== "/events" || method !== "GET" || !settings.showPublicSite) {
+  if (path !== "/events" || method !== "GET" || !settings.features.site) {
     return null;
   }
   return redirectResponse("/listings");

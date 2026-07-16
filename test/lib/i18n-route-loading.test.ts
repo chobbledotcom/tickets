@@ -3,11 +3,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
-import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withColdMessages } from "#test-utils/i18n.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { enablePublicApi, enablePublicSite } from "#test-utils/settings.ts";
 
 describeWithEnv("route message loading", { db: true }, () => {
   test("a static response leaves feature messages unloaded", () =>
@@ -60,7 +60,7 @@ describeWithEnv("route message loading", { db: true }, () => {
 
   test("an enabled public page loads public copy but not admin copy", () =>
     withColdMessages(async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const { handleRequest } = await import("#routes");
 
       const response = await handleRequest(mockRequest("/"));
@@ -137,7 +137,7 @@ describeWithEnv("route message loading", { db: true }, () => {
 
   test("an unknown admin API route leaves public API copy unloaded", () =>
     withColdMessages(async () => {
-      await settings.update.showPublicApi(true);
+      await enablePublicApi();
 
       const response = await adminGet("/api/admin/no-such-resource");
 

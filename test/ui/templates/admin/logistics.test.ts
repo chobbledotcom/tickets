@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { settings } from "#shared/db/settings.ts";
 import type { AdminSession, LogisticsAgent } from "#shared/types.ts";
 import {
   type AgentUserOption,
@@ -11,6 +10,7 @@ import {
 } from "#templates/admin/logistics.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 const session: AdminSession = { adminLevel: "owner" };
 const agent: LogisticsAgent = { id: 7, name: "Van 1" };
@@ -93,8 +93,9 @@ describe("logisticsAgentPages new page", () => {
     expect(html).toContain("Add Logistics Agent");
     expect(html).toContain("Create Agent");
     expect(html).toContain('action="/admin/logistics"');
-    // The resource pages mark the logistics nav entry active.
-    expect(html).toContain('<a class="active" href="/admin/logistics">');
+    // A direct URL stays usable while the feature is hidden, without restoring
+    // its navigation link.
+    expect(html).not.toContain('<a class="active" href="/admin/logistics">');
   });
 });
 
@@ -103,21 +104,19 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     await signCsrfToken();
   });
 
-  test("always renders the has-logistics toggle and guide footer", async () => {
-    await settings.update.hasLogistics(false);
+  test("renders agent management and the guide without the old toggle", () => {
     const html = adminLogisticsPage([agent], session);
 
-    expect(html).toContain('action="/admin/logistics/has-logistics"');
-    expect(html).toContain('name="has_logistics"');
+    expect(html).not.toContain('action="/admin/logistics/has-logistics"');
+    expect(html).not.toContain('name="has_logistics"');
     expect(html).toContain('href="/admin/guide#logistics"');
     expect(html).toContain("Logistics guide");
-    // With logistics disabled the agents section is hidden entirely.
-    expect(html).not.toContain("Logistics Agents");
-    expect(html).not.toContain('href="/admin/logistics/7/edit"');
+    expect(html).toContain("Logistics Agents");
+    expect(html).toContain('href="/admin/logistics/7/edit"');
   });
 
-  test("reveals the agents section with a row per agent when enabled", async () => {
-    await settings.update.hasLogistics(true);
+  test("renders a row per agent and marks enabled logistics active", async () => {
+    await enableFeature("logistics");
     const html = adminLogisticsPage([agent], session);
 
     expect(html).toContain("Logistics Agents");
@@ -135,8 +134,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     expect(html).not.toContain("No logistics agents yet.");
   });
 
-  test("shows the empty-state placeholder when enabled with no agents", async () => {
-    await settings.update.hasLogistics(true);
+  test("shows the empty-state placeholder with no agents", () => {
     const html = adminLogisticsPage([], session);
 
     expect(html).toContain("Logistics Agents");

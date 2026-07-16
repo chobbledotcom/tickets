@@ -1,10 +1,12 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { settings } from "#shared/db/settings.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { expectStatus } from "#test-utils/assertions.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 /** Shared helpers for the server (public order) test files. Not itself a
  * test file. */
@@ -12,11 +14,11 @@ import { mockRequest } from "#test-utils/mocks.ts";
 /** Turn the public site + order page on for each test in the block. */
 export const enablePublicOrder = (): void => {
   beforeEach(async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await settings.update.orderEnabled(true);
   });
   afterEach(async () => {
-    await settings.update.showPublicSite(false);
+    await setAdminFeatureEnabled("site", false);
     await settings.update.orderEnabled(false);
   });
 };

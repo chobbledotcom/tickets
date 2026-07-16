@@ -21,6 +21,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 import { enablePublicOrder } from "./order-page-helpers.ts";
 
 describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
@@ -32,7 +33,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
     });
 
     test("returns 404 when the order page is disabled", async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
       const response = await handleRequest(mockRequest("/order"));
       expectStatus(404)(response);
     });

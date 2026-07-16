@@ -28,6 +28,7 @@ export const MESSAGE_GROUPS = [
   "deliveries",
   "detail-rows",
   "entity-pages",
+  "features",
   "groups",
   "guide",
   "guide-accounts",
@@ -164,6 +165,9 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   ),
   "entity-pages": messagesFrom(
     () => import("./en/entity-pages.json", { with: { type: "json" } }),
+  ),
+  features: messagesFrom(
+    () => import("./en/features.json", { with: { type: "json" } }),
   ),
   groups: messagesFrom(
     () => import("./en/groups.json", { with: { type: "json" } }),

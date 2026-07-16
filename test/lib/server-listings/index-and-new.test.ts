@@ -12,6 +12,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 // jscpd:ignore-end
 
@@ -82,7 +83,7 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
     });
 
     test("redirects to picker when a logistics template is requested but logistics is disabled", async () => {
-      settings.setForTest({ has_logistics: false });
+      settings.setForTest(featureSetting());
       const response = await adminGet(
         "/admin/listing/new?template=hireable-item",
       );

@@ -12,6 +12,7 @@ import { getAttendeesRaw } from "#test-utils/db-helpers/attendees.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 const date = () => addDays(todayInTz("UTC"), 1);
 
@@ -27,7 +28,7 @@ describeWithEnv(
   { db: true, env: { NTFY_URL: undefined } },
   () => {
     const setup = async () => {
-      settings.setForTest({ has_logistics: true });
+      settings.setForTest(featureSetting("logistics"));
       const listing = await createDailyTestListing();
       await listingsTable.update(listing.id, { usesLogistics: true });
       const d = date();
@@ -121,7 +122,7 @@ describeWithEnv(
 
     test("no filter bar when logistics is disabled", async () => {
       const { d } = await setup();
-      settings.setForTest({ has_logistics: false });
+      settings.setForTest(featureSetting());
       const html = await calendarHtml(`/admin/calendar?date=${d}`);
       expect(html).not.toContain("Agent:");
     });

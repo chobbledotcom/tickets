@@ -266,6 +266,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
       "address-lookup",
       "attendees",
       "calendar",
+      "features",
       "images",
       "listing-defaults",
       "listings-table",

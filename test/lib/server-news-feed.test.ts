@@ -5,6 +5,7 @@ import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 const fetchNewsRss = () => handleRequest(mockRequest("/feeds/news.rss"));
 
@@ -16,7 +17,7 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
   });
 
   test("returns an empty RSS channel when no posts exist", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     const response = await fetchNewsRss();
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
@@ -29,7 +30,7 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
   });
 
   test("channel uses the website title, defaulting to News", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     let body = await (await fetchNewsRss()).text();
     expect(body).toContain("<title>News</title>");
     expect(body).toContain("<description>News from News</description>");
@@ -43,7 +44,7 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
   });
 
   test("lists posts newest first with escaped snippet, permalink, and pubDate", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await createTestNewsPost("Older news", {
       created: "2026-07-01T10:00:00.000Z",
       snippet: "old",
@@ -67,7 +68,7 @@ describeWithEnv("server (news RSS feed)", { db: true }, () => {
   });
 
   test("a post without a snippet still carries an empty description", async () => {
-    await settings.update.showPublicSite(true);
+    await enablePublicSite();
     await createTestNewsPost("Bare feed post");
     const body = await (await fetchNewsRss()).text();
     expect(body).toContain("<title>Bare feed post</title>");

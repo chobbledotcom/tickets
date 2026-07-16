@@ -1,10 +1,12 @@
 import { route } from "#shared/admin-surface/definitions.ts";
 
 export const routes = [
+  route("getFeaturesBySlug", "settings", "GET", "/admin/features/:slug"),
   route("getListingDefaults", "settings", "GET", "/admin/listing-defaults"),
   route("getSettings", "settings", "GET", "/admin/settings"),
   route("getSettingsAdvanced", "settings", "GET", "/admin/settings-advanced"),
   route("postListingDefaults", "settings", "POST", "/admin/listing-defaults"),
+  route("postFeaturesBySlug", "settings", "POST", "/admin/features/:slug"),
   route("postSettings", "settings", "POST", "/admin/settings"),
   route(
     "postSettingsAddressLookup",
@@ -144,12 +146,6 @@ export const routes = [
     "settings",
     "POST",
     "/admin/settings/show-public-api",
-  ),
-  route(
-    "postSettingsShowPublicSite",
-    "settings",
-    "POST",
-    "/admin/settings/show-public-site",
   ),
   route(
     "postSettingsSmsGateway",

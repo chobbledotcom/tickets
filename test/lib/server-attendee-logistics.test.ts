@@ -25,6 +25,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 /** Build a booked editor line for the given listing. */
 const bookedLine = (
@@ -118,14 +119,14 @@ describe("parseLogisticsPlan", () => {
 
 describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
   test("undefined when logistics is disabled", async () => {
-    settings.setForTest({ has_logistics: false });
+    settings.setForTest(featureSetting());
     expect(
       await buildAttendeeLogisticsData([bookedLine(1, true)], null),
     ).toBeUndefined();
   });
 
   test("undefined when no delivered listing is booked", async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     await logisticsAgents.table.insert({ name: "Van" });
     expect(
       await buildAttendeeLogisticsData([bookedLine(1, false)], null),
@@ -133,14 +134,14 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
   });
 
   test("undefined when there are no agents", async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     expect(
       await buildAttendeeLogisticsData([bookedLine(1, true)], null),
     ).toBeUndefined();
   });
 
   test("returns agents and an empty single pair for a create form", async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     await logisticsAgents.table.insert({ name: "Van" });
     const data = await buildAttendeeLogisticsData([bookedLine(5, true)], null);
     expect(data!.agents.map((a) => a.name)).toEqual(["Van"]);
@@ -157,7 +158,7 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
 
 describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
   const enableDeliveredListing = async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     const listing = await createTestListing({
       maxAttendees: 100,
       maxQuantity: 5,
@@ -225,7 +226,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
   });
 
   test("no logistics write happens when the feature is off", async () => {
-    settings.setForTest({ has_logistics: false });
+    settings.setForTest(featureSetting());
     const listing = await createTestListing({ maxAttendees: 100 });
     const assignment = await submitNewAttendeeLogistics(listing.id, {
       name: "NoLogistics",

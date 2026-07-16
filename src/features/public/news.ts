@@ -18,8 +18,8 @@ import {
   getNewsPostCards,
 } from "#shared/db/news-posts.ts";
 import { settings } from "#shared/db/settings.ts";
+import { requirePublicSite } from "#shared/public-site.ts";
 import { newsListPage, newsPostPage } from "#templates/public/news.tsx";
-import { requirePublicSite } from "./pages.ts";
 import { publicNavProps } from "./site-nav.ts";
 import { publicSlugRoute, renderContentPage } from "./site-page.ts";
 

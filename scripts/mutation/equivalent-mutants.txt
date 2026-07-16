@@ -65,6 +65,18 @@ src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error messag
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
+src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
+src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
+src/shared/db/admin-features.ts:76:49  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
+src/shared/db/admin-features.ts:113:13  === → ==   # BooleanJsonField.write returns string|null and cannot return undefined
+src/shared/db/admin-features.ts:128:13  === → ==   # queryOnePrimary returns a row or null, never undefined
+src/shared/db/admin-features.ts:150:10  === → ==   # current is string|null and cannot be undefined
+src/shared/db/admin-features.ts:172:29  !== → !=   # nextEncrypted is string|null and cannot be undefined
+src/shared/db/admin-features.ts:208:29  !== → !=   # nextEncrypted is string|null and cannot be undefined
+src/shared/db/admin-features.ts:208:60  !== → !=   # nextPlain is string|null and cannot be undefined
+src/shared/db/settings/json-field.ts:88:15  === → ==   # the transaction returns string|null and cannot return undefined
+src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
 
 # Collection cache generation values are only compared for equality. Their
 # absolute value and direction do not matter: every invalidation changes the

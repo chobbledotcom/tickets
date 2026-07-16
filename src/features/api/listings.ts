@@ -24,6 +24,7 @@ import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees/capacity/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
+import { isPublicListing } from "#shared/listing-visibility.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { parseNonNegativeInt } from "#shared/validation/number.ts";
@@ -33,7 +34,7 @@ export const handleListListings = async (): Promise<Response> => {
   const allListings = await getAllListings();
   const holidays = await getActiveHolidays();
   const visibleListings = pipe(
-    filter((e: ListingWithCount) => e.active && !e.hidden),
+    filter<ListingWithCount>(isPublicListing),
     (active) => sortListings(active, holidays),
   )(allListings);
   // A child is never standalone-bookable, so omit children from

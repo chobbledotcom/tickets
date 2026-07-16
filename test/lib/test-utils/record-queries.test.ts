@@ -4,7 +4,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { recordQueries } from "#test-utils/record-queries.ts";
+import { recordQueries, statementSql } from "#test-utils/record-queries.ts";
 
 describeWithEnv("recordQueries", { db: true }, () => {
   test("records every client call shape and forwards to the real client", async () => {
@@ -24,7 +24,7 @@ describeWithEnv("recordQueries", { db: true }, () => {
       const bareString = await getDb().execute("SELECT 3 AS n");
       expect(Number(bareString.rows[0]?.n)).toBe(3);
 
-      await getDb().batch(["SELECT 4 AS n"], "read");
+      await getDb().batch([["SELECT ? AS n", [4]]], "read");
 
       // Non-query members forward to the wrapped client: plain values as-is,
       // methods bound to the real client so they still work when called.
@@ -35,11 +35,17 @@ describeWithEnv("recordQueries", { db: true }, () => {
         "SELECT ? AS n",
         "SELECT ? AS n",
         "SELECT 3 AS n",
-        "batch[SELECT 4 AS n]",
+        "batch[SELECT ? AS n]",
       ]);
     } finally {
       restore();
     }
     expect(getDb()).toBe(real);
+  });
+
+  test("reads SQL from every statement form", () => {
+    expect(statementSql("SELECT 1")).toBe("SELECT 1");
+    expect(statementSql({ args: [2], sql: "SELECT ?" })).toBe("SELECT ?");
+    expect(statementSql(["SELECT ?", [3]])).toBe("SELECT ?");
   });
 });
