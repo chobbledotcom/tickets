@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { col, defineTable, type Table } from "#shared/db/table.ts";
 import { FormParams } from "#shared/form-data.ts";
-import type { Field, FieldValues } from "#shared/forms.tsx";
+import { defineForm, type FormValues } from "#shared/forms/definition.ts";
 import { defineResource, type Resource } from "#shared/rest/resource.ts";
 import {
   expectResultError,
@@ -24,15 +24,20 @@ type TestInput = {
 };
 
 /** Test fields for form validation */
-const testFields: Field[] = [
-  { label: "Name", name: "name", required: true, type: "text" },
-  { label: "Value", name: "value", required: true, type: "number" },
-];
+const testForm = defineForm({
+  fields: [
+    { label: "Name", name: "name", required: true, type: "text" },
+    { label: "Value", name: "value", required: true, type: "number" },
+  ] as const,
+  id: "test-resource",
+});
+
+type TestFormValues = FormValues<typeof testForm>;
 
 /** Transform form values to input */
-const toInput = (values: FieldValues): TestInput => ({
-  name: values.name as string,
-  value: values.value as number,
+const toInput = (values: TestFormValues): TestInput => ({
+  name: values.name,
+  value: values.value,
 });
 
 /** Create test table definition */
@@ -53,8 +58,8 @@ const createTestResource = (
 ): Resource<TestRow, TestInput> => {
   const table = createTestTable();
   const opts = withNameField
-    ? { fields: testFields, nameField: "name" as const, table, toInput }
-    : { fields: testFields, table, toInput };
+    ? { form: testForm, nameField: "name" as const, table, toInput }
+    : { form: testForm, table, toInput };
   return defineResource(opts);
 };
 
@@ -157,30 +162,6 @@ describe("rest/resource", () => {
     });
   });
 
-  describe("parsePartialInput", () => {
-    test("parses only provided fields", async () => {
-      const resource = createTestResource();
-      // Only provide name, value not present in form
-      const form = new FormParams({ name: "Updated" });
-      const result = await resource.parsePartialInput(form);
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        // value is undefined because it wasn't in the form and toInput doesn't set a default
-        expect(result.input.name).toBe("Updated");
-      }
-    });
-
-    test("validates provided fields", async () => {
-      const resource = createTestResource();
-      // Provide name but it's empty (should fail validation)
-      const form = new FormParams({ name: "" });
-      const result = await resource.parsePartialInput(form);
-
-      expect(result.ok).toBe(false);
-    });
-  });
-
   describe("create", () => {
     test("creates row from valid form data", async () => {
       const resource = createTestResource();
@@ -204,7 +185,7 @@ describe("rest/resource", () => {
     test("returns error when custom validate rejects on create", async () => {
       const table = createTestTable();
       const resource = defineResource({
-        fields: testFields,
+        form: testForm,
         table,
         toInput,
         validate: () => Promise.resolve("Name already taken"),
@@ -218,7 +199,7 @@ describe("rest/resource", () => {
     test("succeeds when custom validate passes on create", async () => {
       const table = createTestTable();
       const resource = defineResource({
-        fields: testFields,
+        form: testForm,
         table,
         toInput,
         validate: () => Promise.resolve(null),
@@ -326,7 +307,7 @@ describeWithEnv("rest/resource - additional coverage", { db: true }, () => {
 
       const table = createTestTable();
       const resource = defineResource({
-        fields: testFields,
+        form: testForm,
         onDelete: async (id) => {
           customDeleteCalled = true;
           deletedId = id;

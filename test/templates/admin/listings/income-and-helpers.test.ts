@@ -4,7 +4,7 @@ import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { nearCapacity } from "#templates/admin/listings/aggregates.tsx";
 import { completePaymentAttendees } from "#templates/admin/listings/attendees.tsx";
 import { overviewStatsFromDbStats } from "#templates/admin/listings/overview.tsx";
-import { getListingFields } from "#templates/fields/listing.ts";
+import { getListingForm } from "#templates/fields/listing.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 import {
@@ -327,10 +327,10 @@ describe("completePaymentAttendees", () => {
   });
 });
 
-describe("datetime validation via getListingFields() date field", () => {
+describe("datetime validation via listing form date field", () => {
   registerListingTemplateHooks();
 
-  const dateField = getListingFields().find((f) => f.name === "date")!;
+  const dateField = getListingForm().fields.find((f) => f.name === "date")!;
 
   test("accepts valid datetime value", () => {
     const result = dateField.validate?.("2026-06-15T14:00");

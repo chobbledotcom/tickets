@@ -11,7 +11,7 @@ import {
   type Field,
 } from "#shared/forms.tsx";
 import type { Modifier } from "#shared/types.ts";
-import { getModifierFields } from "#templates/fields/modifier.ts";
+import { getModifierForm } from "#templates/fields/modifier.ts";
 
 /** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 export const ruleSummary = (m: Modifier): string => {
@@ -38,7 +38,7 @@ export const ruleSummary = (m: Modifier): string => {
  * `renderFields`; it defaults to a fresh build for standalone callers. */
 export const modifierToFieldValues = (
   modifier?: Modifier,
-  fields: Field[] = getModifierFields(),
+  fields: readonly Field[] = getModifierForm().fields,
 ): Record<string, string | number | null> =>
   entityToFieldValues(
     modifier,

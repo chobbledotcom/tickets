@@ -3,10 +3,9 @@
  */
 
 import { t } from "#i18n";
-import { renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
-import { getChangePasswordFields } from "#templates/fields/admin.ts";
+import { getChangePasswordForm } from "#templates/fields/admin.ts";
 
 export const ChangePasswordForm = (): JSX.Element => (
   <SettingsSection
@@ -16,6 +15,6 @@ export const ChangePasswordForm = (): JSX.Element => (
     submitLabel={t("settings.change_password")}
     title={t("settings.change_password")}
   >
-    <Raw html={renderFields(getChangePasswordFields())} />
+    <Raw html={getChangePasswordForm().render()} />
   </SettingsSection>
 );

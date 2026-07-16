@@ -5,11 +5,11 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
-import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
+import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
-import { getSetupFields } from "#templates/fields/admin.ts";
+import { getSetupForm } from "#templates/fields/admin.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /* jscpd:ignore-end */
@@ -125,7 +125,7 @@ export const setupPage = (error?: string): string =>
       <button type="submit">{t("setup.submit")}</button>,
     ],
     error,
-    formHtml: renderFields(getSetupFields()),
+    formHtml: getSetupForm().render(),
     heading: t("setup.heading"),
     intro: t("setup.welcome"),
     title: t("setup.title"),

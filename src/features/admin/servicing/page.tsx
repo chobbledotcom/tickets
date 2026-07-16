@@ -8,7 +8,12 @@ import type {
   ServicingEvent,
   ServicingEventSummary,
 } from "#shared/db/attendees/servicing.ts";
-import { CsrfForm, type Field, renderFields } from "#shared/forms.tsx";
+import {
+  CsrfForm,
+  type Field,
+  renderFields,
+  requireChoiceOptions,
+} from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { isOwnerRole, type ListingWithCount } from "#shared/types.ts";
@@ -118,10 +123,13 @@ const costFields = (listings: ListingWithCount[]): Field[] => [
   {
     label: t("servicing.field.listing"),
     name: "target_listing_id",
-    options: map((listing: ListingWithCount) => ({
-      label: listing.name,
-      value: String(listing.id),
-    }))(listings),
+    options: requireChoiceOptions(
+      t("servicing.field.listing"),
+      map((listing: ListingWithCount) => ({
+        label: listing.name,
+        value: String(listing.id),
+      }))(listings),
+    ),
     type: "select",
   },
 ];
@@ -228,27 +236,29 @@ export const renderServicingPage = ({
             submitIcon="trash-2"
             submitLabel={t("servicing.action.delete_event")}
           />
-          <CsrfForm action={`/admin/servicing/${event.id}`}>
-            <SectionFieldset
-              className="listing-section"
-              legend={t("servicing.money_out")}
-            >
-              <p>{t("servicing.money_out_intro")}</p>
-              <input
-                name="cost_idempotency_key"
-                type="hidden"
-                value={crypto.randomUUID()}
-              />
-              <label>
-                {t("servicing.field.amount")}
-                <PriceInput name="amount" />
-              </label>
-              <Raw html={renderFields(costFields(listings))} />
-              <SubmitButton icon="plus">
-                {t("servicing.action.record_cost")}
-              </SubmitButton>
-            </SectionFieldset>
-          </CsrfForm>
+          {listings.length > 0 && (
+            <CsrfForm action={`/admin/servicing/${event.id}`}>
+              <SectionFieldset
+                className="listing-section"
+                legend={t("servicing.money_out")}
+              >
+                <p>{t("servicing.money_out_intro")}</p>
+                <input
+                  name="cost_idempotency_key"
+                  type="hidden"
+                  value={crypto.randomUUID()}
+                />
+                <label>
+                  {t("servicing.field.amount")}
+                  <PriceInput name="amount" />
+                </label>
+                <Raw html={renderFields(costFields(listings))} />
+                <SubmitButton icon="plus">
+                  {t("servicing.action.record_cost")}
+                </SubmitButton>
+              </SectionFieldset>
+            </CsrfForm>
+          )}
           {costs.length > 0 && (
             <>
               <h2>{t("servicing.recorded_costs")}</h2>
