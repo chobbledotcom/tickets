@@ -95,12 +95,7 @@ export const adminGuidePage = (
     guideShell({
       active: "/admin/guide",
       heading: t("guide.title"),
-      proseExtra: (
-        <p class="search-hint">
-          Press <kbd>Ctrl</kbd>+<kbd>F</kbd> (or <kbd>&#8984;</kbd>+<kbd>F</kbd>{" "}
-          on Mac) to search this page.
-        </p>
-      ),
+      proseExtra: <p class="search-hint">{t("guide.search_hint")}</p>,
       sections: renderGuideSections(guideSections(hostConfig)),
       session: adminSession,
       title: t("guide.title"),

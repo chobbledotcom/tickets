@@ -138,6 +138,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       const { token } = await createTestAttendeeWithToken(
         "Alice",
         "alice@test.com",
+        { date: "2026-06-15T19:00" },
       );
       const response = await walletRequest(
         `/v1/passes/pass.com.test.tickets/${token}`,
@@ -156,6 +157,11 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
       );
       expect(passJson.serialNumber).toBe(token);
       expect(passJson.passTypeIdentifier).toBe("pass.com.test.tickets");
+      expect(
+        passJson.eventTicket.secondaryFields.find(
+          (field: { key: string }) => field.key === "date",
+        ).label,
+      ).toBe("DATE");
     });
 
     test("404s a package booking's token (a single-member pass would leak/misrepresent the bundle)", async () => {

@@ -1,5 +1,15 @@
 /* jscpd:ignore-start -- imports */
 import { once, reduce } from "#fp";
+import { withMessageGroups } from "#i18n";
+import {
+  ADMIN_API_MESSAGE_GROUPS,
+  ADMIN_SHELL_MESSAGE_GROUPS,
+  JOIN_MESSAGE_GROUPS,
+  PUBLIC_API_MESSAGE_GROUPS,
+  publicMessageGroups,
+} from "#locales/groups.ts";
+import type { MessageGroup } from "#locales/manifest.ts";
+import { requireAdminApiOr } from "#routes/auth.ts";
 import {
   htmlResponse,
   jsonResponse,
@@ -25,6 +35,7 @@ type RouterFn = ReturnType<typeof createRouter>;
 type CompletePathMethodRoute = (
   ...args: Parameters<PathMethodRoute>
 ) => Promise<Response>;
+
 type AppRouteRequest = {
   method: string;
   path: string;
@@ -40,6 +51,40 @@ export const defineAppRoute =
   (request, path, method, server) =>
     handle({ method, path, request, server });
 
+/** Create a lazy-loaded route handler (prefix already matched by dispatch map). */
+const lazyRoute =
+  (load: () => Promise<RouterFn>): RouterFn =>
+  async (request, path, method, server) =>
+    (await load())(request, path, method, server);
+
+type PrefixRoute = {
+  beforeMessages: (path: string, method: string) => Response | null;
+  handler: RouterFn;
+  messageGroups: readonly MessageGroup[];
+};
+
+const continueRoute = (_path: string, _method: string): null => null;
+
+const prefixRoute = (
+  messageGroups: readonly MessageGroup[],
+  handler: RouterFn,
+  beforeMessages: PrefixRoute["beforeMessages"] = continueRoute,
+): PrefixRoute => ({ beforeMessages, handler, messageGroups });
+
+const disabledPublicSiteGet = (
+  _path: string,
+  method: string,
+): Response | null =>
+  method === "GET" && !settings.features.site
+    ? redirectResponse("/admin/login")
+    : null;
+
+const requirePublicSiteGet =
+  (expectedPath: string) =>
+  (path: string, method: string): Response | null =>
+    path === expectedPath ? disabledPublicSiteGet(path, method) : null;
+
+/** Read-only mode message. */
 const READ_ONLY_MESSAGE = "This site is in read-only mode";
 
 const readOnlyResponses = {
@@ -159,34 +204,51 @@ const exactRouteLoaders = {
   ),
 };
 
-const lazyRoute =
-  (load: () => Promise<RouterFn>): RouterFn =>
-  async (request, path, method, server) =>
-    (await load())(request, path, method, server);
-
 type PublicPagesModule = Awaited<ReturnType<typeof loadPublicPages>>;
 
 type PublicGetPageSpec = {
+  messageGroups: readonly MessageGroup[];
   prefix: string;
   pick: (pages: PublicPagesModule) => ResponseHandler<[request: Request]>;
 };
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
-  { pick: (pages) => pages.handleHome, prefix: "" },
-  { pick: (pages) => pages.handlePublicListings, prefix: "listings" },
-  { pick: (pages) => pages.handlePublicTerms, prefix: "terms" },
+  {
+    messageGroups: publicMessageGroups("public-site"),
+    pick: (pages) => pages.handleHome,
+    prefix: "",
+  },
+  {
+    messageGroups: publicMessageGroups(
+      "attributes",
+      "availability",
+      "public-site",
+      "tickets",
+    ),
+    pick: (pages) => pages.handlePublicListings,
+    prefix: "listings",
+  },
+  {
+    messageGroups: publicMessageGroups("public-site"),
+    pick: (pages) => pages.handlePublicTerms,
+    prefix: "terms",
+  },
 ];
 
 const publicPagePath = (prefix: string): string =>
   prefix === "" ? "/" : `/${prefix}`;
 
 const publicPageHandlers = reduce(
-  (handlers: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
+  (handlers: Record<string, PrefixRoute>, spec: PublicGetPageSpec) => {
     const path = publicPagePath(spec.prefix);
-    handlers[spec.prefix] = async (request, requestPath, method) => {
-      if (requestPath !== path || method !== "GET") return null;
-      return spec.pick(await loadPublicPages())(request);
-    };
+    handlers[spec.prefix] = prefixRoute(
+      spec.messageGroups,
+      async (request, requestPath, method) => {
+        if (requestPath !== path || method !== "GET") return null;
+        return spec.pick(await loadPublicPages())(request);
+      },
+      requirePublicSiteGet(path),
+    );
     return handlers;
   },
   {},
@@ -200,10 +262,16 @@ const contactPrefixHandler: RouterFn = async (request, path, method) => {
   return null;
 };
 
-const legacyEventsRedirectHandler: RouterFn = async (_request, path, method) =>
-  path === "/events" && method === "GET" && settings.features.site
-    ? redirectResponse("/listings")
-    : null;
+const legacyEventsRedirectHandler: RouterFn = async (
+  _request,
+  path,
+  method,
+) => {
+  if (path !== "/events" || method !== "GET" || !settings.features.site) {
+    return null;
+  }
+  return redirectResponse("/listings");
+};
 
 const orderJsPrefixHandler: RouterFn = async (request, path, method) => {
   if (path !== "/order.js" || method !== "GET") return null;
@@ -215,56 +283,143 @@ const customCssPrefixHandler: RouterFn = async (_request, path, method) => {
   return (await handlerLoaders.customCss())();
 };
 
-const prefixHandlers: Record<string, RouterFn> = {
+const prefixHandlers: Record<string, PrefixRoute> = {
   ...publicPageHandlers,
-  "address-lookup": lazyRoute(exactRouteLoaders.addressLookup),
-  admin: lazyRoute(routeLoaders.admin),
-  api: async (request, path, method, server) => {
-    const adminResult = await (await loadAdminApiRoutes())(
-      request,
-      path,
-      method,
-      server,
-    );
-    if (adminResult) return adminResult;
+  "address-lookup": prefixRoute(
+    ["address-lookup"],
+    lazyRoute(exactRouteLoaders.addressLookup),
+  ),
+  admin: prefixRoute([], lazyRoute(routeLoaders.admin)),
+  api: prefixRoute([], async (request, path, method, server) => {
+    if (path.startsWith("/api/admin/")) {
+      return await requireAdminApiOr(request, () =>
+        withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () =>
+          (await loadAdminApiRoutes())(request, path, method, server),
+        ),
+      );
+    }
     return settings.showPublicApi
-      ? (await routeLoaders.api())(request, path, method, server)
+      ? withMessageGroups(PUBLIC_API_MESSAGE_GROUPS, async () =>
+          (await routeLoaders.api())(request, path, method, server),
+        )
       : null;
-  },
-  attachment: lazyRoute(loadAttachmentRoutes),
-  calculate: lazyRoute(routeLoaders.ticket),
-  caldav: lazyRoute(routeLoaders.feed),
-  checkin: lazyRoute(routeLoaders.checkin),
-  contact: contactPrefixHandler,
-  "custom.css": customCssPrefixHandler,
-  demo: lazyRoute(routeLoaders.demoReset),
-  events: legacyEventsRedirectHandler,
-  feeds: lazyRoute(routeLoaders.feed),
-  gwallet: lazyRoute(routeLoaders.googleWallet),
-  image: lazyRoute(routeLoaders.image),
-  instance: lazyRoute(loadInstanceRoutes),
-  join: lazyRoute(routeLoaders.join),
-  news: lazyRoute(routeLoaders.news),
-  order: lazyRoute(routeLoaders.order),
-  "order.js": orderJsPrefixHandler,
-  page: lazyRoute(routeLoaders.sitePage),
-  pay: lazyRoute(routeLoaders.balance),
-  payment: lazyRoute(routeLoaders.payment),
-  "read-only": (_request, path, method) =>
+  }),
+  attachment: prefixRoute([], lazyRoute(loadAttachmentRoutes)),
+  calculate: prefixRoute(
+    publicMessageGroups("payment", "tickets", "validation"),
+    lazyRoute(routeLoaders.ticket),
+  ),
+  caldav: prefixRoute([], lazyRoute(routeLoaders.feed)),
+  checkin: prefixRoute(
+    [
+      ...ADMIN_SHELL_MESSAGE_GROUPS,
+      "attendees",
+      "check-in",
+      "listing-qr",
+      "validation",
+    ],
+    lazyRoute(routeLoaders.checkin),
+  ),
+  contact: prefixRoute(
+    publicMessageGroups("contact", "public-site", "validation"),
+    contactPrefixHandler,
+    requirePublicSiteGet("/contact"),
+  ),
+  "custom.css": prefixRoute([], customCssPrefixHandler),
+  demo: prefixRoute(
+    [...ADMIN_SHELL_MESSAGE_GROUPS, "login", "settings", "validation"],
+    lazyRoute(routeLoaders.demoReset),
+  ),
+  events: prefixRoute([], legacyEventsRedirectHandler),
+  feeds: prefixRoute([], lazyRoute(routeLoaders.feed)),
+  gwallet: prefixRoute(
+    publicMessageGroups("tickets"),
+    lazyRoute(routeLoaders.googleWallet),
+  ),
+  image: prefixRoute([], lazyRoute(routeLoaders.image)),
+  instance: prefixRoute([], lazyRoute(loadInstanceRoutes)),
+  join: prefixRoute(JOIN_MESSAGE_GROUPS, lazyRoute(routeLoaders.join)),
+  news: prefixRoute(
+    publicMessageGroups("news", "public-site"),
+    lazyRoute(routeLoaders.news),
+    disabledPublicSiteGet,
+  ),
+  order: prefixRoute(
+    publicMessageGroups(
+      "availability",
+      "capacity",
+      "date-picker",
+      "modifiers",
+      "order",
+      "public-site",
+      "tickets",
+      "validation",
+    ),
+    lazyRoute(routeLoaders.order),
+  ),
+  "order.js": prefixRoute([], orderJsPrefixHandler),
+  page: prefixRoute(
+    publicMessageGroups("public-site", "site-pages"),
+    lazyRoute(routeLoaders.sitePage),
+    disabledPublicSiteGet,
+  ),
+  pay: prefixRoute(
+    publicMessageGroups("ledger", "payment", "tickets", "validation"),
+    lazyRoute(routeLoaders.balance),
+  ),
+  payment: prefixRoute(
+    ["payment", "validation"],
+    lazyRoute(routeLoaders.payment),
+  ),
+  "read-only": prefixRoute([], (_request, path, method) =>
     path === "/read-only" && method === "GET"
       ? Promise.resolve(htmlResponse(readOnlyPage()))
       : Promise.resolve(null),
-  renew: lazyRoute(exactRouteLoaders.renewal),
-  scheduled: lazyRoute(loadScheduledRoutes),
-  sms: lazyRoute(routeLoaders.smsWebhook),
-  t: lazyRoute(routeLoaders.ticketView),
-  ticket: lazyRoute(routeLoaders.ticket),
-  unsubscribe: lazyRoute(exactRouteLoaders.unsubscribe),
-  v1: lazyRoute(routeLoaders.walletWebservice),
-  wallet: lazyRoute(routeLoaders.wallet),
+  ),
+  renew: prefixRoute(
+    publicMessageGroups(
+      "address-lookup",
+      "payment",
+      "public-site",
+      "renewal",
+      "tickets",
+      "validation",
+    ),
+    lazyRoute(exactRouteLoaders.renewal),
+  ),
+  scheduled: prefixRoute([], lazyRoute(loadScheduledRoutes)),
+  sms: prefixRoute([], lazyRoute(routeLoaders.smsWebhook)),
+  t: prefixRoute(
+    publicMessageGroups("listing-qr", "payment", "tickets"),
+    lazyRoute(routeLoaders.ticketView),
+  ),
+  ticket: prefixRoute(
+    publicMessageGroups(
+      "address-lookup",
+      "availability",
+      "date-picker",
+      "modifiers",
+      "order",
+      "payment",
+      "public-site",
+      "questions",
+      "tickets",
+      "validation",
+    ),
+    lazyRoute(routeLoaders.ticket),
+  ),
+  unsubscribe: prefixRoute(
+    publicMessageGroups("unsubscribe", "validation"),
+    lazyRoute(exactRouteLoaders.unsubscribe),
+  ),
+  v1: prefixRoute(["tickets"], lazyRoute(routeLoaders.walletWebservice)),
+  wallet: prefixRoute(
+    publicMessageGroups("tickets"),
+    lazyRoute(routeLoaders.wallet),
+  ),
 };
 
-/** Route a request after database and settings setup have completed. */
+/** Route main application requests after setup is complete. */
 export const routeMainApp = async ({
   request,
   path,
@@ -277,8 +432,16 @@ export const routeMainApp = async ({
   }
 
   const prefix = getPrefix(path);
-  if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
-  // Object.hasOwn above guarantees this indexed handler exists.
-  const handler = prefixHandlers[prefix]!;
-  return (await handler(request, path, method, server)) ?? notFoundResponse();
+  const route = Object.hasOwn(prefixHandlers, prefix)
+    ? prefixHandlers[prefix]
+    : undefined;
+  if (!route) return notFoundResponse();
+  const earlyResponse = route.beforeMessages(path, method);
+  if (earlyResponse) return earlyResponse;
+  return await withMessageGroups(
+    route.messageGroups,
+    async () =>
+      (await route.handler(request, path, method, server)) ??
+      notFoundResponse(),
+  );
 };

@@ -1,0 +1,12 @@
+{
+  "unsubscribe.email_preferences": "Email preferences",
+  "unsubscribe.invalid_link": "This link is invalid or incomplete. Please use the unsubscribe link from one of our emails.",
+  "unsubscribe.unsubscribed_message": "You're <strong>unsubscribed</strong> from our marketing emails and won't receive them. You may still get essential messages about listings you've booked.",
+  "unsubscribe.changed_mind": "Changed your mind?",
+  "unsubscribe.resubscribe_button": "Resubscribe",
+  "unsubscribe.subscribed_message": "You're currently subscribed to our marketing emails.",
+  "unsubscribe.unsubscribe_button": "Unsubscribe",
+  "unsubscribe.forget_heading": "Delete my data",
+  "unsubscribe.forget_explainer": "Delete the contact record linked to this page. It contains a one-way code and counts of your bookings and messages. This cannot be undone. Other contact details from past bookings, such as a phone number, have separate records.",
+  "unsubscribe.forget_button": "Delete my data"
+}

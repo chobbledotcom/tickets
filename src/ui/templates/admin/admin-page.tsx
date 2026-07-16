@@ -253,7 +253,7 @@ export const flashAdminPage = adminOpenerFor(
 // (the flashAdminPage/renderBody calls happen later, at render), so hoisting is
 // safe.
 export function flashDataPage<D>(
-  title: string,
+  titleKey: string,
   active: string | undefined,
   renderBody: (data: D) => Child,
 ): (
@@ -263,7 +263,9 @@ export function flashDataPage<D>(
   success?: string,
 ) => string {
   return (session, data, error, success) =>
-    flashAdminPage(title, active)(session, error, success)(renderBody(data));
+    flashAdminPage(t(titleKey), active)(session, error, success)(
+      renderBody(data),
+    );
 }
 
 /** Curried opener for pages that carry their error/success notices inside a

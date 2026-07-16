@@ -92,7 +92,7 @@ const UpToDate = ({
 );
 
 export const adminUpdatePage = flashDataPage<UpdatePageState>(
-  t("update.page_title"),
+  "update.page_title",
   "/admin/update",
   (state) => (
     <>

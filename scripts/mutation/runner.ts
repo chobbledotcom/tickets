@@ -228,11 +228,10 @@ const runTestBatch = (
       "--no-check",
       "--allow-all",
       "--parallel",
-      // Load the fast `toContain` override in every isolate — the barrel that
-      // used to pull it into each test file's graph is gone, so without this
-      // mutation batches fall back to the slow matcher. See test-harness.ts.
+      // Match the standard harness: install the fast matcher and preload the
+      // complete catalog for tests that render templates without routing.
       "--preload",
-      "./test/test-utils/fast-expect.ts",
+      "./test/test-utils/preload.ts",
       "--v8-flags=--expose-gc",
       ...batch,
     ],

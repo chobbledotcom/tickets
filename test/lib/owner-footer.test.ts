@@ -7,6 +7,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { routeAdmin } from "#routes/admin/index.ts";
+import {
+  isFooterDebugEnabled,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { assertAdminHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -45,6 +50,12 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
     const html = await response.text();
     expect(html).not.toContain(FOOTER_MARKER);
   });
+
+  test("stays disabled during an unauthenticated admin GET", () =>
+    runWithQueryLogContext(async () => {
+      await routeAdmin(mockRequest("/admin/login"), "/admin/login", "GET");
+      expect(isFooterDebugEnabled()).toBe(false);
+    }));
 
   test("is NOT injected for public (non-admin) pages", async () => {
     await enablePublicSite();

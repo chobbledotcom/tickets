@@ -25,5 +25,12 @@
   "setup.complete.heading": "Setup Complete!",
   "setup.complete.message": "Your ticket reservation system has been configured successfully.",
   "setup.complete.dashboard_link": "Go to Admin Dashboard",
-  "setup.complete.login_link": "Log In"
+  "setup.complete.login_link": "Log In",
+  "fields.setup.username": "Admin Username *",
+  "fields.setup.username_hint": "Letters, numbers, hyphens, underscores (2-32 chars)",
+  "fields.setup.password": "Admin Password *",
+  "fields.setup.password_hint": "Minimum 8 characters",
+  "fields.setup.confirm_password": "Confirm Admin Password *",
+  "error.agreement_required": "You must accept the Data Controller Agreement to continue",
+  "error.country_invalid": "Please select a valid country"
 }

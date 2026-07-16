@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-// guide.json is loaded lazily at runtime (off the cold-boot path, see
-// src/locales/en/guide.ts), so it is not part of the eager `en` merge. It is
-// still real, coverage-checked copy, so merge it back in here.
-import guide from "#locales/en/guide.json" with { type: "json" };
-import en from "#locales/en/index.ts";
+import { MESSAGE_GROUPS } from "#locales/manifest.ts";
+import { allEnglishMessages } from "#test-utils/i18n.ts";
 import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
 
 /**
@@ -29,7 +26,7 @@ import { walkSourceFiles as walk } from "#test-utils/walk-src.ts";
  * here for review.
  */
 
-const messages = { ...en, ...(guide as Record<string, string>) };
+const messages = await allEnglishMessages();
 
 const SRC_DIR = "src";
 const TEMPLATES_DIR = "src/ui/templates";
@@ -37,6 +34,25 @@ const TEMPLATES_DIR = "src/ui/templates";
 /** Copy-bearing modules outside src/ui/templates that must also be kept honest:
  * the shared form framework renders its own labels and submit buttons. */
 const EXTRA_SCAN_FILES = ["src/shared/forms.tsx"];
+
+/** Existing catalog copy that review found duplicated as wrapped JSX prose.
+ * Requiring the catalog calls directly avoids depending on line layout or
+ * inline markup such as <strong> and <kbd>. */
+const REQUIRED_TEMPLATE_KEYS = new Map<string, readonly string[]>([
+  [
+    "src/ui/templates/setup.tsx",
+    [
+      "setup.agreement.controller_text",
+      "setup.agreement.processor_text",
+      "setup.agreement.encrypted_text",
+      "setup.agreement.responsibilities_text",
+      "setup.agreement.breach_text",
+      "setup.agreement.deletion_text",
+      "setup.agreement.password_warning",
+    ],
+  ],
+  ["src/ui/templates/admin/guide.tsx", ["guide.search_hint"]],
+]);
 
 /** Files (relative to src/) with hard-coded user-facing strings still pending
  * i18n wiring, mapped to the exact number of leftover literals each still has.
@@ -47,7 +63,6 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/admin/api-keys.tsx", 2],
   ["ui/templates/admin/attendees.tsx", 3],
   ["ui/templates/admin/calendar.tsx", 1],
-  ["ui/templates/admin/guide.tsx", 1],
   ["ui/templates/admin/guide/accounts.tsx", 1],
   ["ui/templates/admin/guide/components.tsx", 3],
   ["ui/templates/admin/guide/domains.tsx", 2],
@@ -155,6 +170,15 @@ const leftoverLiterals = (src: string, isTs: boolean): string[] => {
 };
 
 describe("i18n coverage", () => {
+  test("the manifest owns every English catalog", () => {
+    const files = Array.from(Deno.readDirSync("src/locales/en"))
+      .filter((entry) => entry.isFile && entry.name.endsWith(".json"))
+      .map((entry) => entry.name.slice(0, -".json".length))
+      .sort();
+
+    expect(files).toEqual([...MESSAGE_GROUPS].sort());
+  });
+
   test('forward: every t("key") in the source resolves to a locale key', () => {
     const missing: string[] = [];
     for (const file of walk(SRC_DIR, [".ts", ".tsx"])) {
@@ -163,6 +187,22 @@ describe("i18n coverage", () => {
         const key = m[2]!;
         if (key.includes("${") || key.includes("{")) continue; // dynamic key
         if (!(key in messages)) missing.push(`${file}: t("${key}")`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  test("reviewed template prose stays catalog-backed", () => {
+    const missing: string[] = [];
+    for (const [file, requiredKeys] of REQUIRED_TEMPLATE_KEYS) {
+      const referencedKeys = new Set(
+        Array.from(
+          Deno.readTextFileSync(file).matchAll(T_CALL),
+          (match) => match[2],
+        ),
+      );
+      for (const key of requiredKeys) {
+        if (!referencedKeys.has(key)) missing.push(`${file}: t("${key}")`);
       }
     }
     expect(missing).toEqual([]);

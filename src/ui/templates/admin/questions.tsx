@@ -48,7 +48,7 @@ import {
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
-import { answerAggregateFields } from "#templates/fields/aggregate.ts";
+import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   type ListingPanelProps,
   listingChoicePanel,
@@ -304,7 +304,7 @@ const answerRecalculateRows = (
   snapshot: AnswerAggregateRecalculation,
 ): RecalculateRow[] =>
   buildRecalculateRows(
-    answerAggregateFields,
+    getAnswerAggregateFields(),
     (_name: AnswerAggregateField, value) => String(value),
     snapshot,
   );
@@ -339,7 +339,7 @@ const AnswerRunningTotalsSection = ({
       <small>{t("questions.edit_answer.running_totals_note")}</small>
     </p>
     <Raw
-      html={renderFields(answerAggregateFields, {
+      html={renderFields(getAnswerAggregateFields(), {
         times_selected: aggregateRecalculation.times_selected.current,
       })}
     />
