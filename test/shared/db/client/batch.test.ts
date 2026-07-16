@@ -11,6 +11,7 @@ import {
 import {
   enableQueryLog,
   getQueryLog,
+  N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -47,6 +48,16 @@ describeWithEnv("db > client batch", { db: true }, () => {
     // "read" mode lets Turso serve the batch from a replica; anything else
     // would needlessly pin read-only batches to the primary.
     expect(await captureBatchModes(queryBatch)).toEqual(["read"]);
+  });
+
+  test("queryBatch does not count repeated statements as separate N+1 reads", async () => {
+    await runWithQueryLogContext(async () => {
+      const statements = Array.from(
+        { length: N_PLUS_ONE_THRESHOLD + 1 },
+        () => ({ args: [], sql: "SELECT 1" }),
+      );
+      expect(await queryBatch(statements)).toHaveLength(statements.length);
+    });
   });
 
   test("transaction batches commit string statements together", async () => {

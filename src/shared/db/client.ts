@@ -24,8 +24,7 @@ import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
 import {
   countDatabaseRoundTrip,
   enforceTransactionRoundTripGuard,
-  trackQueries,
-  trackQuery,
+  trackSql,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -243,7 +242,7 @@ const retryOnDatabaseLock = <T>(run: () => Promise<T>): Promise<T> =>
 type StatementRunner<T> = (sql: string, args?: InValue[]) => Promise<T>;
 
 const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
-  trackQuery(sql, () =>
+  trackSql(sql, () =>
     retryOnDatabaseLock(() =>
       args ? getDb().execute({ args, sql }) : getDb().execute(sql),
     ),
@@ -462,7 +461,7 @@ const runBatch = async (
   // Batch writes serialize against the single SQLite writer like any other write,
   // so a contended batch waits and retries (then surfaces DatabaseBusyError)
   // rather than throwing raw SQLITE_BUSY — matching execute() and withTransaction.
-  const results = await trackQueries(sqls, () =>
+  const results = await trackSql(sqls, () =>
     retryOnDatabaseLock(() => getDb().batch(statements, mode)),
   );
   for (const stmt of statements) {
@@ -550,7 +549,7 @@ const runWriteTransactionOnce = async <T>(
       writtenSql.push(...sqls);
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
-      return trackQueries(sqls, () => tx.batch(statements));
+      return trackSql(sqls, () => tx.batch(statements));
     },
     execute: (stmt) => {
       const sql = typeof stmt === "string" ? stmt : stmt.sql;
@@ -562,7 +561,7 @@ const runWriteTransactionOnce = async <T>(
       enforceTransactionRoundTripGuard(statementCount, sql);
       // Track transactional statements too, so reads inside the callback still
       // show in the debug footer and count toward the N+1 guard.
-      return trackQuery(sql, () => tx.execute(stmt));
+      return trackSql(sql, () => tx.execute(stmt));
     },
   };
   try {

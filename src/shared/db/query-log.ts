@@ -278,14 +278,13 @@ export const enforceTransactionRoundTripGuard = (
  * Run an async DB operation, enforcing the N+1 read guard and logging it when
  * footer tracking is active.
  */
-export const trackQueries = async <T>(
-  sqls: string[],
+export const trackSql = async <T>(
+  sql: string | string[],
   fn: () => Promise<T>,
 ): Promise<T> => {
   const store = queryLogScope.current();
-  if (store) {
-    for (const sql of sqls) enforceN1Guard(store, sql);
-  }
+  if (store && typeof sql === "string") enforceN1Guard(store, sql);
+  const sqls = typeof sql === "string" ? [sql] : sql;
   const state = store ?? fallbackState;
   const start = performance.now();
   const result = await fn();
@@ -298,6 +297,3 @@ export const trackQueries = async <T>(
   for (const sql of sqls) void logCompletedSql(sql);
   return result;
 };
-
-export const trackQuery = <T>(sql: string, fn: () => Promise<T>): Promise<T> =>
-  trackQueries([sql], fn);
