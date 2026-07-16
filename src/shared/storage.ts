@@ -140,7 +140,12 @@ export const getMimeTypeFromFilename = (filename: string): ImageMime | null => {
 export const detectImageType = (data: Uint8Array): ImageMime | null => {
   for (const mime of IMAGE_MIMES) {
     const { magic } = IMAGE_FORMATS[mime];
-    if (data.length >= magic.length && magic.every((b, i) => data[i] === b)) {
+    const matches = magic.every(
+      ({ bytes, offset }) =>
+        data.length >= offset + bytes.length &&
+        bytes.every((byte, index) => data[offset + index] === byte),
+    );
+    if (matches) {
       return mime;
     }
   }

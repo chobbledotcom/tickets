@@ -47,6 +47,16 @@ describe("table projections", () => {
     ).toEqual({ active: true, id: 7, name: "Open" });
   });
 
+  test("rejects a query row missing a selected column", async () => {
+    const projection = defineTableProjection(projectionTable, ["id", "name"]);
+
+    await expect(
+      projection.read({ id: 7 } as { id: number; name: string }),
+    ).rejects.toThrow(
+      "Projected column name is missing from projection_rows query result",
+    );
+  });
+
   test("reads several selected rows", async () => {
     const projection = defineTableProjection(projectionTable, ["id", "name"]);
 

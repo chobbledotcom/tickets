@@ -152,8 +152,7 @@ export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
   const rows = await queryAll<SealedCardRow>(
-    `SELECT news_post.id, news_post.created, news_post.slug, news_post.name,
-            news_post.snippet,
+    `SELECT ${newsSummaryProjection.columnsSql("news_post")},
             ${imageFilenameSubqueries("news", "news_post.id")}
        FROM news_posts AS news_post
       ORDER BY news_post.created DESC, news_post.id DESC`,

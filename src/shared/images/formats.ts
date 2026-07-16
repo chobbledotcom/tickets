@@ -1,6 +1,11 @@
+type ImageMagic = {
+  readonly bytes: readonly number[];
+  readonly offset: number;
+};
+
 type ImageFormat = {
   readonly extension: string;
-  readonly magic: readonly number[];
+  readonly magic: readonly ImageMagic[];
   readonly uploadable: boolean;
 };
 
@@ -9,22 +14,25 @@ type ImageFormat = {
 export const IMAGE_FORMATS = {
   "image/gif": {
     extension: ".gif",
-    magic: [0x47, 0x49, 0x46, 0x38],
+    magic: [{ bytes: [0x47, 0x49, 0x46, 0x38], offset: 0 }],
     uploadable: false,
   },
   "image/jpeg": {
     extension: ".jpg",
-    magic: [0xff, 0xd8, 0xff],
+    magic: [{ bytes: [0xff, 0xd8, 0xff], offset: 0 }],
     uploadable: true,
   },
   "image/png": {
     extension: ".png",
-    magic: [0x89, 0x50, 0x4e, 0x47],
+    magic: [{ bytes: [0x89, 0x50, 0x4e, 0x47], offset: 0 }],
     uploadable: true,
   },
   "image/webp": {
     extension: ".webp",
-    magic: [0x52, 0x49, 0x46, 0x46],
+    magic: [
+      { bytes: [0x52, 0x49, 0x46, 0x46], offset: 0 },
+      { bytes: [0x57, 0x45, 0x42, 0x50], offset: 8 },
+    ],
     uploadable: true,
   },
 } as const satisfies Record<string, ImageFormat>;

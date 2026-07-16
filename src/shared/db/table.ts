@@ -232,6 +232,14 @@ export const defineTableProjection = <
     rowId?: unknown,
   ): Promise<SelectedTableProjectionRow<Row, Columns>> => {
     const stored = row as Record<string, unknown>;
+    const missingValueColumn = columns.find(
+      (column) => !Object.hasOwn(stored, column),
+    );
+    if (missingValueColumn) {
+      throw new Error(
+        `Projected column ${missingValueColumn} is missing from ${table.name} query result`,
+      );
+    }
     const readRowId = rowId === undefined ? stored[table.primaryKey] : rowId;
     const entries = await mapParallel(
       async (column: Columns[number]) =>
