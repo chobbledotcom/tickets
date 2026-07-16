@@ -61,7 +61,9 @@ BEGIN
     SELECT 1 FROM checkout_stages AS stage
     WHERE stage.payment_session_id = NEW.payment_session_id
       AND stage.state ${OPEN_CHECKOUT_STAGE_SQL}
-      AND stage.attendee_id != NEW.attendee_id
+      AND (NEW.checkout_stage_attendee_id IS NULL
+        OR NEW.checkout_stage_attendee_id != stage.attendee_id
+        OR stage.attendee_id != NEW.attendee_id)
   );
 END`,
     table: "processed_payments",
@@ -76,7 +78,9 @@ WHEN NEW.attendee_id IS NOT NULL AND EXISTS (
   SELECT 1 FROM checkout_stages AS stage
   WHERE stage.payment_session_id = NEW.payment_session_id
     AND stage.state ${OPEN_CHECKOUT_STAGE_SQL}
-    AND stage.attendee_id != NEW.attendee_id
+    AND (NEW.checkout_stage_attendee_id IS NULL
+      OR NEW.checkout_stage_attendee_id != stage.attendee_id
+      OR stage.attendee_id != NEW.attendee_id)
 )
 BEGIN
   SELECT RAISE(ABORT, 'open checkout stage belongs to another attendee');

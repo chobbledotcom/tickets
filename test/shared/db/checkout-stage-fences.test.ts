@@ -40,6 +40,132 @@ const migrationContext = buildMigrationContext({
   verifyRequirement,
 });
 
+const AGGREGATE_FIXTURE = {
+  answerId: 701,
+  attendeeId: 702,
+  questionId: 703,
+  stringId: 704,
+} as const;
+
+const OLD_STRING_AGGREGATE_TRIGGER_SQL = [
+  `CREATE TRIGGER trg_attendee_answers_strings_insert
+   AFTER INSERT ON attendee_answers
+   WHEN NEW.string_id IS NOT NULL
+   BEGIN
+     UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
+   END`,
+  `CREATE TRIGGER trg_attendee_answers_strings_delete
+   AFTER DELETE ON attendee_answers
+   WHEN OLD.string_id IS NOT NULL
+   BEGIN
+     UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
+   END`,
+  `CREATE TRIGGER trg_attendee_answers_strings_update
+   AFTER UPDATE OF string_id ON attendee_answers
+   WHEN OLD.string_id IS NOT NEW.string_id
+   BEGIN
+     UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
+     UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
+   END`,
+] as const;
+
+const installOldAggregateTriggers = async (): Promise<void> => {
+  for (const trigger of ANSWER_AGGREGATE_TRIGGERS) {
+    await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger.name}`);
+    await getDb().execute(
+      trigger.sql
+        .replace(", string_id", "")
+        .split("\n")
+        .filter((line) => !line.includes("UPDATE strings"))
+        .join("\n"),
+    );
+  }
+  for (const sql of OLD_STRING_AGGREGATE_TRIGGER_SQL) {
+    await getDb().execute(sql);
+  }
+};
+
+const seedAggregateFixture = async (): Promise<void> => {
+  const values = AGGREGATE_FIXTURE;
+  await getDb().execute({
+    args: [values.questionId, "Question"],
+    sql: "INSERT INTO questions (id, text) VALUES (?, ?)",
+  });
+  await getDb().execute({
+    args: [values.answerId, values.questionId, "Choice"],
+    sql: "INSERT INTO answers (id, question_id, text) VALUES (?, ?, ?)",
+  });
+  await getDb().execute({
+    args: [values.stringId, "text-index", "encrypted"],
+    sql: "INSERT INTO strings (id, text_index, encrypted_text) VALUES (?, ?, ?)",
+  });
+};
+
+const aggregateValues = async (): Promise<{
+  answer: number;
+  string: number;
+}> => {
+  const result = await getDb().execute({
+    args: [AGGREGATE_FIXTURE.answerId, AGGREGATE_FIXTURE.stringId],
+    sql: `SELECT
+      (SELECT times_selected FROM answers WHERE id = ?) AS answer,
+      (SELECT used_count FROM strings WHERE id = ?) AS string`,
+  });
+  return {
+    answer: Number(result.rows[0]!.answer),
+    string: Number(result.rows[0]!.string),
+  };
+};
+
+const exerciseAggregateLifecycle = async (): Promise<{
+  afterDelete: { answer: number; string: number };
+  afterInsert: { answer: number; string: number };
+  afterUpdate: { answer: number; string: number };
+}> => {
+  const values = AGGREGATE_FIXTURE;
+  await getDb().execute({
+    args: [values.attendeeId, values.answerId, values.questionId],
+    sql: `INSERT INTO attendee_answers (attendee_id, answer_id, question_id)
+      VALUES (?, ?, ?)`,
+  });
+  const afterInsert = await aggregateValues();
+  await getDb().execute({
+    args: [values.stringId, values.attendeeId],
+    sql: `UPDATE attendee_answers
+      SET answer_id = NULL, string_id = ? WHERE attendee_id = ?`,
+  });
+  const afterUpdate = await aggregateValues();
+  await getDb().execute("DELETE FROM attendee_answers WHERE attendee_id = ?", [
+    values.attendeeId,
+  ]);
+  return {
+    afterDelete: await aggregateValues(),
+    afterInsert,
+    afterUpdate,
+  };
+};
+
+const expectAggregateLifecycle = async (): Promise<void> => {
+  expect(await exerciseAggregateLifecycle()).toEqual({
+    afterDelete: { answer: 0, string: 0 },
+    afterInsert: { answer: 1, string: 0 },
+    afterUpdate: { answer: 0, string: 1 },
+  });
+};
+
+const expectFinalizeRejected = async (sessionId: string): Promise<void> => {
+  await expect(
+    getDb().execute(
+      "UPDATE processed_payments SET attendee_id = 43 WHERE payment_session_id = ?",
+      [sessionId],
+    ),
+  ).rejects.toThrow("open checkout stage belongs to another attendee");
+  expect(await isSessionProcessed(sessionId)).toMatchObject({
+    attendee_id: null,
+    checkout_stage_attendee_id: 42,
+  });
+};
+
 describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
   test("rejects a legacy reservation without the staged attendee claim", async () => {
     const sessionId = "cs_legacy_reservation";
@@ -103,16 +229,19 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     await insertStage(sessionId, 42);
     await reserveSession(sessionId);
 
-    await expect(
-      getDb().execute(
-        "UPDATE processed_payments SET attendee_id = 43 WHERE payment_session_id = ?",
-        [sessionId],
-      ),
-    ).rejects.toThrow("open checkout stage belongs to another attendee");
-    expect(await isSessionProcessed(sessionId)).toMatchObject({
-      attendee_id: null,
-      checkout_stage_attendee_id: 42,
-    });
+    await expectFinalizeRejected(sessionId);
+  });
+
+  test("rejects finalizing when the open stage no longer matches the saved claim", async () => {
+    const sessionId = "cs_repointed_stage";
+    await insertStage(sessionId, 42);
+    await reserveSession(sessionId);
+    await getDb().execute(
+      "UPDATE checkout_stages SET attendee_id = 43 WHERE payment_session_id = ?",
+      [sessionId],
+    );
+
+    await expectFinalizeRejected(sessionId);
   });
 
   test("rejects inserting a finalized payment for another attendee", async () => {
@@ -205,7 +334,10 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
       columns: {
         processed_payments: ["checkout_stage_attendee_id"],
       },
-      triggers: fenceNames,
+      triggers: [
+        ...ANSWER_AGGREGATE_TRIGGERS.map((trigger) => trigger.name),
+        ...fenceNames,
+      ],
     });
     await migration.up();
     await migration.verify();
@@ -233,26 +365,29 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     );
   });
 
-  test("the migration replaces old answer-only aggregate triggers", async () => {
-    for (const trigger of ANSWER_AGGREGATE_TRIGGERS) {
-      await getDb().execute(`DROP TRIGGER ${trigger.name}`);
-      await getDb().execute(
-        trigger.sql
-          .split("\n")
-          .filter((line) => !line.includes("UPDATE strings"))
-          .join("\n"),
-      );
-    }
+  test("the migration replaces old aggregate triggers with combined behavior", async () => {
+    await installOldAggregateTriggers();
+    await seedAggregateFixture();
 
     await checkoutStagePaymentFencesMigration(migrationContext).up();
 
-    const triggers = await getDb().execute(
-      `SELECT sql FROM sqlite_master
-       WHERE type = 'trigger' AND name IN (${ANSWER_AGGREGATE_TRIGGERS.map(() => "?").join(", ")})`,
-      ANSWER_AGGREGATE_TRIGGERS.map((trigger) => trigger.name),
-    );
-    expect(
-      triggers.rows.map((row) => String(row.sql).includes("UPDATE strings")),
-    ).toEqual([true, true, true]);
+    await expectAggregateLifecycle();
+  });
+
+  test("a replacement failure preserves all old aggregate behavior", async () => {
+    await installOldAggregateTriggers();
+    await seedAggregateFixture();
+    const trigger = CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS[0]!;
+    const originalSql = trigger.sql;
+    trigger.sql = "invalid trigger SQL";
+    try {
+      await expect(
+        checkoutStagePaymentFencesMigration(migrationContext).up(),
+      ).rejects.toThrow();
+    } finally {
+      trigger.sql = originalSql;
+    }
+
+    await expectAggregateLifecycle();
   });
 });
