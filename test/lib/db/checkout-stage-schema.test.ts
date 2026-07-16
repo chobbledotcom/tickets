@@ -2,38 +2,26 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import checkoutStagesMigration from "#shared/db/migrations/2026-07-15_checkout_stages.ts";
-import { CHECKOUT_STAGE_REVISION_TRIGGERS } from "#shared/db/migrations/schema/checkout-stage-triggers.ts";
+import dropCheckoutStageRevisionsMigration from "#shared/db/migrations/2026-07-16_drop_checkout_stage_revisions.ts";
 import {
   applySchemaChanges,
   syncIndexes,
-  syncTriggers,
 } from "#shared/db/migrations/schema-sync.ts";
+import { additive } from "#shared/db/migrations/verify.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
-const triggerNames = CHECKOUT_STAGE_REVISION_TRIGGERS.map(
-  (trigger) => trigger.name,
+const LEGACY_TRIGGER_NAMES = ["insert", "update", "delete"].map(
+  (action) => `trg_checkout_stages_revision_${action}`,
 );
 
 const context = buildMigrationContext({
   applySchemaChanges,
   syncIndexes,
-  syncTriggers,
 });
+const cleanupContext = buildMigrationContext({ additive });
 
 const runMigration = (): Promise<void> => checkoutStagesMigration(context).up();
-
-const revision = async (): Promise<number> => {
-  const result = await getDb().execute(
-    "SELECT revision FROM checkout_stage_revisions WHERE id = 1",
-  );
-  return Number(result.rows[0]?.revision);
-};
-
-const insertStage = (): Promise<unknown> =>
-  getDb().execute(`INSERT INTO checkout_stages
-    (payment_session_id, attendee_id, provider, ticket_tokens, state, created_at)
-    VALUES ('session-1', 42, 'stripe', '["ticket-1"]', 'open', '2026-07-15T12:00:00Z')`);
 
 describeWithEnv(
   "db > checkout stage schema",
@@ -45,41 +33,15 @@ describeWithEnv(
           "idx_checkout_stages_attendee_id",
           "idx_checkout_stages_state_created_at",
         ],
-        newTables: ["checkout_stage_revisions", "checkout_stages"],
-        triggers: triggerNames,
+        newTables: ["checkout_stages"],
       });
     });
 
-    test("the migration creates the exact columns, indexes, and triggers", async () => {
-      for (const name of triggerNames) {
-        await getDb().execute(`DROP TRIGGER ${name}`);
-      }
+    test("the migration creates only the checkout stage table and indexes", async () => {
       await getDb().execute("DROP TABLE checkout_stages");
-      await getDb().execute("DROP TABLE checkout_stage_revisions");
 
       await runMigration();
 
-      const revisionColumns = await getDb().execute(
-        "PRAGMA table_info(checkout_stage_revisions)",
-      );
-      expect(revisionColumns.rows).toEqual([
-        {
-          cid: 0,
-          dflt_value: null,
-          name: "id",
-          notnull: 0,
-          pk: 1,
-          type: "INTEGER",
-        },
-        {
-          cid: 1,
-          dflt_value: null,
-          name: "revision",
-          notnull: 1,
-          pk: 0,
-          type: "INTEGER",
-        },
-      ]);
       const stageColumns = await getDb().execute(
         "PRAGMA table_info(checkout_stages)",
       );
@@ -150,17 +112,11 @@ describeWithEnv(
       const triggers = await getDb().execute(
         "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'checkout_stages' ORDER BY name",
       );
-      expect(triggers.rows.map((row) => row.name)).toEqual(
-        [...triggerNames].sort(),
+      expect(triggers.rows.map((row) => row.name)).toEqual([]);
+      const revisionColumns = await getDb().execute(
+        "PRAGMA table_info(checkout_stage_revisions)",
       );
-    });
-
-    test("the revision table allows only singleton id 1", async () => {
-      await expect(
-        getDb().execute(
-          "INSERT INTO checkout_stage_revisions (id, revision) VALUES (2, 1)",
-        ),
-      ).rejects.toThrow();
+      expect(revisionColumns.rows).toEqual([]);
     });
 
     test("a stage cannot be stored without a payment session id", async () => {
@@ -175,25 +131,46 @@ describeWithEnv(
       expect(Number(result.rows[0]?.count)).toBe(0);
     });
 
-    test("inserting the first stage creates revision 1", async () => {
-      await insertStage();
-      expect(await revision()).toBe(1);
+    test("the cleanup migration declares the legacy table absent", () => {
+      expect(
+        dropCheckoutStageRevisionsMigration(cleanupContext).requires,
+      ).toEqual({ absentTables: ["checkout_stage_revisions"] });
     });
 
-    test("updating a stage increments its revision once", async () => {
-      await insertStage();
+    test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {
       await getDb().execute(
-        "UPDATE checkout_stages SET state = 'paid' WHERE payment_session_id = 'session-1'",
+        "CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)",
       );
-      expect(await revision()).toBe(2);
+      for (const [index, name] of LEGACY_TRIGGER_NAMES.entries()) {
+        const action = ["INSERT", "UPDATE", "DELETE"][index]!;
+        await getDb().execute(`CREATE TRIGGER ${name}
+          AFTER ${action} ON checkout_stages BEGIN SELECT 1; END`);
+      }
+      const migration = dropCheckoutStageRevisionsMigration(cleanupContext);
+
+      await migration.up();
+      await migration.up();
+      await migration.verify();
+
+      const legacyObjects = await getDb().execute(
+        `SELECT name FROM sqlite_master
+          WHERE name = 'checkout_stage_revisions'
+             OR name LIKE 'trg_checkout_stages_revision_%'
+          ORDER BY name`,
+      );
+      expect(legacyObjects.rows).toEqual([]);
     });
 
-    test("deleting a stage increments its revision once", async () => {
-      await insertStage();
+    test("the cleanup migration verification rejects a surviving legacy table", async () => {
       await getDb().execute(
-        "DELETE FROM checkout_stages WHERE payment_session_id = 'session-1'",
+        "CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY)",
       );
-      expect(await revision()).toBe(2);
+
+      await expect(
+        dropCheckoutStageRevisionsMigration(cleanupContext).verify(),
+      ).rejects.toThrow(
+        "Migration verification failed: legacy table checkout_stage_revisions still present",
+      );
     });
   },
 );

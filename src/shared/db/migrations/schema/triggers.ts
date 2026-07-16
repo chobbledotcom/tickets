@@ -1,7 +1,6 @@
 /** Triggers that keep derived database state in step with its source rows. */
 
 import { ADMIN_FEATURE_TRIGGERS } from "./admin-feature-triggers.ts";
-import { CHECKOUT_STAGE_REVISION_TRIGGERS } from "./checkout-stage-triggers.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   ticketCountPredicateFor,
@@ -344,5 +343,4 @@ export const TRIGGERS: Trigger[] = [
   ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
   ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
   ...STRING_AGGREGATE_TRIGGERS,
-  ...CHECKOUT_STAGE_REVISION_TRIGGERS,
 ];

@@ -87,8 +87,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-15_enabled_features",
         "2026-07-15_attendee_status_integrity",
         "2026-07-15_checkout_stages",
+        "2026-07-16_drop_checkout_stage_revisions",
       ],
-      schemaHash: "18aov3t",
+      schemaHash: "19cwfaa",
     });
   });
 });
