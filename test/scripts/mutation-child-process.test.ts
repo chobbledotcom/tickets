@@ -25,12 +25,16 @@ const withParentVariable = async <T>(
 
 test("an explicit child environment does not inherit removed parent values", () =>
   withParentVariable("must not leak", async () => {
+    const options = {
+      clearEnv: false,
+      env: { TICKETS_MUTATION_CHILD_ONLY: "present" },
+    };
     const code = await denoExitCode(
       [
         "eval",
         `Deno.exit(Deno.env.get("${PARENT_KEY}") === undefined && Deno.env.get("TICKETS_MUTATION_CHILD_ONLY") === "present" ? 0 : 1)`,
       ],
-      { env: { TICKETS_MUTATION_CHILD_ONLY: "present" } },
+      options,
     );
 
     expect(code).toBe(0);

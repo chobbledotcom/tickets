@@ -6,6 +6,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import {
   createApiKey,
@@ -38,7 +39,6 @@ import {
   testCsrfToken,
 } from "#test-utils/session.ts";
 import {
-  enableFeature,
   storedFeatureEnabled,
   withFeatureWriteFailure,
 } from "#test-utils/settings.ts";
@@ -237,7 +237,7 @@ describeWithEnv("API Keys", { db: true }, () => {
     });
 
     test("does not create a key when enabling the feature fails", async () => {
-      await enableFeature("apiKeys");
+      await setAdminFeatureEnabled("apiKeys", false);
       await withFeatureWriteFailure(async () => {
         const response = await postApiKeyForm("/admin/api-keys", {
           name: "Unrecoverable key",
@@ -248,6 +248,7 @@ describeWithEnv("API Keys", { db: true }, () => {
           false,
         );
         expect(await getApiKeysForUser(1)).toEqual([]);
+        expect(await storedFeatureEnabled("apiKeys")).toBe(false);
       });
     });
 

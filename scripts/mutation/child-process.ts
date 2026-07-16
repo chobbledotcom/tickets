@@ -9,8 +9,8 @@ export const denoExitCode = (
 ): Promise<number> =>
   commandExitCode(Deno.execPath(), {
     args,
-    clearEnv: options.env !== undefined,
     ...options,
+    clearEnv: options.env !== undefined,
   });
 
 /** The current process env plus the given extra variables — the env handed to
