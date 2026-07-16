@@ -84,6 +84,17 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
     ).toBeNull();
   });
 
+  test("validates an unchanged stored object", async () => {
+    await execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":true}'],
+    );
+
+    await expect(
+      writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, "TRUE"),
+    ).rejects.toThrow("Every admin feature must have an enabled value");
+  });
+
   test("rolls back the JSON change when its settings version write fails", async () => {
     await writeFeatureBoolean(emptyFeatures, "$.money", false, "TRUE");
     await execute(`

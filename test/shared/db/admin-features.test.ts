@@ -116,6 +116,26 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect((await storedFeatures()).logistics).toBe(false);
   });
 
+  test("updating an ordinary attendee does not enable Servicing", async () => {
+    await execute(
+      "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')",
+    );
+
+    await execute("UPDATE attendees SET pii_blob = 'after'");
+
+    expect((await storedFeatures()).servicing).toBe(false);
+  });
+
+  test("updating an ordinary listing does not enable Logistics", async () => {
+    await execute(
+      "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)",
+    );
+
+    await execute("UPDATE listings SET uses_logistics = 0");
+
+    expect((await storedFeatures()).logistics).toBe(false);
+  });
+
   test("counts a logistics agent as logistics use", async () => {
     await execute("INSERT INTO logistics_agents (name) VALUES ('Van')");
     expect((await getAdminFeatureUsage()).logistics).toBe(true);
@@ -179,6 +199,40 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     expect(await settingValue(CONFIG_KEYS.SETTINGS_VERSION)).toBe(before);
   });
 
+  test("syncs a Logistics disable into the feature caches", async () => {
+    await setAdminFeatureEnabled("money", true);
+    await setAdminFeatureEnabled("logistics", true);
+    settings.invalidateCache();
+    await settings.loadKeys([CONFIG_KEYS.ENABLED_FEATURES]);
+
+    await setAdminFeatureEnabled("logistics", false);
+
+    const stored = await settingValue(CONFIG_KEYS.ENABLED_FEATURES);
+    expect(settings.getCachedRaw(CONFIG_KEYS.ENABLED_FEATURES)).toBe(stored);
+    expect(settings.features).toEqual({
+      apiKeys: false,
+      attributes: false,
+      logistics: false,
+      modifiers: false,
+      money: true,
+      questions: false,
+      servicing: false,
+      site: false,
+    });
+  });
+
+  test("syncs cleaned Logistics defaults into the snapshot", async () => {
+    await settings.update.listingDefaults({
+      hidden: true,
+      usesLogistics: true,
+    });
+    await setAdminFeatureEnabled("logistics", true);
+
+    await setAdminFeatureEnabled("logistics", false);
+
+    expect(settings.listingDefaults).toEqual({ hidden: true });
+  });
+
   test("does not disable a feature that has saved records", async () => {
     await setAdminFeatureEnabled("modifiers", true);
     await execute(
@@ -210,6 +264,43 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
     await expect(setAdminFeatureEnabled("money", true)).rejects.toThrow(
       "Every admin feature must have an enabled value",
+    );
+  });
+
+  test("rolls back a feature record when the stored feature setting is incomplete", async () => {
+    await execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      [CONFIG_KEYS.ENABLED_FEATURES, '{"attributes":false}'],
+    );
+
+    await expect(
+      execute("INSERT INTO attributes (name) VALUES ('Level')"),
+    ).rejects.toThrow("enabled feature setting is invalid");
+    expect(
+      await queryOne("SELECT id FROM attributes WHERE name = 'Level'"),
+    ).toBeNull();
+  });
+
+  test("rolls back Logistics cleanup when the stored feature setting is incomplete", async () => {
+    await settings.update.listingDefaults({
+      hidden: true,
+      usesLogistics: true,
+    });
+    const defaultsBefore = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
+    const featuresBefore = '{"logistics":true}';
+    await execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      [CONFIG_KEYS.ENABLED_FEATURES, featuresBefore],
+    );
+
+    await expect(setAdminFeatureEnabled("logistics", false)).rejects.toThrow(
+      "Every admin feature must have an enabled value",
+    );
+    expect(await settingValue(CONFIG_KEYS.LISTING_DEFAULTS)).toBe(
+      defaultsBefore,
+    );
+    expect(await settingValue(CONFIG_KEYS.ENABLED_FEATURES)).toBe(
+      featuresBefore,
     );
   });
 });

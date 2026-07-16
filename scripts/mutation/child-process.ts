@@ -1,11 +1,17 @@
 import { withEntries } from "#fp";
 import { commandExitCode } from "../deno-command.ts";
 
-/** Run `deno <args>` to completion and return its exit code. */
+/** Run `deno <args>` to completion and return its exit code. An explicit env
+ * is the child's complete environment, so removing a parent variable works. */
 export const denoExitCode = (
   args: string[],
-  options: Omit<Deno.CommandOptions, "args"> = {},
-): Promise<number> => commandExitCode(Deno.execPath(), { args, ...options });
+  options: Omit<Deno.CommandOptions, "args" | "clearEnv"> = {},
+): Promise<number> =>
+  commandExitCode(Deno.execPath(), {
+    args,
+    clearEnv: options.env !== undefined,
+    ...options,
+  });
 
 /** The current process env plus the given extra variables — the env handed to
  * a spawned child process. */

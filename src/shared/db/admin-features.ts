@@ -10,6 +10,7 @@ import {
 } from "#shared/admin-features.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import { enabledFeaturesAreValidSql } from "#shared/db/admin-feature-sql.ts";
 import {
   executeBatchWithResults,
   queryOne,
@@ -181,9 +182,20 @@ const logisticsDisableStatements = (
   statements.push(
     requireSettingCondition(`NOT (${FEATURES_BY_KEY.logistics.inUseSql})`),
   );
+  statements.push(featureWriteStatement("logistics", false, "TRUE"));
+  statements.push(
+    requireSettingCondition(`EXISTS (
+      SELECT 1 FROM settings
+      WHERE key = '${CONFIG_KEYS.ENABLED_FEATURES}'
+        AND ${enabledFeaturesAreValidSql("value")}
+    )`),
+  );
   const featureResultIndex = statements.length;
   statements.push(
-    featureWriteStatement("logistics", false, "TRUE"),
+    {
+      args: [CONFIG_KEYS.ENABLED_FEATURES],
+      sql: "SELECT value FROM settings WHERE key = ?",
+    },
     settingsVersionIncrement(),
   );
   return { featureResultIndex, statements };
@@ -214,8 +226,17 @@ const saveLogisticsDisable = async (
     StoredValueSchema,
     resultRows<unknown>(results[featureResultIndex]!)[0],
   );
-  parseEnabledFeatures(row.value);
   syncLogisticsDisable(prepared, row.value);
+};
+
+const validateStoredFeatureSetting = async (): Promise<void> => {
+  const row = v.parse(
+    StoredValueSchema,
+    await queryOnePrimary<unknown>("SELECT value FROM settings WHERE key = ?", [
+      CONFIG_KEYS.ENABLED_FEATURES,
+    ]),
+  );
+  parseEnabledFeatures(row.value);
 };
 
 const disableLogisticsFeature = async (): Promise<boolean> => {
@@ -226,6 +247,7 @@ const disableLogisticsFeature = async (): Promise<boolean> => {
       return true;
     } catch (error) {
       if (!isRequiredSettingWriteFailure(error)) throw error;
+      await validateStoredFeatureSetting();
       if ((await prepareLogisticsDefault()).current !== prepared.current) {
         continue;
       }

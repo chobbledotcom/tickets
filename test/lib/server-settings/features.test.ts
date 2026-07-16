@@ -2,6 +2,7 @@ import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { execute, getDb } from "#shared/db/client.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
@@ -168,14 +169,18 @@ describeAdminSettings(() => {
 
   test("enables and disables unused Logistics", async () => {
     await settings.update.listingDefaults({
-      ...settings.listingDefaults,
+      hidden: true,
       usesLogistics: true,
     });
     await expectFeatureSaved("logistics", true, "Logistics enabled.");
     expect(settings.listingDefaults.usesLogistics).toBe(true);
 
     await expectFeatureSaved("logistics", false, "Logistics disabled.");
-    expect(settings.listingDefaults.usesLogistics).toBeUndefined();
+    expect(settings.listingDefaults).toEqual({ hidden: true });
+    expect(settings.features.logistics).toBe(false);
+    const cached = settings.getCachedRaw(CONFIG_KEYS.ENABLED_FEATURES);
+    if (cached === null) throw new Error("Feature setting was not cached");
+    expect(parseEnabledFeatures(cached).logistics).toBe(false);
   });
 
   test("disables Logistics without creating a listing default", async () => {
@@ -243,7 +248,7 @@ describeAdminSettings(() => {
     });
     try {
       await expect(setAdminFeatureEnabled("logistics", false)).rejects.toThrow(
-        "Listing defaults changed too often to disable Logistics",
+        /^Listing defaults changed too often to disable Logistics$/,
       );
     } finally {
       batchStub.restore();
