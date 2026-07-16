@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import Stripe from "stripe";
 import { settings } from "#shared/db/settings.ts";
 import {
   getStripeClient,
@@ -238,15 +239,19 @@ describeStripe("Stripe webhook setup", () => {
       await setupWithWebhookApi(webhookUrl, calls);
 
       expect([...calls.createdBody!.entries()]).toEqual([
+        ["api_version", Stripe.API_VERSION],
         ["enabled_events[0]", "checkout.session.completed"],
         ["url", webhookUrl],
       ]);
     });
 
     test("reports a missing signing secret", async () => {
-      const result = await setupWebhookEndpoint(
-        "sk_test_mock",
-        "https://example.com/payment/webhook",
+      const webhookUrl = "https://example.com/payment/webhook";
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        newWebhookApiCalls(),
+        undefined,
+        { omitSecret: true },
       );
 
       expect(result).toEqual({

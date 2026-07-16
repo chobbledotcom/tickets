@@ -19,6 +19,7 @@ export type WebhookApiOptions = {
   createThrowsWebhookOnly?: boolean;
   deleteFails?: boolean;
   listFails?: boolean;
+  omitSecret?: boolean;
   recordedInListing?: boolean;
   sameUrlStray?: boolean;
 };
@@ -36,6 +37,7 @@ export const webhookEndpointsApi = (
     createThrowsWebhookOnly = false,
     deleteFails = false,
     listFails = false,
+    omitSecret = false,
     recordedInListing = false,
     sameUrlStray = true,
   } = options;
@@ -59,7 +61,7 @@ export const webhookEndpointsApi = (
   const created = {
     id: "we_new",
     object: "webhook_endpoint",
-    secret: "whsec_new",
+    ...(omitSecret ? {} : { secret: "whsec_new" }),
     status: "enabled",
     url: webhookUrl,
   };
