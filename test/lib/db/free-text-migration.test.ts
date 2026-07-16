@@ -117,8 +117,25 @@ describe("db > free-text migration constraint relaxation", () => {
 
   test("rebuilding both tables accepts free-text questions and text answers", async () => {
     const db = await seedLegacyDb();
+    const rebuilt: string[] = [];
+    const trackedMigration = freeTextMigration(
+      buildMigrationContext({
+        applySchemaChanges,
+        recreateTable: async (table) => {
+          rebuilt.push(table);
+          await recreateTable(table);
+        },
+        syncIndexes,
+        syncTriggers,
+      }),
+    );
 
-    await migration.up();
+    await trackedMigration.up();
+    expect(rebuilt).toEqual([
+      "attendee_answers",
+      "listing_questions",
+      "questions",
+    ]);
 
     await db.execute(
       "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
