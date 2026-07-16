@@ -203,13 +203,13 @@ const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
 
 /** Shared fields from group form values */
 const sharedGroupFields = (values: GroupCreateFormValues) => ({
-  description: values.description ?? "",
+  description: values.description,
   hidden: values.hidden === "1",
   hidePackageListings: values.hide_package_listings === "1",
   isPackage: values.is_package === "1",
   maxAttendees: values.max_attendees ?? 0,
   name: values.name,
-  termsAndConditions: values.terms_and_conditions ?? "",
+  termsAndConditions: values.terms_and_conditions,
 });
 
 /** Extract group input from create form values (auto-generates slug) */

@@ -94,7 +94,7 @@ import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 const extractModifierInput = async (
   values: ModifierFormValues,
 ): Promise<ModifierInput> => {
-  const code = values.trigger === "code" ? (values.code ?? "").trim() : "";
+  const code = values.trigger === "code" ? values.code.trim() : "";
   return {
     active: values.active === "1",
     calcKind: values.calc_kind,

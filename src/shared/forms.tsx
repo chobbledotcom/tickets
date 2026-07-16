@@ -329,8 +329,7 @@ const resolveFieldValue = (
   if (explicit != null && explicit !== "") return String(explicit);
   const saved = getSavedValue(field);
   if (saved !== "") return saved;
-  const defaultValue = "defaultValue" in field ? field.defaultValue : undefined;
-  return String(explicit ?? defaultValue ?? "");
+  return String(explicit ?? field.defaultValue ?? "");
 };
 
 /**
@@ -425,12 +424,6 @@ const collectFieldValue = (
   const raw = readFieldText(form, field);
   // Only a datetime can read as null: a time was given without a date.
   if (raw === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
-  if (field.type === "datetime" && !raw) {
-    if (field.required) {
-      return requiredFieldError(field);
-    }
-    return { valid: true, value: null };
-  }
   return raw;
 };
 

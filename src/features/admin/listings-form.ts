@@ -76,11 +76,11 @@ const resolveListingType = (
 
 /** Parse comma-separated day names, applying the submit-mode empty selection policy. */
 const parseBookableDays = (
-  value: string | null,
+  value: string,
   listingType: ListingType,
   mode: ListingWriteMode,
 ): string[] | undefined => {
-  const days = splitCsv(value ?? "");
+  const days = splitCsv(value);
   if (days.length > 0) return days;
   return EMPTY_BOOKABLE_DAYS_POLICY[mode][listingType] === "preserveEmpty"
     ? days
@@ -137,13 +137,11 @@ const validateDayPricesFromForm = (form: FormParams): string | null => {
     : null;
 };
 
-/** Normalize an optional datetime field to UTC, passing through blanks/undefined. */
-const normalizeOptionalDatetime = (
-  raw: string | null | undefined,
-  field: string,
-): string | null => (raw ? normalizeDatetime(raw, field) : null);
+/** Normalize an optional datetime field to UTC, passing through a blank. */
+const normalizeOptionalDatetime = (raw: string, field: string): string =>
+  raw ? normalizeDatetime(raw, field) : raw;
 
-const enabledChoice = (enabled: boolean, value: string | null): boolean =>
+const enabledChoice = (enabled: boolean, value: string): boolean =>
   enabled && value === "1";
 
 /** Extract common listing fields from validated form values, normalizing datetimes to UTC */
@@ -152,14 +150,13 @@ const extractCommonFields = (
   form: FormParams,
   mode: ListingWriteMode,
 ) => {
-  const webhookUrl = isDemoMode() ? "" : (values.webhook_url ?? "");
+  const webhookUrl = isDemoMode() ? "" : values.webhook_url;
   const durationDays = values.duration_days ?? 1;
   const listingType = resolveListingType(values.listing_type);
   // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free); a valid
   // value is the currency-checked minor-units amount. `unit_price` is always a
   // string here, so no nullish fallback is needed before parsing.
-  const unitPrice =
-    parseOptionalMinorUnits(values.unit_price ?? "") ?? undefined;
+  const unitPrice = parseOptionalMinorUnits(values.unit_price) ?? undefined;
   const bookableDays = parseBookableDays(
     values.bookable_days,
     listingType,
@@ -174,18 +171,18 @@ const extractCommonFields = (
     bookableAlone: values.bookable_alone === "1",
     bookableDays,
     canPayMore: values.can_pay_more === "1",
-    closesAt,
+    closesAt: closesAt === "" ? null : closesAt,
     customisableDays: values.customisable_days === "1",
-    date: normalizeOptionalDatetime(values.date, "date") ?? "",
+    date: normalizeOptionalDatetime(values.date, "date"),
     dayPrices: parseDayPricesFromForm(form, durationDays),
-    description: values.description ?? "",
+    description: values.description,
     durationDays,
-    fields: values.fields ?? "",
+    fields: values.fields,
     groupIds: parseGroupIds(form),
     hidden: values.hidden === "1",
     initialSiteMonths: values.initial_site_months ?? 0,
     listingType,
-    location: values.location ?? "",
+    location: values.location,
     maxAttendees: values.max_attendees,
     maximumDaysAfter: values.maximum_days_after ?? 90,
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
@@ -195,7 +192,7 @@ const extractCommonFields = (
     name: values.name,
     nonTransferable: values.non_transferable === "1",
     purchaseOnly: values.purchase_only === "1",
-    thankYouUrl: values.thank_you_url ?? "",
+    thankYouUrl: values.thank_you_url,
     unitPrice,
     useDefaults: form.getFlag("use_defaults"),
     usesLogistics: enabledChoice(

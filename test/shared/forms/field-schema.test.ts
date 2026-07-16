@@ -154,13 +154,12 @@ describe("form field schema", () => {
     expect(renderUnknownField).toThrow("Unknown field: missing");
   });
 
-  test("renders omitted and null field values as blank", () => {
+  test("renders an omitted field value as blank", () => {
     const form = defineForm({
       fields: [{ label: "Name", name: "name", type: "text" }] as const,
       id: "blank-field",
     });
 
     expect(form.field("name").render()).not.toContain("value=");
-    expect(form.field("name").render(null)).not.toContain("value=");
   });
 });

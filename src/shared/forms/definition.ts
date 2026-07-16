@@ -33,7 +33,7 @@ type ParsedFieldValue<F extends FormFieldDefinition> = F extends {
       ? number | null
       : F["type"] extends "file"
         ? null
-        : string | null;
+        : string;
 
 type NormalizedFieldValue<F extends FormFieldDefinition> = F extends {
   required: true;
@@ -53,7 +53,7 @@ export type FormValues<TForm> =
     : never;
 
 type FormFieldRenderHelper = {
-  render: (value?: string | number | null) => string;
+  render: (value?: string) => string;
 };
 
 type FormSectionId<TFields extends FormFieldDefinitions> =
@@ -88,14 +88,10 @@ export type FormDefinition<
   ) => ValidationResult<FormValuesFor<TFields>>;
 };
 
-const normalizeOptionalValue: FieldValueNormalizer = (
+const normalizeSelectValue: FieldValueNormalizer = (
   field: Field,
   value: string | number | null,
-) => {
-  if (field.required) return value;
-  if (field.type === "number") return value;
-  return value === "" ? null : value;
-};
+) => (field.type === "select" && value === "" ? null : value);
 
 /** Define a typed form schema that can render and validate from one source. */
 export const defineForm = <
@@ -132,7 +128,7 @@ export const defineForm = <
     const base = validateForm<FormValuesFor<TFields>>(
       form,
       fields,
-      normalizeOptionalValue,
+      normalizeSelectValue,
     );
     if (!base.valid) return base;
     const values = base.values;
@@ -158,8 +154,7 @@ export const defineForm = <
 
   return {
     field: (name) => ({
-      render: (value = "") =>
-        renderField(fieldByName(name), String(value ?? "")),
+      render: (value = "") => renderField(fieldByName(name), value),
     }),
     fields: config.fields,
     id: config.id,

@@ -165,13 +165,13 @@ describe("validateForm", () => {
       }
     });
 
-    test("returns null when both date and time are empty", () => {
+    test("returns an empty string when both date and time are empty", () => {
       const result = validateForm(
         new FormParams({ closes_at_date: "", closes_at_time: "" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
-      if (result.valid) expect(result.values.closes_at).toBeNull();
+      if (result.valid) expect(result.values.closes_at).toBe("");
     });
 
     test("defaults time to 00:00 when only date is provided", () => {

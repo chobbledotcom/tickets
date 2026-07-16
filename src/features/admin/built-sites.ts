@@ -81,9 +81,9 @@ const extractBuiltSiteInput = (
   return {
     assignable: values.assignable === "1",
     dbProvider,
-    dbToken: values.db_token ?? "",
-    dbUrl: values.db_url ?? "",
-    hostingId: values.hosting_id ?? "",
+    dbToken: values.db_token,
+    dbUrl: values.db_url,
+    hostingId: values.hosting_id,
     hostingProvider,
     name: values.name,
     siteUrl: values.site_url,
