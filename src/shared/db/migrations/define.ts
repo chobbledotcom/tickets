@@ -114,7 +114,10 @@ export const triggerRewriteDropMigration = (
   bareSchemaMigration(
     id,
     description,
-    async ({ getDb, recreateTable, syncTriggers }) => {
+    async ({ applySchemaChanges, getDb, recreateTable, syncTriggers }) => {
+      // Trigger sync installs the whole current trigger set, so its tables and
+      // columns must exist even when this historical migration runs first.
+      await applySchemaChanges();
       for (const trigger of triggers) {
         await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
       }

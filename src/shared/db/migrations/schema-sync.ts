@@ -213,31 +213,13 @@ const LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES = [
   ["listing_attendees", ["attendee_id", "listing_id", "quantity"]],
 ] as const;
 
-const CHECKOUT_STAGE_PAYMENT_TRIGGER_DEPENDENCIES = [
-  "checkout_stages",
-  "processed_payments",
-] as const;
-
-const CHECKOUT_STAGE_PAYMENT_TRIGGER_COLUMN_DEPENDENCIES = [
-  ["checkout_stages", ["payment_session_id", "attendee_id", "state"]],
-  [
-    "processed_payments",
-    ["payment_session_id", "attendee_id", "checkout_stage_attendee_id"],
-  ],
-] as const;
-
 const isListingAggregateTrigger = (triggerName: string): boolean =>
   triggerName.startsWith("trg_listing_attendees_aggregates_");
-
-const isCheckoutStagePaymentTrigger = (triggerName: string): boolean =>
-  triggerName.startsWith("trg_processed_payments_checkout_stage_");
 
 const triggerDependencies = (triggerName: string, table: string): string[] =>
   isListingAggregateTrigger(triggerName)
     ? [...LISTING_AGGREGATE_TRIGGER_DEPENDENCIES]
-    : isCheckoutStagePaymentTrigger(triggerName)
-      ? [...CHECKOUT_STAGE_PAYMENT_TRIGGER_DEPENDENCIES]
-      : [table];
+    : [table];
 
 const triggerColumnDependencies = (
   triggerName: string,
@@ -245,9 +227,7 @@ const triggerColumnDependencies = (
 ): readonly (readonly [string, readonly string[]])[] =>
   isListingAggregateTrigger(triggerName)
     ? LISTING_AGGREGATE_TRIGGER_COLUMN_DEPENDENCIES
-    : isCheckoutStagePaymentTrigger(triggerName)
-      ? CHECKOUT_STAGE_PAYMENT_TRIGGER_COLUMN_DEPENDENCIES
-      : [[table, []]];
+    : [[table, []]];
 
 const requiredTriggerColumns = (
   triggerName: string,

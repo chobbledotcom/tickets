@@ -1,6 +1,7 @@
 import { getDb } from "#shared/db/client.ts";
 import dropModifiersTotalRevenueMigration from "#shared/db/migrations/2026-06-22_drop_modifiers_total_revenue.ts";
 import {
+  applySchemaChanges,
   recreateTable,
   syncTriggers,
 } from "#shared/db/migrations/schema-sync.ts";
@@ -12,9 +13,13 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
-// This migration's up() touches only the three below — recreateTable and
-// syncTriggers do the trigger/structure rebuild; getDb is real by default.
-const context = buildMigrationContext({ recreateTable, syncTriggers });
+// This migration's up() touches only the four below. Schema apply makes every
+// current trigger dependency live before the trigger/structure rebuild.
+const context = buildMigrationContext({
+  applySchemaChanges,
+  recreateTable,
+  syncTriggers,
+});
 
 const runMigration = () => dropModifiersTotalRevenueMigration(context).up();
 

@@ -2,10 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import checkoutStagePaymentFencesMigration from "#shared/db/migrations/2026-07-16_checkout_stage_payment_fences.ts";
-import {
-  CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS,
-  CHECKOUT_STAGE_REVISION_TRIGGERS,
-} from "#shared/db/migrations/schema/checkout-stage-triggers.ts";
+import { CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS } from "#shared/db/migrations/schema/checkout-stage-triggers.ts";
 import {
   applySchemaChanges,
   syncTriggers,
@@ -233,22 +230,5 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     expect(triggers.rows.map((row) => row.name)).toEqual(
       [...fenceNames].sort(),
     );
-  });
-
-  test("trigger sync waits for checkout stage storage", async () => {
-    for (const trigger of [
-      ...CHECKOUT_STAGE_REVISION_TRIGGERS,
-      ...CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS,
-    ]) {
-      await getDb().execute(`DROP TRIGGER ${trigger.name}`);
-    }
-    await getDb().execute("DROP TABLE checkout_stages");
-
-    await syncTriggers();
-
-    const triggers = await getDb().execute(
-      "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'processed_payments' ORDER BY name",
-    );
-    expect(triggers.rows).toEqual([]);
   });
 });
