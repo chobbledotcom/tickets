@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
-import { execute, getDb } from "#shared/db/client.ts";
+import { execute, getDb, queryOne } from "#shared/db/client.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
   expectFlash,
@@ -182,6 +182,12 @@ describeAdminSettings(() => {
   test("disables Logistics without creating a listing default", async () => {
     await expectFeatureSaved("logistics", false, "Logistics disabled.");
     expect(settings.listingDefaults.usesLogistics).toBeUndefined();
+    expect(
+      await queryOne("SELECT value FROM settings WHERE key = ?", [
+        CONFIG_KEYS.LISTING_DEFAULTS,
+      ]),
+    ).toBeNull();
+    expect(await storedFeatureEnabled("logistics")).toBe(false);
   });
 
   test("keeps listing defaults that do not use Logistics", async () => {
@@ -296,8 +302,12 @@ describeAdminSettings(() => {
       batchStub.restore();
     }
     settings.invalidateCache();
-    await settings.loadKeys([CONFIG_KEYS.LISTING_DEFAULTS]);
+    await settings.loadKeys([
+      CONFIG_KEYS.ENABLED_FEATURES,
+      CONFIG_KEYS.LISTING_DEFAULTS,
+    ]);
     expect(settings.listingDefaults.usesLogistics).toBe(true);
+    expect(await storedFeatureEnabled("logistics")).toBe(true);
   });
 
   test("rolls back Logistics disable when its feature write fails", async () => {

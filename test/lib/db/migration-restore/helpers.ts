@@ -98,11 +98,13 @@ const indexesReferencingColumn = async (
 // the migration created.
 export const dropOwnedObjects = async (
   req: SchemaRequirement,
+  triggers: readonly Trigger[] = TRIGGERS,
 ): Promise<Trigger[]> => {
   const droppedTables = new Set(req.newTables ?? []);
-  const droppedTriggers = TRIGGERS.filter(
+  const droppedTriggers = triggers.filter(
     (trigger) =>
       (req.triggers ?? []).includes(trigger.name) ||
+      droppedTables.has(trigger.table) ||
       Object.entries(trigger.uses).some(
         ([table, columns]) =>
           droppedTables.has(table) ||

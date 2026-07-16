@@ -11,23 +11,14 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   SEEDED_FEATURE_RECORDS,
   seedFeatureRecords,
+  settingValue,
 } from "#test-utils/settings.ts";
 
-const settingValue = async (key: string): Promise<string> => {
-  const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [key],
-  );
-  if (!row) throw new Error(`Setting ${key} was not stored`);
-  return row.value;
-};
+const storedFeatures = async () =>
+  parseEnabledFeatures(await settingValue(CONFIG_KEYS.ENABLED_FEATURES));
 
-const storedFeatures = async () => {
-  const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.ENABLED_FEATURES],
-  );
-  return parseEnabledFeatures(row?.value ?? "");
+const storeDisabledFeatures = async (): Promise<void> => {
+  await setAdminFeatureEnabled("site", false);
 };
 
 describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
@@ -105,6 +96,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   });
 
   test("ordinary attendees and listings do not enable optional features", async () => {
+    await storeDisabledFeatures();
     await execute(
       "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')",
     );
@@ -117,6 +109,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   });
 
   test("updating an ordinary attendee does not enable Servicing", async () => {
+    await storeDisabledFeatures();
     await execute(
       "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')",
     );
@@ -127,6 +120,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   });
 
   test("updating an ordinary listing does not enable Logistics", async () => {
+    await storeDisabledFeatures();
     await execute(
       "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)",
     );

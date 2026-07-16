@@ -110,6 +110,7 @@ describeWithEnv("server (admin attributes)", { db: true }, () => {
     });
 
     test("does not enable Attributes for an invalid create", async () => {
+      await setAdminFeatureEnabled("attributes", false);
       const { response } = await adminFormPost("/admin/attributes");
       response.body?.cancel();
       expect(await storedFeatureEnabled("attributes")).toBe(false);

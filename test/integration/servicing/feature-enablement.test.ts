@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -33,6 +34,11 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
         [`quantity_${listing.id}`]: "1",
         name: "Boiler service",
       });
+      expectRedirectWithFlash(
+        "/admin/servicing/new",
+        expect.stringContaining("feature enable failed"),
+        false,
+      )(response);
       response.body?.cancel();
     });
     expect(await servicingRowsForListing(listing.id)).toEqual([]);
@@ -46,6 +52,11 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
         [`quantity_${listing.id}`]: "2",
         name: "After",
       });
+      expectRedirectWithFlash(
+        `/admin/servicing/${id}`,
+        expect.stringContaining("feature enable failed"),
+        false,
+      )(response);
       response.body?.cancel();
     });
     const unchanged = await getServicingEvent(id);
@@ -58,6 +69,11 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
     await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
       const response = await adminPost(`/admin/servicing/${id}/duplicate`, {});
+      expectRedirectWithFlash(
+        `/admin/servicing/${id}`,
+        expect.stringContaining("feature enable failed"),
+        false,
+      )(response);
       response.body?.cancel();
     });
     expect(await servicingRowsForListing(listing.id)).toHaveLength(1);

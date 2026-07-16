@@ -7,25 +7,44 @@ import {
   onTerminationSignals,
 } from "../../scripts/mutation/child-process.ts";
 
-test("an explicit child environment does not inherit removed parent values", async () => {
-  const parentKey = "TICKETS_MUTATION_PARENT_ONLY";
-  const previous = Deno.env.get(parentKey);
-  Deno.env.set(parentKey, "must not leak");
+const PARENT_KEY = "TICKETS_MUTATION_PARENT_ONLY";
+
+const withParentVariable = async <T>(
+  value: string,
+  run: () => Promise<T>,
+): Promise<T> => {
+  const previous = Deno.env.get(PARENT_KEY);
+  Deno.env.set(PARENT_KEY, value);
   try {
+    return await run();
+  } finally {
+    if (previous === undefined) Deno.env.delete(PARENT_KEY);
+    else Deno.env.set(PARENT_KEY, previous);
+  }
+};
+
+test("an explicit child environment does not inherit removed parent values", () =>
+  withParentVariable("must not leak", async () => {
     const code = await denoExitCode(
       [
         "eval",
-        `Deno.exit(Deno.env.get("${parentKey}") === undefined && Deno.env.get("TICKETS_MUTATION_CHILD_ONLY") === "present" ? 0 : 1)`,
+        `Deno.exit(Deno.env.get("${PARENT_KEY}") === undefined && Deno.env.get("TICKETS_MUTATION_CHILD_ONLY") === "present" ? 0 : 1)`,
       ],
       { env: { TICKETS_MUTATION_CHILD_ONLY: "present" } },
     );
 
     expect(code).toBe(0);
-  } finally {
-    if (previous === undefined) Deno.env.delete(parentKey);
-    else Deno.env.set(parentKey, previous);
-  }
-});
+  }));
+
+test("a child without an explicit environment inherits parent values", () =>
+  withParentVariable("must inherit", async () => {
+    const code = await denoExitCode([
+      "eval",
+      `Deno.exit(Deno.env.get("${PARENT_KEY}") === "must inherit" ? 0 : 1)`,
+    ]);
+
+    expect(code).toBe(0);
+  }));
 
 const expectBothTerminationSignals = (
   method: "addSignalListener" | "removeSignalListener",

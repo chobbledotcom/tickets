@@ -81,15 +81,19 @@ export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
   await setAdminFeatureEnabled(key, true);
 };
 
-export const storedFeatureEnabled = async (
-  key: AdminFeatureKey,
-): Promise<boolean> => {
+export const settingValue = async (key: string): Promise<string> => {
   const row = await queryOne<{ value: string }>(
     "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.ENABLED_FEATURES],
+    [key],
   );
-  return parseEnabledFeatures(row?.value ?? "")[key];
+  if (!row) throw new Error(`Setting ${key} was not stored`);
+  return row.value;
 };
+
+export const storedFeatureEnabled = async (
+  key: AdminFeatureKey,
+): Promise<boolean> =>
+  parseEnabledFeatures(await settingValue(CONFIG_KEYS.ENABLED_FEATURES))[key];
 
 export const seedFeatureRecords = (includeLogistics = true): Promise<void> =>
   executeBatch(

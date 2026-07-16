@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
+import { getDb } from "#shared/db/client.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { getListingWithActivityLog } from "#test-utils/activity-log.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
@@ -40,6 +41,7 @@ import {
 } from "#test-utils/session.ts";
 import {
   featureSetting,
+  storedFeatureEnabled,
   testWithSetting,
   useSetting,
   withSetting,
@@ -98,7 +100,6 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       resetDb();
       await createTestDbWithSetup();
-      const { getDb } = await import("#shared/db/client.ts");
       await getDb().execute("DELETE FROM settings WHERE key = ?", [
         CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
       ]);
@@ -107,6 +108,16 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       await expect(getTestPrivateKey()).rejects.toThrow(
         "Test setup failed: no wrapped private key",
+      );
+    });
+
+    test("storedFeatureEnabled fails when the feature setting is missing", async () => {
+      await getDb().execute("DELETE FROM settings WHERE key = ?", [
+        CONFIG_KEYS.ENABLED_FEATURES,
+      ]);
+
+      await expect(storedFeatureEnabled("site")).rejects.toThrow(
+        `Setting ${CONFIG_KEYS.ENABLED_FEATURES} was not stored`,
       );
     });
 

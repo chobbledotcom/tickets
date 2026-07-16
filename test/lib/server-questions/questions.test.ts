@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -71,6 +72,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("does not enable Questions for an invalid create", async () => {
+      await setAdminFeatureEnabled("questions", false);
       const { response } = await adminFormPost("/admin/questions", {
         display_type: "radio",
         text: "",
