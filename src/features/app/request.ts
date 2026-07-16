@@ -9,6 +9,7 @@ import {
   isEmbeddablePath,
   isValidContentType,
 } from "#routes/middleware.ts";
+import { bufferRequestBody } from "#routes/request-body.ts";
 import {
   databaseBusyResponse,
   migrationInProgressResponse,
@@ -57,13 +58,9 @@ import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { defineAppRoute, routeMainApp } from "./routes.ts";
 import {
-  bufferRequestIfNeeded,
   ensureCustomCssResponse,
   isSetupPath,
-  shouldLogQueries,
-  shouldPrefetchSettings,
-  shouldRetryBusyRequest,
-  shouldRunPrunes,
+  shouldBufferRequestBody,
   trackingRedirectLocation,
 } from "./rules.ts";
 
@@ -150,11 +147,11 @@ const prepareRequestEnvironment = async (
   path: string,
   method: string,
 ): Promise<void> => {
-  if (shouldLogQueries(method, getPrefix(path))) enableQueryLog();
+  if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
 
   await settings.loadKeys(settingsForPath(path));
 
-  if (shouldRunPrunes(method, path)) {
+  if (!(method === "POST" && path === "/admin/privacy/orphans")) {
     addPendingWork(maybeRunPrunes());
   }
   addPendingWork(maybeBackfillActivityLog());
@@ -189,7 +186,7 @@ const handleRoutingError = (
       detail: formatRequestError(method, path, error),
       error,
     });
-    return databaseBusyResponse(shouldRetryBusyRequest(method));
+    return databaseBusyResponse(["GET", "HEAD"].includes(method));
   }
 
   logError({
@@ -230,7 +227,9 @@ export const processRequest = async (
 
   let response!: Response;
   try {
-    const bufferedRequest = await bufferRequestIfNeeded(request);
+    const bufferedRequest = shouldBufferRequestBody(request)
+      ? await bufferRequestBody(request)
+      : request;
 
     const staticResponse = await routeStatic(bufferedRequest, path, method);
     if (staticResponse) {
@@ -251,7 +250,7 @@ export const processRequest = async (
       );
     }
 
-    if (shouldPrefetchSettings(path)) settings.prefetchVersion();
+    if (!isSetupPath(path)) settings.prefetchVersion();
 
     const unavailable = await initializeDatabaseForPath(path);
     if (unavailable) return finish(unavailable);

@@ -3,10 +3,6 @@ import {
   emptyCustomCssResponse,
   isCssResponse,
 } from "#routes/public/custom-css.ts";
-import {
-  bufferRequestBody,
-  type RequestTransform,
-} from "#routes/request-body.ts";
 
 const CUSTOM_CSS_PATH = "/custom.css";
 
@@ -25,24 +21,6 @@ export const shouldBufferRequestBody = (request: Request): boolean => {
   );
 };
 
-/** Buffer request bodies that handlers read after asynchronous setup. */
-export const bufferRequestIfNeeded: RequestTransform = (request) =>
-  shouldBufferRequestBody(request)
-    ? bufferRequestBody(request)
-    : Promise.resolve(request);
-
-/** Whether this request should record SQL for the admin debug footer. */
-export const shouldLogQueries = (method: string, prefix: string): boolean =>
-  method === "GET" && prefix === "admin";
-
-/** Whether routine background pruning is safe during this request. */
-export const shouldRunPrunes = (method: string, path: string): boolean =>
-  method !== "POST" || path !== "/admin/privacy/orphans";
-
-/** Whether a busy-database page may retry the request automatically. */
-export const shouldRetryBusyRequest = (method: string): boolean =>
-  method === "GET" || method === "HEAD";
-
 /** A clean location for a tracked GET URL, or null when no redirect is needed. */
 export const trackingRedirectLocation = (
   url: URL,
@@ -52,10 +30,6 @@ export const trackingRedirectLocation = (
 /** Setup owns its root path and every path below it. */
 export const isSetupPath = (path: string): boolean =>
   path === "/setup" || path.startsWith("/setup/");
-
-/** Whether the settings-version read may start before database setup. */
-export const shouldPrefetchSettings = (path: string): boolean =>
-  !isSetupPath(path);
 
 const isRedirectResponse = (response: Response): boolean =>
   response.status >= 300 && response.status < 400;

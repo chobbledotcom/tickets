@@ -1,14 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  bufferRequestIfNeeded,
   ensureCustomCssResponse,
   isSetupPath,
   shouldBufferRequestBody,
-  shouldLogQueries,
-  shouldPrefetchSettings,
-  shouldRetryBusyRequest,
-  shouldRunPrunes,
   trackingRedirectLocation,
 } from "#routes/app/rules.ts";
 
@@ -37,54 +32,12 @@ describe("request rules", () => {
     );
   });
 
-  test("buffers an eligible request body", async () => {
-    const original = new Request("https://example.com/path", {
-      body: "payload",
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-
-    const buffered = await bufferRequestIfNeeded(original);
-
-    expect(buffered).not.toBe(original);
-    expect(await buffered.text()).toBe("payload");
-  });
-
-  test("keeps an ineligible request unchanged", async () => {
-    const original = request("POST", "text/plain");
-    expect(await bufferRequestIfNeeded(original)).toBe(original);
-  });
-
-  test("logs queries only for admin GET requests", () => {
-    expect(shouldLogQueries("GET", "admin")).toBe(true);
-    expect(shouldLogQueries("POST", "admin")).toBe(false);
-    expect(shouldLogQueries("GET", "ticket")).toBe(false);
-  });
-
-  test("skips background prunes only for the orphan settings POST", () => {
-    expect(shouldRunPrunes("POST", "/admin/privacy/orphans")).toBe(false);
-    expect(shouldRunPrunes("GET", "/admin/privacy/orphans")).toBe(true);
-    expect(shouldRunPrunes("POST", "/admin/privacy/erase")).toBe(true);
-  });
-
-  test("retries busy requests only when they are safe to repeat", () => {
-    expect(shouldRetryBusyRequest("GET")).toBe(true);
-    expect(shouldRetryBusyRequest("HEAD")).toBe(true);
-    expect(shouldRetryBusyRequest("POST")).toBe(false);
-  });
-
   test("recognizes only the setup path family", () => {
     expect(isSetupPath("/setup")).toBe(true);
     expect(isSetupPath("/setup/")).toBe(true);
     expect(isSetupPath("/setup/account")).toBe(true);
     expect(isSetupPath("/setups")).toBe(false);
     expect(isSetupPath("/")).toBe(false);
-  });
-
-  test("prefetches settings only outside setup", () => {
-    expect(shouldPrefetchSettings("/")).toBe(true);
-    expect(shouldPrefetchSettings("/setup")).toBe(false);
-    expect(shouldPrefetchSettings("/setup/account")).toBe(false);
   });
 
   test("returns a clean location only for tracked GET requests", () => {

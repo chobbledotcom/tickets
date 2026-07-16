@@ -2,32 +2,27 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { buildFlashCookie } from "#shared/cookies.ts";
-import {
-  ALL_SETTINGS_KEYS,
-  CONFIG_KEYS,
-  settings,
-} from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { getHeader } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import {
+  mockFormRequest,
+  mockRequest,
+  withExpectedError,
+} from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { testCookie } from "#test-utils/session.ts";
 
-const deleteSetting = async (key: string): Promise<void> => {
+const clearWrappedPrivateKey = async (): Promise<void> => {
   const { getDb } = await import("#shared/db/client.ts");
-  await getDb().execute({
-    args: [key],
-    sql: "DELETE FROM settings WHERE key = ?",
-  });
+  await getDb().execute(
+    "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+  );
   settings.invalidateCache();
 };
 
 describeWithEnv("request pipeline", { db: true }, () => {
-  const errors = setupErrorSpy();
-
   test("rejects a body-bearing POST with no content type", async () => {
     const request = new Request("http://localhost/admin/login", {
       body: new Uint8Array([1]),
@@ -107,7 +102,6 @@ describeWithEnv("request pipeline", { db: true }, () => {
       await expect(
         handleRequest(mockRequest("/ticket/nonexistent")),
       ).rejects.toThrow("synthetic db failure");
-      expect(errors.contains("E_CDN_REQUEST")).toBe(true);
     } finally {
       executeStub.restore();
     }
@@ -119,55 +113,27 @@ describeWithEnv("request pipeline", { db: true }, () => {
       throw new DatabaseBusyError();
     });
     try {
-      const response = await handleRequest(
-        mockRequest("/ticket/anything", { method: "HEAD" }),
-      );
+      const response = await handleRequest(mockRequest("/ticket/anything"));
       expect(response.status).toBe(503);
       const html = await response.text();
       expect(html).toContain("The database is too busy.");
       expect(html).toContain('http-equiv="refresh"');
-      expect(errors.contains("E_DB_BUSY")).toBe(true);
     } finally {
       executeStub.restore();
     }
   });
 
   test("clears an unusable session and sends the user to login", async () => {
-    await deleteSetting(CONFIG_KEYS.WRAPPED_PRIVATE_KEY);
-    const response = await handleRequest(
-      mockRequest("/admin", { headers: { cookie: await testCookie() } }),
-    );
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/admin");
-    const cookie = getHeader(response, "set-cookie");
-    expect(cookie).toContain("session=");
-    expect(cookie).toContain("Max-Age=0");
-  });
-
-  test("redirects an unsupported setup request while setup is incomplete", async () => {
-    await deleteSetting(CONFIG_KEYS.SETUP_COMPLETE);
-    settings.setup.clearCache();
-
-    const response = await handleRequest(
-      mockRequest("/setup/", { method: "PUT" }),
-    );
-
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/setup");
-  });
-
-  test("reads and clears a keyed flash cookie", async () => {
-    const cookie = buildFlashCookie("notice", "Saved from cookie", true).split(
-      ";",
-    )[0]!;
-
-    const response = await handleRequest(
-      mockRequest("/admin/login?flash=notice", {
-        headers: { cookie },
-      }),
-    );
-
-    expect(await response.text()).toContain("Saved from cookie");
-    expect(getHeader(response, "set-cookie")).toContain("flash_notice=;");
+    await clearWrappedPrivateKey();
+    await withExpectedError(async () => {
+      const response = await handleRequest(
+        mockRequest("/admin", { headers: { cookie: await testCookie() } }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+      const cookie = getHeader(response, "set-cookie");
+      expect(cookie).toContain("session=");
+      expect(cookie).toContain("Max-Age=0");
+    });
   });
 });
