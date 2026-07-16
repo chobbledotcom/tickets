@@ -11,10 +11,8 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserById, verifyUserPassword } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { validateForm } from "#shared/forms.tsx";
 import { ok } from "#shared/response.ts";
-import { getChangePasswordFields } from "#templates/fields/admin.ts";
-import type { ChangePasswordFormValues } from "#templates/fields/types.ts";
+import { getChangePasswordForm } from "#templates/fields/admin.ts";
 
 // jscpd:ignore-end
 
@@ -28,10 +26,7 @@ type ChangePasswordValidation =
 const validateChangePasswordForm = (
   form: FormParams,
 ): ChangePasswordValidation => {
-  const validation = validateForm<ChangePasswordFormValues>(
-    form,
-    getChangePasswordFields(),
-  );
+  const validation = getChangePasswordForm().validate(form);
   if (!validation.valid) {
     return validation;
   }

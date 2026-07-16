@@ -43,7 +43,6 @@ import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   type Answer,
-  isQuestionDisplayType,
   QUESTION_DISPLAY_TYPES,
   type QuestionWithAnswers,
   questionDisplayTypeError,
@@ -76,6 +75,7 @@ import {
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { requireChoiceOptions } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
@@ -108,24 +108,26 @@ export const questionTextForm = defineForm({
       type: "textarea",
     },
     {
+      invalidMessage: questionDisplayTypeError,
       label: "Display as",
       name: "display_type",
-      options: QUESTION_DISPLAY_TYPES.map((value) => ({
-        label:
-          value === "radio"
-            ? "Radio buttons"
-            : value === "select"
-              ? "Select box"
-              : "Free text",
-        value,
-      })),
+      options: requireChoiceOptions(
+        "Display as",
+        QUESTION_DISPLAY_TYPES.map((value) => ({
+          label:
+            value === "radio"
+              ? "Radio buttons"
+              : value === "select"
+                ? "Select box"
+                : "Free text",
+          value,
+        })),
+      ),
       required: true,
       type: "select",
     },
   ] as const,
   id: "questionText",
-  validate: ({ display_type }) =>
-    isQuestionDisplayType(display_type) ? null : questionDisplayTypeError,
 });
 
 export const answerTextForm = defineForm({

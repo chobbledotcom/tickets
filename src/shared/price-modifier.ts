@@ -13,7 +13,6 @@
  */
 
 import * as v from "valibot";
-import { guardFor } from "#shared/validation/guard.ts";
 
 /** How a modifier's value is interpreted against the base amount. */
 export const CalcKindSchema = v.picklist(["fixed", "percent", "multiply"]);
@@ -36,27 +35,15 @@ export const ModifierTriggerSchema = v.picklist([
 ]);
 export type ModifierTrigger = v.InferOutput<typeof ModifierTriggerSchema>;
 
-/** Type guard: is the string a valid modifier trigger? */
-export const isModifierTrigger = guardFor(ModifierTriggerSchema);
-
 /** Which cart items a modifier is charged on: the whole order, specific
  * listings, or every listing in specific groups. */
 export const ModifierScopeSchema = v.picklist(["all", "listings", "groups"]);
 export type ModifierScope = v.InferOutput<typeof ModifierScopeSchema>;
 
-/** Type guard: is the string a valid modifier scope? */
-export const isModifierScope = guardFor(ModifierScopeSchema);
-
 /** Normalise a promo code for storage and matching: trimmed and lower-cased so
  * codes are case-insensitive. The blind index is the HMAC of this. */
 export const normalizeCode = (code: string): string =>
   code.trim().toLowerCase();
-
-/** Type guard: is the string a valid calc kind? */
-export const isCalcKind = guardFor(CalcKindSchema);
-
-/** Type guard: is the string a valid modifier direction? */
-export const isModifierDirection = guardFor(ModifierDirectionSchema);
 
 /**
  * The signed price change (minor units) a modifier makes to `base`:

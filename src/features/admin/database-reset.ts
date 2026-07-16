@@ -43,7 +43,7 @@ export const demoResetForm = defineForm({
   ] as const,
   id: "demoReset",
   validate: (values) =>
-    (values.confirm_phrase ?? "") !== RESET_DATABASE_PHRASE
+    values.confirm_phrase !== RESET_DATABASE_PHRASE
       ? RESET_PHRASE_MISMATCH_ERROR
       : null,
 });

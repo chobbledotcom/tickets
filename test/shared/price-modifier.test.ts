@@ -1,62 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  isCalcKind,
-  isModifierDirection,
-  isModifierScope,
-  isModifierTrigger,
   modifierDelta,
   normalizeCode,
   validateCalcValue,
 } from "#shared/price-modifier.ts";
-
-describe("isCalcKind", () => {
-  test("accepts every calc kind", () => {
-    expect(isCalcKind("fixed")).toBe(true);
-    expect(isCalcKind("percent")).toBe(true);
-    expect(isCalcKind("multiply")).toBe(true);
-  });
-
-  test("rejects an unknown kind", () => {
-    expect(isCalcKind("unknown")).toBe(false);
-  });
-});
-
-describe("isModifierDirection", () => {
-  test("accepts charge and discount", () => {
-    expect(isModifierDirection("charge")).toBe(true);
-    expect(isModifierDirection("discount")).toBe(true);
-  });
-
-  test("rejects an unknown direction", () => {
-    expect(isModifierDirection("unknown")).toBe(false);
-  });
-});
-
-describe("isModifierTrigger", () => {
-  test("accepts every trigger", () => {
-    expect(isModifierTrigger("automatic")).toBe(true);
-    expect(isModifierTrigger("code")).toBe(true);
-    expect(isModifierTrigger("optional")).toBe(true);
-    expect(isModifierTrigger("answer")).toBe(true);
-  });
-
-  test("rejects an unknown trigger", () => {
-    expect(isModifierTrigger("unknown")).toBe(false);
-  });
-});
-
-describe("isModifierScope", () => {
-  test("accepts every scope", () => {
-    expect(isModifierScope("all")).toBe(true);
-    expect(isModifierScope("listings")).toBe(true);
-    expect(isModifierScope("groups")).toBe(true);
-  });
-
-  test("rejects an unknown scope", () => {
-    expect(isModifierScope("unknown")).toBe(false);
-  });
-});
 
 describe("normalizeCode", () => {
   test("trims surrounding whitespace", () => {

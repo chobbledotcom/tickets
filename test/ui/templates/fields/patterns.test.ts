@@ -2,22 +2,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Field } from "#shared/forms.tsx";
 import {
-  getBuiltSiteFields,
-  getChangePasswordFields,
-  getHolidayFields,
-  getInviteUserFields,
-  getLoginFields,
-  getSetupFields,
+  getBuiltSiteForm,
+  getChangePasswordForm,
+  getHolidayForm,
+  getInviteUserForm,
+  getLoginForm,
+  getSetupForm,
   getSquareAccessTokenFields,
   getSquareWebhookFields,
   getStripeKeyFields,
   getSumupFields,
 } from "#templates/fields/admin.ts";
-import {
-  getGroupCreateFields,
-  getGroupFields,
-} from "#templates/fields/group.ts";
-import { getListingFields } from "#templates/fields/listing.ts";
+import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
+import { getListingForm } from "#templates/fields/listing.ts";
 import {
   getTicketFields,
   PHONE_INPUT_PATTERN,
@@ -43,16 +40,16 @@ const expectValidPattern = (pattern: string): void => {
 
 // Every field group that could carry a `pattern`. getTicketFields is called with
 // "phone" so the phone field's pattern is included.
-const fieldGroups: { label: string; fields: Field[] }[] = [
-  { fields: getLoginFields(), label: "login" },
-  { fields: getSetupFields(), label: "setup" },
-  { fields: getChangePasswordFields(), label: "changePassword" },
-  { fields: getInviteUserFields(), label: "inviteUser" },
-  { fields: getListingFields(), label: "listing" },
-  { fields: getHolidayFields(), label: "holiday" },
-  { fields: getBuiltSiteFields(), label: "builtSite" },
-  { fields: getGroupCreateFields(), label: "groupCreate" },
-  { fields: getGroupFields(), label: "group" },
+const fieldGroups: { label: string; fields: readonly Field[] }[] = [
+  { fields: getLoginForm().fields, label: "login" },
+  { fields: getSetupForm().fields, label: "setup" },
+  { fields: getChangePasswordForm().fields, label: "changePassword" },
+  { fields: getInviteUserForm().fields, label: "inviteUser" },
+  { fields: getListingForm().fields, label: "listing" },
+  { fields: getHolidayForm().fields, label: "holiday" },
+  { fields: getBuiltSiteForm().fields, label: "builtSite" },
+  { fields: getGroupCreateForm().fields, label: "groupCreate" },
+  { fields: getGroupForm().fields, label: "group" },
   { fields: [getSlugField()], label: "slug" },
   { fields: getStripeKeyFields(), label: "stripe" },
   { fields: getSquareAccessTokenFields(), label: "squareToken" },
