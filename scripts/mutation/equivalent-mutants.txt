@@ -814,15 +814,6 @@ src/shared/merge/attendee-merge.ts:258:39  ?? → ||   # ta?.answerText same as 
 # ListingAttendeeRow object (always truthy); ?? and || agree on both.
 src/shared/merge/attendee-merge.ts:343:10  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
 
-# Attendee merge service (attendee-merge.ts) — strandsPayment's two early
-# returns feed exactly one consumer, `strandedPaymentErrors`'s
-# `diff.bookingItems.filter(strandsPayment)`: Array.prototype.filter coerces
-# its predicate result with ToBoolean, so `false` and `undefined` both fall
-# out of the filtered set the same way. `strandsPayment` is module-private,
-# so no other caller can ever read the literal return value.
-src/shared/merge/attendee-merge.ts:461:52  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
-src/shared/merge/attendee-merge.ts:462:49  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
-
 # Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
 # merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
 # caller and it destructures ONLY `piiFieldsFromSource` from the return,
