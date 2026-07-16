@@ -90,7 +90,7 @@ import {
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
-import { answerAggregateFields } from "#templates/fields/aggregate.ts";
+import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /* jscpd:ignore-end */
 import { createListingChoicePost } from "./listing-choice-post.ts";
@@ -448,7 +448,7 @@ const handleEditAnswerPost = createAuthedFormRoute<
     const aggregates = parseEditableAggregateForm<
       AnswerAggregateValues,
       AnswerAggregateValues
-    >(form, answerAggregateFields, extractAnswerAggregateValues);
+    >(form, getAnswerAggregateFields(), extractAnswerAggregateValues);
     if (!aggregates.ok) {
       return errorRedirect(editAnswerPath(params), aggregates.error);
     }

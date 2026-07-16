@@ -1,11 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
+import { GUIDE_MESSAGE_GROUPS } from "#locales/manifest.ts";
 import type { GuideSection } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
-const en = await allEnglishMessages(["guide"]);
+const en = await allEnglishMessages(GUIDE_MESSAGE_GROUPS);
 
 /**
  * The admin guide is authored as data (a flat list of sections, each with a

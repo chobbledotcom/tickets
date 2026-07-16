@@ -82,7 +82,7 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
+import { getModifierAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   getModifierFields,
   type ModifierFormValues,
@@ -407,7 +407,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     const aggregates = parseEditableAggregateForm<
       ModifierAggregateValues,
       ModifierAggregateValues
-    >(form, modifierAggregateFields, extractModifierAggregateValues);
+    >(form, getModifierAggregateFields(), extractModifierAggregateValues);
     if (!aggregates.ok) {
       return errorRedirect(`/admin/modifiers/${id}/edit`, aggregates.error);
     }

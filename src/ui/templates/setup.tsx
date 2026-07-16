@@ -24,39 +24,31 @@ const DataControllerAgreement = (): JSX.Element => (
     <p>{t("setup.agreement.intro")}</p>
     <ol>
       <li>
-        <strong>{t("setup.agreement.controller_title")}</strong> - You decide
-        what data to collect and are responsible for your own GDPR/data
-        protection compliance
+        <strong>{t("setup.agreement.controller_title")}</strong> -{" "}
+        {t("setup.agreement.controller_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.processor_title")}</strong> - We store your
-        encrypted data but cannot access attendee information without your admin
-        password
+        <strong>{t("setup.agreement.processor_title")}</strong> -{" "}
+        {t("setup.agreement.processor_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.encrypted_title")}</strong> - Attendee
-        names, emails, and payment references are encrypted at rest. Only you
-        can decrypt them by logging in
+        <strong>{t("setup.agreement.encrypted_title")}</strong> -{" "}
+        {t("setup.agreement.encrypted_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.responsibilities_title")}</strong> - You are
-        responsible for providing a privacy policy, having lawful basis for
-        collecting data, responding to data subject requests, and compliance
-        with your local data protection laws
+        <strong>{t("setup.agreement.responsibilities_title")}</strong> -{" "}
+        {t("setup.agreement.responsibilities_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.breach_title")}</strong> - We will notify
-        you promptly if we detect a security incident affecting your data
+        <strong>{t("setup.agreement.breach_title")}</strong> -{" "}
+        {t("setup.agreement.breach_text")}
       </li>
       <li>
-        <strong>{t("setup.agreement.deletion_title")}</strong> - Your data is
-        deleted when you delete your listings or close your account
+        <strong>{t("setup.agreement.deletion_title")}</strong> -{" "}
+        {t("setup.agreement.deletion_text")}
       </li>
     </ol>
-    <p class="password-warning">
-      If you lose your password you will be <u>permanently</u> unable to view
-      attendee lists. Do not lose your password.
-    </p>
+    <p class="password-warning">{t("setup.agreement.password_warning")}</p>
     <div class="field">
       <label>
         <input name="accept_agreement" required type="checkbox" value="yes" />

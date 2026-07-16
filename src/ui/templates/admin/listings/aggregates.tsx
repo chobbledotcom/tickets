@@ -20,7 +20,7 @@ import {
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
 import { capacityLevel } from "#templates/components/capacity.tsx";
-import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 
 /* jscpd:ignore-end */
 
@@ -52,7 +52,7 @@ const listingRecalculateRows = (
   snapshot: ListingAggregateRecalculation,
 ): RecalculateRow[] =>
   buildRecalculateRows(
-    listingAggregateFields,
+    getListingAggregateFields(),
     formatListingAggregateValue,
     snapshot,
   );

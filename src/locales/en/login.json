@@ -23,5 +23,21 @@
   "password.confirm": "Confirm New Password",
   "logout.title": "Log out",
   "logout.confirm_heading": "Are you sure you want to log out?",
-  "logout.confirm_body": "You will need to log in again to manage tickets."
+  "logout.confirm_body": "You will need to log in again to manage tickets.",
+  "fields.login.username_title": "Letters, numbers, hyphens, and underscores only",
+  "fields.login.password": "Password",
+  "fields.change_password.current": "Current Password",
+  "fields.change_password.new": "New Password",
+  "fields.change_password.confirm": "Confirm New Password",
+  "error.password_min": "Password must be at least 8 characters",
+  "error.passwords_mismatch": "Passwords do not match",
+  "error.too_many_attempts": "Too many login attempts. Please try again later.",
+  "error.account_not_activated": "Your account has not been activated yet. Please contact the site owner.",
+  "error.new_password_min": "New password must be at least 8 characters",
+  "error.new_passwords_mismatch": "New passwords do not match",
+  "error.current_password_incorrect": "Current password is incorrect",
+  "error.password_update_failed": "Failed to update password",
+  "error.invite_invalid": "This invite link is invalid or has already been used.",
+  "error.invite_expired": "This invite link has expired.",
+  "success.password_changed": "Password changed — please log in again"
 }

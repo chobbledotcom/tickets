@@ -91,12 +91,8 @@ describe("i18n", () => {
     });
 
     test("handles ICU plural format", () => {
-      expect(t("admin.listings.failed_payments_count", { count: 1 })).toContain(
-        "1 attendee",
-      );
-      expect(t("admin.listings.failed_payments_count", { count: 5 })).toContain(
-        "5 attendees",
-      );
+      expect(t("tickets.count", { count: 1 })).toBe("1 Ticket");
+      expect(t("tickets.count", { count: 5 })).toBe("5 Tickets");
     });
 
     test("returns a plain message (no ICU placeholder) verbatim", () => {

@@ -17,7 +17,7 @@ import {
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   ListingAggregateMismatchNotice,
   listingAggregateToFieldValues,
@@ -34,7 +34,7 @@ const listingRunningTotalsConfig = (
   listing: ListingWithCount,
 ): RunningTotalsConfig => ({
   className: "listing-section",
-  fields: listingAggregateFields,
+  fields: getListingAggregateFields(),
   legend: t("listings_table.running_totals"),
   note: t("listings_table.running_totals_note"),
   recalculateHref: adminPath("listingRecalculate", { listingId: listing.id }),

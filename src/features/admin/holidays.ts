@@ -11,7 +11,10 @@ import {
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
+import {
+  adminHolidaysPage,
+  getHolidayPages,
+} from "#templates/admin/holidays.tsx";
 import { getHolidayFields } from "#templates/fields/admin.ts";
 
 /** Extract holiday input from validated form values */
@@ -44,10 +47,10 @@ export const holidaysCrud = createOwnerCrudHandlers({
   getAll: holidays.getAll,
   getName: (h) => h.name,
   listPath: "/admin/holidays",
-  renderDelete: holidayPages.deletePage,
-  renderEdit: holidayPages.editPage,
+  renderDelete: (...args) => getHolidayPages().deletePage(...args),
+  renderEdit: (...args) => getHolidayPages().editPage(...args),
   renderList: adminHolidaysPage,
-  renderNew: holidayPages.newPage,
+  renderNew: (...args) => getHolidayPages().newPage(...args),
   resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
   singular: "Holiday",
 });
