@@ -324,7 +324,17 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     for (const name of fenceNames) {
       await getDb().execute(`DROP TRIGGER ${name}`);
     }
-    const migration = checkoutStagePaymentFencesMigration(migrationContext);
+    let schemaApplications = 0;
+    const migration = checkoutStagePaymentFencesMigration(
+      buildMigrationContext({
+        additive,
+        applySchemaChanges: async () => {
+          schemaApplications += 1;
+          await applySchemaChanges();
+        },
+        verifyRequirement,
+      }),
+    );
 
     expect(migration.id).toBe("2026-07-16_checkout_stage_payment_fences");
     expect(migration.description).toBe(
@@ -341,6 +351,7 @@ describeWithEnv("db > checkout stage payment fences", { db: true }, () => {
     });
     await migration.up();
     await migration.verify();
+    expect(schemaApplications).toBe(1);
 
     const columns = await getDb().execute(
       "PRAGMA table_info(processed_payments)",
