@@ -2,302 +2,185 @@
 
 ## Goal
 
-The staged-checkout branch is too large to review or merge safely as one pull
-request. Against `origin/main` at `32a47a03`, it changes 248 files with about
-11,700 added lines. Its existing commits are not useful pull request boundaries:
-the first feature commit changes 135 files, and the final review commit mixes
-many separate fixes across another 113 files.
+Rebuild staged checkout as small changes from current `main`. The monolithic
+reference branch remains useful for behavior and tests, but it must never be
+merged or cherry-picked as a whole.
 
-Rebuild the work as small semantic changes from current `origin/main`. Do not
-cherry-pick the broad branch commits. Each job below has its own persistent git
-worktree, branch, agent, and pull request.
+The final checkout flow must still obey the core product rule: starting a
+checkout never reserves capacity. Staged listing rows have quantity zero. The
+real quantity is written only after payment, with the capacity check in the
+same atomic database operation. First completed payment to claim the last seat
+wins. A later completed payment that cannot fit is refunded.
+
+## Operating assumptions
+
+These assumptions are part of the product design, not temporary omissions:
+
+- Only the latest edge script runs. We do not support overlapping script
+  versions or an older script continuing to write after a deployment.
+- Deployments and host moves happen when no checkout or payment needs to
+  survive the change. We do not support rolling back application code around
+  an open payment.
+- Backups are restored only during a quiet host migration or another deliberate
+  recovery while the site is not busy. An open checkout or refund does not need
+  to survive backup and restore.
+- Restoring an unexpected open checkout is allowed to discard its stage and
+  quantity-zero attendee. Completed bookings and completed payment records
+  remain ordinary durable data and must still restore normally.
+
+If any of these assumptions changes, mixed-version payment fences and stable
+backup certification must be designed again before relying on that new
+operating model.
+
+## Why checkout stages remain
+
+`checkout_stages` is still needed during a normal checkout on the current
+version. It gives redirects, webhooks, retries, and crash recovery one durable
+mapping from a provider payment session to the quantity-zero attendee that the
+payment may activate.
+
+The stage is application workflow state, not a seat hold and not a second
+payment idempotency system. `processed_payments` continues to decide whether a
+provider session has already reached a terminal result.
+
+Keep a stage only while work remains:
+
+- `pending`: the provider may still complete the payment and activate it.
+- `refunding`: payment completed, activation failed, and the refund still has
+  to finish.
+
+Once booking or refund handling reaches a durable terminal result, delete the
+stage. The attendee and `processed_payments` record then carry the lasting
+booking or replay result.
 
 ## Current state
 
 The monolithic branch remains a committed reference. Do not merge it into
-`main`: the prerequisite work was rebuilt independently, and a trial merge
-against current `main` produces conflicts across about thirty files. New work
-must start from current `main` and port only the behavior in its named scope.
-
-Five prerequisite pull requests are merged:
-
-- #1821: stage-neutral attendee purge unification.
-- #1822: atomic placeholder refund ledger.
-- #1823: QR checkout error propagation.
-- #1824: Stripe refund status correctness.
-- #1826: owner-safe links in attendee notes.
-
-#1827, Stripe webhook setup hardening, is the final prerequisite. At the latest
-audit, local `main` and `origin/main` point at `31417124`; start the next branch
-only after #1827 has merged and `main` has been fast-forwarded again.
-
-The agents must preserve newer work already on main, especially:
-
-- Use `legMatches` from `src/shared/ledger/legs.ts`; do not restore a parallel
-  transfer-leg matcher from the feature branch.
-- Use `parseDateMs` from `src/shared/dates.ts` in any moved backup code; do not
-  reintroduce direct `Date.parse` calls.
-- Run focused tests while developing. Do not manually run mutation testing or
-  repeated full precommit runs. The commit hook and CI own the full gate.
-
-## Merge-first pull requests
-
-### 1. Stripe refund status correctness
-
-**Branch:** `split/stripe-refund-status`
-
-**Worktree:** `.pi-worktrees/stripe-refund-status`
-
-Only report a Stripe refund as complete when Stripe returns
-`status === "succeeded"`. Pending, action-required, failed, and cancelled
-refunds remain unresolved.
-
-Primary scope:
-
-- `src/shared/stripe-provider.ts`
-- `test/lib/stripe/provider.test.ts`
-- Existing refund mocks that currently return only an ID and must return a
-  realistic successful status.
-
-Do not bring in checkout-stage state, checkout expiry handling, webhook event
-reconciliation, or staged-refund retry code.
-
-Acceptance:
-
-- Direct tests cover every Stripe refund status.
-- Existing refund-flow tests still model successful refunds accurately.
-- The PR contains no checkout-stage schema or runtime changes.
-
-### 2. Atomic placeholder refund ledger
-
-**Branch:** `split/placeholder-refund-ledger`
-
-**Worktree:** `.pi-worktrees/placeholder-refund-ledger`
-
-Post a placeholder's received payment and completed cash refund as one atomic
-transfer-group write. A conflict in the refund leg must roll back the payment
-leg as well.
-
-Primary scope:
-
-- `src/shared/refund-ledger.ts`
-- `test/shared/refund-ledger-placeholder.test.ts`
-- A focused split of existing refund-ledger tests if needed to keep files small.
-
-Use the current main branch's shared ledger matching helpers. Do not bring in
-checkout stages, held-cash admin guards, transfer batch primitives needed only
-by staged activation, or refunding-state transitions.
-
-Acceptance:
-
-- A refund-reference collision proves neither transfer group is committed.
-- Payment-only recording remains correct when no provider refund completed.
-- Existing attendee refund behavior is unchanged.
-
-### 3. Stage-neutral attendee purge unification
-
-**Branch:** `split/attendee-purge`
-
-**Worktree:** `.pi-worktrees/attendee-purge`
-
-Replace the separate single-attendee and orphan dependent-row deletion lists
-with one shared statement builder for tables that already exist on main.
-
-Primary scope:
-
-- `src/shared/db/attendees/delete.ts`
-- `src/shared/db/orphan-attendees.ts`
-- Existing attendee-delete and orphan-purge tests.
-
-The shared main-ready dependent set is `processed_payments`,
-`attendee_answers`, `listing_attendees`, `system_notes`, and `service_costs`.
-
-Do not add `checkout_stages`, stage-last ordering, stale payment-claim cleanup,
-or checkout cancellation/pruning. Those extend this mechanism later.
-
-Acceptance:
-
-- Single deletion and orphan deletion use the same dependent-row mechanism.
-- Service costs and every existing dependent table are still removed.
-- The change is a real deduplication and preferably a net deletion.
-
-### 4. Stripe webhook setup hardening
-
-**Branch:** `split/stripe-webhook-setup`
-
-**Worktree:** `.pi-worktrees/stripe-webhook-setup`
-
-During Stripe setup, delete both the recorded endpoint and stray endpoints with
-the exact same site webhook URL. Save the new endpoint ID and signing secret
-atomically. Use one shared payment-webhook URL helper.
-
-Primary scope:
-
-- `src/shared/stripe.ts`
-- `src/shared/db/settings.ts`
-- `src/shared/payment-webhook-url.ts`
-- The admin settings callers that construct the URL today.
-- `test/lib/stripe/webhook.test.ts`
-- A settings atomicity regression if needed.
-
-Never delete endpoints for another URL. If endpoint listing fails, the recorded
-endpoint cleanup and replacement must still proceed.
-
-Do not subscribe to `checkout.session.expired`, add event-version settings, or
-add first-request webhook reconciliation. Those require the staged runtime.
-
-Acceptance:
-
-- Same-URL stale endpoints are removed.
-- Other URLs are untouched.
-- Endpoint ID and secret cannot be partially saved.
-- Listing failure follows the documented best-effort path.
-
-### 5. Owner-safe links in attendee notes
-
-**Branch:** `split/owner-note-links`
-
-**Worktree:** `.pi-worktrees/owner-note-links`
-
-Owner-only ledger links embedded in attendee notes remain links for owners and
-become plain text for roles that cannot open them. Use the final token-aware
-Markdown implementation immediately; do not port the earlier regex version.
-
-Primary scope:
-
-- `src/shared/markdown.ts`
-- `src/ui/templates/admin/attendee-notes.tsx`
-- Owner-role plumbing through attendee, listing overview, and roster note
-  surfaces.
-- `test/shared/markdown.test.ts`
-- Note and attendee page rendering tests.
-
-The parser must handle inline, reference, collapsed-reference, shortcut, and
-automatic links, including links nested in lists, blockquotes, and tables. It
-must preserve safe Markdown and code spans.
-
-Do not bring in deleted-listing display, pending-checkout UI, held-cash actions,
-or other attendee-page changes from the mixed source commits.
-
-Acceptance:
-
-- Every rendered link is reachable by the viewer's role.
-- Owners retain the ledger links.
-- Non-owners retain readable note text and formatting without a dead link.
-
-### 6. QR checkout error propagation
-
-**Branch:** `split/qr-checkout-errors`
-
-**Worktree:** `.pi-worktrees/qr-checkout-errors`
-
-Pass the payment flow's error message and HTTP status through the QR checkout
-route instead of replacing every error with a generic HTTP 500 page.
-
-Primary scope:
-
-- `src/features/public/qr-book.ts`
-- `src/ui/templates/public/errors.tsx`
-- `test/lib/server-qr-book.test.ts`
-
-Keep main's current checkout creator and intent flow. Use an existing provider
-validation error for the regression rather than importing staged checkout or
-the staged sold-out preflight.
-
-Acceptance:
-
-- A provider validation refusal keeps its message and HTTP 400 status.
-- A missing/null checkout result still renders the existing generic HTTP 500
-  response.
-- No staged-checkout imports or schema changes are included.
-
-## Merge order
-
-The six PRs are independent enough to develop in parallel. Prefer merging in
-this order when several become ready at once:
-
-1. Stripe refund status correctness.
-2. Atomic placeholder refund ledger.
-3. Stage-neutral attendee purge unification.
-4. Stripe webhook setup hardening.
-5. Owner-safe links in attendee notes.
-6. QR checkout error propagation.
-
-Rebase each open PR after earlier ones merge, resolving toward one shared
-mechanism rather than preserving parallel implementations.
+`main`. New work starts from current `main` and ports only the behavior named by
+the active pull request.
+
+The independent foundations already merged include:
+
+- #1821 through #1827: attendee purge, refund, checkout error, Stripe setup,
+  and role-safe note prerequisites.
+- #1829: canonical signed paid-booking rows and date fields.
+- #1833: atomic booking writes and completed-payment recovery.
+- #1836 and #1837: snapshot/export and backup-storage module splits without a
+  staged-checkout behavior change.
+- #1840: dormant `checkout_stages` storage. It also added revision storage that
+  is no longer needed under the backup assumptions above.
+
+PR #1844 must not merge. Its `processed_payments.checkout_stage_attendee_id`
+column, reservation lookup, and three payment fence triggers protect mixed
+application versions and rollback-era writes. Those are not supported states.
+The current runtime can load the stage and use its attendee directly.
+
+PR #1844 also contains answer-count trigger cleanup found while resolving a
+concurrent merge. That independent cleanup is not a reason to merge payment
+rollback machinery. Rebuild it separately only if it is still useful on
+current `main`.
+
+## Removed work
+
+Do not build any of the following for staged checkout:
+
+- A staged-attendee claim column on `processed_payments`.
+- Insert or update triggers that fence payments against checkout stages.
+- Compatibility for an old edge script writing after the new runtime deploys.
+- `checkout_stage_revisions` or checkout-stage revision triggers.
+- Backup start/end revision reads, retry loops, snapshot certificates, or
+  restore rejection for changing checkout stages.
+- Preservation of `pending` or `refunding` stages through backup and restore.
+- Admin held-payment locks, merge conflict choices, pending-stage CSV columns,
+  or pending-stage UI whose only purpose is protecting an in-flight payment
+  from an operator action.
+- First-request reconciliation whose only purpose is repairing events missed by
+  an older deployed script.
+
+The consequence is deliberate: if the operating assumptions are broken, an
+open checkout may be discarded rather than recovered.
 
 ## Next pull request
 
-### Canonical paid booking rows and date fields
+### Simplify dormant checkout-stage storage
 
-**Branch:** `split/booking-lines`
-
-**Worktree:** `.pi-worktrees/booking-lines`
-
-Build one canonical representation of the signed paid booking rows that both
-ordinary payment completion and the later staged runtime can use. Move booking
-date and duration rules into a pure shared helper at the same time: the row
-builder depends directly on those rules, so splitting them would add ordering
-without isolating meaningful risk.
+Start from current `main` after closing #1844.
 
 Primary scope:
 
-- Add `src/shared/booking-date-fields.ts`.
-- Add `src/shared/booking-lines.ts`.
-- Replace only the paid-row construction in
-  `src/features/api/payment-processing/create.ts`.
-- Move the existing public and refund callers to the shared date helper without
-  changing their behavior.
-- Make the existing order-parent allocation helpers preserve the full input
-  row type.
-- Add focused pure tests for dates, package paths, allocations, order tokens,
-  and exact paid-price conservation.
-
-Preserve current `main` behavior, especially its modular capacity imports,
-shared response handler, atomic placeholder refund ledger, QR errors, and
-owner-safe Markdown. Do not copy whole reference versions of payment or public
-route files.
+- Remove `checkout_stage_revisions` from the declarative schema.
+- Drop the revision table and its three triggers through a normal migration.
+- Remove revision-only tests.
+- Add `checkout_stages` to the shared attendee dependent-row deletion
+  mechanism.
+- When an attendee is deleted or merged, delete its checkout stage instead of
+  preserving, moving, or asking the operator to resolve it.
+- Leave generic backup/export behavior unchanged. Do not add stage-specific
+  reads, certificates, retries, filtering, or restore checks.
 
 Acceptance:
 
-- Existing paid bookings produce the same listing, quantity, date, duration,
-  package, allocation, and price rows as before.
-- A zero paid price remains different from a missing paid price.
-- Child allocations preserve total quantity and exact total paid price.
-- Parent package stamping happens only when the parent has one unambiguous
-  package path.
-- Legacy payment metadata without `day_count` still means one day.
-- The PR has no checkout-stage schema, activation, refund, cleanup, backup, or
-  admin-lock changes.
+- No production revision writer or reader remains.
+- Deleting or merging an attendee cannot leave a stage pointing at it.
+- Existing attendee, orphan, backup, and restore behavior remains green.
+- No payment or checkout runtime is enabled.
 
-## Remaining foundations
+## Final runtime pull request
 
-After the canonical booking-row PR, continue in this order:
+### Current-version staged checkout
 
-1. Make ordinary booking writes all-or-nothing and recover completed payments
-   when the database result is lost. Add only the shared primary-read, SQL,
-   modifier, token, and batch-write mechanisms this production path uses; do
-   not ship a separate primitives-only API with no caller.
-2. Split the backup modules without changing behavior. Preserve current main's
-   batched reads and `parseDateMs`.
-3. Add dormant checkout-stage tables, revision triggers, rollback fences, and
-   certified backup snapshots.
-4. Add one coherent staged-checkout runtime containing stage creation,
-   activation, refund lifecycle, cleanup, expiry handling, provider event
-   reconciliation, admin mutation guards, and matching UI/CSV projections.
+Ship stage creation, payment activation, refund recovery, and cleanup together.
+Do not deploy a stage creator before the current runtime can finish every stage
+it creates.
 
-Do not enable stage creation across separate deployments from its payment,
-refund, cleanup, and mutation protections.
+Primary behavior:
 
-Before the staged runtime is mergeable, also resolve these findings from the
-split review:
+- Run the ordinary availability preflight without holding capacity.
+- Create the provider session and one durable stage tied to quantity-zero
+  attendee and listing rows before returning the payment URL.
+- If writing the stage fails after creating the provider session, expire that
+  session before returning the error. A crash before the URL is returned may
+  leave only an unreachable provider session, which the provider may expire.
+- On redirect or webhook, reserve the provider session through the existing
+  `processed_payments` idempotency path and load the attendee directly from
+  `checkout_stages`.
+- Build the real rows through the canonical paid-booking representation from
+  #1829.
+- Activate every listing row, enforce capacity, write ledger effects, store
+  ticket tokens, and finalize the processed payment atomically.
+- If a completed payment cannot activate, durably enter `refunding` before the
+  provider refund and keep retrying until the provider confirms success.
+- After a booked or refunded terminal result is durable, delete the stage. Also
+  remove the quantity-zero attendee after a terminal refund.
+- Expire and delete abandoned pending stages through one bounded cleanup path.
+- Keep stage rows out of ordinary attendee, ticket, CSV, and admin projections.
 
-- One validation path currently asks the provider to refund before durably
-  changing the stage to `refunding`.
-- Old `refunding` stages have no bounded reconciliation path.
-- Admin table/CSV pending projection must use the same open-state definition as
-  mutation guards, including `refunding`.
-- A paid unresolved stage must not be purged merely because it is seven days
-  old while the provider may still hold the money.
-- Product policy must explicitly confirm what happens when a cancelled local
-  checkout later receives a provider payment that could not be expired.
+The runtime does not add a second single-item path. A checkout with one listing
+uses the same collection-based staging and activation code as a checkout with
+many listings.
+
+Acceptance:
+
+- A pending checkout contributes zero booked quantity and holds no seat.
+- A failed stage write never returns a usable payment URL.
+- Concurrent completed payments cannot exceed listing capacity.
+- The winning payment activates the exact staged attendee and rows.
+- Redirect and webhook retries replay one processed result without duplicate
+  attendees, ledger entries, refunds, or ticket tokens.
+- A failed activation cannot leave a completed provider payment without a
+  durable refunding path.
+- Pending cleanup never deletes a refund still owed to the customer.
+- Terminal stages and their sensitive stage-only tokens are removed.
+- No rollback fence, stage revision, backup certification, or pending admin UI
+  is introduced.
+
+## Deployment and restore
+
+Deploy the final runtime during a quiet period. There is no mixed-version handoff
+and no requirement to carry an open stage across the deployment.
+
+Backups may run while the site is active, but they make no consistency promise
+for an open checkout or refund. Restore only during a quiet recovery or host
+migration, then run the latest script. If an unexpected open stage is present,
+the supported recovery is to discard it through the same stage cleanup
+mechanism, not to resume or certify the old payment.
