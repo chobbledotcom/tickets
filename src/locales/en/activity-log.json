@@ -1,0 +1,9 @@
+{
+  "admin.log.heading": "Log",
+  "admin.log.col.time": "Time",
+  "admin.log.col.activity": "Activity",
+  "admin.log.no_activity": "No activity recorded yet",
+  "admin.log.recent_entries": "Showing the most recent 200 entries.",
+  "admin.log.guide_link": "Activity log guide",
+  "admin.log.square_signature_hint": "Re-enter your Square settings, paying close attention to the name of each field."
+}

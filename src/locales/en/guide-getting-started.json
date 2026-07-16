@@ -1,0 +1,20 @@
+{
+  "guide.sections.getting_started": "Getting Started",
+  "guide.sections.dashboard": "Dashboard",
+  "guide.sections.testing_your_system": "Testing Your System",
+  "guide.sections.getting_help": "Getting Help",
+  "guide.q.create_listing": "How do I create a listing?",
+  "guide.a.create_listing": "<p>From the <strong>Listings</strong> page, click <strong>Add Listing</strong>. Give your listing a name, set the capacity, and choose which contact details to collect (any combination of email, phone, postal address, and special instructions — or none at all for name-only registration). You can leave the price blank for free listings. Once created, share the booking link with your attendees.</p>",
+  "guide.q.setup_payments": "How do I set up payments?",
+  "guide.a.setup_payments": "<p>Go to <strong>Settings</strong> and choose Stripe, Square, or SumUp as your payment provider. Paste in your API key and save. For Stripe and SumUp the webhook is configured automatically. For Square, you'll need to copy the webhook URL shown and add it in your Square Developer Dashboard.</p>",
+  "guide.q.what_is_dashboard": "What is the dashboard?",
+  "guide.a.what_is_dashboard": "<p>The <strong>Listings</strong> page is your dashboard. It lists all your listings with attendee counts, booking links, and quick actions. At the top, the <strong>Active Listing Statistics</strong> section shows totals across all active listings: total income, number of ticket rows, and total attendee quantity. Click the heading to expand or collapse it.</p>",
+  "guide.q.test_after_changing_settings": "Should I test after changing settings?",
+  "guide.a.test_after_changing_settings": "<p>Yes. After changing any setting — especially payment configuration, listing capacity, or booking fields — you should test the full booking process to make sure everything works as expected. Create a test listing (or use test payment credentials) and complete a booking from start to finish.</p>",
+  "guide.q.report_bug": "How do I report a bug?",
+  "guide.a.report_bug": "<p>This project is early in development (started January 2026) and bugs are expected. If you find something that doesn't work correctly, please email <a href=\"mailto:hello@chobble.com\">hello@chobble.com</a> with a description of what happened and what you expected. The more detail you can provide, the faster it can be fixed.</p>",
+  "guide.q.contact_support": "How do I contact support?",
+  "guide.a.contact_support": "<p>The <a href=\"/admin/support\">Support</a> page sends a message straight to the team who host your site. Describe what you need help with and send it; replies come back by email. After you send, a short reminder appears to discourage duplicate messages while you wait for a response.</p>",
+  "guide.q.support_page_availability": "Why don't I see a Support page?",
+  "guide.a.support_page_availability": "<p>The Support page only appears when the people hosting your site have enabled it and set a contact address. If there's no Support link in your menu, your host hasn't turned it on &mdash; get in touch with them the way you normally would.</p>"
+}

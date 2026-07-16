@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -46,8 +47,8 @@ describeWithEnv(
         const response = await adminGet("/admin/support");
         const html = await response.text();
         expect(response.status).toBe(200);
-        expect(html).toContain("Your admin hasn't filled in");
-        expect(html).toContain("SUPPORT_PAGE_TEXT");
+        expect(html).toContain(t("support.missing_text"));
+        expect(html).not.toContain("SUPPORT_PAGE_TEXT");
       });
 
       test("renders SUPPORT_PAGE_TEXT as markdown", async () => {
@@ -58,7 +59,7 @@ describeWithEnv(
         const html = await response.text();
         expect(html).toContain("<h1>Help Center</h1>");
         expect(html).toContain("Reach out anytime");
-        expect(html).not.toContain("strange message");
+        expect(html).not.toContain(t("support.missing_text"));
       });
 
       test("renders no form (and no note) when no business email is set", async () => {

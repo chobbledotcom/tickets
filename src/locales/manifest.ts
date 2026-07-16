@@ -5,7 +5,8 @@ export type MessageLoader = () => Promise<Messages>;
 
 export const MESSAGE_GROUPS = [
   "address-lookup",
-  "admin",
+  "activity-log",
+  "admin-shell",
   "attendees",
   "attributes",
   "availability",
@@ -14,22 +15,36 @@ export const MESSAGE_GROUPS = [
   "built-sites",
   "bulk-actions",
   "bulk-email",
+  "calendar",
   "capacity",
   "catalog-transfer",
+  "check-in",
   "common",
+  "contact",
   "csv",
+  "dashboard",
   "date-picker",
   "debug",
   "deliveries",
   "detail-rows",
   "entity-pages",
-  "errors",
   "features",
-  "fields",
   "groups",
   "guide",
+  "guide-accounts",
+  "guide-domains",
+  "guide-email",
+  "guide-formatting",
+  "guide-getting-started",
+  "guide-import-export",
+  "guide-integrations",
+  "guide-listings",
+  "guide-operations",
+  "guide-payments",
+  "guide-tickets",
   "holidays",
   "images",
+  "ledger",
   "listing-defaults",
   "listing-qr",
   "listings-table",
@@ -39,10 +54,14 @@ export const MESSAGE_GROUPS = [
   "nav",
   "news",
   "notes",
+  "nouns",
+  "order",
   "payment",
   "privacy",
-  "public",
+  "public-site",
   "questions",
+  "renewal",
+  "seed-data",
   "servicing",
   "settings",
   "setup",
@@ -52,13 +71,21 @@ export const MESSAGE_GROUPS = [
   "statuses",
   "support",
   "system",
-  "terms",
   "tickets",
+  "unsubscribe",
   "update",
   "users",
+  "validation",
 ] as const;
 
 export type MessageGroup = (typeof MESSAGE_GROUPS)[number];
+type GuideMessageGroup = Extract<MessageGroup, "guide" | `guide-${string}`>;
+
+export const GUIDE_MESSAGE_GROUPS: readonly GuideMessageGroup[] =
+  MESSAGE_GROUPS.filter(
+    (group): group is GuideMessageGroup =>
+      group === "guide" || group.startsWith("guide-"),
+  );
 
 type MessageModule = { default: Messages };
 
@@ -69,11 +96,14 @@ const messagesFrom =
 
 // Literal import paths keep every JSON file in its own lazy esbuild initializer.
 export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
+  "activity-log": messagesFrom(
+    () => import("./en/activity-log.json", { with: { type: "json" } }),
+  ),
   "address-lookup": messagesFrom(
     () => import("./en/address-lookup.json", { with: { type: "json" } }),
   ),
-  admin: messagesFrom(
-    () => import("./en/admin.json", { with: { type: "json" } }),
+  "admin-shell": messagesFrom(
+    () => import("./en/admin-shell.json", { with: { type: "json" } }),
   ),
   attendees: messagesFrom(
     () => import("./en/attendees.json", { with: { type: "json" } }),
@@ -99,16 +129,28 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   "bulk-email": messagesFrom(
     () => import("./en/bulk-email.json", { with: { type: "json" } }),
   ),
+  calendar: messagesFrom(
+    () => import("./en/calendar.json", { with: { type: "json" } }),
+  ),
   capacity: messagesFrom(
     () => import("./en/capacity.json", { with: { type: "json" } }),
   ),
   "catalog-transfer": messagesFrom(
     () => import("./en/catalog-transfer.json", { with: { type: "json" } }),
   ),
+  "check-in": messagesFrom(
+    () => import("./en/check-in.json", { with: { type: "json" } }),
+  ),
   common: messagesFrom(
     () => import("./en/common.json", { with: { type: "json" } }),
   ),
+  contact: messagesFrom(
+    () => import("./en/contact.json", { with: { type: "json" } }),
+  ),
   csv: messagesFrom(() => import("./en/csv.json", { with: { type: "json" } })),
+  dashboard: messagesFrom(
+    () => import("./en/dashboard.json", { with: { type: "json" } }),
+  ),
   "date-picker": messagesFrom(
     () => import("./en/date-picker.json", { with: { type: "json" } }),
   ),
@@ -124,14 +166,8 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   "entity-pages": messagesFrom(
     () => import("./en/entity-pages.json", { with: { type: "json" } }),
   ),
-  errors: messagesFrom(
-    () => import("./en/errors.json", { with: { type: "json" } }),
-  ),
   features: messagesFrom(
     () => import("./en/features.json", { with: { type: "json" } }),
-  ),
-  fields: messagesFrom(
-    () => import("./en/fields.json", { with: { type: "json" } }),
   ),
   groups: messagesFrom(
     () => import("./en/groups.json", { with: { type: "json" } }),
@@ -139,11 +175,47 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   guide: messagesFrom(
     () => import("./en/guide.json", { with: { type: "json" } }),
   ),
+  "guide-accounts": messagesFrom(
+    () => import("./en/guide-accounts.json", { with: { type: "json" } }),
+  ),
+  "guide-domains": messagesFrom(
+    () => import("./en/guide-domains.json", { with: { type: "json" } }),
+  ),
+  "guide-email": messagesFrom(
+    () => import("./en/guide-email.json", { with: { type: "json" } }),
+  ),
+  "guide-formatting": messagesFrom(
+    () => import("./en/guide-formatting.json", { with: { type: "json" } }),
+  ),
+  "guide-getting-started": messagesFrom(
+    () => import("./en/guide-getting-started.json", { with: { type: "json" } }),
+  ),
+  "guide-import-export": messagesFrom(
+    () => import("./en/guide-import-export.json", { with: { type: "json" } }),
+  ),
+  "guide-integrations": messagesFrom(
+    () => import("./en/guide-integrations.json", { with: { type: "json" } }),
+  ),
+  "guide-listings": messagesFrom(
+    () => import("./en/guide-listings.json", { with: { type: "json" } }),
+  ),
+  "guide-operations": messagesFrom(
+    () => import("./en/guide-operations.json", { with: { type: "json" } }),
+  ),
+  "guide-payments": messagesFrom(
+    () => import("./en/guide-payments.json", { with: { type: "json" } }),
+  ),
+  "guide-tickets": messagesFrom(
+    () => import("./en/guide-tickets.json", { with: { type: "json" } }),
+  ),
   holidays: messagesFrom(
     () => import("./en/holidays.json", { with: { type: "json" } }),
   ),
   images: messagesFrom(
     () => import("./en/images.json", { with: { type: "json" } }),
+  ),
+  ledger: messagesFrom(
+    () => import("./en/ledger.json", { with: { type: "json" } }),
   ),
   "listing-defaults": messagesFrom(
     () => import("./en/listing-defaults.json", { with: { type: "json" } }),
@@ -170,17 +242,29 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
   notes: messagesFrom(
     () => import("./en/notes.json", { with: { type: "json" } }),
   ),
+  nouns: messagesFrom(
+    () => import("./en/nouns.json", { with: { type: "json" } }),
+  ),
+  order: messagesFrom(
+    () => import("./en/order.json", { with: { type: "json" } }),
+  ),
   payment: messagesFrom(
     () => import("./en/payment.json", { with: { type: "json" } }),
   ),
   privacy: messagesFrom(
     () => import("./en/privacy.json", { with: { type: "json" } }),
   ),
-  public: messagesFrom(
-    () => import("./en/public.json", { with: { type: "json" } }),
+  "public-site": messagesFrom(
+    () => import("./en/public-site.json", { with: { type: "json" } }),
   ),
   questions: messagesFrom(
     () => import("./en/questions.json", { with: { type: "json" } }),
+  ),
+  renewal: messagesFrom(
+    () => import("./en/renewal.json", { with: { type: "json" } }),
+  ),
+  "seed-data": messagesFrom(
+    () => import("./en/seed-data.json", { with: { type: "json" } }),
   ),
   servicing: messagesFrom(
     () => import("./en/servicing.json", { with: { type: "json" } }),
@@ -205,17 +289,20 @@ export const ENGLISH_MESSAGE_LOADERS: Record<MessageGroup, MessageLoader> = {
     () => import("./en/support.json", { with: { type: "json" } }),
   ),
   system: async () => system,
-  terms: messagesFrom(
-    () => import("./en/terms.json", { with: { type: "json" } }),
-  ),
   tickets: messagesFrom(
     () => import("./en/tickets.json", { with: { type: "json" } }),
+  ),
+  unsubscribe: messagesFrom(
+    () => import("./en/unsubscribe.json", { with: { type: "json" } }),
   ),
   update: messagesFrom(
     () => import("./en/update.json", { with: { type: "json" } }),
   ),
   users: messagesFrom(
     () => import("./en/users.json", { with: { type: "json" } }),
+  ),
+  validation: messagesFrom(
+    () => import("./en/validation.json", { with: { type: "json" } }),
   ),
 };
 

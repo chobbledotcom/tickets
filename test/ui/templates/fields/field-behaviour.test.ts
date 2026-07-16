@@ -4,7 +4,7 @@ import { resetI18nForTest } from "#i18n";
 import type { Field } from "#shared/forms.tsx";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
-import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import { getGroupCreateForm } from "#templates/fields/group.ts";
 import {
   getListingForm,
@@ -34,7 +34,7 @@ const runParse = (field: Field, value: string): unknown => {
 
 describe("fields behaviour", () => {
   describe("aggregate integer fields", () => {
-    const field = listingAggregateFields[0]!;
+    const field = getListingAggregateFields()[0]!;
     test("are required, non-negative-integer number fields", () => {
       expect(field.type).toBe("number");
       expect(field.required).toBe(true);

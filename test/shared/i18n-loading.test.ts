@@ -62,7 +62,7 @@ describe("lazy message groups", () => {
       await ensureMessageGroups(["common"]);
       expect(t("linked_items.heading", { count: 2 })).toBe("Linked items (2):");
 
-      await ensureMessageGroups(["errors"]);
+      await ensureMessageGroups(["validation"]);
 
       expect(t("linked_items.heading", { count: 3 })).toBe("Linked items (3):");
       expect(t("error.name_required")).toBe("Name is required");
@@ -153,6 +153,55 @@ describe("lazy message groups", () => {
 
     expect(t("admin.dashboard.guide_link")).toBe("Dashboard guide");
   });
+
+  test("isolates concurrent message group scopes across an await", () =>
+    withColdMessages(async () => {
+      const commonReady = Promise.withResolvers<void>();
+      const validationReady = Promise.withResolvers<void>();
+      const expectOnlyOwnCopy = (
+        ownKey: string,
+        ownCopy: string,
+        otherKey: string,
+      ): void => {
+        expect(t(ownKey)).toBe(ownCopy);
+        expect(() => t(otherKey)).toThrow(
+          `Missing translation for key "${otherKey}"`,
+        );
+      };
+      const crossBarrier = async (
+        ownKey: string,
+        ownCopy: string,
+        otherKey: string,
+        ready: () => void,
+        otherReady: Promise<void>,
+      ): Promise<void> => {
+        expectOnlyOwnCopy(ownKey, ownCopy, otherKey);
+        ready();
+        await otherReady;
+        expectOnlyOwnCopy(ownKey, ownCopy, otherKey);
+      };
+
+      const commonScope = withMessageGroups(["common"], () =>
+        crossBarrier(
+          "common.yes",
+          "Yes",
+          "error.name_required",
+          commonReady.resolve,
+          validationReady.promise,
+        ),
+      );
+      const validationScope = withMessageGroups(["validation"], () =>
+        crossBarrier(
+          "error.name_required",
+          "Name is required",
+          "common.yes",
+          validationReady.resolve,
+          commonReady.promise,
+        ),
+      );
+
+      await Promise.all([commonScope, validationScope]);
+    }));
 
   test("loads a group before entering its route scope", () =>
     withCommonLoader(

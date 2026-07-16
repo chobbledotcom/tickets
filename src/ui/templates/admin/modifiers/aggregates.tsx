@@ -18,13 +18,13 @@ import {
   RunningTotalsFieldset,
   recalculatePageRenderer,
 } from "#templates/components/aggregate-sections.tsx";
-import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
+import { getModifierAggregateFields } from "#templates/fields/aggregate.ts";
 import { modifierAggregateToFieldValues } from "./values.ts";
 
 const modifierRunningTotalsConfig = (
   modifier: Modifier,
 ): RunningTotalsConfig => ({
-  fields: modifierAggregateFields,
+  fields: getModifierAggregateFields(),
   legend: t("modifiers.running_totals"),
   note: t("modifiers.running_totals_note"),
   recalculateHref: `/admin/modifiers/recalculate/${modifier.id}`,
@@ -60,7 +60,7 @@ const modifierRecalculateRows = (
   snapshot: ModifierAggregateRecalculation,
 ): RecalculateRow[] =>
   buildRecalculateRows(
-    modifierAggregateFields,
+    getModifierAggregateFields(),
     formatModifierAggregateValue,
     snapshot,
   );

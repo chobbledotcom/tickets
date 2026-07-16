@@ -2,6 +2,8 @@
   "nav.admin": "Admin",
   "nav.calendar": "Calendar",
   "nav.site": "Site",
+  "nav.site.news": "News",
+  "nav.site.pages": "Pages",
   "nav.emails": "Emails",
   "nav.settings": "Settings",
   "nav.log": "Log",
@@ -34,6 +36,10 @@
   "nav.public.terms": "T&amp;Cs",
   "nav.public.contact": "Contact",
   "nav.public.order": "Order",
+  "nav.public.news": "News",
   "nav.logistics": "Logistics",
-  "nav.deliveries": "Deliveries"
+  "nav.deliveries": "Deliveries",
+  "site.sub_nav.contact": "Contact",
+  "site.sub_nav.homepage": "Homepage",
+  "site.sub_nav.order": "Order"
 }

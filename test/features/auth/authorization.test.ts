@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { AuthSession } from "#routes/auth.ts";
 import {
+  anyUserPage,
   requireContentOr,
   requireDeliveryOr,
   requireOwnerOr,
@@ -52,6 +53,14 @@ const runGuard = (guard: Guard, cookie?: string): Promise<Response> =>
     (session) => new Response("OK", { status: session ? 200 : 500 }),
   );
 
+const runAnyUserPage = (cookie?: string): Promise<Response> =>
+  anyUserPage((session) => session.adminLevel)(
+    new Request(
+      "http://localhost/admin/x",
+      cookie ? { headers: { cookie } } : undefined,
+    ),
+  );
+
 /** Assert a guard admits exactly `allowed` and forbids every other role. Every
  *  cookie is a valid session, so a rejection is a 403 forbidden, never the
  *  not-authenticated redirect. */
@@ -97,6 +106,20 @@ describeWithEnv("auth authorization matrix", { db: true }, () => {
       "manager",
       "agent",
     ]);
+  });
+
+  test("anyUserPage renders for every authenticated role", async () => {
+    for (const [role, cookie] of Object.entries(await roleCookies())) {
+      const response = await runAnyUserPage(cookie);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe(role);
+    }
+  });
+
+  test("anyUserPage redirects an unauthenticated request", async () => {
+    const response = await runAnyUserPage();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/admin");
   });
 
   test("every guard redirects an unauthenticated request instead of running the handler", async () => {

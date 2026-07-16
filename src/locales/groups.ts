@@ -1,66 +1,59 @@
-import { MESSAGE_GROUPS, type MessageGroup } from "#locales/manifest.ts";
+import type { MessageGroup } from "#locales/manifest.ts";
 
-const ADMIN_AREA_MESSAGE_GROUPS = [
-  "backup",
-  "builder",
-  "bulk-actions",
-  "bulk-email",
-  "debug",
-  "deliveries",
-  "groups",
-  "guide",
-  "notes",
-  "privacy",
-  "servicing",
-  "support",
-  "update",
-] as const satisfies readonly MessageGroup[];
-
-export type AdminAreaMessageGroup = (typeof ADMIN_AREA_MESSAGE_GROUPS)[number];
-
-const NON_ADMIN_BASE_GROUPS: ReadonlySet<MessageGroup> = new Set([
-  ...ADMIN_AREA_MESSAGE_GROUPS,
-  "setup",
-  "system",
-]);
-
-/** Copy shared by every real admin page. Area-only catalogs are declared with
- * their lazy area loader, so an unrelated admin segment never initializes them. */
-export const ADMIN_BASE_MESSAGE_GROUPS: readonly MessageGroup[] =
-  MESSAGE_GROUPS.filter((group) => !NON_ADMIN_BASE_GROUPS.has(group));
-
-export const PUBLIC_MESSAGE_GROUPS = [
-  "address-lookup",
-  "availability",
+/** Copy used by the admin layout itself, independent of the page it wraps. */
+export const ADMIN_SHELL_MESSAGE_GROUPS = [
+  "activity-log",
+  "admin-shell",
   "common",
-  "errors",
-  "fields",
-  "listing-qr",
-  "listings-table",
-  "modifiers",
   "nav",
-  "news",
-  "payment",
-  "public",
-  "terms",
-  "tickets",
+  "nouns",
 ] as const satisfies readonly MessageGroup[];
+
+/** Copy used by the public layout and navigation. */
+export const PUBLIC_SHELL_MESSAGE_GROUPS = [
+  "common",
+  "nav",
+  "nouns",
+] as const satisfies readonly MessageGroup[];
+
+/** Add route-owned copy to the shared public shell. */
+export const publicMessageGroups = (
+  ...groups: readonly MessageGroup[]
+): readonly MessageGroup[] => [...PUBLIC_SHELL_MESSAGE_GROUPS, ...groups];
 
 export const SETUP_MESSAGE_GROUPS = [
   "common",
-  "errors",
-  "fields",
+  "login",
   "setup",
+  "validation",
 ] as const satisfies readonly MessageGroup[];
 
 export const JOIN_MESSAGE_GROUPS = [
   "common",
-  "errors",
-  "fields",
   "login",
+  "validation",
 ] as const satisfies readonly MessageGroup[];
 
-export const API_MESSAGE_GROUPS = [
-  ...ADMIN_BASE_MESSAGE_GROUPS,
+/** The admin API imports its three resource definitions as one router. */
+export const ADMIN_API_MESSAGE_GROUPS = [
+  "activity-log",
+  "attendees",
+  "common",
+  "entity-pages",
   "groups",
+  "holidays",
+  "images",
+  "listings-table",
+  "modifiers",
+  "questions",
+  "validation",
+] as const satisfies readonly MessageGroup[];
+
+export const PUBLIC_API_MESSAGE_GROUPS = [
+  "availability",
+  "groups",
+  "order",
+  "payment",
+  "tickets",
+  "validation",
 ] as const satisfies readonly MessageGroup[];

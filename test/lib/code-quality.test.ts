@@ -50,8 +50,8 @@ const ALLOWED_FILES_STATE = [
   // Short-TTL warm-isolate stash for re-filling forms after a redirect;
   // one-shot, size/count-capped, with a cookie-flash fallback when cold.
   "shared/form-stash.ts",
-  // Compiled ICU MessageFormat cache keyed by locale + message key;
-  // immutable derived data (parsing is non-trivial), not mutable app state.
+  // Loaded-catalog registry, in-flight loader promises, and compiled ICU
+  // formats. These are warm-isolate caches; route visibility is request-scoped.
   "shared/i18n.ts",
 ];
 

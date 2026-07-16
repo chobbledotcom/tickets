@@ -35,6 +35,25 @@ const TEMPLATES_DIR = "src/ui/templates";
  * the shared form framework renders its own labels and submit buttons. */
 const EXTRA_SCAN_FILES = ["src/shared/forms.tsx"];
 
+/** Existing catalog copy that review found duplicated as wrapped JSX prose.
+ * Requiring the catalog calls directly avoids depending on line layout or
+ * inline markup such as <strong> and <kbd>. */
+const REQUIRED_TEMPLATE_KEYS = new Map<string, readonly string[]>([
+  [
+    "src/ui/templates/setup.tsx",
+    [
+      "setup.agreement.controller_text",
+      "setup.agreement.processor_text",
+      "setup.agreement.encrypted_text",
+      "setup.agreement.responsibilities_text",
+      "setup.agreement.breach_text",
+      "setup.agreement.deletion_text",
+      "setup.agreement.password_warning",
+    ],
+  ],
+  ["src/ui/templates/admin/guide.tsx", ["guide.search_hint"]],
+]);
+
 /** Files (relative to src/) with hard-coded user-facing strings still pending
  * i18n wiring, mapped to the exact number of leftover literals each still has.
  * Wire a file's strings with t(), then lower its number — or delete the entry
@@ -44,7 +63,6 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/admin/api-keys.tsx", 2],
   ["ui/templates/admin/attendees.tsx", 3],
   ["ui/templates/admin/calendar.tsx", 1],
-  ["ui/templates/admin/guide.tsx", 1],
   ["ui/templates/admin/guide/accounts.tsx", 1],
   ["ui/templates/admin/guide/components.tsx", 3],
   ["ui/templates/admin/guide/domains.tsx", 2],
@@ -169,6 +187,22 @@ describe("i18n coverage", () => {
         const key = m[2]!;
         if (key.includes("${") || key.includes("{")) continue; // dynamic key
         if (!(key in messages)) missing.push(`${file}: t("${key}")`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  test("reviewed template prose stays catalog-backed", () => {
+    const missing: string[] = [];
+    for (const [file, requiredKeys] of REQUIRED_TEMPLATE_KEYS) {
+      const referencedKeys = new Set(
+        Array.from(
+          Deno.readTextFileSync(file).matchAll(T_CALL),
+          (match) => match[2],
+        ),
+      );
+      for (const key of requiredKeys) {
+        if (!referencedKeys.has(key)) missing.push(`${file}: t("${key}")`);
       }
     }
     expect(missing).toEqual([]);

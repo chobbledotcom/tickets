@@ -7,7 +7,7 @@ import {
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
 
-const en = await allEnglishMessages(["fields", "settings"]);
+const en = await allEnglishMessages(["settings"]);
 
 type ExpectedFormRow = readonly [
   keyof typeof SETTINGS_FORMS,
