@@ -29,6 +29,8 @@
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
+src/shared/db/migrations/define.ts:10:18  ?? → ||   # values?.length is a non-negative number or undefined; the only falsy number is 0, and both fall back to 0
+src/shared/db/migrations/define.ts:13:33  ?? → ||   # requires.columns is an object when present, so it is always truthy
 src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
 src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
