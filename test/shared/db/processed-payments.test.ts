@@ -4,8 +4,10 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   decryptSessionTokens,
+  encryptTicketTokens,
   finalizeSessionIfUnresolved,
   isSessionProcessed,
+  isUnresolvedReservation,
   markSessionFailed,
   parseSessionFailure,
   reserveSession,
@@ -58,6 +60,30 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       if (!result.reserved) {
         expect(result.existing.attendee_id).toBeNull();
       }
+    });
+
+    test("only treats an attendee-free, failure-free row as unresolved", async () => {
+      await reserveSession("sess_unresolved_shape");
+      const row = (await isSessionProcessed("sess_unresolved_shape"))!;
+
+      expect(isUnresolvedReservation(row)).toBe(true);
+      expect(isUnresolvedReservation({ ...row, attendee_id: 42 })).toBe(false);
+      expect(
+        isUnresolvedReservation({
+          ...row,
+          failure_data: "recorded-failure" as EnvKeyEncrypted,
+        }),
+      ).toBe(false);
+    });
+
+    test("joins every ticket token with the stored separator", async () => {
+      const encrypted = await encryptTicketTokens(["first", "second"]);
+
+      expect(await decryptSessionTokens(encrypted)).toBe("first+second");
+    });
+
+    test("decodes an absent ticket token as empty", async () => {
+      expect(await decryptSessionTokens("")).toBe("");
     });
 
     test("retries when stale reservation detected", async () => {
@@ -208,6 +234,21 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(row.attendee_id).toBe(42);
       // The ledger-replay heal never writes ticket_tokens.
       expect(row.ticket_tokens).toBe("");
+      expect(row.payment_reference).toBe("");
+    });
+
+    test("stores a supplied payment reference while healing", async () => {
+      await reserveSession("sess_heal_reference");
+
+      await finalizeSessionIfUnresolved(
+        "sess_heal_reference",
+        42,
+        "pi_heal_reference",
+      );
+
+      const row = (await isSessionProcessed("sess_heal_reference"))!;
+      expect(row.attendee_id).toBe(42);
+      expect(row.payment_reference).not.toBe("");
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {

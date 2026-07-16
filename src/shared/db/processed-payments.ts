@@ -19,7 +19,7 @@ import type {
   EnvKeyEncrypted,
   OwnerKeyEncrypted,
 } from "#shared/crypto/sealed.ts";
-import { execute, insert, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import { encryptPaymentReference } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
@@ -41,6 +41,9 @@ export const UNRESOLVED_RESERVATION =
 export type ProcessedPayment = {
   payment_session_id: string;
   attendee_id: number | null;
+  /** The staged attendee claimed by this reservation, or null when the payment
+   * session has no checkout stage. */
+  checkout_stage_attendee_id: number | null;
   processed_at: string;
   /** Encrypted "+"-joined ticket tokens; "" while none are stored. */
   ticket_tokens: EnvKeyEncrypted | "";
@@ -86,7 +89,7 @@ export const isSessionProcessed = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at " +
+    "SELECT payment_session_id, attendee_id, checkout_stage_attendee_id, processed_at, ticket_tokens, failure_data, payment_reference, provider_refunded_at " +
       "FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );
@@ -162,19 +165,19 @@ export const reserveSession = async (
   sessionId: string,
 ): Promise<ReserveSessionResult> => {
   try {
-    const { sql, args } = insert("processed_payments", {
-      attendee_id: null,
-      payment_session_id: sessionId,
-      processed_at: nowIso(),
-    });
-    await execute(sql, args);
+    await execute(
+      `INSERT INTO processed_payments
+        (payment_session_id, attendee_id, checkout_stage_attendee_id, processed_at)
+      VALUES (?, NULL, (
+        SELECT stage.attendee_id FROM checkout_stages AS stage
+        WHERE stage.payment_session_id = ?
+      ), ?)`,
+      [sessionId, sessionId, nowIso()],
+    );
     return { reserved: true };
   } catch (e) {
     const errorMsg = String(e);
-    if (
-      errorMsg.includes("UNIQUE constraint") ||
-      errorMsg.includes("PRIMARY KEY constraint")
-    ) {
+    if (/(?:UNIQUE|PRIMARY KEY) constraint/.test(errorMsg)) {
       // Session already claimed - get existing record (must exist: UNIQUE error proves it)
       const existing = (await isSessionProcessed(sessionId))!;
 

@@ -1,6 +1,9 @@
 /** Triggers that keep precomputed aggregates in step with their source tables. */
 
-import { CHECKOUT_STAGE_REVISION_TRIGGERS } from "./checkout-stage-triggers.ts";
+import {
+  CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS,
+  CHECKOUT_STAGE_REVISION_TRIGGERS,
+} from "./checkout-stage-triggers.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   ticketCountPredicateFor,
@@ -84,7 +87,14 @@ BEGIN
 END`,
     table: "listing_attendees",
   },
-];
+].map((trigger) => ({
+  ...trigger,
+  dependencies: {
+    attendees: ["kind"],
+    listing_attendees: ["attendee_id", "listing_id", "quantity"],
+    listings: ["booked_quantity", "tickets_count"],
+  },
+}));
 
 /**
  * Modifier aggregate triggers keep modifiers.total_uses and modifiers.usage_count
@@ -297,4 +307,5 @@ export const TRIGGERS: Trigger[] = [
   ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
   ...STRING_AGGREGATE_TRIGGERS,
   ...CHECKOUT_STAGE_REVISION_TRIGGERS,
+  ...CHECKOUT_STAGE_PAYMENT_FENCE_TRIGGERS,
 ];

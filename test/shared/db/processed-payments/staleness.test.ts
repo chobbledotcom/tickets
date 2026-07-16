@@ -83,7 +83,10 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       await reserveSession("cs_fresh_bulk");
 
       expect(await deleteAllStaleReservations()).toBe(0);
-      expect(await isSessionProcessed("cs_fresh_bulk")).not.toBeNull();
+      expect(await isSessionProcessed("cs_fresh_bulk")).toMatchObject({
+        attendee_id: null,
+        checkout_stage_attendee_id: null,
+      });
     });
 
     test("does not delete finalized reservations regardless of age", async () => {

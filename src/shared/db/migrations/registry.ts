@@ -346,6 +346,12 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-15_checkout_stages",
     () => import("./2026-07-15_checkout_stages.ts"),
   ),
+  // Bind payment reservations to dormant checkout stages before stage runtime
+  // is activated in a later change.
+  entry(
+    "2026-07-16_checkout_stage_payment_fences",
+    () => import("./2026-07-16_checkout_stage_payment_fences.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

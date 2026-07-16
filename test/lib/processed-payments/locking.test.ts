@@ -168,6 +168,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       const record = await isSessionProcessed("cs_clear_test");
       expect(record?.ticket_tokens).toBe("");
       expect(record?.attendee_id).toBe(ctx.attendeeId);
+      expect(record?.checkout_stage_attendee_id).toBeNull();
     });
 
     test("is a no-op when tokens are already empty", async () => {
