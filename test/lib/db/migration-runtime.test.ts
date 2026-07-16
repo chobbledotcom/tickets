@@ -1,6 +1,8 @@
+import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { stub } from "@std/testing/mock";
+import { executeBatch, getDb } from "#shared/db/client.ts";
 import {
   fullSchemaCreateStatements,
   verifyCurrentAppSchema,
@@ -9,6 +11,7 @@ import {
   applyMigrationWithRetry,
   initDb,
   invalidateInitDbCache,
+  loadMigrations,
   MIGRATION_LOCK_TTL_MS,
   type Migration,
   MigrationInProgressError,
@@ -65,6 +68,31 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
   const restoreLockTest = async () => {
     await restoreLockSettings();
+  };
+
+  const markMigrationPending = async (migrationId: string): Promise<void> => {
+    await executeBatch([
+      {
+        args: [migrationId],
+        sql: "DELETE FROM schema_migrations WHERE id = ?",
+      },
+      {
+        args: [],
+        sql: "UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')",
+      },
+    ]);
+    invalidateInitDbCache();
+  };
+
+  const stubLockReleaseFailure = () => {
+    const client = getDb();
+    const execute = client.execute.bind(client);
+    return stub(client, "execute", (statement: InStatement) => {
+      const sql = typeof statement === "string" ? statement : statement.sql;
+      return sql === "DELETE FROM settings WHERE key = ? AND value = ?"
+        ? Promise.reject(new Error("lock release failed"))
+        : execute(statement);
+    });
   };
 
   describe("migration behaviour", () => {
@@ -160,6 +188,76 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
         await expect(initDb()).rejects.toThrow("migration_lock held");
       } finally {
+        await restoreLockSettings();
+      }
+    });
+
+    test("does not record completion or delete a successor lock after losing ownership", async () => {
+      const migrations = await loadMigrations();
+      const migration = migrations.at(-1)!;
+      const originalVerify = migration.verify;
+      const successorLock = `${new Date().toISOString()}|successor`;
+      await markMigrationPending(migration.id);
+      migration.verify = async () => {
+        await originalVerify();
+        await getDb().execute({
+          args: [successorLock],
+          sql: "UPDATE settings SET value = ? WHERE key = 'migration_lock'",
+        });
+      };
+
+      try {
+        await expect(initDb()).rejects.toThrow("lock ownership was lost");
+        const lock = await getDb().execute(
+          "SELECT value FROM settings WHERE key = 'migration_lock'",
+        );
+        expect(lock.rows[0]?.value).toBe(successorLock);
+        const marker = await getDb().execute({
+          args: [migration.id],
+          sql: "SELECT id FROM schema_migrations WHERE id = ?",
+        });
+        expect(marker.rows).toHaveLength(0);
+      } finally {
+        migration.verify = originalVerify;
+        await getDb().execute(
+          "DELETE FROM settings WHERE key = 'migration_lock'",
+        );
+      }
+    });
+
+    test("surfaces a lock release failure after otherwise successful work", async () => {
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      invalidateInitDbCache();
+      const executeStub = stubLockReleaseFailure();
+
+      try {
+        await expect(initDb()).rejects.toThrow("lock release failed");
+      } finally {
+        executeStub.restore();
+        await restoreLockSettings();
+      }
+    });
+
+    test("reports migration and lock release failures together", async () => {
+      const migrations = await loadMigrations();
+      const migration = migrations.at(-1)!;
+      const originalUp = migration.up;
+      await markMigrationPending(migration.id);
+      migration.up = () => Promise.reject(new Error("migration work failed"));
+      const executeStub = stubLockReleaseFailure();
+
+      try {
+        const error = await initDb().catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(AggregateError);
+        expect((error as AggregateError).errors.map(String)).toEqual([
+          "Error: migration work failed",
+          "Error: lock release failed",
+        ]);
+      } finally {
+        executeStub.restore();
+        migration.up = originalUp;
         await restoreLockSettings();
       }
     });
