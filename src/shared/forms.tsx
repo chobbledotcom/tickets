@@ -16,12 +16,13 @@ import {
 } from "#shared/flash-context.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type {
-  ChoiceField,
-  Field,
-  FieldType,
-  InputField,
-  TextareaField,
+import {
+  type ChoiceField,
+  type Field,
+  type FieldType,
+  type InputField,
+  requireCheckboxOptions,
+  type TextareaField,
 } from "#shared/forms/field.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
@@ -42,7 +43,10 @@ export type {
   InputField,
   TextareaField,
 } from "#shared/forms/field.ts";
-export { requireChoiceOptions } from "#shared/forms/field.ts";
+export {
+  requireCheckboxOptions,
+  requireChoiceOptions,
+} from "#shared/forms/field.ts";
 
 export interface FieldValues {
   [key: string]: string | number | null;
@@ -194,6 +198,7 @@ const renderChoiceFieldInput = (
       )}</select>`,
     );
   }
+  requireCheckboxOptions(field.label, field.options);
   return rawField(
     renderCheckboxGroup(
       field.name,
@@ -408,10 +413,7 @@ const hasInvalidChoice = (
 ): boolean => {
   const values =
     field.type === "checkbox-group"
-      ? value
-          .split(",")
-          .map((choice) => choice.trim())
-          .filter(Boolean)
+      ? value.split(",").map((choice) => choice.trim())
       : [value];
   const schema = choiceSchema(field);
   return values.some((choice) => !v.safeParse(schema, choice).success);

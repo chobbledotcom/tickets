@@ -152,6 +152,48 @@ describe("form field schema", () => {
     });
   });
 
+  test("rejects ambiguous checkbox option values when defining a form", () => {
+    for (const value of ["one,two", "", " padded "]) {
+      expect(() =>
+        defineForm({
+          fields: [
+            {
+              label: "Tags",
+              name: "tags",
+              options: [{ label: "Tag", value }],
+              type: "checkbox-group",
+            },
+          ] as const,
+          id: "ambiguous-checkboxes",
+        }),
+      ).toThrow(
+        "Tags checkbox option values must be trimmed, non-empty, and contain no commas",
+      );
+    }
+  });
+
+  test("rejects empty tokens in comma-separated checkbox choices", () => {
+    const form = defineForm({
+      fields: [
+        {
+          label: "Tags",
+          name: "tags",
+          options: [
+            { label: "One", value: "one" },
+            { label: "Two", value: "two" },
+          ],
+          type: "checkbox-group",
+        },
+      ] as const,
+      id: "malformed-checkboxes",
+    });
+
+    expect(form.validate(new FormParams({ tags: "one,,two" }))).toEqual({
+      error: "Tags is invalid.",
+      valid: false,
+    });
+  });
+
   test("renders fields by their typed section id", () => {
     const form = defineForm({
       fields: [

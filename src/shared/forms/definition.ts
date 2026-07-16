@@ -5,6 +5,7 @@ import {
   type FieldValues,
   renderField,
   renderFields,
+  requireCheckboxOptions,
   requireChoiceOptions,
   type ValidationResult,
   validateForm,
@@ -107,8 +108,10 @@ export const defineForm = <
   ) => string | null;
 }): FormDefinition<TFields, TContext> => {
   const fields = config.fields.map((field) => {
-    if (field.type === "select" || field.type === "checkbox-group") {
+    if (field.type === "select") {
       requireChoiceOptions(field.label, field.options);
+    } else if (field.type === "checkbox-group") {
+      requireCheckboxOptions(field.label, field.options);
     }
     return field;
   });

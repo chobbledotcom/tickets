@@ -21,6 +21,24 @@ export const requireChoiceOptions = <TValue extends string>(
   return [first, ...rest];
 };
 
+export const requireCheckboxOptions = <TValue extends string>(
+  label: string,
+  options: readonly FieldOption<TValue>[],
+): ChoiceOptions<TValue> => {
+  const checked = requireChoiceOptions(label, options);
+  if (
+    checked.some(
+      ({ value }) =>
+        value !== value.trim() || value === "" || value.includes(","),
+    )
+  ) {
+    throw new Error(
+      `${label} checkbox option values must be trimmed, non-empty, and contain no commas`,
+    );
+  }
+  return checked;
+};
+
 export type FieldType =
   | InputFieldType
   | "textarea"
