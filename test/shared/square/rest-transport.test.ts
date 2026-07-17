@@ -44,6 +44,7 @@ describeSquare(() => {
         Promise.resolve(
           jsonResponse({
             payment_link: {
+              id: "link_rest",
               long_url: "https://checkout.square.site/rest",
               order_id: "ord_rest",
               url: "https://square.link/rest",
@@ -75,6 +76,7 @@ describeSquare(() => {
       });
 
       // Response prefers long_url (checkout.square.site) over short url (square.link)
+      expect(result.paymentLink!.id).toBe("link_rest");
       expect(result.paymentLink!.orderId).toBe("ord_rest");
       expect(result.paymentLink!.url).toBe("https://checkout.square.site/rest");
 
@@ -105,6 +107,7 @@ describeSquare(() => {
         Promise.resolve(
           jsonResponse({
             payment_link: {
+              id: "link_short",
               order_id: "ord_short",
               url: "https://square.link/short",
             },
@@ -139,7 +142,11 @@ describeSquare(() => {
       installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
-            payment_link: { order_id: "ord_2", url: "https://square.link/2" },
+            payment_link: {
+              id: "link_2",
+              order_id: "ord_2",
+              url: "https://square.link/2",
+            },
           }),
         ),
       );
@@ -179,6 +186,31 @@ describeSquare(() => {
       });
 
       expect(result.paymentLink).toBeUndefined();
+    });
+
+    test("deletes a payment link and maps the cancelled order", async () => {
+      installMockFetch(() =>
+        Promise.resolve(
+          jsonResponse({
+            cancelled_order_id: "order_closed",
+            id: "link_closed",
+          }),
+        ),
+      );
+
+      const client = await getSquareClient();
+      const result = await client!.checkout.paymentLinks.delete({
+        id: "link_closed",
+      });
+
+      expect(result).toEqual({
+        cancelledOrderId: "order_closed",
+        id: "link_closed",
+      });
+      expect(mockFetch.calls[0]!.args[0]).toBe(
+        "https://connect.squareupsandbox.com/v2/online-checkout/payment-links/link_closed",
+      );
+      expect(mockFetch.calls[0]!.args[1].method).toBe("DELETE");
     });
 
     test("orders.get fetches correct URL and maps response to camelCase", async () => {

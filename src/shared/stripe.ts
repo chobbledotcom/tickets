@@ -23,6 +23,7 @@ import {
   signedTestWebhook,
 } from "#shared/payment-helpers.ts";
 import type {
+  CheckoutCloseResult,
   CheckoutIntent,
   SetupWebhookEndpoint,
   WebhookEvent,
@@ -54,6 +55,7 @@ export type StripeCheckoutFields = {
   amount_total: number | null;
   /** Session creation time as a Unix epoch (seconds), Stripe's native format. */
   created: number;
+  status: "complete" | "expired" | "open" | null;
 };
 
 const narrowCheckoutSession = (
@@ -66,6 +68,7 @@ const narrowCheckoutSession = (
   payment_intent:
     typeof session.payment_intent === "string" ? session.payment_intent : null,
   payment_status: session.payment_status,
+  status: session.status,
 });
 
 /**
@@ -341,6 +344,7 @@ const cleanupOldWebhookEndpointsImpl = async (
  * Production code uses stripeApi.method() to enable test mocking
  */
 export const stripeApi: {
+  closeCheckoutSession: (sessionId: string) => Promise<CheckoutCloseResult>;
   cleanupOldWebhookEndpoints: (
     secretKey: string,
     webhookUrl: string,
@@ -365,6 +369,29 @@ export const stripeApi: {
    *  with the given ID. Called by the settings route after all new Stripe
    *  credentials are saved. */
   cleanupOldWebhookEndpoints: cleanupOldWebhookEndpointsImpl,
+  closeCheckoutSession: async (
+    sessionId: string,
+  ): Promise<CheckoutCloseResult> => {
+    const client = await stripeApi.getStripeClient();
+    if (!client) throw new Error("No Stripe client configured");
+
+    const current = await client.checkout.sessions.retrieve(sessionId);
+    if (current.status === "complete") return "paid";
+    if (current.status === "expired") return "closed";
+    if (current.status !== "open") {
+      throw new Error(`Unknown Stripe checkout status: ${current.status}`);
+    }
+
+    try {
+      await client.checkout.sessions.expire(sessionId);
+      return "closed";
+    } catch (err) {
+      const afterFailure = await client.checkout.sessions.retrieve(sessionId);
+      if (afterFailure.status === "complete") return "paid";
+      if (afterFailure.status === "expired") return "closed";
+      throw err;
+    }
+  },
   /** Create checkout session for one or more listings */
   createCheckoutSession: async (
     intent: CheckoutIntent,
@@ -411,6 +438,7 @@ export const stripeApi: {
 
     const params: Stripe.Checkout.SessionCreateParams = {
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
+      expires_at: nowSeconds() + 30 * 60,
       line_items: lineItems,
       mode: "payment",
       payment_method_types: ["card"],
@@ -549,6 +577,9 @@ export const retrieveCheckoutSession = (id: string) =>
 export const retrievePaymentIntent = (id: string) =>
   stripeApi.retrievePaymentIntent(id);
 export const refundPayment = (id: string) => stripeApi.refundPayment(id);
+export const closeCheckoutSession = (
+  id: string,
+): Promise<CheckoutCloseResult> => stripeApi.closeCheckoutSession(id);
 export const createCheckoutSession = (i: CheckoutIntent, b: string) =>
   stripeApi.createCheckoutSession(i, b);
 export const testStripeConnection = () => stripeApi.testStripeConnection();

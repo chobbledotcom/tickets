@@ -31,6 +31,7 @@ import type {
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import {
+  closeCheckoutById,
   createCheckout,
   getTransactionStatus,
   refundTransaction,
@@ -64,12 +65,24 @@ const buildValidatedSession = (
 const createSumupCheckoutSession = makeCreateCheckoutSession(
   "SumUp",
   createCheckout,
-  (result) => ({ id: result?.reference, url: result?.url }),
+  (result) => ({
+    id: result?.reference,
+    providerId: result?.id,
+    url: result?.url,
+  }),
 );
 
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
+  async closeCheckout({ providerCheckoutId, sessionId }) {
+    const stored = providerCheckoutId
+      ? null
+      : await getSumupCheckout(sessionId);
+    const sumupId = providerCheckoutId || stored?.sumupId;
+    if (!sumupId) throw new Error(`No SumUp checkout id for ${sessionId}`);
+    return closeCheckoutById(sumupId);
+  },
   createCheckoutSession: createSumupCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {

@@ -216,7 +216,15 @@ describeStripe("stripe", () => {
           );
 
           const params = createSpy.calls[0]!
-            .args[0] as unknown as CreatedSessionParams;
+            .args[0] as unknown as CreatedSessionParams & {
+            expires_at: number;
+          };
+          expect(params.expires_at).toBeGreaterThan(
+            Math.floor(Date.now() / 1000) + 29 * 60,
+          );
+          expect(params.expires_at).toBeLessThanOrEqual(
+            Math.floor(Date.now() / 1000) + 30 * 60,
+          );
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",
           );

@@ -187,6 +187,7 @@ describe("sumup-provider", () => {
         () =>
           stub(sumupApi, "createCheckout", () =>
             Promise.resolve({
+              id: "co_new",
               reference: "ref_new",
               url: "https://pay.sumup.com/x",
             }),
@@ -199,6 +200,7 @@ describe("sumup-provider", () => {
             ),
           ).toEqual({
             checkoutUrl: "https://pay.sumup.com/x",
+            providerCheckoutId: "co_new",
             sessionId: "ref_new",
           });
         },

@@ -47,6 +47,7 @@ export const stubCheckout = (sessionId = "cs_test") => {
       captured = intent;
       return Promise.resolve({
         checkoutUrl: "https://stripe.example/checkout",
+        providerCheckoutId: sessionId,
         sessionId,
       });
     },

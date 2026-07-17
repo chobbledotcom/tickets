@@ -415,12 +415,13 @@ export const toCheckoutResult = (
   sessionId: string | undefined,
   url: string | undefined | null,
   label: LogCategory,
+  providerCheckoutId = sessionId,
 ): CheckoutSessionResult => {
-  if (!sessionId || !url) {
-    logDebug(label, "Checkout result missing session ID or URL");
+  if (!sessionId || !providerCheckoutId || !url) {
+    logDebug(label, "Checkout result missing session ID, provider ID, or URL");
     return null;
   }
-  return { checkoutUrl: url, sessionId };
+  return { checkoutUrl: url, providerCheckoutId, sessionId };
 };
 
 /**
@@ -436,6 +437,7 @@ export const makeCreateCheckoutSession =
     create: (intent: CheckoutIntent, baseUrl: string) => Promise<Result>,
     readResult: (result: Result) => {
       id: string | undefined;
+      providerId?: string | undefined;
       url: string | undefined | null;
     },
   ): ((
@@ -445,8 +447,8 @@ export const makeCreateCheckoutSession =
   (intent, baseUrl) =>
     withCheckoutError(async () => {
       const result = await create(intent, baseUrl);
-      const { id, url } = readResult(result);
-      return toCheckoutResult(id, url, label);
+      const { id, providerId, url } = readResult(result);
+      return toCheckoutResult(id, url, label, providerId);
     });
 
 /**

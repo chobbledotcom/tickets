@@ -204,6 +204,9 @@ export type CheckoutIntent = CheckoutIntentBase & {
 export type CheckoutSessionResult =
   | {
       sessionId: string;
+      /** Identifier for closing the hosted checkout. This differs from the
+       * completion/session identifier for Square and SumUp. */
+      providerCheckoutId: string;
       checkoutUrl: string;
     }
   | {
@@ -320,6 +323,17 @@ export type SetupWebhookEndpoint = (
   existingEndpointId?: string | null,
 ) => Promise<WebhookSetupResult>;
 
+/** Identifiers needed to close a hosted checkout without losing the identifier
+ * used by redirects and payment completion. */
+export type ProviderCheckout = {
+  sessionId: string;
+  providerCheckoutId: string;
+};
+
+/** A provider-authoritative checkout close result. `closed` means the hosted
+ * checkout can no longer accept payment. `paid` means payment already won. */
+export type CheckoutCloseResult = "closed" | "paid";
+
 /**
  * Payment provider interface.
  *
@@ -329,6 +343,10 @@ export type SetupWebhookEndpoint = (
 export interface PaymentProvider {
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
+
+  /** Close an unpaid hosted checkout. Failures throw so callers cannot delete
+   * local state unless the provider confirms either closure or payment. */
+  closeCheckout(checkout: ProviderCheckout): Promise<CheckoutCloseResult>;
 
   /**
    * Create a checkout session for one or more listings.

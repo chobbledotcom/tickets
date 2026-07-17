@@ -141,6 +141,7 @@ describeWithEnv(
             capturedIntent = intent;
             return Promise.resolve({
               checkoutUrl: "https://square.example/checkout",
+              providerCheckoutId: "square_link_123",
               sessionId: "square_order_123",
             });
           },

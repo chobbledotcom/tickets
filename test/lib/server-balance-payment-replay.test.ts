@@ -33,6 +33,7 @@ const balanceSession = (
   ),
   payment_intent: `pi_${sessionId}`,
   payment_status: "paid",
+  status: "complete" as const,
 });
 
 describeWithEnv("server (balance payment replay)", { db: true }, () => {

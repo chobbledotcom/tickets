@@ -145,6 +145,7 @@ describe("payment-helpers", () => {
         toCheckoutResult("sess_1", "https://pay.example.com", "Stripe"),
       ).toEqual({
         checkoutUrl: "https://pay.example.com",
+        providerCheckoutId: "sess_1",
         sessionId: "sess_1",
       });
     });

@@ -33,7 +33,7 @@ import {
   createWithClient,
 } from "#shared/payment-helpers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { CheckoutCloseResult, CheckoutIntent } from "#shared/payments.ts";
 
 /* jscpd:ignore-end */
 
@@ -78,7 +78,11 @@ export type SumupCheckout = {
 };
 
 /** Result of creating a hosted checkout. */
-export type SumupCheckoutResult = { reference: string; url: string } | null;
+export type SumupCheckoutResult = {
+  id: string;
+  reference: string;
+  url: string;
+} | null;
 
 /** Result of testing the SumUp connection. */
 export type SumupConnectionTestResult = {
@@ -154,6 +158,7 @@ const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => ({
  * adapter and tests can mock these methods directly.
  */
 export const sumupApi: {
+  closeCheckoutById: (id: string) => Promise<CheckoutCloseResult>;
   getSumupClient: () => SumUp | null;
   createCheckout: (
     intent: CheckoutIntent,
@@ -164,6 +169,24 @@ export const sumupApi: {
   getTransactionStatus: (transactionId: string) => Promise<string | null>;
   testSumupConnection: () => Promise<SumupConnectionTestResult>;
 } = {
+  closeCheckoutById: async (id: string): Promise<CheckoutCloseResult> => {
+    const client = sumupApi.getSumupClient();
+    if (!client) throw new Error("No SumUp client configured");
+
+    const current = toSumupCheckout(await client.checkouts.get(id));
+    if (current.status === "PAID") return "paid";
+    if (current.status === "EXPIRED") return "closed";
+
+    try {
+      await client.checkouts.deactivate(id);
+      return "closed";
+    } catch (err) {
+      const afterFailure = toSumupCheckout(await client.checkouts.get(id));
+      if (afterFailure.status === "PAID") return "paid";
+      if (afterFailure.status === "EXPIRED") return "closed";
+      throw err;
+    }
+  },
   /** Create a hosted checkout and persist booking metadata under its reference. */
   createCheckout: async (
     intent: CheckoutIntent,
@@ -211,7 +234,7 @@ export const sumupApi: {
       // and the redirect can fetch it directly. Runs before the customer ever
       // sees the payment URL, so no webhook can race it.
       await setSumupCheckoutId(reference, checkout.id);
-      return { reference, url };
+      return { id: checkout.id, reference, url };
     }, ErrorCode.PAYMENT_CHECKOUT);
   },
 
@@ -291,6 +314,8 @@ export const sumupApi: {
 // Wrapper exports for production code (delegate to sumupApi for test mocking)
 export const createCheckout = (i: CheckoutIntent, b: string) =>
   sumupApi.createCheckout(i, b);
+export const closeCheckoutById = (id: string): Promise<CheckoutCloseResult> =>
+  sumupApi.closeCheckoutById(id);
 export const retrieveCheckoutById = (id: string) =>
   sumupApi.retrieveCheckoutById(id);
 export const refundTransaction = (id: string) => sumupApi.refundTransaction(id);

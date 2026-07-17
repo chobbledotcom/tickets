@@ -323,6 +323,7 @@ export const runOrderJourney = async (spec: {
         captured.intent = intent;
         return Promise.resolve({
           checkoutUrl: "https://journey.test/checkout",
+          providerCheckoutId: sessionId,
           sessionId,
         });
       })

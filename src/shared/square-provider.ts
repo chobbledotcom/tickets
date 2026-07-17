@@ -28,6 +28,7 @@ import type {
   WebhookSetupResult,
 } from "#shared/payments.ts";
 import {
+  closePaymentLink,
   createPaymentLink,
   refundPayment,
   retrieveOrder,
@@ -39,10 +40,13 @@ import {
 export const squarePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "payment.updated",
 
+  closeCheckout: ({ providerCheckoutId, sessionId }) =>
+    closePaymentLink(providerCheckoutId, sessionId),
+
   createCheckoutSession(intent: CheckoutIntent, baseUrl: string) {
     return withCheckoutError(async () => {
       const link = await createPaymentLink(intent, baseUrl);
-      return toCheckoutResult(link?.orderId, link?.url, "Square");
+      return toCheckoutResult(link?.orderId, link?.url, "Square", link?.id);
     });
   },
 

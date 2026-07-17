@@ -609,6 +609,7 @@ describeWithEnv("public API packages", { db: true }, () => {
         intents.push(intent);
         return Promise.resolve({
           checkoutUrl: "https://stripe.test/checkout",
+          providerCheckoutId: `cs_pkg_${intents.length}`,
           sessionId: `cs_pkg_${intents.length}`,
         });
       },

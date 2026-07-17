@@ -46,7 +46,8 @@ export const oneLocation = (id: string, name: string) => ({
  * id and url — the happy-path response for `checkout.paymentLinks.create`.
  */
 export const linkResult = (orderId: string, url: string): MockImpls => ({
-  checkoutCreate: () => Promise.resolve({ paymentLink: { orderId, url } }),
+  checkoutCreate: () =>
+    Promise.resolve({ paymentLink: { id: `link_${orderId}`, orderId, url } }),
 });
 
 /**

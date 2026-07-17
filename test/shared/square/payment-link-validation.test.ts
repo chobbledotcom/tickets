@@ -75,6 +75,7 @@ describeSquare(() => {
           checkoutCreate: () =>
             Promise.resolve({
               paymentLink: {
+                id: "link_multi",
                 orderId: "order_multi",
                 url: "https://square.link/multi",
               },
@@ -107,6 +108,7 @@ describeSquare(() => {
           );
 
           expect(result).not.toBeNull();
+          expect(result!.id).toBe("link_multi");
           expect(result!.orderId).toBe("order_multi");
           expect(result!.url).toBe("https://square.link/multi");
 

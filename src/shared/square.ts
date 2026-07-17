@@ -31,6 +31,7 @@ import {
   signedTestWebhook,
 } from "#shared/payment-helpers.ts";
 import type {
+  CheckoutCloseResult,
   CheckoutIntent,
   WebhookEvent,
   WebhookVerifyResult,
@@ -200,10 +201,16 @@ const squareFetch = async (
 /** Square REST API response shapes (snake_case) */
 type SquarePaymentLinkResponse = {
   payment_link?: {
+    id?: string;
     order_id?: string;
     url?: string;
     long_url?: string;
   };
+};
+
+type SquareDeletePaymentLinkResponse = {
+  id?: string;
+  cancelled_order_id?: string;
 };
 
 type SquareOrderResponse = {
@@ -252,6 +259,8 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     }) as Promise<T>;
   const get = <T>(path: string) =>
     squareFetch(accessToken, base, path) as Promise<T>;
+  const del = <T>(path: string) =>
+    squareFetch(accessToken, base, path, { method: "DELETE" }) as Promise<T>;
 
   return {
     checkout: {
@@ -286,8 +295,21 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           const link = data?.payment_link;
           return {
             paymentLink: link
-              ? { orderId: link.order_id, url: link.long_url ?? link.url }
+              ? {
+                  id: link.id,
+                  orderId: link.order_id,
+                  url: link.long_url ?? link.url,
+                }
               : undefined,
+          };
+        },
+        delete: async (p: { id: string }) => {
+          const data = await del<SquareDeletePaymentLinkResponse>(
+            `/v2/online-checkout/payment-links/${encodeURIComponent(p.id)}`,
+          );
+          return {
+            cancelledOrderId: data.cancelled_order_id,
+            id: data.id,
           };
         },
       },
@@ -443,6 +465,7 @@ type SquarePayment = {
 
 /** Result of creating a payment link */
 export type PaymentLinkResult = {
+  id: string;
   orderId: string;
   url: string;
 } | null;
@@ -483,15 +506,16 @@ const createPaymentLinkImpl = (
       .catch(rethrowAsUserError);
 
     const link = response.paymentLink;
+    const id = link?.id;
     const orderId = link?.orderId;
     const url = link?.url;
 
-    if (!orderId || !url) {
+    if (!id || !orderId || !url) {
       logDebug("Square", `${params.label} response missing orderId or url`);
       return null;
     }
 
-    return { orderId, url };
+    return { id, orderId, url };
   }, ErrorCode.SQUARE_CHECKOUT);
 
 /** Normalize a phone number for Square pre-populated checkout data */
@@ -546,10 +570,21 @@ const buildCheckoutOptions = (
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
+/** Read one order through an already-resolved Square client. */
+const fetchOrder = async (
+  client: SquareClient,
+  orderId: string,
+): Promise<Pick<SquareOrder, "state"> | null> =>
+  (await client.orders.get({ orderId })).order;
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  */
 export const squareApi: {
+  closePaymentLink: (
+    paymentLinkId: string,
+    orderId: string,
+  ) => Promise<CheckoutCloseResult>;
   getSquareClient: () => ReturnType<typeof getClientImpl>;
   resetSquareClient: () => void;
   testSquareConnection: () => Promise<SquareConnectionTestResult>;
@@ -561,6 +596,38 @@ export const squareApi: {
   retrievePayment: (paymentId: string) => Promise<SquarePayment | null>;
   refundPayment: (paymentId: string) => Promise<boolean>;
 } = {
+  closePaymentLink: async (
+    paymentLinkId: string,
+    orderId: string,
+  ): Promise<CheckoutCloseResult> => {
+    const client = await squareApi.getSquareClient();
+    if (!client) throw new Error("No Square client configured");
+
+    const current = await fetchOrder(client, orderId);
+    if (!current) throw new Error(`Square order ${orderId} not found`);
+    if (current.state === "COMPLETED") return "paid";
+    if (current.state === "CANCELED") return "closed";
+
+    try {
+      const deleted = await client.checkout.paymentLinks.delete({
+        id: paymentLinkId,
+      });
+      if (
+        deleted.id !== paymentLinkId ||
+        deleted.cancelledOrderId !== orderId
+      ) {
+        throw new Error(
+          `Square closed the wrong payment link or order for ${paymentLinkId}`,
+        );
+      }
+      return "closed";
+    } catch (err) {
+      const afterFailure = await fetchOrder(client, orderId);
+      if (afterFailure?.state === "COMPLETED") return "paid";
+      if (afterFailure?.state === "CANCELED") return "closed";
+      throw err;
+    }
+  },
   /** Create a payment link for one or more listings */
   createPaymentLink: async (
     intent: CheckoutIntent,
@@ -766,6 +833,11 @@ export const resetSquareClient = () => squareApi.resetSquareClient();
 export const testSquareConnection = () => squareApi.testSquareConnection();
 export const createPaymentLink = (i: CheckoutIntent, b: string) =>
   squareApi.createPaymentLink(i, b);
+export const closePaymentLink = (
+  paymentLinkId: string,
+  orderId: string,
+): Promise<CheckoutCloseResult> =>
+  squareApi.closePaymentLink(paymentLinkId, orderId);
 export const retrieveOrder = (id: string) => squareApi.retrieveOrder(id);
 export const retrievePayment = (id: string) => squareApi.retrievePayment(id);
 export const refundPayment = (id: string) => squareApi.refundPayment(id);

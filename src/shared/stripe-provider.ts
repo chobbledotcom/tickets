@@ -20,6 +20,7 @@ import {
   type WebhookVerifyResult,
 } from "#shared/payments.ts";
 import {
+  closeCheckoutSession,
   createCheckoutSession,
   isoFromUnixSeconds,
   retrieveCheckoutSession,
@@ -43,6 +44,8 @@ const createStripeCheckoutSession = makeCreateCheckoutSession(
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   checkoutCompletedEventType: "checkout.session.completed",
+  closeCheckout: ({ providerCheckoutId }) =>
+    closeCheckoutSession(providerCheckoutId),
   createCheckoutSession: createStripeCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {

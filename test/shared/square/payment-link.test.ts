@@ -55,6 +55,7 @@ describeSquare(() => {
           );
 
           expect(result).not.toBeNull();
+          expect(result!.id).toBe("link_order_abc");
           expect(result!.orderId).toBe("order_abc");
           expect(result!.url).toBe("https://square.link/abc");
 
