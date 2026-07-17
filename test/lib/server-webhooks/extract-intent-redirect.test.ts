@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -48,43 +47,6 @@ describeWithEnv(
         );
         // extractIntent catches error and returns 400
         expect(redirectResponse.status).toBe(400);
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
-
-    test("extractIntent preserves quantity 0 from metadata", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-
-      const mockRetrieve = stubRetrieveCheckoutSession({
-        amountTotal: 0,
-        email: "john@example.com",
-        items: singleItem(listing.id, 0, 0),
-        name: "John",
-        paymentIntent: "pi_qty_zero",
-        sessionId: "cs_qty_zero",
-      });
-
-      try {
-        const redirectResponse = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_qty_zero"),
-        );
-        expect(redirectResponse.status).toBe(302);
-        // The booking is created from metadata without coercing 0→1, but the
-        // success page treats a token resolving only to quantity-0 lines as an
-        // invalid callback (a quantity-0 line has no live ticket).
-        const response = await followRedirect(redirectResponse, handleRequest);
-        expect(response.status).toBe(400);
-
-        // Verify attendee was created with quantity 0, not silently converted to 1
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
-        expect(attendees[0]?.quantity).toBe(0);
       } finally {
         mockRetrieve.restore();
       }

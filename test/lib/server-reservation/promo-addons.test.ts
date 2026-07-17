@@ -103,7 +103,7 @@ describeWithEnv(
       expect(await modifierUsageAmount(addOn.id)).toBe(1000);
     });
 
-    test("keeps and refunds a zero-price reservation add-on when the total mismatches", async () => {
+    test("refunds and removes a zero-price reservation add-on when the total mismatches", async () => {
       const listing = await setupReservationListing({
         bookingFee: "0",
         reservationAmount: "10%",

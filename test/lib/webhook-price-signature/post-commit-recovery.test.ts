@@ -8,6 +8,7 @@ import { legReference } from "#shared/accounting/refs.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { hashEmail, hashPhone } from "#shared/db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#shared/db/contact-tokens.ts";
@@ -281,6 +282,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         await expectStoredRefund(listing.id);
         await expectStoredRefund(listing.id);
         expect(refund.calls.length).toBe(1);
+        expect(await getAttendeesRaw(listing.id)).toEqual([]);
+        expect(await loadCheckoutStageByPaymentSession(session.id)).toBeNull();
       });
     } finally {
       await execute("DROP TRIGGER test_late_payment_finalize_failure");

@@ -142,24 +142,48 @@ describe("payment-helpers", () => {
   describe("toCheckoutResult", () => {
     test("returns result when both id and url present", () => {
       expect(
-        toCheckoutResult("sess_1", "https://pay.example.com", "Stripe"),
+        toCheckoutResult(
+          "sess_1",
+          "https://pay.example.com",
+          "Stripe",
+          "checkout_1",
+        ),
       ).toEqual({
         checkoutUrl: "https://pay.example.com",
-        providerCheckoutId: "sess_1",
+        providerCheckoutId: "checkout_1",
         sessionId: "sess_1",
       });
     });
 
     test("returns null for missing or empty id/url", () => {
       expect(
-        toCheckoutResult(undefined, "https://pay.example.com", "Stripe"),
+        toCheckoutResult(
+          undefined,
+          "https://pay.example.com",
+          "Stripe",
+          "checkout_1",
+        ),
       ).toBeNull();
-      expect(toCheckoutResult("sess_1", undefined, "Stripe")).toBeNull();
-      expect(toCheckoutResult("sess_1", null, "Stripe")).toBeNull();
       expect(
-        toCheckoutResult("", "https://pay.example.com", "Stripe"),
+        toCheckoutResult("sess_1", undefined, "Stripe", "checkout_1"),
       ).toBeNull();
-      expect(toCheckoutResult("sess_1", "", "Payment")).toBeNull();
+      expect(
+        toCheckoutResult("sess_1", null, "Stripe", "checkout_1"),
+      ).toBeNull();
+      expect(
+        toCheckoutResult("", "https://pay.example.com", "Stripe", "checkout_1"),
+      ).toBeNull();
+      expect(
+        toCheckoutResult("sess_1", "", "Payment", "checkout_1"),
+      ).toBeNull();
+      expect(
+        toCheckoutResult(
+          "sess_1",
+          "https://pay.example.com",
+          "Stripe",
+          undefined,
+        ),
+      ).toBeNull();
     });
   });
 });

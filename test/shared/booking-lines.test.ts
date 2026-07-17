@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { orderBookings, type SignedPaidLine } from "#shared/booking-lines.ts";
+import {
+  checkoutBookingLines,
+  orderBookings,
+  type SignedPaidLine,
+} from "#shared/booking-lines.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -23,6 +27,41 @@ const alloc = (
   parentId: number,
   qty: number,
 ): ChildAllocation => ({ childId, parentId, qty });
+
+test("checkout booking lines name a listing that was not loaded", () => {
+  expect(() =>
+    checkoutBookingLines(
+      [
+        {
+          listingId: 42,
+          name: "Missing",
+          quantity: 1,
+          slug: "missing",
+          unitPrice: 100,
+        },
+      ],
+      new Map(),
+    ),
+  ).toThrow("Listing 42 was not loaded for checkout");
+});
+
+test("checkout booking lines keep the standalone package path", () => {
+  const listing = standardListing();
+  expect(
+    checkoutBookingLines(
+      [
+        {
+          listingId: listing.id,
+          name: listing.name,
+          quantity: 1,
+          slug: listing.slug,
+          unitPrice: 100,
+        },
+      ],
+      new Map([[listing.id, listing]]),
+    ),
+  ).toMatchObject([{ packageGroupId: 0 }]);
+});
 
 describe("orderBookings > standalone and tagged package rows", () => {
   test("a standalone line books one dateless row with no parent and no token", () => {

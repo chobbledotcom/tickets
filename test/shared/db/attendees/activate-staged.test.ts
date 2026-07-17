@@ -6,7 +6,7 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import {
-  checkoutStagesApi,
+  beginCheckoutStageRefund,
   loadCheckoutStageByPaymentSession,
 } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -30,7 +30,6 @@ import {
 /* jscpd:ignore-end */
 
 const activateStagedAttendee = attendeesApi.activateStagedAttendee;
-const beginCheckoutStageRefund = checkoutStagesApi.beginRefund;
 
 describeWithEnv("db > staged attendee activation", { db: true }, () => {
   test("loads a pending or refunding stage by session with its exact token", async () => {

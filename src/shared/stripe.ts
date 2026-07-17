@@ -455,7 +455,7 @@ export const stripeApi: {
 
     const params: Stripe.Checkout.SessionCreateParams = {
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
-      expires_at: nowSeconds() + 30 * 60,
+      expires_at: nowSeconds() + 31 * 60,
       line_items: lineItems,
       mode: "payment",
       payment_method_types: ["card"],

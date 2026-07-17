@@ -5,12 +5,6 @@ import {
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
-import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import type {
-  BookingIntent,
-  CheckoutIntent,
-  ValidatedPaymentSession,
-} from "#shared/payments.ts";
 import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
 
 /** A validated item carries a listing (the only field the pairing reads). */
@@ -56,7 +50,11 @@ describe("pairEntriesByListing", () => {
   });
 });
 
-test("reports a preparation error before the atomic write starts", async () => {
+const preparationResult = (options: {
+  matchingPricedItem: boolean;
+  sessionId: string;
+  total: number;
+}) => {
   const listing = testListingWithCount({ id: 1, unit_price: 1000 });
   const bookingItem = { e: listing.id, p: 1000, q: 1 };
   const checkoutItem = {
@@ -74,36 +72,31 @@ test("reports a preparation error before the atomic write starts", async () => {
     phone: "",
     special_instructions: "",
   };
-  const intent: BookingIntent = {
-    ...contact,
-    items: [bookingItem],
-    modifiers: [],
-  };
-  const pricingIntent: CheckoutIntent = {
-    ...contact,
-    items: [checkoutItem],
-  };
-  const pricedOrder: PricedOrder = {
-    extras: [],
-    fullSubtotal: 1000,
-    lines: [{ chargedUnitAmount: 1000, item: checkoutItem, quantity: 1 }],
-    modifierApplications: [],
-    total: Number.NaN,
-  };
-  const session: ValidatedPaymentSession = {
+  const session = {
     amountTotal: 1000,
-    id: "cs_preparation_failure",
+    id: options.sessionId,
     metadata: webhookMeta({ name: "Buyer" }),
-    paymentReference: "pi_preparation_failure",
-    paymentStatus: "paid",
+    paymentReference: `pi_${options.sessionId}`,
+    paymentStatus: "paid" as const,
   };
-
-  const result = await createAttendeeForSession(
+  return createAttendeeForSession(
     session,
-    intent,
+    { ...contact, items: [bookingItem], modifiers: [] },
     [{ expectedPrice: 1000, item: bookingItem, listing }],
-    pricingIntent,
-    pricedOrder,
+    { ...contact, items: [checkoutItem] },
+    {
+      extras: [],
+      fullSubtotal: 1000,
+      lines: [
+        {
+          chargedUnitAmount: 1000,
+          item: options.matchingPricedItem ? checkoutItem : { ...checkoutItem },
+          quantity: 1,
+        },
+      ],
+      modifierApplications: [],
+      total: options.total,
+    },
     {
       attendeeId: 1,
       createdAt: "2026-07-17T00:00:00.000Z",
@@ -114,6 +107,14 @@ test("reports a preparation error before the atomic write starts", async () => {
       ticketToken: "stable-ticket-token",
     },
   );
+};
+
+test("reports a preparation error before the atomic write starts", async () => {
+  const result = await preparationResult({
+    matchingPricedItem: true,
+    sessionId: "cs_preparation_failure",
+    total: Number.NaN,
+  });
   expect(result).toEqual({
     detail:
       "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
@@ -122,4 +123,18 @@ test("reports a preparation error before the atomic write starts", async () => {
   });
   if (result.ok !== false) throw new Error("Expected preparation to fail");
   expect(specForFailure(result).code).toBe("unexpected_error");
+});
+
+test("reports a preparation error when a paid amount was not loaded", async () => {
+  const result = await preparationResult({
+    matchingPricedItem: false,
+    sessionId: "cs_missing_paid_amount",
+    total: 1000,
+  });
+  expect(result).toEqual({
+    detail:
+      "Unexpected error preparing session cs_missing_paid_amount: Error: Paid amount for checkout item 0 was not loaded",
+    ok: false,
+    reason: "unexpected_error",
+  });
 });

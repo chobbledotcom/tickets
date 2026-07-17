@@ -430,10 +430,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse();
   }
 
-  const session = sessionResult;
+  let session = sessionResult;
 
   if (eventKind === "expired" || session.paymentStatus === "failed") {
-    await tryCloseAndPurgeCheckoutStageBySession(
+    const closeResult = await tryCloseAndPurgeCheckoutStageBySession(
       session.id,
       provider,
       (error) =>
@@ -442,7 +442,15 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
           `Checkout stage close failed (provider=${provider.type}, session=${session.id}): ${String(error)}`,
         ),
     );
-    return webhookAckResponse({ status: "closed" });
+    if (closeResult === "error") {
+      return jsonResponse({ status: "retry" }, 503);
+    }
+    if (closeResult !== "paid") {
+      return webhookAckResponse({ status: "closed" });
+    }
+    const refreshed = await validateRefreshedPaidSession(session.id, provider);
+    if (!refreshed.ok) return jsonResponse({ status: "retry" }, 503);
+    session = refreshed.data.session;
   }
 
   // Verify payment is complete before classifying — an unpaid session may carry

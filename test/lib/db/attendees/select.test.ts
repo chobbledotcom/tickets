@@ -29,6 +29,14 @@ const CORE_ALIASES = [
   "attendee.split_logistics_agents",
   "SUBSTR(listingAttendee.start_at, 1, 10) as date",
 ];
+const ORDINARY_ATTENDEE_SQL =
+  "NOT EXISTS (SELECT 1 FROM checkout_stages AS checkoutStage WHERE checkoutStage.attendee_id = attendee.id)";
+
+test("ordinary attendee condition excludes checkout stages for its alias", () => {
+  expect(ordinaryAttendeeCondition("bookingOwner")).toBe(
+    "NOT EXISTS (SELECT 1 FROM checkout_stages AS checkoutStage WHERE checkoutStage.attendee_id = bookingOwner.id)",
+  );
+});
 
 /** Each opt-in field and the SQL marker that proves it was projected. */
 const FIELD_MARKER: Record<AttendeeField, string> = {
@@ -272,13 +280,13 @@ describe("attendee SELECT — exact generated SQL", () => {
         "created_desc",
       ).from,
     ).toBe(
-      `FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND ${ordinaryAttendeeCondition("attendee")} AND listingAttendee.listing_id IN (?, ?) AND listingAttendee.quantity > 0 AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?) ORDER BY attendee.created DESC`,
+      `FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND ${ORDINARY_ATTENDEE_SQL} AND listingAttendee.listing_id IN (?, ?) AND listingAttendee.quantity > 0 AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?) ORDER BY attendee.created DESC`,
     );
   });
 
   test("a single-attendee LEFT read omits ORDER BY entirely", () => {
     expect(attendeeFromWhere("left", { attendeeIds: [1] }).from).toBe(
-      `FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND ${ordinaryAttendeeCondition("attendee")} AND attendee.id IN (?)`,
+      `FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND ${ORDINARY_ATTENDEE_SQL} AND attendee.id IN (?)`,
     );
   });
 
@@ -294,7 +302,7 @@ describe("attendee SELECT — exact generated SQL", () => {
         "upcoming",
       ).from,
     ).toBe(
-      `FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id JOIN listings AS listing ON listingAttendee.listing_id = listing.id WHERE attendee.kind IN ('attendee', 'servicing') AND ${ordinaryAttendeeCondition("attendee")} AND listingAttendee.quantity > 0 AND listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ? ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
+      `FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id JOIN listings AS listing ON listingAttendee.listing_id = listing.id WHERE attendee.kind IN ('attendee', 'servicing') AND ${ORDINARY_ATTENDEE_SQL} AND listingAttendee.quantity > 0 AND listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ? ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
     );
   });
 });

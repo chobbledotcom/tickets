@@ -12,6 +12,7 @@ import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import {
   finalizeSessionIfUnresolved,
+  markSessionFailed,
   type ProcessedPayment,
   parseSessionFailure,
 } from "#shared/db/processed-payments.ts";
@@ -56,15 +57,21 @@ const replaySuccess = async ({
   return sessionSuccess(attendeeId, listingId);
 };
 
-const alreadyHandledSession = (
+const alreadyHandledSession = async (
   sessionId: string,
   listingId: number,
-): PaymentFailureResult => ({
-  detail: `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
-  error: "This payment has already been processed.",
-  status: 200,
-  success: false,
-});
+): Promise<PaymentFailureResult> => {
+  const failure = {
+    error: "This payment has already been processed.",
+    status: 200,
+  } as const;
+  await markSessionFailed(sessionId, failure);
+  return {
+    ...failure,
+    detail: `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
+    success: false,
+  };
+};
 
 export const replaySessionFromLedger = async (
   sessionId: string,

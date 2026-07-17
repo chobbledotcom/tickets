@@ -8,8 +8,13 @@ import {
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
-import type { CheckoutStageCleanup } from "#shared/db/checkout-stages.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
+import {
+  type CheckoutStageCleanup,
+  findCheckoutStage,
+  loadCheckoutStageByPaymentSession,
+  purgePendingCheckoutStage,
+  selectOldPendingCheckoutStages,
+} from "#shared/db/checkout-stages.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { logDebug } from "#shared/logger.ts";
 import { isoBefore } from "#shared/now.ts";
@@ -43,7 +48,7 @@ export const closeAndPurgeCheckoutStage = async (
     sessionId: stage.paymentSessionId,
   });
   if (result === "paid") return "paid";
-  return (await checkoutStagesApi.purgePending(stage)) ? "purged" : "kept";
+  return (await purgePendingCheckoutStage(stage)) ? "purged" : "kept";
 };
 
 /** Close a known stage at a provider callback boundary. No stage is a no-op. */
@@ -51,7 +56,7 @@ export const closeAndPurgeCheckoutStageBySession = async (
   paymentSessionId: string,
   provider: PaymentProvider,
 ): Promise<"kept" | "missing" | "paid" | "purged"> => {
-  const stage = await checkoutStagesApi.loadByPaymentSession(paymentSessionId);
+  const stage = await loadCheckoutStageByPaymentSession(paymentSessionId);
   if (stage === null) return "missing";
   if (stage.provider !== provider.type) {
     throw new Error(
@@ -83,7 +88,7 @@ export const tryCloseAndPurgeCheckoutStageBySession = async (
 /** Close and purge one bounded batch of abandoned pending stages. */
 export const pruneAbandonedCheckoutStages = async (): Promise<number> => {
   const cutoff = isoBefore(CHECKOUT_STAGE_RETENTION_MS);
-  const stages = await checkoutStagesApi.selectOldPending(cutoff);
+  const stages = await selectOldPendingCheckoutStages(cutoff);
   let purged = 0;
   for (const stage of stages) {
     try {
@@ -210,11 +215,7 @@ export const createPaidCheckout = async ({
     }
     const first = staged.attendees[0]!;
     if (
-      !(await checkoutStagesApi.find(
-        result.sessionId,
-        first.id,
-        first.ticket_token,
-      ))
+      !(await findCheckoutStage(result.sessionId, first.id, first.ticket_token))
     ) {
       throw new Error(
         `Stored checkout stage did not match ${result.sessionId}`,

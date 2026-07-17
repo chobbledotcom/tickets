@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
+import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { BookingIntent } from "#shared/payments.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -67,7 +67,7 @@ describeWithEnv("payment processing > staged runtime", { db: true }, () => {
         ),
       ).toEqual([{ listing_id: listing.id, quantity: 2 }]);
       expect(
-        await checkoutStagesApi.loadByPaymentSession("activate-stage"),
+        await loadCheckoutStageByPaymentSession("activate-stage"),
       ).toBeNull();
     });
 

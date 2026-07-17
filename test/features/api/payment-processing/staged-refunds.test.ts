@@ -1,12 +1,13 @@
 // test-groups: run-alone
 /* jscpd:ignore-start */
+
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
-import { DatabaseBusyError, queryAll } from "#shared/db/client.ts";
+import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
+import { DatabaseBusyError, getDb, queryAll } from "#shared/db/client.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -36,7 +37,7 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
     await deactivateTestListing(listing.id);
     let stateDuringRefund = "";
     const refund = stub(stripeApi, "refundPayment", async () => {
-      stateDuringRefund = (await checkoutStagesApi.loadByPaymentSession(
+      stateDuringRefund = (await loadCheckoutStageByPaymentSession(
         "durable-refund",
       ))!.state;
       return { id: "refund-durable", status: "succeeded" } as never;
@@ -50,7 +51,7 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
       expect(result).toMatchObject({ refunded: true, success: false });
       expect(await attendeeIds()).toEqual([]);
       expect(
-        await checkoutStagesApi.loadByPaymentSession("durable-refund"),
+        await loadCheckoutStageByPaymentSession("durable-refund"),
       ).toBeNull();
       expect(
         await queryAll(
@@ -115,7 +116,7 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
       );
       expect(first).toMatchObject({ refunded: false, status: 503 });
       expect(
-        await checkoutStagesApi.loadByPaymentSession("refund-retry"),
+        await loadCheckoutStageByPaymentSession("refund-retry"),
       ).toMatchObject({ attendeeId, state: "refunding" });
       expect(
         await queryAll(
@@ -188,10 +189,12 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
     const status = stub(stripeApi, "retrievePaymentIntent", () =>
       Promise.resolve({ latest_charge: { refunded: true } } as never),
     );
-    const finalize = stub(checkoutStagesApi, "finalizeRefund", () =>
-      Promise.reject(new Error("local finalization failed")),
-    );
-    let finalizeStubbed = true;
+    await getDb().execute(`CREATE TRIGGER reject_local_refund_finalization
+      BEFORE UPDATE OF failure_data ON processed_payments
+      WHEN NEW.payment_session_id = 'refund-crash'
+      BEGIN
+        SELECT RAISE(ABORT, 'local finalization failed');
+      END`);
     try {
       await expect(
         processPaymentSession(
@@ -200,10 +203,9 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
         ),
       ).rejects.toThrow("local finalization failed");
       expect(
-        await checkoutStagesApi.loadByPaymentSession("refund-crash"),
+        await loadCheckoutStageByPaymentSession("refund-crash"),
       ).toMatchObject({ state: "refunding" });
-      finalize.restore();
-      finalizeStubbed = false;
+      await getDb().execute("DROP TRIGGER reject_local_refund_finalization");
       const recovered = await processPaymentSession(
         "refund-crash",
         paidSession("refund-crash", intent),
@@ -213,7 +215,9 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
       expect(status.calls.length).toBe(1);
       expect(await attendeeIds()).toEqual([]);
     } finally {
-      if (finalizeStubbed) finalize.restore();
+      await getDb().execute(
+        "DROP TRIGGER IF EXISTS reject_local_refund_finalization",
+      );
       refund.restore();
       status.restore();
     }
@@ -285,27 +289,27 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     const intent = intentFor(listing.id);
     await stageSession("busy-stage", intent);
-    const loadStage = stub(checkoutStagesApi, "loadByPaymentSession", () =>
-      Promise.reject(new DatabaseBusyError()),
-    );
     const refund = stub(stripeApi, "refundPayment", () =>
       Promise.resolve({
         id: "unexpected-refund",
         status: "succeeded",
       } as never),
     );
+    const activate = stub(attendeesApi, "activateStagedAttendee", () =>
+      Promise.reject(new DatabaseBusyError()),
+    );
     try {
       await expect(
         processPaymentSession("busy-stage", paidSession("busy-stage", intent)),
       ).rejects.toThrow(DatabaseBusyError);
-      expect(loadStage.calls.length).toBe(3);
+      expect(activate.calls.length).toBe(3);
       expect(refund.calls.length).toBe(0);
     } finally {
-      loadStage.restore();
+      activate.restore();
       refund.restore();
     }
-    expect(
-      await checkoutStagesApi.loadByPaymentSession("busy-stage"),
-    ).toMatchObject({ state: "pending" });
+    expect(await loadCheckoutStageByPaymentSession("busy-stage")).toMatchObject(
+      { state: "pending" },
+    );
   });
 });

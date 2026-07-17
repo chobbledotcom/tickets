@@ -79,7 +79,7 @@ describeWithEnv(
       ).toBe(1000);
     });
 
-    test("multi-ticket keeps and refunds amount above listing price when can_pay_more is disabled", async () => {
+    test("multi-ticket removes and refunds amount above listing price when can_pay_more is disabled", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -115,8 +115,7 @@ describeWithEnv(
         "re_no_pay_more",
       );
 
-      // Signed by us → the order is kept as one quantity-0 placeholder across
-      // both listings and refunded once, with a system note.
+      // The staged attendee is removed from both listings and refunded once.
       await expectMultiListingStageRemoved(listing1.id, listing2.id);
       await expectRefundedWithoutAttendee(mockRefund);
       await expectSessionFailed("cs_no_pay_more");
@@ -160,7 +159,7 @@ describeWithEnv(
       expect(attendees[0]!.quantity).toBe(2);
     });
 
-    test("multi-ticket can_pay_more keeps and refunds total above max_price × quantity", async () => {
+    test("multi-ticket can_pay_more removes and refunds total above max_price × quantity", async () => {
       await setupStripe();
 
       // unitPrice=1000, maxPrice=10000 (default), quantity=2
@@ -190,8 +189,7 @@ describeWithEnv(
         "re_qty2_over_max",
       );
 
-      // Signed by us → the booking is kept as a quantity-0 placeholder and
-      // refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_qty2_over_max",

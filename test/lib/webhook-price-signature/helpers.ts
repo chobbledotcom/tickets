@@ -19,9 +19,8 @@ import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
  * session classifies as exactly one of:
  *
  *  - trusted  (valid proof, charge == signed total): processed.
- *  - mismatch (valid proof, charge != signed total): a payment we signed, so it
- *             is never dropped — the booking is KEPT as a quantity-0 placeholder,
- *             refunded, and flagged with a system note.
+ *  - mismatch (valid proof, charge != signed total): the payment is refunded,
+ *             its staged attendee is removed, and a terminal failure is saved.
  *  - ignore   (no valid proof — absent, malformed, tampered, or foreign):
  *             acknowledged without processing or refunding (we can't prove it is
  *             ours, and refunding an unverifiable session could refund another

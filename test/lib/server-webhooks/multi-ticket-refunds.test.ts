@@ -27,7 +27,7 @@ describeWithEnv(
       resetStripeClient();
     });
 
-    test("multi-ticket webhook keeps and refunds when capacity exceeded", async () => {
+    test("multi-ticket webhook removes and refunds when capacity is exceeded", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -84,8 +84,7 @@ describeWithEnv(
         },
       );
 
-      // Signed by us → the order is kept as a quantity-0 placeholder (one
-      // attendee across both listings), not dropped, and refunded once.
+      // The staged attendee is removed from both listings and refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing1.id,
         "cs_multi_cap",
@@ -93,7 +92,7 @@ describeWithEnv(
       );
     });
 
-    test("multi-ticket is kept and refunded when prices changed since checkout", async () => {
+    test("multi-ticket is removed and refunded when prices changed since checkout", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -130,8 +129,7 @@ describeWithEnv(
         "re_multi_mismatch",
       );
 
-      // The multi-listing booking is kept across both listings as one
-      // quantity-0 placeholder and refunded once, with a system note.
+      // The staged attendee is removed from both listings and refunded once.
       await expectMultiListingStageRemoved(listing1.id, listing2.id);
       await expectSessionFailed("cs_multi_mismatch");
 
@@ -140,7 +138,7 @@ describeWithEnv(
       expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
     });
 
-    test("multi-ticket keeps and refunds when per-item p does not match unit_price * q for non-pay-more listing", async () => {
+    test("multi-ticket is removed and refunded when per-item p does not match unit_price * q for non-pay-more listing", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -167,8 +165,7 @@ describeWithEnv(
         "re_mismatch",
       );
 
-      // Signed by us → the booking is kept as a quantity-0 placeholder and
-      // refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_item_mismatch",
@@ -176,7 +173,7 @@ describeWithEnv(
       );
     });
 
-    test("multi-ticket keeps and refunds when sum(p) does not equal amountTotal", async () => {
+    test("multi-ticket is removed and refunded when sum(p) does not equal amountTotal", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -204,8 +201,7 @@ describeWithEnv(
         "re_total",
       );
 
-      // Signed by us → the booking is kept as a quantity-0 placeholder and
-      // refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_total_mismatch",

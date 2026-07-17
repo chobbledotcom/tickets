@@ -6,6 +6,7 @@
  * durable refund path.
  */
 
+import { requiredMapValue } from "#fp";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { paidByItem } from "#routes/api/payment-processing/pricing.ts";
@@ -26,6 +27,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import type { CheckoutStage } from "#shared/db/checkout-stages.ts";
+import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -250,11 +252,15 @@ export const createAttendeeForSession = async (
     const bookings = bookingsForOrder(
       intent,
       validatedItems.map(({ item, listing }, index) => {
-        const pricePaid = paidByIntentItem.get(pricingIntent.items[index]!);
+        const pricePaid = requiredMapValue(
+          paidByIntentItem,
+          pricingIntent.items[index]!,
+          `Paid amount for checkout item ${index} was not loaded`,
+        );
         return {
           ...bookingSlot(item),
           listing,
-          ...(pricePaid !== undefined ? { pricePaid } : {}),
+          pricePaid,
           quantity: item.q,
         };
       }),
@@ -294,6 +300,7 @@ export const createAttendeeForSession = async (
       prepared.plan,
     );
   } catch (error) {
+    if (error instanceof DatabaseBusyError) throw error;
     return { error, ok: null };
   }
   if (!result.success) {

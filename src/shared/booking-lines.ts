@@ -20,6 +20,7 @@
  *    with "unpriced".
  */
 
+import { requiredMapValue } from "#fp";
 import {
   soleParentPackageIds,
   stampChildRowPackages,
@@ -135,9 +136,21 @@ export const checkoutBookingLines = <T extends CheckoutItem>(
   pricePaid?: ReadonlyMap<T, number>,
 ): SignedPaidLine[] =>
   items.map((item) => ({
-    listing: listingById.get(item.listingId)!,
+    listing: requiredMapValue(
+      listingById,
+      item.listingId,
+      `Listing ${item.listingId} was not loaded for checkout`,
+    ),
     listingId: item.listingId,
     packageGroupId: item.packageGroupId ?? 0,
-    ...(pricePaid ? { pricePaid: pricePaid.get(item)! } : {}),
+    ...(pricePaid
+      ? {
+          pricePaid: requiredMapValue(
+            pricePaid,
+            item,
+            `Paid amount for listing ${item.listingId} was not loaded for checkout`,
+          ),
+        }
+      : {}),
     quantity: item.quantity,
   }));

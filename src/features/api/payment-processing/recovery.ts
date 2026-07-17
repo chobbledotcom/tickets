@@ -8,7 +8,7 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
+import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";
 import {
   releaseReservation,
@@ -98,7 +98,7 @@ export const recoverOrRefundUnexpectedProcessing = async (
   error: unknown,
 ): Promise<PaymentResult> => {
   if (data.intent.balanceAttendeeId) throw error;
-  const stage = await checkoutStagesApi.loadByPaymentSession(sessionId);
+  const stage = await loadCheckoutStageByPaymentSession(sessionId);
   if (!stage) throw error;
   if (stage.state === "refunding") {
     await releaseReservation(sessionId);

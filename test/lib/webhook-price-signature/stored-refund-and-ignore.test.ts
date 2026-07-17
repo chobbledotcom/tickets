@@ -5,11 +5,13 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
@@ -47,7 +49,7 @@ describeWithEnv(
       });
     };
 
-    test("stores the booking, reverses the ledger with the reason code, and flags it", async () => {
+    test("stores the refund ledger with the reason code and flags it", async () => {
       const listing = await setupWithListing();
       // Signed and charged at 999, but the live price is 1000 — a mid-checkout edit.
       await expectReplayOutcome(
@@ -61,10 +63,9 @@ describeWithEnv(
       expect(await getAttendeesRaw(listing.id)).toEqual([]);
 
       // The ledger holds ONLY the cash round-trip — a `payment` we received and
-      // a `refund_cash` returning it, stamped with the PII-free reason code — so
-      // the attendee nets back to zero. Crucially there is NO `sale` leg: the
-      // booking was never honoured, so no revenue is recognised and the
-      // quantity-0 line's projected price_paid stays 0 (the no-quantity invariant).
+      // a `refund_cash` returning it, stamped with the PII-free reason code.
+      // There is no `sale` leg because the attendee was removed and no revenue
+      // was recognised.
       const refundRow = await queryOne<{ source_id: string }>(
         "SELECT source_id FROM transfers WHERE kind = 'refund_cash'",
         [],
@@ -148,12 +149,10 @@ describeWithEnv(
       );
     });
 
-    test("an unexpected error after the charge keeps the booking at quantity 0 and refunds", async () => {
+    test("an unexpected error after the charge removes the stage and refunds", async () => {
       const listing = await setupWithListing();
-      // Make the real-quantity happy-path create (the batch booking write) throw,
-      // while the quantity-0 placeholder store (createAttendeeAtomic) keeps working
-      // — so a signed payment that hits an unexpected error after the charge is kept
-      // at quantity 0 and refunded, not crash-looped over money already taken.
+      // Make activation throw so a signed payment that hits an unexpected error
+      // after the charge is refunded and its staged attendee is removed.
       const { attendeesApi } = await import("#shared/db/attendees/api.ts");
       const boom = stub(attendeesApi, "activateStagedAttendee", () =>
         Promise.reject(new Error("synthetic create failure")),
@@ -179,17 +178,29 @@ describeWithEnv(
       }
     });
 
-    test("a signed session for a since-deleted listing is kept as a ghost and refunded", async () => {
+    test("a signed session for a since-deleted listing is refunded and removed", async () => {
       await setupStripe();
-      // No listing with this id exists, as if it was deleted after checkout. The
-      // signed session is still ours, so it is refunded rather than ignored.
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const metadata = signedMeta(1000, {
+        items: singleItem(listing.id, 1, 1000),
+      });
+      const { stagePaymentCallback } = await import(
+        "#test-utils/staged-payments.ts"
+      );
+      await stagePaymentCallback({
+        amountTotal: 1000,
+        metadata,
+        paymentReference: "pi_cs_missing_listing",
+        sessionId: "cs_missing_listing",
+      });
+      await deleteListing(listing.id);
       await runWebhook(
         {
           id: "cs_missing_listing",
-          metadata: signedMeta(1000, { items: singleItem(999999, 1, 1000) }),
+          metadata,
         },
         async (refund) => {
-          await expectStoredRefund(999999);
+          await expectStoredRefund(listing.id);
           expect(refund.calls.length).toBe(1);
           // Recorded as the session's terminal outcome (not finalized → no ticket).
           const record = await isSessionProcessed("cs_missing_listing");

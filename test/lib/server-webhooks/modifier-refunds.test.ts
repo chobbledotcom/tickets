@@ -44,10 +44,8 @@ describeWithEnv(
         }),
         "re_modifier",
       );
-      // Signed by us → the booking is kept as a quantity-0 placeholder (not
-      // dropped) and refunded once, with a system note recording the reason.
-      // The session is recorded as a terminal failure (placeholder kept, no
-      // ticket attendee): attendee_id stays null and failure_data is set.
+      // The staged attendee is removed and refunded once. The session keeps a
+      // terminal failure for replay, with no ticket attendee.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_modifier_mismatch",
@@ -55,7 +53,7 @@ describeWithEnv(
       );
     });
 
-    test("keeps and refunds an add-on-only paid session whose total no longer matches", async () => {
+    test("removes and refunds an add-on-only paid session whose total no longer matches", async () => {
       await setupStripe();
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -84,8 +82,7 @@ describeWithEnv(
         }),
         "re_addon_only",
       );
-      // Signed by us → the booking is kept as a quantity-0 placeholder (not
-      // dropped) and refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_addon_only_mismatch",
@@ -93,7 +90,7 @@ describeWithEnv(
       );
     });
 
-    test("keeps and refunds when a modifier sold out before the webhook finalized", async () => {
+    test("removes and refunds when a modifier sold out before the webhook finalized", async () => {
       await setupStripe();
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -125,16 +122,14 @@ describeWithEnv(
         }),
         "re_soldout",
       );
-      // Signed by us → the booking is kept as a quantity-0 placeholder (not
-      // dropped) and refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_modifier_soldout",
         mockRefund,
       );
-      // The greedy create's visit + booking are reversed, and the quantity-0
-      // placeholder records neither, so the refunded order leaves no phantom
-      // history on the buyer's contact.
+      // Deleting the staged attendee leaves no booking or visit history on the
+      // buyer's contact.
       const { getContactRecord, getVisits, hashEmail } = await import(
         "#shared/db/contact-preferences.ts"
       );

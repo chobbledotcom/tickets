@@ -7,7 +7,10 @@ import { execute } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
-import { isSessionProcessed } from "#shared/db/processed-payments.ts";
+import {
+  isSessionProcessed,
+  parseSessionFailure,
+} from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -160,13 +163,23 @@ describeWithEnv(
           expect(json.processed).toBe(false);
           expect(json.error).toContain("already been processed");
         });
+        const stored = await isSessionProcessed(session.id);
+        expect(stored).toMatchObject({ attendee_id: null });
+        expect(await parseSessionFailure(stored!.failure_data)).toEqual({
+          error: "This payment has already been processed.",
+          status: 200,
+        });
+        await assertJson(webhookRequest(), 200, (json) => {
+          expect(json.processed).toBe(false);
+          expect(json.error).toBe("This payment has already been processed.");
+        });
         expect(refund.calls.length).toBe(0);
       });
       // No placeholder ghost was created for the orphaned replay.
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     });
 
-    // ---- mismatch / divergence: store a quantity-0 placeholder, refund, flag ---
+    // ---- mismatch / divergence: remove the stage, refund, and flag -----------
 
     test("a charge that differs from the signed total is stored and refunded", async () => {
       const listing = await setupWithListing();

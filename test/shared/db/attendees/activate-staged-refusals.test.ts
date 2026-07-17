@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
-  checkoutStagesApi,
+  beginCheckoutStageRefund,
   loadCheckoutStageByPaymentSession,
 } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -20,7 +20,6 @@ import {
 /* jscpd:ignore-end */
 
 const activateStagedAttendee = attendeesApi.activateStagedAttendee;
-const beginCheckoutStageRefund = checkoutStagesApi.beginRefund;
 
 describeWithEnv(
   "db > staged attendee activation refusals",

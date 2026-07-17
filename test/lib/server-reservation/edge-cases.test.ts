@@ -84,7 +84,7 @@ describeWithEnv(
       }
     });
 
-    test("keeps and refunds a sold-out reservation add-on as a quantity-0 placeholder", async () => {
+    test("refunds and removes a sold-out reservation add-on", async () => {
       const listing = await setupReservationListing({
         bookingFee: "0",
         reservationAmount: "10%",

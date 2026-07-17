@@ -33,7 +33,7 @@ describeWithEnv(
       resetStripeClient();
     });
 
-    test("single-ticket is kept and refunded when price changed since checkout", async () => {
+    test("single-ticket is removed and refunded when price changed since checkout", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -61,8 +61,7 @@ describeWithEnv(
         "re_mismatch",
       );
 
-      // Signed by us, so the booking is kept as a quantity-0 placeholder (not
-      // dropped) and refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_mismatch",
@@ -73,7 +72,7 @@ describeWithEnv(
       expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
     });
 
-    test("single-ticket redirect keeps the booking and shows the refund message when price changed", async () => {
+    test("single-ticket redirect removes the stage and shows the refund message when price changed", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -118,7 +117,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_redirect_mismatch"),
         );
-        // A fully-handled outcome (booking kept, money returned) renders the
+        // A fully-handled outcome (stage removed, money returned) renders the
         // generic saved-details message with HTTP 200, not a retryable error
         // status. formatPaymentError appends the automatic-refund clause.
         await expectHtmlResponse(
@@ -128,8 +127,7 @@ describeWithEnv(
           "refunded",
         );
 
-        // Signed by us, so the booking is kept as a quantity-0 placeholder (not
-        // dropped) and refunded once, with a system note recording the reason.
+        // The redirect removes the staged attendee and refunds the payment once.
         await expectStagedAttendeeRemovedAndRefunded(
           listing.id,
           "cs_redirect_mismatch",

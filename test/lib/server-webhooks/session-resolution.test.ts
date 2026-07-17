@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
@@ -9,6 +10,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
 import {
   checkoutSessionEvent,
   expectAttendeeWithPricePaid,
@@ -135,7 +137,7 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
       Promise.reject(new Error("Stripe unavailable")),
     );
     try {
-      await expectWebhookIgnored({
+      const verify = await stubWebhookVerify({
         data: {
           object: {
             amount_total: 0,
@@ -147,9 +149,120 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
         id: "evt_expiry_retry",
         type: "checkout.session.expired",
       });
+      try {
+        await postWebhookAndAssert(
+          () => {},
+          503,
+          (json) => expect(json).toEqual({ status: "retry" }),
+        );
+      } finally {
+        verify.restore();
+      }
       expect(close.calls.length).toBe(1);
       expect(await attendeeExists(attendeeId)).toBe(true);
+      expect(
+        await loadCheckoutStageByPaymentSession("cs_expiry_retry"),
+      ).toMatchObject({
+        attendeeId,
+        paymentSessionId: "cs_expiry_retry",
+        state: "pending",
+      });
     } finally {
+      close.restore();
+    }
+  });
+
+  test("an expiry that becomes paid while closing processes the refreshed payment", async () => {
+    await setupStripe();
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const metadata = signedMeta(
+      {
+        email: "race@example.com",
+        items: singleItem(listing.id, 1, 1000),
+        name: "Race winner",
+      },
+      1000,
+    );
+    await stagePaymentCallback({
+      amountTotal: 1000,
+      metadata,
+      paymentReference: "pi_expiry_paid",
+      sessionId: "cs_expiry_paid",
+    });
+    const close = stub(stripePaymentProvider, "closeCheckout", () =>
+      Promise.resolve("paid" as const),
+    );
+    const retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve({
+        amountTotal: 1000,
+        id: "cs_expiry_paid",
+        metadata,
+        paymentReference: "pi_expiry_paid",
+        paymentStatus: "paid" as const,
+      }),
+    );
+    const verify = await stubWebhookVerify({
+      data: {
+        object: {
+          amount_total: 1000,
+          id: "cs_expiry_paid",
+          metadata,
+          payment_status: "unpaid",
+        },
+      },
+      id: "evt_expiry_paid",
+      type: "checkout.session.expired",
+    });
+    try {
+      await postWebhookAndAssert(
+        () => {},
+        200,
+        (json) => expect(json).toEqual({ processed: true, received: true }),
+      );
+      expect(close.calls.length).toBe(1);
+      expect(retrieve.calls.length).toBe(1);
+      await expectAttendeeWithPricePaid(listing.id, 1000);
+    } finally {
+      verify.restore();
+      retrieve.restore();
+      close.restore();
+    }
+  });
+
+  test("an expiry paid race retries until the paid session is readable", async () => {
+    await setupStripe();
+    const attendeeId = await insertOrphanAttendee(new Date().toISOString());
+    await insertCheckoutStage(attendeeId, "cs_expiry_paid_retry");
+    const close = stub(stripePaymentProvider, "closeCheckout", () =>
+      Promise.resolve("paid" as const),
+    );
+    const retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve(null),
+    );
+    const verify = await stubWebhookVerify({
+      data: {
+        object: {
+          amount_total: 0,
+          id: "cs_expiry_paid_retry",
+          metadata: { email: "e@example.com", items: "[]", name: "E" },
+          payment_status: "unpaid",
+        },
+      },
+      id: "evt_expiry_paid_retry",
+      type: "checkout.session.expired",
+    });
+    try {
+      await postWebhookAndAssert(
+        () => {},
+        503,
+        (json) => expect(json).toEqual({ status: "retry" }),
+      );
+      expect(
+        await loadCheckoutStageByPaymentSession("cs_expiry_paid_retry"),
+      ).toMatchObject({ attendeeId, state: "pending" });
+    } finally {
+      verify.restore();
+      retrieve.restore();
       close.restore();
     }
   });

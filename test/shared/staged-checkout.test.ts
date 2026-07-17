@@ -8,10 +8,7 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
-import {
-  checkoutStagesApi,
-  findCheckoutStage,
-} from "#shared/db/checkout-stages.ts";
+import { findCheckoutStage } from "#shared/db/checkout-stages.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { createPaidCheckout } from "#shared/staged-checkout.ts";
@@ -331,17 +328,27 @@ describeWithEnv("staged checkout", { db: true }, () => {
     const checkout = await createdCheckout(() =>
       Promise.resolve("closed" as const),
     );
-    const find = stub(checkoutStagesApi, "find", () => Promise.resolve(null));
+    const createStage = attendeesApi.createStagedCheckoutAtomic;
+    const loseStage = stub(
+      attendeesApi,
+      "createStagedCheckoutAtomic",
+      async (...args) => {
+        const result = await createStage(...args);
+        await getDb().execute({
+          args: [createdSession.sessionId],
+          sql: "DELETE FROM checkout_stages WHERE payment_session_id = ?",
+        });
+        return result;
+      },
+    );
     try {
       await expect(checkout.run()).rejects.toThrow(
         "Could not store checkout stage",
       );
-      expect(await stageRows()).toEqual([
-        { payment_session_id: createdSession.sessionId },
-      ]);
+      expect(await stageRows()).toEqual([]);
     } finally {
       checkout.restore();
-      find.restore();
+      loseStage.restore();
     }
   });
 });

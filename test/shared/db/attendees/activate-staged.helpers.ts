@@ -7,7 +7,7 @@ import type {
 } from "#shared/db/attendees/activate.ts";
 import { createStagedCheckoutAtomic } from "#shared/db/attendees/create.ts";
 import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
-import { getDb } from "#shared/db/client.ts";
+import { queryAll } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 /* jscpd:ignore-end */
 
@@ -74,12 +74,22 @@ export const activationBooking = (
   ...overrides,
 });
 
-export const storedActivationRows = async (attendeeId: number) =>
-  (
-    await getDb().execute({
-      args: [attendeeId],
-      sql: `SELECT listing_id, start_at, end_at, quantity, parent_listing_id,
-                   package_group_id, ledger_event_group
-              FROM listing_attendees WHERE attendee_id = ? ORDER BY listing_id`,
-    })
-  ).rows;
+type StoredActivationRow = {
+  end_at: string | null;
+  ledger_event_group: string;
+  listing_id: number;
+  package_group_id: number;
+  parent_listing_id: number;
+  quantity: number;
+  start_at: string | null;
+};
+
+export const storedActivationRows = async (
+  attendeeId: number,
+): Promise<StoredActivationRow[]> =>
+  queryAll<StoredActivationRow>(
+    `SELECT listing_id, start_at, end_at, quantity, parent_listing_id,
+            package_group_id, ledger_event_group
+       FROM listing_attendees WHERE attendee_id = ? ORDER BY listing_id`,
+    [attendeeId],
+  );

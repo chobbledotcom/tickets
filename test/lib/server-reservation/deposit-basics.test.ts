@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
 import { getDb } from "#shared/db/client.ts";
+import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -128,7 +129,7 @@ describeWithEnv(
       expect(attendee.remainingBalance).toBe(2000);
     });
 
-    test("keeps and refunds when the charged total does not match deposit plus fee", async () => {
+    test("removes and refunds when the charged total does not match deposit plus fee", async () => {
       await setupStripe();
       await settings.update.bookingFee("10");
       await setPublicReservation("10%");
@@ -162,6 +163,13 @@ describeWithEnv(
           "SELECT COUNT(*) AS c FROM attendees",
         );
         expect(Number(rows[0]!.c)).toBe(0);
+        expect(refund.calls.length).toBe(1);
+        expect(refund.calls[0]!.args).toEqual(["pi_cs_bad"]);
+        expect(await isSessionProcessed("cs_bad")).toMatchObject({
+          attendee_id: null,
+          provider_refunded_at: expect.any(String),
+        });
+        expect((await isSessionProcessed("cs_bad"))!.failure_data).not.toBe("");
       } finally {
         session.restore();
         refund.restore();

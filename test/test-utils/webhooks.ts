@@ -113,15 +113,14 @@ export const expectWebhookProcessed = async (
 };
 
 /**
- * The "kept and refunded" webhook assertion: stub `verifyWebhookSignature` to
+ * The staged-refund webhook assertion: stub `verifyWebhookSignature` to
  * return `event` and `stripeApi.refundPayment` to succeed, POST the webhook,
  * and assert the standard price-mismatch response — acknowledged but not
  * processed, with an error containing `errorContains` (the generic
  * saved-your-details message by default; pass an override for a scenario with
  * its own message, e.g. an inactive/closed listing). Returns the refund stub
  * so the caller can assert on `mockRefund.calls.length` and continue with
- * scenario-specific checks (the quantity-0 placeholder, the system note, the
- * failed `processed_payments` record, ...).
+ * scenario-specific checks for stage removal and the terminal payment record.
  */
 export const expectWebhookKeptAndRefunded = async (
   event: Parameters<typeof stubWebhookVerify>[0],
@@ -156,8 +155,7 @@ export const expectWebhookKeptAndRefunded = async (
 };
 
 /**
- * Locate the sole quantity-0 placeholder on a listing that already carries
- * other attendees and assert the refunded stage left no quantity-zero record.
+ * Assert that a refunded stage left no quantity-zero attendee record.
  */
 export const expectNoRefundPlaceholder = async (
   listingId: number,
@@ -166,15 +164,14 @@ export const expectNoRefundPlaceholder = async (
   const placeholders = (await getAttendeesRaw(listingId)).filter(
     (a) => a.quantity === 0,
   );
-  // The invariant this helper documents: exactly one kept placeholder, so a
-  // duplicate-placeholder regression fails here rather than silently passing.
+  // No quantity-zero attendee may remain after staged refund cleanup.
   expect(placeholders.length).toBe(0);
 };
 
 /**
  * Assert a webhook session was filed as a terminal failure: no ticket
  * attendee claimed it, so `processed_payments.attendee_id` stays null with
- * `failure_data` set. The tail check of every "kept and refunded" scenario
+ * `failure_data` set. The tail check of every staged-refund scenario
  * across the price-mismatch / can_pay_more / already-processed suites.
  */
 export const expectSessionFailed = async (sessionId: string): Promise<void> => {
@@ -187,11 +184,7 @@ export const expectSessionFailed = async (sessionId: string): Promise<void> => {
 };
 
 /**
- * Assert the refund fired exactly once and a system note recorded the reason
- * against `attendeeId` — the shared tail of every "kept and refunded"
- * scenario, regardless of how the caller located the quantity-0 placeholder
- * (the sole attendee on a fresh listing, or one of several on a listing that
- * already had a paying attendee).
+ * Assert the refund fired exactly once after the staged attendee was removed.
  */
 export const expectRefundedWithoutAttendee = async (mockRefund: {
   calls: unknown[];
@@ -215,12 +208,7 @@ export const expectStagedAttendeeRemovedAndRefunded = async (
 };
 
 /**
- * Assert a multi-listing order was kept as a single quantity-0 placeholder
- * shared across both listings (never dropped or split), and return that
- * attendee so the caller can continue with its own refund/note/failure
- * checks — the shared "did the two listings merge onto one attendee" check
- * at the top of the `can_pay_more` and price-mismatch multi-ticket
- * "kept and refunded" scenarios.
+ * Assert that a refunded multi-listing stage was removed from both listings.
  */
 export const expectMultiListingStageRemoved = async (
   listing1Id: number,
@@ -302,12 +290,14 @@ export const stubRetrieveCheckoutSession = (
             session.amountTotal,
           );
     const { stagePaymentCallback } = await import("./staged-payments.ts");
-    await stagePaymentCallback({
-      amountTotal: session.amountTotal,
-      metadata: metadata as Record<string, string>,
-      paymentReference: session.paymentIntent ?? "",
-      sessionId: session.sessionId,
-    });
+    if (session.paymentIntent !== null) {
+      await stagePaymentCallback({
+        amountTotal: session.amountTotal,
+        metadata: metadata as Record<string, string>,
+        paymentReference: session.paymentIntent,
+        sessionId: session.sessionId,
+      });
+    }
     return {
       amount_total: session.amountTotal,
       id: session.sessionId,

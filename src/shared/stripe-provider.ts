@@ -55,7 +55,11 @@ const hasExpectedPaymentReference = (
 const createStripeCheckoutSession = makeCreateCheckoutSession(
   "Stripe",
   createCheckoutSession,
-  (session) => ({ id: session?.id, url: session?.url }),
+  (session) => ({
+    id: session?.id,
+    providerCheckoutId: session?.id,
+    url: session?.url,
+  }),
 );
 
 /** Stripe payment provider implementation */

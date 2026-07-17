@@ -165,6 +165,17 @@ describe("Square hosted checkout closing", () => {
       },
     ));
 
+  test("throws when the payment-link deletion response names another link", () =>
+    withSquareOrderStates(
+      ["OPEN", "OPEN"],
+      () => Promise.resolve({ cancelledOrderId: "order", id: "other" }),
+      async () => {
+        await expect(
+          squareApi.closePaymentLink("link", "order"),
+        ).rejects.toThrow("Square closed the wrong payment link or order");
+      },
+    ));
+
   test("throws when the Square order does not exist", () => {
     const client = {
       checkout: { paymentLinks: { delete: spy() } },

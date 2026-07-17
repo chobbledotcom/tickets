@@ -528,8 +528,9 @@ const createPaymentLinkImpl = (
     const url = link?.url;
 
     if (!id || !orderId || !url) {
-      logDebug("Square", `${params.label} response missing orderId or url`);
-      return null;
+      throw new Error(
+        `Square ${params.label} response missing id, orderId, or url`,
+      );
     }
 
     return { id, orderId, url };

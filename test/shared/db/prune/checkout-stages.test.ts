@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -149,20 +148,19 @@ describeWithEnv("db > abandoned checkout stages", { db: true }, () => {
     });
 
     test("processes exactly the fixed cleanup bound", async () => {
-      expect(checkoutStagesApi.cleanupLimit).toBe(4);
+      const cleanupLimit = 4;
+      const createdAt = oldStage();
       const ids = await Promise.all(
-        Array.from({ length: checkoutStagesApi.cleanupLimit + 1 }, (_, index) =>
-          addStage(`bounded-${index}`),
+        Array.from({ length: cleanupLimit + 1 }, (_, index) =>
+          addStage(`bounded-${index}`, { createdAt }),
         ),
       );
       const close = stub(stripePaymentProvider, "closeCheckout", () =>
         Promise.resolve("closed" as const),
       );
       try {
-        expect(await pruneAbandonedCheckoutStages()).toBe(
-          checkoutStagesApi.cleanupLimit,
-        );
-        expect(close.calls.length).toBe(checkoutStagesApi.cleanupLimit);
+        expect(await pruneAbandonedCheckoutStages()).toBe(cleanupLimit);
+        expect(close.calls.length).toBe(cleanupLimit);
         const remaining = await getDb().execute(
           "SELECT attendee_id FROM checkout_stages",
         );

@@ -129,10 +129,13 @@ export const findCheckoutStage = async (
   ticketToken: string,
 ): Promise<CheckoutStage | null> => {
   const raw = await queryOnePrimary<unknown>(
-    `SELECT payment_session_id, attendee_id, provider, provider_checkout_id,
-            ticket_tokens, state, created_at
-       FROM checkout_stages
-      WHERE payment_session_id = ? AND attendee_id = ?`,
+    `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
+            checkout_stage.provider, checkout_stage.provider_checkout_id,
+            checkout_stage.ticket_tokens, checkout_stage.state,
+            checkout_stage.created_at
+       FROM checkout_stages AS checkout_stage
+      WHERE checkout_stage.payment_session_id = ?
+        AND checkout_stage.attendee_id = ?`,
     [paymentSessionId, attendeeId],
   );
   if (raw === null) return null;
@@ -156,11 +159,13 @@ export const selectOldPendingCheckoutStages = async (
   createdBefore: string,
 ): Promise<CheckoutStageCleanup[]> => {
   const rows = await queryAll<unknown>(
-    `SELECT payment_session_id, attendee_id, provider, provider_checkout_id,
-            state, created_at
-       FROM checkout_stages
-      WHERE state = 'pending' AND created_at < ?
-      ORDER BY created_at, payment_session_id
+    `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
+            checkout_stage.provider, checkout_stage.provider_checkout_id,
+            checkout_stage.state, checkout_stage.created_at
+       FROM checkout_stages AS checkout_stage
+      WHERE checkout_stage.state = 'pending'
+        AND checkout_stage.created_at < ?
+      ORDER BY checkout_stage.created_at, checkout_stage.payment_session_id
       LIMIT ?`,
     [createdBefore, CHECKOUT_STAGE_CLEANUP_LIMIT],
   );
@@ -202,16 +207,19 @@ export const loadCheckoutStageByPaymentSession = async (
   paymentSessionId: string,
 ): Promise<CheckoutStage | null> => {
   const row = await queryOnePrimary<unknown>(
-    `SELECT payment_session_id, attendee_id, provider, provider_checkout_id,
-            ticket_tokens, state, created_at
-       FROM checkout_stages WHERE payment_session_id = ?`,
+    `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
+            checkout_stage.provider, checkout_stage.provider_checkout_id,
+            checkout_stage.ticket_tokens, checkout_stage.state,
+            checkout_stage.created_at
+       FROM checkout_stages AS checkout_stage
+      WHERE checkout_stage.payment_session_id = ?`,
     [paymentSessionId],
   );
   return row === null ? null : checkoutStageFromRow(row);
 };
 
 /** Permanently route a pending stage toward refunding instead of activation. */
-const beginCheckoutStageRefund = async (
+export const beginCheckoutStageRefund = async (
   paymentSessionId: string,
 ): Promise<void> => {
   const result = await execute(
@@ -235,7 +243,7 @@ type FinalizeCheckoutStageRefund = {
 
 /** Atomically preserve the replay result and refund ledger, then remove the
  * staged attendee while keeping its historical ledger account. */
-const finalizeCheckoutStageRefund = async ({
+export const finalizeCheckoutStageRefund = async ({
   failure,
   legs,
   paymentReference,
@@ -283,14 +291,4 @@ const finalizeCheckoutStageRefund = async ({
       },
     ]);
   });
-};
-
-export const checkoutStagesApi = {
-  beginRefund: beginCheckoutStageRefund,
-  cleanupLimit: CHECKOUT_STAGE_CLEANUP_LIMIT,
-  finalizeRefund: finalizeCheckoutStageRefund,
-  find: findCheckoutStage,
-  loadByPaymentSession: loadCheckoutStageByPaymentSession,
-  purgePending: purgePendingCheckoutStage,
-  selectOldPending: selectOldPendingCheckoutStages,
 };

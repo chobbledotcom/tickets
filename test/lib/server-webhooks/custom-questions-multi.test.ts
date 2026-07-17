@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
+import { filter } from "#fp";
 import { handleRequest } from "#routes";
 import {
   getAttendeeAnswersBatch,
@@ -10,6 +11,7 @@ import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -49,8 +51,8 @@ const expectSharedAttendee = async (
 ): Promise<number> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const realBookings = async (listingId: number) =>
-    (await getAttendeesRaw(listingId)).filter(
-      (attendee) => attendee.quantity > 0,
+    filter((attendee: Attendee) => attendee.quantity > 0)(
+      await getAttendeesRaw(listingId),
     );
   const att1 = await realBookings(listing1Id);
   const att2 = await realBookings(listing2Id);

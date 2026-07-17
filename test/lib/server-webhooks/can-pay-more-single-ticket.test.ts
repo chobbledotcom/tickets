@@ -53,7 +53,7 @@ describeWithEnv(
       await expectAttendeeWithPricePaid(listing.id, 2500);
     });
 
-    test("single-ticket can_pay_more keeps and refunds amount below minimum price", async () => {
+    test("single-ticket can_pay_more removes and refunds amount below minimum price", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -80,8 +80,7 @@ describeWithEnv(
         "re_pay_less",
       );
 
-      // Signed by us → the booking is kept as a quantity-0 placeholder and
-      // refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_pay_less",
@@ -89,7 +88,7 @@ describeWithEnv(
       );
     });
 
-    test("single-ticket can_pay_more keeps and refunds amount above maximum price", async () => {
+    test("single-ticket can_pay_more removes and refunds amount above maximum price", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -116,8 +115,7 @@ describeWithEnv(
         "re_pay_too_much",
       );
 
-      // Signed by us → the booking is kept as a quantity-0 placeholder and
-      // refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_pay_too_much",

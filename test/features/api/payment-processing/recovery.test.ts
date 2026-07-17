@@ -8,8 +8,8 @@ import {
   recoverOrRefundUnexpectedProcessing,
 } from "#routes/api/payment-processing/recovery.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { beginCheckoutStageRefund } from "#shared/db/checkout-stages.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -160,7 +160,7 @@ describeWithEnv(
       expect(
         (await reserveSession("refunding-processing-error")).reserved,
       ).toBe(true);
-      await checkoutStagesApi.beginRefund("refunding-processing-error");
+      await beginCheckoutStageRefund("refunding-processing-error");
       await expect(
         recoverOrRefundUnexpectedProcessing(
           "refunding-processing-error",
@@ -214,9 +214,12 @@ describeWithEnv(
           status: "succeeded",
         } as never),
       );
-      const finalize = stub(checkoutStagesApi, "finalizeRefund", () =>
-        Promise.reject(new Error("terminal refund write failed")),
-      );
+      await getDb().execute(`CREATE TRIGGER reject_terminal_refund_write
+        BEFORE UPDATE OF failure_data ON processed_payments
+        WHEN NEW.payment_session_id = 'unexpected-finalization-error'
+        BEGIN
+          SELECT RAISE(ABORT, 'terminal refund write failed');
+        END`);
       try {
         await expect(
           recoverOrRefundUnexpectedProcessing(
@@ -232,7 +235,7 @@ describeWithEnv(
           ),
         ).toEqual([]);
       } finally {
-        finalize.restore();
+        await getDb().execute("DROP TRIGGER reject_terminal_refund_write");
         refund.restore();
       }
     });

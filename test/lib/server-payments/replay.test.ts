@@ -178,7 +178,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       });
 
       // Stale checkout: metadata price (500) no longer matches the listing's
-      // current 1000, so the booking is kept and refunded once. A fully-handled
+      // current 1000, so the stage is removed and refunded once. A fully-handled
       // outcome renders with HTTP 200, and a retry replays it (no re-refund).
       await withMocks(
         () =>
@@ -192,7 +192,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             500,
           ),
         async ({ mockRefund }) => {
-          // First delivery: the booking is kept as a quantity-0 placeholder and
+          // First delivery: the stage is removed and refunded, and
           // refunded once. The specific reason now lives in the system note, so
           // the customer sees the generic saved-details message (HTTP 200).
           const first = await handleRequest(

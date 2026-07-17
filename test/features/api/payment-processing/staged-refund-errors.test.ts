@@ -5,7 +5,11 @@ import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { refundSpec } from "#routes/api/payment-processing/refunds.ts";
 import { refundStagedBooking } from "#routes/api/payment-processing/store-refund.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
+import {
+  beginCheckoutStageRefund,
+  finalizeCheckoutStageRefund,
+  loadCheckoutStageByPaymentSession,
+} from "#shared/db/checkout-stages.ts";
 import { execute } from "#shared/db/client.ts";
 import {
   releaseReservation,
@@ -78,14 +82,14 @@ describeWithEnv(
       const intent = intentFor(listing.id);
       const attendeeId = await stageSession("lost-refund-claim", intent);
       expect((await reserveSession("lost-refund-claim")).reserved).toBe(true);
-      await checkoutStagesApi.beginRefund("lost-refund-claim");
+      await beginCheckoutStageRefund("lost-refund-claim");
       const stage =
-        await checkoutStagesApi.loadByPaymentSession("lost-refund-claim");
+        await loadCheckoutStageByPaymentSession("lost-refund-claim");
       if (!stage) throw new Error("Expected refunding stage");
       await releaseReservation("lost-refund-claim");
 
       await expect(
-        checkoutStagesApi.finalizeRefund({
+        finalizeCheckoutStageRefund({
           failure: { error: "Refunded", refunded: true, status: 200 },
           legs: [],
           paymentReference: "payment-lost-refund-claim",
@@ -95,7 +99,7 @@ describeWithEnv(
         "Checkout refund lost-refund-claim was not ready to finalize",
       );
       expect(
-        await checkoutStagesApi.loadByPaymentSession("lost-refund-claim"),
+        await loadCheckoutStageByPaymentSession("lost-refund-claim"),
       ).toMatchObject({ attendeeId, state: "refunding" });
       expect(await attendeeIds()).toEqual([{ id: attendeeId }]);
     });

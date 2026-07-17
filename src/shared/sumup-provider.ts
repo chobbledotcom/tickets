@@ -77,7 +77,7 @@ const createSumupCheckoutSession = makeCreateCheckoutSession(
   createCheckout,
   (result) => ({
     id: result?.reference,
-    providerId: result?.id,
+    providerCheckoutId: result?.id,
     url: result?.url,
   }),
 );

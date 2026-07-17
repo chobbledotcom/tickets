@@ -26,7 +26,7 @@ import {
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { errorMessage } from "#shared/error-message.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
   type CredentialCheck,
@@ -95,10 +95,7 @@ export type SumupConnectionTestResult = {
 /** Internal getSumupClient implementation — reads the current API key. */
 const getClientImpl = (): SumUp | null => {
   const apiKey = settings.sumup.apiKey;
-  if (!apiKey) {
-    logDebug("SumUp", "No API key configured, cannot create client");
-    return null;
-  }
+  if (!apiKey) return null;
   return new SumUp({ apiKey });
 };
 
@@ -108,10 +105,7 @@ const withClient = createWithClient(() => sumupApi.getSumupClient());
 /** Resolve the configured merchant code, logging if absent. */
 const getMerchantCode = (): string | null => {
   const merchantCode = settings.sumup.merchantCode;
-  if (!merchantCode) {
-    logError({ code: ErrorCode.CONFIG_MISSING, detail: "SumUp merchant code" });
-    return null;
-  }
+  if (!merchantCode) return null;
   return merchantCode;
 };
 
@@ -175,7 +169,9 @@ export const sumupApi: {
 
     const current = toSumupCheckout(await client.checkouts.get(id));
     if (current.status === "PAID") return "paid";
-    if (current.status === "EXPIRED") return "closed";
+    if (current.status === "EXPIRED" || current.status === "FAILED") {
+      return "closed";
+    }
 
     try {
       await client.checkouts.deactivate(id);
@@ -183,7 +179,12 @@ export const sumupApi: {
     } catch (err) {
       const afterFailure = toSumupCheckout(await client.checkouts.get(id));
       if (afterFailure.status === "PAID") return "paid";
-      if (afterFailure.status === "EXPIRED") return "closed";
+      if (
+        afterFailure.status === "EXPIRED" ||
+        afterFailure.status === "FAILED"
+      ) {
+        return "closed";
+      }
       throw err;
     }
   },
@@ -224,11 +225,9 @@ export const sumupApi: {
       });
       const url = checkout.hosted_checkout_url;
       if (!checkout.id || !url) {
-        logDebug(
-          "SumUp",
-          "Checkout response missing id or hosted_checkout_url",
+        throw new Error(
+          "SumUp checkout response missing id or hosted_checkout_url",
         );
-        return null;
       }
       // Record the SumUp id so webhooks for this checkout pass the pre-filter
       // and the redirect can fetch it directly. Runs before the customer ever

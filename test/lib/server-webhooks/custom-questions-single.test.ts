@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
+import { filter } from "#fp";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
@@ -9,6 +10,7 @@ import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import type { Attendee } from "#shared/types.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -36,8 +38,8 @@ describeWithEnv(
       const { getAttendeesRaw } = await import(
         "#shared/db/attendees/queries.ts"
       );
-      const attendees = (await getAttendeesRaw(listingId)).filter(
-        (attendee) => attendee.quantity > 0,
+      const attendees = filter((attendee: Attendee) => attendee.quantity > 0)(
+        await getAttendeesRaw(listingId),
       );
       expect(attendees.length).toBe(1);
       return attendees[0]!.id;

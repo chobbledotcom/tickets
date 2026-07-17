@@ -111,8 +111,7 @@ describeWithEnv(
         }),
       );
 
-      // Signed by us → the whole order is kept as a quantity-0 placeholder
-      // (one attendee against both listings), not dropped, and refunded once.
+      // The staged attendee is removed from both listings and refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing1.id,
         "cs_multi_soldout_wh",

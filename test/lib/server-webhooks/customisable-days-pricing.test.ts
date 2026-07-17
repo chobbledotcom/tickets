@@ -105,7 +105,7 @@ describeWithEnv(
       expect(Number(attendees[0]?.price_paid)).toBe(1000);
     });
 
-    test("keeps and refunds a customisable-days webhook whose day count has no price", async () => {
+    test("removes and refunds a customisable-days webhook whose day count has no price", async () => {
       await setupStripe();
 
       const listing = await createCustomisableDaysListing();
@@ -130,8 +130,7 @@ describeWithEnv(
           sessionId: "cs_bad_daycount",
         }),
       );
-      // Signed by us → the booking is kept as a quantity-0 placeholder (not
-      // dropped) and refunded once, with a system note recording the reason.
+      // The staged attendee is removed and the payment is refunded once.
       await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_bad_daycount",

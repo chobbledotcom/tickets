@@ -15,6 +15,7 @@ import {
   testSumupConnection,
 } from "#shared/sumup.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 /** Methods the fake SumUp client may implement for a given test. */
@@ -51,6 +52,7 @@ const intent = {
 };
 
 describe("sumup", () => {
+  const errors = setupErrorSpy();
   beforeEach(async () => {
     await createTestDb();
     setEffectiveDomainForTest("example.com");
@@ -78,8 +80,28 @@ describe("sumup", () => {
 
   describe("isSumupCurrency", () => {
     test("accepts SumUp-supported currencies case-insensitively", () => {
+      const currencies = [
+        "BGN",
+        "BRL",
+        "CHF",
+        "CLP",
+        "COP",
+        "CZK",
+        "DKK",
+        "EUR",
+        "GBP",
+        "HRK",
+        "HUF",
+        "NOK",
+        "PLN",
+        "RON",
+        "SEK",
+        "USD",
+      ];
+      expect(
+        currencies.filter((currency) => !isSumupCurrency(currency)),
+      ).toEqual([]);
       expect(isSumupCurrency("gbp")).toBe(true);
-      expect(isSumupCurrency("EUR")).toBe(true);
     });
 
     test("rejects currencies SumUp cannot charge", () => {
@@ -215,6 +237,11 @@ describe("sumup", () => {
       });
       await withClient(client, async () => {
         expect(await createCheckout(intent, "http://localhost")).toBeNull();
+        expect(
+          errors.contains(
+            "SumUp checkout response missing id or hosted_checkout_url",
+          ),
+        ).toBe(true);
       });
     });
 
@@ -255,6 +282,15 @@ describe("sumup", () => {
       const client = makeClient({ txnGet: () => Promise.resolve({}) });
       await withClient(client, async () => {
         expect(await getTransactionStatus("txn")).toBeNull();
+      });
+    });
+
+    test("keeps an empty transaction status distinct from a missing status", async () => {
+      const client = makeClient({
+        txnGet: () => Promise.resolve({ status: "" }),
+      });
+      await withClient(client, async () => {
+        expect(await getTransactionStatus("txn")).toBe("");
       });
     });
   });
@@ -307,15 +343,29 @@ describe("sumup", () => {
     test("reports a missing API key", async () => {
       settings.setForTest({ sumup_api_key: "" });
       const result = await testSumupConnection();
-      expect(result.ok).toBe(false);
-      expect(result.apiKey.error).toBe("No SumUp API key configured");
+      expect(result).toEqual({
+        apiKey: { error: "No SumUp API key configured", valid: false },
+        currency: { code: "GBP", supported: true },
+        merchant: { configured: false },
+        ok: false,
+      });
     });
 
     test("reports a missing merchant code", async () => {
       settings.setForTest({ sumup_merchant_code: "" });
       const result = await testSumupConnection();
-      expect(result.ok).toBe(false);
-      expect(result.merchant.error).toBe("No merchant code configured");
+      expect(result).toEqual({
+        apiKey: {
+          error: "Merchant code is required to verify the key",
+          valid: false,
+        },
+        currency: { code: "GBP", supported: true },
+        merchant: {
+          configured: false,
+          error: "No merchant code configured",
+        },
+        ok: false,
+      });
     });
 
     const withMerchantClient = (fn: () => Promise<void>): Promise<void> => {

@@ -220,10 +220,10 @@ describeStripe("stripe", () => {
             expires_at: number;
           };
           expect(params.expires_at).toBeGreaterThan(
-            Math.floor(Date.now() / 1000) + 29 * 60,
+            Math.floor(Date.now() / 1000) + 30 * 60,
           );
           expect(params.expires_at).toBeLessThanOrEqual(
-            Math.floor(Date.now() / 1000) + 30 * 60,
+            Math.floor(Date.now() / 1000) + 31 * 60,
           );
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",

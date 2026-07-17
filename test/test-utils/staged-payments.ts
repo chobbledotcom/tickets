@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 
 import { assert } from "@std/assert";
+import { requiredMapValue } from "#fp";
 import { classifySession } from "#routes/api/payment-processing/classify.ts";
 import { bookingSlot } from "#routes/api/payment-processing/create.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
@@ -8,7 +9,7 @@ import { bookingsForOrder } from "#shared/booking-lines.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
-  checkoutStagesApi,
+  loadCheckoutStageByPaymentSession,
   pendingCheckoutStageInsert,
 } from "#shared/db/checkout-stages.ts";
 import { execute } from "#shared/db/client.ts";
@@ -34,7 +35,7 @@ export const stagePaymentCallback = async (fields: {
   providerCheckoutId?: string;
   sessionId: string;
 }): Promise<void> => {
-  if (await checkoutStagesApi.loadByPaymentSession(fields.sessionId)) return;
+  if (await loadCheckoutStageByPaymentSession(fields.sessionId)) return;
   if (await isSessionProcessed(fields.sessionId)) return;
   if (
     (await bookingLedgerDisposition(fields.sessionId)).status !== "unrecorded"
@@ -69,11 +70,11 @@ export const stagePaymentCallback = async (fields: {
     intent,
     intent.items.map((item) => ({
       ...bookingSlot(item),
-      listing: listingById.get(item.e) ?? {
-        customisable_days: false,
-        duration_days: 1,
-        listing_type: "standard",
-      },
+      listing: requiredMapValue(
+        listingById,
+        item.e,
+        `Listing ${item.e} was not loaded for staged payment`,
+      ),
       quantity: item.q,
     })),
   );
@@ -107,8 +108,8 @@ export const stagePaymentCallback = async (fields: {
     const stage = await pendingCheckoutStageInsert(
       {
         paymentSessionId: fields.sessionId,
-        provider: "stripe",
-        providerCheckoutId: fields.sessionId,
+        provider: fields.provider ?? "stripe",
+        providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
       },
       "?",
       [first.id],

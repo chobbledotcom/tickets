@@ -149,6 +149,7 @@ describe("SumUp hosted checkout closing", () => {
   for (const [status, result] of [
     ["PAID", "paid"],
     ["EXPIRED", "closed"],
+    ["FAILED", "closed"],
   ] as const) {
     test(`returns ${result} without deactivating a ${status} SumUp checkout`, () =>
       withSumupStatuses(
@@ -164,6 +165,7 @@ describe("SumUp hosted checkout closing", () => {
   for (const [afterRace, result] of [
     ["PAID", "paid"],
     ["EXPIRED", "closed"],
+    ["FAILED", "closed"],
   ] as const) {
     test(`returns ${result} when SumUp becomes ${afterRace} during deactivation`, () =>
       withSumupStatuses(

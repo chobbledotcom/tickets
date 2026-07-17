@@ -123,11 +123,18 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             sessionId: "cs_failed_stage",
           }),
         }),
-        async () => {
+        async ({ close }) => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_failed_stage"),
           );
           expect(response.status).toBe(200);
+          expect(close.calls.length).toBe(1);
+          expect(close.calls[0]!.args).toEqual([
+            {
+              providerCheckoutId: "cs_failed_stage",
+              sessionId: "cs_failed_stage",
+            },
+          ]);
           expect(await attendeeExists(attendeeId)).toBe(false);
         },
       );
@@ -217,9 +224,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
           );
-          // Signed by us → the late buyer is not dropped: the booking is kept as
-          // a quantity-0 placeholder and refunded, and the customer sees the
-          // generic saved-details message (HTTP 200, a fully-handled outcome).
+          // The signed checkout is refunded and its staged attendee is removed.
+          // The customer sees the handled refund message with HTTP 200.
           await expectHtmlResponse(
             response,
             200,
@@ -231,9 +237,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(mockRefund.calls.length).toBe(1);
           expect(mockRefund.calls[0]!.args).toEqual(["pi_second"]);
 
-          // The placeholder is kept alongside the original (sold-out) attendee,
-          // with a system note recording the reason, and the session is filed
-          // as a terminal failure (placeholder kept, no ticket attendee).
+          // No staged attendee remains beside the sold-out booking. The terminal
+          // failure remains so later deliveries replay the same result.
           await expectNoRefundPlaceholder(listing.id);
           await expectRefundedWithoutAttendee(mockRefund);
           await expectSessionFailed("cs_test");

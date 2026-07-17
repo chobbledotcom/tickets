@@ -27,7 +27,11 @@ import type {
 } from "#routes/api/webhook-types.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
+import {
+  beginCheckoutStageRefund,
+  finalizeCheckoutStageRefund,
+  loadCheckoutStageByPaymentSession,
+} from "#shared/db/checkout-stages.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -113,10 +117,10 @@ export const refundStagedBooking = async (
   spec: RefundSpec,
 ): Promise<PaymentFailureResult> => {
   if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
-  const stage = await checkoutStagesApi.loadByPaymentSession(session.id);
+  const stage = await loadCheckoutStageByPaymentSession(session.id);
   if (!stage) throw new Error(`Checkout stage ${session.id} is missing`);
   if (stage.state === "pending") {
-    await checkoutStagesApi.beginRefund(session.id);
+    await beginCheckoutStageRefund(session.id);
   }
   const refunded = await tryRefund(session.paymentReference, listingId);
   if (!refunded) {
@@ -138,7 +142,7 @@ export const refundStagedBooking = async (
     refunded: true,
     status: spec.status ?? 200,
   };
-  await checkoutStagesApi.finalizeRefund({
+  await finalizeCheckoutStageRefund({
     failure,
     legs: await stagedRefundLegs(
       {

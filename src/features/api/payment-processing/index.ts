@@ -41,7 +41,7 @@ import type {
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import { type PricedOrder, priceCheckout } from "#shared/checkout-pricing.ts";
-import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
+import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
@@ -130,7 +130,7 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
   );
   if (replay) return replay;
 
-  const stage = await checkoutStagesApi.loadByPaymentSession(sessionId);
+  const stage = await loadCheckoutStageByPaymentSession(sessionId);
   if (!stage) {
     throw new Error(
       `Paid session ${sessionId} has no compatible checkout stage`,

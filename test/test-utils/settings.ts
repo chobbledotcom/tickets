@@ -212,6 +212,7 @@ export const stubWebhookVerify = async (listingData: {
     listingData.type === "checkout.session.completed" &&
     typeof object.id === "string" &&
     typeof object.amount_total === "number" &&
+    typeof object.payment_intent === "string" &&
     object.metadata &&
     typeof object.metadata === "object"
   ) {
@@ -219,8 +220,7 @@ export const stubWebhookVerify = async (listingData: {
     await stagePaymentCallback({
       amountTotal: object.amount_total,
       metadata: object.metadata as Record<string, string>,
-      paymentReference:
-        typeof object.payment_intent === "string" ? object.payment_intent : "",
+      paymentReference: object.payment_intent,
       sessionId: object.id,
     });
   }
