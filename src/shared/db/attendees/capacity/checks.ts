@@ -103,7 +103,7 @@ export const checkListingAvailability = async (
 
 type DemandBucket = CapacityBucket;
 
-const getOrCreateBucket = <K>(
+export const getOrCreateCapacityBucket = <K>(
   buckets: Map<K, DemandBucket>,
   key: K,
 ): DemandBucket => {
@@ -115,9 +115,9 @@ const getOrCreateBucket = <K>(
   return bucket;
 };
 
-const addDemandToBucket = (
+export const addCapacityDemand = (
   bucket: DemandBucket,
-  listing: ListingCapacityRow,
+  listing: Pick<ListingCapacityRow, "listing_type">,
   item: BatchAvailabilityItem,
   date: string | null | undefined,
 ): void => {
@@ -148,7 +148,12 @@ const aggregateDemand = (
   for (const item of items) {
     const listing = listingsById.get(item.listingId)!;
     for (const key of keysFor(listing, item)) {
-      addDemandToBucket(getOrCreateBucket(buckets, key), listing, item, date);
+      addCapacityDemand(
+        getOrCreateCapacityBucket(buckets, key),
+        listing,
+        item,
+        date,
+      );
     }
   }
   return buckets;

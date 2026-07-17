@@ -140,6 +140,21 @@ const renderInsert = (
   };
 };
 
+/** Build one INSERT for several transfers while keeping the shared column plan. */
+export const insertManyStatement = (
+  inputs: TransferInput[],
+  recordedAt: string,
+): SqlStatement => {
+  const rows = inputs.map((input) => legColumns(input, recordedAt));
+  const first = rows[0]!;
+  return {
+    args: rows.flatMap((columns) => columns.flatMap((column) => column.args)),
+    sql: `INSERT INTO transfers (${first.map((column) => column.col).join(", ")}) VALUES ${rows
+      .map((columns) => `(${columns.map((column) => column.expr).join(", ")})`)
+      .join(", ")}`,
+  };
+};
+
 /** Build the INSERT for one transfer. `recordedAt` is the write-time clock. */
 export const insertStatement = (
   t: TransferInput,

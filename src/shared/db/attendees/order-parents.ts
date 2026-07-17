@@ -63,9 +63,9 @@ const inOrderParentByChild = async (
  * `orderToken` and exact `parentListingId`. This function skips recomputation
  * for those to preserve true multi-parent provenance.
  */
-export const annotateOrderParents = async (
-  bookings: ListingBooking[],
-): Promise<ListingBooking[]> => {
+export const annotateOrderParents = async <T extends ListingBooking>(
+  bookings: T[],
+): Promise<T[]> => {
   // Pre-expanded orders (expandChildAllocations path) already carry orderToken
   // and exact parentListingId. Skip the edge-based recomputation to preserve
   // true multi-parent provenance — recomputing would overwrite correct parent

@@ -6,6 +6,7 @@
  * method from this object at call time so those replacements take effect.
  */
 
+import { activateStagedAttendeeImpl } from "#shared/db/attendees/activate.ts";
 import { applyAttendeeAtomicEdit as applyAttendeeAtomicEditImpl } from "#shared/db/attendees/atomic-update.ts";
 import {
   checkBatchAvailabilityImpl,
@@ -19,6 +20,7 @@ import {
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
+  activateStagedAttendee: activateStagedAttendeeImpl,
   applyAttendeeAtomicEdit: applyAttendeeAtomicEditImpl,
   checkBatchAvailability: checkBatchAvailabilityImpl,
   createAttendeeAtomic: createAttendeeAtomicImpl,

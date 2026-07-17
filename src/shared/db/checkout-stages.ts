@@ -3,7 +3,7 @@ import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne, queryOnePrimary } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   PaymentProviderSchema,
@@ -31,6 +31,7 @@ export type CheckoutStage = {
   provider: PaymentProviderType;
   providerCheckoutId: string;
   state: CheckoutStageState;
+  ticketToken: string;
 };
 
 export type PendingCheckoutStage = {
@@ -38,6 +39,19 @@ export type PendingCheckoutStage = {
   provider: PaymentProviderType;
   providerCheckoutId: string;
 };
+
+const checkoutStage = (
+  row: v.InferOutput<typeof CheckoutStageRowSchema>,
+  ticketToken: string,
+): CheckoutStage => ({
+  attendeeId: row.attendee_id,
+  createdAt: row.created_at,
+  paymentSessionId: row.payment_session_id,
+  provider: row.provider,
+  providerCheckoutId: row.provider_checkout_id,
+  state: row.state,
+  ticketToken,
+});
 
 export const pendingCheckoutStageInsert = async (
   stage: PendingCheckoutStage,
@@ -77,14 +91,48 @@ export const findCheckoutStage = async (
   if ((await decrypt(row.ticket_tokens as EnvKeyEncrypted)) !== ticketToken) {
     return null;
   }
-  return {
-    attendeeId: row.attendee_id,
-    createdAt: row.created_at,
-    paymentSessionId: row.payment_session_id,
-    provider: row.provider,
-    providerCheckoutId: row.provider_checkout_id,
-    state: row.state,
-  };
+  return checkoutStage(row, ticketToken);
 };
 
-export const checkoutStagesApi = { find: findCheckoutStage };
+const checkoutStageFromRow = async (raw: unknown): Promise<CheckoutStage> => {
+  const row = v.parse(CheckoutStageRowSchema, raw);
+  return checkoutStage(
+    row,
+    await decrypt(row.ticket_tokens as EnvKeyEncrypted),
+  );
+};
+
+/** Load an open checkout stage from the primary by its payment session. */
+export const loadCheckoutStageByPaymentSession = async (
+  paymentSessionId: string,
+): Promise<CheckoutStage | null> => {
+  const row = await queryOnePrimary<unknown>(
+    `SELECT payment_session_id, attendee_id, provider, provider_checkout_id,
+            ticket_tokens, state, created_at
+       FROM checkout_stages WHERE payment_session_id = ?`,
+    [paymentSessionId],
+  );
+  return row === null ? null : checkoutStageFromRow(row);
+};
+
+/** Permanently route a pending stage toward refunding instead of activation. */
+const beginCheckoutStageRefund = async (
+  paymentSessionId: string,
+): Promise<void> => {
+  const result = await execute(
+    `UPDATE checkout_stages SET state = 'refunding'
+      WHERE payment_session_id = ? AND state = 'pending'`,
+    [paymentSessionId],
+  );
+  if (result.rowsAffected !== 1) {
+    throw new Error(
+      `Checkout stage ${paymentSessionId} did not enter refunding`,
+    );
+  }
+};
+
+export const checkoutStagesApi = {
+  beginRefund: beginCheckoutStageRefund,
+  find: findCheckoutStage,
+  loadByPaymentSession: loadCheckoutStageByPaymentSession,
+};

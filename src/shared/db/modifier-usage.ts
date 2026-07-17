@@ -95,6 +95,22 @@ export const usageInsert = (
         WHERE ${guard.sql}`,
 });
 
+/** Insert every chosen modifier use in one JSON-backed statement. */
+export const usageBatchInsert = (
+  usages: ModifierUsage[],
+  attendeeId: number,
+): SqlStatement => ({
+  args: [attendeeId, nowIso(), JSON.stringify(usages)],
+  sql: `INSERT INTO modifier_usages
+            (modifier_id, attendee_id, quantity, amount_applied, created)
+          SELECT CAST(json_extract(usage.value, '$.modifierId') AS INTEGER),
+                 ?,
+                 CAST(json_extract(usage.value, '$.quantity') AS INTEGER),
+                 CAST(json_extract(usage.value, '$.amountApplied') AS INTEGER),
+                 ?
+            FROM json_each(?) AS usage`,
+});
+
 /**
  * Whether any of these modifiers no longer has stock for its quantity — the
  * post-failure probe that tells a booking that failed to land *why*: a sold-out
