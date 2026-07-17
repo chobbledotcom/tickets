@@ -9,7 +9,9 @@
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
-import { CsrfForm, Flash, renderField } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
+import { renderField } from "#shared/forms/rendering.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { AdminSession } from "#shared/types.ts";

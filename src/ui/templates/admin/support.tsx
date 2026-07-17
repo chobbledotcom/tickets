@@ -8,7 +8,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, MessageFields } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { MessageFields } from "#shared/forms/message-fields.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";

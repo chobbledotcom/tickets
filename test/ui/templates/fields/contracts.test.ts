@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { Field } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
 import { AdminLevelSchema } from "#shared/types.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import {

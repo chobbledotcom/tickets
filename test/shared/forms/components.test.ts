@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { flashConsumed, runWithFlashContext } from "#shared/flash-context.ts";
-import { Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import { ConfirmForm } from "#templates/components/save-form.tsx";
 
 describe("Flash", () => {

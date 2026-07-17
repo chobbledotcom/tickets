@@ -44,7 +44,10 @@ import { assertSettingsReadsDeclared } from "#shared/db/settings-audit.ts";
 import { hasFlash, setFlashContext } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { takeForm } from "#shared/form-stash.ts";
-import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
+import {
+  clearSavedFormData,
+  setSavedFormData,
+} from "#shared/forms/saved-data.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import {
   createRequestTimer,

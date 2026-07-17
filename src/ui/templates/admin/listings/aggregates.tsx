@@ -6,7 +6,7 @@ import type {
   ListingAggregateRecalculation,
 } from "#shared/db/listings/aggregates.ts";
 import { isReadOnly } from "#shared/env.ts";
-import type { FieldValues } from "#shared/forms.tsx";
+import type { FieldValues } from "#shared/forms/values.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
   driftedRowItems,

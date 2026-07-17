@@ -5,7 +5,7 @@
  * date, and (for customisable daily listings) a day-count selector.
  */
 
-import { type Field, requireChoiceOptions } from "#shared/forms.tsx";
+import { type Field, requireChoiceOptions } from "#shared/forms/field.ts";
 import type { ListingFields } from "#shared/types.ts";
 import {
   getTicketFields,

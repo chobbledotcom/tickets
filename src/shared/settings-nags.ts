@@ -8,7 +8,7 @@ import type { NagItem } from "#shared/types.ts";
  * Items are returned in the order: payment-provider, business-email, domain.
  * An empty array means there are no pending nags.
  */
-export const getBaseSettingsNagItems = (): NagItem[] => {
+export const getSettingsNagItems = (): NagItem[] => {
   const items: NagItem[] = [];
 
   if (settings.paymentProviderSetting === null) {
@@ -44,10 +44,8 @@ export const getBaseSettingsNagItems = (): NagItem[] => {
   return items;
 };
 
-export const getSettingsNagItems = (): NagItem[] => getBaseSettingsNagItems();
-
 export const getSettingsNagItemsForOwner = async (): Promise<NagItem[]> => {
-  const items = getBaseSettingsNagItems();
+  const items = getSettingsNagItems();
   const superuser = await getSuperuserState();
   if (superuser.available && superuser.choice === "" && !superuser.activated) {
     items.push({

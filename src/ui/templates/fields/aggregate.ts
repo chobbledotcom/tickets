@@ -5,7 +5,7 @@
  */
 
 import { t } from "#i18n";
-import type { Field } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
 import { validateNonNegativeInteger } from "#templates/fields/validators.ts";
 
 export const aggregateIntegerField = (name: string, label: string): Field => ({

@@ -1,4 +1,4 @@
-import type { ChoiceField } from "#shared/forms.tsx";
+import type { ChoiceField } from "#shared/forms/field.ts";
 
 /**
  * A single on/off checkbox field: one option whose value is "1". The caller

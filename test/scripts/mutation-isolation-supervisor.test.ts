@@ -454,13 +454,11 @@ describe("mutation isolation supervisor commands", () => {
     await withTempDir(async (root) => {
       await writeFakeMutationScript(root, "await new Promise(() => {});\n");
 
-      const originalKill = Deno.kill;
       await withCapturedStopChild(async (getStopChild) => {
         const run = captureSimpleSnapshotMutation(root);
-        const record = await waitForRunningRecord(root);
+        await waitForRunningRecord(root);
 
         getStopChild()?.();
-        originalKill(record.pid!, "SIGKILL");
         await run;
 
         const finished = await readOnlyRunRecord(root);

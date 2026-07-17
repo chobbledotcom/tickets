@@ -6,7 +6,7 @@
  */
 
 import type { Child } from "#jsx/jsx-runtime.ts";
-import { CsrfForm } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
 
 export const SubmitForm = ({

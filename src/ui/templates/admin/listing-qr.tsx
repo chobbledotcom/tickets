@@ -11,7 +11,7 @@
 import { t } from "#i18n";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
-import { Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { QR_TOKEN_MAX_AGE_S } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";

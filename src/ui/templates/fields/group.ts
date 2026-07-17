@@ -10,7 +10,7 @@ import {
   type FormDefinition,
   type FormValues,
 } from "#shared/forms/definition.ts";
-import type { ChoiceField, Field, InputField } from "#shared/forms.tsx";
+import type { ChoiceField, Field, InputField } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import {

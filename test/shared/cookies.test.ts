@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { parseCookies } from "#routes/url.ts";
 import {
+  isSecureMode,
   resetEffectiveDomain,
   seedEffectiveDomainHost,
   setEffectiveDomainForTest,
@@ -12,7 +13,6 @@ import {
   clearFlashCookie,
   clearSessionCookie,
   getSessionCookieName,
-  isSecureMode,
   parseFlashValue,
 } from "#shared/cookies.ts";
 

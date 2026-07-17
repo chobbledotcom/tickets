@@ -8,7 +8,8 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { type Field, renderField, renderFields } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
+import { renderField, renderFields } from "#shared/forms/rendering.tsx";
 import { renderAddressLookupPanel } from "#templates/components/address-lookup.tsx";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";

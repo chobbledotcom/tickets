@@ -14,7 +14,7 @@ import {
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
-import type { Field } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 

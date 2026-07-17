@@ -6,7 +6,8 @@
  * way. Owning the button row here keeps those forms from each re-writing it.
  */
 
-import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { type IconName, SubmitButton } from "#templates/components/actions.tsx";

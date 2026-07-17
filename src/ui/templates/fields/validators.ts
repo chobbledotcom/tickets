@@ -17,7 +17,7 @@ import type {
   Field,
   InputField,
   TextareaField,
-} from "#shared/forms.tsx";
+} from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   firstIssueMessage,

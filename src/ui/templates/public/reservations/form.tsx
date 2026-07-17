@@ -9,12 +9,10 @@ import type { AttributeWithOptions } from "#shared/db/attributes.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { QuestionListingMap } from "#shared/db/questions/queries.ts";
-import {
-  CsrfForm,
-  type Field,
-  renderFields,
-  savedFormValue,
-} from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import type { Field } from "#shared/forms/field.ts";
+import { renderFields } from "#shared/forms/rendering.tsx";
+import { savedFormValue } from "#shared/forms/saved-data.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type {

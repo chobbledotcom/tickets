@@ -13,7 +13,7 @@ import type {
   AnswerAggregateRecalculation,
 } from "#shared/db/questions/aggregates.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { renderFields } from "#shared/forms.tsx";
+import { renderFields } from "#shared/forms/rendering.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { childEditPage } from "#templates/admin/child-edit-page.tsx";

@@ -37,6 +37,5 @@ export const BOOT_CHECKS: readonly BootCheck[] = [
 ];
 
 export const validateBootChecks = (): void => {
-  validateEncryptionKey();
-  validateOptionalMainInstanceKey();
+  for (const check of BOOT_CHECKS) check.run();
 };
