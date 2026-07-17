@@ -21,6 +21,3 @@ export interface ImageTarget {
   /** WebP quality 0–100 passed to the libwebp encoder. */
   quality: number;
 }
-
-/** MIME types the pipeline can decode (the accepted image-upload formats). */
-export type DecodableMime = "image/jpeg" | "image/png" | "image/webp";

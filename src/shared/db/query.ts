@@ -206,17 +206,6 @@ export const nameSource = <Raw>(
 export const envNameSource = (table: string, alias: string) =>
   nameSource(table, alias, "name", (raw: EnvKeyEncrypted) => decrypt(raw));
 
-/** Decrypt a row's `name` and `slug` — the pair the news-summary and listing
- * catalog projections both need before display. `decryptValue` keeps this
- * decryption-agnostic, like the name-map helpers above. */
-export const decryptNameSlug = async <Raw>(
-  row: { name: Raw; slug: Raw },
-  decryptValue: Decryptor<Raw>,
-): Promise<{ name: string; slug: string }> => ({
-  name: await decryptValue(row.name),
-  slug: await decryptValue(row.slug),
-});
-
 /**
  * Map each row's `id` to one of its columns (`id → column`) for the rows of
  * `table` whose id is in `ids`, optionally narrowed by an extra `where`

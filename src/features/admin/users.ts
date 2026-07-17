@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
 
-import { mapBy } from "#fp";
+import { fieldById } from "#fp";
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin user management routes - owner only
@@ -92,7 +92,7 @@ const wrapInviteDataKey = async (
  * assignments to display names. */
 const loadAgentNameById = async (): Promise<Map<number, string>> => {
   const agents = await loadAssignableAgents();
-  return mapBy("id", (agent: LogisticsAgent) => agent.name)(agents);
+  return fieldById("name")(agents);
 };
 
 /** Resolve the chosen `agent_ids` from a form down to the ids that are real

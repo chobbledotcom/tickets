@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { resetSentryForTest } from "#shared/sentry.ts";
 import {
   expectFlash,
   expectRedirect,
@@ -11,6 +10,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { resetSentry } from "#test-utils/sentry.ts";
 import {
   adminFormPost,
   adminGet,
@@ -35,7 +35,7 @@ const sendAcceptedSentryTest = async (
     const { response } = await adminFormPost("/admin/debug/sentry");
     return { requests: fetchStub.calls.length, response };
   } finally {
-    resetSentryForTest();
+    resetSentry();
   }
 };
 
@@ -87,7 +87,7 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
         false,
       );
     } finally {
-      resetSentryForTest();
+      resetSentry();
     }
   });
 
@@ -104,7 +104,7 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
       );
       expect(fetchStub.calls.length).toBe(1);
     } finally {
-      resetSentryForTest();
+      resetSentry();
     }
   });
 

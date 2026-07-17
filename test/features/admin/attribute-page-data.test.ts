@@ -5,7 +5,7 @@ import {
   optionListingCounts,
 } from "#routes/admin/attribute-page-data.ts";
 import type { AttributeOption } from "#shared/db/attributes.ts";
-import type { ListingOption } from "#shared/db/listings/records.ts";
+import type { ListingOption } from "#shared/db/listings/table.ts";
 
 const option = (id: number, text: string): AttributeOption => ({
   attribute_id: 1,

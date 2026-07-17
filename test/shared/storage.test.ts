@@ -344,8 +344,19 @@ describeWithEnv(
       });
 
       test("detects WebP from magic bytes", () => {
-        const data = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x00]);
+        const data = new Uint8Array([
+          0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42,
+          0x50,
+        ]);
         expect(detectImageType(data)).toBe("image/webp");
+      });
+
+      test("rejects a non-WebP RIFF container", () => {
+        const wave = new Uint8Array([
+          0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56,
+          0x45,
+        ]);
+        expect(detectImageType(wave)).toBeNull();
       });
 
       test("returns null for unknown bytes", () => {
@@ -428,8 +439,13 @@ describeWithEnv(
             .valid,
         ).toBe(true);
         expect(
-          validateImage(new Uint8Array([0x52, 0x49, 0x46, 0x46]), "image/webp")
-            .valid,
+          validateImage(
+            new Uint8Array([
+              0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42,
+              0x50,
+            ]),
+            "image/webp",
+          ).valid,
         ).toBe(true);
       });
 

@@ -2,7 +2,7 @@
   "settings.title": "Settings",
   "settings.guide_link": "Settings guide",
   "settings.header_image": "Header Image",
-  "settings.header_image_hint": "An optional image displayed at the top of every page. JPEG, PNG, GIF, or WebP — max {size}.",
+  "settings.header_image_hint": "An optional image displayed at the top of every page. Use JPEG, PNG, or WebP. Maximum size: {size}.",
   "settings.replace_image": "Replace Image",
   "settings.upload_image": "Upload Image",
   "settings.upload": "Upload",

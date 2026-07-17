@@ -9,7 +9,7 @@
  * lives here and is exercised by plain-object unit tests.
  */
 
-import { identity, mapBy } from "#fp";
+import { identity, mapById } from "#fp";
 import type {
   Forest,
   NavModel,
@@ -65,7 +65,7 @@ export const buildForest = (
   pages: readonly SitePageNavRow[],
   items: readonly SitePageItem[],
 ): Forest => {
-  const byId = mapBy("id", identity<SitePageNavRow>)(pages);
+  const byId = mapById(identity<SitePageNavRow>)(pages);
 
   const itemsByPage = new Map<number, SitePageItem[]>();
   for (const item of items) {

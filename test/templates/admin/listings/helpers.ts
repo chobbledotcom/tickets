@@ -1,9 +1,8 @@
 import { afterEach, beforeAll } from "@std/testing/bdd";
-import { mapBy } from "#fp";
+import { fieldById } from "#fp";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
-import type { Attendee } from "#shared/types.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
 import {
   ListingOverviewPanel,
@@ -47,10 +46,7 @@ export const renderListingDetail = (
       // The Overview now takes precomputed stats + note-author names instead of
       // the raw attendee list; derive them from the fixture's attendees so these
       // tests exercise the same rendered output the SQL path produces.
-      noteNames: mapBy(
-        "id",
-        (attendee: Attendee) => attendee.name,
-      )(opts.attendees),
+      noteNames: fieldById("name")(opts.attendees),
       questionData: opts.questionData,
       stats: overviewStatsFromAttendees(
         opts.listing,

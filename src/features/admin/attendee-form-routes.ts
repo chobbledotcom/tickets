@@ -21,7 +21,7 @@
  */
 
 /* jscpd:ignore-start */
-import { identity, mapBy } from "#fp";
+import { identity, mapById } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
@@ -209,10 +209,9 @@ const handleSubmitInner = async (
     selectedTextAnswers,
   } = edit;
 
-  const listingsById = mapBy(
-    "id",
-    identity<ListingWithCount>,
-  )(await getAllListings());
+  const listingsById = mapById(identity<ListingWithCount>)(
+    await getAllListings(),
+  );
   // Coerce a missing/blank status back to the public default (the form offers
   // no "no status" choice) — the same resolver the template pre-selects with.
   const statuses = await attendeeStatuses.getAll();

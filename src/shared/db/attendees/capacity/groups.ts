@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { mapBy, unique } from "#fp";
+import { mapBy, mapById, unique } from "#fp";
 import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
@@ -130,7 +130,7 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
     [...cappedIds, endAt, startAt],
   );
   const rowsByGroup = Map.groupBy(rows, (row) => row.group_id);
-  return mapBy("id", ({ id, max_attendees, base }: (typeof caps)[number]) => {
+  return mapById(({ id, max_attendees, base }: (typeof caps)[number]) => {
     const loads = perDayLoads(rowsByGroup.get(id) ?? [], days);
     return new Map(
       days.map((day) => [day, max_attendees - base - loads.get(day)!]),

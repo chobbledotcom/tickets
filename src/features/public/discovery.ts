@@ -6,7 +6,7 @@
  * booked. The final date-specific check still happens when the buyer submits.
  */
 
-import { identity, mapBy, mapNotNullish, unique } from "#fp";
+import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   buildTicketListing,
@@ -214,7 +214,7 @@ export const classifyForDiscovery = async (
   ]);
   const { childrenByParent, parentIdsByChild, parentsByChild } = links;
   const childIds = listingIdsWithLinks(parentIdsByChild);
-  const listingById = mapBy("id", identity<ListingWithCount>)(listings);
+  const listingById = mapById(identity<ListingWithCount>)(listings);
   const everyChild = [...childrenByParent.values()].flat();
   // Displayed children whose add-on label we are deciding (keys of parentsByChild
   // are among the displayed `ids`, so they are in `listingById`). Their own group-remaining

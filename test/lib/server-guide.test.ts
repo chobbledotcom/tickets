@@ -44,7 +44,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("contains booking questions section", async () => {
       await guide(
-        "Booking Questions",
+        "Booking questions",
         "multiple-choice",
         "must select one",
         "shared across multiple listings",
@@ -53,7 +53,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains public links section", async () => {
-      await guide("Public Links", "Facebook Sharing Debugger");
+      await guide("Public links", "Facebook Sharing Debugger");
     });
 
     test("contains payment provider recommendation", async () => {
@@ -117,7 +117,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains public site section", async () => {
-      await guide("Public Site", "homepage and contact page");
+      await guide("Public site", "homepage and contact page");
     });
 
     test("contains login security section", async () => {
@@ -158,7 +158,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     });
 
     test("contains settings overview section", async () => {
-      await guide("Settings Overview", "Business email", "Site theme");
+      await guide("Settings overview", "Business email", "Site theme");
     });
 
     test("contains listing image, duplicate, and deactivate info", async () => {

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   compact,
+  fieldById,
   filter,
   firstProblem,
   flatMap,
@@ -10,6 +11,7 @@ import {
   joinStrings,
   map,
   mapBy,
+  mapById,
   partition,
   pipe,
   requiredMapValue,
@@ -232,7 +234,8 @@ describe("fp collections", () => {
     type Item = { code: string; id: number; name: string };
 
     const namesByCode = mapBy("code", (item: Item) => item.name);
-    const itemsById = mapBy("id", identity<Item>);
+    const itemsById = mapById(identity<Item>);
+    const namesById = fieldById("name");
 
     test("indexes chosen values by chosen keys", () => {
       expect(
@@ -255,6 +258,20 @@ describe("fp collections", () => {
       expect(indexed.get(1)).toBe(first);
       expect(indexed.get(2)).toBe(second);
       expect(indexed.size).toBe(2);
+    });
+
+    test("indexes one field by id", () => {
+      expect(
+        namesById([
+          { code: "a", id: 1, name: "First" },
+          { code: "b", id: 2, name: "Second" },
+        ]),
+      ).toEqual(
+        new Map([
+          [1, "First"],
+          [2, "Second"],
+        ]),
+      );
     });
 
     test("keeps first key order while later duplicate values win", () => {

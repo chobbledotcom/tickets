@@ -6,7 +6,7 @@
  * trigger fires before the strings are recreated).
  */
 
-import { unique } from "#fp";
+import { fieldById, unique } from "#fp";
 import {
   inPlaceholders,
   resultRows,
@@ -46,7 +46,7 @@ const questionIdsByAnswerIdTx = async (
       sql: `SELECT answer.id, answer.question_id FROM answers AS answer WHERE answer.id IN (${inPlaceholders(answerIds)})`,
     }),
   );
-  return new Map(rows.map((row) => [row.id, row.question_id]));
+  return fieldById("question_id")(rows);
 };
 
 const dedupeByQuestion = <T extends { questionId: number }>(

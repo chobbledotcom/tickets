@@ -12,9 +12,8 @@
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
+import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import {
-  queryAll,
   queryOne,
   resultRows,
   type TxScope,
@@ -31,7 +30,12 @@ import {
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import { cachedTable, col, writeTableRow } from "#shared/db/table.ts";
+import {
+  cachedTable,
+  col,
+  defineTableProjection,
+  writeTableRow,
+} from "#shared/db/table.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePage, SitePageNavRow } from "#shared/types.ts";
 /* jscpd:ignore-end */
@@ -52,27 +56,20 @@ const rawSitePagesTable = defineIdTable<SitePage, SitePageInput>("site_pages", {
   sort_order: col.simple<number>(),
 });
 
+const sitePageNavProjection = defineTableProjection(rawSitePagesTable, [
+  "id",
+  "slug",
+  "name",
+  "sort_order",
+]);
+
 /** Load the nav projection: only id/slug/name/sort_order, decrypting just slug
  * and name (never content/meta). Ordered by (sort_order, id). The raw row
  * carries name and slug still sealed; the map below opens them. */
-const fetchNavRows = async (): Promise<SitePageNavRow[]> => {
-  const rows = await queryAll<
-    Omit<SitePageNavRow, "name" | "slug"> & {
-      name: EnvKeyEncrypted;
-      slug: EnvKeyEncrypted;
-    }
-  >(
-    "SELECT id, slug, name, sort_order FROM site_pages ORDER BY sort_order ASC, id ASC",
+const fetchNavRows = (): Promise<SitePageNavRow[]> =>
+  sitePageNavProjection.queryAll(
+    `SELECT ${sitePageNavProjection.columnsSql()} FROM site_pages ORDER BY sort_order ASC, id ASC`,
   );
-  return Promise.all(
-    rows.map(async (r) => ({
-      id: r.id,
-      name: await decrypt(r.name),
-      slug: await decrypt(r.slug),
-      sort_order: r.sort_order,
-    })),
-  );
-};
 
 // Request-scoped cache over the projection: computed once per request, fresh on
 // the next request (no cross-isolate staleness), and auto-cleared on any write

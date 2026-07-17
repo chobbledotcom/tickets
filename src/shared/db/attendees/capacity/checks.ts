@@ -1,5 +1,5 @@
 import type { InValue } from "@libsql/client";
-import { identity, map, mapBy } from "#fp";
+import { identity, map, mapById } from "#fp";
 import { capacityDateFor, countsPerDate } from "#shared/capacity-rules.ts";
 import type {
   BatchAvailabilityItem,
@@ -171,7 +171,7 @@ export const checkBatchAvailabilityImpl = async (
       WHERE listing.id IN (${inPlaceholders(listingIds)})`,
     listingIds,
   );
-  const listingsById = mapBy("id", identity<ListingCapacityRow>)(listingRows);
+  const listingsById = mapById(identity<ListingCapacityRow>)(listingRows);
   if (items.some((item) => !listingsById.has(item.listingId))) return false;
 
   const membership = await listingGroups.getIdsByKeys(listingIds);

@@ -8,8 +8,9 @@
  */
 
 import { decodeImage, encodeWebp } from "./codecs.ts";
+import type { DecodableMime } from "./formats.ts";
 import { resizeToMaxWidth } from "./resize.ts";
-import type { DecodableMime, ImageTarget } from "./types.ts";
+import type { ImageTarget } from "./types.ts";
 
 /**
  * Turns one uploaded image (its bytes plus mime) and a list of size/quality

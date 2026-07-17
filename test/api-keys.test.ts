@@ -17,6 +17,11 @@ import {
   touchApiKeyLastUsed,
 } from "#shared/db/api-keys.ts";
 import { getDb, insert } from "#shared/db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import {
@@ -161,6 +166,20 @@ describeWithEnv("API Keys", { db: true }, () => {
       const found = await getApiKeyForUser(id, 1);
       expect(found).not.toBeNull();
       expect(found!.name).toBe("Lookup Key");
+    });
+
+    test("display reads select only the API key fields they return", async () => {
+      const { id } = await createTestApiKeyFull("Narrow read");
+
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        await getApiKeysForUser(1);
+        await getApiKeyForUser(id, 1);
+        expect(getQueryLog().map((entry) => entry.sql)).toEqual([
+          "SELECT id, name, created, last_used FROM api_keys WHERE user_id = ? ORDER BY id ASC",
+          "SELECT id, name FROM api_keys WHERE id = ? AND user_id = ?",
+        ]);
+      });
     });
 
     test("getApiKeyForUser throws for wrong user", async () => {
