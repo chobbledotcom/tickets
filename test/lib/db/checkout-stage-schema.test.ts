@@ -6,6 +6,7 @@ import dropCheckoutStageRevisionsMigration from "#shared/db/migrations/2026-07-1
 import checkoutStageProviderIdMigration from "#shared/db/migrations/2026-07-17_checkout_stage_provider_id.ts";
 import {
   applySchemaChanges,
+  recreateTable,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
 import { additive } from "#shared/db/migrations/verify.ts";
@@ -18,6 +19,7 @@ const LEGACY_TRIGGER_NAMES = ["insert", "update", "delete"].map(
 
 const context = buildMigrationContext({
   applySchemaChanges,
+  recreateTable,
   syncIndexes,
 });
 const cleanupContext = buildMigrationContext({ additive });
@@ -162,11 +164,9 @@ describeWithEnv(
       });
     });
 
-    test("the provider id migration declares and adds its required column", async () => {
+    test("the current-version migration discards old stages and rebuilds the constrained schema", async () => {
       const migration = checkoutStageProviderIdMigration(context);
-      expect(migration.requires).toEqual({
-        columns: { checkout_stages: ["provider_checkout_id"] },
-      });
+      expect(migration.requires).toEqual({});
       await getDb().execute("DROP TABLE checkout_stages");
       await getDb().execute(`CREATE TABLE checkout_stages (
         payment_session_id TEXT PRIMARY KEY NOT NULL,
@@ -176,6 +176,9 @@ describeWithEnv(
         state TEXT NOT NULL,
         created_at TEXT NOT NULL
       )`);
+      await getDb().execute(`INSERT INTO checkout_stages
+        (payment_session_id, attendee_id, provider, ticket_tokens, state, created_at)
+        VALUES ('old-stage', 42, 'stripe', 'encrypted', 'booked', '2026-07-16T12:00:00Z')`);
 
       await migration.up();
       await migration.verify();
@@ -184,9 +187,26 @@ describeWithEnv(
         "PRAGMA table_info(checkout_stages)",
       );
       expect(
-        columns.rows.some((row) => row.name === "provider_checkout_id"),
-      ).toBe(true);
+        columns.rows.find((row) => row.name === "provider_checkout_id"),
+      ).toMatchObject({ notnull: 1, type: "TEXT" });
+      const rows = await getDb().execute(
+        "SELECT payment_session_id FROM checkout_stages",
+      );
+      expect(rows.rows).toEqual([]);
     });
+
+    for (const state of ["booked", "failed", "unknown"]) {
+      test(`the checkout stage schema rejects ${state} state`, async () => {
+        await expect(
+          getDb().execute({
+            args: [`session-${state}`, state],
+            sql: `INSERT INTO checkout_stages
+              (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, state, created_at)
+              VALUES (?, 42, 'stripe', 'checkout-1', 'encrypted', ?, '2026-07-17T12:00:00Z')`,
+          }),
+        ).rejects.toThrow();
+      });
+    }
 
     test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {
       await getDb().execute(

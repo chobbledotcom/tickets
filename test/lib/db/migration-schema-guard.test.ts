@@ -90,7 +90,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-16_drop_checkout_stage_revisions",
         "2026-07-17_checkout_stage_provider_id",
       ],
-      schemaHash: "kd793",
+      schemaHash: "1e43g5a",
     });
   });
 });

@@ -64,9 +64,11 @@ describeWithEnv(
       // data test), listing_image_thumb (historically added a column that
       // first_class_images now drops), remove_broken_image_records (data-only;
       // covered by its own data test), and removal-only migrations whose
-      // absent-table checks cannot be rebuilt by a restore case. enabled_features
-      // now owns the triggers that keep saved feature data and visibility in step.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 19);
+      // absent-table checks cannot be rebuilt by a restore case. The checkout
+      // stage runtime rebuild is destructive by design and owns no additive
+      // object. enabled_features now owns the triggers that keep saved feature
+      // data and visibility in step.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 20);
     });
 
     test("restores triggers attached to a dropped table", async () => {

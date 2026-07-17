@@ -149,6 +149,7 @@ describeWithEnv("db > abandoned checkout stages", { db: true }, () => {
     });
 
     test("processes exactly the fixed cleanup bound", async () => {
+      expect(checkoutStagesApi.cleanupLimit).toBe(4);
       const ids = await Promise.all(
         Array.from({ length: checkoutStagesApi.cleanupLimit + 1 }, (_, index) =>
           addStage(`bounded-${index}`),

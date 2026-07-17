@@ -4,7 +4,10 @@
  * ours before anything downstream processes or refunds it.
  */
 
-import { closeStageAndShowCancelPage } from "#routes/api/payment-processing/cancel.ts";
+import {
+  cancelPageResponse,
+  closeStageForCancel,
+} from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type {
   BookingIntent,
@@ -16,6 +19,7 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   getActivePaymentProvider,
+  type PaymentProvider,
   type ValidatedPaymentSession,
 } from "#shared/payments.ts";
 
@@ -135,14 +139,18 @@ export const validatePaidSession = async (
   // URL for every outcome, so a card decline lands here. Show the friendly
   // cancel/try-again page, not a "contact support" error.
   if (session.paymentStatus === "failed") {
-    return {
-      ok: false,
-      response: await closeStageAndShowCancelPage(
-        session,
-        provider,
-        logRedirectError,
-      ),
-    };
+    const closeResult = await closeStageForCancel(
+      session,
+      provider,
+      logRedirectError,
+    );
+    if (closeResult !== "paid") {
+      return {
+        ok: false,
+        response: await cancelPageResponse(session, logRedirectError),
+      };
+    }
+    return validateRefreshedPaidSession(sessionId, provider);
   }
 
   if (session.paymentStatus !== "paid") {
@@ -157,13 +165,41 @@ export const validatePaidSession = async (
     };
   }
 
+  return validateConfirmedPaidSession(session);
+};
+
+/** Re-read provider state after close reports that payment won the race. */
+export const validateRefreshedPaidSession = async (
+  sessionId: string,
+  provider: PaymentProvider,
+): Promise<SessionValidation> => {
+  const session = await provider.retrieveSession(sessionId);
+  if (session?.paymentStatus !== "paid") {
+    logRedirectError(
+      `Paid checkout not yet readable (session=${sessionId}, status=${session?.paymentStatus ?? "missing"})`,
+    );
+    return {
+      ok: false,
+      response: paymentErrorResponse(
+        "Payment verification failed. Please try again.",
+        503,
+      ),
+    };
+  }
+  return validateConfirmedPaidSession(session);
+};
+
+/** Validate a session whose provider close operation has just confirmed payment. */
+export const validateConfirmedPaidSession = async (
+  session: ValidatedPaymentSession,
+): Promise<SessionValidation> => {
   // Only a session carrying a valid price proof is provably ours. Without one we
   // cannot prove ownership (foreign instance sharing the provider, replayed or
   // corrupt data), so we neither process nor refund it — refunding an
   // unverifiable session could refund another instance's payment.
   const classified = await classifySessionIntent(session);
   if (classified === null) {
-    logRedirectError(`Unrecognized payment session (session=${sessionId})`);
+    logRedirectError(`Unrecognized payment session (session=${session.id})`);
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not recognized"),

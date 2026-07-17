@@ -83,17 +83,15 @@ export const cancelPageResponse = async (
   return htmlResponse(paymentCancelPage(listing, retryHref));
 };
 
-/** Close and clear a staged checkout, but keep the useful retry page on a
- * provider outage. The pending row remains for scheduled cleanup to retry. */
-export const closeStageAndShowCancelPage = async (
+/** Close and clear a staged checkout. A paid close stays distinct so the route
+ * can process the payment. Provider errors keep the stage for scheduled retry. */
+export const closeStageForCancel = async (
   session: ValidatedPaymentSession,
   provider: PaymentProvider,
   logFailure: CancelLog,
-): Promise<Response> => {
-  await tryCloseAndPurgeCheckoutStageBySession(session.id, provider, (error) =>
+): Promise<"error" | "kept" | "missing" | "paid" | "purged"> =>
+  tryCloseAndPurgeCheckoutStageBySession(session.id, provider, (error) =>
     logFailure(
       `Could not close checkout stage ${session.id}: ${String(error)}`,
     ),
   );
-  return cancelPageResponse(session, logFailure);
-};

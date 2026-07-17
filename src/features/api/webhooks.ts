@@ -15,11 +15,15 @@
  */
 
 import { unique } from "#fp";
-import { closeStageAndShowCancelPage } from "#routes/api/payment-processing/cancel.ts";
+import {
+  cancelPageResponse,
+  closeStageForCancel,
+} from "#routes/api/payment-processing/cancel.ts";
 import {
   classifySessionIntent,
   paymentSessionErrorLogger,
   validatePaidSession,
+  validateRefreshedPaidSession,
 } from "#routes/api/payment-processing/classify.ts";
 import {
   formatPaymentError,
@@ -113,8 +117,11 @@ const singleListingThankYou = async (listingId: number): Promise<string> => {
 
 const processSessionAndRedirect = async (
   sessionId: string,
+  refreshProvider?: Parameters<typeof validateRefreshedPaidSession>[1],
 ): Promise<Response> => {
-  const validation = await validatePaidSession(sessionId);
+  const validation = refreshProvider
+    ? await validateRefreshedPaidSession(sessionId, refreshProvider)
+    : await validatePaidSession(sessionId);
   if (!validation.ok) return validation.response;
 
   // A parent booking carries an explicit thank-you URL through its signed
@@ -251,7 +258,14 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return processSessionAndRedirect(sid);
   }
 
-  return closeStageAndShowCancelPage(session, provider, logCancelError);
+  const closeResult = await closeStageForCancel(
+    session,
+    provider,
+    logCancelError,
+  );
+  return closeResult === "paid"
+    ? processSessionAndRedirect(sid, provider)
+    : cancelPageResponse(session, logCancelError);
 });
 
 /**

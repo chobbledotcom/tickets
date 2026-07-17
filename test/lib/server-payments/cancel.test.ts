@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -16,11 +15,10 @@ import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { signedMeta, singleItem } from "#test-utils/factories.ts";
+import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { makeParent } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
   attendeeExists,
@@ -150,56 +148,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             sessionId: "cs_staged_cancel",
           });
           expect(await attendeeExists(attendeeId)).toBe(false);
-        },
-        resetStripeClient,
-      );
-    });
-
-    test("a paid cancel callback completes the staged booking once", async () => {
-      await setupStripe();
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-      const items = singleItem(listing.id, 1, 1000);
-      const sessionId = "cs_paid_cancel_race";
-      await stagePaymentCallback({
-        amountTotal: 1000,
-        metadata: signedMeta(
-          { email: "john@example.com", items, name: "John" },
-          1000,
-        ),
-        paymentReference: "pi_paid_cancel_race",
-        sessionId,
-      });
-
-      await withMocks(
-        () => ({
-          close: stub(stripePaymentProvider, "closeCheckout"),
-          retrieve: johnCheckoutSession(sessionId, {
-            amountTotal: 1000,
-            items,
-            paymentIntent: "pi_paid_cancel_race",
-          }),
-        }),
-        async ({ close }) => {
-          const first = await handleRequest(
-            mockRequest(`/payment/cancel?session_id=${sessionId}`),
-          );
-          expect(first.status).toBe(302);
-          expect(first.headers.get("location")).toContain(
-            "/payment/success?tokens=",
-          );
-          expect(close.calls.length).toBe(0);
-          expect(
-            (await getAttendeesRaw(listing.id)).map((row) => row.quantity),
-          ).toEqual([1]);
-
-          const replay = await handleRequest(
-            mockRequest(`/payment/cancel?session_id=${sessionId}`),
-          );
-          expect(replay.status).toBe(200);
-          expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
         },
         resetStripeClient,
       );

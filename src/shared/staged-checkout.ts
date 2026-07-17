@@ -37,12 +37,12 @@ const CHECKOUT_STAGE_RETENTION_MS = 48 * 60 * 60 * 1000;
 export const closeAndPurgeCheckoutStage = async (
   stage: CheckoutStageCleanup,
   provider: PaymentProvider,
-): Promise<"kept" | "purged"> => {
+): Promise<"kept" | "paid" | "purged"> => {
   const result = await provider.closeCheckout({
     providerCheckoutId: stage.providerCheckoutId,
     sessionId: stage.paymentSessionId,
   });
-  if (result === "paid") return "kept";
+  if (result === "paid") return "paid";
   return (await checkoutStagesApi.purgePending(stage)) ? "purged" : "kept";
 };
 
@@ -50,7 +50,7 @@ export const closeAndPurgeCheckoutStage = async (
 export const closeAndPurgeCheckoutStageBySession = async (
   paymentSessionId: string,
   provider: PaymentProvider,
-): Promise<"kept" | "missing" | "purged"> => {
+): Promise<"kept" | "missing" | "paid" | "purged"> => {
   const stage = await checkoutStagesApi.loadByPaymentSession(paymentSessionId);
   if (stage === null) return "missing";
   if (stage.provider !== provider.type) {
@@ -68,11 +68,15 @@ export const tryCloseAndPurgeCheckoutStageBySession = async (
   paymentSessionId: string,
   provider: PaymentProvider,
   onError: (error: unknown) => void,
-): Promise<void> => {
+): Promise<"error" | "kept" | "missing" | "paid" | "purged"> => {
   try {
-    await closeAndPurgeCheckoutStageBySession(paymentSessionId, provider);
+    return await closeAndPurgeCheckoutStageBySession(
+      paymentSessionId,
+      provider,
+    );
   } catch (error) {
     onError(error);
+    return "error";
   }
 };
 

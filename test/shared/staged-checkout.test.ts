@@ -1,3 +1,4 @@
+import type { TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -225,13 +226,44 @@ describeWithEnv("staged checkout", { db: true }, () => {
         [first.id],
       );
       expect(capacity!.booked_quantity).toBe(0);
-      await getDb().execute({
-        args: [createdSession.sessionId],
-        sql: "UPDATE checkout_stages SET state = 'booked' WHERE payment_session_id = ?",
+    } finally {
+      create.restore();
+    }
+  });
+
+  test("reads a freshly stored stage from the primary", async () => {
+    const listing = await createTestListing();
+    const create = stub(stripePaymentProvider, "createCheckoutSession", () =>
+      Promise.resolve(createdSession),
+    );
+    try {
+      expect(
+        await stagedCheckout([{ listingId: listing.id, quantity: 1 }]),
+      ).toMatchObject({ type: "checkout" });
+      const stage = await queryOne<{ attendee_id: number }>(
+        "SELECT attendee_id FROM checkout_stages WHERE payment_session_id = ?",
+        [createdSession.sessionId],
+      );
+      const token = await attendeeToken(stage!.attendee_id);
+      const client = getDb();
+      const originalBatch = client.batch.bind(client);
+      const modes: TransactionMode[] = [];
+      const batch = stub(client, "batch", (statements, mode) => {
+        modes.push(mode ?? "deferred");
+        return originalBatch(statements, mode);
       });
-      await expect(
-        findCheckoutStage(createdSession.sessionId, stage!.attendee_id, token),
-      ).rejects.toThrow();
+      try {
+        expect(
+          await findCheckoutStage(
+            createdSession.sessionId,
+            stage!.attendee_id,
+            token,
+          ),
+        ).toMatchObject({ paymentSessionId: createdSession.sessionId });
+        expect(modes).toEqual(["write"]);
+      } finally {
+        batch.restore();
+      }
     } finally {
       create.restore();
     }

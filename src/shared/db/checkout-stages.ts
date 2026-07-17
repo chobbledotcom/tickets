@@ -8,7 +8,6 @@ import { attendeeOwnedDeleteStatements } from "#shared/db/attendees/delete.ts";
 import {
   execute,
   queryAll,
-  queryOne,
   queryOnePrimary,
   withTransaction,
 } from "#shared/db/client.ts";
@@ -56,7 +55,10 @@ export type PendingCheckoutStage = {
   providerCheckoutId: string;
 };
 
-const CHECKOUT_STAGE_CLEANUP_LIMIT = 8;
+// One selected stage can cost five subrequests: provider close, transaction
+// begin, claim, delete batch, and commit. Four stages plus the selection cost 21,
+// leaving 29 of Bunny's 50 for scheduled markers, other tasks, and route work.
+const CHECKOUT_STAGE_CLEANUP_LIMIT = 4;
 
 export const checkoutStageClaimStatement = (
   stage: Pick<CheckoutStage, "attendeeId" | "paymentSessionId">,
@@ -126,7 +128,7 @@ export const findCheckoutStage = async (
   attendeeId: number,
   ticketToken: string,
 ): Promise<CheckoutStage | null> => {
-  const raw = await queryOne<unknown>(
+  const raw = await queryOnePrimary<unknown>(
     `SELECT payment_session_id, attendee_id, provider, provider_checkout_id,
             ticket_tokens, state, created_at
        FROM checkout_stages
