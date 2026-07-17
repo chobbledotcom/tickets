@@ -24,7 +24,7 @@ import {
   type EntityPage,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
-import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
+import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
@@ -191,12 +191,12 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
   navActive: { section: "/admin/listings" },
   tabs: [
     overviewTab,
-    {
-      labelKey: "entity.tab.attendees",
-      sections: [{ kind: "custom", load: loadListingRosterPanel }],
-      slug: "attendees",
-      visible: staffOnly,
-    },
+    panelTab(
+      "attendees",
+      "entity.tab.attendees",
+      loadListingRosterPanel,
+      staffOnly,
+    ),
     {
       // The scanner is served by its own route (GET /admin/listing/:id/scanner,
       // scanner.ts) rather than this tab framework's section loaders — the

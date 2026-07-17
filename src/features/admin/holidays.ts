@@ -4,7 +4,6 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { entityValuesEditErrorRenderer } from "#routes/admin/entity-pages.ts";
 import { handlersFor } from "#routes/admin/handlers.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
@@ -17,7 +16,6 @@ import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   adminHolidaysPage,
   getHolidayPages,
-  HolidayEditPanel,
 } from "#templates/admin/holidays.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 import { holidayPage } from "./holiday-page.ts";
@@ -59,11 +57,7 @@ export const holidaysCrud = createOwnerCrudHandlers({
   getRowPath: (holiday) => holidayPage.path(holiday.id),
   listPath: "/admin/holidays",
   renderDelete: (...args) => getHolidayPages().deletePage(...args),
-  renderEditError: entityValuesEditErrorRenderer(
-    () => holidayPage,
-    (holiday, _ctx, values, error) =>
-      HolidayEditPanel({ error, holiday, values }),
-  ),
+  renderEditError: holidayPage.renderEditError,
   renderList: adminHolidaysPage,
   renderNew: (...args) => getHolidayPages().newPage(...args),
   resource: holidaysResource,

@@ -1,8 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { renderListingEditError } from "#routes/admin/listings-edit.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { FormParams } from "#shared/form-data.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -87,6 +89,31 @@ describeWithEnv(
           response,
           400,
           "Selected group does not exist",
+        );
+      });
+
+      test("renders a rejected edit directly with its submitted groups", async () => {
+        const group = await createTestGroup({ name: "Direct group" });
+        const { listing } = await setupListingAndLogin({ name: "Direct edit" });
+        const response = await renderListingEditError(
+          listing.id,
+          {
+            adminLevel: "owner",
+            token: "test",
+            userId: 1,
+            wrappedDataKey: null,
+          },
+          new FormParams({ group_ids: String(group.id) }),
+          "Direct rejection",
+        );
+
+        const html = await expectHtmlResponse(
+          response,
+          400,
+          "Direct rejection",
+        );
+        expect(html).toContain(
+          `checked name="group_ids" type="checkbox" value="${group.id}"`,
         );
       });
 

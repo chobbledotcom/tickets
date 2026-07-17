@@ -37,12 +37,7 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
-import {
-  AttendeeStatusEditPanel,
-  adminAttendeeStatusesPage,
-  adminAttendeeStatusNewPage,
-  statusPages,
-} from "#templates/admin/settings-statuses.tsx";
+import { statusPages } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
 
 /* jscpd:ignore-end */
@@ -112,16 +107,11 @@ const DELETE_ERRORS: Record<AttendeeStatusDeleteError, string> = {
 const listGet = ownerPage(async (session) => {
   const statuses = await attendeeStatuses.getAll();
   const flash = getFlash();
-  return adminAttendeeStatusesPage(
-    statuses,
-    session,
-    flash.error,
-    flash.success,
-  );
+  return statusPages.listPage(statuses, session, flash.error, flash.success);
 });
 
 const newGet = ownerPage((session) =>
-  adminAttendeeStatusNewPage(session, getFlash().error),
+  statusPages.newPage(session, getFlash().error),
 );
 
 const statusHandler = createIdEntityHandler<AttendeeStatus>(getAttendeeStatus);
@@ -150,13 +140,7 @@ const createPost = ownerFormHandler(async ({ form }) => {
 const editPost = statusHandlers.post(
   async (_existing, session, form, _request, { id }) => {
     const renderError = (error: string): Promise<Response> =>
-      attendeeStatusPage.renderPage(session, id, "edit", {
-        panel: (status) =>
-          Promise.resolve(
-            AttendeeStatusEditPanel({ error, status, values: form }),
-          ),
-        status: 400,
-      });
+      attendeeStatusPage.renderEditError(id, session, form, error);
     const parsed = parseStatusForm(form);
     if (!parsed.ok) return renderError(parsed.error);
 

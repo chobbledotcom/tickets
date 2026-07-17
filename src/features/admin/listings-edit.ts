@@ -9,7 +9,10 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
-import { entityEditErrorRenderer } from "#routes/admin/entity-pages.ts";
+import {
+  type EditErrorRenderer,
+  editErrorRenderer,
+} from "#routes/admin/entity-write-tab.ts";
 import {
   adminLandingPath,
   CONTENT_MULTIPART,
@@ -425,10 +428,16 @@ const reconcileDurationChange = async (
 /** Re-render the Edit tab in place at 400 with the submitted error and the
  * operator's submitted group selection (not the saved set), so a rejected edit
  * doesn't silently drop their group changes. Deterministic — no flash stash. */
-const renderListingEditError = entityEditErrorRenderer(
+export const renderListingEditError: EditErrorRenderer = editErrorRenderer(
   () => listingPage,
-  (entity, ctx, form, error) =>
-    loadListingEditPanel(entity, ctx, error, parseGroupIds(form)),
+  "edit",
+  (entity, ctx, rejected) =>
+    loadListingEditPanel(
+      entity,
+      ctx,
+      rejected.error,
+      parseGroupIds(rejected.form),
+    ),
 );
 
 const handleListingEditSuccess = async (

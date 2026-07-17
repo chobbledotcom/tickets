@@ -7,10 +7,9 @@ import {
   parseEditableAggregateForm,
 } from "#routes/admin/aggregate-recalculation.ts";
 import {
-  type EntityPage,
-  entityEditErrorRenderer,
-} from "#routes/admin/entity-pages.ts";
-import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
+  defineEditEntityPage,
+  type EditEntityPage,
+} from "#routes/admin/entity-write-tab.ts";
 import { handlersFor } from "#routes/admin/handlers.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
@@ -308,26 +307,21 @@ const loadModifierEditPanel = async (
   });
 };
 
-const modifierPage: EntityPage<Modifier> = defineEditEntityPage({
+const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
   basePath: (id) => `/admin/modifiers/${id}`,
   deleteLabelKey: "modifiers.delete.submit",
-  edit: (modifier, ctx) => loadModifierEditPanel(modifier, ctx.session),
+  edit: (modifier, ctx, rejected) =>
+    loadModifierEditPanel(
+      modifier,
+      ctx.session,
+      rejected?.error,
+      rejected ? Object.fromEntries(rejected.form.entries()) : undefined,
+    ),
   guard: requireSessionOr,
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
   load: (id) => getModifier(id),
   navActive: { section: "/admin/modifiers" },
 });
-
-const renderModifierEditError = entityEditErrorRenderer(
-  () => modifierPage,
-  (modifier, ctx, form, error) =>
-    loadModifierEditPanel(
-      modifier,
-      ctx.session,
-      error,
-      Object.fromEntries(form.entries()),
-    ),
-);
 
 // The list and entity page load the ledger-projected Modifier; writes and the
 // delete confirmation use the stored ModifierRow.
@@ -336,7 +330,7 @@ const crud = createCrudHandlers({
   getName: (m: ModifierRow) => m.name,
   listPath: "/admin/modifiers",
   renderDelete: adminModifierDeletePage,
-  renderEditError: renderModifierEditError,
+  renderEditError: modifierPage.renderEditError,
   renderList: adminModifiersPage,
   renderNew: adminModifierNewPage,
   resource: getModifiersResource,
@@ -357,7 +351,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
       ModifierAggregateValues
     >(form, getModifierAggregateFields(), extractModifierAggregateValues);
     if (!aggregates.ok) {
-      return renderModifierEditError(id, _session, form, aggregates.error);
+      return modifierPage.renderEditError(id, _session, form, aggregates.error);
     }
     const result = await getModifiersResource().update(id, form);
     if (result.ok) {
@@ -368,7 +362,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
       return redirect("/admin/modifiers", "Modifier updated", true);
     }
     if ("notFound" in result) return notFoundResponse();
-    return renderModifierEditError(id, _session, form, result.error);
+    return modifierPage.renderEditError(id, _session, form, result.error);
   });
 
 /**

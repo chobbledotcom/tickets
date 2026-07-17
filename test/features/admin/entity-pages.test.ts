@@ -5,8 +5,8 @@ import {
   defineEntityPage,
   deleteActionTab,
   type EntityPageDef,
-  entityEditErrorRenderer,
 } from "#routes/admin/entity-pages.ts";
+import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -234,15 +234,22 @@ describe("defineEntityPage", () => {
     expect((await deletePage.renderPage(SESSION, 7, "")).status).toBe(404);
   });
 
-  test("entityEditErrorRenderer preserves the submitted form at status 400", async () => {
-    const renderError = entityEditErrorRenderer(
-      () => page,
-      (entity, ctx, form, error) =>
-        Raw({
-          html: `<p>${entity.name}|${ctx.returnUrl}|${form.get("name")}|${error}</p>`,
-        }),
-    );
-    const response = await renderError(
+  test("an edit page preserves the submitted form at status 400", async () => {
+    const editPage = defineEditEntityPage({
+      basePath: def.basePath,
+      deleteLabelKey: "common.delete",
+      edit: (entity, ctx, rejected) =>
+        Promise.resolve(
+          Raw({
+            html: `<p>${entity.name}|${ctx.returnUrl}|${rejected?.form.get("name")}|${rejected?.error}</p>`,
+          }),
+        ),
+      editSlug: "",
+      guard: passGuard,
+      load: def.load,
+      navActive: def.navActive,
+    });
+    const response = await editPage.renderEditError(
       7,
       SESSION,
       new FormParams({ name: "Submitted" }),
@@ -250,7 +257,7 @@ describe("defineEntityPage", () => {
     );
     expect(response.status).toBe(400);
     expect(await response.text()).toContain(
-      "<p>Widget|/admin/widgets/7/edit|Submitted|Invalid</p>",
+      "<p>Widget|/admin/widgets/7|Submitted|Invalid</p>",
     );
   });
 });

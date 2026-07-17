@@ -2,6 +2,7 @@ import {
   createConfirmedHandlers,
   type FormGuard,
 } from "#routes/admin/confirmation.ts";
+import type { EditErrorRenderer } from "#routes/admin/entity-write-tab.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -62,14 +63,6 @@ type CrudConfig<Row, Input, Display = Row> = {
    * on the confirmation page (see confirmation.ts `guardError`). */
   deleteGuard?: (row: Row, id: number) => Promise<string | null>;
 };
-
-/** A CRUD edit failure renderer supplied by an entity page. */
-export type EditErrorRenderer<Id = number> = (
-  id: Id,
-  session: AuthSession,
-  form: FormParams,
-  error: string,
-) => Promise<Response>;
 
 type AuthGuards = {
   requireSession: SessionGuard<AuthSession>;

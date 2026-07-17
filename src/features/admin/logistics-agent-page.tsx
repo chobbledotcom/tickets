@@ -5,8 +5,10 @@
  */
 
 /* jscpd:ignore-start */
-import type { EntityPage } from "#routes/admin/entity-pages.ts";
-import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
+import {
+  defineEditEntityPage,
+  type EditEntityPage,
+} from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
@@ -15,6 +17,7 @@ import {
   decryptUsername,
   getUserDisplayFields,
 } from "#shared/db/users.ts";
+import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import { isDeliveryRole, type LogisticsAgent } from "#shared/types.ts";
 import {
   type AgentUserOption,
@@ -37,19 +40,25 @@ export const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
 };
 
 /** The tabbed logistics-agent page. */
-export const logisticsAgentPage: EntityPage<LogisticsAgent> =
+export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
   defineEditEntityPage({
     basePath: (id) => `/admin/logistics/${id}`,
     deleteLabelKey: "logistics.delete_agent",
-    edit: async (agent) => {
-      const [users, selectedIds] = await Promise.all([
-        loadAgentUserOptions(),
-        agentUsers.getIds(agent.id),
-      ]);
+    edit: async (agent, _ctx, rejected) => {
+      const users = await loadAgentUserOptions();
+      const selectedIds = rejected
+        ? selectedIdsFromForm(rejected.form, "user_ids", users)
+        : await agentUsers.getIds(agent.id);
       return LogisticsAgentEditPanel({
         agent,
         selectedUserIds: new Set(selectedIds),
         users,
+        ...(rejected
+          ? {
+              error: rejected.error,
+              values: Object.fromEntries(rejected.form.entries()),
+            }
+          : {}),
       });
     },
     editSlug: "",

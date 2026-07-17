@@ -3,11 +3,11 @@
 
 /* jscpd:ignore-start */
 import {
-  customSection,
-  type EntityPage,
-  type TabDef,
-} from "#routes/admin/entity-pages.ts";
-import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
+  defineEditEntityPage,
+  type EditEntityPage,
+  panelTab,
+  submittedValueProps,
+} from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { type BuiltSite, builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
@@ -24,21 +24,13 @@ import { BuiltSiteEditPanel } from "#templates/admin/built-sites.tsx";
 
 const basePath = (id: number): string => `/admin/built-sites/${id}`;
 
-const statusTab = (
-  slug: string,
-  labelKey: string,
-  load: (site: BuiltSite) => Promise<JSX.Element>,
-): TabDef<BuiltSite> => ({
-  labelKey,
-  sections: [customSection(load)],
-  slug,
-});
-
-const renewalTab = statusTab("renewal", "built_sites.renewal_title", (site) =>
-  Promise.resolve(renewalPanelFor(site)),
+const renewalTab = panelTab<BuiltSite>(
+  "renewal",
+  "built_sites.renewal_title",
+  (site) => Promise.resolve(renewalPanelFor(site)),
 );
 
-const secretsTab = statusTab(
+const secretsTab = panelTab<BuiltSite>(
   "secrets",
   "built_sites.secrets_title",
   async (site) => (
@@ -46,7 +38,7 @@ const secretsTab = statusTab(
   ),
 );
 
-const updateTab = statusTab(
+const updateTab = panelTab<BuiltSite>(
   "update",
   "built_sites.update_title",
   async (site) => (
@@ -54,10 +46,13 @@ const updateTab = statusTab(
   ),
 );
 
-export const builtSitePage: EntityPage<BuiltSite> = defineEditEntityPage({
+export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
   basePath,
   deleteLabelKey: "built_sites.delete_this_site",
-  edit: (site) => Promise.resolve(<BuiltSiteEditPanel site={site} />),
+  edit: (site, _ctx, rejected) =>
+    Promise.resolve(
+      <BuiltSiteEditPanel site={site} {...submittedValueProps(rejected)} />,
+    ),
   extraTabs: [renewalTab, secretsTab, updateTab],
   guard: requireOwnerOr,
   guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),

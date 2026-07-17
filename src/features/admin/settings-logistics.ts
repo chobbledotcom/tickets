@@ -12,10 +12,7 @@ import { ownerFormById } from "#routes/entity.ts";
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import {
-  createOwnerCrudHandlers,
-  type EditErrorRenderer,
-} from "#routes/admin/owner-crud.ts";
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -31,7 +28,6 @@ import { defineNamedResource } from "#shared/rest/resource.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import {
   adminLogisticsPage,
-  LogisticsAgentEditPanel,
   logisticsAgentPages,
 } from "#templates/admin/logistics.tsx";
 import { logisticsAgentForm } from "#templates/fields/listing.ts";
@@ -80,21 +76,6 @@ const logisticsAgentEditResource = defineNamedResource({
   },
 });
 
-const renderAgentEditError: EditErrorRenderer = (id, session, form, error) =>
-  logisticsAgentPage.renderPage(session, id, "", {
-    panel: async (agent) => {
-      const users = await loadAgentUserOptions();
-      return LogisticsAgentEditPanel({
-        agent,
-        error,
-        selectedUserIds: new Set(selectedIdsFromForm(form, "user_ids", users)),
-        users,
-        values: Object.fromEntries(form.entries()),
-      });
-    },
-    status: 400,
-  });
-
 const crud = createOwnerCrudHandlers({
   getAll: logisticsAgents.getAll,
   getName: (agent) => agent.name,
@@ -113,7 +94,12 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
     const result = await logisticsAgentEditResource.update(id, form);
     if (!result.ok) {
       if ("notFound" in result) return notFoundResponse();
-      return renderAgentEditError(id, session, form, result.error);
+      return logisticsAgentPage.renderEditError(
+        id,
+        session,
+        form,
+        result.error,
+      );
     }
     await logActivity(`Logistics agent '${result.row.name}' updated`);
     return redirect("/admin/logistics", "Logistics agent updated", true);

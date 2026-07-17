@@ -12,10 +12,8 @@ import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { editPanel } from "#templates/admin/admin-page.tsx";
 import {
-  type AdminListPage,
   defineAdminResourcePages,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
@@ -202,17 +200,3 @@ export const statusPages = defineAdminResourcePages<AttendeeStatus>({
   },
   renderFields: renderStatusFields,
 });
-
-/** List of attendee statuses with reorder, edit and delete controls. */
-export const adminAttendeeStatusesPage: AdminListPage<AttendeeStatus> = (
-  statuses,
-  session,
-  error,
-  success,
-) => statusPages.listPage(statuses, session, error, success);
-
-/** New-status form. Editing lives on the status entity page. */
-export const adminAttendeeStatusNewPage = (
-  session: AdminSession,
-  error?: string,
-): string => statusPages.newPage(session, error);

@@ -6,7 +6,6 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 /* jscpd:ignore-start */
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { entityValuesEditErrorRenderer } from "#routes/admin/entity-pages.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash, requireCsrfForm } from "#routes/csrf.ts";
@@ -53,7 +52,6 @@ import {
   adminBuiltSiteDeletePage,
   adminBuiltSiteNewPage,
   adminBuiltSitesPage,
-  BuiltSiteEditPanel,
 } from "#templates/admin/built-sites.tsx";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 import { builtSitePage } from "./built-site-page.tsx";
@@ -101,10 +99,7 @@ const crud = createOwnerCrudHandlers({
   getRowPath: (site) => builtSitePage.path(site.id),
   listPath: "/admin/built-sites",
   renderDelete: adminBuiltSiteDeletePage,
-  renderEditError: entityValuesEditErrorRenderer(
-    () => builtSitePage,
-    (site, _ctx, values, error) => BuiltSiteEditPanel({ error, site, values }),
-  ),
+  renderEditError: builtSitePage.renderEditError,
   renderList: adminBuiltSitesPage,
   renderNew: adminBuiltSiteNewPage,
   resource: builtSitesResource,

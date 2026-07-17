@@ -23,7 +23,6 @@
  * {@link EntityPage.path} as everywhere else.
  */
 
-import type { EditErrorRenderer } from "#routes/admin/owner-crud.ts";
 import type { AuthSession, SessionGuard } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -38,7 +37,6 @@ import {
   tabPath,
 } from "#shared/entity-pages/core.ts";
 import { isReadOnly } from "#shared/env.ts";
-import type { FormParams } from "#shared/form-data.ts";
 import {
   entityPageView,
   type LoadedSection,
@@ -353,39 +351,3 @@ export const deleteActionTab = <E>(
   ],
   slug: "actions",
 });
-
-type ErrorPanel<E, Values> = (
-  entity: E,
-  ctx: PageCtx,
-  values: Values,
-  error: string,
-) => JSX.Element | Promise<JSX.Element>;
-
-const makeEditErrorRenderer =
-  <Values>(valuesFrom: (form: FormParams) => Values) =>
-  <E, Id extends EntityId>(
-    getPage: () => EntityPage<E, Id>,
-    panel: ErrorPanel<E, Values>,
-  ): EditErrorRenderer<Id> =>
-  (id, session, form, error) => {
-    const values = valuesFrom(form);
-    return getPage().renderPage(session, id, "edit", {
-      panel: (entity, ctx) =>
-        Promise.resolve(panel(entity, ctx, values, error)),
-      status: 400,
-    });
-  };
-
-/** Build the rejected-edit renderer expected by the CRUD factories. The
- * entity-specific callback only builds its panel from the loaded row, submitted
- * form, and error; this helper supplies the tab shell and status 400. */
-export const entityEditErrorRenderer = makeEditErrorRenderer(
-  (form: FormParams) => form,
-);
-
-/** Rejected-edit renderer for ordinary schema forms whose panel only needs the
- * submitted values and error. */
-export const entityValuesEditErrorRenderer = makeEditErrorRenderer(
-  (form: FormParams): Record<string, string> =>
-    Object.fromEntries(form.entries()),
-);
