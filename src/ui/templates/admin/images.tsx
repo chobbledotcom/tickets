@@ -5,7 +5,10 @@
 // jscpd:ignore-start
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
-import { CsrfForm, type Field, Flash, renderFields } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import type { Field } from "#shared/forms/field.ts";
+import { Flash } from "#shared/forms/flash.tsx";
+import { renderFields } from "#shared/forms/rendering.tsx";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl, isStorageEnabled } from "#shared/storage.ts";

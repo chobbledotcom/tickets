@@ -8,7 +8,7 @@
 /* jscpd:ignore-start */
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { CsrfForm } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";

@@ -23,7 +23,7 @@ import {
   randomChoice,
 } from "#shared/demo/samples.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { FieldValues } from "#shared/forms.tsx";
+import type { FieldValues } from "#shared/forms/values.ts";
 import type { NamedResource } from "#shared/rest/resource.ts";
 
 /** Maps form field names to arrays of possible demo values */

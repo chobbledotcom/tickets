@@ -4,7 +4,7 @@
  * keeps every state-changing action a CSRF-checked POST, never a bare link.
  */
 
-import { CsrfForm } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 
 export const InlineFormButton = ({
   action,

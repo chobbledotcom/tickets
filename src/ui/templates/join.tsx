@@ -5,7 +5,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
-import { Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";
 import { simplePublicPage } from "#templates/public/shared.tsx";
 import { AuthFormPage } from "#templates/setup.tsx";

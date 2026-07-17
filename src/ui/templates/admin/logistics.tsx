@@ -14,7 +14,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { entityToFieldValues } from "#shared/forms.tsx";
+import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
 import {

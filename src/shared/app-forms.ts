@@ -15,7 +15,7 @@ import {
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { ValidationResult } from "#shared/forms.tsx";
+import type { ValidationResult } from "#shared/forms/validation.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
 

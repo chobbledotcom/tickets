@@ -75,7 +75,7 @@ import {
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
-import { requireChoiceOptions } from "#shared/forms.tsx";
+import { requireChoiceOptions } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { AdminSession } from "#shared/types.ts";

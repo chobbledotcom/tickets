@@ -24,7 +24,7 @@ import {
   applyDemoOverrides,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { validateForm } from "#shared/forms.tsx";
+import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";

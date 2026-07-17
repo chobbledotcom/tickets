@@ -5,7 +5,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { SuccessCompletePage } from "#templates/components/success-complete-page.tsx";

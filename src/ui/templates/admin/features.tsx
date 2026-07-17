@@ -6,7 +6,7 @@ import {
   type EnabledFeatures,
 } from "#shared/admin-features.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { settingsPage } from "#templates/admin/settings/page-shell.tsx";
 import { BackButton } from "#templates/components/actions.tsx";

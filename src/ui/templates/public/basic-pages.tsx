@@ -1,6 +1,8 @@
 import { t } from "#i18n";
 import { CONTACT_JS_PATH } from "#shared/asset-paths.ts";
-import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
+import { MessageFields } from "#shared/forms/message-fields.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import {

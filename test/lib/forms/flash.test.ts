@@ -7,13 +7,13 @@ import {
   setFlashContext,
   setFlashFormId,
 } from "#shared/flash-context.ts";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import {
-  CsrfForm,
   Flash,
   renderError,
   renderSuccess,
   requestFlash,
-} from "#shared/forms.tsx";
+} from "#shared/forms/flash.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";

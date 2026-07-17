@@ -33,7 +33,12 @@ const TEMPLATES_DIR = "src/ui/templates";
 
 /** Copy-bearing modules outside src/ui/templates that must also be kept honest:
  * the shared form framework renders its own labels and submit buttons. */
-const EXTRA_SCAN_FILES = ["src/shared/forms.tsx"];
+const EXTRA_SCAN_FILES = [
+  "src/shared/forms/message-fields.tsx",
+  "src/shared/forms/rendering.tsx",
+  "src/shared/forms/submitted-value.ts",
+  "src/shared/forms/validation.ts",
+];
 
 /** Existing catalog copy that review found duplicated as wrapped JSX prose.
  * Requiring the catalog calls directly avoids depending on line layout or
@@ -59,7 +64,8 @@ const REQUIRED_TEMPLATE_KEYS = new Map<string, readonly string[]>([
  * Wire a file's strings with t(), then lower its number — or delete the entry
  * once it reaches zero. The number may never go up. */
 const LEFTOVER_ALLOWLIST = new Map<string, number>([
-  ["shared/forms.tsx", 5],
+  ["shared/forms/message-fields.tsx", 1],
+  ["shared/forms/rendering.tsx", 4],
   ["ui/templates/admin/api-keys.tsx", 2],
   ["ui/templates/admin/attendees.tsx", 3],
   ["ui/templates/admin/calendar.tsx", 1],

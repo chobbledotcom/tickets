@@ -282,7 +282,8 @@ mechanisms to copy:
   `defineResource`/`defineNamedResource` (`src/shared/rest/resource.ts`) turn
   `{table, fields, toInput, validate}` into typed operations that the
   handlers in `src/shared/rest/handlers.ts` wire to HTTP.
-- **Schema-driven forms.** `defineForm` + a `Field[]` (`src/shared/forms.tsx`):
+- **Schema-driven forms.** `defineForm` + a `Field[]`
+  (`src/shared/forms/definition.ts`):
   one field list drives the HTML rendering, the parsing/validation, and the
   `FormValuesFor<>` value types; `createFormRoute`/`createAuthedFormRoute`
   (`src/shared/app-forms.ts`) wire that same schema to both the GET (render)

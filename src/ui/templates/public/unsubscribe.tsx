@@ -9,7 +9,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 import { RawParagraph } from "#templates/components/prose-heading.tsx";

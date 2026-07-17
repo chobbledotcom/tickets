@@ -1,15 +1,16 @@
 import type { FormParams } from "#shared/form-data.ts";
 import {
   type Field,
-  type FieldValueNormalizer,
-  type FieldValues,
-  renderField,
-  renderFields,
   requireCheckboxOptions,
   requireChoiceOptions,
+} from "#shared/forms/field.ts";
+import { renderField, renderFields } from "#shared/forms/rendering.tsx";
+import {
+  type FieldValueNormalizer,
   type ValidationResult,
   validateForm,
-} from "#shared/forms.tsx";
+} from "#shared/forms/validation.ts";
+import type { FieldValues } from "#shared/forms/values.ts";
 
 export type FormFieldDefinition = Readonly<Field>;
 export type FormFieldDefinitions = readonly FormFieldDefinition[];

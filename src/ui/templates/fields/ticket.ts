@@ -9,7 +9,8 @@
 
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { type Field, validateForm } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
+import { validateForm } from "#shared/forms/validation.ts";
 import {
   parseListingFields,
   withRequiredEmail,
