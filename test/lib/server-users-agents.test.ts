@@ -91,7 +91,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
 
   test("the manage page hides deleting the current user", async () => {
     const html = await (await adminGet("/admin/users/1")).text();
-    expect(html).not.toContain("/admin/users/1/delete");
+    expect(html).not.toContain("/admin/users/1/actions");
   });
 
   test("the manage page hides write routes in read-only mode", async () => {
@@ -103,7 +103,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
 
     const html = await (await adminGet(`/admin/users/${userId}`)).text();
     expect(html).not.toContain(`/admin/users/${userId}/agents`);
-    expect(html).not.toContain(`/admin/users/${userId}/delete`);
+    expect(html).not.toContain(`/admin/users/${userId}/actions`);
   });
 
   test("the agent assignment page is unavailable in read-only mode", async () => {

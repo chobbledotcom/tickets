@@ -123,6 +123,16 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
     expect((await getAttendeeStatus(seed.id))?.name).toBe(seed.name);
   });
 
+  test("does not restore the stored name when an edit omits it", async () => {
+    const seed = await seedStatus();
+    const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {});
+    const html = await response.text();
+
+    expect(response.status).toBe(400);
+    expect(html).toContain("Please enter a name");
+    expect(html).toMatch(/name="name"[^>]*value=""/);
+  });
+
   test("refuses to clear the only paid default", async () => {
     const seed = await seedStatus();
     const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {

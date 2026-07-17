@@ -50,8 +50,13 @@ export const SaveForm = ({
 );
 
 /** Build save forms for fields already rendered by a form schema. */
+export type RenderedFieldsSaveForm = (
+  action: string,
+  fieldsHtml: string,
+) => JSX.Element;
+
 export const renderedFieldsSaveForm =
-  (submitLabel: string) =>
+  (submitLabel: string): RenderedFieldsSaveForm =>
   (action: string, fieldsHtml: string): JSX.Element => (
     <SaveForm action={action} submitLabel={submitLabel}>
       <Raw html={fieldsHtml} />

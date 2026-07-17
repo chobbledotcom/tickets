@@ -103,7 +103,11 @@ const renderStatusFields = (
         name="name"
         required
         type="text"
-        value={values?.get("name") ?? status?.name ?? ""}
+        value={
+          values === undefined
+            ? (status?.name ?? "")
+            : (values.get("name") ?? "")
+        }
       />
     </label>
     <fieldset class="checkboxes">

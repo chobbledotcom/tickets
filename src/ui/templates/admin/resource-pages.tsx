@@ -1,22 +1,14 @@
 /**
  * Resource-level admin page factory.
  *
- * Several owner-only settings resources (attendee statuses and logistics
- * agents) share one workflow — a list page (table + actions + empty
- * state), a create page, and a type-the-name delete confirmation page. Each
- * used to hand-wire that
- * workflow against `AdminPage`/`DataTable`/`ConfirmPage` directly, so every
- * new resource had to re-remember the same path/title/flash/table/delete
- * conventions.
- *
- * This factory turns one config object into the three standard pages. The
+ * Several owner-only settings resources share one workflow: a list page, a
+ * create page, and a type-the-name delete confirmation page. This factory
+ * turns one config object into those three pages. The
  * resource declares its paths (derived from `basePath`), titles, table
  * columns (typed via {@link DataColumn}), form fields (a `renderFields`
  * callback so non-`Field[]` forms like the attendee-status checkboxes still
  * fit), and the delete confirmation copy.
- * `AdminPage`, `DataTable`, and `ConfirmPage` stay as the low-level
- * primitives the factory renders through — they are no longer the main
- * public abstraction each resource wires by hand.
+ * `AdminPage`, `DataTable`, and `ConfirmPage` are its rendering primitives.
  */
 
 /* jscpd:ignore-start */
@@ -115,10 +107,20 @@ export type AdminListPage<TEntity> = (
   ...args: Parameters<FlashPageRenderer>
 ) => string;
 
+export interface AdminResourcePages<TEntity extends { id: number }> {
+  deletePage: (
+    entity: TEntity,
+    session: AdminSession,
+    error?: string,
+  ) => string;
+  listPage: AdminListPage<TEntity>;
+  newPage: (session: AdminSession, error?: string) => string;
+}
+
 /** Build the standard list/new/delete pages for a resource. */
 export const defineAdminResourcePages = <TEntity extends { id: number }>(
   config: AdminResourcePagesConfig<TEntity>,
-) => {
+): AdminResourcePages<TEntity> => {
   const listPage: AdminListPage<TEntity> = (
     entities,
     session,

@@ -13,7 +13,10 @@ import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
-import { renderedFieldsSaveForm } from "#templates/components/save-form.tsx";
+import {
+  type RenderedFieldsSaveForm,
+  renderedFieldsSaveForm,
+} from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -49,7 +52,7 @@ export const collectionPage =
  * carrying the pre-filled fields and a save button. Unlike {@link EditForm} it
  * renders no heading — the tabbed entity page draws the page title above the
  * tab strip. */
-export const contentEditPanel = renderedFieldsSaveForm(
+export const contentEditPanel: RenderedFieldsSaveForm = renderedFieldsSaveForm(
   t("common.save_changes"),
 );
 
