@@ -16,6 +16,7 @@ describe("mutation file plan", () => {
       options: { outfile: "admin.js" },
     };
     let rebuilt = 0;
+    let restored: StaticBundle[] = [];
     const rebuilder: StaticAssetBuild = {
       affected: () => [bundle],
       dispose: () => Promise.resolve(),
@@ -23,7 +24,10 @@ describe("mutation file plan", () => {
         rebuilt += 1;
         return Promise.resolve(true);
       },
-      restore: () => Promise.resolve(),
+      restore: (bundles) => {
+        restored = bundles;
+        return Promise.resolve();
+      },
     };
     try {
       const result = await createFilePlan(
@@ -38,6 +42,7 @@ describe("mutation file plan", () => {
       expect(await result.assets?.rebuild()).toBe(true);
       await result.assets?.restore();
       expect(rebuilt).toBe(1);
+      expect(restored).toEqual([bundle]);
     } finally {
       await Deno.remove(file);
     }

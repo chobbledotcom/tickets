@@ -1,4 +1,5 @@
-import { isAbsolute, relative, sep } from "node:path";
+import { isAbsolute, relative } from "node:path";
+import { filter, map, sort } from "#fp";
 import { projectRoot } from "../project-root.ts";
 
 export interface SourceTestTarget {
@@ -13,23 +14,54 @@ export interface MutationTestMap {
 
 const INTEGRATION_TEST_PREFIXES = ["test/e2e/", "test/integration/"];
 
-const relativeToProject = (path: string): string =>
-  isAbsolute(path) ? relative(projectRoot, path) : path.replace(/^\.\//, "");
+const normalizePath = (path: string): string => path.replace(/\\/g, "/");
+
+const relativeToProject = (path: string): string => {
+  const normalized = normalizePath(path);
+  const projectPath = isAbsolute(normalized)
+    ? relative(projectRoot, normalized)
+    : normalized;
+  return normalizePath(projectPath).replace(/^\.\//, "");
+};
 
 const testPrefix = (sourceFile: string): string =>
   relativeToProject(sourceFile)
-    .replace(/^src[/\\]/, `test${sep}`)
+    .replace(/^src\//, "test/")
     .replace(/\.(?:js|ts|tsx)$/, "");
 
 const ownsTest = (prefix: string, testFile: string): boolean => {
   const base = relativeToProject(testFile).replace(/\.test\.(?:ts|tsx)$/, "");
-  return base === prefix || base.startsWith(`${prefix}${sep}`);
+  return base === prefix || base.startsWith(`${prefix}/`);
 };
 
 const isIntegrationTest = (testFile: string): boolean => {
   const path = relativeToProject(testFile);
-  return INTEGRATION_TEST_PREFIXES.some((prefix) => path.startsWith(prefix));
+  return (
+    filter((prefix: string) => path.startsWith(prefix))(
+      INTEGRATION_TEST_PREFIXES,
+    ).length > 0
+  );
 };
+
+interface OwnedTest {
+  owner: string | null;
+  testFile: string;
+}
+
+const chooseTestFiles =
+  (keep: (test: OwnedTest) => boolean) =>
+  (tests: OwnedTest[]): string[] =>
+    map(({ testFile }: OwnedTest) => testFile)(filter(keep)(tests));
+
+const ownedTest =
+  (prefixes: string[]) =>
+  (testFile: string): OwnedTest => ({
+    owner:
+      sort((a: string, b: string) => b.length - a.length)(
+        filter((prefix: string) => ownsTest(prefix, testFile))(prefixes),
+      )[0] ?? null,
+    testFile,
+  });
 
 /** Pair selected sources with their mirrored tests. Only tests in the explicit
  * integration/e2e folders may remain unmatched. */
@@ -39,31 +71,27 @@ export const buildMutationTestMap = (
 ): MutationTestMap => {
   const sources = [...new Set(sourceFiles)];
   const tests = [...new Set(testFiles)];
-  const prefixes = sources.map(testPrefix);
-  const owners = tests.map((testFile) => {
-    const matches = prefixes.filter((prefix) => ownsTest(prefix, testFile));
-    return matches.sort((a, b) => b.length - a.length)[0] ?? null;
-  });
-  const misplaced = tests.filter(
-    (testFile, index) => owners[index] === null && !isIntegrationTest(testFile),
-  );
+  const prefixes = map(testPrefix)(sources);
+  const ownedTests = map(ownedTest(prefixes))(tests);
+  const misplaced = chooseTestFiles(
+    ({ owner, testFile }) => owner === null && !isIntegrationTest(testFile),
+  )(ownedTests);
   if (misplaced.length > 0) {
     throw new Error(
       "Mutation tests must mirror a selected source or live under " +
-        `test/integration/ or test/e2e/:\n${misplaced.map(relativeToProject).join("\n")}`,
+        `test/integration/ or test/e2e/:\n${map(relativeToProject)(misplaced).join("\n")}`,
     );
   }
   return {
-    integrationTestFiles: tests.filter(
-      (testFile, index) =>
-        owners[index] === null && isIntegrationTest(testFile),
-    ),
-    targets: sources.map((sourceFile, index) => ({
-      directTestFiles: tests.filter(
-        (_, testIndex) => owners[testIndex] === prefixes[index],
-      ),
+    integrationTestFiles: chooseTestFiles(
+      ({ owner, testFile }) => owner === null && isIntegrationTest(testFile),
+    )(ownedTests),
+    targets: map((sourceFile: string) => ({
+      directTestFiles: chooseTestFiles(
+        ({ owner }) => owner === testPrefix(sourceFile),
+      )(ownedTests),
       sourceFile,
-    })),
+    }))(sources),
   };
 };
 

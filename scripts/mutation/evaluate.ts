@@ -1,8 +1,8 @@
 import { resolve } from "@std/path";
-import type { StaticAssetBuild } from "../build-static-assets.ts";
 import { withCleanup } from "../cleanup.ts";
 import { dim, yellow } from "../precommit/colors.ts";
 import { projectRoot } from "../project-root.ts";
+import type { StaticAssetBuild } from "../static-assets/session.ts";
 import {
   mutantTestEnv,
   runTests,
@@ -16,6 +16,7 @@ import {
   measurePhase,
   type PhaseTiming,
   runTestStages,
+  type TestStageResult,
 } from "./phases.ts";
 import { rel, type Status } from "./summary.ts";
 import {
@@ -57,13 +58,22 @@ const realDeps: EvaluationDeps = {
   write: Deno.writeTextFile,
 };
 
+const detectedByKill = <Phase extends MutationPhase>(
+  phase: Phase,
+  status: Status,
+): Phase | null => (status === "killed" ? phase : null);
+
 const testStatus = (
   phase: "direct-tests" | "integration-tests",
   result: Awaited<ReturnType<typeof runTests>>,
-): { status: Status; timings: PhaseTiming[] } => ({
-  status: toStatus(result.outcome),
-  timings: [{ durationMs: result.durationMs, phase }],
-});
+): TestStageResult => {
+  const status = toStatus(result.outcome);
+  return {
+    detectedBy: detectedByKill(phase, status),
+    status,
+    timings: [{ durationMs: result.durationMs, phase }],
+  };
+};
 
 const confirmStateMutation = async (
   plan: FileMutationPlan,
@@ -129,9 +139,10 @@ export const evaluateMutant = async (
         const measured = await measurePhase("asset-build", assets.rebuild);
         timings.push(measured.timing);
         if (!measured.value) {
+          const status = await confirmAssetMutation(plan, assets, signal, deps);
           return {
-            detectedBy: "asset-build",
-            status: await confirmAssetMutation(plan, assets, signal, deps),
+            detectedBy: detectedByKill("asset-build", status),
+            status,
             timings,
           };
         }
@@ -163,14 +174,16 @@ export const evaluateMutant = async (
             stageTimings.push(measured.timing);
             state = measured.value;
             if (state.status !== "ready") {
+              const status = await confirmStateMutation(
+                plan,
+                run,
+                signal,
+                state,
+                deps,
+              );
               return {
-                status: await confirmStateMutation(
-                  plan,
-                  run,
-                  signal,
-                  state,
-                  deps,
-                ),
+                detectedBy: detectedByKill("test-state", status),
+                status,
                 timings: stageTimings,
               };
             }
@@ -182,6 +195,7 @@ export const evaluateMutant = async (
               await deps.runTests({ ...run, env, testFiles }, signal),
             );
             return {
+              detectedBy: tested.detectedBy,
               status: tested.status,
               timings: [...stageTimings, ...tested.timings],
             };

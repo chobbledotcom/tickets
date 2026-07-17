@@ -28,8 +28,13 @@ export const measurePhase = async <T>(
   return { timing: { durationMs: now() - startedAt, phase }, value };
 };
 
+export type TestDetectionPhase =
+  | "direct-tests"
+  | "test-state"
+  | "integration-tests";
+
 export interface TestStageResult {
-  detectedBy: "direct-tests" | "integration-tests" | null;
+  detectedBy: TestDetectionPhase | null;
   status: Status;
   timings: PhaseTiming[];
 }
@@ -37,7 +42,7 @@ export interface TestStageResult {
 type RunStage = (
   phase: "direct-tests" | "integration-tests",
   testFiles: string[],
-) => Promise<{ status: Status; timings: PhaseTiming[] }>;
+) => Promise<TestStageResult>;
 
 /** Run the narrow direct tests first and spend time on integration tests only
  * when the direct tests did not detect the mutant. */
@@ -51,18 +56,13 @@ export const runTestStages = async (
     const direct = await run("direct-tests", directTestFiles);
     timings.push(...direct.timings);
     if (direct.status !== "survived") {
-      return { detectedBy: "direct-tests", status: direct.status, timings };
+      return { ...direct, timings };
     }
   }
   if (integrationTestFiles.length > 0) {
     const integration = await run("integration-tests", integrationTestFiles);
     timings.push(...integration.timings);
-    return {
-      detectedBy:
-        integration.status === "survived" ? null : "integration-tests",
-      status: integration.status,
-      timings,
-    };
+    return { ...integration, timings };
   }
   return { detectedBy: null, status: "survived", timings };
 };

@@ -15,7 +15,6 @@ import { TEST_STATE_DIR_ENV } from "../test/test-utils/test-state-env.ts";
 import {
   buildStaticAssets,
   STATIC_ASSET_OUTFILES,
-  type StaticAssetBuild,
 } from "./build-static-assets.ts";
 import {
   failAfterCleanups,
@@ -34,24 +33,15 @@ import {
 } from "./coverage-output.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
+import { fileExists, type StaticAssetBuild } from "./static-assets/session.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
 import { JUNIT_PATH } from "./test-durations.ts";
+import { withEnvironment } from "./test-environment.ts";
 
 const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
 
 const harnessLog = (...args: unknown[]): void => {
   if (verboseHarness) console.log(...args);
-};
-
-/** True if a file exists on disk */
-const fileExists = async (path: string): Promise<boolean> => {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    rethrowUnlessNotFound(error);
-    return false;
-  }
 };
 
 /**
@@ -223,10 +213,16 @@ export const withTestHarness = async <T>(
     stripeMockProcess = await startStripeMock();
     const mockEnv = stripeMockEnv(stripeMockProcess.port);
     harnessLog("stripe-mock running on port", mockEnv.STRIPE_MOCK_PORT);
-    Deno.env.set("STRIPE_MOCK_HOST", mockEnv.STRIPE_MOCK_HOST);
-    Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
-    cleanupTestState = await setupTestState();
-    return await task({ staticAssets: staticAssets.build });
+    return withEnvironment(
+      {
+        STRIPE_MOCK_HOST: mockEnv.STRIPE_MOCK_HOST,
+        STRIPE_MOCK_PORT: mockEnv.STRIPE_MOCK_PORT,
+      },
+      async () => {
+        cleanupTestState = await setupTestState();
+        return await task({ staticAssets: staticAssets.build });
+      },
+    );
   }, [
     async () => {
       if (!stripeMockProcess) return;

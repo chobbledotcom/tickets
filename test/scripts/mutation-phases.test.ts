@@ -7,13 +7,19 @@ import {
 } from "../../scripts/mutation/phases.ts";
 import type { Status } from "../../scripts/mutation/summary.ts";
 
+const takeFirst = <Value>(values: Value[]): Value => {
+  const value = values.shift();
+  if (value === undefined) throw new Error("Expected another test value");
+  return value;
+};
+
 describe("mutation phases", () => {
   test("records an exact phase duration", async () => {
     const times = [10, 34];
     const measured = await measurePhase(
       "lint",
       () => Promise.resolve(7),
-      () => times.shift()!,
+      () => takeFirst(times),
     );
     expect(measured).toEqual({
       timing: { durationMs: 24, phase: "lint" },
@@ -29,6 +35,7 @@ describe("mutation phases", () => {
       (phase) => {
         calls.push(phase);
         return Promise.resolve({
+          detectedBy: "direct-tests",
           status: "killed",
           timings: [{ durationMs: 4, phase }],
         });
@@ -48,8 +55,10 @@ describe("mutation phases", () => {
       ["integration.test.ts"],
       (phase, files) => {
         calls.push(files);
+        const status = takeFirst(statuses);
         return Promise.resolve({
-          status: statuses.shift()!,
+          detectedBy: status === "killed" ? phase : null,
+          status,
           timings: [{ durationMs: phase === "direct-tests" ? 2 : 9, phase }],
         });
       },
@@ -66,20 +75,33 @@ describe("mutation phases", () => {
   });
 
   test("runs integration tests directly when there are no direct tests", async () => {
-    const result = await runTestStages([], ["legacy.test.ts"], (phase) =>
-      Promise.resolve({
-        status: "survived",
-        timings: [{ durationMs: 3, phase }],
-      }),
+    const calls: Array<{ files: string[]; phase: MutationPhase }> = [];
+    const result = await runTestStages(
+      [],
+      ["legacy.test.ts"],
+      (phase, files) => {
+        calls.push({ files, phase });
+        return Promise.resolve({
+          detectedBy: null,
+          status: "survived",
+          timings: [{ durationMs: 3, phase }],
+        });
+      },
     );
-    expect(result.status).toBe("survived");
-    expect(result.detectedBy).toBeNull();
-    expect(result.timings[0]?.phase).toBe("integration-tests");
+    expect(calls).toEqual([
+      { files: ["legacy.test.ts"], phase: "integration-tests" },
+    ]);
+    expect(result).toEqual({
+      detectedBy: null,
+      status: "survived",
+      timings: [{ durationMs: 3, phase: "integration-tests" }],
+    });
   });
 
   test("keeps a direct-test survivor when there is no integration stage", async () => {
     const result = await runTestStages(["direct.test.ts"], [], (phase) =>
       Promise.resolve({
+        detectedBy: null,
         status: "survived",
         timings: [{ durationMs: 1, phase }],
       }),

@@ -7,7 +7,7 @@ import {
 import { projectRoot } from "../../scripts/project-root.ts";
 
 describe("mutation test map", () => {
-  test("pairs each source with only its mirrored tests", () => {
+  test("does not use another source's mirrored tests as fallback tests", () => {
     expect(
       buildMutationTestMap(
         ["src/shared/a.ts", "src/shared/b.tsx"],
@@ -89,6 +89,22 @@ describe("mutation test map", () => {
     expect(result.targets[0]?.directTestFiles).toEqual([
       `${projectRoot}/test/shared/a.test.ts`,
     ]);
+  });
+
+  test("maps paths with mixed Windows and Unix separators", () => {
+    const result = buildMutationTestMap(
+      ["src\\shared/a.ts"],
+      ["test/shared\\a.test.ts", "test\\integration/app.test.ts"],
+    );
+    expect(result).toEqual({
+      integrationTestFiles: ["test\\integration/app.test.ts"],
+      targets: [
+        {
+          directTestFiles: ["test/shared\\a.test.ts"],
+          sourceFile: "src\\shared/a.ts",
+        },
+      ],
+    });
   });
 
   test("rejects misplaced legacy tests with every offending path", () => {

@@ -146,18 +146,39 @@ const renderRow = (row: {
 }): string =>
   `  ${row.color(row.label)}${" ".repeat(LABEL_WIDTH - row.label.length)}${row.value}`;
 
-const timingLines = (s: Summary): string[] =>
-  s.phaseTimings.length === 0
-    ? []
-    : [
-        "",
-        dim("  phase timings (cumulative elapsed):"),
-        ...s.phaseTimings.map((timing) =>
-          dim(
-            `    ${timing.phase}: ${Math.round(timing.durationMs)}ms in ${timing.runs} run(s)`,
-          ),
-        ),
-      ];
+type TimingOutput = "markdown" | "terminal";
+
+const TIMING_FORMATS: Record<
+  TimingOutput,
+  { heading: string[]; row: (timing: PhaseTimingSummary) => string }
+> = {
+  markdown: {
+    heading: [
+      "",
+      "### Phase timings",
+      "",
+      "These are cumulative phase times across mutant attempts. Parallel test batches count once per stage.",
+      "",
+      "| phase | runs | time |",
+      "| --- | ---: | ---: |",
+    ],
+    row: (timing) =>
+      `| ${timing.phase} | ${timing.runs} | ${Math.round(timing.durationMs)}ms |`,
+  },
+  terminal: {
+    heading: ["", dim("  phase timings (cumulative elapsed):")],
+    row: (timing) =>
+      dim(
+        `    ${timing.phase}: ${Math.round(timing.durationMs)}ms in ${timing.runs} run(s)`,
+      ),
+  },
+};
+
+const timingLines = (s: Summary, output: TimingOutput): string[] => {
+  if (s.phaseTimings.length === 0) return [];
+  const format = TIMING_FORMATS[output];
+  return [...format.heading, ...s.phaseTimings.map(format.row)];
+};
 
 /** Build a "one survivor on a line" formatter from how it should wrap the
  *  location and the two operators. The terminal and Markdown reports show the
@@ -194,6 +215,7 @@ export const formatSummaryLines = (s: Summary): string[] => {
       green(
         `  All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
       ),
+      ...timingLines(s, "terminal"),
     ];
   }
   const allDetected = green(
@@ -204,7 +226,7 @@ export const formatSummaryLines = (s: Summary): string[] => {
   return [
     bold("\nMutation testing summary"),
     ...countRows(s).map(renderRow),
-    ...timingLines(s),
+    ...timingLines(s, "terminal"),
     ...(s.survivors.length === 0
       ? [allDetected]
       : [
@@ -236,6 +258,7 @@ const markdownSummary = (s: Summary): string => {
       "## 🧬 Mutation testing",
       "",
       `✅ All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
+      ...timingLines(s, "markdown"),
       "",
     ].join("\n");
   }
@@ -258,22 +281,6 @@ const markdownSummary = (s: Summary): string => {
           "| --- | --- |",
           ...s.survivors.map(survivorRow),
         ];
-  const timingTable =
-    s.phaseTimings.length === 0
-      ? []
-      : [
-          "",
-          "### Phase timings",
-          "",
-          "These are cumulative phase times across mutant attempts. Parallel test batches count once per stage.",
-          "",
-          "| phase | runs | time |",
-          "| --- | ---: | ---: |",
-          ...s.phaseTimings.map(
-            (timing) =>
-              `| ${timing.phase} | ${timing.runs} | ${Math.round(timing.durationMs)}ms |`,
-          ),
-        ];
   return [
     "## 🧬 Mutation testing",
     "",
@@ -286,7 +293,7 @@ const markdownSummary = (s: Summary): string => {
     `| timed out | ${s.timedOut} |`,
     `| survived | ${s.survived} |`,
     ...(s.ignored > 0 ? [`| ignored (suppressed) | ${s.ignored} |`] : []),
-    ...timingTable,
+    ...timingLines(s, "markdown"),
     ...survivorTable,
     "",
   ].join("\n");

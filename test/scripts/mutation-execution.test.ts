@@ -49,8 +49,9 @@ describe("mutation test execution", () => {
       expect(env.STRIPE_MOCK_HOST).toBe("localhost");
       expect(env.STRIPE_MOCK_PORT).toBe("1234");
     } finally {
-      if (previousPort) Deno.env.set("STRIPE_MOCK_PORT", previousPort);
-      else Deno.env.delete("STRIPE_MOCK_PORT");
+      if (previousPort !== undefined) {
+        Deno.env.set("STRIPE_MOCK_PORT", previousPort);
+      } else Deno.env.delete("STRIPE_MOCK_PORT");
     }
   });
 

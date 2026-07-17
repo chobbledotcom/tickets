@@ -128,7 +128,14 @@ describe("mutant evaluation", () => {
       new AbortController().signal,
       state.deps,
     );
-    expect(result.status).toBe("killed");
+    expect(result).toEqual({
+      detectedBy: "test-state",
+      status: "killed",
+      timings: [
+        { durationMs: 1, phase: "direct-tests" },
+        { durationMs: expect.any(Number), phase: "test-state" },
+      ],
+    });
     expect(builds).toBe(2);
     expect(state.cleaned).toEqual(["baseline"]);
     expect(state.writes).toEqual([" false ", "true", "true"]);
@@ -205,7 +212,14 @@ describe("mutant evaluation", () => {
     const state = setup();
     state.deps.createState = () => Promise.resolve({ status: "timed-out" });
     const result = await evaluateIntegration(state);
-    expect(result.status).toBe("timed-out");
+    expect(result).toEqual({
+      detectedBy: null,
+      status: "timed-out",
+      timings: [
+        { durationMs: 1, phase: "direct-tests" },
+        { durationMs: expect.any(Number), phase: "test-state" },
+      ],
+    });
     expect(state.runs).toHaveLength(1);
   });
 
@@ -219,7 +233,7 @@ describe("mutant evaluation", () => {
           : { status: "timed-out" },
       );
     const result = await evaluateIntegration(state);
-    expect(result.status).toBe("timed-out");
+    expect(result).toMatchObject({ detectedBy: null, status: "timed-out" });
     expect(builds).toBe(2);
   });
 
@@ -244,7 +258,7 @@ describe("mutant evaluation", () => {
       controller.signal,
       state.deps,
     );
-    expect(result.status).toBe("timed-out");
+    expect(result).toMatchObject({ detectedBy: null, status: "timed-out" });
   });
 
   test("runs tests after a successful browser rebuild", async () => {
@@ -349,7 +363,7 @@ describe("mutant evaluation", () => {
       controller.signal,
       state.deps,
     );
-    expect(result.status).toBe("timed-out");
+    expect(result).toMatchObject({ detectedBy: null, status: "timed-out" });
   });
 
   test("surfaces a static gate infrastructure error before its deadline", async () => {

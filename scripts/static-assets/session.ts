@@ -1,5 +1,6 @@
 import type { BuildOptions } from "esbuild";
 import { runCleanups } from "../cleanup.ts";
+import { rethrowUnlessNotFound } from "../not-found.ts";
 
 export interface StaticBundle {
   label: string;
@@ -13,10 +14,10 @@ export interface StaticAssetBuild {
   restore(bundles: StaticBundle[]): Promise<void>;
 }
 
-export interface StaticBundleContext {
+export interface StaticBundleContext<Result = unknown> {
   context: {
     dispose(): Promise<void>;
-    rebuild(): Promise<unknown>;
+    rebuild(): Promise<Result>;
   };
 }
 
@@ -28,8 +29,19 @@ export interface BuiltStaticBundle extends StaticBundleContext {
 
 export interface StaticAssetFiles {
   resolve(file: string): string;
+  stop(): void;
   write(file: string, contents: Uint8Array): Promise<void>;
 }
+
+export const fileExists = async (file: string): Promise<boolean> => {
+  try {
+    await Deno.stat(file);
+    return true;
+  } catch (error) {
+    rethrowUnlessNotFound(error);
+    return false;
+  }
+};
 
 export const disposeStaticBundleContexts = (
   bundles: StaticBundleContext[],
@@ -41,6 +53,25 @@ export const disposeStaticBundleContexts = (
           context.dispose(),
     ),
   );
+
+export const settleAll = async (tasks: Promise<unknown>[]): Promise<void> => {
+  const results = await Promise.allSettled(tasks);
+  const failures: Array<() => Promise<never>> = [];
+  for (const result of results) {
+    if (result.status === "rejected") {
+      failures.push(() => Promise.reject(result.reason));
+    }
+  }
+  await runCleanups(failures);
+};
+
+export const rebuildStaticBundleContexts = async <Result>(
+  bundles: StaticBundleContext<Result>[],
+): Promise<Result[]> => {
+  const rebuilds = bundles.map(({ context }) => context.rebuild());
+  await settleAll(rebuilds);
+  return await Promise.all(rebuilds);
+};
 
 const builtBundle = (
   bundles: Map<StaticBundle, BuiltStaticBundle>,
@@ -75,22 +106,26 @@ export const createStaticAssetBuild = (
   const byBundle = new Map(bundles.map((built) => [built.bundle, built]));
   return {
     affected: (file) => graph.get(files.resolve(file)) ?? [],
-    dispose: () => disposeStaticBundleContexts(bundles),
+    dispose: () =>
+      runCleanups([
+        () => disposeStaticBundleContexts(bundles),
+        () => files.stop(),
+      ]),
     rebuild: async (affected) => {
       const builds = affected.map((bundle) => builtBundle(byBundle, bundle));
       try {
-        await Promise.all(builds.map(({ context }) => context.rebuild()));
+        await rebuildStaticBundleContexts(builds);
         return true;
       } catch {
         return false;
       }
     },
-    restore: (affected) =>
-      Promise.all(
-        affected.map((bundle) => {
-          const built = builtBundle(byBundle, bundle);
-          return files.write(built.bundle.options.outfile, built.baseline);
-        }),
-      ).then(() => {}),
+    restore: (affected) => {
+      const writes = affected.map((bundle) => {
+        const built = builtBundle(byBundle, bundle);
+        return files.write(built.bundle.options.outfile, built.baseline);
+      });
+      return settleAll(writes);
+    },
   };
 };

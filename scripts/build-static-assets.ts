@@ -6,16 +6,14 @@ import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl, resolve } from "@std/path";
 import * as esbuild from "esbuild";
 import * as sass from "sass";
+import { withGeneratedOutputRollback } from "./static-assets/output-rollback.ts";
 import {
   createStaticAssetBuild,
   disposeStaticBundleContexts,
+  rebuildStaticBundleContexts,
   type StaticAssetBuild,
   type StaticBundle,
-} from "./static-assets/session.ts";
-
-export type {
-  StaticAssetBuild,
-  StaticBundle,
+  settleAll,
 } from "./static-assets/session.ts";
 
 /**
@@ -145,6 +143,11 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
 const outfileOf = (bundle: StaticBundle): string =>
   resolve(Deno.cwd(), bundle.options.outfile);
 
+const outputFiles = (): string[] => [
+  resolve(Deno.cwd(), STATIC_ASSET_OUTFILES.css),
+  ...STATIC_JS_BUNDLES.map(outfileOf),
+];
+
 const inputsOf = (
   result: esbuild.BuildResult | undefined,
   bundle: StaticBundle,
@@ -184,36 +187,39 @@ export const buildStaticAssets = async (
   options: { quiet?: boolean } = {},
 ): Promise<StaticAssetBuild> => {
   const quiet = options.quiet ?? false;
-  const contexts = await createBundleContexts();
-  try {
-    const [, ...results] = await Promise.all([
-      buildCss(quiet),
-      ...contexts.map(({ context }) => context.rebuild()),
-    ]);
-    const bundles = await Promise.all(
-      contexts.map(async ({ bundle, context }, index) => {
-        if (!quiet) {
-          console.log(
-            `${bundle.label} build complete: ${bundle.options.outfile}`,
-          );
-        }
-        return {
-          baseline: await Deno.readFile(outfileOf(bundle)),
-          bundle,
-          context,
-          inputs: inputsOf(results[index], bundle),
-        };
-      }),
-    );
-    return createStaticAssetBuild(bundles, {
-      resolve: (file) => resolve(Deno.cwd(), file),
-      write: (file, contents) =>
-        Deno.writeFile(resolve(Deno.cwd(), file), contents),
-    });
-  } catch (error) {
-    await disposeStaticBundleContexts(contexts);
-    throw error;
-  }
+  let contexts: Awaited<ReturnType<typeof createBundleContexts>> = [];
+  return withGeneratedOutputRollback(
+    outputFiles(),
+    async () => {
+      contexts = await createBundleContexts();
+      const cssBuild = buildCss(quiet);
+      const bundleBuild = rebuildStaticBundleContexts(contexts);
+      await settleAll([cssBuild, bundleBuild]);
+      const results = await bundleBuild;
+      const bundles = await Promise.all(
+        contexts.map(async ({ bundle, context }, index) => {
+          if (!quiet) {
+            console.log(
+              `${bundle.label} build complete: ${bundle.options.outfile}`,
+            );
+          }
+          return {
+            baseline: await Deno.readFile(outfileOf(bundle)),
+            bundle,
+            context,
+            inputs: inputsOf(results[index], bundle),
+          };
+        }),
+      );
+      return createStaticAssetBuild(bundles, {
+        resolve: (file) => resolve(Deno.cwd(), file),
+        stop: () => esbuild.stop(),
+        write: (file, contents) =>
+          Deno.writeFile(resolve(Deno.cwd(), file), contents),
+      });
+    },
+    () => [() => disposeStaticBundleContexts(contexts), () => esbuild.stop()],
+  );
 };
 
 if (import.meta.main) {

@@ -14,10 +14,10 @@
  */
 
 import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
-import type { StaticAssetBuild } from "../build-static-assets.ts";
 import { dim, red, yellow } from "../precommit/colors.ts";
 import { write } from "../precommit/write.ts";
 import { projectRoot } from "../project-root.ts";
+import type { StaticAssetBuild } from "../static-assets/session.ts";
 import { withTestHarness } from "../test-harness.ts";
 import {
   offTerminationSignals,
