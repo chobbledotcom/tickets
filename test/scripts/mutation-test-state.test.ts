@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { createMutantTestState } from "../../scripts/mutation/test-state.ts";
+import { captureCommands } from "../../test/test-utils/command-capture.ts";
 import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
 
 describe("mutant test state", () => {
@@ -18,7 +19,7 @@ describe("mutant test state", () => {
       run: (_dir: string, env: Record<string, string>) => {
         builds += 1;
         seenEnvs.push(env);
-        return Promise.resolve(exit);
+        return Promise.resolve({ code: exit, stderr: "builder failed" });
       },
     };
     return { builds: () => builds, deps, removed, seenEnvs };
@@ -47,7 +48,7 @@ describe("mutant test state", () => {
     const state = setup(1);
     expect(
       await createMutantTestState({}, new AbortController().signal, state.deps),
-    ).toEqual({ status: "failed" });
+    ).toEqual({ message: "builder failed", status: "failed" });
     expect(state.removed).toEqual(["/tmp/mutant-state"]);
   });
 
@@ -63,13 +64,14 @@ describe("mutant test state", () => {
     expect(state.removed).toEqual(["/tmp/mutant-state"]);
   });
 
-  test("classifies an abort error before its signal changes", async () => {
+  test("surfaces an abort error when its signal was not aborted", async () => {
     const state = setup(0);
     state.deps.run = () =>
       Promise.reject(new DOMException("Stopped", "AbortError"));
-    expect(
-      await createMutantTestState({}, new AbortController().signal, state.deps),
-    ).toEqual({ status: "timed-out" });
+    await expect(
+      createMutantTestState({}, new AbortController().signal, state.deps),
+    ).rejects.toThrow("Stopped");
+    expect(state.removed).toEqual(["/tmp/mutant-state"]);
   });
 
   test("surfaces infrastructure errors after cleanup", async () => {
@@ -82,26 +84,7 @@ describe("mutant test state", () => {
   });
 
   test("runs the state builder in a fresh process and cleans its directory", async () => {
-    const commands: Array<{
-      command: string | URL;
-      options: Deno.CommandOptions;
-    }> = [];
-    const fakeCommand = (
-      command: string | URL,
-      options: Deno.CommandOptions,
-    ) => {
-      commands.push({ command, options });
-      return {
-        output: () =>
-          Promise.resolve({
-            code: 0,
-            signal: null,
-            stderr: new Uint8Array(),
-            stdout: new Uint8Array(),
-            success: true,
-          }),
-      };
-    };
+    const captured = captureCommands();
     const removed: Array<{ options?: Deno.RemoveOptions; path: string | URL }> =
       [];
     using _temp = stub(Deno, "makeTempDir", () =>
@@ -111,18 +94,24 @@ describe("mutant test state", () => {
       removed.push(options ? { options, path } : { path });
       return Promise.resolve();
     });
-    const commandNamespace = Deno as unknown as { Command: typeof fakeCommand };
-    using _command = stub(commandNamespace, "Command", fakeCommand);
+    const commandNamespace = Deno as unknown as {
+      Command: typeof captured.Command;
+    };
+    using _command = stub(commandNamespace, "Command", captured.Command);
     const result = await createMutantTestState(
       { KEEP: "yes", [TEST_STATE_DIR_ENV]: "/stale" },
       new AbortController().signal,
     );
     expect(result.status).toBe("ready");
     if (result.status !== "ready") throw new Error("Expected ready state");
-    expect(commands).toHaveLength(1);
-    expect(commands[0]?.command).toBe(Deno.execPath());
-    expect(commands[0]?.options.args?.slice(0, 2)).toEqual(["run", "-A"]);
-    expect(commands[0]?.options.env).toEqual({ KEEP: "yes" });
+    expect(captured.commands).toHaveLength(1);
+    expect(captured.commands[0]?.command).toBe(Deno.execPath());
+    expect(captured.commands[0]?.options.args?.slice(0, 2)).toEqual([
+      "run",
+      "-A",
+    ]);
+    expect(captured.commands[0]?.options.clearEnv).toBe(true);
+    expect(captured.commands[0]?.options.env).toEqual({ KEEP: "yes" });
     expect(result.state.env[TEST_STATE_DIR_ENV]).toBe("/tmp/real-mutant-state");
     await result.state.cleanup();
     expect(removed).toEqual([

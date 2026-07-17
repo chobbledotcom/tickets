@@ -6,6 +6,17 @@ import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl, resolve } from "@std/path";
 import * as esbuild from "esbuild";
 import * as sass from "sass";
+import {
+  createStaticAssetBuild,
+  disposeStaticBundleContexts,
+  type StaticAssetBuild,
+  type StaticBundle,
+} from "./static-assets/session.ts";
+
+export type {
+  StaticAssetBuild,
+  StaticBundle,
+} from "./static-assets/session.ts";
 
 /**
  * deno.json path the deno-loader uses to resolve every bundle's imports —
@@ -53,15 +64,6 @@ const buildCss = async (quiet = false): Promise<void> => {
   if (!quiet) console.log(`CSS build complete: ${STATIC_ASSET_OUTFILES.css}`);
 };
 
-/**
- * The client JS bundles as data. One build session uses this config for the
- * initial outputs, dependency graph, and incremental mutation rebuilds.
- */
-export interface StaticBundle {
-  label: string;
-  options: esbuild.BuildOptions;
-}
-
 /** A browser bundle built the standard way (bundled, minified, IIFE, deno
  *  loader plugins). `extra` overrides that default per bundle — the order
  *  widget needs ESM, the iframe-resizer child needs a licence banner. */
@@ -69,7 +71,7 @@ const browserBundle = (
   label: string,
   entryPoint: string,
   outfile: string,
-  extra: esbuild.BuildOptions = {},
+  extra: Omit<esbuild.BuildOptions, "outfile"> = {},
 ): StaticBundle => ({
   label,
   options: {
@@ -140,41 +142,17 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
   ),
 ];
 
-export interface StaticAssetBuild {
-  affected(file: string): StaticBundle[];
-  dispose(): Promise<void>;
-  rebuild(bundles: StaticBundle[]): Promise<boolean>;
-  restore(bundles: StaticBundle[]): Promise<void>;
-}
-
-interface BuiltBundle {
-  baseline: Uint8Array;
-  bundle: StaticBundle;
-  context: esbuild.BuildContext;
-  metafile: esbuild.Metafile;
-}
-
-interface BundleContext {
-  context: esbuild.BuildContext;
-}
-
-const disposeContexts = (contexts: BundleContext[]): Promise<void> =>
-  Promise.all(contexts.map(({ context }) => context.dispose())).then(() => {});
-
 const outfileOf = (bundle: StaticBundle): string =>
-  resolve(Deno.cwd(), bundle.options.outfile as string);
+  resolve(Deno.cwd(), bundle.options.outfile);
 
-const buildGraph = (bundles: BuiltBundle[]): Map<string, StaticBundle[]> => {
-  const graph = new Map<string, StaticBundle[]>();
-  for (const built of bundles) {
-    for (const input of Object.keys(built.metafile.inputs)) {
-      const file = resolve(Deno.cwd(), input);
-      const affected = graph.get(file);
-      if (affected) affected.push(built.bundle);
-      else graph.set(file, [built.bundle]);
-    }
+const inputsOf = (
+  result: esbuild.BuildResult | undefined,
+  bundle: StaticBundle,
+): string[] => {
+  if (!result?.metafile) {
+    throw new Error(`Static bundle has no build metadata: ${bundle.label}`);
   }
-  return graph;
+  return Object.keys(result.metafile.inputs);
 };
 
 const createBundleContexts = async (): Promise<
@@ -197,7 +175,7 @@ const createBundleContexts = async (): Promise<
     }
     return created;
   } catch (error) {
-    await disposeContexts(created);
+    await disposeStaticBundleContexts(created);
     throw error;
   }
 };
@@ -213,7 +191,7 @@ export const buildStaticAssets = async (
       ...contexts.map(({ context }) => context.rebuild()),
     ]);
     const bundles = await Promise.all(
-      contexts.map(async ({ bundle, context }, index): Promise<BuiltBundle> => {
+      contexts.map(async ({ bundle, context }, index) => {
         if (!quiet) {
           console.log(
             `${bundle.label} build complete: ${bundle.options.outfile}`,
@@ -223,35 +201,17 @@ export const buildStaticAssets = async (
           baseline: await Deno.readFile(outfileOf(bundle)),
           bundle,
           context,
-          metafile: results[index]!.metafile!,
+          inputs: inputsOf(results[index], bundle),
         };
       }),
     );
-    const graph = buildGraph(bundles);
-    const byBundle = new Map(bundles.map((built) => [built.bundle, built]));
-    return {
-      affected: (file) => graph.get(resolve(Deno.cwd(), file)) ?? [],
-      dispose: () => disposeContexts(bundles),
-      rebuild: async (affected) => {
-        try {
-          await Promise.all(
-            affected.map((bundle) => byBundle.get(bundle)!.context.rebuild()),
-          );
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      restore: (affected) =>
-        Promise.all(
-          affected.map((bundle) => {
-            const built = byBundle.get(bundle)!;
-            return Deno.writeFile(outfileOf(bundle), built.baseline);
-          }),
-        ).then(() => {}),
-    };
+    return createStaticAssetBuild(bundles, {
+      resolve: (file) => resolve(Deno.cwd(), file),
+      write: (file, contents) =>
+        Deno.writeFile(resolve(Deno.cwd(), file), contents),
+    });
   } catch (error) {
-    await disposeContexts(contexts);
+    await disposeStaticBundleContexts(contexts);
     throw error;
   }
 };

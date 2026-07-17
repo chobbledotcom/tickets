@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { buildMutationTestMap } from "../../scripts/mutation/test-map.ts";
+import {
+  buildMutationTestMap,
+  requireDirectMutationTests,
+} from "../../scripts/mutation/test-map.ts";
 import { projectRoot } from "../../scripts/project-root.ts";
 
 describe("mutation test map", () => {
@@ -32,7 +35,7 @@ describe("mutation test map", () => {
     });
   });
 
-  test("keeps unmatched tests for the integration stage", () => {
+  test("keeps explicit integration tests for the later stage", () => {
     const result = buildMutationTestMap(
       ["src/shared/a.ts"],
       ["test/shared/a.test.ts", "test/integration/app.test.ts"],
@@ -69,15 +72,13 @@ describe("mutation test map", () => {
     ]);
   });
 
-  test("does not treat a similarly named sibling as a direct test", () => {
-    const result = buildMutationTestMap(
-      ["src/db/attendees.ts"],
-      ["test/db/attendees-notes.test.ts"],
-    );
-    expect(result.integrationTestFiles).toEqual([
-      "test/db/attendees-notes.test.ts",
-    ]);
-    expect(result.targets[0]?.directTestFiles).toEqual([]);
+  test("rejects a similarly named sibling instead of treating it as integration", () => {
+    expect(() =>
+      buildMutationTestMap(
+        ["src/db/attendees.ts"],
+        ["test/db/attendees-notes.test.ts"],
+      ),
+    ).toThrow("Mutation tests must mirror a selected source");
   });
 
   test("maps absolute paths inside the project", () => {
@@ -88,5 +89,34 @@ describe("mutation test map", () => {
     expect(result.targets[0]?.directTestFiles).toEqual([
       `${projectRoot}/test/shared/a.test.ts`,
     ]);
+  });
+
+  test("rejects misplaced legacy tests with every offending path", () => {
+    expect(() =>
+      buildMutationTestMap(
+        ["src/shared/a.ts"],
+        ["test/lib/a.test.ts", "test/shared/other.test.ts"],
+      ),
+    ).toThrow("test/lib/a.test.ts\ntest/shared/other.test.ts");
+  });
+
+  test("keeps explicit end-to-end tests in the integration stage", () => {
+    const result = buildMutationTestMap(
+      ["src/shared/a.ts"],
+      ["test/shared/a.test.ts", "test/e2e/booking.test.ts"],
+    );
+    expect(result.integrationTestFiles).toEqual(["test/e2e/booking.test.ts"]);
+  });
+
+  test("requires mutable sources to have a mirror-located direct test", () => {
+    expect(() => requireDirectMutationTests("src/shared/a.ts", 1, [])).toThrow(
+      "No direct test mirrors src/shared/a.ts",
+    );
+  });
+
+  test("allows sources without operators to omit a direct test", () => {
+    expect(requireDirectMutationTests("src/shared/types.ts", 0, [])).toBe(
+      undefined,
+    );
   });
 });

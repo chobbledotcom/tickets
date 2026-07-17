@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
-import { denoExitCode } from "./child-process.ts";
 
 export interface MutantTestState {
   cleanup(): Promise<void>;
@@ -8,8 +7,14 @@ export interface MutantTestState {
 }
 
 export type MutantTestStateResult =
-  | { status: "failed" | "timed-out" }
+  | { message: string; status: "failed" }
+  | { status: "timed-out" }
   | { state: MutantTestState; status: "ready" };
+
+interface StateBuilderOutput {
+  code: number;
+  stderr: string;
+}
 
 interface TestStateDeps {
   makeTempDir(): Promise<string>;
@@ -18,17 +23,31 @@ interface TestStateDeps {
     dir: string,
     env: Record<string, string>,
     signal: AbortSignal,
-  ): Promise<number>;
+  ): Promise<StateBuilderOutput>;
 }
 
 const realDeps: TestStateDeps = {
   makeTempDir: () => Deno.makeTempDir({ prefix: "tickets-mutant-state-" }),
   remove: (path) => Deno.remove(path, { recursive: true }),
-  run: (dir, env, signal) =>
-    denoExitCode(
-      ["run", "-A", join(import.meta.dirname!, "build-test-state.ts"), dir],
-      { env, signal, stderr: "null", stdout: "null" },
-    ),
+  run: async (dir, env, signal) => {
+    const output = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "-A",
+        join(import.meta.dirname!, "build-test-state.ts"),
+        dir,
+      ],
+      clearEnv: true,
+      env,
+      signal,
+      stderr: "piped",
+      stdout: "null",
+    }).output();
+    return {
+      code: output.code,
+      stderr: new TextDecoder().decode(output.stderr),
+    };
+  },
 };
 
 /** Build one state snapshot from the current mutant in a fresh process. Every
@@ -42,10 +61,10 @@ export const createMutantTestState = async (
   const builderEnv = { ...baseEnv };
   delete builderEnv[TEST_STATE_DIR_ENV];
   try {
-    const code = await deps.run(dir, builderEnv, signal);
-    if (code !== 0) {
+    const output = await deps.run(dir, builderEnv, signal);
+    if (output.code !== 0) {
       await deps.remove(dir);
-      return { status: "failed" };
+      return { message: output.stderr.trim(), status: "failed" };
     }
     return {
       state: {
@@ -56,12 +75,7 @@ export const createMutantTestState = async (
     };
   } catch (error) {
     await deps.remove(dir);
-    if (
-      signal.aborted ||
-      (error instanceof DOMException && error.name === "AbortError")
-    ) {
-      return { status: "timed-out" };
-    }
+    if (signal.aborted) return { status: "timed-out" };
     throw error;
   }
 };

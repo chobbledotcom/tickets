@@ -7,51 +7,34 @@
  * mutations bind through this project's `#…` import-map aliases — a fresh
  * subprocess recompiles the changed file, so the tests run against the mutant.
  *
- * Before the tests, each mutant runs through cheap static gates — a Biome lint
- * and a `deno check` type-check — that kill it outright if the mutation
- * produces forbidden code or a type error (either would fail the build, so the
- * mutant could never ship). Static checks are much faster than a full test run,
- * so ruling a mutant out this way skips the tests entirely; see createStaticGates.
- *
  * A mutant is "killed" when a static gate rejects it or the tests fail,
  * "survived" when it clears every gate and the tests still pass (a gap in the
  * tests), or "timed-out" when the mutation caused a hang (which counts as
  * detected).
  */
 
-import { resolve } from "@std/path";
 import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
 import type { StaticAssetBuild } from "../build-static-assets.ts";
-import { commandExitCode } from "../deno-command.ts";
-import { dim, green, red, yellow } from "../precommit/colors.ts";
+import { dim, red, yellow } from "../precommit/colors.ts";
 import { write } from "../precommit/write.ts";
 import { projectRoot } from "../project-root.ts";
-import { stripeMockEnv } from "../stripe-mock.ts";
 import { withTestHarness } from "../test-harness.ts";
-import { batchTestFiles } from "./batch.ts";
 import {
-  denoExitCode,
-  envWith,
   offTerminationSignals,
   onTerminationSignals,
 } from "./child-process.ts";
-import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
+import { createFilePlan, type FileMutationPlan } from "./evaluate.ts";
 import {
-  type IgnoreList,
-  ignoreListProblems,
-  isIgnored,
-  loadIgnoreList,
-  mutantKey,
-} from "./ignore.ts";
-import {
-  type MutationPhase,
-  measurePhase,
-  type PhaseTiming,
-  runTestStages,
-} from "./phases.ts";
+  createStaticGates,
+  runTests,
+  type StaticGate,
+  testEnv,
+} from "./execution.ts";
+import { generateMutants } from "./generate.ts";
+import { ignoreListProblems, loadIgnoreList, mutantKey } from "./ignore.ts";
+import { type FileRunOptions, runFileMutants } from "./run-file.ts";
 import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
 import {
-  formatProgressLine,
   formatSummaryLines,
   type MutantResult,
   rel,
@@ -59,8 +42,11 @@ import {
   summarize,
   writeStepSummary,
 } from "./summary.ts";
-import { buildMutationTestMap } from "./test-map.ts";
-import { createMutantTestState } from "./test-state.ts";
+import {
+  buildMutationTestMap,
+  type MutationTestMap,
+  requireDirectMutationTests,
+} from "./test-map.ts";
 
 /** The files and knobs that describe what to mutate and how — shared by the
  * public {@link MutationOptions} and the internal {@link RunMutantsOptions} so
@@ -77,11 +63,8 @@ export interface MutationOptions extends MutationTargets {
   batchJobs?: number;
 }
 
-type Outcome = "failed" | "passed" | "timed-out";
-
 const BASELINE_TIMEOUT = 120_000;
 const TIMEOUT_MULTIPLIER = 3;
-const PROGRESS_INTERVAL = 10;
 
 const parsePositiveInt = (value: string | undefined): number | null => {
   if (!value) return null;
@@ -94,437 +77,6 @@ const hardwareConcurrency = (): number => navigator.hardwareConcurrency || 1;
 const defaultBatchJobs = (): number =>
   parsePositiveInt(Deno.env.get("MUTATION_JOBS")) ??
   Math.max(1, Math.min(4, hardwareConcurrency() - 1));
-
-const testEnv = (): Record<string, string> => envWith(stripeMockEnv());
-
-/** Direct tests cannot use state built before their mutant existed. The later
- * integration stage replaces this missing pointer with one shared state built
- * from the mutant — see ./state-graph.ts and ./test-state.ts. */
-const mutantTestEnv = (rebuildTestState: boolean): Record<string, string> => {
-  const env = testEnv();
-  if (rebuildTestState) delete env[TEST_STATE_DIR_ENV];
-  return env;
-};
-
-/**
- * Resolve how to invoke Biome's linter — the native binary when it is on PATH
- * (matches the Nix dev shell), otherwise the npm package (hosted CI). Mirrors
- * scripts/biome.ts so the mutation gate lints exactly as `deno task lint` does.
- */
-const resolveBiome = async (): Promise<{ bin: string; pre: string[] }> => {
-  try {
-    const which = await new Deno.Command("which", { args: ["biome"] }).output();
-    if (which.success) return { bin: "biome", pre: [] };
-  } catch {
-    // fall through to the npm package
-  }
-  return { bin: Deno.execPath(), pre: ["run", "-A", "npm:@biomejs/biome"] };
-};
-
-/**
- * A cheap static check run over a mutated file *before* the tests. Its `exit`
- * is the check's exit code (0 = clean) for the file's current on-disk contents.
- *
- * A non-zero exit is read as "the mutation introduced a diagnostic" — the
- * mutant produces code the project forbids or that would not build, so it could
- * never pass review, and we count it as detected (killed) without spending a
- * full test run on it (see evaluateMutant). Static gates are ordered cheapest
- * first, so a `deno test` is reached only for mutants that survive every one.
- *
- * That reading is only sound once the runner has confirmed, per file, that the
- * *unmutated* target passes the gate (see the baseline probe in runMutants):
- * otherwise a broken tool or a pre-existing failure in the target would fail
- * every mutant and report a bogus 100%. `label` names the gate in that probe's
- * message and `remedy` tells the operator how to make the target clean again.
- */
-interface StaticGate {
-  /** The gate's exit code for the file's current on-disk contents (0 = clean). */
-  exit(file: string): Promise<number>;
-  /** Short name shown in the baseline-probe failure message (e.g. "lint"). */
-  label: string;
-  phase: "lint" | "type-check";
-  /** Advice printed when the *unmutated* target fails this gate. */
-  remedy: string[];
-}
-
-/**
- * Biome lint gate. A passing mutant must never *mask* a genuine survivor, so:
- *   - error-severity only (plain `biome lint`, never `--error-on-warnings`):
- *     the `noExcessiveCognitiveComplexity` *warning* can trip when an
- *     `&&`/`||`/`??` swap changes a borderline function's operator mix, and
- *     killing on that would hide a real logical survivor.
- *   - lint, never `check`: a mutation that merely lengthens a line past the
- *     formatter's width is a formatting diff, not a real detection.
- * The rule this reliably catches is `noDoubleEquals` — every `=== → ==` and
- * `!== → !=` mutant produces forbidden `==`/`!=` and dies here without a test.
- */
-const createLinter = async (): Promise<StaticGate> => {
-  const { bin, pre } = await resolveBiome();
-  return {
-    exit: (file: string): Promise<number> =>
-      commandExitCode(bin, {
-        // --no-errors-on-unmatched: a source deliberately outside Biome's
-        // includes (e.g. src/ui/client/scanner.js) is still a mutation target
-        // via src/**/*.js, and linting an excluded path exits non-zero for
-        // "no files processed". Silencing that makes such a file lint clean
-        // (exit 0) so its mutants fall through to the test/build path instead
-        // of the baseline probe mistaking it for a dirty target and aborting.
-        args: [...pre, "lint", "--no-errors-on-unmatched", file],
-        cwd: projectRoot,
-        stderr: "null",
-        stdout: "null",
-      }),
-    label: "lint",
-    phase: "lint",
-    remedy: [
-      "The mutation lint gate needs a lint-clean target and a working Biome.",
-      "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
-      "a standalone `deno task mutation` does not), then retry.",
-    ],
-  };
-};
-
-/**
- * TypeScript type-check gate. `deno check <file>` type-checks the mutated file
- * and its import graph; a non-zero exit means the mutation introduced a type
- * error. The project must type-check to build, so such a mutant could never
- * ship — count it as detected without running the tests. Type-checking is far
- * cheaper than a full `deno test` (the baseline probe warms the module cache by
- * checking the unmutated file first, so per-mutant checks re-type only the one
- * changed file), which is exactly why it runs before the tests.
- *
- * Unlike the lint gate there is no warning/formatting nuance to guard against:
- * `deno check` reports type errors only, and *every* type error is a build
- * failure, so killing on one can never mask a survivor the tests should catch.
- * A `.js` mutation target (client-bundle source) type-checks clean and simply
- * falls through to the test path.
- */
-const createTypeChecker = (): StaticGate => ({
-  exit: (file: string): Promise<number> =>
-    denoExitCode(["check", file], {
-      cwd: projectRoot,
-      stderr: "null",
-      stdout: "null",
-    }),
-  label: "type-check",
-  phase: "type-check",
-  remedy: [
-    "The mutation type-check gate needs a type-clean target and a working deno.",
-    "Run `deno task typecheck` and fix any errors (precommit typechecks first;",
-    "a standalone `deno task mutation` does not), then retry.",
-  ],
-});
-
-/**
- * The static gates run over each mutant before the tests, cheapest first: the
- * per-file Biome lint (no module graph), then the `deno check` type-check
- * (graph, but cache-warmed). A mutant reaches `deno test` only if it survives
- * both.
- */
-const createStaticGates = async (): Promise<StaticGate[]> => [
-  await createLinter(),
-  createTypeChecker(),
-];
-
-/** Run one `deno test` process over `batch`, returning its exit code. */
-const runTestBatch = (
-  batch: string[],
-  signal: AbortSignal,
-  env: Record<string, string>,
-): Promise<number> =>
-  denoExitCode(
-    [
-      "test",
-      "--no-check",
-      "--allow-all",
-      "--parallel",
-      // Match the standard harness: install the fast matcher and preload the
-      // complete catalog for tests that render templates without routing.
-      "--preload",
-      "./test/test-utils/preload.ts",
-      "--v8-flags=--expose-gc",
-      ...batch,
-    ],
-    {
-      cwd: projectRoot,
-      env,
-      signal,
-      stderr: "null",
-      stdout: "null",
-    },
-  );
-
-/**
- * Run the test files once, returning the outcome and how long it took.
- *
- * The files are run in batches, each in its own `deno test` process, to cap how
- * many test files a single process loads at a time — see ./batch.ts for why the
- * local libsql driver's per-transaction fd leak makes a one-big-process run
- * spike past the open-file ceiling ("Too many open files"). A fresh process per
- * batch releases every fd on exit, so the peak stays bounded by one batch.
- *
- * A non-zero batch is enough to decide the run: it fails the baseline, or kills
- * a mutant, so the remaining batches are skipped. All batches share one timeout
- * and abort signal, so a mutant that hangs is still caught as "timed-out".
- */
-/** One test run's fixed shape: which files, how long, how wide, in what env. */
-interface TestRunConfig {
-  batchJobs: number;
-  env: Record<string, string>;
-  testFiles: string[];
-  timeoutMs: number;
-}
-
-const runTests = async (
-  { batchJobs, env, testFiles, timeoutMs }: TestRunConfig,
-  abortSignal?: AbortSignal,
-): Promise<{ durationMs: number; outcome: Outcome }> => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onAbort = (): void => controller.abort();
-  if (abortSignal?.aborted) controller.abort();
-  else abortSignal?.addEventListener("abort", onAbort, { once: true });
-  const startedAt = performance.now();
-  const elapsed = (): number => performance.now() - startedAt;
-  try {
-    const batches = batchTestFiles(testFiles);
-    let nextBatch = 0;
-    const worker = async (): Promise<Outcome | null> => {
-      while (!controller.signal.aborted) {
-        const batch = batches[nextBatch];
-        nextBatch += 1;
-        if (!batch) return null;
-        try {
-          const code = await runTestBatch(batch, controller.signal, env);
-          if (code !== 0) {
-            controller.abort();
-            return "failed";
-          }
-        } catch {
-          return "timed-out";
-        }
-      }
-      return null;
-    };
-    const jobs = Math.min(Math.max(1, batchJobs), Math.max(1, batches.length));
-    const outcomes = await Promise.all(
-      Array.from({ length: jobs }, () => worker()),
-    );
-    const outcome = outcomes.includes("failed")
-      ? "failed"
-      : outcomes.includes("timed-out")
-        ? "timed-out"
-        : "passed";
-    return { durationMs: elapsed(), outcome };
-  } catch {
-    return { durationMs: elapsed(), outcome: "timed-out" };
-  } finally {
-    clearTimeout(timer);
-    abortSignal?.removeEventListener("abort", onAbort);
-  }
-};
-
-const toStatus = (outcome: Outcome): Status =>
-  outcome === "passed"
-    ? "survived"
-    : outcome === "failed"
-      ? "killed"
-      : "timed-out";
-
-const statusGlyph = (status: Status): string =>
-  status === "killed"
-    ? green(".")
-    : status === "timed-out"
-      ? yellow("T")
-      : status === "ignored"
-        ? dim("i")
-        : red("S");
-
-/**
- * Hooks for keeping a mutated source's built client bundle(s) in sync, used
- * only under `--harness` when the source feeds `src/ui/static/*.js`.
- */
-interface MutantAssetHooks {
-  rebuild: () => Promise<boolean>;
-  restore: () => Promise<void>;
-}
-
-interface FileMutationPlan {
-  assets: MutantAssetHooks | null;
-  directTestFiles: string[];
-  file: string;
-  mutants: Mutant[];
-  original: string;
-  /** True when integration tests need state rebuilt from this mutant. */
-  rebuildTestState: boolean;
-}
-
-interface MutantEvaluation {
-  detectedBy: MutationPhase | null;
-  status: Status;
-  timings: PhaseTiming[];
-}
-
-const testStatus = (
-  phase: "direct-tests" | "integration-tests",
-  result: Awaited<ReturnType<typeof runTests>>,
-): { status: Status; timings: PhaseTiming[] } => ({
-  status: toStatus(result.outcome),
-  timings: [{ durationMs: result.durationMs, phase }],
-});
-
-/** Mutate the file, run the tests, and always restore the original. */
-const evaluateMutant = async (
-  plan: FileMutationPlan,
-  mutant: Mutant,
-  run: TestRunConfig,
-  integrationTestFiles: string[],
-  gates: StaticGate[],
-  abortSignal: AbortSignal,
-): Promise<MutantEvaluation> => {
-  const { assets, directTestFiles, file, original, rebuildTestState } = plan;
-  const timings: PhaseTiming[] = [];
-  await Deno.writeTextFile(file, applyMutant(original, mutant));
-  try {
-    // A mutant that produces code a static gate rejects — `==` under Biome's
-    // noDoubleEquals, or a type error under `deno check` — is detected
-    // statically, killed before we spend a full test run on it. The unmutated
-    // target is verified clean per gate per file (see runMutants), so a
-    // non-zero exit here is a mutation-introduced diagnostic, not a broken
-    // tool. Gates run cheapest first; see createStaticGates for the rationale.
-    for (const gate of gates) {
-      const measured = await measurePhase(gate.phase, () => gate.exit(file));
-      timings.push(measured.timing);
-      if (measured.value !== 0) {
-        return { detectedBy: gate.phase, status: "killed", timings };
-      }
-    }
-    // A mutant that breaks the client-bundle build must not be tested against a
-    // stale baseline asset (the tests would pass and it would falsely survive).
-    // A failed build means the mutation is detected, so count it as killed.
-    if (assets) {
-      const measured = await measurePhase("asset-build", assets.rebuild);
-      timings.push(measured.timing);
-      if (!measured.value) {
-        return { detectedBy: "asset-build", status: "killed", timings };
-      }
-    }
-    const stages = await runTestStages(
-      directTestFiles,
-      integrationTestFiles,
-      async (phase, testFiles) => {
-        if (phase === "direct-tests") {
-          return testStatus(
-            phase,
-            await runTests(
-              {
-                ...run,
-                env: mutantTestEnv(rebuildTestState),
-                testFiles,
-              },
-              abortSignal,
-            ),
-          );
-        }
-
-        let state: Awaited<ReturnType<typeof createMutantTestState>> | null =
-          null;
-        let env = mutantTestEnv(rebuildTestState);
-        const stageTimings: PhaseTiming[] = [];
-        if (rebuildTestState) {
-          const stateSignal = AbortSignal.any([
-            abortSignal,
-            AbortSignal.timeout(run.timeoutMs),
-          ]);
-          const measured = await measurePhase("test-state", () =>
-            createMutantTestState(run.env, stateSignal),
-          );
-          stageTimings.push(measured.timing);
-          state = measured.value;
-          if (state.status !== "ready") {
-            return {
-              status: state.status === "failed" ? "killed" : "timed-out",
-              timings: stageTimings,
-            };
-          }
-          env = state.state.env;
-        }
-        try {
-          const tested = testStatus(
-            phase,
-            await runTests({ ...run, env, testFiles }, abortSignal),
-          );
-          return {
-            status: tested.status,
-            timings: [...stageTimings, ...tested.timings],
-          };
-        } finally {
-          if (state?.status === "ready") await state.state.cleanup();
-        }
-      },
-    );
-    timings.push(...stages.timings);
-    return {
-      detectedBy:
-        stages.status === "survived"
-          ? null
-          : (stages.timings.at(-1)?.phase ?? null),
-      status: stages.status,
-      timings,
-    };
-  } finally {
-    await Deno.writeTextFile(file, original);
-    if (assets) await assets.restore();
-  }
-};
-
-const logFilePlan = (plan: FileMutationPlan, affectedCount: number): void => {
-  if (plan.mutants.length === 0) {
-    console.log(yellow(`  no mutable operators in ${rel(plan.file)}`));
-    return;
-  }
-  const notes = [
-    affectedCount > 0 ? `rebuilding ${affectedCount} bundle(s) per mutant` : "",
-    plan.directTestFiles.length > 0
-      ? `${plan.directTestFiles.length} direct test(s) first`
-      : "",
-    plan.rebuildTestState ? "shared mutant test state for integration" : "",
-  ].filter((entry) => entry !== "");
-  const note = notes.length > 0 ? dim(` (${notes.join("; ")})`) : "";
-  console.log(
-    dim(`  ${rel(plan.file)}: ${plan.mutants.length} mutants`) + note,
-  );
-};
-
-const filePlan = async (
-  rebuilder: StaticAssetBuild | null,
-  stateBuilderFiles: Set<string> | null,
-  exhaustive: boolean,
-  file: string,
-  directTestFiles: string[],
-): Promise<FileMutationPlan> => {
-  const original = await Deno.readTextFile(file);
-  const affected = rebuilder ? rebuilder.affected(file) : [];
-  const assets: MutantAssetHooks | null =
-    rebuilder && affected.length > 0
-      ? {
-          rebuild: () => rebuilder.rebuild(affected),
-          restore: () => rebuilder.restore(affected),
-        }
-      : null;
-  const plan = {
-    assets,
-    directTestFiles,
-    file,
-    mutants: generateMutants(original, file, exhaustive),
-    original,
-    // A null set means no prebuilt state is in play for this run at all.
-    rebuildTestState:
-      stateBuilderFiles?.has(resolve(projectRoot, file)) ?? false,
-  };
-  logFilePlan(plan, affected.length);
-  return plan;
-};
 
 /**
  * Print the report (and the CI step summary), returning the exit code:
@@ -542,16 +94,10 @@ const report = (results: MutantResult[]): number => {
   return summary.survived === 0 ? 0 : 1;
 };
 
-interface RunMutantsOptions extends MutationTargets {
-  abortSignal: AbortSignal;
-  batchJobs: number;
-  ignoreList: IgnoreList;
-  integrationTestFiles: string[];
-  isAborted: () => boolean;
-  originals: Map<string, string>;
+interface RunMutantsOptions extends MutationTargets, FileRunOptions {
   restoreAll: () => void;
-  results: MutantResult[];
   staticAssets: StaticAssetBuild | null;
+  testMap: MutationTestMap;
 }
 
 /**
@@ -567,8 +113,8 @@ const establishBaseline = async (
   // The baseline runs unmutated code, so the prebuilt state snapshot is valid
   // for it even when some target feeds that state.
   const baseline = await runTests(
-    { batchJobs, env: testEnv(), testFiles, timeoutMs: BASELINE_TIMEOUT },
-    abortSignal,
+    { batchJobs, env: testEnv(), testFiles },
+    AbortSignal.any([abortSignal, AbortSignal.timeout(BASELINE_TIMEOUT)]),
   );
   if (isAborted()) return { code: 130 };
   if (baseline.outcome !== "passed") {
@@ -611,10 +157,11 @@ const establishBaseline = async (
 const isUnmutatedTargetDirty = async (
   plan: FileMutationPlan,
   gates: StaticGate[],
+  signal: AbortSignal,
 ): Promise<boolean> => {
   if (plan.mutants.length === 0) return false;
   for (const gate of gates) {
-    if ((await gate.exit(plan.file)) === 0) continue;
+    if ((await gate.exit(plan.file, signal)) === 0) continue;
     console.error(
       red(
         `\nThe unmutated ${rel(plan.file)} does not pass the ${gate.label} gate.`,
@@ -624,97 +171,6 @@ const isUnmutatedTargetDirty = async (
     return true;
   }
   return false;
-};
-
-/** Print the running progress line for a mutant, on the cadence the loop uses. */
-const reportMutantProgress = (
-  last: MutantResult,
-  counts: Record<Status, number>,
-  completed: number,
-  total: number,
-): void => {
-  if (
-    completed % PROGRESS_INTERVAL !== 0 &&
-    completed !== total &&
-    last.status === "killed"
-  ) {
-    return;
-  }
-  write("\n");
-  console.log(
-    formatProgressLine({
-      completed,
-      ignored: counts.ignored,
-      killed: counts.killed,
-      last,
-      survived: counts.survived,
-      timedOut: counts["timed-out"],
-      total,
-    }),
-  );
-};
-
-interface MutantLoopContext {
-  counts: Record<Status, number>;
-  gates: StaticGate[];
-  perMutantTimeout: number;
-  totalMutants: number;
-}
-
-/** Evaluate every mutant for one file plan, recording results and progress. */
-const evaluatePlanMutants = async (
-  plan: FileMutationPlan,
-  opts: RunMutantsOptions,
-  ctx: MutantLoopContext,
-): Promise<void> => {
-  const { counts, gates, perMutantTimeout, totalMutants } = ctx;
-  const {
-    abortSignal,
-    batchJobs,
-    ignoreList,
-    integrationTestFiles,
-    isAborted,
-    originals,
-    results,
-    testFiles,
-  } = opts;
-  const run: TestRunConfig = {
-    batchJobs,
-    env: testEnv(),
-    testFiles,
-    timeoutMs: perMutantTimeout,
-  };
-  for (const mutant of plan.mutants) {
-    if (isAborted()) break;
-    originals.set(plan.file, plan.original);
-    const evaluation = await evaluateMutant(
-      plan,
-      mutant,
-      run,
-      integrationTestFiles,
-      gates,
-      abortSignal,
-    );
-    originals.delete(plan.file);
-    if (isAborted()) break;
-    // A survivor recorded as known-equivalent is suppressed, not a failure.
-    const status: Status =
-      evaluation.status === "survived" &&
-      isIgnored(ignoreList, plan.file, mutant)
-        ? "ignored"
-        : evaluation.status;
-    const result = {
-      detectedBy: evaluation.detectedBy,
-      file: plan.file,
-      mutant,
-      status,
-      timings: evaluation.timings,
-    };
-    results.push(result);
-    counts[status] += 1;
-    write(statusGlyph(status));
-    reportMutantProgress(result, counts, results.length, totalMutants);
-  }
 };
 
 /**
@@ -763,14 +219,9 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     isAborted,
     restoreAll,
     results,
-    sourceFiles,
     staticAssets,
     useHarness,
   } = opts;
-
-  const baseline = await establishBaseline(opts);
-  if ("code" in baseline) return baseline.code;
-  const { perMutantTimeout } = baseline;
 
   // Under --harness the client bundles are built once; a mutant on a bundled
   // source must rebuild the affected bundle(s) or it would falsely survive.
@@ -784,25 +235,29 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const stateBuilderFiles = Deno.env.get(TEST_STATE_DIR_ENV)
     ? await collectModuleGraphFiles(STATE_BUILDER_ROOT, projectRoot)
     : null;
+  const plans: FileMutationPlan[] = [];
+  for (const target of opts.testMap.targets) {
+    const plan = await createFilePlan(
+      rebuilder,
+      stateBuilderFiles,
+      exhaustive,
+      target.sourceFile,
+      target.directTestFiles,
+    );
+    requireDirectMutationTests(
+      plan.file,
+      plan.mutants.length,
+      plan.directTestFiles,
+    );
+    plans.push(plan);
+  }
+
+  const baseline = await establishBaseline(opts);
+  if ("code" in baseline) return baseline.code;
+  const { perMutantTimeout } = baseline;
   const gates = await createStaticGates();
 
-  // Hoisted out of the try block: the ignore-list staleness check after it
-  // needs each plan's original source to regenerate the --exhaustive mutant
-  // set, regardless of which mode this run used.
-  const plans: FileMutationPlan[] = [];
   try {
-    const testMap = buildMutationTestMap(sourceFiles, opts.testFiles);
-    for (const target of testMap.targets) {
-      plans.push(
-        await filePlan(
-          rebuilder,
-          stateBuilderFiles,
-          exhaustive,
-          target.sourceFile,
-          target.directTestFiles,
-        ),
-      );
-    }
     const totalMutants = plans.reduce(
       (sum, plan) => sum + plan.mutants.length,
       0,
@@ -816,8 +271,12 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
     for (const plan of plans) {
       if (isAborted()) break;
-      if (await isUnmutatedTargetDirty(plan, gates)) return 1;
-      await evaluatePlanMutants(plan, opts, {
+      const gateSignal = AbortSignal.any([
+        opts.abortSignal,
+        AbortSignal.timeout(BASELINE_TIMEOUT),
+      ]);
+      if (await isUnmutatedTargetDirty(plan, gates, gateSignal)) return 1;
+      await runFileMutants(plan, opts, {
         counts,
         gates,
         perMutantTimeout,
@@ -840,21 +299,16 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 const mutate = async (
   options: MutationOptions,
   staticAssets: StaticAssetBuild | null,
+  testMap: MutationTestMap,
 ): Promise<number> => {
   const { exhaustive, sourceFiles, testFiles, timeout } = options;
   const batchJobs = options.batchJobs ?? defaultBatchJobs();
   const ignoreList = await loadIgnoreList();
-  const testMap = buildMutationTestMap(sourceFiles, testFiles);
-
   const results: MutantResult[] = [];
   const originals = new Map<string, string>();
   const restoreAll = (): void => {
     for (const [file, content] of originals) {
-      try {
-        Deno.writeTextFileSync(file, content);
-      } catch {
-        // best effort; the file is git-tracked and recoverable
-      }
+      Deno.writeTextFileSync(file, content);
     }
   };
   // On SIGINT/SIGTERM, abort the in-flight test run and let the loop fall
@@ -891,6 +345,7 @@ const mutate = async (
       sourceFiles,
       staticAssets,
       testFiles,
+      testMap,
       timeout,
       useHarness: options.useHarness,
     });
@@ -911,9 +366,22 @@ const mutate = async (
  * regular test runners. Signals during the baseline and mutation phases are
  * handled gracefully by mutate().
  */
-export const runMutationTesting = (
+export const runMutationTesting = async (
   options: MutationOptions,
-): Promise<number> =>
-  options.useHarness
-    ? withTestHarness(({ staticAssets }) => mutate(options, staticAssets))
-    : mutate(options, null);
+): Promise<number> => {
+  const testMap = buildMutationTestMap(options.sourceFiles, options.testFiles);
+  for (const target of testMap.targets) {
+    if (target.directTestFiles.length > 0) continue;
+    const source = await Deno.readTextFile(target.sourceFile);
+    requireDirectMutationTests(
+      target.sourceFile,
+      generateMutants(source, target.sourceFile, options.exhaustive).length,
+      target.directTestFiles,
+    );
+  }
+  return options.useHarness
+    ? withTestHarness(({ staticAssets }) =>
+        mutate(options, staticAssets, testMap),
+      )
+    : mutate(options, null, testMap);
+};

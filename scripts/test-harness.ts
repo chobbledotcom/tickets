@@ -18,6 +18,12 @@ import {
   type StaticAssetBuild,
 } from "./build-static-assets.ts";
 import {
+  failAfterCleanups,
+  removeIfPresent,
+  runCleanups,
+  withCleanup,
+} from "./cleanup.ts";
+import {
   estimateTapEventCount,
   hasReporterArg,
   runCompactDenoTest,
@@ -42,7 +48,8 @@ const fileExists = async (path: string): Promise<boolean> => {
   try {
     await Deno.stat(path);
     return true;
-  } catch {
+  } catch (error) {
+    rethrowUnlessNotFound(error);
     return false;
   }
 };
@@ -69,12 +76,11 @@ const setupStaticAssets = async (): Promise<HarnessStaticAssets> => {
 
   return {
     build,
-    cleanup: async () => {
-      await build.dispose();
-      for (const path of generated) {
-        await Deno.remove(path).catch(() => {});
-      }
-    },
+    cleanup: () =>
+      runCleanups([
+        () => build.dispose(),
+        ...generated.map((path) => () => removeIfPresent(path)),
+      ]),
   };
 };
 
@@ -184,10 +190,9 @@ const setupTestState = async (): Promise<() => Promise<void>> => {
   try {
     await writeTestState(dir);
   } catch (error) {
-    // Don't leave a half-built state dir behind. The build failure is the
-    // error worth surfacing, so this removal is best-effort by design.
-    await Deno.remove(dir, { recursive: true }).catch(() => {});
-    throw error;
+    return failAfterCleanups(error, [
+      () => Deno.remove(dir, { recursive: true }).catch(rethrowUnlessNotFound),
+    ]);
   }
   Deno.env.set(TEST_STATE_DIR_ENV, dir);
   harnessLog("test state prebuilt in", dir);
@@ -214,7 +219,7 @@ export const withTestHarness = async <T>(
     null;
   let cleanupTestState: (() => Promise<void>) | null = null;
 
-  try {
+  return withCleanup(async () => {
     stripeMockProcess = await startStripeMock();
     const mockEnv = stripeMockEnv(stripeMockProcess.port);
     harnessLog("stripe-mock running on port", mockEnv.STRIPE_MOCK_PORT);
@@ -222,14 +227,17 @@ export const withTestHarness = async <T>(
     Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
     cleanupTestState = await setupTestState();
     return await task({ staticAssets: staticAssets.build });
-  } finally {
-    if (stripeMockProcess) {
+  }, [
+    async () => {
+      if (!stripeMockProcess) return;
       harnessLog("Stopping stripe-mock...");
       await stripeMockProcess.stop();
-    }
-    if (cleanupTestState) await cleanupTestState();
-    await staticAssets.cleanup();
-  }
+    },
+    async () => {
+      if (cleanupTestState) await cleanupTestState();
+    },
+    staticAssets.cleanup,
+  ]);
 };
 
 /**

@@ -11,6 +11,8 @@ export interface MutationTestMap {
   targets: SourceTestTarget[];
 }
 
+const INTEGRATION_TEST_PREFIXES = ["test/e2e/", "test/integration/"];
+
 const relativeToProject = (path: string): string =>
   isAbsolute(path) ? relative(projectRoot, path) : path.replace(/^\.\//, "");
 
@@ -24,8 +26,13 @@ const ownsTest = (prefix: string, testFile: string): boolean => {
   return base === prefix || base.startsWith(`${prefix}${sep}`);
 };
 
-/** Pair selected sources with their mirrored tests. Tests with no selected
- * source mirror are integration tests and run only for direct-test survivors. */
+const isIntegrationTest = (testFile: string): boolean => {
+  const path = relativeToProject(testFile);
+  return INTEGRATION_TEST_PREFIXES.some((prefix) => path.startsWith(prefix));
+};
+
+/** Pair selected sources with their mirrored tests. Only tests in the explicit
+ * integration/e2e folders may remain unmatched. */
 export const buildMutationTestMap = (
   sourceFiles: string[],
   testFiles: string[],
@@ -37,8 +44,20 @@ export const buildMutationTestMap = (
     const matches = prefixes.filter((prefix) => ownsTest(prefix, testFile));
     return matches.sort((a, b) => b.length - a.length)[0] ?? null;
   });
+  const misplaced = tests.filter(
+    (testFile, index) => owners[index] === null && !isIntegrationTest(testFile),
+  );
+  if (misplaced.length > 0) {
+    throw new Error(
+      "Mutation tests must mirror a selected source or live under " +
+        `test/integration/ or test/e2e/:\n${misplaced.map(relativeToProject).join("\n")}`,
+    );
+  }
   return {
-    integrationTestFiles: tests.filter((_, index) => owners[index] === null),
+    integrationTestFiles: tests.filter(
+      (testFile, index) =>
+        owners[index] === null && isIntegrationTest(testFile),
+    ),
     targets: sources.map((sourceFile, index) => ({
       directTestFiles: tests.filter(
         (_, testIndex) => owners[testIndex] === prefixes[index],
@@ -46,4 +65,16 @@ export const buildMutationTestMap = (
       sourceFile,
     })),
   };
+};
+
+export const requireDirectMutationTests = (
+  sourceFile: string,
+  mutantCount: number,
+  directTestFiles: string[],
+): void => {
+  if (mutantCount === 0 || directTestFiles.length > 0) return;
+  throw new Error(
+    `No direct test mirrors ${relativeToProject(sourceFile)}. ` +
+      "Move its test to the matching path under test/.",
+  );
 };

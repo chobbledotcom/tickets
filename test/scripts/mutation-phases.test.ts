@@ -35,6 +35,7 @@ describe("mutation phases", () => {
       },
     );
     expect(calls).toEqual(["direct-tests"]);
+    expect(result.detectedBy).toBe("direct-tests");
     expect(result.status).toBe("killed");
     expect(result.timings).toEqual([{ durationMs: 4, phase: "direct-tests" }]);
   });
@@ -55,6 +56,7 @@ describe("mutation phases", () => {
     );
     expect(calls).toEqual([["direct.test.ts"], ["integration.test.ts"]]);
     expect(result).toEqual({
+      detectedBy: "integration-tests",
       status: "killed",
       timings: [
         { durationMs: 2, phase: "direct-tests" },
@@ -71,6 +73,7 @@ describe("mutation phases", () => {
       }),
     );
     expect(result.status).toBe("survived");
+    expect(result.detectedBy).toBeNull();
     expect(result.timings[0]?.phase).toBe("integration-tests");
   });
 
@@ -82,6 +85,7 @@ describe("mutation phases", () => {
       }),
     );
     expect(result).toEqual({
+      detectedBy: null,
       status: "survived",
       timings: [{ durationMs: 1, phase: "direct-tests" }],
     });

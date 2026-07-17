@@ -22,9 +22,11 @@
  * exceeds `STALE_BASE_SOURCE_LIMIT`.
  *
  * It mutates every changed `src/` file and demands a 100% kill rate. The runner
- * pairs mirror-located tests with their source and runs them first; unmatched
- * changed tests are the integration stage for direct-test survivors. The whole
- * source file is mutated regardless of how little of it changed.
+ * pairs mirror-located tests with their source and runs them first. Changed
+ * tests under `test/integration/` or `test/e2e/` are the later integration
+ * stage. Any other unmatched test is an error so it gets moved instead of
+ * hidden behind a fallback. The whole source file is mutated regardless of how
+ * little of it changed.
  *
  * Known limitations (this is a best-effort *local* check; `deno task mutation`
  * is the precise manual tool):
@@ -165,8 +167,9 @@ export const mutationNoticeSummary = (stdout: string): string | undefined => {
  *   - Changed src but no changed tests → skip (pass). There are no changed
  *     tests to mutate against; the 100%-coverage gate still applies, and
  *     changing a covering test brings the change under the gate.
- *   - Both → map direct tests to each changed source, then use unmatched tests
- *     as the integration stage. The runner's exit code passes through, except
+ *   - Both → map direct tests to each changed source, then use explicit
+ *     integration/e2e tests as the later stage. The runner's exit code passes
+ *     through, except
  *     code 2 ("no mutable operators
  *     in any changed src file", e.g. a types-only or re-export change) becomes a
  *     pass — there is genuinely nothing to mutate.

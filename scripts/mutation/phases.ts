@@ -29,6 +29,7 @@ export const measurePhase = async <T>(
 };
 
 export interface TestStageResult {
+  detectedBy: "direct-tests" | "integration-tests" | null;
   status: Status;
   timings: PhaseTiming[];
 }
@@ -50,13 +51,18 @@ export const runTestStages = async (
     const direct = await run("direct-tests", directTestFiles);
     timings.push(...direct.timings);
     if (direct.status !== "survived") {
-      return { status: direct.status, timings };
+      return { detectedBy: "direct-tests", status: direct.status, timings };
     }
   }
   if (integrationTestFiles.length > 0) {
     const integration = await run("integration-tests", integrationTestFiles);
     timings.push(...integration.timings);
-    return { status: integration.status, timings };
+    return {
+      detectedBy:
+        integration.status === "survived" ? null : "integration-tests",
+      status: integration.status,
+      timings,
+    };
   }
-  return { status: "survived", timings };
+  return { detectedBy: null, status: "survived", timings };
 };

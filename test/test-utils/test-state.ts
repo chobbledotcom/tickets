@@ -15,8 +15,9 @@
  * Note for mutation testing: the harness builds this state before any mutant
  * is applied, so the mutation runner drops TICKETS_TEST_STATE_DIR for mutants
  * in any file this module's import graph includes (see
- * scripts/mutation/state-graph.ts) — their test isolates rebuild the golden DB
- * and ceremony from the mutated code instead of seeding from a stale snapshot.
+ * scripts/mutation/state-graph.ts). Direct tests run without the stale state.
+ * If the mutant survives, the runner builds one fresh state from the mutant and
+ * shares it across all integration-test batches.
  */
 
 import { join } from "node:path";

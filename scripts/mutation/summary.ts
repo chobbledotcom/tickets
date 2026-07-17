@@ -151,7 +151,7 @@ const timingLines = (s: Summary): string[] =>
     ? []
     : [
         "",
-        dim("  phase timings (total work):"),
+        dim("  phase timings (cumulative elapsed):"),
         ...s.phaseTimings.map((timing) =>
           dim(
             `    ${timing.phase}: ${Math.round(timing.durationMs)}ms in ${timing.runs} run(s)`,
@@ -265,7 +265,7 @@ const markdownSummary = (s: Summary): string => {
           "",
           "### Phase timings",
           "",
-          "These are total work times, not wall-clock time.",
+          "These are cumulative phase times across mutant attempts. Parallel test batches count once per stage.",
           "",
           "| phase | runs | time |",
           "| --- | ---: | ---: |",
