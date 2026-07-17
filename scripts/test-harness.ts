@@ -15,6 +15,7 @@ import { TEST_STATE_DIR_ENV } from "../test/test-utils/test-state-env.ts";
 import {
   buildStaticAssets,
   STATIC_ASSET_OUTFILES,
+  type StaticAssetBuild,
 } from "./build-static-assets.ts";
 import {
   estimateTapEventCount,
@@ -49,24 +50,37 @@ const fileExists = async (path: string): Promise<boolean> => {
 /**
  * Build the static client assets, returning a cleanup function that removes
  * only the outputs this call generated. Outputs that already existed (e.g. a
- * developer's prior `deno task build:static`) are left untouched, while a fresh
- * checkout is restored to its asset-free state once tests finish.
+ * developer's prior `deno task build:static`) remain after cleanup, while a
+ * fresh checkout is restored to its asset-free state once tests finish.
  */
-const setupStaticAssets = async (): Promise<() => Promise<void>> => {
+interface HarnessStaticAssets {
+  build: StaticAssetBuild;
+  cleanup(): Promise<void>;
+}
+
+const setupStaticAssets = async (): Promise<HarnessStaticAssets> => {
   const generated: string[] = [];
   for (const outfile of Object.values(STATIC_ASSET_OUTFILES)) {
     const path = join(projectRoot, outfile);
     if (!(await fileExists(path))) generated.push(path);
   }
 
-  await buildStaticAssets({ quiet: true, stop: true });
+  const build = await buildStaticAssets({ quiet: true });
 
-  return async () => {
-    for (const path of generated) {
-      await Deno.remove(path).catch(() => {});
-    }
+  return {
+    build,
+    cleanup: async () => {
+      await build.dispose();
+      for (const path of generated) {
+        await Deno.remove(path).catch(() => {});
+      }
+    },
   };
 };
+
+export interface TestHarnessResources {
+  staticAssets: StaticAssetBuild;
+}
 
 /** Build the deno test CLI args from the standard flags plus caller extras */
 const buildDenoTestArgs = (
@@ -193,9 +207,9 @@ const setupTestState = async (): Promise<() => Promise<void>> => {
  * removed, leaving the working tree as it was found even if `task` throws.
  */
 export const withTestHarness = async <T>(
-  task: () => Promise<T>,
+  task: (resources: TestHarnessResources) => Promise<T>,
 ): Promise<T> => {
-  const cleanupStaticAssets = await setupStaticAssets();
+  const staticAssets = await setupStaticAssets();
   let stripeMockProcess: Awaited<ReturnType<typeof startStripeMock>> | null =
     null;
   let cleanupTestState: (() => Promise<void>) | null = null;
@@ -207,14 +221,14 @@ export const withTestHarness = async <T>(
     Deno.env.set("STRIPE_MOCK_HOST", mockEnv.STRIPE_MOCK_HOST);
     Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
     cleanupTestState = await setupTestState();
-    return await task();
+    return await task({ staticAssets: staticAssets.build });
   } finally {
     if (stripeMockProcess) {
       harnessLog("Stopping stripe-mock...");
       await stripeMockProcess.stop();
     }
     if (cleanupTestState) await cleanupTestState();
-    await cleanupStaticAssets();
+    await staticAssets.cleanup();
   }
 };
 

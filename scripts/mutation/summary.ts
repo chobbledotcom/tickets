@@ -12,13 +12,20 @@
 import { bold, dim, green, red, yellow } from "../precommit/colors.ts";
 import { projectRoot } from "../project-root.ts";
 import type { Mutant } from "./generate.ts";
+import type { MutationPhase, PhaseTiming } from "./phases.ts";
 
 export type Status = "killed" | "survived" | "timed-out" | "ignored";
 
 export interface MutantResult {
+  detectedBy: MutationPhase | null;
   file: string;
   mutant: Mutant;
   status: Status;
+  timings: PhaseTiming[];
+}
+
+export interface PhaseTimingSummary extends PhaseTiming {
+  runs: number;
 }
 
 export interface Summary {
@@ -28,6 +35,7 @@ export interface Summary {
   /** Known-equivalent survivors suppressed via the ignore-list. */
   ignored: number;
   killed: number;
+  phaseTimings: PhaseTimingSummary[];
   score: number;
   survived: number;
   survivors: MutantResult[];
@@ -59,11 +67,24 @@ export const summarize = (results: MutantResult[]): Summary => {
   const ignored = count("ignored");
   const effective = total - ignored;
   const detected = count("killed") + count("timed-out");
+  const timings = results.flatMap((result) => result.timings);
+  const timingsByPhase = Object.groupBy(timings, (timing) => timing.phase);
+  const phaseTimings = Object.entries(timingsByPhase).map(
+    ([phase, entries]): PhaseTimingSummary => ({
+      durationMs: entries!.reduce(
+        (total, entry) => total + entry.durationMs,
+        0,
+      ),
+      phase: phase as MutationPhase,
+      runs: entries!.length,
+    }),
+  );
   return {
     detected,
     effective,
     ignored,
     killed: count("killed"),
+    phaseTimings,
     // Suppressed-equivalent mutants are excluded from the denominator — they
     // can never be killed, so counting them would understate the real score.
     score: effective === 0 ? 100 : (detected / effective) * 100,
@@ -125,6 +146,19 @@ const renderRow = (row: {
 }): string =>
   `  ${row.color(row.label)}${" ".repeat(LABEL_WIDTH - row.label.length)}${row.value}`;
 
+const timingLines = (s: Summary): string[] =>
+  s.phaseTimings.length === 0
+    ? []
+    : [
+        "",
+        dim("  phase timings (total work):"),
+        ...s.phaseTimings.map((timing) =>
+          dim(
+            `    ${timing.phase}: ${Math.round(timing.durationMs)}ms in ${timing.runs} run(s)`,
+          ),
+        ),
+      ];
+
 /** Build a "one survivor on a line" formatter from how it should wrap the
  *  location and the two operators. The terminal and Markdown reports show the
  *  same three pieces (location, old operator, new operator); only the
@@ -170,6 +204,7 @@ export const formatSummaryLines = (s: Summary): string[] => {
   return [
     bold("\nMutation testing summary"),
     ...countRows(s).map(renderRow),
+    ...timingLines(s),
     ...(s.survivors.length === 0
       ? [allDetected]
       : [
@@ -223,6 +258,22 @@ const markdownSummary = (s: Summary): string => {
           "| --- | --- |",
           ...s.survivors.map(survivorRow),
         ];
+  const timingTable =
+    s.phaseTimings.length === 0
+      ? []
+      : [
+          "",
+          "### Phase timings",
+          "",
+          "These are total work times, not wall-clock time.",
+          "",
+          "| phase | runs | time |",
+          "| --- | ---: | ---: |",
+          ...s.phaseTimings.map(
+            (timing) =>
+              `| ${timing.phase} | ${timing.runs} | ${Math.round(timing.durationMs)}ms |`,
+          ),
+        ];
   return [
     "## 🧬 Mutation testing",
     "",
@@ -235,6 +286,7 @@ const markdownSummary = (s: Summary): string => {
     `| timed out | ${s.timedOut} |`,
     `| survived | ${s.survived} |`,
     ...(s.ignored > 0 ? [`| ignored (suppressed) | ${s.ignored} |`] : []),
+    ...timingTable,
     ...survivorTable,
     "",
   ].join("\n");

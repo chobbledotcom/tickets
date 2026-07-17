@@ -19,6 +19,7 @@ const fakeResult = (
   newOperator: string,
   file = `${projectRoot}/src/example.ts`,
 ): MutantResult => ({
+  detectedBy: status === "killed" ? "direct-tests" : null,
   file,
   mutant: {
     column: 3,
@@ -29,6 +30,7 @@ const fakeResult = (
     start: 0,
   },
   status,
+  timings: [],
 });
 
 describe("mutation summary", () => {
@@ -54,11 +56,40 @@ describe("mutation summary", () => {
       effective: 3,
       ignored: 1,
       killed: 1,
+      phaseTimings: [],
       survived: 1,
       timedOut: 1,
       total: 4,
     });
     expect(summary.score).toBeCloseTo(66.666, 2);
+  });
+
+  test("aggregates and formats phase timing work", async () => {
+    const first = fakeResult("killed", 1, "true", "false");
+    first.timings = [
+      { durationMs: 4, phase: "lint" },
+      { durationMs: 10, phase: "direct-tests" },
+    ];
+    const second = fakeResult("survived", 2, "false", "true");
+    second.timings = [
+      { durationMs: 6, phase: "lint" },
+      { durationMs: 20, phase: "direct-tests" },
+      { durationMs: 40, phase: "integration-tests" },
+    ];
+    const summary = summarize([first, second]);
+    expect(summary.phaseTimings).toEqual([
+      { durationMs: 10, phase: "lint", runs: 2 },
+      { durationMs: 30, phase: "direct-tests", runs: 2 },
+      { durationMs: 40, phase: "integration-tests", runs: 1 },
+    ]);
+    expect(formatSummaryLines(summary).join("\n")).toContain(
+      "direct-tests: 30ms in 2 run(s)",
+    );
+    using file = tempFile({ prefix: "mutation-timing-summary-" });
+    const markdown = await withStepSummary(file.path, () =>
+      writeStepSummary(summary),
+    );
+    expect(markdown).toContain("| integration-tests | 1 | 40ms |");
   });
 
   test("summarizes an empty result as an inconclusive perfect denominator", () => {

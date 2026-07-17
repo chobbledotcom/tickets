@@ -21,13 +21,13 @@
 
 import { resolve } from "@std/path";
 import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
+import type { StaticAssetBuild } from "../build-static-assets.ts";
 import { commandExitCode } from "../deno-command.ts";
 import { dim, green, red, yellow } from "../precommit/colors.ts";
 import { write } from "../precommit/write.ts";
 import { projectRoot } from "../project-root.ts";
 import { stripeMockEnv } from "../stripe-mock.ts";
 import { withTestHarness } from "../test-harness.ts";
-import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { batchTestFiles } from "./batch.ts";
 import {
   denoExitCode,
@@ -43,6 +43,12 @@ import {
   loadIgnoreList,
   mutantKey,
 } from "./ignore.ts";
+import {
+  type MutationPhase,
+  measurePhase,
+  type PhaseTiming,
+  runTestStages,
+} from "./phases.ts";
 import { collectModuleGraphFiles, STATE_BUILDER_ROOT } from "./state-graph.ts";
 import {
   formatProgressLine,
@@ -53,6 +59,8 @@ import {
   summarize,
   writeStepSummary,
 } from "./summary.ts";
+import { buildMutationTestMap } from "./test-map.ts";
+import { createMutantTestState } from "./test-state.ts";
 
 /** The files and knobs that describe what to mutate and how — shared by the
  * public {@link MutationOptions} and the internal {@link RunMutantsOptions} so
@@ -89,13 +97,12 @@ const defaultBatchJobs = (): number =>
 
 const testEnv = (): Record<string, string> => envWith(stripeMockEnv());
 
-/** The env for a mutant's test processes. When the mutated file feeds the
- * run-wide prebuilt test state, the pointer to that (pre-mutant) snapshot is
- * dropped so every test isolate rebuilds the golden DB and setup ceremony from
- * the mutated code instead — see ./state-graph.ts. */
-const mutantTestEnv = (dropPrebuiltState: boolean): Record<string, string> => {
+/** Direct tests cannot use state built before their mutant existed. The later
+ * integration stage replaces this missing pointer with one shared state built
+ * from the mutant — see ./state-graph.ts and ./test-state.ts. */
+const mutantTestEnv = (rebuildTestState: boolean): Record<string, string> => {
   const env = testEnv();
-  if (dropPrebuiltState) delete env[TEST_STATE_DIR_ENV];
+  if (rebuildTestState) delete env[TEST_STATE_DIR_ENV];
   return env;
 };
 
@@ -135,6 +142,7 @@ interface StaticGate {
   exit(file: string): Promise<number>;
   /** Short name shown in the baseline-probe failure message (e.g. "lint"). */
   label: string;
+  phase: "lint" | "type-check";
   /** Advice printed when the *unmutated* target fails this gate. */
   remedy: string[];
 }
@@ -167,6 +175,7 @@ const createLinter = async (): Promise<StaticGate> => {
         stdout: "null",
       }),
     label: "lint",
+    phase: "lint",
     remedy: [
       "The mutation lint gate needs a lint-clean target and a working Biome.",
       "Run `deno task lint` and fix any errors (precommit runs lint:ci first;",
@@ -198,6 +207,7 @@ const createTypeChecker = (): StaticGate => ({
       stdout: "null",
     }),
   label: "type-check",
+  phase: "type-check",
   remedy: [
     "The mutation type-check gate needs a type-clean target and a working deno.",
     "Run `deno task typecheck` and fix any errors (precommit typechecks first;",
@@ -341,24 +351,39 @@ interface MutantAssetHooks {
 
 interface FileMutationPlan {
   assets: MutantAssetHooks | null;
-  /** True when the file feeds the run-wide prebuilt test state, so its
-   * mutants must not seed tests from that (pre-mutant) snapshot. */
-  dropPrebuiltState: boolean;
+  directTestFiles: string[];
   file: string;
   mutants: Mutant[];
   original: string;
+  /** True when integration tests need state rebuilt from this mutant. */
+  rebuildTestState: boolean;
 }
+
+interface MutantEvaluation {
+  detectedBy: MutationPhase | null;
+  status: Status;
+  timings: PhaseTiming[];
+}
+
+const testStatus = (
+  phase: "direct-tests" | "integration-tests",
+  result: Awaited<ReturnType<typeof runTests>>,
+): { status: Status; timings: PhaseTiming[] } => ({
+  status: toStatus(result.outcome),
+  timings: [{ durationMs: result.durationMs, phase }],
+});
 
 /** Mutate the file, run the tests, and always restore the original. */
 const evaluateMutant = async (
-  file: string,
-  original: string,
+  plan: FileMutationPlan,
   mutant: Mutant,
   run: TestRunConfig,
-  assets: MutantAssetHooks | null,
+  integrationTestFiles: string[],
   gates: StaticGate[],
   abortSignal: AbortSignal,
-): Promise<Status> => {
+): Promise<MutantEvaluation> => {
+  const { assets, directTestFiles, file, original, rebuildTestState } = plan;
+  const timings: PhaseTiming[] = [];
   await Deno.writeTextFile(file, applyMutant(original, mutant));
   try {
     // A mutant that produces code a static gate rejects — `==` under Biome's
@@ -368,14 +393,85 @@ const evaluateMutant = async (
     // non-zero exit here is a mutation-introduced diagnostic, not a broken
     // tool. Gates run cheapest first; see createStaticGates for the rationale.
     for (const gate of gates) {
-      if ((await gate.exit(file)) !== 0) return "killed";
+      const measured = await measurePhase(gate.phase, () => gate.exit(file));
+      timings.push(measured.timing);
+      if (measured.value !== 0) {
+        return { detectedBy: gate.phase, status: "killed", timings };
+      }
     }
     // A mutant that breaks the client-bundle build must not be tested against a
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
-    if (assets && !(await assets.rebuild())) return "killed";
-    const { outcome } = await runTests(run, abortSignal);
-    return toStatus(outcome);
+    if (assets) {
+      const measured = await measurePhase("asset-build", assets.rebuild);
+      timings.push(measured.timing);
+      if (!measured.value) {
+        return { detectedBy: "asset-build", status: "killed", timings };
+      }
+    }
+    const stages = await runTestStages(
+      directTestFiles,
+      integrationTestFiles,
+      async (phase, testFiles) => {
+        if (phase === "direct-tests") {
+          return testStatus(
+            phase,
+            await runTests(
+              {
+                ...run,
+                env: mutantTestEnv(rebuildTestState),
+                testFiles,
+              },
+              abortSignal,
+            ),
+          );
+        }
+
+        let state: Awaited<ReturnType<typeof createMutantTestState>> | null =
+          null;
+        let env = mutantTestEnv(rebuildTestState);
+        const stageTimings: PhaseTiming[] = [];
+        if (rebuildTestState) {
+          const stateSignal = AbortSignal.any([
+            abortSignal,
+            AbortSignal.timeout(run.timeoutMs),
+          ]);
+          const measured = await measurePhase("test-state", () =>
+            createMutantTestState(run.env, stateSignal),
+          );
+          stageTimings.push(measured.timing);
+          state = measured.value;
+          if (state.status !== "ready") {
+            return {
+              status: state.status === "failed" ? "killed" : "timed-out",
+              timings: stageTimings,
+            };
+          }
+          env = state.state.env;
+        }
+        try {
+          const tested = testStatus(
+            phase,
+            await runTests({ ...run, env, testFiles }, abortSignal),
+          );
+          return {
+            status: tested.status,
+            timings: [...stageTimings, ...tested.timings],
+          };
+        } finally {
+          if (state?.status === "ready") await state.state.cleanup();
+        }
+      },
+    );
+    timings.push(...stages.timings);
+    return {
+      detectedBy:
+        stages.status === "survived"
+          ? null
+          : (stages.timings.at(-1)?.phase ?? null),
+      status: stages.status,
+      timings,
+    };
   } finally {
     await Deno.writeTextFile(file, original);
     if (assets) await assets.restore();
@@ -389,7 +485,10 @@ const logFilePlan = (plan: FileMutationPlan, affectedCount: number): void => {
   }
   const notes = [
     affectedCount > 0 ? `rebuilding ${affectedCount} bundle(s) per mutant` : "",
-    plan.dropPrebuiltState ? "prebuilt test state disabled" : "",
+    plan.directTestFiles.length > 0
+      ? `${plan.directTestFiles.length} direct test(s) first`
+      : "",
+    plan.rebuildTestState ? "shared mutant test state for integration" : "",
   ].filter((entry) => entry !== "");
   const note = notes.length > 0 ? dim(` (${notes.join("; ")})`) : "";
   console.log(
@@ -398,10 +497,11 @@ const logFilePlan = (plan: FileMutationPlan, affectedCount: number): void => {
 };
 
 const filePlan = async (
-  rebuilder: AssetRebuilder | null,
+  rebuilder: StaticAssetBuild | null,
   stateBuilderFiles: Set<string> | null,
   exhaustive: boolean,
   file: string,
+  directTestFiles: string[],
 ): Promise<FileMutationPlan> => {
   const original = await Deno.readTextFile(file);
   const affected = rebuilder ? rebuilder.affected(file) : [];
@@ -414,12 +514,13 @@ const filePlan = async (
       : null;
   const plan = {
     assets,
-    // A null set means no prebuilt state is in play for this run at all.
-    dropPrebuiltState:
-      stateBuilderFiles?.has(resolve(projectRoot, file)) ?? false,
+    directTestFiles,
     file,
     mutants: generateMutants(original, file, exhaustive),
     original,
+    // A null set means no prebuilt state is in play for this run at all.
+    rebuildTestState:
+      stateBuilderFiles?.has(resolve(projectRoot, file)) ?? false,
   };
   logFilePlan(plan, affected.length);
   return plan;
@@ -445,10 +546,12 @@ interface RunMutantsOptions extends MutationTargets {
   abortSignal: AbortSignal;
   batchJobs: number;
   ignoreList: IgnoreList;
+  integrationTestFiles: string[];
   isAborted: () => boolean;
   originals: Map<string, string>;
   restoreAll: () => void;
   results: MutantResult[];
+  staticAssets: StaticAssetBuild | null;
 }
 
 /**
@@ -569,6 +672,7 @@ const evaluatePlanMutants = async (
     abortSignal,
     batchJobs,
     ignoreList,
+    integrationTestFiles,
     isAborted,
     originals,
     results,
@@ -576,19 +680,18 @@ const evaluatePlanMutants = async (
   } = opts;
   const run: TestRunConfig = {
     batchJobs,
-    env: mutantTestEnv(plan.dropPrebuiltState),
+    env: testEnv(),
     testFiles,
     timeoutMs: perMutantTimeout,
   };
   for (const mutant of plan.mutants) {
     if (isAborted()) break;
     originals.set(plan.file, plan.original);
-    const outcome = await evaluateMutant(
-      plan.file,
-      plan.original,
+    const evaluation = await evaluateMutant(
+      plan,
       mutant,
       run,
-      plan.assets,
+      integrationTestFiles,
       gates,
       abortSignal,
     );
@@ -596,10 +699,17 @@ const evaluatePlanMutants = async (
     if (isAborted()) break;
     // A survivor recorded as known-equivalent is suppressed, not a failure.
     const status: Status =
-      outcome === "survived" && isIgnored(ignoreList, plan.file, mutant)
+      evaluation.status === "survived" &&
+      isIgnored(ignoreList, plan.file, mutant)
         ? "ignored"
-        : outcome;
-    const result = { file: plan.file, mutant, status };
+        : evaluation.status;
+    const result = {
+      detectedBy: evaluation.detectedBy,
+      file: plan.file,
+      mutant,
+      status,
+      timings: evaluation.timings,
+    };
     results.push(result);
     counts[status] += 1;
     write(statusGlyph(status));
@@ -654,6 +764,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     restoreAll,
     results,
     sourceFiles,
+    staticAssets,
     useHarness,
   } = opts;
 
@@ -663,9 +774,10 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
   // Under --harness the client bundles are built once; a mutant on a bundled
   // source must rebuild the affected bundle(s) or it would falsely survive.
-  const rebuilder: AssetRebuilder | null = useHarness
-    ? await createAssetRebuilder()
-    : null;
+  const rebuilder = useHarness ? staticAssets : null;
+  if (useHarness && rebuilder === null) {
+    throw new Error("Harness mutation run is missing its static asset build.");
+  }
   // Likewise the run-wide test state was built before any mutant existed: a
   // mutant in a file that state was built from must not let its tests seed
   // from the stale snapshot, so those files run without the state env var.
@@ -679,9 +791,16 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   // set, regardless of which mode this run used.
   const plans: FileMutationPlan[] = [];
   try {
-    for (const file of sourceFiles) {
+    const testMap = buildMutationTestMap(sourceFiles, opts.testFiles);
+    for (const target of testMap.targets) {
       plans.push(
-        await filePlan(rebuilder, stateBuilderFiles, exhaustive, file),
+        await filePlan(
+          rebuilder,
+          stateBuilderFiles,
+          exhaustive,
+          target.sourceFile,
+          target.directTestFiles,
+        ),
       );
     }
     const totalMutants = plans.reduce(
@@ -707,7 +826,6 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     }
   } finally {
     restoreAll();
-    rebuilder?.stop();
   }
   write("\n");
 
@@ -719,10 +837,14 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   return reportIgnoreListStaleness(opts, plans, report(results));
 };
 
-const mutate = async (options: MutationOptions): Promise<number> => {
+const mutate = async (
+  options: MutationOptions,
+  staticAssets: StaticAssetBuild | null,
+): Promise<number> => {
   const { exhaustive, sourceFiles, testFiles, timeout } = options;
   const batchJobs = options.batchJobs ?? defaultBatchJobs();
   const ignoreList = await loadIgnoreList();
+  const testMap = buildMutationTestMap(sourceFiles, testFiles);
 
   const results: MutantResult[] = [];
   const originals = new Map<string, string>();
@@ -761,11 +883,13 @@ const mutate = async (options: MutationOptions): Promise<number> => {
       batchJobs,
       exhaustive,
       ignoreList,
+      integrationTestFiles: testMap.integrationTestFiles,
       isAborted: () => aborted,
       originals,
       restoreAll,
       results,
       sourceFiles,
+      staticAssets,
       testFiles,
       timeout,
       useHarness: options.useHarness,
@@ -790,4 +914,6 @@ const mutate = async (options: MutationOptions): Promise<number> => {
 export const runMutationTesting = (
   options: MutationOptions,
 ): Promise<number> =>
-  options.useHarness ? withTestHarness(() => mutate(options)) : mutate(options);
+  options.useHarness
+    ? withTestHarness(({ staticAssets }) => mutate(options, staticAssets))
+    : mutate(options, null);
