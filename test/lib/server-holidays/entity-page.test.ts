@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { holidays } from "#shared/db/holidays.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -239,6 +240,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         { confirm_identifier: "christmas day" },
       );
       await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
+      expect(await holidays.table.findById(holiday.id)).toBeNull();
     });
 
     test("returns 404 for non-existent holiday", async () => {
