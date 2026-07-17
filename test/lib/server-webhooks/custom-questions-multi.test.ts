@@ -48,8 +48,12 @@ const expectSharedAttendee = async (
   listing2Id: number,
 ): Promise<number> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
-  const att1 = await getAttendeesRaw(listing1Id);
-  const att2 = await getAttendeesRaw(listing2Id);
+  const realBookings = async (listingId: number) =>
+    (await getAttendeesRaw(listingId)).filter(
+      (attendee) => attendee.quantity > 0,
+    );
+  const att1 = await realBookings(listing1Id);
+  const att2 = await realBookings(listing2Id);
   expect(att1.length).toBe(1);
   expect(att2.length).toBe(1);
   expect(att1[0]!.id).toBe(att2[0]!.id);

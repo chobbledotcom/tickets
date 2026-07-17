@@ -345,7 +345,7 @@ export const runOrderJourney = async (spec: {
   const expectedRows = spec.rows(catalog);
   const firstListingId = expectedRows[0]![0];
   const attendee = await queryAll<{ attendee_id: number }>(
-    "SELECT attendee_id FROM listing_attendees WHERE listing_id = ? LIMIT 1",
+    "SELECT attendee_id FROM listing_attendees WHERE listing_id = ? AND quantity > 0 LIMIT 1",
     [firstListingId],
   );
   const ctx: OrderJourneyCtx = {

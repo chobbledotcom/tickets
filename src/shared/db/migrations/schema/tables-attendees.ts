@@ -167,6 +167,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["payment_session_id", "TEXT PRIMARY KEY NOT NULL"],
         ["attendee_id", "INTEGER NOT NULL"],
         ["provider", "TEXT NOT NULL"],
+        ["provider_checkout_id", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL"],
         ["state", "TEXT NOT NULL"],
         ["created_at", "TEXT NOT NULL"],

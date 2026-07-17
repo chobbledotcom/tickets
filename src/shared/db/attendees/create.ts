@@ -20,6 +20,7 @@ import {
   type PreparedWrite,
   type WriteOutcome,
   writeAsBatch,
+  writeAsCheckoutStageBatch,
   writeAsLedgerBatch,
   writeWithLedger,
 } from "#shared/db/attendees/create-batch.ts";
@@ -29,6 +30,7 @@ import {
   contactFields,
   encryptAttendeeFields,
 } from "#shared/db/attendees/pii.ts";
+import type { PendingCheckoutStage } from "#shared/db/checkout-stages.ts";
 import { insert, type SqlStatement } from "#shared/db/client.ts";
 import { orderActivityStatements } from "#shared/db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#shared/db/modifier-usage.ts";
@@ -231,17 +233,29 @@ const capacityFailure = (): CreateAttendeeResult => ({
   success: false,
 });
 
+const createAttendeeWith = (
+  input: AttendeeInput,
+  write: (prepared: PreparedWrite) => Promise<WriteOutcome | null>,
+): Promise<CreateAttendeeResult> =>
+  createWith<CreateAttendeeResult>({ noBooking: capacityFailure, write })(
+    input,
+  );
+
 export const createAttendeeAtomicImpl = (
   input: AttendeeInput,
   postLedger?: LedgerPoster,
 ): Promise<CreateAttendeeResult> =>
-  createWith<CreateAttendeeResult>({
-    noBooking: capacityFailure,
-    write: (prepared) =>
-      postLedger
-        ? writeWithLedger(prepared, postLedger)
-        : writeAsBatch(prepared),
-  })(input);
+  createAttendeeWith(input, (prepared) =>
+    postLedger ? writeWithLedger(prepared, postLedger) : writeAsBatch(prepared),
+  );
+
+export const createStagedCheckoutAtomic = (
+  input: AttendeeInput,
+  stage: PendingCheckoutStage,
+): Promise<CreateAttendeeResult> =>
+  createAttendeeWith(input, (prepared) =>
+    writeAsCheckoutStageBatch(prepared, stage),
+  );
 
 export type { BookingBatchPlan, LedgerPoster };
 

@@ -15,6 +15,10 @@ import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import { nowIso } from "#shared/now.ts";
 import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { checkoutItem, getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  createPaidCheckout,
+  type PaidCheckoutResult,
+} from "#shared/staged-checkout.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 
@@ -57,14 +61,36 @@ export const listingHasSpots = (
 
 /** Booking result — callers map this to their response format */
 export type BookingResult =
+  | PaidCheckoutResult
   | { type: "success"; attendee: Attendee }
-  | { type: "checkout"; checkoutUrl: string }
-  | { type: "sold_out" }
-  | { type: "checkout_failed"; error?: string }
   | {
       type: "creation_failed";
       reason: "capacity_exceeded" | "encryption_error";
     };
+
+const processPaidBooking = async (input: {
+  listing: ListingWithCount;
+  contact: ContactInfo;
+  quantity: number;
+  date: string | null;
+  baseUrl: string;
+  unitPrice: number;
+  answerIds?: number[] | undefined;
+}): Promise<BookingResult> => {
+  const { listing, contact, quantity, date, baseUrl, unitPrice, answerIds } =
+    input;
+  const provider = (await getActivePaymentProvider())!;
+  return createPaidCheckout({
+    baseUrl,
+    intent: {
+      ...contact,
+      date,
+      items: [checkoutItem(listing, quantity, unitPrice)],
+      listingAnswerIds: singleListingAnswerIds(listing.id, answerIds),
+    },
+    provider,
+  });
+};
 
 /**
  * Process a single-listing booking.
@@ -88,28 +114,15 @@ export const processBooking = async (
     (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
 
   if (needsPayment) {
-    const available = await listingHasSpots(listing, quantity, date);
-    if (!available) return { type: "sold_out" };
-
-    // Provider is guaranteed to exist when isPaymentsEnabled() is true
-    const provider = (await getActivePaymentProvider())!;
-
-    const unitPrice = customUnitPrice ?? listing.unit_price;
-    const result = await provider.createCheckoutSession(
-      {
-        ...contact,
-        date,
-        items: [checkoutItem(listing, quantity, unitPrice)],
-        listingAnswerIds: singleListingAnswerIds(listing.id, answerIds),
-      },
+    return processPaidBooking({
+      answerIds,
       baseUrl,
-    );
-    if (!result) return { type: "checkout_failed" };
-    if ("error" in result) {
-      return { error: result.error, type: "checkout_failed" };
-    }
-
-    return { checkoutUrl: result.checkoutUrl, type: "checkout" };
+      contact,
+      date,
+      listing,
+      quantity,
+      unitPrice: customUnitPrice ?? listing.unit_price,
+    });
   }
 
   // Reached when the listing is free, or when it costs money but no payment

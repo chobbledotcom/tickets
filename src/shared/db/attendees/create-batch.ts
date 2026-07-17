@@ -2,6 +2,10 @@ import { bookingLegBatchInsert } from "#shared/accounting/rows.ts";
 import { assertPostable } from "#shared/accounting/store.ts";
 import type { EncryptedAttendeeData } from "#shared/db/attendee-types.ts";
 import {
+  type PendingCheckoutStage,
+  pendingCheckoutStageInsert,
+} from "#shared/db/checkout-stages.ts";
+import {
   andConditions,
   executeBatchWithResults,
   inPlaceholders,
@@ -119,6 +123,21 @@ export const writeWithLedger = (
 export const writeAsBatch = (
   prepared: PreparedWrite,
 ): Promise<WriteOutcome | null> => runAtomicBatch(prepared);
+
+/** Create the attendee, zero-quantity booking identities, and pending checkout
+ * stage in one batch. */
+export const writeAsCheckoutStageBatch = async (
+  prepared: PreparedWrite,
+  stage: PendingCheckoutStage,
+): Promise<WriteOutcome | null> =>
+  runAtomicBatch(prepared, [
+    await pendingCheckoutStageInsert(
+      stage,
+      ATTENDEE_BY_TOKEN_SQL,
+      [prepared.enc.ticketTokenIndex],
+      prepared.enc.ticketToken,
+    ),
+  ]);
 
 const noExistingLedgerCondition = (legs: TransferInput[]): SqlStatement => {
   if (legs.length === 0) return { args: [], sql: "1 = 1" };

@@ -33,6 +33,7 @@ import type {
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import { expandChildAllocations } from "#shared/db/attendees/order-parents.ts";
+import type { CheckoutItem } from "#shared/payments.ts";
 
 /** One signed paid line: the booking slot (listing id + package path), the
  *  quantity, the listing's date/duration facts, and the line's charged
@@ -75,6 +76,11 @@ export type OrderBookingsInput = {
   allocations?: ChildAllocation[] | undefined;
 };
 
+export type CanonicalOrderBooking = ListingBooking & {
+  durationDays: number;
+  quantity: number;
+};
+
 /**
  * Build the canonical signed paid booking rows from a validated, priced order.
  *
@@ -87,9 +93,11 @@ export type OrderBookingsInput = {
  * versus omitted distinction, and one shared order token across every
  * expanded row.
  */
-export const orderBookings = (input: OrderBookingsInput): ListingBooking[] => {
+export const orderBookings = (
+  input: OrderBookingsInput,
+): CanonicalOrderBooking[] => {
   const { lines, date, dayCount, allocations } = input;
-  const rawBookings: ListingBooking[] = lines.map((line) => ({
+  const rawBookings: CanonicalOrderBooking[] = lines.map((line) => ({
     listingId: line.listingId,
     packageGroupId: line.packageGroupId,
     quantity: line.quantity,
@@ -107,3 +115,29 @@ export const orderBookings = (input: OrderBookingsInput): ListingBooking[] => {
     soleParentPackageIds(lines),
   );
 };
+
+/** Apply one order's shared date, day count, and child allocations to lines. */
+export const bookingsForOrder = (
+  order: Omit<OrderBookingsInput, "lines">,
+  lines: SignedPaidLine[],
+): CanonicalOrderBooking[] =>
+  orderBookings({
+    allocations: order.allocations,
+    date: order.date,
+    dayCount: order.dayCount,
+    lines,
+  });
+
+/** Turn checkout items into canonical line inputs using their loaded listings. */
+export const checkoutBookingLines = <T extends CheckoutItem>(
+  items: T[],
+  listingById: ReadonlyMap<number, BookingDateSource>,
+  pricePaid?: ReadonlyMap<T, number>,
+): SignedPaidLine[] =>
+  items.map((item) => ({
+    listing: listingById.get(item.listingId)!,
+    listingId: item.listingId,
+    packageGroupId: item.packageGroupId ?? 0,
+    ...(pricePaid ? { pricePaid: pricePaid.get(item)! } : {}),
+    quantity: item.quantity,
+  }));

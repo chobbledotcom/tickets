@@ -15,6 +15,7 @@ import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
+import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type CheckoutSessionResult, paymentsApi } from "#shared/payments.ts";
@@ -303,6 +304,25 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
         expect(intent.name).toBe("Ada");
         expect(intent.items[0]!.unitPrice).toBe(1000);
         expect(intent.items[0]!.quantity).toBe(1);
+      });
+    });
+
+    test("does not open checkout when the signed QR listing is sold out", async () => {
+      const listing = await createTestListing({
+        fields: "",
+        maxAttendees: 1,
+        unitPrice: 500,
+      });
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 1,
+        tickets_count: 0,
+      });
+      await scanWithStripe(listing, async ({ response, stripe }) => {
+        expect(response.status).toBe(409);
+        expect(await response.text()).toContain(
+          "Sorry, some tickets are no longer available",
+        );
+        expect(stripe.calls()).toBe(0);
       });
     });
 

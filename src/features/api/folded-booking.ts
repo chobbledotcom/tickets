@@ -45,6 +45,7 @@ import {
   type CheckoutItem,
   getActivePaymentProvider,
 } from "#shared/payments.ts";
+import { createAndHandlePaidCheckout } from "#shared/staged-checkout.ts";
 import {
   type ContactInfo,
   isPaidListing,
@@ -278,11 +279,14 @@ const completeFoldedBooking = async (
     if (!available) return soldOutResponse();
     const provider = (await getActivePaymentProvider())!;
     const baseUrl = getBaseUrl(request);
-    const result = await provider.createCheckoutSession(intent, baseUrl);
-    if (!result) return checkoutFailedResponse();
-    return "error" in result
-      ? checkoutFailedResponse(result.error)
-      : checkoutResponse(result.checkoutUrl);
+    return createAndHandlePaidCheckout(
+      { baseUrl, intent, provider },
+      {
+        checkout: checkoutResponse,
+        failed: checkoutFailedResponse,
+        soldOut: soldOutResponse,
+      },
+    );
   }
   // Free, or provider-less paid (owes the full value). An owed order must record
   // its gross sale legs in the ledger at creation — the outstanding balance

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import checkoutStagesMigration from "#shared/db/migrations/2026-07-15_checkout_stages.ts";
 import dropCheckoutStageRevisionsMigration from "#shared/db/migrations/2026-07-16_drop_checkout_stage_revisions.ts";
+import checkoutStageProviderIdMigration from "#shared/db/migrations/2026-07-17_checkout_stage_provider_id.ts";
 import {
   applySchemaChanges,
   syncIndexes,
@@ -82,7 +83,7 @@ describeWithEnv(
         {
           cid: 3,
           dflt_value: null,
-          name: "ticket_tokens",
+          name: "provider_checkout_id",
           notnull: 1,
           pk: 0,
           type: "TEXT",
@@ -90,13 +91,21 @@ describeWithEnv(
         {
           cid: 4,
           dflt_value: null,
-          name: "state",
+          name: "ticket_tokens",
           notnull: 1,
           pk: 0,
           type: "TEXT",
         },
         {
           cid: 5,
+          dflt_value: null,
+          name: "state",
+          notnull: 1,
+          pk: 0,
+          type: "TEXT",
+        },
+        {
+          cid: 6,
           dflt_value: null,
           name: "created_at",
           notnull: 1,
@@ -131,8 +140,8 @@ describeWithEnv(
     test("a stage cannot be stored without a payment session id", async () => {
       await expect(
         getDb().execute(`INSERT INTO checkout_stages
-          (payment_session_id, attendee_id, provider, ticket_tokens, state, created_at)
-          VALUES (NULL, 42, 'stripe', '["ticket-1"]', 'open', '2026-07-15T12:00:00Z')`),
+          (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, state, created_at)
+          VALUES (NULL, 42, 'stripe', 'checkout-1', '["ticket-1"]', 'pending', '2026-07-15T12:00:00Z')`),
       ).rejects.toThrow();
       const result = await getDb().execute(
         "SELECT COUNT(*) AS count FROM checkout_stages",
@@ -151,6 +160,32 @@ describeWithEnv(
         id: "2026-07-16_drop_checkout_stage_revisions",
         requires: { absentTables: ["checkout_stage_revisions"] },
       });
+    });
+
+    test("the provider id migration declares and adds its required column", async () => {
+      const migration = checkoutStageProviderIdMigration(context);
+      expect(migration.requires).toEqual({
+        columns: { checkout_stages: ["provider_checkout_id"] },
+      });
+      await getDb().execute("DROP TABLE checkout_stages");
+      await getDb().execute(`CREATE TABLE checkout_stages (
+        payment_session_id TEXT PRIMARY KEY NOT NULL,
+        attendee_id INTEGER NOT NULL,
+        provider TEXT NOT NULL,
+        ticket_tokens TEXT NOT NULL,
+        state TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`);
+
+      await migration.up();
+      await migration.verify();
+
+      const columns = await getDb().execute(
+        "PRAGMA table_info(checkout_stages)",
+      );
+      expect(
+        columns.rows.some((row) => row.name === "provider_checkout_id"),
+      ).toBe(true);
     });
 
     test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {

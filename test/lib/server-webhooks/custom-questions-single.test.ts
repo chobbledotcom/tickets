@@ -36,7 +36,9 @@ describeWithEnv(
       const { getAttendeesRaw } = await import(
         "#shared/db/attendees/queries.ts"
       );
-      const attendees = await getAttendeesRaw(listingId);
+      const attendees = (await getAttendeesRaw(listingId)).filter(
+        (attendee) => attendee.quantity > 0,
+      );
       expect(attendees.length).toBe(1);
       return attendees[0]!.id;
     };

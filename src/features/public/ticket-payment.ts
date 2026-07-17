@@ -34,7 +34,10 @@ import {
 } from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
-import { orderBookings } from "#shared/booking-lines.ts";
+import {
+  bookingsForOrder,
+  checkoutBookingLines,
+} from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -81,6 +84,7 @@ import {
   getActivePaymentProvider,
 } from "#shared/payments.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
+import { createAndHandlePaidCheckout } from "#shared/staged-checkout.ts";
 import {
   availableDayCounts,
   type ContactInfo,
@@ -101,16 +105,6 @@ import type {
   TicketSharedContext,
 } from "./types.ts";
 /* jscpd:ignore-end */
-
-/** Redirect to checkout, or return the handler's error.
- * In iframe mode returns a popup page instead of a redirect: Stripe cannot run in iframes. */
-export const tryCheckoutRedirect = <T>(
-  sessionUrl: string | undefined | null,
-  errorHandler: () => T,
-): Response | T => {
-  if (!sessionUrl) return errorHandler();
-  return checkoutResponse(sessionUrl);
-};
 
 /** Get active payment provider or return an error response */
 export const withPaymentProvider = async (
@@ -147,30 +141,32 @@ export const runCheckoutFlow = (
       logDebug("Payment", `Using provider=${provider.type} for ${label}`);
       const baseUrl = getBaseUrl(request);
       logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
-      const result = await provider.createCheckoutSession(intent, baseUrl);
-      if (result && "error" in result) {
-        logDebug(
-          "Payment",
-          `Checkout validation error for ${label}: ${result.error}`,
-        );
-        return onError(result.error, 400);
-      }
-      logDebug(
-        "Payment",
-        `Checkout result for ${label}: ${
-          result ? `url=${result.checkoutUrl}` : "null"
-        }`,
+      return createAndHandlePaidCheckout(
+        { baseUrl, intent, provider },
+        {
+          checkout: (checkoutUrl) => {
+            logDebug(
+              "Payment",
+              `Checkout result for ${label}: url=${checkoutUrl}`,
+            );
+            return checkoutResponse(checkoutUrl);
+          },
+          failed: (error) => {
+            if (error) {
+              logDebug(
+                "Payment",
+                `Checkout validation error for ${label}: ${error}`,
+              );
+            }
+            return onError(
+              error ?? "Failed to create payment session. Please try again.",
+              error ? 400 : 500,
+            );
+          },
+          soldOut: () =>
+            onError("Sorry, some tickets are no longer available", 409),
+        },
       );
-      return tryCheckoutRedirect(result?.checkoutUrl, () => {
-        logDebug(
-          "Payment",
-          `Checkout redirect failed for ${label}: no session URL`,
-        );
-        return onError(
-          "Failed to create payment session. Please try again.",
-          500,
-        );
-      });
     },
   );
 };
@@ -404,18 +400,10 @@ export const createFreeReservation = async ({
   const listingById = new Map(
     listings.map((info) => [info.listing.id, info.listing]),
   );
-  const finalBookings = orderBookings({
-    allocations,
-    date,
-    dayCount,
-    lines: items.map((item) => ({
-      listing: listingById.get(item.listingId)!,
-      listingId: item.listingId,
-      packageGroupId: item.packageGroupId ?? 0,
-      ...(paidByItem ? { pricePaid: paidByItem.get(item)! } : {}),
-      quantity: item.quantity,
-    })),
-  });
+  const finalBookings = bookingsForOrder(
+    { allocations, date, dayCount },
+    checkoutBookingLines(items, listingById, paidByItem),
+  );
   // When there are legs to post or stock to consume, commit the booking, its
   // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
   // does) — never an interactive transaction held open across a read-per-leg. The

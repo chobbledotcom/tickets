@@ -357,6 +357,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-16_drop_checkout_stage_revisions",
     () => import("./2026-07-16_drop_checkout_stage_revisions.ts"),
   ),
+  // Keep the hosted-checkout id needed to close or inspect a pending checkout.
+  entry(
+    "2026-07-17_checkout_stage_provider_id",
+    () => import("./2026-07-17_checkout_stage_provider_id.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

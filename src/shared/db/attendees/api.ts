@@ -14,6 +14,7 @@ import {
 import {
   createAttendeeAtomicImpl,
   createBookingAtomic as createBookingAtomicImpl,
+  createStagedCheckoutAtomic,
 } from "#shared/db/attendees/create.ts";
 
 /** Stubbable API for testing atomic operations */
@@ -22,5 +23,6 @@ export const attendeesApi = {
   checkBatchAvailability: checkBatchAvailabilityImpl,
   createAttendeeAtomic: createAttendeeAtomicImpl,
   createBookingAtomic: createBookingAtomicImpl,
+  createStagedCheckoutAtomic,
   hasAvailableSpots: checkListingAvailability,
 };

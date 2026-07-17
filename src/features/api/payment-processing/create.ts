@@ -17,7 +17,7 @@ import type {
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
-import { orderBookings } from "#shared/booking-lines.ts";
+import { bookingsForOrder } from "#shared/booking-lines.ts";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
@@ -28,6 +28,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { contactFields } from "#shared/db/attendees/pii.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -209,12 +210,8 @@ export const attendeeBaseFields = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
 ) => ({
-  address: intent.address,
-  email: intent.email,
-  name: intent.name,
+  ...contactFields(intent),
   paymentId: session.paymentReference,
-  phone: intent.phone,
-  special_instructions: intent.special_instructions,
   statusId: await getPublicStatusId(),
 });
 
@@ -264,11 +261,9 @@ export const createAttendeeForSession = async (
     // order's lines reference the pricing intent's item objects, which pair
     // 1:1 by index with validatedItems.
     const paidByIntentItem = paidByItem(pricedOrder);
-    const bookings = orderBookings({
-      allocations: intent.allocations,
-      date: intent.date,
-      dayCount: intent.dayCount,
-      lines: validatedItems.map(({ item, listing }, index) => {
+    const bookings = bookingsForOrder(
+      intent,
+      validatedItems.map(({ item, listing }, index) => {
         const pricePaid = paidByIntentItem.get(pricingIntent.items[index]!);
         return {
           ...bookingSlot(item),
@@ -277,7 +272,7 @@ export const createAttendeeForSession = async (
           quantity: item.q,
         };
       }),
-    });
+    );
     const remainingBalance =
       intent.reservationAmount === undefined
         ? 0

@@ -11,7 +11,8 @@ export const insertCheckoutStage = (
       created_at: "2026-07-15T12:00:00.000Z",
       payment_session_id: paymentSessionId,
       provider: "stripe",
-      state: "open",
+      provider_checkout_id: paymentSessionId,
+      state: "pending",
       ticket_tokens: "[]",
     }),
   );
