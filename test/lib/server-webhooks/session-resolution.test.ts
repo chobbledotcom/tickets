@@ -8,13 +8,14 @@ import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectAttendeeWithPricePaid,
   expectWebhookIgnored,
   expectWebhookPending,
   expectWebhookProcessed,
+  postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
 import {
   attendeeExists,
@@ -69,6 +70,30 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
         mockResolve.restore();
       },
     );
+  });
+
+  test("webhook requests provider retry when session resolution is temporary", async () => {
+    await setupStripe();
+    const mockResolve = stub(
+      stripePaymentProvider,
+      "resolveWebhookSession",
+      () => Promise.resolve("retry" as const),
+    );
+    const mockVerify = await stubWebhookVerify({
+      data: { object: {} },
+      id: "evt_retry",
+      type: "checkout.session.completed",
+    });
+    try {
+      await postWebhookAndAssert(
+        () => {},
+        503,
+        (json) => expect(json).toEqual({ status: "retry" }),
+      );
+    } finally {
+      mockVerify.restore();
+      mockResolve.restore();
+    }
   });
 
   test("an authenticated Stripe expiry closes and purges its staged checkout", async () => {

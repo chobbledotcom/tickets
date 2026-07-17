@@ -12,6 +12,7 @@
 
 /* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { toBase64Url } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { fetchText } from "#shared/fetch.ts";
@@ -159,6 +160,18 @@ const SQUARE_BASE_URL = {
 const jsonStringify = (obj: unknown): string =>
   JSON.stringify(obj, (_, v) => (typeof v === "bigint" ? Number(v) : v));
 
+/** Square limits refund idempotency keys to 45 characters. A SHA-256 digest in
+ * unpadded base64url is 43 and stays stable for every retry of one payment. */
+const squareRefundIdempotencyKey = async (
+  paymentId: string,
+): Promise<string> => {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`square-refund:${paymentId}`),
+  );
+  return toBase64Url(new Uint8Array(digest));
+};
+
 /** Optional method and JSON body for one Square REST call (GET, no body, when
  * omitted). Shared by {@link squareRequestInit} and the fetch built on it. */
 export type SquareRequestOptions = { method?: string; body?: unknown };
@@ -232,6 +245,10 @@ type SquarePaymentResponse = {
     amount_money?: { amount: number; currency: string };
     refunded_money?: { amount: number; currency: string };
   };
+};
+
+type SquareRefundResponse = {
+  refund?: { id?: string; status?: string };
 };
 
 type SquareLocation = {
@@ -371,7 +388,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     },
     refunds: {
       refundPayment: async (p: RefundPaymentInput) => {
-        await post<unknown>("/v2/refunds", {
+        const response = await post<SquareRefundResponse>("/v2/refunds", {
           amount_money: {
             amount: p.amountMoney.amount,
             currency: p.amountMoney.currency,
@@ -379,7 +396,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           idempotency_key: p.idempotencyKey,
           payment_id: p.paymentId,
         });
-        return {};
+        return response;
       },
     },
   };
@@ -691,15 +708,24 @@ export const squareApi: {
     }
 
     const result = await withClient(async (client) => {
-      await client.refunds.refundPayment({
+      const response = await client.refunds.refundPayment({
         amountMoney: {
           amount: payment.amountMoney!.amount,
           currency: payment.amountMoney!.currency as string,
         },
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: await squareRefundIdempotencyKey(paymentId),
         paymentId,
       });
-      return true;
+      const refund = response.refund;
+      if (!refund || typeof refund.id !== "string") {
+        throw new Error(`Square refund for ${paymentId} has no refund id`);
+      }
+      if (typeof refund.status !== "string") {
+        throw new Error(
+          `Square refund ${refund.id} for ${paymentId} has no status`,
+        );
+      }
+      return refund.status === "COMPLETED" || refund.status === "SUCCEEDED";
     }, ErrorCode.SQUARE_REFUND);
 
     return result ?? false;

@@ -214,7 +214,7 @@ describeSquare(() => {
       );
     });
 
-    test("calls SDK refund with correct amount from payment", async () => {
+    test("returns false while Square reports the refund as pending", async () => {
       await withSquareClient(
         {
           paymentsGet: () =>
@@ -233,7 +233,7 @@ describeSquare(() => {
         },
         async ({ paymentsGet, refundsRefundPayment }) => {
           const result = await squareApi.refundPayment("pay_refund_me");
-          expect(result).toBe(true);
+          expect(result).toBe(false);
 
           // Verify payments.get was called to fetch amount
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
@@ -246,8 +246,102 @@ describeSquare(() => {
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");
-          expect(typeof refundArgs.idempotencyKey).toBe("string");
-          expect(refundArgs.idempotencyKey.length).toBeGreaterThan(0);
+          expect(refundArgs.idempotencyKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        },
+      );
+    });
+
+    test("returns true only for an authoritative completed refund", async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(4200), currency: "USD" },
+                id: "pay_completed",
+              },
+            }),
+          refundsRefundPayment: () =>
+            Promise.resolve({
+              refund: { id: "refund_completed", status: "COMPLETED" },
+            }),
+        },
+        async () => {
+          expect(await squareApi.refundPayment("pay_completed")).toBe(true);
+        },
+      );
+    });
+
+    test("accepts Square's SUCCEEDED final refund status", async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(4200), currency: "USD" },
+                id: "pay_succeeded",
+              },
+            }),
+          refundsRefundPayment: () =>
+            Promise.resolve({
+              refund: { id: "refund_succeeded", status: "SUCCEEDED" },
+            }),
+        },
+        async () => {
+          expect(await squareApi.refundPayment("pay_succeeded")).toBe(true);
+        },
+      );
+    });
+
+    for (const [name, refund] of [
+      ["refund object", undefined],
+      ["refund id", { status: "COMPLETED" }],
+      ["refund status", { id: "refund_missing_status" }],
+    ] as const) {
+      test(`returns false when the Square response lacks the ${name}`, async () => {
+        await withSquareClient(
+          {
+            paymentsGet: () =>
+              Promise.resolve({
+                payment: {
+                  amountMoney: { amount: BigInt(4200), currency: "USD" },
+                  id: "pay_bad_response",
+                },
+              }),
+            refundsRefundPayment: () => Promise.resolve({ refund }),
+          },
+          async () => {
+            expect(await squareApi.refundPayment("pay_bad_response")).toBe(
+              false,
+            );
+          },
+        );
+      });
+    }
+
+    test("reuses one idempotency key when a refund is retried", async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(4200), currency: "USD" },
+                id: "pay_retry",
+              },
+            }),
+          refundsRefundPayment: () =>
+            Promise.resolve({
+              refund: { id: "refund_retry", status: "FAILED" },
+            }),
+        },
+        async ({ refundsRefundPayment }) => {
+          await squareApi.refundPayment("pay_retry");
+          await squareApi.refundPayment("pay_retry");
+          const keys = refundsRefundPayment.calls.map(
+            (call) => (call.args[0] as RefundPaymentInput).idempotencyKey,
+          );
+          expect(keys[0]).toMatch(/^[A-Za-z0-9_-]{43}$/);
+          expect(keys[1]).toBe(keys[0]);
         },
       );
     });

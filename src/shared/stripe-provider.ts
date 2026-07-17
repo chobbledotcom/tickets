@@ -6,6 +6,7 @@
  */
 
 import { asString } from "#fp";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
@@ -17,6 +18,7 @@ import {
   type PaymentStatus,
   type ValidatedPaymentSession,
   type WebhookEvent,
+  type WebhookSessionResolution,
   type WebhookVerifyResult,
 } from "#shared/payments.ts";
 import {
@@ -34,6 +36,20 @@ import {
 /** Stripe's payment_status string, or "unpaid" when it isn't one we know. */
 const toPaymentStatus = (status: string): PaymentStatus =>
   isPaymentStatus(status) ? status : "unpaid";
+
+/** A paid Stripe checkout must identify the payment that can be refunded. */
+const hasExpectedPaymentReference = (
+  id: string,
+  paymentStatus: PaymentStatus,
+  paymentReference: string,
+): boolean => {
+  if (paymentStatus !== "paid" || paymentReference) return true;
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail: `Stripe checkout ${id} is paid but has no payment intent`,
+  });
+  return false;
+};
 
 /** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createStripeCheckoutSession = makeCreateCheckoutSession(
@@ -62,7 +78,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
   resolveWebhookSession({
     data: { object: obj },
-  }: WebhookEvent): Promise<ValidatedPaymentSession | "skip" | null> {
+  }: WebhookEvent): Promise<WebhookSessionResolution> {
     const metadata = obj.metadata as
       | Record<string, string | undefined>
       | undefined;
@@ -78,14 +94,21 @@ export const stripePaymentProvider: PaymentProvider = {
       typeof amountTotal === "number" &&
       hasRequiredSessionMetadata(metadata)
     ) {
+      const normalizedStatus = toPaymentStatus(paymentStatus);
+      const paymentReference = asString(obj.payment_intent);
+      if (
+        !hasExpectedPaymentReference(id, normalizedStatus, paymentReference)
+      ) {
+        return Promise.resolve("retry");
+      }
       return Promise.resolve(
         validatedPaymentSession({
           amountTotal,
           createdAt: isoFromUnixSeconds(obj.created),
           id,
           metadata,
-          paymentReference: asString(obj.payment_intent),
-          paymentStatus: toPaymentStatus(paymentStatus),
+          paymentReference,
+          paymentStatus: normalizedStatus,
         }),
       );
     }
@@ -113,13 +136,18 @@ export const stripePaymentProvider: PaymentProvider = {
 
     if (amount_total === null) return null;
 
+    const paymentStatus = toPaymentStatus(payment_status);
+    const paymentReference = payment_intent ?? "";
+    if (!hasExpectedPaymentReference(id, paymentStatus, paymentReference)) {
+      return null;
+    }
     return validatedPaymentSession({
       amountTotal: amount_total,
       createdAt: isoFromUnixSeconds(session.created),
       id,
       metadata,
-      paymentReference: payment_intent ?? "",
-      paymentStatus: toPaymentStatus(payment_status),
+      paymentReference,
+      paymentStatus,
     });
   },
 

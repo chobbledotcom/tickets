@@ -28,7 +28,7 @@ describeWithEnv(
       resetStripeClient();
     });
 
-    test("webhook refund returns false when payment reference is null", async () => {
+    test("paid webhook without a payment reference requests retry", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -58,9 +58,9 @@ describeWithEnv(
         () => {
           mockVerify.restore();
         },
-        200,
+        503,
         (json) => {
-          expect(json.error).toContain("couldn't complete your booking");
+          expect(json).toEqual({ status: "retry" });
         },
       );
     });

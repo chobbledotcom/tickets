@@ -129,6 +129,13 @@ describe("sumup-provider", () => {
         },
       );
     });
+
+    test("returns null when a paid checkout has no transaction", async () => {
+      await stageCheckout();
+      await withFetched(checkout({ transactionId: "" }), async () => {
+        expect(await sumupPaymentProvider.retrieveSession("ref")).toBeNull();
+      });
+    });
   });
 
   describe("isPaymentRefunded", () => {
@@ -153,14 +160,49 @@ describe("sumup-provider", () => {
   });
 
   describe("refundPayment", () => {
-    test("delegates to refundTransaction with the payment reference", () =>
+    test("returns false when SumUp rejects the refund request", () =>
       withMocks(
-        () => stub(sumupApi, "refundTransaction", () => Promise.resolve(true)),
-        async (mock) => {
-          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(true);
-          expect(mock.calls[0]!.args).toEqual(["txn_9"]);
+        () => stub(sumupApi, "refundTransaction", () => Promise.resolve(false)),
+        async () => {
+          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(false);
         },
       ));
+
+    test("returns true only after SumUp confirms REFUNDED", () =>
+      withMocks(
+        () => ({
+          refund: stub(sumupApi, "refundTransaction", () =>
+            Promise.resolve(true),
+          ),
+          status: stub(sumupApi, "getTransactionStatus", () =>
+            Promise.resolve("REFUNDED"),
+          ),
+        }),
+        async ({ refund, status }) => {
+          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(true);
+          expect(refund.calls[0]!.args).toEqual(["txn_9"]);
+          expect(status.calls[0]!.args).toEqual(["txn_9"]);
+        },
+      ));
+
+    for (const status of ["SUCCESSFUL", "PENDING", "REFUND_FAILED"] as const) {
+      test(`returns false after accepted refund remains ${status}`, () =>
+        withMocks(
+          () => ({
+            refund: stub(sumupApi, "refundTransaction", () =>
+              Promise.resolve(true),
+            ),
+            status: stub(sumupApi, "getTransactionStatus", () =>
+              Promise.resolve(status),
+            ),
+          }),
+          async () => {
+            expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(
+              false,
+            );
+          },
+        ));
+    }
   });
 
   describe("createCheckoutSession", () => {
@@ -286,6 +328,15 @@ describe("sumup-provider", () => {
           expect.objectContaining({ id: "ref", paymentReference: "txn" }),
         );
         expect(calls()).toEqual([["co_1"]]);
+      });
+    });
+
+    test("returns retry when a paid checkout has no transaction", async () => {
+      await stageCheckout();
+      await withFetched(checkout({ transactionId: "" }), async () => {
+        expect(
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+        ).toBe("retry");
       });
     });
   });

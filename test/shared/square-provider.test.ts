@@ -32,22 +32,48 @@ const NO_META_ORDER = {
 
 type SquarePayment = Awaited<ReturnType<typeof squareApi.retrievePayment>>;
 
-/** retrieveOrder + retrievePayment stubs for a paid (pay_1/COMPLETED) order. */
-const paidPay1Mocks = (id: string, createdAt?: string) => ({
+/** Stub one Square order and the payment named by its tender. */
+const sessionMocks = ({
+  createdAt,
+  metadata = ORDER_META,
+  orderId,
+  paymentId,
+  status,
+}: {
+  createdAt?: string;
+  metadata?: typeof ORDER_META;
+  orderId: string;
+  paymentId: string;
+  status: string;
+}) => ({
   order: stub(squareApi, "retrieveOrder", () =>
     Promise.resolve({
       ...(createdAt ? { createdAt } : {}),
-      id,
-      metadata: ORDER_META,
+      id: orderId,
+      metadata,
       state: "COMPLETED",
-      tenders: [{ id: "tender_1", paymentId: "pay_1" }],
+      tenders: [{ id: "tender_1", paymentId }],
       totalMoney: money(1000),
     }),
   ),
   payment: stub(squareApi, "retrievePayment", () =>
-    Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
+    Promise.resolve({
+      amountMoney: money(1000),
+      id: paymentId,
+      orderId,
+      status,
+    }),
   ),
 });
+
+/** retrieveOrder + retrievePayment stubs for a paid (pay_1/COMPLETED) order. */
+const paidPay1Mocks = (orderId: string, createdAt?: string) =>
+  sessionMocks({
+    ...(createdAt ? { createdAt } : {}),
+    orderId,
+    paymentId: "pay_1",
+    status: "COMPLETED",
+  });
 
 /** A single-line checkout intent for the given listing and phone value. */
 const listingIntent = (
@@ -146,27 +172,12 @@ describe("square-provider", () => {
 
     test("returns paid when order state is OPEN but payment is COMPLETED", async () => {
       await withMocks(
-        () => ({
-          order: stub(squareApi, "retrieveOrder", () =>
-            Promise.resolve({
-              id: "order_open",
-              metadata: {
-                email: "bob@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Bob",
-              },
-              state: "OPEN",
-              tenders: [{ id: "tender_1", paymentId: "pay_2" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
-            }),
-          ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              id: "pay_2",
-              status: "COMPLETED",
-            }),
-          ),
-        }),
+        () =>
+          sessionMocks({
+            orderId: "order_open",
+            paymentId: "pay_2",
+            status: "COMPLETED",
+          }),
         async (mocks) => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
@@ -180,27 +191,12 @@ describe("square-provider", () => {
 
     test("returns unpaid when order state is OPEN and payment is not COMPLETED", async () => {
       await withMocks(
-        () => ({
-          order: stub(squareApi, "retrieveOrder", () =>
-            Promise.resolve({
-              id: "order_open",
-              metadata: {
-                email: "carol@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Carol",
-              },
-              state: "OPEN",
-              tenders: [{ id: "tender_1", paymentId: "pay_3" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
-            }),
-          ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              id: "pay_3",
-              status: "PENDING",
-            }),
-          ),
-        }),
+        () =>
+          sessionMocks({
+            orderId: "order_open",
+            paymentId: "pay_3",
+            status: "PENDING",
+          }),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
@@ -230,6 +226,73 @@ describe("square-provider", () => {
             await squarePaymentProvider.retrieveSession("order_no_tenders");
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("unpaid");
+        },
+      );
+    });
+
+    test("ignores a tender without a payment id", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_empty_tender",
+              metadata: ORDER_META,
+              tenders: [{ id: "tender_without_payment" }],
+              totalMoney: money(1000),
+            }),
+          ),
+        async () => {
+          expect(
+            await squarePaymentProvider.retrieveSession("order_empty_tender"),
+          ).toMatchObject({ paymentReference: "", paymentStatus: "unpaid" });
+        },
+      );
+    });
+
+    test("uses a completed tender and its actual amount on redirect", async () => {
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_two_tenders",
+              metadata: ORDER_META,
+              tenders: [
+                { paymentId: "pay_completed" },
+                { paymentId: "pay_stale" },
+              ],
+              totalMoney: money(1000),
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", (id) =>
+            Promise.resolve(
+              id === "pay_stale"
+                ? {
+                    amountMoney: money(1000),
+                    id,
+                    orderId: "order_two_tenders",
+                    status: "PENDING",
+                  }
+                : {
+                    amountMoney: money(900),
+                    id,
+                    orderId: "order_two_tenders",
+                    status: "COMPLETED",
+                  },
+            ),
+          ),
+        }),
+        async ({ payment }) => {
+          const result =
+            await squarePaymentProvider.retrieveSession("order_two_tenders");
+          expect(payment.calls.map((call) => call.args)).toEqual([
+            ["pay_stale"],
+            ["pay_completed"],
+          ]);
+          expect(result).toMatchObject({
+            amountTotal: 900,
+            paymentReference: "pay_completed",
+            paymentStatus: "paid",
+          });
         },
       );
     });
@@ -376,27 +439,12 @@ describe("square-provider", () => {
   describe("resolveWebhookSession", () => {
     test("extracts order_id from nested Square payment object", async () => {
       await withMocks(
-        () => ({
-          order: stub(squareApi, "retrieveOrder", () =>
-            Promise.resolve({
-              id: "order_nested_456",
-              metadata: {
-                email: "alice@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Alice",
-              },
-              state: "COMPLETED",
-              tenders: [{ id: "tender_1", paymentId: "pay_nested_123" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
-            }),
-          ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              id: "pay_nested_123",
-              status: "COMPLETED",
-            }),
-          ),
-        }),
+        () =>
+          sessionMocks({
+            orderId: "order_nested_456",
+            paymentId: "pay_nested_123",
+            status: "COMPLETED",
+          }),
         async (mocks) => {
           const result = await squarePaymentProvider.resolveWebhookSession({
             data: {
@@ -412,8 +460,10 @@ describe("square-provider", () => {
             type: "payment.updated",
           });
           expect(result).not.toBe("skip");
+          expect(result).not.toBe("retry");
           expect(result).not.toBeNull();
           expect(mocks.order.calls[0]!.args[0]).toBe("order_nested_456");
+          expect(mocks.payment.calls[0]!.args[0]).toBe("pay_nested_123");
         },
       );
     });
@@ -450,7 +500,7 @@ describe("square-provider", () => {
       expect(result).toBeNull();
     });
 
-    test("falls back to payment id when order_id is missing", async () => {
+    test("does not mistake a payment id for a missing order id", async () => {
       await withMocks(
         () => ({
           order: stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
@@ -468,9 +518,8 @@ describe("square-provider", () => {
             id: "evt_no_order",
             type: "payment.updated",
           });
-          // retrieveSession called with payment id as fallback
-          expect(mocks.order.calls[0]!.args[0]).toBe("pay_fallback_id");
-          expect(result).toBe("skip");
+          expect(mocks.order.calls).toEqual([]);
+          expect(result).toBeNull();
         },
       );
     });
@@ -505,6 +554,139 @@ describe("square-provider", () => {
       );
     });
 
+    test("uses the exact webhook payment instead of a stale order tender", async () => {
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_stale",
+              metadata: ORDER_META,
+              tenders: [{ paymentId: "pay_stale" }],
+              totalMoney: money(1000),
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", (id) =>
+            Promise.resolve({
+              amountMoney: money(900),
+              id,
+              orderId: "order_stale",
+              status: "COMPLETED",
+            }),
+          ),
+        }),
+        async ({ payment }) => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                payment: {
+                  id: "pay_webhook",
+                  order_id: "order_stale",
+                  status: "COMPLETED",
+                },
+              },
+            },
+            id: "evt_stale",
+            type: "payment.updated",
+          });
+          expect(payment.calls.map((call) => call.args)).toEqual([
+            ["pay_webhook"],
+          ]);
+          expect(result).toMatchObject({
+            amountTotal: 900,
+            paymentReference: "pay_webhook",
+          });
+        },
+      );
+    });
+
+    test("returns retry when the webhook payment is temporarily absent", async () => {
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              id: "order_missing_payment",
+              metadata: ORDER_META,
+              totalMoney: money(1000),
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", () =>
+            Promise.resolve(null),
+          ),
+        }),
+        async () => {
+          expect(
+            await squarePaymentProvider.resolveWebhookSession({
+              data: {
+                object: {
+                  payment: {
+                    id: "pay_missing",
+                    order_id: "order_missing_payment",
+                    status: "COMPLETED",
+                  },
+                },
+              },
+              id: "evt_missing_payment",
+              type: "payment.updated",
+            }),
+          ).toBe("retry");
+        },
+      );
+    });
+
+    for (const [name, payment] of [
+      [
+        "wrong order",
+        {
+          amountMoney: money(1000),
+          id: "pay_wrong_order",
+          orderId: "another_order",
+          status: "COMPLETED",
+        },
+      ],
+      [
+        "missing amount",
+        {
+          id: "pay_missing_amount",
+          orderId: "order_inconsistent",
+          status: "COMPLETED",
+        },
+      ],
+    ] as const) {
+      test(`returns retry for a completed webhook payment with ${name}`, async () => {
+        await withMocks(
+          () => ({
+            order: stub(squareApi, "retrieveOrder", () =>
+              Promise.resolve({
+                id: "order_inconsistent",
+                metadata: ORDER_META,
+                totalMoney: money(1000),
+              }),
+            ),
+            payment: stub(squareApi, "retrievePayment", () =>
+              Promise.resolve(payment),
+            ),
+          }),
+          async () => {
+            expect(
+              await squarePaymentProvider.resolveWebhookSession({
+                data: {
+                  object: {
+                    payment: {
+                      id: payment.id,
+                      order_id: "order_inconsistent",
+                      status: "COMPLETED",
+                    },
+                  },
+                },
+                id: `evt_${payment.id}`,
+                type: "payment.updated",
+              }),
+            ).toBe("retry");
+          },
+        );
+      });
+    }
+
     test("handles flat listing object without payment wrapper", async () => {
       await withMocks(
         () => stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
@@ -521,7 +703,7 @@ describe("square-provider", () => {
             type: "payment.updated",
           });
           expect(mockOrder.calls[0]!.args[0]).toBe("order_flat");
-          expect(result).toBe("skip");
+          expect(result).toBe("retry");
         },
       );
     });

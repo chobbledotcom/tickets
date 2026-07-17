@@ -59,6 +59,17 @@ export type StripeCheckoutFields = {
   status: "complete" | "expired" | "open" | null;
 };
 
+const completedCheckoutResult = (
+  session: Pick<StripeCheckoutFields, "payment_status" | "status">,
+): CheckoutCloseResult | null => {
+  if (session.status === "expired") return "closed";
+  if (session.status !== "complete") return null;
+  return session.payment_status === "paid" ||
+    session.payment_status === "no_payment_required"
+    ? "paid"
+    : "closed";
+};
+
 const narrowCheckoutSession = (
   session: Stripe.Checkout.Session,
 ): StripeCheckoutFields => ({
@@ -382,8 +393,8 @@ export const stripeApi: {
     if (!client) throw new Error("No Stripe client configured");
 
     const current = await client.checkout.sessions.retrieve(sessionId);
-    if (current.status === "complete") return "paid";
-    if (current.status === "expired") return "closed";
+    const currentResult = completedCheckoutResult(current);
+    if (currentResult) return currentResult;
     if (current.status !== "open") {
       throw new Error(`Unknown Stripe checkout status: ${current.status}`);
     }
@@ -393,8 +404,8 @@ export const stripeApi: {
       return "closed";
     } catch (err) {
       const afterFailure = await client.checkout.sessions.retrieve(sessionId);
-      if (afterFailure.status === "complete") return "paid";
-      if (afterFailure.status === "expired") return "closed";
+      const failureResult = completedCheckoutResult(afterFailure);
+      if (failureResult) return failureResult;
       throw err;
     }
   },

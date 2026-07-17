@@ -315,6 +315,13 @@ export type CheckoutWebhookEventTypes = {
 
 export type CheckoutWebhookEventKind = "completed" | "expired" | "other";
 
+/** A provider's result after resolving an authenticated webhook event. */
+export type WebhookSessionResolution =
+  | ValidatedPaymentSession
+  | "retry"
+  | "skip"
+  | null;
+
 export const checkoutWebhookEventKind = (
   eventTypes: CheckoutWebhookEventTypes,
   eventType: string,
@@ -400,12 +407,13 @@ export interface PaymentProvider {
    * Each provider knows how to extract/fetch session data from its own
    * event structure, so the webhook handler stays provider-agnostic.
    *
-   * @returns the session, "skip" if the event should be acknowledged
-   *          without processing (e.g. pending payment), or null on error.
+   * @returns the session, "skip" when the event should be acknowledged without
+   * processing, "retry" for temporary provider inconsistency, or null when the
+   * event is not one of our sessions.
    */
   resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null>;
+  ): Promise<WebhookSessionResolution>;
 
   /**
    * Retrieve and validate a completed checkout session by ID.

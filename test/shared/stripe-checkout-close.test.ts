@@ -8,7 +8,10 @@ import { withMocks } from "#test-utils/mocks.ts";
 
 describe("Stripe hosted checkout closing", () => {
   const withStripeStatuses = (
-    statuses: Array<"complete" | "expired" | "open" | null>,
+    statuses: Array<{
+      payment_status?: "paid" | "unpaid" | "no_payment_required";
+      status: "complete" | "expired" | "open" | null;
+    }>,
     expire: () => Promise<unknown>,
     body: (calls: {
       expire: () => number;
@@ -16,7 +19,7 @@ describe("Stripe hosted checkout closing", () => {
     }) => void | Promise<void>,
   ) => {
     const retrieve = spy(() =>
-      Promise.resolve({ status: statuses.shift() ?? null }),
+      Promise.resolve(statuses.shift() ?? { status: null }),
     );
     const expireSpy = spy(expire);
     const client = {
@@ -110,7 +113,7 @@ describe("Stripe hosted checkout closing", () => {
 
   test("expires an open Stripe session", () =>
     withStripeStatuses(
-      ["open"],
+      [{ status: "open" }],
       () => Promise.resolve({}),
       async (calls) => {
         expect(await stripeApi.closeCheckoutSession("cs_open")).toBe("closed");
@@ -119,30 +122,30 @@ describe("Stripe hosted checkout closing", () => {
       },
     ));
 
-  for (const [status, result] of [
-    ["complete", "paid"],
-    ["expired", "closed"],
+  for (const [session, result] of [
+    [{ payment_status: "paid", status: "complete" }, "paid"],
+    [{ status: "expired" }, "closed"],
   ] as const) {
-    test(`returns ${result} without expiring a ${status} Stripe session`, () =>
+    test(`returns ${result} without expiring a ${session.status} Stripe session`, () =>
       withStripeStatuses(
-        [status],
+        [session],
         () => Promise.resolve({}),
         async (calls) => {
-          expect(await stripeApi.closeCheckoutSession(`cs_${status}`)).toBe(
-            result,
-          );
+          expect(
+            await stripeApi.closeCheckoutSession(`cs_${session.status}`),
+          ).toBe(result);
           expect(calls.expire()).toBe(0);
         },
       ));
   }
 
   for (const [afterRace, result] of [
-    ["complete", "paid"],
-    ["expired", "closed"],
+    [{ payment_status: "paid", status: "complete" }, "paid"],
+    [{ status: "expired" }, "closed"],
   ] as const) {
-    test(`returns ${result} when Stripe becomes ${afterRace} during expiry`, () =>
+    test(`returns ${result} when Stripe becomes ${afterRace.status} during expiry`, () =>
       withStripeStatuses(
-        ["open", afterRace],
+        [{ status: "open" }, afterRace],
         () => Promise.reject(new Error("state changed")),
         async (calls) => {
           expect(await stripeApi.closeCheckoutSession("cs_race")).toBe(result);
@@ -153,7 +156,7 @@ describe("Stripe hosted checkout closing", () => {
 
   test("throws when Stripe still reports open after expiry fails", () =>
     withStripeStatuses(
-      ["open", "open"],
+      [{ status: "open" }, { status: "open" }],
       () => Promise.reject(new Error("network failed")),
       async () => {
         await expect(stripeApi.closeCheckoutSession("cs_open")).rejects.toThrow(
@@ -164,7 +167,7 @@ describe("Stripe hosted checkout closing", () => {
 
   test("throws for an unknown Stripe lifecycle status", () =>
     withStripeStatuses(
-      [null],
+      [{ status: null }],
       () => Promise.resolve({}),
       async () => {
         await expect(
@@ -179,6 +182,17 @@ describe("Stripe hosted checkout closing", () => {
       async () => {
         await expect(stripeApi.closeCheckoutSession("cs_none")).rejects.toThrow(
           "No Stripe client configured",
+        );
+      },
+    ));
+
+  test("reports a complete but unpaid Stripe session as closed", () =>
+    withStripeStatuses(
+      [{ payment_status: "unpaid", status: "complete" }],
+      () => Promise.resolve({}),
+      async () => {
+        expect(await stripeApi.closeCheckoutSession("cs_unpaid")).toBe(
+          "closed",
         );
       },
     ));

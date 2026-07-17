@@ -16,6 +16,7 @@ import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   makeCreateCheckoutSession,
   toCanonicalIso,
@@ -27,6 +28,7 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
   WebhookEvent,
+  WebhookSessionResolution,
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
@@ -51,8 +53,15 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession =>
-  validatedPaymentSession({
+): ValidatedPaymentSession | null => {
+  if (checkout.status === "PAID" && !checkout.transactionId) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `SumUp checkout ${checkout.reference} is PAID but has no transaction id`,
+    });
+    return null;
+  }
+  return validatedPaymentSession({
     amountTotal: checkout.amountMinor,
     createdAt: toCanonicalIso(checkout.createdAt),
     id: checkout.reference,
@@ -60,6 +69,7 @@ const buildValidatedSession = (
     paymentReference: checkout.transactionId,
     paymentStatus: toPaymentStatus(checkout.status),
   });
+};
 
 /** SumUp's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createSumupCheckoutSession = makeCreateCheckoutSession(
@@ -92,14 +102,15 @@ export const sumupPaymentProvider: PaymentProvider = {
     return (await getTransactionStatus(paymentReference)) === "REFUNDED";
   },
 
-  refundPayment(paymentReference: string): Promise<boolean> {
-    return refundTransaction(paymentReference);
+  async refundPayment(paymentReference: string): Promise<boolean> {
+    if (!(await refundTransaction(paymentReference))) return false;
+    return (await getTransactionStatus(paymentReference)) === "REFUNDED";
   },
   requiresWebhookSignature: false,
 
   async resolveWebhookSession(
     webhookEvent: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null> {
+  ): Promise<WebhookSessionResolution> {
     if (!webhookEvent.id) return null;
     // Unsigned webhooks: only fetch checkouts we created. Spam or another
     // integration's listings are acknowledged without an API call.
@@ -109,6 +120,7 @@ export const sumupPaymentProvider: PaymentProvider = {
     // Non-null: the pre-filter just matched this id to a staging row
     const stored = (await getSumupCheckout(checkout.reference))!;
     const session = buildValidatedSession(checkout, stored.metadata);
+    if (!session) return "retry";
     // Pending is ambiguous and may still pay. Terminal failures are authoritative
     // and let the shared webhook boundary close and clear the local stage.
     return session.paymentStatus === "unpaid" ? "skip" : session;
@@ -128,7 +140,7 @@ export const sumupPaymentProvider: PaymentProvider = {
     const stored = await getSumupCheckout(sessionId);
     if (!stored?.sumupId) return null;
     const checkout = await retrieveCheckoutById(stored.sumupId);
-    return checkout && buildValidatedSession(checkout, stored.metadata);
+    return checkout ? buildValidatedSession(checkout, stored.metadata) : null;
   },
 
   // SumUp sets return_url per checkout — there is no global endpoint to register.

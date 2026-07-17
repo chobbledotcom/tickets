@@ -404,6 +404,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse({ status: "pending" });
   }
 
+  if (sessionResult === "retry") {
+    return jsonResponse({ status: "retry" }, 503);
+  }
+
   if (!sessionResult) {
     logDebug(
       "Webhook",

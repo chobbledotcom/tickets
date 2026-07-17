@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { tryRefund } from "#routes/api/payment-processing/refunds.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -32,7 +33,11 @@ describeWithEnv(
       resetStripeClient();
     });
 
-    test("tryRefund returns false when paymentReference is empty", async () => {
+    test("tryRefund rejects an empty payment reference", async () => {
+      expect(await tryRefund("")).toBe(false);
+    });
+
+    test("paid redirect without a payment reference fails before refund", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -56,11 +61,10 @@ describeWithEnv(
         );
         const html = await expectHtmlResponse(
           response,
-          503,
-          "couldn't complete your booking",
+          400,
+          "Payment session not found",
         );
-        // Should show "contact support" since refund failed (no payment reference)
-        expect(html).toContain("contact support");
+        expect(html).not.toContain("contact support");
       } finally {
         mockRetrieve.restore();
       }

@@ -5,6 +5,20 @@ import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { configureSquare, linkResult, withSquareClient } from "./fixtures.ts";
 import { describeSquare } from "./harness.ts";
 
+const completedPayment = (
+  orderId: string,
+  paymentId: string,
+  amount: bigint,
+  currency: string,
+) => ({
+  payment: {
+    amountMoney: { amount, currency },
+    id: paymentId,
+    orderId,
+    status: "COMPLETED",
+  },
+});
+
 describeSquare(() => {
   describe("squarePaymentProvider integration", () => {
     test("retrieveSession maps COMPLETED order to paid status", async () => {
@@ -26,9 +40,9 @@ describeSquare(() => {
               },
             }),
           paymentsGet: () =>
-            Promise.resolve({
-              payment: { id: "pay_abc", status: "COMPLETED" },
-            }),
+            Promise.resolve(
+              completedPayment("order_paid", "pay_abc", BigInt(5000), "USD"),
+            ),
         },
         async () => {
           const result =
@@ -140,9 +154,14 @@ describeSquare(() => {
               },
             }),
           paymentsGet: () =>
-            Promise.resolve({
-              payment: { id: "pay_total_123", status: "COMPLETED" },
-            }),
+            Promise.resolve(
+              completedPayment(
+                "order_with_amount",
+                "pay_total_123",
+                BigInt(6000),
+                "GBP",
+              ),
+            ),
         },
         async () => {
           const result =
@@ -177,9 +196,9 @@ describeSquare(() => {
               },
             }),
           paymentsGet: () =>
-            Promise.resolve({
-              payment: { id: "pay_multi", status: "COMPLETED" },
-            }),
+            Promise.resolve(
+              completedPayment("order_multi", "pay_multi", BigInt(3000), "USD"),
+            ),
         },
         async () => {
           const result =
@@ -248,7 +267,7 @@ describeSquare(() => {
             }),
           refundsRefundPayment: () =>
             Promise.resolve({
-              refund: { id: "refund_prov", status: "PENDING" },
+              refund: { id: "refund_prov", status: "COMPLETED" },
             }),
         },
         async () => {

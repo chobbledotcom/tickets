@@ -73,6 +73,30 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("retrieveSession - edge cases", () => {
+    test("returns null when a paid session has no payment intent", async () => {
+      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 1000,
+          created: 0,
+          id: "cs_paid_without_intent",
+          metadata: {
+            email: "alice@example.com",
+            items: '[{"e":1,"q":1,"p":0}]',
+            name: "Alice",
+          },
+          payment_intent: null,
+          payment_status: "paid",
+          status: "complete",
+        }),
+      );
+      try {
+        expect(
+          await stripePaymentProvider.retrieveSession("cs_paid_without_intent"),
+        ).toBeNull();
+      } finally {
+        retrieve.restore();
+      }
+    });
     test("returns null for session without items", async () => {
       const client = await stripeClient();
       await whileRetrieving(
@@ -610,7 +634,7 @@ describeStripe("stripe-provider", () => {
       });
       expect(result).not.toBe("skip");
       expect(result).not.toBeNull();
-      if (result && result !== "skip") {
+      if (result && result !== "skip" && result !== "retry") {
         expect(result.id).toBe("cs_resolve_1");
         expect(result.paymentStatus).toBe("paid");
         expect(result.paymentReference).toBe("pi_resolve_1");
@@ -653,6 +677,26 @@ describeStripe("stripe-provider", () => {
         type: "checkout.session.completed",
       });
       expect(result).toBeNull();
+    });
+
+    test("returns retry when a paid listing has no payment intent", async () => {
+      const result = await stripePaymentProvider.resolveWebhookSession({
+        data: {
+          object: {
+            amount_total: 2000,
+            id: "cs_missing_intent",
+            metadata: {
+              email: "alice@example.com",
+              items: '[{"e":1,"q":1,"p":0}]',
+              name: "Alice",
+            },
+            payment_status: "paid",
+          },
+        },
+        id: "evt_missing_intent",
+        type: "checkout.session.completed",
+      });
+      expect(result).toBe("retry");
     });
   });
 });
