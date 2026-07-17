@@ -1,19 +1,12 @@
-/**
- * The modifier admin pages: list, create, edit, and delete. The edit page wires
- * together the running-totals, revenue-adjust, ledger, and link-editor sections.
- */
-
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { adminDestinationAllowed, adminPath } from "#shared/admin-surface.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ModifierRow } from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
-import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import { Flash } from "#shared/forms/flash.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
-import { AdminPage, flashFormPage } from "#templates/admin/admin-page.tsx";
+import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import {
   type AccountLedgerData,
@@ -21,12 +14,12 @@ import {
 } from "#templates/admin/ledger/statement.tsx";
 import { AdminListPage } from "#templates/admin/list-page.tsx";
 import { MoneyAdjustSection } from "#templates/admin/money-adjust-section.tsx";
-import {
-  GuideFooter,
-  SaveChangesButton,
-} from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { CollectionTable } from "#templates/components/data-table.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
+import {
+  SaveForm,
+  saveFormComponent,
+} from "#templates/components/save-form.tsx";
 import { getModifierForm } from "#templates/fields/modifier.ts";
 import {
   ModifierRunningTotalsSection,
@@ -42,16 +35,15 @@ import { modifierToFieldValues, ruleSummary } from "./values.ts";
 
 /* jscpd:ignore-end */
 
-/** Render the modifier form inputs, building the field list once and threading
- * it through both the value map and the renderer so a single page render does
- * not reconstruct the fields (and re-run their picklist i18n) twice. */
-const renderModifierFormFields = (modifier?: Modifier): string => {
+const renderModifierFormFields = (
+  modifier?: Modifier,
+  values?: Record<string, string | number | null>,
+): string => {
   const form = getModifierForm();
-  return form.render(modifierToFieldValues(modifier, form.fields));
+  return form.render(values ?? modifierToFieldValues(modifier, form.fields));
 };
 
-/** The modifier guide link, rendered at the bottom of every modifier page. */
-const ModifiersGuideFooter = (): JSX.Element => (
+export const ModifiersGuideFooter = (): JSX.Element => (
   <GuideFooter href="/admin/guide#modifiers">
     {t("modifiers.guide_link")}
   </GuideFooter>
@@ -83,7 +75,34 @@ const ModifierLedgerSection = ({
     returnUrl: `/admin/modifiers/${ledger.account.id}/edit`,
   });
 
-/** Admin modifiers list page */
+type ModifierRenderValues = Record<string, string | number | null>;
+
+interface ModifierValuesProps {
+  modifier: Modifier;
+  values?: ModifierRenderValues;
+}
+
+const submittedValues = (
+  values: ModifierRenderValues | undefined,
+): { values: ModifierRenderValues } | object => (values ? { values } : {});
+
+const ModifierFieldsForm = saveFormComponent<
+  ModifierValuesProps & {
+    action: string;
+  }
+>(({ modifier, values }) => ({
+  children: (
+    <>
+      <Raw html={renderModifierFormFields(modifier, values)} />
+      <ModifierRunningTotalsSection
+        modifier={modifier}
+        {...submittedValues(values)}
+      />
+    </>
+  ),
+  submitLabel: t("common.save_changes"),
+}));
+
 export const adminModifiersPage = (
   modifiers: Modifier[],
   session: AdminSession,
@@ -127,7 +146,6 @@ export const adminModifiersPage = (
     title: t("terms.modifiers"),
   });
 
-/** Admin modifier create page */
 export const adminModifierNewPage = flashFormPage(
   "modifiers.add.heading",
   "/admin/modifiers/new",
@@ -146,51 +164,35 @@ export const adminModifierNewPage = flashFormPage(
   ),
 );
 
-/** Admin modifier edit page. `links` carries the scope editor for a
- * listing/group-scoped modifier (null for a whole-order modifier);
- * `answerLinks` carries the answer editor for an "answer"-triggered modifier
- * (null otherwise). The two editors are independent — an answer modifier can
- * also be scoped to specific listings. */
-export const adminModifierEditPage = (
-  modifier: Modifier,
-  session: AdminSession,
-  error?: string,
-  links?: ScopeLinks | null,
-  success?: string,
-  answerLinks?: AnswerLinks | null,
-  ledger?: AccountLedgerData,
-): string =>
-  String(
-    <AdminPage
-      active={{ section: "/admin/modifiers" }}
-      session={session}
-      title={t("modifiers.edit.heading")}
-    >
-      <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
-        <h1>{t("modifiers.edit.heading")}</h1>
-        <Flash error={error} success={success} />
-        <Raw html={renderModifierFormFields(modifier)} />
-        <ModifierRunningTotalsSection modifier={modifier} />
-        {SaveChangesButton()}
-      </CsrfForm>
+export const ModifierEditPanel = ({
+  answerLinks,
+  error,
+  ledger,
+  links,
+  modifier,
+  values,
+}: ModifierValuesProps & {
+  answerLinks: AnswerLinks | null;
+  error?: string;
+  ledger?: AccountLedgerData;
+  links: ScopeLinks | null;
+}): JSX.Element =>
+  editPanel(error)(
+    <>
+      <ModifierFieldsForm
+        action={`/admin/modifiers/${modifier.id}/edit`}
+        modifier={modifier}
+        {...submittedValues(values)}
+      />
       <ModifierRevenueAdjustSection modifier={modifier} />
       {ledger && <ModifierLedgerSection ledger={ledger} />}
       {links && <ScopeLinksForm links={links} modifier={modifier} />}
       {answerLinks && (
         <AnswerLinksForm answerLinks={answerLinks} modifier={modifier} />
       )}
-      <p class="actions">
-        <a class="danger" href={`/admin/modifiers/${modifier.id}/delete`}>
-          {t("modifiers.delete.submit")}
-        </a>
-      </p>
-      <ModifiersGuideFooter />
-    </AdminPage>,
+    </>,
   );
 
-/** Admin modifier delete confirmation page. Takes the stored {@link ModifierRow}
- * (the projected total_revenue isn't shown here), so it pairs with the CRUD
- * delete loader's `table.findById`. */
 export const adminModifierDeletePage = entityDeletePage(
   (modifier: ModifierRow) => ({
     action: `/admin/modifiers/${modifier.id}/delete`,

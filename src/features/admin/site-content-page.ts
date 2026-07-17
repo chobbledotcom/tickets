@@ -7,9 +7,8 @@
 
 /* jscpd:ignore-start */
 import {
-  type ActionDef,
-  customTab,
   defineEntityPage,
+  deleteActionTab,
   type EntityPage,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
@@ -17,6 +16,7 @@ import { requireSiteOr } from "#routes/auth.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { ImageUseItemType } from "#shared/types.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
+import { writeFormTab } from "./entity-write-tab.ts";
 import { loadItemImagesPanel } from "./item-images.ts";
 
 /* jscpd:ignore-end */
@@ -49,47 +49,23 @@ export interface SiteContentPageDef<E extends { id: number }> {
 export const defineSiteContentPage = <E extends { id: number }>(
   def: SiteContentPageDef<E>,
 ): EntityPage<E> => {
-  const editTab = customTab<E>({
-    intent: "write-form",
-    labelKey: "entity.tab.edit",
-    load: (entity) => Promise.resolve(def.editPanel(entity)),
-    slug: "edit",
-  });
-  const imagesTab: TabDef<E> = {
-    intent: "write-form",
-    labelKey: "entity.tab.images",
-    sections: [
-      {
-        kind: "custom",
-        load: (entity) =>
-          loadItemImagesPanel(def.itemType, entity.id, def.basePath(entity.id)),
-      },
-    ],
-    slug: "images",
-    visible: imagesVisible,
-  };
-  const deleteAction: ActionDef<E> = {
-    danger: true,
-    href: (entity) => `${def.basePath(entity.id)}/delete`,
-    icon: "trash-2",
-    intent: "write-form",
-    labelKey: def.deleteLabelKey,
-  };
-  const actionsTab: TabDef<E> = {
-    intent: "write-form",
-    labelKey: "entity.tab.actions",
-    sections: [
-      {
-        actions: [deleteAction],
-        kind: "actions",
-        titleKey: "entity.tab.actions",
-      },
-    ],
-    slug: "actions",
-    // Delete is the only action, and the delete confirmation GET is itself
-    // blocked in read-only mode (READ_ONLY_GET_PATTERNS) — so hide the whole
-    // tab rather than render a link that immediately bounces to /read-only.
-  };
+  const editTab = writeFormTab<E>("edit", "entity.tab.edit", (entity) =>
+    Promise.resolve(def.editPanel(entity)),
+  );
+  const imagesTab = writeFormTab<E>(
+    "images",
+    "entity.tab.images",
+    (entity) =>
+      loadItemImagesPanel(def.itemType, entity.id, def.basePath(entity.id)),
+    imagesVisible,
+  );
+  // Delete is the only action, and the delete confirmation GET is itself
+  // blocked in read-only mode (READ_ONLY_GET_PATTERNS), so the shared helper
+  // makes the whole tab write-only.
+  const actionsTab = deleteActionTab<E>(
+    def.deleteLabelKey,
+    (entity) => `${def.basePath(entity.id)}/delete`,
+  );
   return defineEntityPage({
     basePath: def.basePath,
     guard: requireSiteOr,

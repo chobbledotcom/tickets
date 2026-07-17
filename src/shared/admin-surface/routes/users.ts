@@ -7,6 +7,7 @@ export const routes = [
   route("getUsers", "users", "GET", "/admin/users"),
   route("getUsersById", "users", "GET", "/admin/users/:id"),
   route("getUsersByIdAgents", "users", "GET", "/admin/users/:id/agents"),
+  route("getUsersByIdByTab", "users", "GET", "/admin/users/:id/:tab"),
   route("postUsers", "users", "POST", "/admin/users"),
   route("postUsersByIdAgents", "users", "POST", "/admin/users/:id/agents"),
 ] as const;

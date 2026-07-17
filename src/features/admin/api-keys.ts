@@ -7,10 +7,16 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
+import {
+  defineEntityPage,
+  deleteActionTab,
+  type EntityPage,
+  type TabDef,
+} from "#routes/admin/entity-pages.ts";
 import { withOwnerData } from "#routes/admin/owner-route.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import {
   ADMIN_API_ENDPOINTS,
@@ -25,12 +31,12 @@ import {
   getApiKeysForUser,
 } from "#shared/db/api-keys.ts";
 import { defineForm } from "#shared/forms/definition.ts";
-import { flashProps } from "#templates/admin/admin-page.tsx";
 import {
+  type ApiKeyDisplay,
   adminApiDocsPage,
-  adminApiKeyManagePage,
   adminApiKeysPage,
   adminDeleteApiKeyPage,
+  apiKeySummaryRows,
 } from "#templates/admin/api-keys.tsx";
 /* jscpd:ignore-end */
 
@@ -125,24 +131,34 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
   successRedirect: "/admin/api-keys",
 });
 
-/**
- * Handle GET /admin/api-keys/:apiKeyId — per-key management page
- */
-const handleApiKeyManageGet: TypedRouteHandler<
-  "GET /admin/api-keys/:apiKeyId"
-> = (request, { apiKeyId }) =>
-  withOwnerApiKeys(request, (session, keys) => {
-    const apiKey = keys.find((k) => k.id === apiKeyId);
-    if (!apiKey) return notFoundResponse();
-    const flash = applyFlash(request);
-    return htmlResponse(
-      adminApiKeyManagePage(
-        apiKey,
-        session,
-        flashProps(flash.error, flash.success),
-      ),
-    );
-  });
+const overviewTab: TabDef<ApiKeyDisplay> = {
+  labelKey: "entity.tab.overview",
+  sections: [
+    {
+      kind: "summary",
+      rows: (apiKey) => Promise.resolve(apiKeySummaryRows(apiKey)),
+    },
+  ],
+  slug: "",
+};
+
+/** The owner-only API key summary and actions page. */
+const apiKeyPage: EntityPage<ApiKeyDisplay> = defineEntityPage({
+  basePath: (id) => `/admin/api-keys/${id}`,
+  guard: requireOwnerOr,
+  load: async (id, session) =>
+    (await getApiKeysForUser(session.userId)).find((key) => key.id === id) ??
+    null,
+  navActive: "/admin/api-keys",
+  tabs: [
+    overviewTab,
+    deleteActionTab(
+      "api_keys.delete_submit",
+      (apiKey) => `/admin/api-keys/${apiKey.id}/delete`,
+    ),
+  ],
+  titleOf: (apiKey) => apiKey.name,
+});
 
 /**
  * Handle GET /admin/api-keys/docs — API documentation page
@@ -158,7 +174,10 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
 
 export const adminHandlers = handlersFor("apiKeys")({
   getApiKeys: handleApiKeysGet,
-  getApiKeysByApiKeyId: handleApiKeyManageGet,
+  getApiKeysByApiKeyId: (request, { apiKeyId }) =>
+    apiKeyPage.renderTab(request, apiKeyId, ""),
+  getApiKeysByApiKeyIdByTab: (request, { apiKeyId, tab }) =>
+    apiKeyPage.renderTab(request, apiKeyId, tab),
   getApiKeysByApiKeyIdDelete: (request, { apiKeyId }) =>
     apiKeyDelete.get(request, apiKeyId),
   getApiKeysDocs: handleApiDocsGet,

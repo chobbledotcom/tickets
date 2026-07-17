@@ -9,6 +9,7 @@ import {
   type SiteSecretsView,
 } from "#shared/site-secrets.ts";
 import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   Icon,
   type IconName,
@@ -26,9 +27,11 @@ const SiteActionForm = ({
   action: string;
   children: Child;
 }): JSX.Element => (
-  <CsrfForm action={`/admin/built-sites/${siteId}/${action}`}>
-    {children}
-  </CsrfForm>
+  <WritableOnly>
+    <CsrfForm action={`/admin/built-sites/${siteId}/${action}`}>
+      {children}
+    </CsrfForm>
+  </WritableOnly>
 );
 
 const CodeNameList = ({ names }: { names: string[] }): JSX.Element => (

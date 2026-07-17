@@ -14,12 +14,6 @@ export const routes = [
     "/admin/settings/statuses/:id/delete",
   ),
   route(
-    "getSettingsStatusesByIdEdit",
-    "settingsStatuses",
-    "GET",
-    "/admin/settings/statuses/:id/edit",
-  ),
-  route(
     "getSettingsStatusesNew",
     "settingsStatuses",
     "GET",
@@ -54,5 +48,17 @@ export const routes = [
     "settingsStatuses",
     "POST",
     "/admin/settings/statuses/:id/move-up",
+  ),
+  route(
+    "getSettingsStatusesById",
+    "settingsStatuses",
+    "GET",
+    "/admin/settings/statuses/:id",
+  ),
+  route(
+    "getSettingsStatusesByIdByTab",
+    "settingsStatuses",
+    "GET",
+    "/admin/settings/statuses/:id/:tab",
   ),
 ] as const;

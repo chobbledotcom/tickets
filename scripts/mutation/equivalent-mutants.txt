@@ -27,6 +27,10 @@
 # mutate the line, then `deno run -A scripts/biome.ts check --error-on-warnings
 # <file>` — exit 0 means lint did not kill it.
 
+src/features/admin/entity-pages.ts:275:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
+src/features/admin/site-content-page.ts:87:38  ?? → ||   # extraTabs is an array when present, and arrays are always truthy
+src/ui/templates/admin/holidays.tsx:79:45  ?? → ||   # values is a render-values object when present, so it is always truthy
+
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
@@ -303,7 +307,7 @@ src/shared/db/listing-prices.ts:109:45  ?? → ||    # foldGroupDayRows result.g
 # attendee entity page: `?? → ||` where the operand's only falsy-non-null
 # value equals the "" fallback.
 src/features/admin/attendee-page.ts:266:60  ?? → ||    # ctx.query.get("token"): string|null; the only falsy-non-null value "" equals the "" fallback
-src/features/admin/entity-pages.ts:230:28  ?? → ||    # opts.baseUrl: string|undefined; the only falsy-non-null value "" equals the "" fallback
+src/features/admin/entity-pages.ts:274:28  ?? → ||    # opts.baseUrl: string|undefined; the only falsy-non-null value "" equals the "" fallback
 src/shared/db/name-registry.ts:85:51  ?? → ||    # matchName index.get(): number[]|undefined — an array is always truthy
 src/shared/db/name-registry.ts:105:20  ?? → ||    # isNameTakenAnywhere index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/import.ts:114:27  ?? → ||    # membershipSpec quantity: from the PositiveInt schema (≥1) or undefined — never 0, so ?? and || coincide

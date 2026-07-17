@@ -3,16 +3,15 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   type ActionDef,
   defineEntityPage,
+  deleteActionTab,
   type EntityPageDef,
 } from "#routes/admin/entity-pages.ts";
+import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { FormParams } from "#shared/form-data.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
-
-beforeAll(() => {
-  setupTestEncryptionKey();
-});
 
 type Fixture = { id: number; name: string; paid: boolean };
 
@@ -90,7 +89,9 @@ const def: EntityPageDef<Fixture> = {
           kind: "custom",
           load: (entity, ctx) =>
             Promise.resolve(
-              Raw({ html: `<p>${entity.name} @ ${ctx.returnUrl}</p>` }),
+              Raw({
+                html: `<p>${entity.name} @ ${ctx.returnUrl} from ${ctx.baseUrl}</p>`,
+              }),
             ),
         },
       ],
@@ -115,6 +116,10 @@ const def: EntityPageDef<Fixture> = {
 const page = defineEntityPage(def);
 
 describe("defineEntityPage", () => {
+  beforeAll(() => {
+    setupTestEncryptionKey();
+  });
+
   test("path mints the base and tab URLs", () => {
     expect(page.path(7)).toBe("/admin/widgets/7");
     expect(page.path(7, "actions")).toBe("/admin/widgets/7/actions");
@@ -163,7 +168,7 @@ describe("defineEntityPage", () => {
     expect(html).toContain('href="/admin/widgets/7/delete"');
     expect(html).toContain("entity-danger-zone");
     // The custom section received the tab's canonical URL as returnUrl.
-    expect(html).toContain("<p>Widget @ /admin/widgets/7/actions</p>");
+    expect(html).toContain("<p>Widget @ /admin/widgets/7/actions from </p>");
   });
 
   test("read-only mode hides write-form tabs and actions", async () => {
@@ -173,12 +178,9 @@ describe("defineEntityPage", () => {
     expect((await page.renderPage(SESSION, 7, "edit")).status).toBe(404);
   });
 
-  test("a sections override replaces the tab's content at the given status", async () => {
+  test("a panel override replaces the tab's content at the given status", async () => {
     const response = await page.renderPage(SESSION, 7, "actions", {
-      sections: () =>
-        Promise.resolve([
-          { html: Raw({ html: "<p>override</p>" }), kind: "custom" as const },
-        ]),
+      panel: () => Promise.resolve(Raw({ html: "<p>override</p>" })),
       status: 400,
     });
     expect(response.status).toBe(400);
@@ -187,6 +189,12 @@ describe("defineEntityPage", () => {
     expect(html).not.toContain("/admin/widgets/7/delete");
     // The shell (title + strip) still renders around the override.
     expect(html).toContain("<h1>Widget: Widget</h1>");
+  });
+
+  test("an invalid response status fails instead of becoming a success", async () => {
+    await expect(
+      page.renderPage(SESSION, 7, "actions", { status: 0 }),
+    ).rejects.toThrow();
   });
 
   test("renderTab authenticates, then renders the requested tab with the request's query", async () => {
@@ -205,5 +213,51 @@ describe("defineEntityPage", () => {
     expect(html).toContain(">Activity</a>");
     expect(html).toContain(">Actions</a>");
     expect(html).not.toContain("entity.tab.");
+  });
+
+  test("deleteActionTab renders one write-only danger action", async () => {
+    const deletePage = defineEntityPage({
+      ...def,
+      tabs: [
+        deleteActionTab<Fixture>(
+          "common.delete",
+          (entity) => `/admin/widgets/${entity.id}/delete`,
+        ),
+      ],
+    });
+    const html = await (await deletePage.renderPage(SESSION, 7, "")).text();
+    expect(html).toContain('href="/admin/widgets/7/delete"');
+    expect(html).toContain("Delete");
+    expect(html).toContain("entity-danger-zone");
+
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+    expect((await deletePage.renderPage(SESSION, 7, "")).status).toBe(404);
+  });
+
+  test("an edit page preserves the submitted form at status 400", async () => {
+    const editPage = defineEditEntityPage({
+      basePath: def.basePath,
+      deleteLabelKey: "common.delete",
+      edit: (entity, ctx, rejected) =>
+        Promise.resolve(
+          Raw({
+            html: `<p>${entity.name}|${ctx.returnUrl}|${rejected?.form.get("name")}|${rejected?.error}</p>`,
+          }),
+        ),
+      editSlug: "",
+      guard: passGuard,
+      load: def.load,
+      navActive: def.navActive,
+    });
+    const response = await editPage.renderEditError(
+      7,
+      SESSION,
+      new FormParams({ name: "Submitted" }),
+      "Invalid",
+    );
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain(
+      "<p>Widget|/admin/widgets/7|Submitted|Invalid</p>",
+    );
   });
 });

@@ -23,24 +23,29 @@ import { modifierAggregateToFieldValues } from "./values.ts";
 
 const modifierRunningTotalsConfig = (
   modifier: Modifier,
+  values: Record<
+    string,
+    string | number | null
+  > = modifierAggregateToFieldValues(modifier),
 ): RunningTotalsConfig => ({
   fields: getModifierAggregateFields(),
   legend: t("modifiers.running_totals"),
   note: t("modifiers.running_totals_note"),
   recalculateHref: `/admin/modifiers/recalculate/${modifier.id}`,
   recalculateLabel: t("modifiers.recalculate_totals"),
-  values: modifierAggregateToFieldValues(modifier),
+  values,
 });
 
-/** A modifier edit-page section that works from just the modifier record. */
 export type ModifierSectionProps = { modifier: Modifier };
 
 /** The running-totals fieldset on the modifier edit page. */
-export const ModifierRunningTotalsSection = ({
-  modifier,
-}: ModifierSectionProps): JSX.Element =>
+export const ModifierRunningTotalsSection = (
+  props: ModifierSectionProps & {
+    values?: Record<string, string | number | null>;
+  },
+): JSX.Element =>
   RunningTotalsFieldset({
-    config: modifierRunningTotalsConfig(modifier),
+    config: modifierRunningTotalsConfig(props.modifier, props.values),
   });
 
 const modifierAggregateFormatters: Record<

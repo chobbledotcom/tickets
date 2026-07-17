@@ -56,7 +56,7 @@ const renderSubmittedLogistics = (
   errors: LogisticsFormErrors,
 ): Promise<Response> =>
   attendeePage.renderPage(session, attendeeId, "logistics", {
-    sections: async (entity) => {
+    panel: async (entity) => {
       const data = await buildLogisticsTabData(entity, values, errors);
       const logistics =
         data.logistics &&
@@ -68,12 +68,7 @@ const renderSubmittedLogistics = (
             new Set(data.logistics.agents.map((agent) => agent.id)),
           ),
         );
-      return [
-        {
-          html: AttendeeLogisticsPanel({ data: { ...data, logistics } }),
-          kind: "custom" as const,
-        },
-      ];
+      return AttendeeLogisticsPanel({ data: { ...data, logistics } });
     },
     status: 400,
   });

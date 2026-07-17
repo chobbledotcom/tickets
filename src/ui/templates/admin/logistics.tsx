@@ -7,20 +7,17 @@
  *
  * The main settings page is hand-rolled (its has-logistics toggle + inline
  * agents list + add form don't fit the standard resource list shell), but the
- * agent create/edit/delete pages go through {@link defineAdminResourcePages}.
- * The edit page carries its assigned-users selector via the factory's typed
- * `TEditCtx`.
+ * agent create/delete pages go through {@link defineAdminResourcePages}. The
+ * edit form is a panel in the logistics-agent entity page.
  */
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
-import {
-  type AssignmentEditPage,
-  successListPage,
-} from "#templates/admin/admin-page.tsx";
+import { editPanel, successListPage } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
@@ -43,7 +40,7 @@ import { logisticsAgentForm } from "#templates/fields/listing.ts";
 const agentColumns: DataColumn<LogisticsAgent>[] = [
   {
     cell: (agent) => (
-      <WritableLink href={`/admin/logistics/${agent.id}/edit`}>
+      <WritableLink href={`/admin/logistics/${agent.id}`}>
         {agent.name}
       </WritableLink>
     ),
@@ -144,17 +141,7 @@ const AgentUsersSelector = ({
   </CheckboxFieldset>
 );
 
-/** Edit-page runtime context: the assignable users and the ids already
- *  assigned to this agent. Forwarded to `renderEditExtra` by the factory. */
-type AgentEditCtx = {
-  users: AgentUserOption[];
-  selected: ReadonlySet<number>;
-};
-
-export const logisticsAgentPages = defineAdminResourcePages<
-  LogisticsAgent,
-  AgentEditCtx
->({
+export const logisticsAgentPages = defineAdminResourcePages<LogisticsAgent>({
   active: "/admin/logistics",
   basePath: "/admin/logistics",
   delete: {
@@ -178,33 +165,42 @@ export const logisticsAgentPages = defineAdminResourcePages<
     deleteButton: t("logistics.delete_agent"),
     deleteLabel: t("logistics.agent_name"),
     deleteTitle: t("logistics.delete_logistics_agent"),
-    editHeading: t("logistics.edit_agent"),
-    editTitle: t("logistics.edit_agent"),
     listTitle: t("logistics.title"),
   },
-  renderEditExtra: (_agent, ctx) => (
-    <AgentUsersSelector selected={ctx.selected} users={ctx.users} />
-  ),
-  renderFields: (agent) =>
-    agent === undefined ? (
-      <Raw html={logisticsAgentForm.render()} />
-    ) : (
+  renderFields: () => <Raw html={logisticsAgentForm.render()} />,
+});
+
+type LogisticsAgentRenderValues = FormRenderValuesFor<
+  typeof logisticsAgentForm.fields
+>;
+
+/** The entity page's Edit tab, including the users assigned to drive it. */
+export const LogisticsAgentEditPanel = ({
+  agent,
+  error,
+  selectedUserIds,
+  users,
+  values,
+}: {
+  agent: LogisticsAgent;
+  error?: string;
+  selectedUserIds: ReadonlySet<number>;
+  users: AgentUserOption[];
+  values?: LogisticsAgentRenderValues;
+}): JSX.Element =>
+  editPanel(error)(
+    <SaveForm
+      action={`/admin/logistics/${agent.id}/edit`}
+      submitLabel={t("common.save_changes")}
+    >
       <fieldset class="listing-section">
         <legend>{t("logistics.agent_details")}</legend>
         <Raw
-          html={logisticsAgentForm.render(logisticsAgentToFieldValues(agent))}
+          html={logisticsAgentForm.render(
+            values ?? logisticsAgentToFieldValues(agent),
+          )}
         />
       </fieldset>
-    ),
-});
-
-/** Admin logistics-agent edit page. Grouped into fieldsets: the agent's details
- *  and the users assigned to drive it. */
-export const adminLogisticsAgentEditPage: AssignmentEditPage<
-  LogisticsAgent,
-  AgentUserOption
-> = (agent, users, selectedUserIds, session, error) =>
-  logisticsAgentPages.editPage(agent, session, error, {
-    selected: selectedUserIds,
-    users,
-  });
+      <AgentUsersSelector selected={selectedUserIds} users={users} />
+    </SaveForm>,
+  );

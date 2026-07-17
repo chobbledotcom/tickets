@@ -209,12 +209,12 @@ const loadSection = async <E>(
 };
 
 /** Options for {@link EntityPage.renderPage}: an HTTP status (400 for
- * failure re-renders) and an optional replacement for the active tab's
- * sections (the failing form, submitted values and errors intact). */
+ * failure re-renders) and an optional replacement panel for the active tab
+ * (the failing form, submitted values and errors intact). */
 export interface RenderPageOpts<E> {
   baseUrl?: string;
+  panel?: SlotLoader<E>;
   query?: URLSearchParams;
-  sections?: (entity: E, ctx: PageCtx) => Promise<LoadedSection[]>;
   status?: number;
 }
 
@@ -276,8 +276,8 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
       tabHref: (slug) => path(id, slug),
     };
     const sections: LoadedSection[] = [];
-    if (opts.sections) {
-      sections.push(...(await opts.sections(entity, ctx)));
+    if (opts.panel) {
+      sections.push({ html: await opts.panel(entity, ctx), kind: "custom" });
     } else {
       for (const section of active.sections) {
         sections.push(await loadSection(section, entity, ctx));
@@ -326,12 +326,28 @@ export const customSection = <E>(load: SlotLoader<E>): Section<E> => ({
   load,
 });
 
-/** A tab whose single section renders custom markup (an Edit / Images / panel
- * tab). Takes the same fields as a tab but a `load` in place of `sections`, so
- * callers pass only what differs. */
-export const customTab = <E>(
-  config: Omit<TabDef<E>, "sections"> & { load: SlotLoader<E> },
-): TabDef<E> => {
-  const { load, ...tab } = config;
-  return { ...tab, sections: [customSection(load)] };
-};
+/** The standard write-only Actions tab for an entity whose only action is a
+ * type-the-name delete confirmation. */
+export const deleteActionTab = <E>(
+  labelKey: string,
+  href: (entity: E, ctx: PageCtx) => string,
+): TabDef<E> => ({
+  intent: "write-form",
+  labelKey: "entity.tab.actions",
+  sections: [
+    {
+      actions: [
+        {
+          danger: true,
+          href,
+          icon: "trash-2",
+          intent: "write-form",
+          labelKey,
+        },
+      ],
+      kind: "actions",
+      titleKey: "entity.tab.actions",
+    },
+  ],
+  slug: "actions",
+});

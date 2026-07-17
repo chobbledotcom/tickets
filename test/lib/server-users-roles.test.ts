@@ -69,6 +69,15 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       expect(usersResponse.status).toBe(403);
     });
 
+    test("manager user cannot access a user management page", async () => {
+      const cookie = await createTestManagerSession(
+        "mgr-users-session",
+        "usersmanager",
+      );
+      const response = await awaitTestRequest("/admin/users/1", { cookie });
+      expect(response.status).toBe(403);
+    });
+
     test("owner user can access settings page", async () => {
       const response = await adminGet("/admin/settings");
       expect(response.status).toBe(200);

@@ -9,13 +9,19 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
+  defineEntityPage,
+  deleteActionTab,
+  type EntityPage,
+  type TabDef,
+} from "#routes/admin/entity-pages.ts";
+import {
   type AuthSession,
   generateSecureToken,
   OWNER_FORM,
   ownerPage,
   requireOwnerOr,
-  withAuth,
 } from "#routes/auth.ts";
+import { ownerFormById } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -41,19 +47,19 @@ import {
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { nowMs } from "#shared/now.ts";
-import type { ResponseHandler } from "#shared/response-steps.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import type { LogisticsAgent, User } from "#shared/types.ts";
 import { flashProps } from "#templates/admin/admin-page.tsx";
 
 import {
-  adminUserAgentsPage,
   adminUserDeletePage,
-  adminUserManagePage,
   adminUserNewPage,
   adminUsersPage,
+  agentNamesDisplay,
   type DisplayUser,
+  UserAgentsPanel,
   type UsersPageOpts,
+  userStatus,
 } from "#templates/admin/users.tsx";
 import {
   getInviteUserForm,
@@ -201,34 +207,86 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
     ),
   );
 
-/** Build a DisplayUser with its assigned logistics-agent names resolved. */
-const toDisplayUserWithAgents = async (user: User): Promise<DisplayUser> =>
-  toDisplayUser(user, await loadAgentNameById());
+/** Load and decrypt one user, including assignment names for agent users. */
+const loadDisplayUser = async (id: number): Promise<DisplayUser | null> => {
+  const user = await getUserById(id);
+  return user ? toDisplayUser(user, await loadAgentNameById()) : null;
+};
 
-/** Owner-guarded GET handler that loads the target user (or 404s), then renders. */
-const ownerUserPage =
-  (
-    handler: ResponseHandler<
-      [user: User, session: AuthSession, errorPage: UserErrorPageFn]
-    >,
-  ) =>
-  (request: Request, { id }: { id: number }): Promise<Response> =>
-    requireOwnerOr(request, (session) =>
-      withLoadedUser(session, id, (user, errorPage) =>
-        handler(user, session, errorPage),
-      ),
-    );
+const userOverviewTab: TabDef<DisplayUser> = {
+  labelKey: "entity.tab.overview",
+  sections: [
+    {
+      kind: "summary",
+      rows: (user) =>
+        Promise.resolve([
+          { labelKey: "users.col.role", value: user.adminLevel },
+          { labelKey: "common.status", value: userStatus(user) },
+          ...(user.adminLevel === "agent"
+            ? [
+                {
+                  labelKey: "users.agents.legend",
+                  value: agentNamesDisplay(user),
+                },
+              ]
+            : []),
+        ]),
+    },
+  ],
+  slug: "",
+};
 
-/** Handle GET /admin/users/:id - per-user management page */
-const handleUserManageGet = ownerUserPage(async (user, session) =>
-  htmlResponse(
-    adminUserManagePage(
-      await toDisplayUserWithAgents(user),
-      session,
-      userPageOpts(session),
-    ),
+const userActionsTab: TabDef<DisplayUser> = {
+  ...deleteActionTab(
+    "users.delete_user.submit",
+    (user) => `/admin/users/${user.id}/delete`,
   ),
-);
+  visible: (user, session) => user.id !== session.userId,
+};
+
+/** The owner-only user management and agent-assignment page. */
+const userPage: EntityPage<DisplayUser> = defineEntityPage({
+  basePath: (id) => `/admin/users/${id}`,
+  guard: requireOwnerOr,
+  load: (id) => loadDisplayUser(id),
+  navActive: { section: "/admin/users" },
+  tabs: [
+    userOverviewTab,
+    {
+      intent: "write-form",
+      labelKey: "users.agents.edit_link",
+      sections: [
+        {
+          kind: "custom",
+          load: async (user) => {
+            const [agents, selectedIds] = await Promise.all([
+              loadAssignableAgents(),
+              userAgents.getIds(user.id),
+            ]);
+            return UserAgentsPanel({
+              action: userPage.path(user.id, "agents"),
+              agents,
+              selectedIds: new Set(selectedIds),
+              user,
+            });
+          },
+        },
+      ],
+      slug: "agents",
+      visible: (user) => user.adminLevel === "agent",
+    },
+    userActionsTab,
+  ],
+  titleOf: (user) => user.username,
+});
+
+const renderUserTab =
+  (tab: string) =>
+  (request: Request, { id }: { id: number }): Promise<Response> =>
+    userPage.renderTab(request, id, tab);
+
+const handleUserManageGet: TypedRouteHandler<"GET /admin/users/:id"> =
+  renderUserTab("");
 
 /**
  * Handle GET /admin/user/new - show invite user form
@@ -289,79 +347,24 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
   },
 });
 
-/** Re-renders the users list with a flash error at the given status. */
-type UserErrorPageFn = ResponseHandler<[error: string, status: number]>;
-
-/** Owner-route helper: build the error-page renderer, load the user by id, and
- * 404 when missing — the shared front half of every per-user owner route. */
-const withLoadedUser = async (
-  session: AuthSession,
-  userId: number,
-  found: ResponseHandler<[user: User, errorPage: UserErrorPageFn]>,
-): Promise<Response> => {
-  const errorPage: UserErrorPageFn = (error, status) =>
-    usersErrorResponse(session, error, status);
-  const user = await getUserById(userId);
-  if (!user) return errorPage(t("error.user_not_found"), 404);
-  return found(user, errorPage);
-};
-
-/** Run `next` only when the user is a delivery agent; otherwise return the
- * error page (agent assignments only apply to delivery agents). */
-const withAgentUser = async (
-  user: User,
-  errorPage: UserErrorPageFn,
-  next: () => Promise<Response>,
-): Promise<Response> =>
-  (await decryptAdminLevel(user)) === "agent"
-    ? next()
-    : errorPage(t("error.not_agent_user"), 400);
-
-/** Render the edit-agents page for an agent user (or an error response). */
-const renderUserAgentsPage = (
-  session: AuthSession,
-  user: User,
-  errorPage: UserErrorPageFn,
-  error?: string,
-): Promise<Response> =>
-  withAgentUser(user, errorPage, async () => {
-    const [agents, selectedIds, username] = await Promise.all([
-      loadAssignableAgents(),
-      userAgents.getIds(user.id),
-      decryptUsername(user),
-    ]);
-    const displayUser = await toDisplayUser(user);
-    return htmlResponse(
-      adminUserAgentsPage(
-        { ...displayUser, username },
-        agents,
-        new Set(selectedIds),
-        session,
-        error,
-      ),
-    );
-  });
-
 /** Handle GET /admin/users/:id/agents - edit an agent user's logistics agents */
-const handleUserAgentsGet = ownerUserPage((user, session, errorPage) =>
-  renderUserAgentsPage(session, user, errorPage),
-);
+const handleUserAgentsGet: TypedRouteHandler<"GET /admin/users/:id/agents"> =
+  renderUserTab("agents");
 
 /** Handle POST /admin/users/:id/agents - save an agent user's logistics agents */
-const handleUserAgentsPost: TypedRouteHandler<
-  "POST /admin/users/:id/agents"
-> = (request, { id }) =>
-  withAuth(request, OWNER_FORM, (session, form) =>
-    withLoadedUser(session, id, (user, errorPage) =>
-      withAgentUser(user, errorPage, async () => {
-        await saveAgentSelection(user.id, form);
-        await logActivity(
-          `Agents updated for user '${await decryptUsername(user)}'`,
-        );
-        return redirect("/admin/users", t("success.agents_updated"), true);
-      }),
-    ),
-  );
+const handleUserAgentsPost: TypedRouteHandler<"POST /admin/users/:id/agents"> =
+  ownerFormById(async (id, session, form) => {
+    const user = await loadDisplayUser(id);
+    if (!user) {
+      return usersErrorResponse(session, t("error.user_not_found"), 404);
+    }
+    if (user.adminLevel !== "agent") {
+      return usersErrorResponse(session, t("error.not_agent_user"), 400);
+    }
+    await saveAgentSelection(user.id, form);
+    await logActivity(`Agents updated for user '${user.username}'`);
+    return redirect("/admin/users", t("success.agents_updated"), true);
+  });
 
 /** Confirmed-delete handlers for users */
 const userDelete = createConfirmedHandlers<DisplayUser>({
@@ -395,6 +398,8 @@ export const adminHandlers = handlersFor("users")({
   getUsers: handleUsersGet,
   getUsersById: handleUserManageGet,
   getUsersByIdAgents: handleUserAgentsGet,
+  getUsersByIdByTab: (request, { id, tab }) =>
+    userPage.renderTab(request, id, tab),
   getUsersByIdDelete: (request, { id }) => userDelete.get(request, id),
   postUsers: handleUsersPost,
   postUsersByIdAgents: handleUserAgentsPost,

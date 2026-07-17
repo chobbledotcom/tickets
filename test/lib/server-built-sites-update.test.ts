@@ -36,7 +36,7 @@ const expectNoHostingIdError = async (siteId: number): Promise<void> => {
     `/admin/built-sites/${siteId}/update`,
   );
   await expectFlashRedirect(
-    `/admin/built-sites/${siteId}/edit`,
+    `/admin/built-sites/${siteId}/update`,
     expect.stringContaining("no hosting ID"),
     false,
   )(response);
@@ -82,7 +82,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/update`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/update`,
           expect.stringContaining(
             "Updated 'Update Me' to 2099-01-01 - Big Update",
           ),
@@ -123,7 +123,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/update`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/update`,
           expect.stringContaining("Update failed"),
           false,
         )(response);
@@ -148,7 +148,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/update`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/update`,
           expect.stringContaining("already in progress"),
           false,
         )(response);
@@ -168,7 +168,7 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/update`,
       );
       await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
+        `/admin/built-sites/${site.id}/update`,
         expect.stringContaining("No backup of this site in the last hour"),
         false,
       )(response);
@@ -215,7 +215,7 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/update`,
       );
       await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
+        `/admin/built-sites/${site.id}/update`,
         expect.stringContaining("BUNNY_API_KEY is not configured"),
         false,
       )(response);
@@ -260,7 +260,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/update`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/update`,
           expect.stringContaining("Updated"),
         )(response);
         expect(deployStub.calls[0]!.args[0]).toBe("app_deno_8700");
@@ -286,7 +286,7 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/update`,
       );
       await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
+        `/admin/built-sites/${site.id}/update`,
         expect.stringContaining("DENO_DEPLOY_TOKEN is not configured"),
         false,
       )(response);
