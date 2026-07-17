@@ -241,6 +241,8 @@ export const getListingsByGroupIds = async (
 };
 
 /** One group's entry from the shared one-or-many membership query. */
+type LoadGroupListings = (groupId: number) => Promise<ListingWithCount[]>;
+
 const listingsInGroup =
   (activeOnly: boolean) =>
   async (groupId: number): Promise<ListingWithCount[]> =>
@@ -250,7 +252,8 @@ const listingsInGroup =
       "Missing group listing membership",
     );
 
-export const getActiveListingsByGroupId = listingsInGroup(true);
+export const getActiveListingsByGroupId: LoadGroupListings =
+  listingsInGroup(true);
 
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */
@@ -260,7 +263,7 @@ export const groupExists = (id: number): Promise<boolean> =>
 /**
  * Get all listings in a group with attendee counts (including inactive).
  */
-export const getListingsByGroupId = listingsInGroup(false);
+export const getListingsByGroupId: LoadGroupListings = listingsInGroup(false);
 
 /**
  * Validate that a listing is compatible with a group's existing listings.
