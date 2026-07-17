@@ -20,6 +20,30 @@ everything still outstanding is captured below.
 
 ---
 
+## Split the database migration runtime
+
+*Origin: CodeRabbit review on PR #1845 (`src/shared/db/migrations.ts`).*
+
+`src/shared/db/migrations.ts` already exceeded 700 lines before PR #1845 and now
+also owns request-sized batches and lease-scoped completion. Split it without
+changing behavior. A useful starting boundary is:
+
+- Move lease acquisition, ownership checks, and release into a focused lock
+  module.
+- Move migration marker and schema marker statement builders into a recording
+  module.
+- Move retry and pending-migration execution into a runner module.
+- Leave `initDb` and database-state routing in `migrations.ts` as thin
+  orchestration.
+
+Keep the existing request round-trip count, lazy migration loading, partial
+progress behavior, and lock failure tests unchanged. This is intentionally
+separate from PR #1845 because moving the whole migration subsystem while
+changing its locking and batching would make the safety fix much harder to
+review and roll back.
+
+---
+
 ## Booking unification — phases 3 & 4
 
 *Origin: `booking-unification.md`, `booking-unification-phase2.md`.*

@@ -4,7 +4,6 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { renderFields } from "#shared/forms.tsx";
 import type {
   AdminLevel,
   AdminSession,
@@ -31,7 +30,7 @@ import { DetailTable } from "#templates/components/detail-table.tsx";
 import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { getInviteUserFields } from "#templates/fields/admin.ts";
+import { getInviteUserForm } from "#templates/fields/admin.ts";
 /* jscpd:ignore-end */
 
 /** Displayable user info (decrypted) */
@@ -237,7 +236,7 @@ export const adminUserNewPage = (
   errorAdminPage(t("users.invite.title"), "/admin/user/new")(session, error)(
     <NewResourceForm
       action="/admin/users"
-      fieldsHtml={renderFields(getInviteUserFields())}
+      fieldsHtml={getInviteUserForm().render()}
       submitIcon="user-plus"
       submitLabel={t("users.invite.submit")}
       title={t("users.invite.heading")}

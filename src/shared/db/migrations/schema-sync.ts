@@ -248,10 +248,10 @@ const canCreateTrigger = (
  * leaving a live table missing (say) a UNIQUE index until the migration is
  * retried — a window in which duplicate rows could land and then permanently
  * break the index re-creation. An interactive transaction (rather than a batch)
- * is what makes this possible: a compound `CREATE TRIGGER … BEGIN … END`
- * carries internal semicolons that some batch transports mis-split, so triggers
- * cannot ride in a batch — but each is sent through its own `tx.execute()` here
- * and still commits atomically with the rebuild.
+ * is what makes this possible. The ordered statements run as one structured
+ * batch inside that transaction. Each trigger body remains one statement, so
+ * its internal semicolons are not treated as batch separators, and one network
+ * call replaces one call per rebuild/index/trigger statement.
  *
  * The new table is created WITHOUT foreign keys (only column definitions), so
  * any FKs the original table had are removed after recreation.
@@ -296,7 +296,7 @@ export const recreateTable = async (tableName: string): Promise<void> => {
     ).map((trg) => trg.sql),
   ];
   await withTransaction(async (tx) => {
-    for (const sql of statements) await tx.execute(sql);
+    await tx.batch(statements.map(writeStatement));
   });
 };
 

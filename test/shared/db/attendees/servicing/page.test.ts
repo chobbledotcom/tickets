@@ -1,6 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { renderServicingPage } from "#routes/admin/servicing/page.tsx";
+import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -51,5 +53,27 @@ describeWithEnv("servicing cost page", { db: true }, () => {
     expect(body).toContain(
       `href="/admin/ledger?listing=${listing.id}">${listing.name}</a>`,
     );
+  });
+
+  test("hides cost controls when no listing can receive the cost", () => {
+    const body = renderServicingPage({
+      event: {
+        bookings: [],
+        id: 1,
+        kind: SERVICING_KIND,
+        name: "Finished service",
+        ticketToken: "test-token",
+      },
+      listings: [],
+      session: {
+        adminLevel: "owner",
+        token: "test-token",
+        userId: 1,
+        wrappedDataKey: null,
+      },
+    });
+
+    expect(body).not.toContain('name="target_listing_id"');
+    expect(body).not.toContain("Record service event cost");
   });
 });

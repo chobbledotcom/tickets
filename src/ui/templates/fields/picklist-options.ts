@@ -12,12 +12,16 @@
  */
 
 import { t } from "#i18n";
+import type { ChoiceOptions } from "#shared/forms.tsx";
 
 export const picklistOptions = <TValue extends string>(
-  schema: { readonly options: readonly TValue[] },
+  schema: { readonly options: readonly [TValue, ...TValue[]] },
   labelKeyPrefix: string,
-): { value: TValue; label: string }[] =>
-  schema.options.map((value) => ({
+): ChoiceOptions<TValue> => {
+  const toOption = (value: TValue) => ({
     label: t(`${labelKeyPrefix}.${value}`),
     value,
-  }));
+  });
+  const [first, ...rest] = schema.options;
+  return [toOption(first), ...rest.map(toOption)];
+};

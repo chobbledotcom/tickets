@@ -5,7 +5,7 @@ import { type Field, validateForm } from "#shared/forms.tsx";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
-): Field => ({ type: "text", ...overrides });
+): Field => ({ type: "text", ...overrides }) as Field;
 
 const requiredName: Field[] = [
   field({ label: "Name", name: "name", required: true }),
@@ -92,6 +92,16 @@ describe("validateForm", () => {
     if (result.valid) expect(result.values.bio).toBe("abcde");
   });
 
+  test("rejects a non-empty value when maxlength is zero", () => {
+    const result = validateForm(new FormParams({ bio: "x" }), [
+      field({ label: "Bio", maxlength: 0, name: "bio" }),
+    ]);
+    expect(result).toEqual({
+      error: "Bio must be 0 characters or fewer",
+      valid: false,
+    });
+  });
+
   test("skips custom validate for empty optional field", () => {
     const fields: Field[] = [
       field({
@@ -105,7 +115,15 @@ describe("validateForm", () => {
 
   test("collects checkbox-group values from multiple form entries", () => {
     const fields: Field[] = [
-      field({ label: "Days", name: "days", type: "checkbox-group" }),
+      field({
+        label: "Days",
+        name: "days",
+        options: [
+          { label: "Monday", value: "Monday" },
+          { label: "Wednesday", value: "Wednesday" },
+        ],
+        type: "checkbox-group",
+      }),
     ];
     const form = new FormParams();
     form.append("days", "Monday");
@@ -117,7 +135,12 @@ describe("validateForm", () => {
 
   test("returns empty string for empty checkbox-group", () => {
     const fields: Field[] = [
-      field({ label: "Days", name: "days", type: "checkbox-group" }),
+      field({
+        label: "Days",
+        name: "days",
+        options: [{ label: "Monday", value: "Monday" }],
+        type: "checkbox-group",
+      }),
     ];
     const result = validateForm(new FormParams(), fields);
     expect(result.valid).toBe(true);
@@ -152,13 +175,13 @@ describe("validateForm", () => {
       }
     });
 
-    test("returns null when both date and time are empty", () => {
+    test("returns an empty string when both date and time are empty", () => {
       const result = validateForm(
         new FormParams({ closes_at_date: "", closes_at_time: "" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
-      if (result.valid) expect(result.values.closes_at).toBeNull();
+      if (result.valid) expect(result.values.closes_at).toBe("");
     });
 
     test("defaults time to 00:00 when only date is provided", () => {

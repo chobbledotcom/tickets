@@ -190,7 +190,7 @@ Note `import.meta.url` is **not** relied on for origin — the catalog carries
 ### Serving and settings ordering
 
 - `routeStatic` runs before the database is initialized and before
-  `prepareRequestEnvironment` loads request settings (`src/features/index.ts`).
+  the request pipeline loads route settings (`src/features/app/request.ts`).
   A pre-settings static route would only ever see default or stale `embed_hosts`.
   `/order.js` must be served from a handler that runs **after** settings load.
 - `getPrefix("/order.js")` returns `order.js` (the whole path, since there is no

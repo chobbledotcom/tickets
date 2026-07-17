@@ -26,8 +26,10 @@ import {
   builtSites,
   builtSitesCrudTable,
   isUpdateTier,
+  providerOrBunny,
 } from "#shared/db/built-sites.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
@@ -58,7 +60,7 @@ import {
   adminBuiltSiteNewPage,
   adminBuiltSitesPage,
 } from "#templates/admin/built-sites.tsx";
-import { getBuiltSiteFields } from "#templates/fields/admin.ts";
+import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 
 /** Extract built site input from validated form values.
  *
@@ -66,36 +68,32 @@ import { getBuiltSiteFields } from "#templates/fields/admin.ts";
  * edit that omits the field (a stale form, or an automation posting the older
  * field set) leaves the stored channel untouched rather than silently resetting
  * it. On create, the table layer applies DEFAULT_UPDATE_TIER for the absent key. */
+type BuiltSiteFormValues = FormValues<ReturnType<typeof getBuiltSiteForm>>;
+
 const extractBuiltSiteInput = (
-  values: Record<string, string | number | null>,
+  values: BuiltSiteFormValues,
 ): BuiltSiteFormInput => {
   // validateForm always sets the select's value (a string, "" when omitted), so
   // no nullish fallback is needed — a non-tier string just isn't carried below.
-  const updates = String(values.updates);
-  const hostingProvider =
-    String(values.hosting_provider) === "deno"
-      ? ("deno" as const)
-      : ("bunny" as const);
-  const dbProvider =
-    String(values.db_provider) === "turso"
-      ? ("turso" as const)
-      : ("bunny" as const);
+  const updates = values.updates;
+  const hostingProvider = providerOrBunny(values.hosting_provider, "deno");
+  const dbProvider = providerOrBunny(values.db_provider, "turso");
   return {
     assignable: values.assignable === "1",
     dbProvider,
-    dbToken: String(values.db_token),
-    dbUrl: String(values.db_url),
-    hostingId: String(values.hosting_id),
+    dbToken: values.db_token,
+    dbUrl: values.db_url,
+    hostingId: values.hosting_id,
     hostingProvider,
-    name: String(values.name),
-    siteUrl: String(values.site_url),
-    ...(isUpdateTier(updates) ? { updates } : {}),
+    name: values.name,
+    siteUrl: values.site_url,
+    ...(updates !== null && isUpdateTier(updates) ? { updates } : {}),
   };
 };
 
 /** Built sites resource for REST create/update operations */
 const builtSitesResource = defineNamedResource({
-  fields: getBuiltSiteFields(),
+  form: getBuiltSiteForm(),
   nameField: "name",
   table: builtSitesCrudTable,
   toInput: extractBuiltSiteInput,

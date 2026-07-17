@@ -5,7 +5,7 @@
  * date, and (for customisable daily listings) a day-count selector.
  */
 
-import type { Field } from "#shared/forms.tsx";
+import { type Field, requireChoiceOptions } from "#shared/forms.tsx";
 import type { ListingFields } from "#shared/types.ts";
 import {
   getTicketFields,
@@ -42,10 +42,13 @@ const addAttendeeDateField: Field = {
 const addAttendeeDayCountField = (dayCounts: number[]): Field => ({
   label: "Number of days",
   name: "day_count",
-  options: dayCounts.map((n) => ({
-    label: `${n} day${n === 1 ? "" : "s"}`,
-    value: String(n),
-  })),
+  options: requireChoiceOptions(
+    "Number of days",
+    dayCounts.map((n) => ({
+      label: `${n} day${n === 1 ? "" : "s"}`,
+      value: String(n),
+    })),
+  ),
   required: true,
   type: "select",
 });

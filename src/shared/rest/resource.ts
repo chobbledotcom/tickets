@@ -5,7 +5,7 @@
  * Usage:
  *   const listingsResource = defineResource({
  *     table: listingsTable,
- *     fields: getListingFields(),
+ *     form: listingForm,
  *     toInput: extractListingInput,
  *     nameField: 'name', // For delete verification
  *   });
@@ -21,8 +21,8 @@ import type { InValue } from "@libsql/client";
 import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { FormSchema } from "#shared/forms/definition.ts";
 import type { Field, FieldValues } from "#shared/forms.tsx";
-import { validateForm } from "#shared/forms.tsx";
 import { mapValidationError } from "#shared/optional-validate.ts";
 import type { AfterCommitConfig, ParseResult } from "#shared/rest/crud-api.ts";
 import { writeEntity } from "#shared/rest/write-entity.ts";
@@ -65,9 +65,8 @@ export interface Resource<
 > {
   create: (form: FormParams) => Promise<CreateResult<Row>>;
   delete: (id: InValue) => Promise<DeleteResult>;
-  readonly fields: Field[];
+  readonly fields: readonly Field[];
   parseInput: (form: FormParams) => Promise<ParseResult<Input>>;
-  parsePartialInput: (form: FormParams) => Promise<ParseResult<Partial<Input>>>;
   readonly table: Table<Row, Input>;
   update: (id: InValue, form: FormParams) => Promise<UpdateResult<Row>>;
   verifyName?: (row: Row, confirmName: string) => boolean;
@@ -94,7 +93,7 @@ export interface ResourceConfig<
     input: Input,
     form: FormParams,
   ) => Promise<void>;
-  fields: Field[];
+  form: FormSchema<Values>;
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
@@ -113,11 +112,11 @@ export interface ResourceConfig<
 /** Validate form and convert to result type */
 const validateAndParse = async <T, V extends FieldValues = FieldValues>(
   form: FormParams,
-  fields: Field[],
+  schema: FormSchema<V>,
   toInput: (values: V) => T | Promise<T>,
   validateValues?: (values: V) => string | null,
 ): Promise<ParseResult<T>> => {
-  const validation = validateForm<V>(form, fields);
+  const validation = schema.validate(form);
   if (!validation.valid) return { error: validation.error, ok: false };
   const valuesError = validateValues?.(validation.values);
   if (valuesError) return { error: valuesError, ok: false };
@@ -172,23 +171,14 @@ export const defineResource = <
 >(
   config: ResourceConfig<Row, Input, Id, Values>,
 ): Resource<Row, Input, Values> => {
-  const { table, fields, toInput, nameField } = config;
+  const { table, form: schema, toInput, nameField } = config;
 
   const parseInput = (form: FormParams): Promise<ParseResult<Input>> =>
     validateAndParse<Input, Values>(
       form,
-      fields,
+      schema,
       toInput,
       config.validateValues,
-    );
-
-  const parsePartialInput = (
-    form: FormParams,
-  ): Promise<ParseResult<Partial<Input>>> =>
-    validateAndParse<Partial<Input>, Values>(
-      form,
-      fields.filter((f) => form.has(f.name)),
-      async (v) => (await toInput(v)) as Partial<Input>,
     );
 
   /** Run `fn` only when the row exists; otherwise report not found. */
@@ -269,9 +259,8 @@ export const defineResource = <
   return {
     create,
     delete: deleteRow,
-    fields,
+    fields: schema.fields,
     parseInput,
-    parsePartialInput,
     table,
     update,
     ...(verifyName && { verifyName }),

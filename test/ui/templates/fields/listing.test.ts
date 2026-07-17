@@ -6,9 +6,9 @@ import {
   ListingTypeSchema,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
-import { getHolidayFields } from "#templates/fields/admin.ts";
-import { getGroupCreateFields } from "#templates/fields/group.ts";
-import { getListingFields } from "#templates/fields/listing.ts";
+import { getHolidayForm } from "#templates/fields/admin.ts";
+import { getGroupCreateForm } from "#templates/fields/group.ts";
+import { getListingForm } from "#templates/fields/listing.ts";
 import {
   validateBookableDays,
   validateDate,
@@ -23,67 +23,70 @@ const listingForm = (
   ...overrides,
 });
 
-describe("getListingFields() — required fields", () => {
+describe("listing form required fields", () => {
   test("rejects missing listing name", () => {
     const { name: _, ...withoutName } = baseListingForm;
-    expectInvalid("Listing Name is required")(getListingFields(), withoutName);
+    expectInvalid("Listing Name is required")(
+      getListingForm().fields,
+      withoutName,
+    );
   });
 });
 
-describe("getListingFields() — description", () => {
+describe("listing form description", () => {
   test("rejects description exceeding max length", () => {
     expectInvalid(
       `Description must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
     )(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH + 1) }),
     );
   });
 
   test("accepts description at and below max length", () => {
     expectValid(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH) }),
     );
-    expectValid(getListingFields(), listingForm({ description: "" }));
+    expectValid(getListingForm().fields, listingForm({ description: "" }));
   });
 });
 
-describe("getListingFields() — thank_you_url", () => {
+describe("listing form thank_you_url", () => {
   test("accepts public https URLs", () => {
     expectValid(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ thank_you_url: "https://example.com/thank-you" }),
     );
   });
 
   test("rejects http, IPs and javascript protocols", () => {
     expectInvalid("URL must use https://")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ thank_you_url: "http://example.com" }),
     );
     expectInvalid("URL must use https://")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ thank_you_url: "https://1.1.1.1/thank-you" }),
     );
     expectInvalid("URL must use https://")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ thank_you_url: "javascript:alert(1)" }),
     );
   });
 
   test("rejects malformed URLs", () => {
     expectInvalid("URL must use https://")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ thank_you_url: "not-a-valid-url" }),
     );
   });
 });
 
-describe("getListingFields() — webhook_url", () => {
+describe("listing form webhook_url", () => {
   test("accepts valid https URLs", () => {
     expectValid(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ webhook_url: "https://example.com/webhook" }),
     );
   });
@@ -209,7 +212,7 @@ describe("getListingFields() — webhook_url", () => {
   for (const { expected, url, label } of rejected) {
     test(`rejects ${label} webhook URL`, () => {
       expectInvalid(expected)(
-        getListingFields(),
+        getListingForm().fields,
         listingForm({ webhook_url: url }),
       );
     });
@@ -217,45 +220,45 @@ describe("getListingFields() — webhook_url", () => {
 
   test("accepts public domains", () => {
     expectValid(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ webhook_url: "https://app.example.net/webhook" }),
     );
     expectValid(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ webhook_url: "https://hooks.example.org/webhook" }),
     );
   });
 
   test("rejects URLs without a proper domain", () => {
     expectInvalid("URL must use https://")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ webhook_url: "https://example/webhook" }),
     );
   });
 });
 
-describe("getListingFields() — pricing", () => {
+describe("listing form pricing", () => {
   test("rejects negative unit_price", () => {
     expectInvalid("Price must be 0 or greater")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ unit_price: "-100" }),
     );
   });
 
   test("rejects negative max_price and accepts valid values", () => {
     expectInvalid("Price must be 0 or greater")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ max_price: "-50" }),
     );
-    expectValid(getListingFields(), listingForm({ max_price: "100.00" }));
-    expectValid(getListingFields(), listingForm({ max_price: "" }));
+    expectValid(getListingForm().fields, listingForm({ max_price: "100.00" }));
+    expectValid(getListingForm().fields, listingForm({ max_price: "" }));
   });
 });
 
-describe("getListingFields() — contact fields setting", () => {
+describe("listing form contact fields setting", () => {
   test("rejects unknown contact field name", () => {
     expectInvalid("Invalid contact field: invalid")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ fields: "invalid" }),
     );
   });
@@ -264,38 +267,46 @@ describe("getListingFields() — contact fields setting", () => {
     // Derived from the schema, so a new ContactField member is covered here the
     // moment it is added — no hand-maintained list to forget to update.
     for (const value of [...CONTACT_FIELDS, "email,phone"]) {
-      expectValid(getListingFields(), listingForm({ fields: value }));
+      expectValid(getListingForm().fields, listingForm({ fields: value }));
     }
   });
 
   test("warns that attendees won't be emailed their ticket without email collection", () => {
-    const fieldsField = getListingFields().find((f) => f.name === "fields")!;
+    const fieldsField = getListingForm().fields.find(
+      (f) => f.name === "fields",
+    )!;
     expect(fieldsField.hintHtml).toContain("<strong>");
     expect(fieldsField.hintHtml).toContain("emailed their ticket");
   });
 });
 
-describe("getListingFields() — listing_type", () => {
+describe("listing form listing_type", () => {
   test("accepts standard and daily, rejects anything else", () => {
     // Every declared listing type is accepted; the schema is the source of truth.
     for (const value of ListingTypeSchema.options) {
-      expectValid(getListingFields(), listingForm({ listing_type: value }));
+      expectValid(
+        getListingForm().fields,
+        listingForm({ listing_type: value }),
+      );
     }
     expectInvalid("Listing Type must be standard or daily")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ listing_type: "weekly" }),
     );
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(getListingFields(), listingForm());
+    expectValid(getListingForm().fields, listingForm());
   });
 });
 
-describe("getListingFields() — duration_days", () => {
+describe("listing form duration_days", () => {
   for (const value of ["", "1", String(MAX_DURATION_DAYS)]) {
     test(`accepts ${JSON.stringify(value)}`, () => {
-      expectValid(getListingFields(), listingForm({ duration_days: value }));
+      expectValid(
+        getListingForm().fields,
+        listingForm({ duration_days: value }),
+      );
     });
   }
   const invalid: [value: string, error: string][] = [
@@ -310,21 +321,21 @@ describe("getListingFields() — duration_days", () => {
   for (const [value, error] of invalid) {
     test(`rejects ${JSON.stringify(value)}`, () => {
       expectInvalid(error)(
-        getListingFields(),
+        getListingForm().fields,
         listingForm({ duration_days: value }),
       );
     });
   }
 });
 
-describe("getListingFields() — bookable_days", () => {
+describe("listing form bookable_days", () => {
   test("accepts valid day names", () => {
     expectValid(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ bookable_days: "Monday,Wednesday,Friday" }),
     );
     expectValid(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({
         bookable_days:
           "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
@@ -335,24 +346,24 @@ describe("getListingFields() — bookable_days", () => {
   test("rejects invalid day name", () => {
     expectInvalid(
       "Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
-    )(getListingFields(), listingForm({ bookable_days: "Monday,Funday" }));
+    )(getListingForm().fields, listingForm({ bookable_days: "Monday,Funday" }));
   });
 
   test("rejects empty-after-trimming value", () => {
     expectInvalid("At least one day is required")(
-      getListingFields(),
+      getListingForm().fields,
       listingForm({ bookable_days: "," }),
     );
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(getListingFields(), listingForm());
+    expectValid(getListingForm().fields, listingForm());
   });
 });
 
-describe("getGroupCreateFields()", () => {
+describe("group create form", () => {
   test("rejects terms_and_conditions exceeding MAX_TEXTAREA_LENGTH", () => {
-    const termsField = getGroupCreateFields().find(
+    const termsField = getGroupCreateForm().fields.find(
       (f) => f.name === "terms_and_conditions",
     )!;
     expect(
@@ -361,14 +372,14 @@ describe("getGroupCreateFields()", () => {
   });
 
   test("accepts terms_and_conditions within MAX_TEXTAREA_LENGTH", () => {
-    const termsField = getGroupCreateFields().find(
+    const termsField = getGroupCreateForm().fields.find(
       (f) => f.name === "terms_and_conditions",
     )!;
     expect(termsField.validate?.("x".repeat(MAX_TEXTAREA_LENGTH))).toBeNull();
   });
 });
 
-describe("getHolidayFields()", () => {
+describe("holiday form", () => {
   const holidayForm = (
     overrides: Record<string, string> = {},
   ): Record<string, string> => ({
@@ -380,36 +391,36 @@ describe("getHolidayFields()", () => {
 
   test("rejects missing name, start_date, or end_date", () => {
     expectInvalid("Holiday Name is required")(
-      getHolidayFields(),
+      getHolidayForm().fields,
       holidayForm({ name: "" }),
     );
     expectInvalid("Start Date is required")(
-      getHolidayFields(),
+      getHolidayForm().fields,
       holidayForm({ start_date: "" }),
     );
     expectInvalid("End Date is required")(
-      getHolidayFields(),
+      getHolidayForm().fields,
       holidayForm({ end_date: "" }),
     );
   });
 
   test("rejects malformed dates", () => {
     expectInvalid("Please enter a valid date (YYYY-MM-DD)")(
-      getHolidayFields(),
+      getHolidayForm().fields,
       holidayForm({ start_date: "25-12-2026" }),
     );
     expectInvalid("Please enter a valid date (YYYY-MM-DD)")(
-      getHolidayFields(),
+      getHolidayForm().fields,
       holidayForm({ end_date: "not-a-date" }),
     );
   });
 
   test("accepts valid single-day and multi-day holidays", () => {
-    const values = expectValid(getHolidayFields(), holidayForm());
+    const values = expectValid(getHolidayForm().fields, holidayForm());
     expect(values.name).toBe("Bank Holiday");
 
     expectValid(
-      getHolidayFields(),
+      getHolidayForm().fields,
       holidayForm({ end_date: "2026-12-26", start_date: "2026-12-24" }),
     );
   });

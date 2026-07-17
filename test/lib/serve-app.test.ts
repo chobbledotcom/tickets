@@ -14,7 +14,7 @@ import { stub } from "@std/testing/mock";
 import {
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
-  trackQuery,
+  trackSql,
 } from "#shared/db/query-log.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { devServerPort, serveHandler } from "#src/serve-app.ts";
@@ -86,7 +86,7 @@ describeWithEnv("serve-app", { db: true }, () => {
       try {
         await runWithQueryLogContext(async () => {
           for (let i = 0; i < N_PLUS_ONE_THRESHOLD + 1; i++) {
-            await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+            await trackSql("SELECT 1", () => Promise.resolve("ok"));
           }
         });
         // Let the fire-and-forget dynamic import + logError settle.

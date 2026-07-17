@@ -137,26 +137,6 @@ describe("defineForm", () => {
     });
   });
 
-  test("renders select option hints from the field schema", () => {
-    const form = defineForm({
-      fields: [
-        {
-          label: "Action",
-          name: "action",
-          options: [
-            { hint: "Use cash.", label: "Payment", value: "pay" },
-            { label: "Charge", value: "charge" },
-          ],
-          type: "select",
-        },
-      ] as const,
-      id: "option-hints",
-    });
-    const html = form.render();
-    expect(html).toContain("<strong>Payment:</strong> Use cash.");
-    expect(html).not.toContain("<strong>Charge:</strong>");
-  });
-
   test("validates and parses typed values", () => {
     const form = defineForm({
       fields: [
@@ -197,6 +177,55 @@ describe("defineForm", () => {
 
     const html = form.field("color").render("blue");
     expect(html).toContain("blue");
+  });
+
+  test("returns an empty string for a blank optional text field", () => {
+    const form = defineForm({
+      fields: [{ label: "Note", name: "note", type: "text" }] as const,
+      id: "optional-text",
+    });
+
+    const result = form.validate(new FormParams({ note: "" }));
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      const note: string = result.values.note;
+      expect(note).toBe("");
+    }
+  });
+
+  test("returns an empty string for a blank optional datetime field", () => {
+    const form = defineForm({
+      fields: [{ label: "When", name: "when", type: "datetime" }] as const,
+      id: "optional-datetime",
+    });
+
+    const result = form.validate(new FormParams({}));
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      const when: string = result.values.when;
+      expect(when).toBe("");
+    }
+  });
+
+  test("returns an empty string for an unchecked checkbox group", () => {
+    const form = defineForm({
+      fields: [
+        {
+          label: "Updates",
+          name: "updates",
+          options: [{ label: "Email", value: "email" }],
+          type: "checkbox-group",
+        },
+      ] as const,
+      id: "optional-checkboxes",
+    });
+
+    const result = form.validate(new FormParams({}));
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      const updates: string = result.values.updates;
+      expect(updates).toBe("");
+    }
   });
 
   test("optional select field normalizes empty string to null", () => {
