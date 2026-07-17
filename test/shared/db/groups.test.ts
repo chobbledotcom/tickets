@@ -696,6 +696,15 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(value).toEqual(new Map());
     });
 
+    test("does not query for standalone package markers", async () => {
+      const { roundTrips, value } = await runAndCountRoundTrips(() =>
+        getPackageDisplaysByIds([0, 0, -1]),
+      );
+
+      expect(roundTrips).toBe(0);
+      expect(value).toEqual(new Map());
+    });
+
     test("reflects package changes after cache invalidation", async () => {
       const pkg = await createTestGroup({
         isPackage: true,

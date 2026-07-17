@@ -493,7 +493,7 @@ export const getPackageDisplaysByIds = async (
     rawGroupsTable.fromDb(row),
   )(
     await rowsByIds<Group>(
-      [...new Set(groupIds)],
+      [...new Set(groupIds)].filter((groupId) => groupId > 0),
       (placeholders) =>
         `SELECT ${GROUP_COLUMNS} FROM groups AS groupRecord
         WHERE groupRecord.id IN (${placeholders}) AND groupRecord.is_package = 1`,
