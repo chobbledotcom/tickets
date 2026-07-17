@@ -127,14 +127,18 @@ const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
 const queryGroups = queryAndMap<Group, Group>((row) =>
   rawGroupsTable.fromDb(row),
 );
-const GROUP_COLUMNS = rawGroupsTable.columns.join(", ");
+const GROUP_COLUMNS = rawGroupsTable.columns
+  .map((column) => `groupRecord.${column}`)
+  .join(", ");
 
 export const groups = cachedEntityTable<Group, GroupInput>(
   "groups",
   rawGroupsTable,
   {
     fetchAll: () =>
-      queryGroups(`SELECT ${GROUP_COLUMNS} FROM groups ORDER BY id ASC`),
+      queryGroups(
+        `SELECT ${GROUP_COLUMNS} FROM groups AS groupRecord ORDER BY groupRecord.id ASC`,
+      ),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,
@@ -491,8 +495,8 @@ export const getPackageDisplaysByIds = async (
     await rowsByIds<Group>(
       [...new Set(groupIds)],
       (placeholders) =>
-        `SELECT ${GROUP_COLUMNS} FROM groups
-        WHERE id IN (${placeholders}) AND is_package = 1`,
+        `SELECT ${GROUP_COLUMNS} FROM groups AS groupRecord
+        WHERE groupRecord.id IN (${placeholders}) AND groupRecord.is_package = 1`,
     ),
   );
   return new Map(
