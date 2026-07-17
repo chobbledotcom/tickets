@@ -4,7 +4,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";

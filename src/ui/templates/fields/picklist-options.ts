@@ -12,7 +12,7 @@
  */
 
 import { t } from "#i18n";
-import type { ChoiceOptions } from "#shared/forms.tsx";
+import type { ChoiceOptions } from "#shared/forms/field.ts";
 
 export const picklistOptions = <TValue extends string>(
   schema: { readonly options: readonly [TValue, ...TValue[]] },

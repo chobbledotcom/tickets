@@ -52,7 +52,7 @@ import {
 } from "#shared/dates.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { SelectedQuestionAnswers } from "#shared/db/question-types.ts";
-import { CsrfForm } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,

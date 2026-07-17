@@ -4,7 +4,7 @@
  */
 
 import { t } from "#i18n";
-import { Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import { BackButton } from "#templates/components/actions.tsx";
 import { saveFormComponent } from "#templates/components/save-form.tsx";
 import { layoutPage } from "#templates/layout-page.tsx";

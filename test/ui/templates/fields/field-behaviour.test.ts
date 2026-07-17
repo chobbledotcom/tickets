@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
-import type { Field } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";

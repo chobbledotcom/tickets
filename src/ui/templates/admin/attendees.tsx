@@ -12,7 +12,7 @@ import type {
   QuestionWithAnswers,
   SelectedQuestionAnswers,
 } from "#shared/db/question-types.ts";
-import { Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {

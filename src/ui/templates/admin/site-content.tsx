@@ -6,7 +6,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";

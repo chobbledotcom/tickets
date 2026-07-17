@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { renderFields } from "#shared/forms.tsx";
+import { renderFields } from "#shared/forms/rendering.tsx";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import { getAddAttendeeFields } from "#templates/fields/add-attendee.ts";
 import { fieldsApi, getTicketFields } from "#templates/fields/ticket.ts";

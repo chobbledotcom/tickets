@@ -11,7 +11,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { demoBanner, isDemoMode } from "#shared/demo/mode.ts";
 import { flashConsumed } from "#shared/flash-context.ts";
-import { requestFlash } from "#shared/forms.tsx";
+import { requestFlash } from "#shared/forms/flash.tsx";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Theme } from "#shared/types.ts";

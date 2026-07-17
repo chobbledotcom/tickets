@@ -4,7 +4,7 @@ import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
-import type { FieldValues } from "#shared/forms.tsx";
+import type { FieldValues } from "#shared/forms/values.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";

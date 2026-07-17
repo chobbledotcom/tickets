@@ -1,5 +1,6 @@
 import { isReadOnly } from "#shared/env.ts";
-import { type Field, renderFields } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
+import { renderFields } from "#shared/forms/rendering.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import type { FlashPageRenderer } from "#templates/admin/admin-page.tsx";

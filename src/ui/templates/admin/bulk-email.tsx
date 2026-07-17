@@ -11,7 +11,8 @@ import {
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
   targetQuery,
 } from "#shared/bulk-email.ts";
-import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";

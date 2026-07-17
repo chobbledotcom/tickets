@@ -17,7 +17,10 @@ import {
   groupNotesByAttendee,
   type SystemNote,
 } from "#shared/db/system-notes.ts";
-import { CsrfForm, Flash, hiddenInputs, renderField } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
+import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
+import { renderField } from "#shared/forms/rendering.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown, withoutLinksTo } from "#shared/markdown.ts";

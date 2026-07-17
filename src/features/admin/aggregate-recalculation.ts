@@ -3,8 +3,11 @@ import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type { Field } from "#shared/forms.tsx";
-import { type ValidationResult, validateForm } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
+import {
+  type ValidationResult,
+  validateForm,
+} from "#shared/forms/validation.ts";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { errorResult } from "#shared/result.ts";

@@ -10,7 +10,7 @@ import {
   type FormDefinition,
   type FormValues,
 } from "#shared/forms/definition.ts";
-import type { Field, InputField } from "#shared/forms.tsx";
+import type { Field, InputField } from "#shared/forms/field.ts";
 import { AdminLevelSchema } from "#shared/types.ts";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";

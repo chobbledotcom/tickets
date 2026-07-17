@@ -12,7 +12,8 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { flashProps, staffAdminPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";

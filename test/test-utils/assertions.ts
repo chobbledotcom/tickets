@@ -444,7 +444,7 @@ export const expectFlashRedirect =
     expectRedirectWithFlash(location, message, succeeded)(response);
 
     const [{ handleRequest }, { renderError, renderSuccess }] =
-      await Promise.all([import("#routes"), import("#shared/forms.tsx")]);
+      await Promise.all([import("#routes"), import("#shared/forms/flash.tsx")]);
     const followed = await followRedirectWithFlash(
       response,
       handleRequest,

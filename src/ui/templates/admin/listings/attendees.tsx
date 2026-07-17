@@ -3,7 +3,8 @@
 import { filter, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { CsrfForm, renderFields, renderSelectOptions } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { renderFields, renderSelectOptions } from "#shared/forms/rendering.tsx";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {

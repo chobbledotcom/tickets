@@ -9,7 +9,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";

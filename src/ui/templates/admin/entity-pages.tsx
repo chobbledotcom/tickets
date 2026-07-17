@@ -17,7 +17,7 @@ import { t } from "#i18n";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { TabLink } from "#shared/entity-pages/core.ts";
 import { getFlashFormId } from "#shared/flash-context.ts";
-import { requestFlash } from "#shared/forms.tsx";
+import { requestFlash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
