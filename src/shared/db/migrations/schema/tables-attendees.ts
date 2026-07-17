@@ -161,16 +161,6 @@ export const attendeeTables: [name: string, table: Table][] = [
   ],
 
   [
-    "checkout_stage_revisions",
-    {
-      columns: [
-        ["id", "INTEGER PRIMARY KEY CHECK (id = 1)"],
-        ["revision", "INTEGER NOT NULL"],
-      ],
-    },
-  ],
-
-  [
     "checkout_stages",
     {
       columns: [

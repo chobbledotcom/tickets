@@ -14,6 +14,7 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -66,6 +67,25 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     const processed = await isSessionProcessed("sess_attendee_delete");
     expect(processed).toBeNull();
+  });
+
+  test("removes the attendee's checkout stage", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Open Checkout",
+      "open@example.com",
+    );
+    await insertCheckoutStage(attendee.id, "stage-attendee-delete");
+
+    await deleteAttendee(attendee.id);
+
+    const stage = await queryOne<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM checkout_stages WHERE attendee_id = ?",
+      [attendee.id],
+    );
+    expect(stage?.count).toBe(0);
   });
 
   test("releases listing aggregate totals by default", async () => {

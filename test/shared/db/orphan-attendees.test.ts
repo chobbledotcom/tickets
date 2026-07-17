@@ -6,6 +6,7 @@
  * through the real create path so they carry a genuine booking link.
  */
 
+import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert, queryOne } from "#shared/db/client.ts";
@@ -15,6 +16,7 @@ import {
 } from "#shared/db/orphan-attendees.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -47,13 +49,17 @@ const attendeeExists = async (id: number): Promise<boolean> => {
 };
 
 /** Count rows in a child table for the given attendee. */
-const childCount = async (table: string, attendeeId: number): Promise<number> =>
-  (
-    await queryOne<{ count: number }>(
-      `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
-      [attendeeId],
-    )
-  )?.count ?? 0;
+const childCount = async (
+  table: string,
+  attendeeId: number,
+): Promise<number> => {
+  const row = await queryOne<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
+    [attendeeId],
+  );
+  assertExists(row);
+  return row.count;
+};
 
 describeWithEnv("db > orphan-attendees", { db: true }, () => {
   describe("countOrphanedAttendees", () => {
@@ -149,6 +155,15 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       expect(await childCount("attendee_answers", id)).toBe(0);
       expect(await childCount("processed_payments", id)).toBe(0);
       expect(await getNoteRows([id])).toEqual([]);
+    });
+
+    test("removes the orphan's checkout stage", async () => {
+      const id = await insertOrphan(daysAgoIso(365));
+      await insertCheckoutStage(id, "stage-orphan-purge");
+
+      await purgeOrphanedAttendees(nowIso());
+
+      expect(await childCount("checkout_stages", id)).toBe(0);
     });
   });
 });

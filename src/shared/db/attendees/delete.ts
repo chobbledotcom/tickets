@@ -17,6 +17,8 @@ type ListingContribution = {
   tickets_count: number;
 };
 
+type DependentRowTarget = { field: string; table: string };
+
 /**
  * Per-listing aggregate contributions of an attendee's lines, summed so the
  * hold-delete restore can add them back after deleting. tickets_count counts
@@ -51,7 +53,13 @@ const restoreListingContributions = (
 
 /** The tables holding an attendee's dependent rows, each with the column that
  * links it to the attendee. Deleted (in this order) before the attendee row. */
+const CHECKOUT_STAGE_ROWS = {
+  field: "attendee_id",
+  table: "checkout_stages",
+} as const;
+
 const DEPENDENT_ROW_TARGETS = [
+  CHECKOUT_STAGE_ROWS,
   { field: "attendee_id", table: "processed_payments" },
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
@@ -59,14 +67,26 @@ const DEPENDENT_ROW_TARGETS = [
   { field: "servicing_attendee_id", table: "service_costs" },
 ] as const;
 
+const dependentDeleteStatement = (
+  { field, table }: DependentRowTarget,
+  attendeeIds: SqlStatement,
+): SqlStatement => ({
+  args: attendeeIds.args,
+  sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
+});
+
+/** Delete checkout stages for one or many attendee ids. */
+export const checkoutStageDeleteStatement = (
+  attendeeIds: SqlStatement,
+): SqlStatement => dependentDeleteStatement(CHECKOUT_STAGE_ROWS, attendeeIds);
+
 /** Build the common dependent-row deletes for one or many attendee ids. */
 export const attendeeDependentDeleteStatements = (
   attendeeIds: SqlStatement,
 ): SqlStatement[] =>
-  DEPENDENT_ROW_TARGETS.map(({ field, table }) => ({
-    args: attendeeIds.args,
-    sql: `DELETE FROM ${table} WHERE ${field} IN (${attendeeIds.sql})`,
-  }));
+  DEPENDENT_ROW_TARGETS.map((target) =>
+    dependentDeleteStatement(target, attendeeIds),
+  );
 
 /** Delete an attendee and all dependent data tied to the attendee record. */
 const purgeAttendee = (
