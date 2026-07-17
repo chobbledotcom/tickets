@@ -1,8 +1,8 @@
 /**
  * Resource-level admin page factory.
  *
- * Several owner-only settings resources (holidays, attendee statuses,
- * logistics agents) share one workflow — a list page (table + actions + empty
+ * Several owner-only settings resources (attendee statuses and logistics
+ * agents) share one workflow — a list page (table + actions + empty
  * state), a create page, an edit page (form + delete section), and a
  * type-the-name delete confirmation page. Each used to hand-wire that
  * workflow against `AdminPage`/`DataTable`/`ConfirmPage` directly, so every

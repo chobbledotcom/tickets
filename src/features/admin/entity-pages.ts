@@ -23,6 +23,7 @@
  * {@link EntityPage.path} as everywhere else.
  */
 
+import type { EditErrorRenderer } from "#routes/admin/owner-crud.ts";
 import type { AuthSession, SessionGuard } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
@@ -37,6 +38,7 @@ import {
   tabPath,
 } from "#shared/entity-pages/core.ts";
 import { isReadOnly } from "#shared/env.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import {
   entityPageView,
   type LoadedSection,
@@ -335,3 +337,50 @@ export const customTab = <E>(
   const { load, ...tab } = config;
   return { ...tab, sections: [customSection(load)] };
 };
+
+/** The standard write-only Actions tab for an entity whose only action is a
+ * type-the-name delete confirmation. */
+export const deleteActionTab = <E>(
+  labelKey: string,
+  href: (entity: E, ctx: PageCtx) => string,
+): TabDef<E> => ({
+  intent: "write-form",
+  labelKey: "entity.tab.actions",
+  sections: [
+    {
+      actions: [
+        {
+          danger: true,
+          href,
+          icon: "trash-2",
+          intent: "write-form",
+          labelKey,
+        },
+      ],
+      kind: "actions",
+      titleKey: "entity.tab.actions",
+    },
+  ],
+  slug: "actions",
+});
+
+/** Build the rejected-edit renderer expected by the CRUD factories. The
+ * entity-specific callback only builds its panel from the loaded row, submitted
+ * form, and error; this helper supplies the tab shell and status 400. */
+export const entityEditErrorRenderer =
+  <E, Id extends EntityId = number>(
+    getPage: () => EntityPage<E, Id>,
+    panel: (
+      entity: E,
+      ctx: PageCtx,
+      form: FormParams,
+      error: string,
+    ) => JSX.Element | Promise<JSX.Element>,
+  ): EditErrorRenderer<Id> =>
+  (id, session, form, error) =>
+    getPage().renderPage(session, id, "edit", {
+      sections: async (entity, ctx) => [
+        { html: await panel(entity, ctx, form, error), kind: "custom" },
+      ],
+      status: 400,
+    });

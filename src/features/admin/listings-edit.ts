@@ -9,8 +9,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
+import { entityEditErrorRenderer } from "#routes/admin/entity-pages.ts";
 import {
-  type AuthSession,
   adminLandingPath,
   CONTENT_MULTIPART,
   gatedPost,
@@ -425,21 +425,11 @@ const reconcileDurationChange = async (
 /** Re-render the Edit tab in place at 400 with the submitted error and the
  * operator's submitted group selection (not the saved set), so a rejected edit
  * doesn't silently drop their group changes. Deterministic — no flash stash. */
-const renderListingEditError = (
-  id: number,
-  session: AuthSession,
-  error: string,
-  submittedGroupIds: number[],
-): Promise<Response> =>
-  listingPage.renderPage(session, id, "edit", {
-    sections: async (entity, ctx) => [
-      {
-        html: await loadListingEditPanel(entity, ctx, error, submittedGroupIds),
-        kind: "custom" as const,
-      },
-    ],
-    status: 400,
-  });
+const renderListingEditError = entityEditErrorRenderer(
+  () => listingPage,
+  (entity, ctx, form, error) =>
+    loadListingEditPanel(entity, ctx, error, parseGroupIds(form)),
+);
 
 const handleListingEditSuccess = async (
   row: Listing,
@@ -500,15 +490,9 @@ export const handleAdminListingEditPost: TypedRouteHandler<
       });
       // The group checkboxes the operator submitted, so a rejected edit
       // re-renders their selection rather than the saved membership.
-      const submittedGroupIds = parseGroupIds(form);
       const aggregates = parseAggregatesForRole(session, form);
       if (!aggregates.ok) {
-        return renderListingEditError(
-          id,
-          session,
-          aggregates.error,
-          submittedGroupIds,
-        );
+        return renderListingEditError(id, session, form, aggregates.error);
       }
 
       // Build a resource that includes the slug field; uniqueness is enforced
@@ -525,12 +509,7 @@ export const handleAdminListingEditPost: TypedRouteHandler<
         );
       }
       if ("notFound" in result) return notFoundResponse();
-      return renderListingEditError(
-        id,
-        session,
-        result.error,
-        submittedGroupIds,
-      );
+      return renderListingEditError(id, session, form, result.error);
     }),
   );
 

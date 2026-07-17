@@ -4,6 +4,7 @@ import {
 } from "#routes/admin/confirmation.ts";
 import {
   AUTH_FORM,
+  type AuthSession,
   authPage,
   CONTENT_FORM,
   OWNER_FORM,
@@ -63,6 +64,10 @@ type CrudConfig<Row, Input, Display = Row> = {
   ) => string;
   renderNew: (session: AdminSession, error?: string) => string;
   renderEdit?: (row: Row, session: AdminSession, error?: string) => string;
+  /** Render a rejected edit in place. Entity pages use this to preserve the
+   * submitted values at status 400; legacy edit pages omit it and keep the
+   * flash redirect to their edit URL. */
+  renderEditError?: EditErrorRenderer;
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
   getName: (row: Row) => string;
   /** Optional delete guard: a returned message blocks the deletion and renders
@@ -70,9 +75,18 @@ type CrudConfig<Row, Input, Display = Row> = {
   deleteGuard?: (row: Row, id: number) => Promise<string | null>;
 };
 
+/** A CRUD edit failure renderer. Entity pages provide one through
+ * `entityEditErrorRenderer`; legacy pages omit it and use a flash redirect. */
+export type EditErrorRenderer<Id = number> = (
+  id: Id,
+  session: AuthSession,
+  form: FormParams,
+  error: string,
+) => Promise<Response>;
+
 type AuthGuards = {
-  requireSession: SessionGuard<AdminSession>;
-  withForm: FormGuard<AdminSession>;
+  requireSession: SessionGuard<AuthSession>;
+  withForm: FormGuard<AuthSession>;
 };
 
 /** Create CRUD handlers that require owner role */
@@ -99,7 +113,7 @@ export const createContentCrudHandlers = createCrudHandlersWithAuth({
 function createCrudHandlersWithAuth(auth: AuthGuards) {
   return <Row, Input, Display = Row>(cfg: CrudConfig<Row, Input, Display>) => {
     type FormHandler = ResponseHandler<
-      [session: AdminSession, form: FormParams]
+      [session: AuthSession, form: FormParams]
     >;
 
     // Resolve the resource per-request. When `cfg.resource` is a factory, this
@@ -114,22 +128,10 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
         auth.withForm(request, handler);
 
     const authHtml = authPage(auth.requireSession);
-    const rowHandler = createIdEntityHandler<Row>((id) =>
-      resource().table.findById(id),
-    )(auth.requireSession);
-
-    const authRowHtml = (
-      render: (row: Row, session: AdminSession, error?: string) => string,
-    ): IdRouteHandler =>
-      rowHandler((row, session, request) => {
-        const flash = applyFlash(request);
-        return htmlResponse(render(row, session, flash.error));
-      });
-
     const logAndRedirect = async (
       verb: string,
       row: Row,
-      session: AdminSession,
+      session: AuthSession,
     ): Promise<Response> => {
       await logActivity(`${cfg.singular} '${cfg.getName(row)}' ${verb}`);
       return redirect(
@@ -160,7 +162,16 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     const createPost = authForm(createHandler);
 
-    const editGet = cfg.renderEdit ? authRowHtml(cfg.renderEdit) : undefined;
+    const renderEdit = cfg.renderEdit;
+    const editGet: IdRouteHandler | undefined = renderEdit
+      ? (request, params) =>
+          createIdEntityHandler<Row>((id) => resource().table.findById(id))(
+            auth.requireSession,
+          )((row, session, loadedRequest) => {
+            const flash = applyFlash(loadedRequest);
+            return htmlResponse(renderEdit(row, session, flash.error));
+          })(request, params)
+      : undefined;
 
     const editPost: IdRouteHandler = (request, { id }) =>
       auth.withForm(request, async (session, form) => {
@@ -169,7 +180,9 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
           return logAndRedirect("updated", result.row, session);
         }
         if ("notFound" in result) return notFoundResponse();
-        return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
+        return cfg.renderEditError
+          ? cfg.renderEditError(id, session, form, result.error)
+          : errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
       });
 
     const confirmedDelete = createConfirmedHandlers<Row, AdminSession>({

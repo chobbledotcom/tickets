@@ -7,9 +7,9 @@
 
 /* jscpd:ignore-start */
 import {
-  type ActionDef,
   customTab,
   defineEntityPage,
+  deleteActionTab,
   type EntityPage,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
@@ -68,28 +68,13 @@ export const defineSiteContentPage = <E extends { id: number }>(
     slug: "images",
     visible: imagesVisible,
   };
-  const deleteAction: ActionDef<E> = {
-    danger: true,
-    href: (entity) => `${def.basePath(entity.id)}/delete`,
-    icon: "trash-2",
-    intent: "write-form",
-    labelKey: def.deleteLabelKey,
-  };
-  const actionsTab: TabDef<E> = {
-    intent: "write-form",
-    labelKey: "entity.tab.actions",
-    sections: [
-      {
-        actions: [deleteAction],
-        kind: "actions",
-        titleKey: "entity.tab.actions",
-      },
-    ],
-    slug: "actions",
-    // Delete is the only action, and the delete confirmation GET is itself
-    // blocked in read-only mode (READ_ONLY_GET_PATTERNS) — so hide the whole
-    // tab rather than render a link that immediately bounces to /read-only.
-  };
+  // Delete is the only action, and the delete confirmation GET is itself
+  // blocked in read-only mode (READ_ONLY_GET_PATTERNS), so the shared helper
+  // makes the whole tab write-only.
+  const actionsTab = deleteActionTab<E>(
+    def.deleteLabelKey,
+    (entity) => `${def.basePath(entity.id)}/delete`,
+  );
   return defineEntityPage({
     basePath: def.basePath,
     guard: requireSiteOr,

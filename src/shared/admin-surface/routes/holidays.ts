@@ -16,6 +16,7 @@ export const routes = [
   route("getHolidays", "holidays", "GET", "/admin/holidays"),
   route("getHolidaysNew", "holidays", "GET", "/admin/holidays/new"),
   route("postHolidays", "holidays", "POST", "/admin/holidays"),
-  route("getHolidaysByIdEdit", "holidays", "GET", "/admin/holidays/:id/edit"),
   route("postHolidaysByIdEdit", "holidays", "POST", "/admin/holidays/:id/edit"),
+  route("getHolidaysById", "holidays", "GET", "/admin/holidays/:id"),
+  route("getHolidaysByIdByTab", "holidays", "GET", "/admin/holidays/:id/:tab"),
 ] as const;

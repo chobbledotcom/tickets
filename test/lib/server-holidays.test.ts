@@ -5,9 +5,7 @@ import { getSessionCookieName } from "#shared/cookies.ts";
 import {
   expectActivityLogShows,
   expectFlash,
-  expectFlashRedirect,
   expectHtmlResponse,
-  expectStatus,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { requireJoinCsrfToken } from "#test-utils/csrf.ts";
@@ -113,15 +111,14 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         startDate: "2026-12-25",
       });
       const response = await adminGet("/admin/holidays");
-      // The name links to the edit page; delete now lives on that edit page,
-      // not inline in the list table.
+      // The name links to the holiday's tabbed entity page.
       await expectHtmlResponse(
         response,
         200,
         "Christmas",
         "2026-12-25",
         "2026-12-26",
-        `/admin/holidays/${holiday.id}/edit`,
+        `/admin/holidays/${holiday.id}`,
       );
     });
   });
@@ -241,192 +238,6 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
     });
   });
 
-  describe("GET /admin/holidays/:id/edit", () => {
-    testRequiresAuth("/admin/holidays/1/edit", {
-      setup: async () => {
-        await createTestHoliday();
-      },
-    });
-
-    test("shows edit form with pre-filled values", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2026-12-26",
-        name: "Christmas",
-        startDate: "2026-12-25",
-      });
-      const response = await adminGet(`/admin/holidays/${holiday.id}/edit`);
-      await expectHtmlResponse(
-        response,
-        200,
-        "Edit Holiday",
-        "Christmas",
-        "2026-12-25",
-        "2026-12-26",
-        // Delete moved off the list table onto the edit page.
-        `/admin/holidays/${holiday.id}/delete`,
-      );
-    });
-
-    test("returns 404 for non-existent holiday", async () => {
-      const response = await adminGet("/admin/holidays/999/edit");
-      expectStatus(404)(response);
-    });
-  });
-
-  describe("POST /admin/holidays/:id/edit", () => {
-    testRequiresAuth("/admin/holidays/1/edit", {
-      body: {
-        end_date: "2026-12-25",
-        name: "Updated",
-        start_date: "2026-12-25",
-      },
-      method: "POST",
-      setup: async () => {
-        await createTestHoliday();
-      },
-    });
-
-    test("updates holiday", async () => {
-      const holiday = await createTestHoliday({ name: "Christmas" });
-      const updated = await updateTestHoliday(holiday.id, {
-        endDate: "2026-12-27",
-      });
-      expect(updated.name).toBe("Christmas");
-      expect(updated.end_date).toBe("2026-12-27");
-    });
-
-    test("rejects end_date before start_date on edit", async () => {
-      const holiday = await createTestHoliday();
-      const { response } = await adminFormPost(
-        `/admin/holidays/${holiday.id}/edit`,
-        {
-          end_date: "2026-12-25",
-          name: "Test",
-          start_date: "2026-12-26",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("End date must be on or after the start date"),
-        false,
-      );
-    });
-
-    test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminFormPost("/admin/holidays/999/edit", {
-        end_date: "2026-12-25",
-        name: "Test",
-        start_date: "2026-12-25",
-      });
-      expectStatus(404)(response);
-    });
-
-    test("rejects invalid form data on edit", async () => {
-      const holiday = await createTestHoliday();
-      const { response } = await adminFormPost(
-        `/admin/holidays/${holiday.id}/edit`,
-        {
-          end_date: "2026-12-25",
-          name: "",
-          start_date: "2026-12-25",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Holiday Name is required"),
-        false,
-      );
-    });
-  });
-
-  describe("GET /admin/holidays/:id/delete", () => {
-    testRequiresAuth("/admin/holidays/1/delete", {
-      setup: async () => {
-        await createTestHoliday();
-      },
-    });
-
-    test("shows delete confirmation page", async () => {
-      const holiday = await createTestHoliday({ name: "Christmas" });
-      const response = await adminGet(`/admin/holidays/${holiday.id}/delete`);
-      await expectHtmlResponse(
-        response,
-        200,
-        "Delete Holiday",
-        "Christmas",
-        "confirm_identifier",
-      );
-    });
-
-    test("returns 404 for non-existent holiday", async () => {
-      const response = await adminGet("/admin/holidays/999/delete");
-      expectStatus(404)(response);
-    });
-  });
-
-  describe("POST /admin/holidays/:id/delete", () => {
-    testRequiresAuth("/admin/holidays/1/delete", {
-      body: {
-        confirm_identifier: "Test Holiday",
-      },
-      method: "POST",
-      setup: async () => {
-        await createTestHoliday();
-      },
-    });
-
-    test("deletes holiday with correct name confirmation", async () => {
-      const holiday = await createTestHoliday({ name: "To Delete" });
-      await deleteTestHoliday(holiday.id);
-
-      // Verify it's gone
-      const { holidays } = await import("#shared/db/holidays.ts");
-      const found = await holidays.table.findById(holiday.id);
-      expect(found).toBeNull();
-    });
-
-    test("rejects deletion with wrong name", async () => {
-      const holiday = await createTestHoliday({ name: "Christmas" });
-      const { response } = await adminFormPost(
-        `/admin/holidays/${holiday.id}/delete`,
-        {
-          confirm_identifier: "Wrong Name",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Holiday name does not match"),
-        false,
-      );
-
-      // Verify holiday still exists
-      const { holidays } = await import("#shared/db/holidays.ts");
-      const found = await holidays.table.findById(holiday.id);
-      expect(found).not.toBeNull();
-    });
-
-    test("name confirmation is case-insensitive", async () => {
-      const holiday = await createTestHoliday({ name: "Christmas Day" });
-      const { response } = await adminFormPost(
-        `/admin/holidays/${holiday.id}/delete`,
-        {
-          confirm_identifier: "christmas day",
-        },
-      );
-      await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-    });
-
-    test("returns 404 for non-existent holiday", async () => {
-      const { response } = await adminFormPost("/admin/holidays/999/delete", {
-        confirm_identifier: "Test",
-      });
-      expectStatus(404)(response);
-    });
-  });
-
   describe("nav link", () => {
     test("holidays link visible to owners", async () => {
       const response = await adminGet("/admin/holidays");
@@ -453,6 +264,16 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       await deleteTestHoliday(holiday.id);
       await expectActivityLogShows("Deleted Holiday", "deleted");
     });
+  });
+
+  test("updates one field without changing the others", async () => {
+    const holiday = await createTestHoliday({ name: "Christmas" });
+    const updated = await updateTestHoliday(holiday.id, {
+      endDate: "2026-12-27",
+    });
+    expect(updated.name).toBe("Christmas");
+    expect(updated.start_date).toBe(holiday.start_date);
+    expect(updated.end_date).toBe("2026-12-27");
   });
 
   describe("getActiveHolidays", () => {
@@ -500,24 +321,6 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       expect(values.name).toBe("Test");
       expect(values.start_date).toBe("2026-01-01");
       expect(values.end_date).toBe("2026-01-02");
-    });
-  });
-
-  describe("holidayErrorPage fallback", () => {
-    test("returns 404 when holiday not found during edit error", async () => {
-      const { response } = await adminFormPost("/admin/holidays/999/edit", {
-        end_date: "2026-12-25",
-        name: "",
-        start_date: "2026-12-25",
-      });
-      expectStatus(404)(response);
-    });
-
-    test("returns 404 when holiday not found during delete error", async () => {
-      const { response } = await adminFormPost("/admin/holidays/999/delete", {
-        confirm_identifier: "Wrong",
-      });
-      expectStatus(404)(response);
     });
   });
 });

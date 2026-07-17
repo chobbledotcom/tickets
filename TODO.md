@@ -138,36 +138,35 @@ generalized passes: render, fold, price, capacity, revalidate.
 
 ---
 
-## Entity pages migration — slices 2–5
+## Entity pages migration — slices 3–5
 
 *Origin: `edit-pages.md`.*
 
 **Background.** "Entity pages" is one declarative, schema-driven, tabbed
 framework (`defineEntityPage`) that replaces every hand-assembled admin "edit X"
-page. A page becomes data: tabs of typed sections (summary / form / ledger /
-activity / notes / actions / custom) rendered through an exhaustive `Record`,
-with per-tab authorization, path-segment tabs, and in-place 400-error re-render.
-Migration is deliberately gradual and hardest-first.
+page. A page becomes data: tabs of typed sections (summary / activity / actions /
+custom), with per-tab authorization, path-segment tabs, and in-place 400-error
+re-rendering. Migration is deliberately gradual and hardest-first.
 
-**Already shipped (slice 1, PRs #1500, #1502, #1503) — do not redo:**
+**Already shipped — do not redo:**
 - Framework: `src/shared/entity-pages/core.ts`, `src/features/admin/
   entity-pages.ts`, `src/ui/templates/admin/entity-pages.tsx`.
-- Attendees fully migrated onto it: `src/features/admin/attendee-page.ts`
-  (the only current caller of `defineEntityPage`); legacy attendee action URLs
-  removed; tabs left-aligned, section-panel grouping added.
+- Attendees: `src/features/admin/attendee-page.ts` (slice 1, PRs #1500, #1502,
+  #1503).
+- Listings: `src/features/admin/listing-page.ts` (slice 2).
+- Groups: `src/features/admin/group-page.ts` (part of slice 4).
+- Holidays: `src/features/admin/holiday-page.ts` (part of slice 4).
+- Site pages and news also use the framework through
+  `src/features/admin/site-content-page.ts`.
 
 **Remaining slices (each is roughly one PR; keep them small):**
 
-- **Slice 2 — Listings.** Collapse the separate listing detail + edit pages into
-  one entity page. `src/features/admin/listings*.ts` and
-  `src/ui/templates/admin/listings.tsx` do NOT yet use `defineEntityPage`. This
-  is the second copy of the tab/section composition, so it's the natural next
-  proof after attendees.
 - **Slice 3 — Modifiers.** The third copy of the composition
   (`src/features/admin/modifiers.ts`). Migrating it validates the framework
   generalizes.
-- **Slice 4 — the long tail.** Groups, users, questions, built-sites,
-  attendee-statuses, holidays, and `history/:hmac` — one small PR each.
+- **Slice 4 — the long tail.** Users, questions, built-sites,
+  attendee-statuses, and `history/:hmac` remain — one focused PR each. Groups
+  and holidays are complete.
 - **Slice 5 — generalize `system_notes`** from attendee-only to
   `(entity_type, entity_id)` so any entity page can carry a notes section. The
   notes DB module currently has no `entity_type` column; this is a small
