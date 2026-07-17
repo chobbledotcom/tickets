@@ -1,11 +1,12 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type {
   AttributeOption,
   AttributeWithOptions,
 } from "#shared/db/attributes.ts";
+import { settings } from "#shared/db/settings.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -17,6 +18,7 @@ import {
 } from "#templates/admin/attributes.tsx";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 const SESSION = { adminLevel: "owner" as const };
 const ATTRIBUTE: AttributeWithOptions = {
@@ -60,7 +62,12 @@ const NO_LISTINGS_TEXT = "No listings have this attribute set yet.";
 
 beforeAll(async () => {
   setupTestEncryptionKey();
+  settings.setForTest(featureSetting("attributes"));
   await signCsrfToken();
+});
+
+afterAll(() => {
+  settings.clearTestOverride("enabled_features");
 });
 
 describe("attributeNameFlat", () => {

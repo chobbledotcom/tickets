@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
-  addQueryLogEntry,
   countDatabaseRoundTrip,
   enableFooterDebug,
   enableQueryLog,
@@ -10,13 +9,12 @@ import {
   getQueryLog,
   getQueryLogStartTime,
   isFooterDebugEnabled,
-  isQueryLogEnabled,
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
   sqlWallClockMs,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
-  trackQuery,
+  trackSql,
 } from "#shared/db/query-log.ts";
 // Importing logger eagerly also preloads it, so the dynamic
 // `import("#shared/logger.ts")` in the N+1 guard and the SQL system-log
@@ -26,57 +24,11 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
 
 describe("query-log", () => {
-  describe("enableQueryLog", () => {
-    test("starts disabled", async () => {
-      await runWithQueryLogContext(async () => {
-        expect(isQueryLogEnabled()).toBe(false);
-      });
-    });
-
-    test("enableQueryLog enables tracking", async () => {
-      await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        expect(isQueryLogEnabled()).toBe(true);
-      });
-    });
-  });
-
-  describe("addQueryLogEntry", () => {
-    test("records entries when enabled", async () => {
-      await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.5, 100);
-        addQueryLogEntry("SELECT 2", 2.3, 200);
-        const log = getQueryLog();
-        expect(log).toHaveLength(2);
-        expect(log[0]!.sql).toBe("SELECT 1");
-        expect(log[0]!.durationMs).toBe(1.5);
-        expect(log[1]!.sql).toBe("SELECT 2");
-        expect(log[1]!.durationMs).toBe(2.3);
-      });
-    });
-
-    test("records the query start time for wall-clock math", async () => {
-      await runWithQueryLogContext(async () => {
-        enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.5, 100);
-        expect(getQueryLog()[0]!.startedAtMs).toBe(100);
-      });
-    });
-
-    test("ignores entries when disabled", async () => {
-      await runWithQueryLogContext(async () => {
-        addQueryLogEntry("SELECT 1", 1.0, 0);
-        expect(getQueryLog()).toHaveLength(0);
-      });
-    });
-  });
-
   describe("enableQueryLog resets previous entries", () => {
     test("clears log on enable", async () => {
       await runWithQueryLogContext(async () => {
         enableQueryLog();
-        addQueryLogEntry("SELECT old", 1.0, 0);
+        await trackSql("SELECT old", () => Promise.resolve());
         expect(getQueryLog()).toHaveLength(1);
 
         enableQueryLog();
@@ -89,9 +41,9 @@ describe("query-log", () => {
     test("returned array is independent of internal state", async () => {
       await runWithQueryLogContext(async () => {
         enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.0, 0);
+        await trackSql("SELECT 1", () => Promise.resolve());
         const snapshot = getQueryLog();
-        addQueryLogEntry("SELECT 2", 2.0, 1);
+        await trackSql("SELECT 2", () => Promise.resolve());
         expect(snapshot).toHaveLength(1);
         expect(getQueryLog()).toHaveLength(2);
       });
@@ -202,12 +154,12 @@ describe("query-log", () => {
     });
   });
 
-  describe("trackQuery recording", () => {
+  describe("trackSql recording", () => {
     test("records duration and start time when logging is enabled", async () => {
       await runWithQueryLogContext(async () => {
         enableQueryLog();
         const before = performance.now();
-        await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+        await trackSql("SELECT 1", () => Promise.resolve("ok"));
         const after = performance.now();
         const [logged] = getQueryLog();
         expect(logged!.sql).toBe("SELECT 1");
@@ -225,7 +177,7 @@ describe("query-log", () => {
         enableQueryLog();
         const nowStub = stub(performance, "now", returnsNext([1000, 1005]));
         try {
-          await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+          await trackSql("SELECT 1", () => Promise.resolve("ok"));
         } finally {
           nowStub.restore();
         }
@@ -256,7 +208,7 @@ describe("query-log", () => {
 
     test("mirrors a completed statement, omitting bound values", async () => {
       const logs = await captureSqlLogs(() =>
-        trackQuery("SELECT name FROM users WHERE id = ?", () =>
+        trackSql("SELECT name FROM users WHERE id = ?", () =>
           Promise.resolve("ok"),
         ),
       );
@@ -269,7 +221,7 @@ describe("query-log", () => {
 
     test("collapses whitespace so a multi-line statement logs on one line", async () => {
       const logs = await captureSqlLogs(() =>
-        trackQuery("SELECT\n  id\nFROM   users", () => Promise.resolve("ok")),
+        trackSql("SELECT\n  id\nFROM   users", () => Promise.resolve("ok")),
       );
       expect(
         logs.some((line) => line.includes("[SQL] SELECT id FROM users")),
@@ -284,7 +236,7 @@ describe("query-log", () => {
     const readSelectOne = async (count: number): Promise<unknown> => {
       let last: unknown;
       for (let i = 0; i < count; i++) {
-        last = await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+        last = await trackSql("SELECT 1", () => Promise.resolve("ok"));
       }
       return last;
     };
@@ -298,10 +250,10 @@ describe("query-log", () => {
     test("throws when the same read crosses the threshold", async () => {
       await runWithQueryLogContext(async () => {
         for (let i = 0; i < N_PLUS_ONE_THRESHOLD; i++) {
-          await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+          await trackSql("SELECT 1", () => Promise.resolve("ok"));
         }
         await expect(
-          trackQuery("SELECT 1", () => Promise.resolve("ok")),
+          trackSql("SELECT 1", () => Promise.resolve("ok")),
         ).rejects.toThrow(/N\+1 query detected/);
       });
     });
@@ -310,7 +262,7 @@ describe("query-log", () => {
       await runWithQueryLogContext(async () => {
         let last: unknown;
         for (let i = 0; i < N_PLUS_ONE_THRESHOLD * 2; i++) {
-          last = await trackQuery("INSERT INTO t (id) VALUES (?)", () =>
+          last = await trackSql("INSERT INTO t (id) VALUES (?)", () =>
             Promise.resolve("ok"),
           );
         }
@@ -322,8 +274,8 @@ describe("query-log", () => {
       await runWithQueryLogContext(async () => {
         let last: unknown;
         for (let i = 0; i < N_PLUS_ONE_THRESHOLD; i++) {
-          await trackQuery("SELECT a", () => Promise.resolve("a"));
-          last = await trackQuery("SELECT b", () => Promise.resolve("b"));
+          await trackSql("SELECT a", () => Promise.resolve("a"));
+          last = await trackSql("SELECT b", () => Promise.resolve("b"));
         }
         expect(last).toBe("b");
       });

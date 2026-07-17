@@ -1,0 +1,6 @@
+{
+  "admin.calendar.title": "Calendar",
+  "admin.calendar.export_csv": "Export CSV",
+  "admin.calendar.no_attendees": "No attendees for this date",
+  "admin.calendar.select_date_prompt": "Select a date above to view attendees"
+}

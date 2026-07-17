@@ -58,11 +58,6 @@ import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   type CalcKind,
-  isCalcKind,
-  isModifierDirection,
-  isModifierScope,
-  isModifierTrigger,
-  type ModifierDirection,
   type ModifierScope,
   type ModifierTrigger,
   normalizeCode,
@@ -82,9 +77,9 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import { modifierAggregateFields } from "#templates/fields/aggregate.ts";
+import { getModifierAggregateFields } from "#templates/fields/aggregate.ts";
 import {
-  getModifierFields,
+  getModifierForm,
   type ModifierFormValues,
 } from "#templates/fields/modifier.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
@@ -102,17 +97,17 @@ const extractModifierInput = async (
   const code = values.trigger === "code" ? values.code.trim() : "";
   return {
     active: values.active === "1",
-    calcKind: values.calc_kind as CalcKind,
+    calcKind: values.calc_kind,
     calcValue: values.calc_value,
     code,
     codeIndex: code ? await hmacHash(normalizeCode(code)) : null,
-    direction: values.direction as ModifierDirection,
+    direction: values.direction,
     minSubtotal: toMinorUnits(values.min_subtotal),
     minVisits: values.min_visits,
     name: values.name,
-    scope: values.scope as ModifierScope,
+    scope: values.scope,
     stock: values.stock,
-    trigger: values.trigger as ModifierTrigger,
+    trigger: values.trigger,
   };
 };
 
@@ -234,28 +229,16 @@ const modifierValueError = (kind: CalcKind, value: number): string | null => {
     : null;
 };
 
-/** Validate a modifier's kind, direction, trigger, scope, and value (the select
- * options can be bypassed by a crafted POST, so re-check membership here), then
- * — when the parents feature is on — block an opt-in add-on whose would-be scope
- * is reachable only through a suppressed child listing. */
+/** Validate rules that span multiple modifier fields, then — when the parents
+ * feature is on — block an opt-in add-on whose would-be scope is reachable only
+ * through a suppressed child listing. Choice membership is enforced by the form
+ * schema before this input is built. */
 const validateModifier = (
   input: ModifierInput,
   id?: number,
 ): Promise<string | null> => {
-  if (!isCalcKind(input.calcKind)) {
-    return Promise.resolve("Invalid modifier type");
-  }
-  if (!isModifierDirection(input.direction)) {
-    return Promise.resolve("Invalid direction");
-  }
-  if (input.trigger !== undefined && !isModifierTrigger(input.trigger)) {
-    return Promise.resolve("Invalid trigger");
-  }
   if (input.trigger === "code" && !input.code) {
     return Promise.resolve("A promo-code modifier needs a code");
-  }
-  if (input.scope !== undefined && !isModifierScope(input.scope)) {
-    return Promise.resolve("Invalid scope");
   }
   if (
     input.minVisits !== undefined &&
@@ -273,21 +256,17 @@ const validateModifier = (
   return childAddOnInputError(input, id);
 };
 
-/** The kind-aware `calc_value` check, run on the raw form values (where the
- * chosen `calc_kind` sits beside the value) before they are converted to a
- * {@link ModifierInput}. A crafted POST can still send an unknown kind, so the
- * bounds are skipped for one — {@link validateModifier} rejects it by name. */
+/** The kind-aware `calc_value` check, run on the validated form values before
+ * they are converted to a {@link ModifierInput}. */
 const modifierValuesError = (values: ModifierFormValues): string | null =>
-  isCalcKind(values.calc_kind)
-    ? modifierValueError(values.calc_kind, values.calc_value)
-    : null;
+  modifierValueError(values.calc_kind, values.calc_value);
 
-// Built lazily on first use (never at module load), so `getModifierFields()` —
+// Built lazily on first use (never at module load), so `getModifierForm()` —
 // whose picklist option labels resolve through `t()` — stays off the admin
 // routes' cold-start path. `once` caches the resource after the first build.
 const getModifiersResource = once(() =>
   defineNamedResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
-    fields: getModifierFields(),
+    form: getModifierForm(),
     nameField: "name",
     table: modifiersTable,
     toInput: extractModifierInput,
@@ -407,7 +386,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     const aggregates = parseEditableAggregateForm<
       ModifierAggregateValues,
       ModifierAggregateValues
-    >(form, modifierAggregateFields, extractModifierAggregateValues);
+    >(form, getModifierAggregateFields(), extractModifierAggregateValues);
     if (!aggregates.ok) {
       return errorRedirect(`/admin/modifiers/${id}/edit`, aggregates.error);
     }

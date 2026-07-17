@@ -1,8 +1,8 @@
 /**
  * Config-driven form for a one-yes/no-toggle boolean settings section.
  *
- * Several settings sections (show public site, show public API, external-order
- * library) differ only by action, title, description, field name, and the
+ * Several settings sections (show public API and the external-order library)
+ * differ only by action, title, description, field name, and the
  * state selector that flips the boolean — every other line is the same
  * `SettingsSection` + `YesNoRadios` scaffold. Declaring those four facts lets
  * the shared scaffold own the markup so a new boolean toggle is one config

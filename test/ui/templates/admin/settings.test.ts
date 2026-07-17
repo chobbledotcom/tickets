@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
@@ -13,6 +14,7 @@ import { validEmail } from "#test-utils/email.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
+const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -25,9 +27,9 @@ const defaultState = (): SettingsPageState => ({
   calendarFeedsEnabled: false,
   calendarFeedsGroupBy: "attendees",
   embedHosts: "",
+  enabledFeatures: DEFAULT_ENABLED_FEATURES,
   headerImageUrl: "",
   paymentProvider: "",
-  showPublicSite: false,
   squareSandbox: false,
   squareTokenConfigured: false,
   squareWebhookConfigured: false,

@@ -18,16 +18,33 @@ export const aggregateIntegerField = (name: string, label: string): Field => ({
   validate: validateNonNegativeInteger(label),
 });
 
-export const listingAggregateFields: Field[] = [
-  aggregateIntegerField("booked_quantity", t("fields.listing.booked_quantity")),
-  aggregateIntegerField("tickets_count", t("fields.listing.tickets_count")),
-];
+type AggregateFieldSpec = {
+  labelKey: string;
+  name: string;
+};
 
-export const modifierAggregateFields: Field[] = [
-  aggregateIntegerField("total_uses", t("fields.modifier.total_uses")),
-  aggregateIntegerField("usage_count", t("fields.modifier.usage_count")),
-];
+const buildAggregateFields = (specs: readonly AggregateFieldSpec[]): Field[] =>
+  specs.map(({ labelKey, name }) => aggregateIntegerField(name, t(labelKey)));
 
-export const answerAggregateFields: Field[] = [
-  aggregateIntegerField("times_selected", t("fields.answer.times_selected")),
-];
+const LISTING_AGGREGATE_FIELDS = [
+  { labelKey: "fields.listing.booked_quantity", name: "booked_quantity" },
+  { labelKey: "fields.listing.tickets_count", name: "tickets_count" },
+] as const satisfies readonly AggregateFieldSpec[];
+
+const MODIFIER_AGGREGATE_FIELDS = [
+  { labelKey: "fields.modifier.total_uses", name: "total_uses" },
+  { labelKey: "fields.modifier.usage_count", name: "usage_count" },
+] as const satisfies readonly AggregateFieldSpec[];
+
+const ANSWER_AGGREGATE_FIELDS = [
+  { labelKey: "fields.answer.times_selected", name: "times_selected" },
+] as const satisfies readonly AggregateFieldSpec[];
+
+export const getListingAggregateFields = (): Field[] =>
+  buildAggregateFields(LISTING_AGGREGATE_FIELDS);
+
+export const getModifierAggregateFields = (): Field[] =>
+  buildAggregateFields(MODIFIER_AGGREGATE_FIELDS);
+
+export const getAnswerAggregateFields = (): Field[] =>
+  buildAggregateFields(ANSWER_AGGREGATE_FIELDS);

@@ -194,7 +194,8 @@ const handleServicingNewPost: TypedRouteHandler<"POST /admin/servicing/new"> = (
 ) =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
     try {
-      const event = await createServicingEvent(await parseCreateInput(form));
+      const input = await parseCreateInput(form);
+      const event = await createServicingEvent(input);
       return redirect(
         `/admin/servicing/${event.id}`,
         t("servicing.success.created", { name: event.name }),
@@ -232,7 +233,10 @@ const handleServicingPost: TypedRouteHandler<"POST /admin/servicing/:id"> =
     if (costResponse) return costResponse;
     return redirectServicingResult(
       id,
-      async () => updateServicingEvent(id, await parseCreateInput(form)),
+      async () => {
+        const input = await parseCreateInput(form);
+        return updateServicingEvent(id, input);
+      },
       (updated) => t("servicing.success.updated", { name: updated.name }),
     );
   });
@@ -247,7 +251,7 @@ const handleServicingDuplicatePost: TypedRouteHandler<"POST /admin/servicing/:id
   servicingFormHandler((_event, _session, _form, _request, { id }) =>
     redirectServicingResult(
       id,
-      () => duplicateServicingEvent(id),
+      async () => duplicateServicingEvent(id),
       (copy) => t("servicing.success.duplicated", { name: copy.name }),
     ),
   );

@@ -19,6 +19,7 @@ import {
   adminAccountStatementPage,
 } from "#templates/admin/ledger/statement.tsx";
 import { withEnv } from "#test-utils/env.ts";
+import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
 import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
 
@@ -214,6 +215,7 @@ describe("AccountStatementSection", () => {
 
 describe("adminAccountStatementPage", () => {
   beforeAll(setUpLedgerPageCrypto);
+  useSetting(featureSetting("money"));
 
   const acct = account("attendee", 7);
 

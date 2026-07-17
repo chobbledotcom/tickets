@@ -1,6 +1,6 @@
 import { t } from "#i18n";
 import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
-import { booleanToCheckbox, CsrfForm, renderFields } from "#shared/forms.tsx";
+import { booleanToCheckbox, CsrfForm } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SiteSecretsView } from "#shared/site-secrets.ts";
 import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
@@ -29,7 +29,7 @@ import {
   SaveChangesButton,
 } from "#templates/components/actions.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
-import { getBuiltSiteFields } from "#templates/fields/admin.ts";
+import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 
 export const adminBuiltSitesPage = (
   sites: BuiltSite[],
@@ -81,7 +81,7 @@ export const adminBuiltSiteNewPage = flashFormPage(
   () => (
     <NewResourceForm
       action="/admin/built-sites"
-      fieldsHtml={renderFields(getBuiltSiteFields())}
+      fieldsHtml={getBuiltSiteForm().render()}
       submitLabel={t("built_sites.create_built_site_button")}
       title={t("built_sites.add_site_title")}
     />
@@ -107,12 +107,7 @@ export const adminBuiltSiteEditPage = (
           success={success}
           title={t("built_sites.edit_site_title")}
         />
-        <Raw
-          html={renderFields(
-            getBuiltSiteFields(),
-            builtSiteToFieldValues(site),
-          )}
-        />
+        <Raw html={getBuiltSiteForm().render(builtSiteToFieldValues(site))} />
         {SaveChangesButton()}
       </CsrfForm>
 

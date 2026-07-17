@@ -42,7 +42,7 @@ export type ListingInput = {
   webhookUrl?: string;
   active?: boolean;
   fields?: ListingFields;
-  closesAt?: string | undefined;
+  closesAt?: string | null;
   listingType?: ListingType;
   bookableDays?: string[] | undefined;
   minimumDaysBefore?: number;

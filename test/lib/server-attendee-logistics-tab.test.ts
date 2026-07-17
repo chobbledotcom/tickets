@@ -32,6 +32,7 @@ import {
 } from "#test-utils/logistics-tab.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
+import { featureSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("attendee Logistics tab (GET)", { db: true }, () => {
   test("renders the address form, pin inputs, and a hidden map when unpinned", async () => {
@@ -184,7 +185,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
   });
 
   test("stored assignments survive a save while the selectors are not shown", async () => {
-    settings.setForTest({ has_logistics: true });
+    settings.setForTest(featureSetting("logistics"));
     const listing = await createTestListing({ maxAttendees: 10 });
     await listingsTable.update(listing.id, { usesLogistics: true });
     const id = await makeAttendee("Keep Legs", [{ listingId: listing.id }]);

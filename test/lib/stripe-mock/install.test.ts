@@ -209,7 +209,7 @@ describe("stripe-mock install", () => {
           await expectStripeMockFails({
             delayMs: 10,
             installLockRetryMs: 5,
-            installLockTimeoutMs: 500,
+            installLockTimeoutMs: 5_000,
             maxAttempts: 3,
             paths,
           });
@@ -245,7 +245,7 @@ describe("stripe-mock install", () => {
                 delayMs: 10,
                 installLockRetryMs: 5,
                 installLockStaleMs: 500,
-                installLockTimeoutMs: 500,
+                installLockTimeoutMs: 5_000,
                 maxAttempts: 3,
                 paths,
               });

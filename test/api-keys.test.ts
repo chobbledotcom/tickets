@@ -6,6 +6,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
 import { apiKeyLimiter } from "#shared/db/api-key-attempts.ts";
 import {
   createApiKey,
@@ -42,6 +43,10 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import {
+  storedFeatureEnabled,
+  withFeatureWriteFailure,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("API Keys", { db: true }, () => {
   /** POST `fields` to an `/admin/api-keys…` path with a fresh CSRF token +
@@ -247,6 +252,23 @@ describeWithEnv("API Keys", { db: true }, () => {
       const html = await redirectResponse.text();
       expect(html).toContain("API key created");
       expect(html).toContain("Copy your API key now");
+      expect(await storedFeatureEnabled("apiKeys")).toBe(true);
+    });
+
+    test("does not create a key when enabling the feature fails", async () => {
+      await setAdminFeatureEnabled("apiKeys", false);
+      await withFeatureWriteFailure(async () => {
+        const response = await postApiKeyForm("/admin/api-keys", {
+          name: "Unrecoverable key",
+        });
+        expectFlash(
+          response,
+          "SQLITE_CONSTRAINT: feature enable failed",
+          false,
+        );
+        expect(await getApiKeysForUser(1)).toEqual([]);
+        expect(await storedFeatureEnabled("apiKeys")).toBe(false);
+      });
     });
 
     test("POST /admin/api-keys rejects empty name", async () => {

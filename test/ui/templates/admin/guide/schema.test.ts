@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
-// guide.json is loaded lazily at runtime (see src/locales/en/guide.ts), so it
-// is not in the eager `en` merge; merge it back for these schema checks.
-import guide from "#locales/en/guide.json" with { type: "json" };
-import en from "#locales/en/index.ts";
+import { GUIDE_MESSAGE_GROUPS } from "#locales/manifest.ts";
 import type { GuideSection } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
+import { allEnglishMessages } from "#test-utils/i18n.ts";
+
+const en = await allEnglishMessages(GUIDE_MESSAGE_GROUPS);
 
 /**
  * The admin guide is authored as data (a flat list of sections, each with a
@@ -25,8 +25,6 @@ import { guideSections } from "#templates/admin/guide.tsx";
  * `builderEnabled` is set so the conditionally-included Built Sites section is
  * covered too.
  */
-const messages = { ...en, ...(guide as Record<string, string>) };
-
 const allSections = (): GuideSection[] =>
   guideSections({
     builderEnabled: true,
@@ -41,7 +39,7 @@ describe("guide schema", () => {
   test("every heading, question and answer resolves to a locale key", () => {
     const missing: string[] = [];
     const require = (key: string): void => {
-      if (!(key in messages)) missing.push(key);
+      if (!(key in en)) missing.push(key);
     };
 
     for (const section of allSections()) {

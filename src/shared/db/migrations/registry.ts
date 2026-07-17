@@ -336,10 +336,21 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-12_remove_broken_image_records",
     () => import("./2026-07-12_remove_broken_image_records.ts"),
   ),
+  // Replace the old logistics switch with one plain feature-visibility map,
+  // enabling entries that already have saved records.
+  entry(
+    "2026-07-15_enabled_features",
+    () => import("./2026-07-15_enabled_features.ts"),
+  ),
   // Keep every attendee status reference tied to a live status row.
   entry(
     "2026-07-15_attendee_status_integrity",
     () => import("./2026-07-15_attendee_status_integrity.ts"),
+  ),
+  // Add dormant checkout stage storage and its revision counter.
+  entry(
+    "2026-07-15_checkout_stages",
+    () => import("./2026-07-15_checkout_stages.ts"),
   ),
 ];
 /* jscpd:ignore-end */

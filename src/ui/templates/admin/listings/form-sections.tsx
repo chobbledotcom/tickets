@@ -1,10 +1,10 @@
 /* jscpd:ignore-start */
-import { map, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
-import { type Field, type FieldValues, renderFields } from "#shared/forms.tsx";
+import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
+import type { FieldValues } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
@@ -15,14 +15,10 @@ import {
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
 import {
-  getAssignBuiltSiteField,
-  getAttachmentField,
-  getInitialSiteMonthsField,
-  getListingFields,
-  getMonthsPerUnitField,
-  logisticsField,
+  getListingEditForm,
+  getListingForm,
+  type ListingFormView,
 } from "#templates/fields/listing.ts";
-import { getSlugField } from "#templates/fields/validators.ts";
 import {
   renderDayPricesFieldset,
   showUseDefaultsToggle,
@@ -30,44 +26,15 @@ import {
 
 /* jscpd:ignore-end */
 
-const fieldsWithNameFocus = (): Field[] =>
-  pipe(
-    map(
-      (field: Field): Field =>
-        field.name === "name" ? { ...field, autofocus: true } : field,
-    ),
-  )(getListingFields());
-
-const fieldsForRole = (session: AdminSession, fields: Field[]): Field[] =>
-  session.adminLevel === "editor"
-    ? fields.filter((field) => field.name !== "webhook_url")
-    : fields;
-
 type ListingFieldsOptions = { includeSlug?: boolean; nameAutofocus?: boolean };
-
-export const listingFieldsFor = (
-  session: AdminSession,
-  opts: ListingFieldsOptions = {},
-): Field[] => [
-  ...fieldsForRole(
-    session,
-    opts.nameAutofocus ? fieldsWithNameFocus() : getListingFields(),
-  ),
-  ...(settings.hasLogistics ? [logisticsField] : []),
-  ...(isBuilderEnabled()
-    ? [
-        getMonthsPerUnitField(),
-        getInitialSiteMonthsField(),
-        getAssignBuiltSiteField(),
-      ]
-    : []),
-  ...(isStorageEnabled() ? [getAttachmentField()] : []),
-  ...(opts.includeSlug ? [getSlugField()] : []),
-];
 
 const ALL_BOOKABLE_DAYS = VALID_DAY_NAMES.join(",");
 
-export const TEMPLATE_SEEDS: Record<string, FieldValues> = {
+type ListingRenderValues = FormRenderValuesFor<
+  ReturnType<typeof getListingForm>["fields"]
+>;
+
+export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
   "hireable-item": {
     bookable_days: ALL_BOOKABLE_DAYS,
     duration_days: "1",
@@ -102,47 +69,11 @@ export const TEMPLATE_SEEDS: Record<string, FieldValues> = {
   },
 };
 
-const BASICS_FIELDS = [
-  "name",
-  "listing_type",
-  "description",
-  "date",
-  "location",
-  "attachment",
-] as const;
-
-const TICKET_FIELDS = [
-  "max_attendees",
-  "max_quantity",
-  "closes_at",
-  "unit_price",
-  "can_pay_more",
-  "max_price",
-] as const;
-
-const DAILY_FIELDS = [
-  "bookable_days",
-  "minimum_days_before",
-  "maximum_days_after",
-] as const;
-
-const OPTION_FIELDS = [
-  "fields",
-  "non_transferable",
-  "purchase_only",
-  "bookable_alone",
-  "uses_logistics",
-  "hidden",
-] as const;
-
-const ADVANCED_FIELDS = [
-  "thank_you_url",
-  "webhook_url",
-  "months_per_unit",
-  "initial_site_months",
-  "assign_built_site",
-  "slug",
-] as const;
+type ListingSectionId = ReturnType<typeof getListingForm>["sections"][number];
+type ListingSectionRenderer = (
+  id: ListingSectionId,
+  values: FieldValues,
+) => string;
 
 const ChildNote = ({ note }: { note: string }): JSX.Element | null =>
   note ? <p class="muted small">{note}</p> : null;
@@ -182,7 +113,7 @@ export const DurationWarning = ({
 );
 
 export const ListingFormSections = ({
-  fields,
+  renderSection,
   values,
   groups,
   selectedGroupIds,
@@ -195,7 +126,7 @@ export const ListingFormSections = ({
   showUseDefaults = false,
   useDefaultsChecked = false,
 }: {
-  fields: Field[];
+  renderSection: ListingSectionRenderer;
   values: FieldValues;
   groups: Group[];
   selectedGroupIds: number[];
@@ -208,23 +139,17 @@ export const ListingFormSections = ({
   showUseDefaults?: boolean;
   useDefaultsChecked?: boolean;
 }): JSX.Element => {
-  const fieldMap = new Map<string, Field>(
-    fields.map((field) => [field.name, field]),
-  );
-  const sectionFields = (names: readonly string[]): string =>
-    renderFields(
-      mapNotNullish((name: string) => fieldMap.get(name))(names),
-      values,
-    );
+  const sectionFields = (id: ListingSectionId): string =>
+    renderSection(id, values);
   // A section body that opens with the child note, then the given fields, then
   // any extra content after them.
   const childNoteFields = (
-    names: readonly string[],
+    id: ListingSectionId,
     after?: JSX.Element,
   ): JSX.Element => (
     <>
       <ChildNote note={childOfNote} />
-      <Raw html={sectionFields(names)} />
+      <Raw html={sectionFields(id)} />
       {after}
     </>
   );
@@ -232,7 +157,7 @@ export const ListingFormSections = ({
     {
       children: (
         <>
-          <Raw html={sectionFields(BASICS_FIELDS)} />
+          <Raw html={sectionFields("basics")} />
           <ListingGroupSelect
             groups={groups}
             selectedGroupIds={selectedGroupIds}
@@ -242,27 +167,27 @@ export const ListingFormSections = ({
       legend: t("listings_table.basics"),
     },
     {
-      children: <Raw html={sectionFields(TICKET_FIELDS)} />,
+      children: <Raw html={sectionFields("tickets")} />,
       legend: t("listings_table.tickets_pricing"),
     },
     {
-      children: childNoteFields(DAILY_FIELDS),
+      children: childNoteFields("daily"),
       className: "listing-section listing-section--daily",
       legend: t("listings_table.daily_scheduling"),
     },
     {
       children: childNoteFields(
-        ["duration_days"],
+        "duration",
         <>
           {durationWarning && <Raw html={durationWarning} />}
-          <Raw html={sectionFields(["customisable_days"])} />
+          <Raw html={sectionFields("customisable")} />
           <Raw html={renderDayPricesFieldset(dayPricesListing)} />
         </>,
       ),
       legend: t("listings_table.booking_duration_day_prices"),
     },
     {
-      children: <Raw html={sectionFields(OPTION_FIELDS)} />,
+      children: <Raw html={sectionFields("options")} />,
       legend: t("listings_table.options_visibility"),
     },
   ];
@@ -310,7 +235,7 @@ export const ListingFormSections = ({
         open={advancedOpen}
         summary={t("listings_table.advanced_settings")}
       >
-        <Raw html={sectionFields(ADVANCED_FIELDS)} />
+        <Raw html={sectionFields("advanced")} />
       </StackDetails>
     </>
   );
@@ -318,7 +243,11 @@ export const ListingFormSections = ({
 
 type ListingFormPageProps = Omit<
   Parameters<typeof ListingFormSections>[0],
-  "fields" | "groups" | "isTemplated" | "selectedGroupIds" | "showUseDefaults"
+  | "groups"
+  | "isTemplated"
+  | "renderSection"
+  | "selectedGroupIds"
+  | "showUseDefaults"
 >;
 
 export const listingFormPageState = (
@@ -334,15 +263,24 @@ export const listingFormPageState = (
 } => {
   const defaults = settings.listingDefaults;
   const showUseDefaults = showUseDefaultsToggle(session, defaults);
-  const formFields = listingFieldsFor(session, fields);
+  const view: ListingFormView = {
+    builder: isBuilderEnabled(),
+    logistics: settings.features.logistics,
+    ...(fields.nameAutofocus ? { nameAutofocus: true } : {}),
+    storage: isStorageEnabled(),
+    webhook: session.adminLevel !== "editor",
+  };
+  const renderSection: ListingSectionRenderer = fields.includeSlug
+    ? (id, values) => getListingEditForm(view).section(id, values)
+    : (id, values) => getListingForm(view).section(id, values);
   return {
     defaults,
     formSections: (props) => (
       <ListingFormSections
         {...props}
-        fields={formFields}
         groups={groups}
         isTemplated={isTemplated}
+        renderSection={renderSection}
         selectedGroupIds={selectedGroupIds}
         showUseDefaults={showUseDefaults}
       />

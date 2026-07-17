@@ -63,7 +63,20 @@ src/shared/accounting/rows.ts:262:58  ?? → ||   # selectById (await …)[0]: T
 src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
+src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
+src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
+src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
+src/shared/db/admin-features.ts:76:49  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
+src/shared/db/admin-features.ts:113:13  === → ==   # BooleanJsonField.write returns string|null and cannot return undefined
+src/shared/db/admin-features.ts:128:13  === → ==   # queryOnePrimary returns a row or null, never undefined
+src/shared/db/admin-features.ts:150:10  === → ==   # current is string|null and cannot be undefined
+src/shared/db/admin-features.ts:172:29  !== → !=   # nextEncrypted is string|null and cannot be undefined
+src/shared/db/admin-features.ts:208:29  !== → !=   # nextEncrypted is string|null and cannot be undefined
+src/shared/db/admin-features.ts:208:60  !== → !=   # nextPlain is string|null and cannot be undefined
+src/shared/db/settings/json-field.ts:88:15  === → ==   # the transaction returns string|null and cannot return undefined
+src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
 
 # Collection cache generation values are only compared for equality. Their
 # absolute value and direction do not matter: every invalidation changes the
@@ -929,8 +942,12 @@ src/shared/dates.ts:432:30  1 → 0    # bookedRangeLabel's `fallbackDurationDay
 
 # Admin segment dispatch (admin/index.ts) — two provably-equivalent survivors
 # from the routeAdmin/adminPathSegment run over the manifest + footer suites.
-src/features/admin/index.ts:257:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
-src/features/admin/index.ts:299:55  return null → return undefined   # routeAdmin's only consumer folds the result with `?? notFoundResponse()` (features/index.ts routeMainApp), and ?? treats null and undefined identically
+src/features/admin/index.ts:28:21  ?? → ||   # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/features/admin/index.ts:45:43  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
+
+# App prefix dispatch (app/routes.ts) — two provably-equivalent survivors.
+src/features/app/routes.ts:239:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
+src/features/app/routes.ts:444:59  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
 
 # Logger (logger.ts) — two provably-equivalent survivors from the run over the
 # logger suites.
@@ -956,17 +973,16 @@ scripts/unit-tests-report-imports.ts:135:23   → "mutated"   # stem()'s first r
 src/shared/db/attendees/select.ts:289:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
 src/shared/db/attendees/select.ts:383:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
-# i18n (shared/i18n.ts) — five provably-equivalent survivors.
+# i18n (shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
 # compiled by IntlMessageFormat; both produce identical output for a
 # placeholder-free message (locked by the "fast path renders every
 # placeholder-free message exactly as full ICU would" test), so a mutant that
 # makes needsIcu always-true is a pure performance change with no observable effect.
-src/shared/i18n.ts:160:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
-src/shared/i18n.ts:160:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
-src/shared/i18n.ts:166:37  ?? → ||   # resolveMessage `locales[locale]?.[key] ?? locales.en?.[key]`: `??` and `||` differ only if the left side is "" (falsy but not nullish). No catalog message is "" (verified: 0 empty values), and only "en" is ever registered so left and right are the same object anyway — the left is a non-empty string or undefined on every reachable input, where `??` and `||` agree
-src/shared/i18n.ts:105:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
-src/shared/i18n.ts:240:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts:237:16  { → ""   # needsIcu `msg.includes("{")` → `includes("")`: `includes("")` is always true, so needsIcu returns true for every message and all copy is routed through ICU. ICU output equals the fast-path string for plain copy, so no input changes t()'s output — only whether a formatter is built
+src/shared/i18n.ts:237:37  ' → ""   # needsIcu `msg.includes("'")` → `includes("")`: same as above — always-true makes every message use ICU, which is output-identical to the fast path; unobservable
+src/shared/i18n.ts:180:19   → "mutated"   # buildReplacer `const [from = ""` default: `pair.split("|")` always returns at least one element, so element 0 (`from`) is always present and the default is never used — dead code, unobservable
+src/shared/i18n.ts:319:21   → "mutated"   # parseAcceptLanguage `const [lang = ""` default: `part.trim().split(";")` always returns at least one element, so `lang` (element 0) is always present and the default is never used — dead code, unobservable
 
 # listing edit panel (features/admin/listing-page-management-panels.ts) — group-id fallback.
 src/features/admin/listing-page-management-panels.ts:46:39  ?? → ||   # `selectedGroupIds ?? ctxData.selectedGroupIds`: selectedGroupIds is number[]|undefined — a submitted array (even []) is always truthy, so both operators return it unchanged, and undefined maps to the stored ids under both. No input distinguishes them (same class as attributes.tsx:151:61)

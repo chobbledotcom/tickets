@@ -30,6 +30,10 @@
 
 import type { AddressLookupSetting } from "#shared/address-lookup/types.ts";
 import { isAddressLookupSetting } from "#shared/address-lookup/types.ts";
+import {
+  type EnabledFeatures,
+  parseEnabledFeatures,
+} from "#shared/admin-features.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
   boolUpdate,
@@ -217,15 +221,15 @@ const settingsBase = {
   get externalOrderEnabled(): boolean {
     return snap("external_order_enabled");
   },
+
+  get features(): EnabledFeatures {
+    return parseEnabledFeatures(snap(CONFIG_KEYS.ENABLED_FEATURES));
+  },
   /** Read a raw (possibly encrypted) value from the cache. */
   getCachedRaw: getRawCached,
 
   // --- Google Wallet ---
   googleWallet: googleWallet.createReadSettings(snap as (k: string) => string),
-
-  get hasLogistics(): boolean {
-    return snap("has_logistics");
-  },
   invalidateCache,
   get listingDefaults(): ListingDefaults {
     return parseListingDefaults(snap(CONFIG_KEYS.LISTING_DEFAULTS));
@@ -270,10 +274,6 @@ const settingsBase = {
   get showPublicApi(): boolean {
     return snap("show_public_api");
   },
-  get showPublicSite(): boolean {
-    return snap("show_public_site");
-  },
-
   // --- SMS gateway ---
   smsGateway: {
     get hasPassphrase(): boolean {
@@ -415,7 +415,6 @@ const settingsBase = {
     ),
     // --- Google Wallet writes ---
     googleWallet: googleWallet.createUpdateSettings(encryptedUpdate),
-    hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
     listingDefaults: async (v: ListingDefaults): Promise<void> => {
       const json = serializeListingDefaults(v);
       await writeEncrypted(CONFIG_KEYS.LISTING_DEFAULTS, json);
@@ -437,10 +436,6 @@ const settingsBase = {
       data.payment_provider_setting = "none";
     },
     showPublicApi: boolUpdate(CONFIG_KEYS.SHOW_PUBLIC_API, "show_public_api"),
-    showPublicSite: boolUpdate(
-      CONFIG_KEYS.SHOW_PUBLIC_SITE,
-      "show_public_site",
-    ),
 
     // --- Square writes ---
     square: {
@@ -456,13 +451,14 @@ const settingsBase = {
     },
     // --- Stripe writes ---
     stripe: {
-      credentials: async (config: {
+      activate: async (config: {
         secretKey: string;
         webhookSecret: string;
         webhookEndpointId: string;
       }): Promise<void> => {
         // The API key and webhook pair belong to one Stripe account. Save all
-        // three together so a failed write leaves the prior account usable.
+        // three and select Stripe together so a failed write leaves the prior
+        // provider usable, while later endpoint cleanup can fail safely.
         await writeRawBatch([
           [CONFIG_KEYS.STRIPE_SECRET_KEY, await encrypt(config.secretKey)],
           [
@@ -470,10 +466,13 @@ const settingsBase = {
             await encrypt(config.webhookSecret),
           ],
           [CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.webhookEndpointId],
+          [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
         ]);
         data.stripe_secret_key = config.secretKey;
         data.stripe_webhook_secret = config.webhookSecret;
         data.stripe_webhook_endpoint_id = config.webhookEndpointId;
+        data.payment_provider = "stripe";
+        data.payment_provider_setting = "stripe";
       },
       secretKey: encryptedUpdate(CONFIG_KEYS.STRIPE_SECRET_KEY),
     },

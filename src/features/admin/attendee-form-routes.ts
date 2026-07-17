@@ -255,7 +255,7 @@ const handleSubmitInner = async (
 
   // The logistics plan is read from the submitted agent selects (only when the
   // feature is on); it is applied after the booking rows exist.
-  const logisticsPlan = settings.hasLogistics
+  const logisticsPlan = settings.features.logistics
     ? parseLogisticsPlan(
         form,
         parsed.lines,

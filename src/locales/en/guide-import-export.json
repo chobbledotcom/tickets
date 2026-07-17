@@ -1,0 +1,12 @@
+{
+  "guide.sections.import_export": "Import & Export",
+  "guide.q.what_is_catalog_transfer": "Can I copy a listing or group to another site?",
+  "guide.a.what_is_catalog_transfer": "<p>Yes. Any listing or group can be exported as a single JSON file and imported into this or another site to re-create it &mdash; with its prices, group memberships, package overrides and parent references. It's the quick way to move a listing between sites or keep a portable copy. It's the same JSON either way: what you export is exactly what an import accepts.</p>",
+  "guide.q.how_do_i_export_catalog": "How do I export a listing or group?",
+  "guide.a.how_do_i_export_catalog": "<p>Open the listing's <strong>Actions</strong> tab (or a group's detail page) and choose <strong>Export</strong> &mdash; you'll download a <code>.json</code> file named after the listing or group. Editors don't see the webhook URL in their exports, since that field is hidden from them everywhere.</p>",
+  "guide.q.how_do_i_import_catalog": "How do I import a listing or group?",
+  "guide.a.how_do_i_import_catalog": "<p>Go to <strong>Listings</strong> or <strong>Groups</strong> and choose <strong>Import</strong>, then upload a JSON file. The file's <code>kind</code> decides whether a listing or a group is created. Any parent listings and groups it references by name must already exist here, and the imported name can't clash with an existing listing or group. If anything is wrong the importer tells you exactly which field. (Import is disabled in demo mode.)</p>",
+  "guide.q.what_is_in_catalog_file": "What's included in the file?",
+  "guide.a.what_is_in_catalog_file": "<p>The file carries the catalog structure and pricing only. Every cross-reference &mdash; a listing's groups and parents, a group's members &mdash; is by <strong>name</strong>, never a database id, since names are stable across sites while ids are not. Images, file attachments, attendees, and any money or booking history are deliberately excluded: a transfer describes what you sell, not the files or records tied to one site. The file is versioned, so a mismatched version is refused rather than mis-imported.</p>",
+  "guide.q.catalog_json_shape": "What does the JSON look like?"
+}

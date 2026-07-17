@@ -156,7 +156,9 @@ const attendeeIds = (attendees: CalendarAttendeeRow[]): number[] =>
 const resolveAgentFilter = async (
   request: Request,
 ): Promise<{ agents: LogisticsAgent[]; agentFilter: AgentFilter }> => {
-  const agents = settings.hasLogistics ? await logisticsAgents.getAll() : [];
+  const agents = settings.features.logistics
+    ? await logisticsAgents.getAll()
+    : [];
   const agentFilter = parseAgentFilter(
     getSearchParam(request, "agent"),
     new Set(agents.map((a) => a.id)),
@@ -196,7 +198,7 @@ const buildLogisticsCsvContext = async (
   attendees: CalendarAttendeeRow[],
   agents: { id: number; name: string }[],
 ): Promise<CalendarLogisticsCsv | undefined> => {
-  if (!settings.hasLogistics) return;
+  if (!settings.features.logistics) return;
   const listingIds = new Set(
     listings.filter((l) => l.uses_logistics).map((l) => l.id),
   );

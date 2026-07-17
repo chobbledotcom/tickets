@@ -18,6 +18,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
+import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
+import type { Trigger } from "#shared/db/migrations/schema/types.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import {
   initDb,
@@ -96,8 +98,24 @@ const indexesReferencingColumn = async (
 // the migration created.
 export const dropOwnedObjects = async (
   req: SchemaRequirement,
-): Promise<void> => {
-  for (const trigger of req.triggers ?? []) {
+  triggers: readonly Trigger[] = TRIGGERS,
+): Promise<Trigger[]> => {
+  const droppedTables = new Set(req.newTables ?? []);
+  const droppedTriggers = triggers.filter(
+    (trigger) =>
+      (req.triggers ?? []).includes(trigger.name) ||
+      droppedTables.has(trigger.table) ||
+      Object.entries(trigger.uses).some(
+        ([table, columns]) =>
+          droppedTables.has(table) ||
+          columns.some((column) => req.columns?.[table]?.includes(column)),
+      ),
+  );
+  const triggerNames = new Set([
+    ...(req.triggers ?? []),
+    ...droppedTriggers.map(({ name }) => name),
+  ]);
+  for (const trigger of triggerNames) {
     await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
   }
   for (const index of req.indexes ?? []) {
@@ -117,6 +135,7 @@ export const dropOwnedObjects = async (
   for (const table of req.newTables ?? []) {
     await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
   }
+  return droppedTriggers;
 };
 
 export const seedSentinelListing = (): Promise<unknown> =>
@@ -319,6 +338,32 @@ export const ownsSchemaObjects = (req: SchemaRequirement): boolean =>
       Object.values(req.columns ?? {}).some((cols) => cols.length > 0),
   );
 
+const columnsRemovedByMigration: Partial<Record<string, string[]>> = {
+  "2026-07-05_first_class_images": [
+    "ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''",
+  ],
+};
+
+/** Wind the live schema back to just before these migrations ran. */
+export const restoreSchemaBeforeMigrations = async (
+  migrations: Migration[],
+): Promise<void> => {
+  for (const migration of [...migrations].reverse()) {
+    if (
+      migration.requires &&
+      !migration.requires.absentTables &&
+      ownsSchemaObjects(migration.requires)
+    ) {
+      await dropOwnedObjects(migration.requires);
+    }
+  }
+  for (const migration of migrations) {
+    for (const statement of columnsRemovedByMigration[migration.id] ?? []) {
+      await getDb().execute(statement);
+    }
+  }
+};
+
 // Additive migrations own concrete objects and can be reconstructed by
 // re-running up(). The baseline reconcile (no `requires`), migrations that
 // remove legacy tables, and data-only migrations are covered separately.
@@ -385,7 +430,7 @@ export const defineRestoreCasesSuite = (
           // Precondition: a freshly-migrated DB satisfies the migration.
           await migration.verify();
 
-          await dropOwnedObjects(req);
+          const droppedTriggers = await dropOwnedObjects(req);
 
           // With its objects gone, the migration's verify() must fail.
           await expect(migration.verify()).rejects.toThrow(
@@ -394,6 +439,9 @@ export const defineRestoreCasesSuite = (
 
           // Re-running up() restores exactly those objects...
           await migration.up();
+          for (const trigger of droppedTriggers) {
+            await getDb().execute(trigger.sql);
+          }
           await migration.verify();
 
           // ...and the row that existed before the drop/restore is untouched.
@@ -437,15 +485,7 @@ export const defineChainSuite = (shard: number, shardCount: number): void => {
           const pending = MIGRATIONS.slice(
             MIGRATIONS.indexOf(baseMigration) + 1,
           );
-          for (const migration of [...pending].reverse()) {
-            if (
-              migration.requires &&
-              !migration.requires.absentTables &&
-              ownsSchemaObjects(migration.requires)
-            ) {
-              await dropOwnedObjects(migration.requires);
-            }
-          }
+          await restoreSchemaBeforeMigrations(pending);
 
           await markAppliedThrough(baseMigration.id);
           await markSchemaMarkersStale();

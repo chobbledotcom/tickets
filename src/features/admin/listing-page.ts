@@ -26,7 +26,9 @@ import {
 } from "#routes/admin/entity-pages.ts";
 import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
+import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { targetQuery } from "#shared/bulk-email-targets.ts";
+import { settings } from "#shared/db/settings.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import {
   isContentRole,
@@ -160,13 +162,18 @@ const overviewTab: TabDef<LoadedListing> = {
   visible: staffOnly,
 };
 
-const ownerWriteTab = (
+const ownerFeatureWriteTab = (
+  feature: AdminFeatureKey,
   slug: string,
   labelKey: string,
   load: (entity: LoadedListing) => Promise<JSX.Element>,
 ): TabDef<LoadedListing> =>
-  writeFormTab(slug, labelKey, load, (_entity, session) =>
-    isOwnerRole(session.adminLevel),
+  writeFormTab(
+    slug,
+    labelKey,
+    load,
+    (_entity, session) =>
+      isOwnerRole(session.adminLevel) && settings.features[feature],
   );
 
 /** The tabbed listing page. */
@@ -213,12 +220,14 @@ export const listingPage: EntityPage<LoadedListing> = defineEntityPage({
     writeFormTab("images", "entity.tab.images", loadListingImagesPanel, () =>
       isStorageEnabled(),
     ),
-    ownerWriteTab(
+    ownerFeatureWriteTab(
+      "attributes",
       "attributes",
       "entity.tab.attributes",
       loadListingAttributesPanel,
     ),
-    ownerWriteTab(
+    ownerFeatureWriteTab(
+      "questions",
       "questions",
       "entity.tab.questions",
       loadListingQuestionsPanel,

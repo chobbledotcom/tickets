@@ -53,7 +53,7 @@ import {
 // SessionKeyError and the session→private-key derivation live in #shared so
 // shared-layer modules (e.g. the activity log) can reach them without importing
 // the feature layer. Re-exported here for the central request error handler
-// (#routes/index.ts), which special-cases it into a re-authenticate response.
+// (app/request.ts), which special-cases it into a re-authenticate response.
 // Route handlers derive the key directly via requireRequestPrivateKey /
 // getRequestPrivateKey (#shared/session-private-key.ts) — the request-scoped,
 // thread-free form that needs no session argument.
@@ -513,7 +513,7 @@ export const withOptionalSession = async (
  * sheet — agents are sent here, staff opt in via the Calendar submenu. Every
  * valid session already holds one of the three roles, so authentication is the
  * only gate. */
-export const requireAnyUserOr = (
+const requireAnyUserOr = (
   request: Request,
   handler: AuthSessionHandler,
 ): Promise<Response> =>
@@ -651,19 +651,37 @@ const parseCsrfBody = async (
 const channelFor = (mode: BodyMode): AuthChannel =>
   mode === "json" ? "json" : "html";
 
-/** Resolve session from cookie or API key */
-const resolveSession = async (
+const authenticateFor = async <T extends BodyMode>(
   request: Request,
-  channel: AuthChannel,
-  allowApiKey?: boolean,
+  policy: AuthPolicy<T>,
 ): Promise<{ session: AuthSession; authKind: AuthKind } | Response> => {
-  if (allowApiKey) {
-    const s = await getAuthenticatedApiKey(request);
-    if (s) return { authKind: "apiKey", session: s };
-    if (getBearerToken(request)) return authFailure(channel, "invalid-api-key");
+  const channel = channelFor(policy.body);
+  let auth: { session: AuthSession; authKind: AuthKind } | Response | null =
+    null;
+  if (policy.allowApiKey) {
+    const session = await getAuthenticatedApiKey(request);
+    if (session) auth = { authKind: "apiKey", session };
+    else if (getBearerToken(request)) {
+      auth = authFailure(channel, "invalid-api-key");
+    }
   }
-  const session = await cookieSessionOrFailure(request, channel);
-  return isResponse(session) ? session : { authKind: "cookie", session };
+  if (auth === null) {
+    const session = await cookieSessionOrFailure(request, channel);
+    auth = isResponse(session) ? session : { authKind: "cookie", session };
+  }
+  if (isResponse(auth)) return auth;
+  return sessionRoleAllowed(auth.session.adminLevel, policy.role, policy.roles)
+    ? auth
+    : authFailure(channel, "forbidden");
+};
+
+/** Authenticate an admin API request before importing its resource handlers. */
+export const requireAdminApiOr = async (
+  request: Request,
+  handler: (session: AuthSession) => Response | null | Promise<Response | null>,
+): Promise<Response | null> => {
+  const auth = await authenticateFor(request, ADMIN_API);
+  return isResponse(auth) ? auth : handler(auth.session);
 };
 
 /** Unified auth pipeline: authenticate, enforce role, validate CSRF, parse body. */
@@ -674,12 +692,8 @@ export async function withAuth<T extends BodyMode>(
     [session: AuthSession, body: ParsedBody<T>, authKind: AuthKind]
   >,
 ): Promise<Response> {
-  const channel = channelFor(policy.body);
-  const auth = await resolveSession(request, channel, policy.allowApiKey);
+  const auth = await authenticateFor(request, policy);
   if (isResponse(auth)) return auth;
-  if (!sessionRoleAllowed(auth.session.adminLevel, policy.role, policy.roles)) {
-    return authFailure(channel, "forbidden");
-  }
   const body = await parseCsrfBody(
     request,
     policy.body,

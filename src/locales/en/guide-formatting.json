@@ -1,0 +1,9 @@
+{
+  "guide.sections.text_formatting": "Text Formatting",
+  "guide.q.fields_support_formatting": "Which fields support formatting?",
+  "guide.a.fields_support_formatting": "<p>Listing descriptions, terms and conditions, homepage text, and contact page text all support <a href=\"https://www.markdownguide.org/cheat-sheet/\">Markdown</a> formatting.</p>",
+  "guide.q.what_formatting_can_i_use": "What formatting can I use?",
+  "guide.a.what_formatting_can_i_use": "<p><strong>Bold</strong> with <code>**bold**</code>, <em>italic</em> with <code>*italic*</code>, links with <code>[text](https://...)</code>, and lists with <code>-</code> at the start of a line. See the <a href=\"https://www.markdownguide.org/cheat-sheet/\">Markdown cheat sheet</a> for more options.</p>",
+  "guide.q.how_does_the_visual_editor_work": "How does the visual editor work?",
+  "guide.a.how_does_the_visual_editor_work": "<p>Markdown fields open in a visual editor with a toolbar for <strong>bold</strong>, <em>italic</em>, links, headings, bulleted and numbered lists, and quotes. You can also use <code>Ctrl</code>+<code>B</code> / <code>Ctrl</code>+<code>I</code>, or type markdown shortcuts &mdash; <code>- </code> starts a list, <code># </code> a heading, <code>&gt; </code> a quote, and <code>[text](url)</code> becomes a link &mdash; and they convert as you type. Everything is stored as plain Markdown. Click <strong>Edit markdown</strong> under the field to work on the raw text (useful for anything the toolbar doesn't cover), and <strong>Edit visually</strong> to switch back. A field whose existing text uses formatting the visual editor can't preserve (tables, for example) opens as raw Markdown so nothing is rewritten behind your back.</p>"
+}

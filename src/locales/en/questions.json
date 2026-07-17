@@ -61,5 +61,6 @@
   "questions.assign_to_listings": "Assign to Listings",
   "questions.assign_all_listings": "Assign to all listings",
   "questions.linked_all_listings": "Linked {type} (all):",
-  "questions.save_listings": "Save Listings"
+  "questions.save_listings": "Save Listings",
+  "fields.answer.times_selected": "Times Selected"
 }

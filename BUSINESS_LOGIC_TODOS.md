@@ -55,7 +55,7 @@ carries:
   `CONTENT_ADMIN_LEVELS`, `SITE_ADMIN_LEVELS`, `DELIVERY_ADMIN_LEVELS`) or
   `"owner"` / `"all"`.
 - **`featureFlag?`** — an optional predicate (`isStorageEnabled`,
-  `isSupportEnabled`, `isBuilderEnabled`, `settings.showPublicSite`,
+  `isSupportEnabled`, `isBuilderEnabled`, `settings.features.site`,
   `settings.hasLogistics`, `isReadOnly`).
 - **`subNav?`** — a list of sub-entries, each itself a `{ href, labelKey,
   guard?, featureFlag? }` (so the "Add X" create links, the Settings sub-pages,
@@ -151,7 +151,7 @@ test's expected-keys list was updated to include the newly-surfaced entry.
 
 ## 4. Read-only mode patterns — derive from the admin-page schema
 
-**Status: Shipped.** `READ_ONLY_GET_PATTERNS` in `features/index.ts` is now
+**Status: Shipped.** The read-only GET patterns in `features/app/read-only.ts` are now
 derived from the schema's `readOnlyGetRoutePatterns()` fold, which collects
 every subNav create-link href plus every section's `mutatingGetRoutes`
 (edit/delete/duplicate/create-variant patterns). A `routePatternToRegex`

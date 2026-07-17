@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
-import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
+import {
+  adminHolidaysPage,
+  getHolidayPages,
+} from "#templates/admin/holidays.tsx";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 
 const session: AdminSession = { adminLevel: "owner" };
@@ -59,7 +62,7 @@ describe("adminHolidaysPage (resource factory list page)", () => {
 
 describe("holidayPages.newPage (resource factory new page)", () => {
   test("renders the create form posting to the base path with the add fields", () => {
-    const html = holidayPages.newPage(session);
+    const html = getHolidayPages().newPage(session);
     expect(html).toContain('action="/admin/holidays"');
     expect(html).toContain('name="name"');
     expect(html).toContain('name="start_date"');
@@ -69,14 +72,14 @@ describe("holidayPages.newPage (resource factory new page)", () => {
   });
 
   test("renders the error flash when an error is passed", () => {
-    const html = holidayPages.newPage(session, "Start Date is required");
+    const html = getHolidayPages().newPage(session, "Start Date is required");
     expect(html).toContain("Start Date is required");
   });
 });
 
 describe("holidayPages.editPage (resource factory edit page)", () => {
   test("renders the edit form posting to the edit path with prefilled values", () => {
-    const html = holidayPages.editPage(holiday, session);
+    const html = getHolidayPages().editPage(holiday, session);
     expect(html).toContain('action="/admin/holidays/42/edit"');
     expect(html).toContain("Christmas");
     expect(html).toContain("2026-12-25");
@@ -84,7 +87,7 @@ describe("holidayPages.editPage (resource factory edit page)", () => {
   });
 
   test("renders the delete section linking to the delete confirmation page", () => {
-    const html = holidayPages.editPage(holiday, session);
+    const html = getHolidayPages().editPage(holiday, session);
     expect(html).toContain('href="/admin/holidays/42/delete"');
     expect(html).toContain("Delete");
   });
@@ -92,7 +95,7 @@ describe("holidayPages.editPage (resource factory edit page)", () => {
 
 describe("holidayPages.deletePage (resource factory delete confirmation)", () => {
   test("renders the type-the-name confirmation form posting to the delete path", () => {
-    const html = holidayPages.deletePage(holiday, session);
+    const html = getHolidayPages().deletePage(holiday, session);
     expect(html).toContain('action="/admin/holidays/42/delete"');
     expect(html).toContain('name="confirm_identifier"');
     // The name to type is shown as the confirm target.
@@ -101,7 +104,7 @@ describe("holidayPages.deletePage (resource factory delete confirmation)", () =>
   });
 
   test("renders the error flash when an error is passed", () => {
-    const html = holidayPages.deletePage(
+    const html = getHolidayPages().deletePage(
       holiday,
       session,
       "Holiday name does not match",

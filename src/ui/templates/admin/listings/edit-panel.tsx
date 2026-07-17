@@ -1,3 +1,4 @@
+/* jscpd:ignore-start */
 import { map } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
@@ -17,7 +18,7 @@ import {
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   ListingAggregateMismatchNotice,
   listingAggregateToFieldValues,
@@ -30,11 +31,13 @@ import {
 import { listingFormClassAttr, listingToFieldValues } from "./form-values.tsx";
 import type { ChildCandidate, ListingEditPanelOptions } from "./types.ts";
 
+/* jscpd:ignore-end */
+
 const listingRunningTotalsConfig = (
   listing: ListingWithCount,
 ): RunningTotalsConfig => ({
   className: "listing-section",
-  fields: listingAggregateFields,
+  fields: getListingAggregateFields(),
   legend: t("listings_table.running_totals"),
   note: t("listings_table.running_totals_note"),
   recalculateHref: adminPath("listingRecalculate", { listingId: listing.id }),

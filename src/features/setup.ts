@@ -16,10 +16,8 @@ import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logDbError, logDebug, logError } from "#shared/logger.ts";
-import { getSetupFields } from "#templates/fields/admin.ts";
-import type { SetupFormValues } from "#templates/fields/types.ts";
+import { getSetupForm } from "#templates/fields/admin.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /* jscpd:ignore-end */
@@ -43,7 +41,7 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
   logDebug("Setup", "Validating form data...");
   logDebug("Setup", `Form keys: ${Array.from(form.keys()).join(", ")}`);
 
-  const validation = validateForm<SetupFormValues>(form, getSetupFields());
+  const validation = getSetupForm().validate(form);
   if (!validation.valid) {
     logDebug("Setup", `Form framework validation failed: ${validation.error}`);
     return validation;

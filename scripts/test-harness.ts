@@ -86,14 +86,11 @@ const buildDenoTestArgs = (
     "--allow-sys",
     "--allow-ffi",
     "--parallel",
-    // Install the fast `toContain` override (test/test-utils/fast-expect.ts) in
-    // every test isolate. Deno runs each test file in its own isolate — and
-    // spreads them across worker processes under --parallel — so a side-effect
-    // import in one file never reaches the others. --preload runs the module
-    // before every test module, giving the whole suite the fast matcher without
-    // each file having to import it. See fast-expect.ts for why it exists.
+    // Install shared test state in every isolate before test-module imports:
+    // the fast `toContain` override and the full locale catalog used by direct
+    // template tests that do not enter through a production route loader.
     "--preload",
-    "./test/test-utils/fast-expect.ts",
+    "./test/test-utils/preload.ts",
     // Expose `globalThis.gc` so the test DB layer can reclaim libsql's
     // file-descriptor leak (a fresh client per test + every interactive
     // transaction leaks an fd that close() never releases — only GC does). Under

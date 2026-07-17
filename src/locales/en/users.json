@@ -52,5 +52,21 @@
   "users.agents.title": "Agents",
   "users.agents.heading": "Assigned agents for {username}",
   "users.agents.none_exist": "No logistics agents exist yet. Add some under",
-  "users.agents.save": "Save Agents"
+  "users.agents.save": "Save Agents",
+  "fields.user.username_hint": "Letters, numbers, hyphens, underscores (2-32 chars)",
+  "fields.user.role": "Role",
+  "fields.user.role_placeholder": "Choose a role…",
+  "fields.user.manager": "Manager",
+  "fields.user.owner": "Owner",
+  "fields.user.agent": "Delivery agent",
+  "fields.user.editor": "Editor",
+  "error.invalid_role": "Invalid role",
+  "error.username_taken": "Username is already taken",
+  "error.user_not_found": "User not found",
+  "error.not_agent_user": "Only delivery agents have assigned agents",
+  "error.session_lacks_key": "Cannot create invite: your session has no data key — log in again",
+  "error.cannot_delete_self": "Cannot delete your own account",
+  "success.user_invited": "User invited",
+  "success.agents_updated": "Agents updated",
+  "success.user_deleted": "User deleted successfully"
 }

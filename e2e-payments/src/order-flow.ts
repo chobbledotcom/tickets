@@ -96,12 +96,10 @@ const createPackage = async (
 /** Publish the public site and its /order gallery. */
 const enableOrderGallery = async (session: BrowserSession): Promise<void> => {
   step("Enabling the public site and the /order gallery");
-  await session.goto("/admin/settings");
-  await session.check("show_public_site");
+  await session.goto("/admin/features/site");
+  await session.check("enabled", "true");
   await session.submitLocator(
-    session.page
-      .locator('form:has(input[name="show_public_site"]) button')
-      .first(),
+    session.page.locator('form:has(input[name="enabled"]) button').first(),
   );
   await session.goto("/admin/site/order");
   await session.check("order_enabled");

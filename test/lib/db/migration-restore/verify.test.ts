@@ -7,6 +7,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
+import type { Trigger } from "#shared/db/migrations/schema/types.ts";
 import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
 import {
   currentSchemaColumnsPresentIn,
@@ -21,11 +22,25 @@ import {
 } from "../migration-test-helpers.ts";
 import {
   additiveMigrations,
+  dropOwnedObjects,
   migrationById,
   seedSentinelListing,
+  triggerExists,
 } from "./helpers.ts";
 
 const MIGRATIONS = await loadMigrations();
+const RESTORE_TRIGGER: Trigger = {
+  name: "trg_restore_source_log",
+  sql: `CREATE TRIGGER IF NOT EXISTS trg_restore_source_log
+AFTER INSERT ON restore_trigger_source
+FOR EACH ROW
+BEGIN
+  INSERT INTO restore_trigger_log (source_id) VALUES (NEW.id);
+END`,
+  table: "restore_trigger_source",
+  uses: { restore_trigger_log: ["source_id"] },
+};
+
 describeWithEnv(
   "db > migration verify behaviour",
   { db: true, triggers: true },
@@ -48,8 +63,37 @@ describeWithEnv(
       // attendee-listings-tag settings rewrite (data-only; covered by its own
       // data test), listing_image_thumb (historically added a column that
       // first_class_images now drops), and remove_broken_image_records
-      // (data-only; covered by its own data test).
+      // (data-only; covered by its own data test). enabled_features now owns the
+      // triggers that keep saved feature data and visibility in step.
       expect(additiveMigrations.length).toBe(MIGRATIONS.length - 18);
+    });
+
+    test("restores triggers attached to a dropped table", async () => {
+      await getDb().execute(
+        "CREATE TABLE restore_trigger_source (id INTEGER PRIMARY KEY)",
+      );
+      await getDb().execute(
+        "CREATE TABLE restore_trigger_log (source_id INTEGER NOT NULL)",
+      );
+      await getDb().execute(RESTORE_TRIGGER.sql);
+      const droppedTriggers = await dropOwnedObjects(
+        { newTables: [RESTORE_TRIGGER.table] },
+        [RESTORE_TRIGGER],
+      );
+
+      expect(droppedTriggers).toEqual([RESTORE_TRIGGER]);
+      expect(await triggerExists(RESTORE_TRIGGER.name)).toBe(false);
+
+      await getDb().execute(
+        "CREATE TABLE restore_trigger_source (id INTEGER PRIMARY KEY)",
+      );
+      for (const trigger of droppedTriggers) await getDb().execute(trigger.sql);
+      await getDb().execute(
+        "INSERT INTO restore_trigger_source DEFAULT VALUES",
+      );
+
+      expect(await triggerExists(RESTORE_TRIGGER.name)).toBe(true);
+      expect(await tableRowCount("restore_trigger_log")).toBe(1);
     });
 
     test("verify reads the live schema from the primary, not a replica", async () => {

@@ -49,23 +49,37 @@ export const settingUpsert = (key: string, value: string): SqlStatement => ({
  * to the raw cache values, mark the key loaded, and bump the shared version so
  * other isolates reload on their next request.
  */
-const afterSettingChange = async (
+const afterSettingChange = async (sync: () => void): Promise<void> => {
+  sync();
+  await bumpSettingsVersion();
+};
+
+/** Mirror a setting write into this isolate after its database transaction has
+ * committed. This performs no database work, so it cannot turn a successful
+ * commit into a failed request. */
+export const syncStoredSetting = (
   key: string,
   mutate: (values: Map<string, string>) => void,
-): Promise<void> => {
+): void => {
   recordSettingsLoaded([key]);
   syncCache((s) => {
     mutate(s.values);
     s.loaded.add(key);
   });
-  await bumpSettingsVersion();
 };
+
+/** Mirror a setting value already written by a specialised database statement
+ * into this isolate's cache, then notify other isolates. */
+export const syncWrittenSetting = (key: string, value: string): Promise<void> =>
+  afterSettingChange(() =>
+    syncStoredSetting(key, (values) => values.set(key, value)),
+  );
 
 /** Write a setting to the DB, update the raw cache in-place, and bump the
  *  shared version so other isolates reload on their next request. */
 export const writeRaw = async (key: string, value: string): Promise<void> => {
   await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
-  await afterSettingChange(key, (values) => values.set(key, value));
+  await syncWrittenSetting(key, value);
 };
 
 /** Persist several related settings in one transaction and one version bump. */
@@ -93,7 +107,9 @@ export const deleteRaw = async (key: string): Promise<void> => {
   await executeWithoutCacheInvalidation("DELETE FROM settings WHERE key = ?", [
     key,
   ]);
-  await afterSettingChange(key, (values) => values.delete(key));
+  await afterSettingChange(() =>
+    syncStoredSetting(key, (values) => values.delete(key)),
+  );
 };
 
 /** A (key, value) writer for the settings table. */

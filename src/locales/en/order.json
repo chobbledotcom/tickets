@@ -1,0 +1,10 @@
+{
+  "public.order.empty": "No items are available to order right now.",
+  "public.order.view_order": "View order",
+  "public.order.remove_to_add": "Remove {name} to add",
+  "public.order.pick_date_to_see": "Pick a date to see availability",
+  "public.order.date_label": "Have a date in mind?",
+  "public.order.date_needed": "Choose a date for the items you selected",
+  "public.order.continue": "Continue",
+  "public.select_items_to_order": "Select items to order"
+}

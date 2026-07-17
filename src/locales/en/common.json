@@ -50,6 +50,5 @@
   "expected_actual.default_title": "Stored total mismatch",
   "expected_actual.expected": "expected",
   "expected_actual.got": "got",
-  "expected_actual.more": "(+{count} more)",
-  "common.demo_mode_notice": "Demo Mode &mdash; entered text is replaced with sample data"
+  "expected_actual.more": "(+{count} more)"
 }

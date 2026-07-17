@@ -147,12 +147,6 @@ export const handleThemePost = settingsHandler({
     v.theme !== "light" && v.theme !== "dark" ? t("error.invalid_theme") : null,
 });
 
-/** Handle POST /admin/settings/show-public-site - owner only */
-export const handleShowPublicSitePost = settingsToggle({
-  ...formRoute(SETTINGS_FORMS.showPublicSite),
-  save: (v) => settings.update.showPublicSite(v),
-});
-
 /** Handle POST /admin/settings/show-public-api - owner only */
 export const handleShowPublicApiPost = settingsToggle({
   ...formRoute(SETTINGS_FORMS.showPublicApi),

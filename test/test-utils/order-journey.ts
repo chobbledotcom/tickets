@@ -44,7 +44,11 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
-import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import {
+  enablePublicSite,
+  setupStripe,
+  stubWebhookVerify,
+} from "#test-utils/settings.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 
 /** One package in a journey's catalog: its members sell inside the bundle at
@@ -286,7 +290,7 @@ export const runOrderJourney = async (spec: {
   /** Post-booking innards, run before the rows are verified. */
   through?: (ctx: OrderJourneyCtx) => Promise<void>;
 }): Promise<OrderJourneyCtx> => {
-  await settings.update.showPublicSite(true);
+  await enablePublicSite();
   await settings.update.orderEnabled(true);
   if (spec.paid) await setupStripe();
   const browser = await adminBrowser();

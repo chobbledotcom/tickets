@@ -69,7 +69,7 @@ import {
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
-import { listingAggregateFields } from "#templates/fields/aggregate.ts";
+import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
@@ -117,7 +117,7 @@ const chosenTemplateOrPicker = (
 ): { template: ListingTemplate | null } | { picker: Response } => {
   const template =
     LISTING_TEMPLATES.find((candidate) => candidate.id === templateId) ?? null;
-  return template?.requiresLogistics && !settings.hasLogistics
+  return template?.requiresLogistics && !settings.features.logistics
     ? { picker: htmlResponse(adminListingPickerPage(session)) }
     : { template };
 };
@@ -483,7 +483,7 @@ const parseAggregatesForRole = (
     : parseEditableAggregateForm<
         ListingAggregateValues,
         ListingAggregateValues
-      >(form, listingAggregateFields, extractListingAggregateValues);
+      >(form, getListingAggregateFields(), extractListingAggregateValues);
 
 /** Handle POST /admin/listing/:id/edit */
 export const handleAdminListingEditPost: TypedRouteHandler<

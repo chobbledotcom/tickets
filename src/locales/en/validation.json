@@ -1,0 +1,19 @@
+{
+  "error.field_invalid": "{label} is invalid.",
+  "error.csrf_invalid": "Invalid or expired form. Please try again.",
+  "error.name_required": "Name is required",
+  "fields.validation.price_min": "Price must be 0 or greater",
+  "fields.validation.email": "Please enter a valid email address",
+  "fields.validation.phone": "Please enter a valid phone number",
+  "fields.validation.username_min": "Username must be at least 2 characters",
+  "fields.validation.username_max": "Username must be 32 characters or fewer",
+  "fields.validation.username_chars": "Username may only contain letters, numbers, hyphens, and underscores",
+  "fields.validation.username_start": "Username may not start with a hyphen or underscore",
+  "fields.validation.description_max": "Description must be {max} characters or fewer",
+  "fields.validation.datetime": "Please enter a valid date and time",
+  "fields.validation.date": "Please enter a valid date (YYYY-MM-DD)",
+  "fields.validation.url_https": "URL must use https://",
+  "fields.validation.address_max": "Address must be {max} characters or fewer",
+  "fields.validation.special_instructions_max": "Special instructions must be {max} characters or fewer",
+  "fields.listing.slug_title": "Lowercase letters, numbers, hyphens, and underscores only"
+}

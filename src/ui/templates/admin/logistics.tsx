@@ -1,9 +1,8 @@
 /**
  * Admin logistics settings page templates.
  *
- * The logistics page is owner-only. A single "has logistics" toggle sits at the
- * top; when enabled, the page reveals logistics-agent management (a simple
- * id + name list with add / edit / remove). Logistics listings then surface
+ * The logistics page is owner-only. It provides logistics-agent management (a
+ * simple id + name list with add / edit / remove). Logistics listings surface
  * start and end agent selectors on their attendees.
  *
  * The main settings page is hand-rolled (its has-logistics toggle + inline
@@ -15,8 +14,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { settings } from "#shared/db/settings.ts";
-import { entityToFieldValues, renderFields } from "#shared/forms.tsx";
+import { entityToFieldValues } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, LogisticsAgent } from "#shared/types.ts";
 import {
@@ -24,7 +22,6 @@ import {
   successListPage,
 } from "#templates/admin/admin-page.tsx";
 import { defineAdminResourcePages } from "#templates/admin/resource-pages.tsx";
-import { booleanSettingsSection } from "#templates/admin/settings/boolean-settings-section.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import {
@@ -36,19 +33,11 @@ import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
+import { TitledArticle } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { logisticsAgentFields } from "#templates/fields/listing.ts";
+import { logisticsAgentForm } from "#templates/fields/listing.ts";
 
 /* jscpd:ignore-end */
-
-/** The has-logistics enable/disable toggle. */
-const HasLogisticsForm = booleanSettingsSection<boolean>({
-  action: "/admin/logistics/has-logistics",
-  description: <p>{t("logistics.enable_hint")}</p>,
-  fieldName: "has_logistics",
-  title: t("logistics.title"),
-  value: (hasLogistics) => hasLogistics,
-});
 
 /** Single-column table of logistics agents (name linking to edit). */
 const agentColumns: DataColumn<LogisticsAgent>[] = [
@@ -63,9 +52,12 @@ const agentColumns: DataColumn<LogisticsAgent>[] = [
 ];
 
 /** The logistics-agents list with inline add form (shown when logistics is on). */
-const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
-  <article>
-    <h2>{t("logistics.agents_heading")}</h2>
+const AgentsSection = ({
+  agents,
+}: {
+  agents: LogisticsAgent[];
+}): JSX.Element => (
+  <TitledArticle title={t("logistics.agents_heading")}>
     <p>{t("logistics.agents_hint")}</p>
     {agents.length === 0 ? (
       <p>{t("logistics.no_agents_yet")}</p>
@@ -82,24 +74,22 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
           className="listing-section"
           legend={t("logistics.add_agent")}
         >
-          <Raw html={renderFields(logisticsAgentFields)} />
+          <Raw html={logisticsAgentForm.render()} />
         </SectionFieldset>
       </SaveForm>
     </WritableOnly>
-  </article>
+  </TitledArticle>
 );
 
 /**
- * Admin logistics settings page — the has-logistics toggle plus, when enabled,
- * logistics-agent management.
+ * Admin logistics settings page with logistics-agent management.
  */
 export const adminLogisticsPage = successListPage<LogisticsAgent[]>(
   "logistics.title",
   "/admin/logistics",
   (agents) => (
     <>
-      <WritableOnly>{HasLogisticsForm(settings.hasLogistics)}</WritableOnly>
-      {settings.hasLogistics && AgentsSection(agents)}
+      <AgentsSection agents={agents} />
       <GuideFooter href="/admin/guide#logistics">
         {t("logistics.guide_link")}
       </GuideFooter>
@@ -111,7 +101,7 @@ export const adminLogisticsPage = successListPage<LogisticsAgent[]>(
 export const logisticsAgentToFieldValues = (
   agent?: LogisticsAgent,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(agent, logisticsAgentFields, {});
+  entityToFieldValues(agent, logisticsAgentForm.fields, {});
 
 /** A user that can be assigned to drive a logistics agent. */
 export interface AgentUserOption {
@@ -197,15 +187,12 @@ export const logisticsAgentPages = defineAdminResourcePages<
   ),
   renderFields: (agent) =>
     agent === undefined ? (
-      <Raw html={renderFields(logisticsAgentFields)} />
+      <Raw html={logisticsAgentForm.render()} />
     ) : (
       <fieldset class="listing-section">
         <legend>{t("logistics.agent_details")}</legend>
         <Raw
-          html={renderFields(
-            logisticsAgentFields,
-            logisticsAgentToFieldValues(agent),
-          )}
+          html={logisticsAgentForm.render(logisticsAgentToFieldValues(agent))}
         />
       </fieldset>
     ),

@@ -40,7 +40,6 @@ import {
 } from "#shared/db/users.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { validateForm } from "#shared/forms.tsx";
 import { nowMs } from "#shared/now.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
@@ -56,8 +55,10 @@ import {
   type DisplayUser,
   type UsersPageOpts,
 } from "#templates/admin/users.tsx";
-import { getInviteUserFields } from "#templates/fields/admin.ts";
-import type { InviteUserFormValues } from "#templates/fields/types.ts";
+import {
+  getInviteUserForm,
+  type InviteUserFormValues,
+} from "#templates/fields/admin.ts";
 
 /* jscpd:ignore-end */
 
@@ -65,11 +66,9 @@ import type { InviteUserFormValues } from "#templates/fields/types.ts";
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Valid admin levels */
-const VALID_ADMIN_LEVELS = ["owner", "manager", "agent", "editor"] as const;
-
 /** The logistics agents an owner can assign — only when logistics is enabled. */
 const loadAssignableAgents = (): Promise<LogisticsAgent[]> =>
-  settings.hasLogistics ? logisticsAgents.getAll() : Promise.resolve([]);
+  settings.features.logistics ? logisticsAgents.getAll() : Promise.resolve([]);
 
 /** Wrap the shared DATA_KEY under a new invitee's single-use invite code for the
  * keyed roles (owner/manager/agent). Returns an error Response when the inviting
@@ -242,16 +241,12 @@ const handleUserNewGet = ownerPage(async (session) =>
 const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
   auth: OWNER_FORM,
   form: {
-    validate: (form) =>
-      validateForm<InviteUserFormValues>(form, getInviteUserFields()),
+    validate: (form) => getInviteUserForm().validate(form),
   },
   onInvalid: ({ error }) => errorRedirect("/admin/user/new", error),
   onValid: async ({ values, form, session }) => {
     const { username, admin_level: adminLevel } = values;
 
-    if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-      return errorRedirect("/admin/user/new", t("error.invalid_role"));
-    }
     if (await isUsernameTaken(username)) {
       return errorRedirect("/admin/user/new", t("error.username_taken"));
     }

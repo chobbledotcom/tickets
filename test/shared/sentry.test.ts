@@ -8,11 +8,11 @@ import {
   captureServerError,
   initSentry,
   releaseFromCommit,
-  resetSentryForTest,
   sendSentryTest,
 } from "#shared/sentry.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { resetSentry } from "#test-utils/sentry.ts";
 
 const DSN = "https://abc123@bugs.example.test/2";
 
@@ -32,7 +32,7 @@ describe("sentry", () => {
   afterEach(() => {
     fetchStub.restore();
     // Detach the client so the global Sentry state never leaks into other files.
-    resetSentryForTest();
+    resetSentry();
   });
 
   const firstFetchBody = (): string => {

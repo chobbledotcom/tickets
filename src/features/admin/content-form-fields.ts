@@ -166,9 +166,9 @@ export const contentFieldValues = (row: {
 });
 
 type SeoContentValues = {
-  content: string | null;
-  meta_description: string | null;
-  meta_title: string | null;
+  content: string;
+  meta_description: string;
+  meta_title: string;
   name: string;
 };
 
@@ -179,13 +179,10 @@ type SeoContentInput = {
   name: string;
 };
 
-export const textOrEmpty = (value: string | null): string =>
-  value === null ? "" : value;
-
 /** The validated SEO/content columns shared by create and update. */
 export const seoContentInput = (values: SeoContentValues): SeoContentInput => ({
-  content: textOrEmpty(values.content),
-  metaDescription: textOrEmpty(values.meta_description),
-  metaTitle: textOrEmpty(values.meta_title),
+  content: values.content,
+  metaDescription: values.meta_description,
+  metaTitle: values.meta_title,
   name: values.name,
 });

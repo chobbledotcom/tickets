@@ -139,22 +139,3 @@ export const captureServerError = async (
 
   await Sentry.flush(FLUSH_TIMEOUT_MS);
 };
-
-/**
- * Detach the SDK's client so Sentry state doesn't leak between tests. No-op
- * when the SDK was never loaded — it must not drag the module in. The loaded
- * loaded state stays cached so the next configured call can initialize its
- * client again without creating a second module namespace.
- * Production never calls this — the client lives for the process lifetime.
- */
-export const resetSentryForTest = (): void => {
-  const loaded = getLoadedSentry();
-  if (!loaded) return;
-  const Sentry = loaded.sdk;
-  const scopes = [
-    Sentry.getCurrentScope(),
-    Sentry.getGlobalScope(),
-    Sentry.getIsolationScope(),
-  ];
-  for (const scope of scopes) scope.setClient(undefined);
-};

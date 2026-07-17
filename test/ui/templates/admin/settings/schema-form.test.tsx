@@ -9,7 +9,6 @@ const state = {
   embedHosts: "example.com",
   externalOrderEnabled: true,
   showPublicApi: true,
-  showPublicSite: false,
   termsAndConditions: "Be kind.",
 };
 

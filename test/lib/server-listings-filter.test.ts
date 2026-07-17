@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { settings } from "#shared/db/settings.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -11,6 +10,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 const get = (path: string) => handleRequest(mockRequest(path));
 
@@ -217,7 +217,7 @@ describeWithEnv("listings type filter", { db: true }, () => {
 
   describe("public listings page", () => {
     beforeEach(async () => {
-      await settings.update.showPublicSite(true);
+      await enablePublicSite();
     });
 
     test("lists every type together without a filter bar", async () => {

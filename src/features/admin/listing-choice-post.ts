@@ -1,11 +1,14 @@
 import { formGuard, OWNER_FORM } from "#routes/auth.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import { redirect } from "#routes/response.ts";
+import { notFoundResponse, redirect } from "#routes/response.ts";
+import type { AdminFeatureKey } from "#shared/admin-features.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 
 type ListingChoicePostConfig = {
+  feature: AdminFeatureKey;
   fieldName: string;
   label: string;
   noun: string;
@@ -18,6 +21,7 @@ const countLabel = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 export const createListingChoicePost = ({
+  feature,
   fieldName,
   label,
   noun,
@@ -29,12 +33,16 @@ export const createListingChoicePost = ({
     NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>
   >(getListingWithCount)(formGuard(OWNER_FORM))(
     async (listing, _session, form, _request, { id }) => {
+      if (!settings.features[feature]) return notFoundResponse();
       const ids = readIds
         ? await readIds(form)
         : form.getNumberArray(fieldName);
       await saveIds(id, ids);
       await logActivity(
-        `${label} updated for '${listing.name}' (${countLabel(ids.length, noun)})`,
+        `${label} updated for '${listing.name}' (${countLabel(
+          ids.length,
+          noun,
+        )})`,
         listing,
       );
       return redirect(`/admin/listing/${id}/${tab}`, `${label} updated`, true);

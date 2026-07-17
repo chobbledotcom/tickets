@@ -1,5 +1,4 @@
 {
-  "nav.site.pages": "Pages",
   "site.pages.title": "Pages",
   "site.pages.add": "Add Page",
   "site.pages.none": "No pages yet.",
@@ -33,5 +32,10 @@
   "site.pages.error.reserved": "That slug is reserved — please choose another.",
   "site.pages.error.slug_taken": "That slug is already in use by a listing, group, or page.",
   "site.pages.error.invalid_item": "Please choose something to add.",
-  "site.pages.error.ineligible": "That item can't be added to this page."
+  "site.pages.error.ineligible": "That item can't be added to this page.",
+  "fields.meta_title": "SEO Title",
+  "fields.meta_title_hint": "Optional <title> for search engines (max 64 characters).",
+  "fields.meta_description": "SEO Description",
+  "fields.meta_description_hint": "Optional meta description for search engines (max 160 characters).",
+  "fields.content": "Content"
 }

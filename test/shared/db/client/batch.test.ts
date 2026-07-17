@@ -2,10 +2,16 @@ import type { TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
-import { getDb, queryBatch, queryBatchPrimary } from "#shared/db/client.ts";
+import {
+  getDb,
+  queryBatch,
+  queryBatchPrimary,
+  withTransaction,
+} from "#shared/db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
+  N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -42,6 +48,50 @@ describeWithEnv("db > client batch", { db: true }, () => {
     // "read" mode lets Turso serve the batch from a replica; anything else
     // would needlessly pin read-only batches to the primary.
     expect(await captureBatchModes(queryBatch)).toEqual(["read"]);
+  });
+
+  test("queryBatch does not count repeated statements as separate N+1 reads", async () => {
+    await runWithQueryLogContext(async () => {
+      const statements = Array.from(
+        { length: N_PLUS_ONE_THRESHOLD + 1 },
+        () => ({ args: [], sql: "SELECT 1" }),
+      );
+      expect(await queryBatch(statements)).toHaveLength(statements.length);
+    });
+  });
+
+  test("transaction batches commit string statements together", async () => {
+    await withTransaction(async (tx) => {
+      await tx.batch([
+        "CREATE TABLE transaction_batch_test (value TEXT NOT NULL)",
+        "INSERT INTO transaction_batch_test (value) VALUES ('saved')",
+      ]);
+    });
+
+    const result = await getDb().execute(
+      "SELECT value FROM transaction_batch_test",
+    );
+    expect(result.rows.map(({ value }) => String(value))).toEqual(["saved"]);
+  });
+
+  test("transaction batches track every statement in one shared window", async () => {
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await withTransaction(async (tx) => {
+        await tx.batch([
+          "CREATE TABLE tracked_transaction_batch (value TEXT NOT NULL)",
+          "INSERT INTO tracked_transaction_batch (value) VALUES ('saved')",
+        ]);
+      });
+
+      const entries = getQueryLog();
+      expect(entries.map(({ sql }) => sql)).toEqual([
+        "CREATE TABLE tracked_transaction_batch (value TEXT NOT NULL)",
+        "INSERT INTO tracked_transaction_batch (value) VALUES ('saved')",
+      ]);
+      expect(entries[1]!.startedAtMs).toBe(entries[0]!.startedAtMs);
+      expect(entries[1]!.durationMs).toBe(entries[0]!.durationMs);
+    });
   });
 
   test("queryBatchPrimary runs its statements in write mode", async () => {

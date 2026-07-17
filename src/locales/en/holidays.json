@@ -19,5 +19,11 @@
   "holidays.fields.name_placeholder": "Bank Holiday",
   "holidays.fields.start_date": "Start Date",
   "holidays.fields.end_date": "End Date",
-  "holidays.fields.end_date_hint": "Must be on or after the start date"
+  "holidays.fields.end_date_hint": "Must be on or after the start date",
+  "fields.holiday.name": "Holiday Name",
+  "fields.holiday.name_placeholder": "Bank Holiday",
+  "fields.holiday.start_date": "Start Date",
+  "fields.holiday.end_date": "End Date",
+  "fields.holiday.end_date_hint": "Must be on or after the start date",
+  "error.end_date_before_start": "End date must be on or after the start date"
 }

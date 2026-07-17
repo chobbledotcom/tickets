@@ -10,17 +10,21 @@ import {
   HOLIDAY_DEMO_FIELDS,
   wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
+import type { FormValues } from "#shared/forms/definition.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import { adminHolidaysPage, holidayPages } from "#templates/admin/holidays.tsx";
-import { getHolidayFields } from "#templates/fields/admin.ts";
+import {
+  adminHolidaysPage,
+  getHolidayPages,
+} from "#templates/admin/holidays.tsx";
+import { getHolidayForm } from "#templates/fields/admin.ts";
 
 /** Extract holiday input from validated form values */
-const extractHolidayInput = (
-  values: Record<string, string | number | null>,
-): HolidayInput => ({
-  endDate: String(values.end_date),
-  name: String(values.name),
-  startDate: String(values.start_date),
+type HolidayFormValues = FormValues<ReturnType<typeof getHolidayForm>>;
+
+const extractHolidayInput = (values: HolidayFormValues): HolidayInput => ({
+  endDate: values.end_date,
+  name: values.name,
+  startDate: values.start_date,
 });
 
 /** Validate end_date >= start_date */
@@ -33,7 +37,7 @@ export const validateDateRange = (
 
 /** Holidays resource for REST create/update operations */
 const holidaysResource = defineNamedResource({
-  fields: getHolidayFields(),
+  form: getHolidayForm(),
   nameField: "name",
   table: holidays.table,
   toInput: extractHolidayInput,
@@ -44,10 +48,10 @@ export const holidaysCrud = createOwnerCrudHandlers({
   getAll: holidays.getAll,
   getName: (h) => h.name,
   listPath: "/admin/holidays",
-  renderDelete: holidayPages.deletePage,
-  renderEdit: holidayPages.editPage,
+  renderDelete: (...args) => getHolidayPages().deletePage(...args),
+  renderEdit: (...args) => getHolidayPages().editPage(...args),
   renderList: adminHolidaysPage,
-  renderNew: holidayPages.newPage,
+  renderNew: (...args) => getHolidayPages().newPage(...args),
   resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
   singular: "Holiday",
 });

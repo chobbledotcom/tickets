@@ -43,7 +43,6 @@ import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   type Answer,
-  isQuestionDisplayType,
   QUESTION_DISPLAY_TYPES,
   type QuestionWithAnswers,
   questionDisplayTypeError,
@@ -76,6 +75,7 @@ import {
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
+import { requireChoiceOptions } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -90,7 +90,7 @@ import {
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
-import { answerAggregateFields } from "#templates/fields/aggregate.ts";
+import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /* jscpd:ignore-end */
 import { createListingChoicePost } from "./listing-choice-post.ts";
@@ -108,24 +108,26 @@ export const questionTextForm = defineForm({
       type: "textarea",
     },
     {
+      invalidMessage: questionDisplayTypeError,
       label: "Display as",
       name: "display_type",
-      options: QUESTION_DISPLAY_TYPES.map((value) => ({
-        label:
-          value === "radio"
-            ? "Radio buttons"
-            : value === "select"
-              ? "Select box"
-              : "Free text",
-        value,
-      })),
+      options: requireChoiceOptions(
+        "Display as",
+        QUESTION_DISPLAY_TYPES.map((value) => ({
+          label:
+            value === "radio"
+              ? "Radio buttons"
+              : value === "select"
+                ? "Select box"
+                : "Free text",
+          value,
+        })),
+      ),
       required: true,
       type: "select",
     },
   ] as const,
   id: "questionText",
-  validate: ({ display_type }) =>
-    isQuestionDisplayType(display_type) ? null : questionDisplayTypeError,
 });
 
 export const answerTextForm = defineForm({
@@ -176,8 +178,9 @@ const handleQuestionsPost = createAuthedFormRoute({
   form: questionTextForm,
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { display_type, text } }) => {
+    const displayType = requireQuestionDisplayType(display_type);
     const question = await questionsTable.insert({
-      displayType: requireQuestionDisplayType(display_type),
+      displayType,
       text,
     });
     await assignNextQuestionSortOrder(question.id);
@@ -445,7 +448,7 @@ const handleEditAnswerPost = createAuthedFormRoute<
     const aggregates = parseEditableAggregateForm<
       AnswerAggregateValues,
       AnswerAggregateValues
-    >(form, answerAggregateFields, extractAnswerAggregateValues);
+    >(form, getAnswerAggregateFields(), extractAnswerAggregateValues);
     if (!aggregates.ok) {
       return errorRedirect(editAnswerPath(params), aggregates.error);
     }
@@ -553,6 +556,7 @@ const handleMoveQuestionUp = moveQuestionHandler("up");
 const handleMoveQuestionDown = moveQuestionHandler("down");
 
 const handleListingQuestionsPost = createListingChoicePost({
+  feature: "questions",
   fieldName: "question_ids",
   label: "Questions",
   noun: "question",

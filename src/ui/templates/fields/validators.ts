@@ -12,7 +12,12 @@ import * as v from "valibot";
 import { t } from "#i18n";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { isUpdateTier } from "#shared/db/built-sites.ts";
-import type { Field } from "#shared/forms.tsx";
+import type {
+  ChoiceField,
+  Field,
+  InputField,
+  TextareaField,
+} from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   firstIssueMessage,
@@ -20,7 +25,7 @@ import {
   validateSlug,
 } from "#shared/slug.ts";
 import { isValidDatetime } from "#shared/timezone.ts";
-import { isContactField, isListingType } from "#shared/types.ts";
+import { isContactField } from "#shared/types.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
@@ -89,7 +94,9 @@ export const validateUsername = (value: string): string | null =>
   firstIssueMessage(UsernameSchema, value);
 
 /** Base username field shared across login and invite forms */
-export const getUsernameFieldBase = (): Field => ({
+export const getUsernameFieldBase = (): InputField<"username"> & {
+  required: true;
+} => ({
   label: t("common.username"),
   maxlength: 32,
   minlength: 2,
@@ -110,14 +117,6 @@ export const validateListingFields = (value: string): string | null => {
     if (!isContactField(part)) {
       return t("fields.validation.invalid_contact_field", { part });
     }
-  }
-  return null;
-};
-
-/** Validate listing type setting */
-export const validateListingType = (value: string): string | null => {
-  if (!isListingType(value)) {
-    return t("fields.validation.listing_type");
   }
   return null;
 };
@@ -164,7 +163,7 @@ export const validateDescription = (value: string): string | null =>
 export const buildDescriptionField = (
   hint: string,
   hintHtml?: string,
-): Field => ({
+): TextareaField<"description"> => ({
   hint,
   ...(hintHtml !== undefined && { hintHtml }),
   label: t("fields.listing.description"),
@@ -181,7 +180,9 @@ export const validateDatetime = (value: string): string | null =>
   isValidDatetime(value) ? null : t("fields.validation.datetime");
 
 /** Build a "hidden" visibility checkbox field for a listing or group. */
-export const buildHiddenField = (kind: "Listing" | "Group"): Field => ({
+export const buildHiddenField = (
+  kind: "Listing" | "Group",
+): ChoiceField<"checkbox-group", "1", "hidden"> => ({
   hint:
     kind === "Listing"
       ? t("fields.listing.hidden_hint")
@@ -215,7 +216,7 @@ export const slugFieldBase = () =>
   }) as const satisfies Field;
 
 /** Slug field for listing/group edit pages */
-export const getSlugField = (): Field => ({
+export const getSlugField = (): InputField<"slug"> => ({
   ...slugFieldBase(),
   hint: t("fields.listing.slug_hint_field"),
 });

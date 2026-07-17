@@ -10,7 +10,6 @@ import {
   htmlResponse,
   notFoundResponse,
   redirect,
-  redirectResponse,
 } from "#routes/response.ts";
 import { BOTPOISON_FIELD, verifyBotpoisonSolution } from "#shared/botpoison.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
@@ -27,6 +26,8 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
+import { isPublicListing } from "#shared/listing-visibility.ts";
+import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import {
@@ -55,13 +56,6 @@ import { publicNavProps } from "./site-nav.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /* jscpd:ignore-end */
-
-/** Active+visible filter for public listing listings */
-const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
-
-/** Guard: redirect to admin login if public site is disabled */
-export const requirePublicSite = <T>(fn: () => T): T | Response =>
-  settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Render a public site page with website title and content */
 const renderPublicPage: ResponseHandler<
