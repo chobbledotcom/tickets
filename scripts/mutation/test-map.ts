@@ -56,10 +56,11 @@ const chooseTestFiles =
 const ownedTest =
   (prefixes: string[]) =>
   (testFile: string): OwnedTest => ({
-    owner:
-      sort((a: string, b: string) => b.length - a.length)(
-        filter((prefix: string) => ownsTest(prefix, testFile))(prefixes),
-      )[0] ?? null,
+    owner: isIntegrationTest(testFile)
+      ? null
+      : (sort((a: string, b: string) => b.length - a.length)(
+          filter((prefix: string) => ownsTest(prefix, testFile))(prefixes),
+        )[0] ?? null),
     testFile,
   });
 

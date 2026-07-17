@@ -10,16 +10,22 @@ export const withGeneratedOutputRollback = async <Result>(
   task: () => Promise<Result>,
   failureCleanups: () => CleanupTask[],
 ): Promise<Result> => {
-  const generated: string[] = [];
-  for (const file of outputFiles) {
-    if (!(await fileExists(file))) generated.push(file);
-  }
+  const originals = await Promise.all(
+    outputFiles.map(async (file) => ({
+      contents: (await fileExists(file)) ? await Deno.readFile(file) : null,
+      file,
+    })),
+  );
   try {
     return await task();
   } catch (error) {
     return failAfterCleanups(error, [
       ...failureCleanups(),
-      ...generated.map((file) => () => removeIfPresent(file)),
+      ...originals.map(({ contents, file }) =>
+        contents === null
+          ? () => removeIfPresent(file)
+          : () => Deno.writeFile(file, contents),
+      ),
     ]);
   }
 };

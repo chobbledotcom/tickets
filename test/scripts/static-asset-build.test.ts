@@ -230,6 +230,7 @@ describe("static asset output rollback", () => {
         withGeneratedOutputRollback(
           [existing, generated],
           async () => {
+            await Deno.writeTextFile(existing, "partial");
             await Deno.writeTextFile(generated, "partial");
             throw new Error("Deliberate build failure");
           },

@@ -45,6 +45,18 @@ describe("mutation test map", () => {
     ]);
   });
 
+  test("keeps a mirrored integration path in the integration stage", () => {
+    expect(
+      buildMutationTestMap(
+        ["src/integration/app.ts"],
+        ["test/integration/app.test.ts"],
+      ),
+    ).toEqual({
+      integrationTestFiles: ["test/integration/app.test.ts"],
+      targets: [{ directTestFiles: [], sourceFile: "src/integration/app.ts" }],
+    });
+  });
+
   test("gives a child test to the child source", () => {
     const result = buildMutationTestMap(
       ["src/db/attendees.ts", "src/db/attendees/kind.ts"],
