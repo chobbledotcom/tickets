@@ -270,7 +270,10 @@ const processPaymentSessionAttempt = async (
   // already-refunded payment as success — so a redelivery after a refund that
   // actually went through (but reported failure) records success, not a second
   // payout.
-  if (!result.success && result.refunded === false) {
+  if (
+    !result.success &&
+    (result.refundStatus === "failed" || result.refundStatus === "pending")
+  ) {
     await releaseReservation(sessionId);
     return result;
   }
@@ -285,11 +288,14 @@ export const processPaymentSession: SessionProcessor = (sessionId, data) =>
  * Format error message based on refund status
  */
 export const formatPaymentError = (result: PaymentFailureResult): string => {
-  if (result.refunded === true) {
+  if (result.refundStatus === "refunded") {
     return `${result.error} Your payment has been automatically refunded.`;
   }
-  if (result.refunded === false) {
+  if (result.refundStatus === "failed") {
     return `${result.error} Please contact support for a refund.`;
+  }
+  if (result.refundStatus === "pending") {
+    return `${result.error} Your refund is being processed.`;
   }
   return result.error;
 };

@@ -4,6 +4,7 @@
 
 import type {
   BookingIntent,
+  PaymentRefundResult,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
@@ -56,12 +57,12 @@ type PaymentSuccess = {
   ticketTokens: string[];
 };
 
-/** Failed payment result — refund status clarifies next steps for the user */
+/** Failed payment result — refund status clarifies next steps for the user. */
 type PaymentFailure = {
   success: false;
   error: string;
   status?: number | undefined;
-  refunded?: boolean | undefined;
+  refundStatus?: PaymentRefundResult | undefined;
   /** Internal diagnostic detail (not shown to users) */
   detail?: string | undefined;
 };

@@ -99,13 +99,14 @@ describeWithEnv("staged checkout", { db: true }, () => {
     expect(await findCheckoutStage("missing", 999, "token")).toBeNull();
   });
 
-  test("fails before provider creation when a checkout listing is missing", async () => {
+  test("returns sold out before provider creation when a checkout listing is missing", async () => {
     const create = stub(stripePaymentProvider, "createCheckoutSession");
     try {
-      await expect(
-        stagedCheckout([{ listingId: 999, quantity: 1 }]),
-      ).rejects.toThrow("Could not load every listing");
+      expect(await stagedCheckout([{ listingId: 999, quantity: 1 }])).toEqual({
+        type: "sold_out",
+      });
       expect(create.calls.length).toBe(0);
+      expect(await stageRows()).toEqual([]);
     } finally {
       create.restore();
     }
@@ -271,9 +272,7 @@ describeWithEnv("staged checkout", { db: true }, () => {
       Promise.resolve("closed" as const),
     );
     try {
-      await expect(failure.run()).rejects.toThrow(
-        "Could not store checkout stage",
-      );
+      expect(await failure.run()).toEqual({ type: "checkout_failed" });
       expect(failure.close.calls[0]!.args[0]).toEqual({
         providerCheckoutId: createdSession.providerCheckoutId,
         sessionId: createdSession.sessionId,
@@ -314,9 +313,7 @@ describeWithEnv("staged checkout", { db: true }, () => {
       Promise.resolve({ reason: "encryption_error" as const, success: false }),
     );
     try {
-      await expect(checkout.run()).rejects.toThrow(
-        "Could not store checkout stage",
-      );
+      expect(await checkout.run()).toEqual({ type: "checkout_failed" });
       expect(checkout.close.calls.length).toBe(1);
     } finally {
       checkout.restore();
@@ -342,9 +339,8 @@ describeWithEnv("staged checkout", { db: true }, () => {
       },
     );
     try {
-      await expect(checkout.run()).rejects.toThrow(
-        "Could not store checkout stage",
-      );
+      expect(await checkout.run()).toEqual({ type: "checkout_failed" });
+      expect(checkout.close.calls.length).toBe(1);
       expect(await stageRows()).toEqual([]);
     } finally {
       checkout.restore();

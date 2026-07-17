@@ -21,7 +21,10 @@ import {
   logError,
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type {
+  PaymentRefundResult,
+  ValidatedPaymentSession,
+} from "#shared/payments.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 
@@ -47,37 +50,38 @@ export const getPaymentProviderOrLog = async (
 };
 
 /**
- * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
- * Logs an error if refund fails.
+ * Attempt to refund a payment and preserve the provider's pending state.
  */
 export const tryRefund = async (
   paymentReference: string,
   listingId?: number,
-): Promise<boolean> => {
-  if (!paymentReference) return false;
+): Promise<PaymentRefundResult> => {
+  if (!paymentReference) return "failed";
 
   const provider = await getPaymentProviderOrLog(
     ErrorCode.PAYMENT_REFUND,
     "No payment provider configured for refund",
     listingId,
   );
-  if (!provider) return false;
+  if (!provider) return "failed";
 
-  if (await provider.refundPayment(paymentReference)) {
+  const result = await provider.refundPayment(paymentReference);
+  if (result === "refunded") {
     logDebug("Payment", "Refund issued");
-    return true;
+    return result;
   }
+  if (result === "pending") return result;
 
-  // A false return can simply mean the payment was ALREADY fully refunded: each
+  // A failed result can simply mean the payment was ALREADY fully refunded: each
   // provider rejects a second full refund (Stripe errors on an already-refunded
   // intent; Square and SumUp reject a re-refund), and that rejection surfaces
-  // here as false. That is success, not failure — the money is back with the
+  // here as failed. That is success, not failure — the money is back with the
   // customer — so confirm via the provider's refund-status query before
   // reporting failure. Without this, a redelivery after a recovered refund would
   // loop on a 503 retry for money already returned.
   if (await provider.isPaymentRefunded(paymentReference)) {
     logDebug("Payment", "Payment already fully refunded");
-    return true;
+    return "refunded";
   }
 
   logError({
@@ -85,7 +89,7 @@ export const tryRefund = async (
     detail: `Failed to refund payment ${paymentReference}`,
     listingId,
   });
-  return false;
+  return "failed";
 };
 
 /** Attempt refund and log activity if successful */
@@ -93,12 +97,12 @@ const refundAndLog = async (
   session: ValidatedPaymentSession,
   error: string,
   listingId: number,
-): Promise<boolean> => {
-  const refunded = await tryRefund(session.paymentReference, listingId);
-  if (refunded) {
+): Promise<PaymentRefundResult> => {
+  const refundStatus = await tryRefund(session.paymentReference, listingId);
+  if (refundStatus === "refunded") {
     await logActivity(`Automatic refund: ${error}`, listingId);
   }
-  return refunded;
+  return refundStatus;
 };
 
 /**
@@ -114,18 +118,24 @@ export const refundAndFail = async (
   status: number | undefined,
   detail?: string,
 ): Promise<PaymentFailureResult> => {
-  const refunded = await refundAndLog(session, message, listingId);
+  const refundStatus = await refundAndLog(session, message, listingId);
   const failure: PaymentFailureResult = {
     detail,
     error: message,
-    refunded,
+    refundStatus,
     status,
     success: false,
   };
   // Provider and database writes cannot share one transaction. If this write
   // fails, the caller releases the reservation; retry confirms the provider
   // already refunded before storing the same terminal result.
-  if (refunded) await markSessionFailed(session.id, failure);
+  if (refundStatus === "refunded") {
+    await markSessionFailed(session.id, {
+      error: failure.error,
+      refunded: true,
+      status: failure.status,
+    });
+  }
   return failure;
 };
 

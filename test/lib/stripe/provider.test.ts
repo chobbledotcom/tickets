@@ -386,14 +386,14 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("refundPayment delegation", () => {
-    for (const [status, completed] of [
-      ["succeeded", true],
-      ["pending", false],
-      ["requires_action", false],
-      ["failed", false],
-      ["canceled", false],
+    for (const [status, outcome] of [
+      ["succeeded", "refunded"],
+      ["pending", "pending"],
+      ["requires_action", "pending"],
+      ["failed", "failed"],
+      ["canceled", "failed"],
     ] as const) {
-      test(`returns ${completed} when Stripe reports ${status}`, async () => {
+      test(`returns ${outcome} when Stripe reports ${status}`, async () => {
         const client = await stripeClient();
         await withMocks(
           () =>
@@ -403,25 +403,25 @@ describeStripe("stripe-provider", () => {
           async () => {
             expect(
               await stripePaymentProvider.refundPayment(`pi_${status}`),
-            ).toBe(completed);
+            ).toBe(outcome);
           },
         );
       });
     }
 
-    test("returns false when Stripe returns null (no refund created)", async () => {
+    test("returns failed when Stripe creates no refund", async () => {
       const client = await stripeClient();
       await withMocks(
         () =>
           stub(client.refunds, "create", () => Promise.resolve(null as never)),
         async () => {
           const result = await stripePaymentProvider.refundPayment("pi_null");
-          expect(result).toBe(false);
+          expect(result).toBe("failed");
         },
       );
     });
 
-    test("returns false when refund fails", async () => {
+    test("returns failed when refund fails", async () => {
       const client = await stripeClient();
       await withMocks(
         () =>
@@ -430,7 +430,7 @@ describeStripe("stripe-provider", () => {
           ),
         async () => {
           const result = await stripePaymentProvider.refundPayment("pi_fail");
-          expect(result).toBe(false);
+          expect(result).toBe("failed");
         },
       );
     });

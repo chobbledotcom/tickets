@@ -5,10 +5,12 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
+import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { DatabaseBusyError, getDb, queryAll } from "#shared/db/client.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -24,6 +26,21 @@ import {
 } from "./staged-runtime.helpers.ts";
 
 /* jscpd:ignore-end */
+
+const completeRefund = async (
+  sessionId: string,
+  intent: BookingIntent,
+): Promise<void> => {
+  const result = await processPaymentSession(
+    sessionId,
+    paidSession(sessionId, intent),
+  );
+  expect(result).toMatchObject({
+    refundStatus: "refunded",
+    success: false,
+  });
+  expect(await attendeeIds()).toEqual([]);
+};
 
 describeWithEnv("payment processing > staged refunds", { db: true }, () => {
   afterEach(() => resetStripeClient());
@@ -48,7 +65,10 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
         paidSession("durable-refund", intent),
       );
       expect(stateDuringRefund).toBe("refunding");
-      expect(result).toMatchObject({ refunded: true, success: false });
+      expect(result).toMatchObject({
+        refundStatus: "refunded",
+        success: false,
+      });
       expect(await attendeeIds()).toEqual([]);
       expect(
         await loadCheckoutStageByPaymentSession("durable-refund"),
@@ -114,7 +134,7 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
         "refund-retry",
         paidSession("refund-retry", intent),
       );
-      expect(first).toMatchObject({ refunded: false, status: 503 });
+      expect(first).toMatchObject({ refundStatus: "failed", status: 503 });
       expect(
         await loadCheckoutStageByPaymentSession("refund-retry"),
       ).toMatchObject({ attendeeId, state: "refunding" });
@@ -127,16 +147,48 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
       await queryAll("UPDATE listings SET active = 1 WHERE id = ?", [
         listing.id,
       ]);
-      const second = await processPaymentSession(
-        "refund-retry",
-        paidSession("refund-retry", intent),
-      );
-      expect(second).toMatchObject({ refunded: true, success: false });
+      await completeRefund("refund-retry", intent);
       expect(attempt).toBe(2);
-      expect(await attendeeIds()).toEqual([]);
     } finally {
       refund.restore();
       status.restore();
+    }
+  });
+
+  test("keeps a pending provider refund retryable until it completes", async () => {
+    await setupStripe();
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const intent = intentFor(listing.id);
+    const attendeeId = await stageSession("refund-pending", intent);
+    await deactivateTestListing(listing.id);
+    let attempt = 0;
+    const refund = stub(stripePaymentProvider, "refundPayment", () =>
+      Promise.resolve(++attempt === 1 ? "pending" : "refunded"),
+    );
+    try {
+      const first = await processPaymentSession(
+        "refund-pending",
+        paidSession("refund-pending", intent),
+      );
+      expect(first).toMatchObject({
+        refundStatus: "pending",
+        status: 503,
+      });
+      expect(
+        await loadCheckoutStageByPaymentSession("refund-pending"),
+      ).toMatchObject({ attendeeId, state: "refunding" });
+      expect(await attendeeIds()).toEqual([{ id: attendeeId }]);
+      expect(
+        await queryAll(
+          "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
+          ["refund-pending"],
+        ),
+      ).toEqual([]);
+
+      await completeRefund("refund-pending", intent);
+      expect(attempt).toBe(2);
+    } finally {
+      refund.restore();
     }
   });
 
@@ -161,7 +213,7 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
       if (first.success) throw new Error("Expected refund failure result");
       expect(replay).toEqual({
         error: first.error,
-        refunded: true,
+        refundStatus: "refunded",
         status: first.status,
         success: false,
       });
@@ -210,7 +262,10 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
         "refund-crash",
         paidSession("refund-crash", intent),
       );
-      expect(recovered).toMatchObject({ refunded: true, success: false });
+      expect(recovered).toMatchObject({
+        refundStatus: "refunded",
+        success: false,
+      });
       expect(refund.calls.length).toBe(2);
       expect(status.calls.length).toBe(1);
       expect(await attendeeIds()).toEqual([]);
@@ -270,7 +325,9 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
       const results = [await firstPayment, secondResult];
       expect(results.filter((result) => result.success)).toHaveLength(1);
       expect(
-        results.filter((result) => !result.success && result.refunded),
+        results.filter(
+          (result) => !result.success && result.refundStatus === "refunded",
+        ),
       ).toHaveLength(1);
       const survivors = await attendeeIds();
       expect(survivors).toHaveLength(1);

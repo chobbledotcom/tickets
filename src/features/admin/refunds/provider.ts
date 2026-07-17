@@ -23,6 +23,7 @@ type MarkReturnedReferences = (
 
 export type RefundCounts = {
   refundedCount: number;
+  pendingCount: number;
   failedCount: number;
   errorCount: number;
 };
@@ -46,7 +47,8 @@ const refundReferenceAtProvider = async (
   const paymentReference = reference.reference;
   try {
     if (reference.providerRefunded) return "refunded";
-    if (await provider.refundPayment(paymentReference)) return "refunded";
+    const result = await provider.refundPayment(paymentReference);
+    if (result === "refunded" || result === "pending") return result;
     if (await provider.isPaymentRefunded(paymentReference)) return "refunded";
     logError({
       code: ErrorCode.PAYMENT_REFUND,
@@ -153,6 +155,8 @@ const tallyProviderRefund = (
   } else if (outcome === "failed") {
     counts.failedCount++;
     logBulkRefundProblem(outcome, candidate, listingId);
+  } else if (outcome === "pending") {
+    counts.pendingCount++;
   } else {
     refundedAttendees.push({
       attendeeId: candidate.attendee.id,
@@ -171,6 +175,7 @@ export const processRefundBatch = async (
   const counts: RefundCounts = {
     errorCount: 0,
     failedCount: 0,
+    pendingCount: 0,
     refundedCount: 0,
   };
   for (const group of packByReferenceCount(PROVIDER_REFUND_CONCURRENCY)(

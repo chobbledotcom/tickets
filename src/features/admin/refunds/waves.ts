@@ -1,8 +1,9 @@
+import type { PaymentRefundResult } from "#shared/payments.ts";
 import type { RefundCandidate } from "./candidates.ts";
 
 /** The result of attempting to refund one charge reference (or a whole
  * candidate, once its per-reference outcomes are combined). */
-export type RefundOutcome = "refunded" | "failed" | "errored";
+export type RefundOutcome = PaymentRefundResult | "errored";
 
 /** Pack candidates into waves whose combined charge references stay within
  * `budget`, so each concurrently-processed wave issues at most ~`budget`
@@ -30,11 +31,12 @@ export const packByReferenceCount =
 
 /** Reduce a candidate's per-reference outcomes to a single outcome, worst
  * first: any errored reference errors the candidate, any failed reference
- * fails it, otherwise it is fully refunded. */
+ * fails it, any pending reference keeps it pending, otherwise it is refunded. */
 export const combineRefundOutcomes = (
   outcomes: RefundOutcome[],
 ): RefundOutcome => {
   if (outcomes.includes("errored")) return "errored";
   if (outcomes.includes("failed")) return "failed";
+  if (outcomes.includes("pending")) return "pending";
   return "refunded";
 };

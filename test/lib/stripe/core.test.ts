@@ -206,6 +206,7 @@ describeStripe("stripe", () => {
         },
         async (createSpy) => {
           const listing = testListing({ unit_price: 1000 });
+          const now = Math.floor(Date.now() / 1000);
           await createCheckoutSession(
             checkoutIntent({
               email: "jane@example.com",
@@ -219,12 +220,8 @@ describeStripe("stripe", () => {
             .args[0] as unknown as CreatedSessionParams & {
             expires_at: number;
           };
-          expect(params.expires_at).toBeGreaterThan(
-            Math.floor(Date.now() / 1000) + 30 * 60,
-          );
-          expect(params.expires_at).toBeLessThanOrEqual(
-            Math.floor(Date.now() / 1000) + 31 * 60,
-          );
+          expect(params.expires_at).toBeGreaterThanOrEqual(now + 30 * 60);
+          expect(params.expires_at).toBeLessThanOrEqual(now + 31 * 60);
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",
           );

@@ -358,6 +358,10 @@ export type ProviderCheckout = {
  * checkout can no longer accept payment. `paid` means payment already won. */
 export type CheckoutCloseResult = "closed" | "paid";
 
+/** Provider-authoritative refund outcome. Pending refunds stay retryable and
+ * must not be recorded as either completed or failed. */
+export type PaymentRefundResult = "failed" | "pending" | "refunded";
+
 /**
  * Payment provider interface.
  *
@@ -392,9 +396,9 @@ export interface PaymentProvider {
   /**
    * Refund a completed payment.
    * @param paymentReference - provider-specific payment reference (e.g. Stripe payment_intent ID)
-   * @returns true if refund succeeded, false otherwise
+   * @returns whether the refund completed, is pending, or failed
    */
-  refundPayment(paymentReference: string): Promise<boolean>;
+  refundPayment(paymentReference: string): Promise<PaymentRefundResult>;
 
   /** Whether incoming webhooks carry a verifiable signature. Providers that
    * sign their webhooks (Stripe, Square) set this true so the endpoint rejects

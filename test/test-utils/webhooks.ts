@@ -117,7 +117,7 @@ export const expectWebhookProcessed = async (
  * return `event` and `stripeApi.refundPayment` to succeed, POST the webhook,
  * and assert the standard price-mismatch response — acknowledged but not
  * processed, with an error containing `errorContains` (the generic
- * saved-your-details message by default; pass an override for a scenario with
+ * couldn't-complete-your-booking message by default; pass an override for a scenario with
  * its own message, e.g. an inactive/closed listing). Returns the refund stub
  * so the caller can assert on `mockRefund.calls.length` and continue with
  * scenario-specific checks for stage removal and the terminal payment record.

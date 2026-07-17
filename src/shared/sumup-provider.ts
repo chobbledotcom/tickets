@@ -24,6 +24,7 @@ import {
 } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
+  PaymentRefundResult,
   PaymentStatus,
   SessionMetadata,
   ValidatedPaymentSession,
@@ -102,9 +103,15 @@ export const sumupPaymentProvider: PaymentProvider = {
     return (await getTransactionStatus(paymentReference)) === "REFUNDED";
   },
 
-  async refundPayment(paymentReference: string): Promise<boolean> {
-    if (!(await refundTransaction(paymentReference))) return false;
-    return (await getTransactionStatus(paymentReference)) === "REFUNDED";
+  async refundPayment(paymentReference: string): Promise<PaymentRefundResult> {
+    if (!(await refundTransaction(paymentReference))) return "failed";
+    const status = await getTransactionStatus(paymentReference);
+    if (status === "REFUNDED") return "refunded";
+    if (status === "SUCCESSFUL" || status === "PENDING") return "pending";
+    if (status === "REFUND_FAILED") return "failed";
+    throw new Error(
+      `Unknown SumUp refund transaction status for ${paymentReference}: ${status}`,
+    );
   },
   requiresWebhookSignature: false,
 

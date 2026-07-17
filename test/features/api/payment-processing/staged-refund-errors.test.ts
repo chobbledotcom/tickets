@@ -53,7 +53,10 @@ describeWithEnv(
           "stage-mismatch",
           paidSession("stage-mismatch", intent),
         );
-        expect(result).toMatchObject({ refunded: true, success: false });
+        expect(result).toMatchObject({
+          refundStatus: "refunded",
+          success: false,
+        });
         if (result.success)
           throw new Error("Expected stage mismatch to refund");
         expect(result.error).toBe("We couldn't complete your booking.");

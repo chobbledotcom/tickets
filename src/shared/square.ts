@@ -34,10 +34,17 @@ import {
 import type {
   CheckoutCloseResult,
   CheckoutIntent,
+  PaymentRefundResult,
   WebhookEvent,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import {
+  type CompletedSquarePayment,
+  findCompletedSquarePayment,
+  type SquareOrder,
+  type SquarePayment,
+} from "#shared/square-payments.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /* jscpd:ignore-end */
@@ -448,38 +455,6 @@ const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
   return { currency, locationId };
 };
 
-/** Square order response shape (subset we use) */
-type SquareOrder = {
-  id?: string | undefined;
-  metadata?: Record<string, string> | undefined;
-  tenders?:
-    | Array<{
-        id?: string | undefined;
-        paymentId?: string | undefined;
-      }>
-    | undefined;
-  state?: string | undefined;
-  totalMoney: { amount: bigint; currency: string };
-  /** Order creation time (RFC 3339 / ISO 8601), from the Square API. */
-  createdAt?: string | undefined;
-};
-
-/** A Square Money object with both fields optional, as returned on a payment's
- * `amountMoney` / `refundedMoney`. */
-type SquareMoney = {
-  amount?: bigint | undefined;
-  currency?: string | undefined;
-};
-
-/** Square payment response shape (subset we use) */
-type SquarePayment = {
-  id?: string | undefined;
-  status?: string | undefined;
-  orderId?: string | undefined;
-  amountMoney?: SquareMoney | undefined;
-  refundedMoney?: SquareMoney | undefined;
-};
-
 /** Result of creating a payment link */
 export type PaymentLinkResult = {
   id: string;
@@ -592,8 +567,30 @@ export type SquareClient = ReturnType<typeof createSquareClient>;
 const fetchOrder = async (
   client: SquareClient,
   orderId: string,
-): Promise<Pick<SquareOrder, "state"> | null> =>
-  (await client.orders.get({ orderId })).order;
+): Promise<SquareOrder | null> => {
+  const order = (await client.orders.get({ orderId })).order;
+  if (!order) return null;
+  if (
+    typeof order.totalMoney?.amount !== "bigint" ||
+    !order.totalMoney.currency
+  ) {
+    throw new Error(`Square order ${orderId} has no total`);
+  }
+  return { ...order, totalMoney: order.totalMoney };
+};
+
+export const retrieveCompletedPaymentForOrder = async (
+  order: SquareOrder,
+): Promise<CompletedSquarePayment | null> =>
+  findCompletedSquarePayment(squareApi.retrievePayment)(order);
+
+const squareCheckoutState = async (
+  order: SquareOrder,
+): Promise<CheckoutCloseResult | null> => {
+  if (order.state === "COMPLETED") return "paid";
+  if (await retrieveCompletedPaymentForOrder(order)) return "paid";
+  return order.state === "CANCELED" ? "closed" : null;
+};
 
 /**
  * Stubbable API for testing - allows mocking in ES modules
@@ -612,7 +609,7 @@ export const squareApi: {
   ) => Promise<PaymentLinkResult>;
   retrieveOrder: (orderId: string) => Promise<SquareOrder | null>;
   retrievePayment: (paymentId: string) => Promise<SquarePayment | null>;
-  refundPayment: (paymentId: string) => Promise<boolean>;
+  refundPayment: (paymentId: string) => Promise<PaymentRefundResult>;
 } = {
   closePaymentLink: async (
     paymentLinkId: string,
@@ -623,28 +620,30 @@ export const squareApi: {
 
     const current = await fetchOrder(client, orderId);
     if (!current) throw new Error(`Square order ${orderId} not found`);
-    if (current.state === "COMPLETED") return "paid";
-    if (current.state === "CANCELED") return "closed";
+    const currentState = await squareCheckoutState(current);
+    if (currentState) return currentState;
 
+    let deleted: Awaited<
+      ReturnType<SquareClient["checkout"]["paymentLinks"]["delete"]>
+    >;
     try {
-      const deleted = await client.checkout.paymentLinks.delete({
+      deleted = await client.checkout.paymentLinks.delete({
         id: paymentLinkId,
       });
-      if (
-        deleted.id !== paymentLinkId ||
-        deleted.cancelledOrderId !== orderId
-      ) {
-        throw new Error(
-          `Square closed the wrong payment link or order for ${paymentLinkId}`,
-        );
-      }
-      return "closed";
     } catch (err) {
       const afterFailure = await fetchOrder(client, orderId);
-      if (afterFailure?.state === "COMPLETED") return "paid";
-      if (afterFailure?.state === "CANCELED") return "closed";
+      if (afterFailure) {
+        const afterFailureState = await squareCheckoutState(afterFailure);
+        if (afterFailureState) return afterFailureState;
+      }
       throw err;
     }
+    if (deleted.id !== paymentLinkId || deleted.cancelledOrderId !== orderId) {
+      throw new Error(
+        `Square closed the wrong payment link or order for ${paymentLinkId}`,
+      );
+    }
+    return "closed";
   },
   /** Create a payment link for one or more listings */
   createPaymentLink: async (
@@ -698,14 +697,14 @@ export const squareApi: {
   getSquareClient: getClientImpl,
 
   /** Refund a payment (full amount) */
-  refundPayment: async (paymentId: string): Promise<boolean> => {
+  refundPayment: async (paymentId: string): Promise<PaymentRefundResult> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
       logError({
         code: ErrorCode.SQUARE_REFUND,
         detail: `Cannot refund payment ${paymentId}: missing amount info`,
       });
-      return false;
+      return "failed";
     }
 
     const result = await withClient(async (client) => {
@@ -726,10 +725,13 @@ export const squareApi: {
           `Square refund ${refund.id} for ${paymentId} has no status`,
         );
       }
-      return refund.status === "COMPLETED" || refund.status === "SUCCEEDED";
+      if (refund.status === "PENDING") return "pending";
+      return refund.status === "COMPLETED" || refund.status === "SUCCEEDED"
+        ? "refunded"
+        : "failed";
     }, ErrorCode.SQUARE_REFUND);
 
-    return result ?? false;
+    return result ?? "failed";
   },
 
   resetSquareClient: (): void => clientCache.reset(),

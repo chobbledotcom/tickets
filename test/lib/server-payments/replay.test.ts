@@ -243,7 +243,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // The provider's refund call fails (e.g. transiently down) and the
           // payment is not already refunded, so the refund genuinely failed.
           mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
-            Promise.resolve(false),
+            Promise.resolve("failed"),
           ),
           mockRefunded: stub(stripePaymentProvider, "isPaymentRefunded", () =>
             Promise.resolve(false),

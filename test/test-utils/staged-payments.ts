@@ -66,56 +66,62 @@ export const stagePaymentCallback = async (fields: {
       inactiveIds,
     );
   }
-  const bookings = bookingsForOrder(
-    intent,
-    intent.items.map((item) => ({
-      ...bookingSlot(item),
-      listing: requiredMapValue(
-        listingById,
-        item.e,
-        `Listing ${item.e} was not loaded for staged payment`,
-      ),
-      quantity: item.q,
-    })),
-  );
-  const attendeeInput = {
-    address: intent.address,
-    bookings: bookings.map((booking) => ({ ...booking, quantity: 0 })),
-    email: intent.email,
-    name: intent.name,
-    phone: intent.phone,
-    special_instructions: intent.special_instructions,
-    statusId: await getPublicStatusId(),
-  };
-  const staged = await attendeesApi.createStagedCheckoutAtomic(attendeeInput, {
-    paymentSessionId: fields.sessionId,
-    provider: fields.provider ?? "stripe",
-    providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
-  });
-  if (inactiveIds.length > 0) {
-    await execute(
-      `UPDATE listings SET active = 0 WHERE id IN (${inactiveIds.map(() => "?").join(", ")})`,
-      inactiveIds,
+  try {
+    const bookings = bookingsForOrder(
+      intent,
+      intent.items.map((item) => ({
+        ...bookingSlot(item),
+        listing: requiredMapValue(
+          listingById,
+          item.e,
+          `Listing ${item.e} was not loaded for staged payment`,
+        ),
+        quantity: item.q,
+      })),
     );
-  }
-  if (!staged.success) {
-    const attendee = await attendeesApi.createAttendeeAtomic({
-      ...attendeeInput,
-      allowOverbook: true,
-    });
-    assert(attendee.success, "Could not stage payment callback");
-    const first = attendee.attendees[0]!;
-    const stage = await pendingCheckoutStageInsert(
+    const attendeeInput = {
+      address: intent.address,
+      bookings: bookings.map((booking) => ({ ...booking, quantity: 0 })),
+      email: intent.email,
+      name: intent.name,
+      phone: intent.phone,
+      special_instructions: intent.special_instructions,
+      statusId: await getPublicStatusId(),
+    };
+    const staged = await attendeesApi.createStagedCheckoutAtomic(
+      attendeeInput,
       {
         paymentSessionId: fields.sessionId,
         provider: fields.provider ?? "stripe",
         providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
       },
-      "?",
-      [first.id],
-      first.ticket_token,
     );
-    await execute(stage.sql, stage.args);
+    if (!staged.success) {
+      const attendee = await attendeesApi.createAttendeeAtomic({
+        ...attendeeInput,
+        allowOverbook: true,
+      });
+      assert(attendee.success, "Could not stage payment callback");
+      const first = attendee.attendees[0]!;
+      const stage = await pendingCheckoutStageInsert(
+        {
+          paymentSessionId: fields.sessionId,
+          provider: fields.provider ?? "stripe",
+          providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
+        },
+        "?",
+        [first.id],
+        first.ticket_token,
+      );
+      await execute(stage.sql, stage.args);
+    }
+  } finally {
+    if (inactiveIds.length > 0) {
+      await execute(
+        `UPDATE listings SET active = 0 WHERE id IN (${inactiveIds.map(() => "?").join(", ")})`,
+        inactiveIds,
+      );
+    }
   }
 };
 

@@ -34,6 +34,12 @@ const refundResult = (
 ): ((reference: string) => Promise<boolean>) =>
   typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
 
+const providerRefundResult = (behavior: RefundBehavior) => {
+  const result = refundResult(behavior);
+  return async (reference: string) =>
+    (await result(reference)) ? ("refunded" as const) : ("failed" as const);
+};
+
 /** POST the refund-all confirmation form for a listing as the owner. */
 export const postRefundAll = async (listing: {
   id: number;
@@ -141,7 +147,7 @@ export const withRefundMock = async (
     const mockRefund = stub(
       provider,
       "refundPayment",
-      refundResult(refundBehavior),
+      providerRefundResult(refundBehavior),
     );
     const mockRefunded = stub(
       provider,

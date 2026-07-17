@@ -12,7 +12,7 @@
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
 
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { logDebug } from "#shared/logger.ts";
 import {
   hasRequiredSessionMetadata,
   toCanonicalIso,
@@ -23,6 +23,7 @@ import {
 import type {
   CheckoutIntent,
   PaymentProvider,
+  PaymentRefundResult,
   SessionMetadata,
   ValidatedPaymentSession,
   WebhookEvent,
@@ -33,45 +34,20 @@ import {
   closePaymentLink,
   createPaymentLink,
   refundPayment,
+  retrieveCompletedPaymentForOrder,
   retrieveOrder,
   retrievePayment,
   verifyWebhookSignature,
 } from "#shared/square.ts";
+import {
+  type CompletedSquarePayment,
+  squareTenderPaymentIds,
+} from "#shared/square-payments.ts";
 
 type SquareOrder = NonNullable<Awaited<ReturnType<typeof retrieveOrder>>>;
-type SquarePayment = NonNullable<Awaited<ReturnType<typeof retrievePayment>>>;
 type CompleteSquareOrder = SquareOrder & {
   id: string;
   metadata: SessionMetadata;
-};
-
-const MAX_TENDERS_TO_CHECK = 10;
-
-/** Validate the completed payment fields that authorize booking and refunds. */
-const completedPaymentForOrder = (
-  payment: SquarePayment,
-  paymentId: string,
-  order: SquareOrder,
-): { amountTotal: number; paymentReference: string } | null => {
-  const amount = payment.amountMoney?.amount;
-  const currency = payment.amountMoney?.currency;
-  if (
-    payment.id !== paymentId ||
-    payment.status !== "COMPLETED" ||
-    payment.orderId !== order.id ||
-    typeof amount !== "bigint" ||
-    !currency ||
-    currency !== order.totalMoney.currency ||
-    amount < BigInt(0) ||
-    amount > BigInt(Number.MAX_SAFE_INTEGER)
-  ) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Square payment ${paymentId} is not a valid completed payment for order ${order.id}`,
-    });
-    return null;
-  }
-  return { amountTotal: Number(amount), paymentReference: paymentId };
 };
 
 const squareSession = (
@@ -91,14 +67,9 @@ const squareSession = (
 
 const paidSquareSession = (
   order: CompleteSquareOrder,
-  payment: SquarePayment,
-  paymentId: string,
-): ValidatedPaymentSession | null => {
-  const completed = completedPaymentForOrder(payment, paymentId, order);
-  return completed
-    ? squareSession(order, { ...completed, paymentStatus: "paid" })
-    : null;
-};
+  payment: CompletedSquarePayment,
+): ValidatedPaymentSession =>
+  squareSession(order, { ...payment, paymentStatus: "paid" });
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
@@ -125,7 +96,7 @@ export const squarePaymentProvider: PaymentProvider = {
     return charged > BigInt(0) && refunded >= charged;
   },
 
-  refundPayment(paymentReference: string): Promise<boolean> {
+  refundPayment(paymentReference: string): Promise<PaymentRefundResult> {
     return refundPayment(paymentReference);
   },
   requiresWebhookSignature: true,
@@ -165,12 +136,11 @@ export const squarePaymentProvider: PaymentProvider = {
       metadata: order.metadata,
     };
 
-    const authoritativePayment = await retrievePayment(paymentId);
-    if (!authoritativePayment) return "retry";
-    return (
-      paidSquareSession(completeOrder, authoritativePayment, paymentId) ??
-      "retry"
-    );
+    const completed = await retrieveCompletedPaymentForOrder({
+      ...completeOrder,
+      tenders: [{ paymentId }],
+    });
+    return completed ? paidSquareSession(completeOrder, completed) : "retry";
   },
 
   /* jscpd:ignore-start -- PaymentProvider interface conformance, not
@@ -199,15 +169,9 @@ export const squarePaymentProvider: PaymentProvider = {
       metadata,
     };
 
-    const paymentIds = (order.tenders ?? [])
-      .slice(-MAX_TENDERS_TO_CHECK)
-      .reverse()
-      .flatMap((tender) => (tender.paymentId ? [tender.paymentId] : []));
-    for (const paymentId of paymentIds) {
-      const payment = await retrievePayment(paymentId);
-      if (payment?.status !== "COMPLETED") continue;
-      return paidSquareSession(completeOrder, payment, paymentId);
-    }
+    const completed = await retrieveCompletedPaymentForOrder(order);
+    if (completed) return paidSquareSession(completeOrder, completed);
+    const paymentIds = squareTenderPaymentIds(order);
 
     return squareSession(completeOrder, {
       amountTotal: Number(order.totalMoney.amount),

@@ -31,7 +31,19 @@ export const handleReservationConflict = async (
     });
   }
   const failure = await parseSessionFailure(existing.failure_data);
-  if (failure) return { ...failure, success: false };
+  if (failure) {
+    return {
+      error: failure.error,
+      refundStatus:
+        failure.refunded === true
+          ? "refunded"
+          : failure.refunded === false
+            ? "failed"
+            : undefined,
+      status: failure.status,
+      success: false,
+    };
+  }
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",
     status: 409,

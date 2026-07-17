@@ -136,14 +136,14 @@ export const createAndHandlePaidCheckout = async <T>(
 /** Build the same booking identities payment completion uses, before quantities
  * are zeroed for staging. Listing facts are loaded in one collection query even
  * for a single-item checkout. */
-export const paidCheckoutBookings = async (
+const paidCheckoutBookingsOrNull = async (
   intent: CheckoutIntent,
-): Promise<CanonicalOrderBooking[]> => {
+): Promise<CanonicalOrderBooking[] | null> => {
   const listingIds = [...new Set(intent.items.map((item) => item.listingId))];
   const listings = await getListingsWithCountsByIds(listingIds);
   const listingById = mapById(identity<(typeof listings)[number]>)(listings);
   if (listingById.size !== listingIds.length) {
-    throw new Error("Could not load every listing for paid checkout");
+    return null;
   }
   return bookingsForOrder(
     intent,
@@ -163,7 +163,7 @@ const closeAfterStageFailure = async (
     sessionId: string;
   },
   stageError: unknown,
-): Promise<never> => {
+): Promise<PaidCheckoutResult> => {
   const closed = await provider.closeCheckout(checkout);
   if (closed === "paid") {
     throw new Error(
@@ -171,9 +171,7 @@ const closeAfterStageFailure = async (
       { cause: stageError },
     );
   }
-  throw new Error(`Could not store checkout stage ${checkout.sessionId}`, {
-    cause: stageError,
-  });
+  return { type: "checkout_failed" };
 };
 
 /** Preflight real demand, create the hosted checkout, then atomically stage its
@@ -183,7 +181,8 @@ export const createPaidCheckout = async ({
   intent,
   provider,
 }: CreatePaidCheckoutInput): Promise<PaidCheckoutResult> => {
-  const bookings = await paidCheckoutBookings(intent);
+  const bookings = await paidCheckoutBookingsOrNull(intent);
+  if (bookings === null) return { type: "sold_out" };
   const available = await attendeesApi.checkBatchAvailability(
     bookings.map((booking) => ({
       durationDays: booking.durationDays,

@@ -15,6 +15,7 @@ import {
 import {
   isPaymentStatus,
   type PaymentProvider,
+  type PaymentRefundResult,
   type PaymentStatus,
   type ValidatedPaymentSession,
   type WebhookEvent,
@@ -74,9 +75,12 @@ export const stripePaymentProvider: PaymentProvider = {
     return intent?.latest_charge?.refunded ?? false;
   },
 
-  async refundPayment(paymentReference: string): Promise<boolean> {
+  async refundPayment(paymentReference: string): Promise<PaymentRefundResult> {
     const result = await stripeRefund(paymentReference);
-    return result?.status === "succeeded";
+    if (result?.status === "succeeded") return "refunded";
+    return result?.status === "pending" || result?.status === "requires_action"
+      ? "pending"
+      : "failed";
   },
   requiresWebhookSignature: true,
 

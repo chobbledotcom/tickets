@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { formatPaymentError } from "#routes/api/payment-processing/index.ts";
 import { tryRefund } from "#routes/api/payment-processing/refunds.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -34,7 +35,19 @@ describeWithEnv(
     });
 
     test("tryRefund rejects an empty payment reference", async () => {
-      expect(await tryRefund("")).toBe(false);
+      expect(await tryRefund("")).toBe("failed");
+    });
+
+    test("a pending refund tells the buyer it is processing", () => {
+      expect(
+        formatPaymentError({
+          error: "We couldn't complete your booking.",
+          refundStatus: "pending",
+          success: false,
+        }),
+      ).toBe(
+        "We couldn't complete your booking. Your refund is being processed.",
+      );
     });
 
     test("paid redirect without a payment reference fails before refund", async () => {
@@ -98,10 +111,10 @@ describeWithEnv(
       await expectAttendeeCreatedWithPiiBlob(listing.id);
     });
 
-    test("formatPaymentError returns plain error when refunded is undefined", async () => {
+    test("formatPaymentError returns plain error when no refund was attempted", async () => {
       await setupStripe();
 
-      // This tests the case where result.refunded is undefined
+      // This tests the case where refundStatus is undefined.
       // This happens when validatePaidSession fails (no refund attempt)
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({

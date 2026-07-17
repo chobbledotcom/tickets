@@ -7,6 +7,7 @@ import {
   packByReferenceCount,
 } from "#routes/admin/refunds/waves.ts";
 import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
+import type { PaymentRefundResult } from "#shared/payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 type Ref = { reference: string; providerRefunded?: boolean };
@@ -28,10 +29,12 @@ const candidateWithReferences = (references: string[]): RefundCandidate =>
  * references in `throws`. */
 const provider = ({
   refunded = new Set<string>(),
+  pending = new Set<string>(),
   alreadyRefunded = new Set<string>(),
   throws = new Set<string>(),
 }: {
   refunded?: Set<string>;
+  pending?: Set<string>;
   alreadyRefunded?: Set<string>;
   throws?: Set<string>;
 } = {}) => ({
@@ -39,7 +42,12 @@ const provider = ({
     Promise.resolve(alreadyRefunded.has(reference)),
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
-    return Promise.resolve(refunded.has(reference));
+    const result: PaymentRefundResult = refunded.has(reference)
+      ? "refunded"
+      : pending.has(reference)
+        ? "pending"
+        : "failed";
+    return Promise.resolve(result);
   },
 });
 
@@ -130,6 +138,10 @@ describe("combineRefundOutcomes", () => {
     expect(combineRefundOutcomes(["refunded", "failed"])).toBe("failed");
   });
 
+  test("keeps a pending reference pending when none failed", () => {
+    expect(combineRefundOutcomes(["refunded", "pending"])).toBe("pending");
+  });
+
   test("is refunded only when every outcome is refunded", () => {
     expect(combineRefundOutcomes(["refunded", "refunded"])).toBe("refunded");
   });
@@ -150,7 +162,7 @@ describe("admin refund provider", () => {
         isPaymentRefunded: () => Promise.resolve(false),
         refundPayment: () => {
           refundCalls++;
-          return Promise.resolve(false);
+          return Promise.resolve("failed" as const);
         },
       },
       candidate([{ providerRefunded: true, reference: "pi_pre" }]),
@@ -187,6 +199,19 @@ describe("admin refund provider", () => {
 
     expect(result.outcome).toBe("refunded");
     expect(marker.marked).toEqual(["pi_seen"]);
+  });
+
+  test("keeps an accepted pending refund unmarked", async () => {
+    const marker = collectingMarker();
+    const result = await refundCandidateAtProvider(
+      provider({ pending: new Set(["pi_pending"]) }),
+      candidateWithReferences(["pi_pending"]),
+      7,
+      marker.mark,
+    );
+
+    expect(result.outcome).toBe("pending");
+    expect(marker.marked).toEqual([]);
   });
 
   test("fails and logs when the provider neither refunds nor confirms", async () => {

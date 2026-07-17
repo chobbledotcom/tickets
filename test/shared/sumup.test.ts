@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { SumUp } from "@sumup/sdk";
+import { filter } from "#fp";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getSumupCheckout } from "#shared/db/sumup-checkouts.ts";
@@ -99,7 +100,7 @@ describe("sumup", () => {
         "USD",
       ];
       expect(
-        currencies.filter((currency) => !isSumupCurrency(currency)),
+        filter((currency: string) => !isSumupCurrency(currency))(currencies),
       ).toEqual([]);
       expect(isSumupCurrency("gbp")).toBe(true);
     });

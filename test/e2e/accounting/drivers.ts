@@ -254,7 +254,12 @@ export const withRefundMock = (
     async () => {
       const behave =
         typeof refund === "function" ? refund : () => Promise.resolve(refund);
-      const mockRefund = stub(stripePaymentProvider, "refundPayment", behave);
+      const mockRefund = stub(
+        stripePaymentProvider,
+        "refundPayment",
+        async (paymentId) =>
+          (await behave(paymentId)) ? "refunded" : "failed",
+      );
       try {
         await body(mockRefund);
       } finally {

@@ -6,7 +6,7 @@
  * durable refund path.
  */
 
-import { requiredMapValue } from "#fp";
+import { map, requiredMapValue } from "#fp";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { paidByItem } from "#routes/api/payment-processing/pricing.ts";
@@ -251,7 +251,7 @@ export const createAttendeeForSession = async (
     const paidByIntentItem = paidByItem(pricedOrder);
     const bookings = bookingsForOrder(
       intent,
-      validatedItems.map(({ item, listing }, index) => {
+      map(({ item, listing }: ValidatedItem, index) => {
         const pricePaid = requiredMapValue(
           paidByIntentItem,
           pricingIntent.items[index]!,
@@ -263,7 +263,7 @@ export const createAttendeeForSession = async (
           pricePaid,
           quantity: item.q,
         };
-      }),
+      })(validatedItems),
     );
     // Build every fallible input before starting the atomic write. A failure
     // here is known not to have committed, while a write failure below must be

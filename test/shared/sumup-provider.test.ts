@@ -160,15 +160,17 @@ describe("sumup-provider", () => {
   });
 
   describe("refundPayment", () => {
-    test("returns false when SumUp rejects the refund request", () =>
+    test("returns failed when SumUp rejects the refund request", () =>
       withMocks(
         () => stub(sumupApi, "refundTransaction", () => Promise.resolve(false)),
         async () => {
-          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(false);
+          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(
+            "failed",
+          );
         },
       ));
 
-    test("returns true only after SumUp confirms REFUNDED", () =>
+    test("returns refunded only after SumUp confirms REFUNDED", () =>
       withMocks(
         () => ({
           refund: stub(sumupApi, "refundTransaction", () =>
@@ -179,14 +181,20 @@ describe("sumup-provider", () => {
           ),
         }),
         async ({ refund, status }) => {
-          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(true);
+          expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(
+            "refunded",
+          );
           expect(refund.calls[0]!.args).toEqual(["txn_9"]);
           expect(status.calls[0]!.args).toEqual(["txn_9"]);
         },
       ));
 
-    for (const status of ["SUCCESSFUL", "PENDING", "REFUND_FAILED"] as const) {
-      test(`returns false after accepted refund remains ${status}`, () =>
+    for (const [status, outcome] of [
+      ["SUCCESSFUL", "pending"],
+      ["PENDING", "pending"],
+      ["REFUND_FAILED", "failed"],
+    ] as const) {
+      test(`returns ${outcome} after accepted refund is ${status}`, () =>
         withMocks(
           () => ({
             refund: stub(sumupApi, "refundTransaction", () =>
@@ -198,11 +206,28 @@ describe("sumup-provider", () => {
           }),
           async () => {
             expect(await sumupPaymentProvider.refundPayment("txn_9")).toBe(
-              false,
+              outcome,
             );
           },
         ));
     }
+
+    test("throws when SumUp returns an unknown refund status", () =>
+      withMocks(
+        () => ({
+          refund: stub(sumupApi, "refundTransaction", () =>
+            Promise.resolve(true),
+          ),
+          status: stub(sumupApi, "getTransactionStatus", () =>
+            Promise.resolve("MYSTERY"),
+          ),
+        }),
+        async () => {
+          await expect(
+            sumupPaymentProvider.refundPayment("txn_unknown"),
+          ).rejects.toThrow("Unknown SumUp refund transaction status");
+        },
+      ));
   });
 
   describe("createCheckoutSession", () => {

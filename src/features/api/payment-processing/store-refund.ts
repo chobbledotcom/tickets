@@ -122,17 +122,19 @@ export const refundStagedBooking = async (
   if (stage.state === "pending") {
     await beginCheckoutStageRefund(session.id);
   }
-  const refunded = await tryRefund(session.paymentReference, listingId);
-  if (!refunded) {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Staged refund failed for ${stage.attendeeId} (${spec.code}): ${spec.detail}`,
-      listingId,
-    });
+  const refundStatus = await tryRefund(session.paymentReference, listingId);
+  if (refundStatus !== "refunded") {
+    if (refundStatus === "failed") {
+      logError({
+        code: ErrorCode.PAYMENT_REFUND,
+        detail: `Staged refund failed for ${stage.attendeeId} (${spec.code}): ${spec.detail}`,
+        listingId,
+      });
+    }
     return {
       detail: spec.detail,
       error: BOOKING_FAILED_MESSAGE,
-      refunded: false,
+      refundStatus,
       status: 503,
       success: false,
     };
@@ -161,12 +163,12 @@ export const refundStagedBooking = async (
     `Automatic refund (${spec.code}); staged booking removed`,
     listingId,
   );
-  // Status 200 acknowledges the terminal refund. A failed refund returns 503
-  // above and keeps the stage retryable.
+  // Status 200 acknowledges the terminal refund. A pending or failed refund
+  // returns 503 above and keeps the stage retryable.
   return {
     detail: spec.detail,
     error: failure.error,
-    refunded: true,
+    refundStatus: "refunded",
     status: failure.status,
     success: false,
   };

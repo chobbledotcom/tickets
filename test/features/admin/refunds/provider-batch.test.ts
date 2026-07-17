@@ -40,7 +40,7 @@ const failingProvider = (throws: Set<string>) => ({
   isPaymentRefunded: () => Promise.resolve(false),
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
-    return Promise.resolve(false);
+    return Promise.resolve("failed" as const);
   },
 });
 
@@ -66,6 +66,7 @@ describeWithEnv(
       expect(counts).toEqual({
         errorCount: 1,
         failedCount: 1,
+        pendingCount: 0,
         refundedCount: 1,
       });
       expect(errors.contains("Admin bulk refund failed for attendee 12")).toBe(
@@ -89,6 +90,25 @@ describeWithEnv(
       expect(counts).toEqual({
         errorCount: 0,
         failedCount: 0,
+        pendingCount: 0,
+        refundedCount: 0,
+      });
+    });
+
+    test("counts an accepted refund as pending", async () => {
+      const counts = await processRefundBatch(
+        {
+          isPaymentRefunded: () => Promise.resolve(false),
+          refundPayment: () => Promise.resolve("pending"),
+        },
+        [pendingCandidate(20, ["pi_pending"])],
+        LISTING,
+      );
+
+      expect(counts).toEqual({
+        errorCount: 0,
+        failedCount: 0,
+        pendingCount: 1,
         refundedCount: 0,
       });
     });
@@ -105,6 +125,7 @@ describeWithEnv(
       expect(counts).toEqual({
         errorCount: 1,
         failedCount: 0,
+        pendingCount: 0,
         refundedCount: 0,
       });
     });

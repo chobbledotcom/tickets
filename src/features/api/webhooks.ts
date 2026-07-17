@@ -305,10 +305,13 @@ const webhookResultResponse = (
     listingId: listingIdForLog,
   });
   logDebug("Webhook", `Failed payload: ${payload}`);
-  if (result.status === 409 && result.refunded === undefined) {
+  if (result.status === 409 && result.refundStatus === undefined) {
     return plainResponse(result.error, 409);
   }
-  if (result.refunded === false && session.paymentReference) {
+  if (
+    (result.refundStatus === "failed" || result.refundStatus === "pending") &&
+    session.paymentReference
+  ) {
     return plainResponse(result.error, 503);
   }
   return webhookAckResponse({ error: result.error, processed: false });

@@ -6,7 +6,10 @@ import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts
 import { queryAll } from "#shared/db/client.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import {
   stagePaymentCallback,
@@ -84,6 +87,34 @@ describeWithEnv("test staged payment fixtures", { db: true }, () => {
         sessionId: "cs_missing_fixture_listing",
       }),
     ).rejects.toThrow("Listing 999999 was not loaded for staged payment");
+  });
+
+  test("restores an inactive listing when another listing is missing", async () => {
+    const inactive = await createTestListing({ unitPrice: 1000 });
+    await deactivateTestListing(inactive.id);
+    const missingId = 999999;
+    const metadata = signedMeta(
+      {
+        items: JSON.stringify([
+          { e: inactive.id, p: 1000, q: 1 },
+          { e: missingId, p: 1000, q: 1 },
+        ]),
+        name: "Mixed listings",
+      },
+      2000,
+    );
+
+    await expect(
+      stagePaymentCallback({
+        amountTotal: 2000,
+        metadata,
+        paymentReference: "pi_mixed_fixture_listings",
+        sessionId: "cs_mixed_fixture_listings",
+      }),
+    ).rejects.toThrow(`Listing ${missingId} was not loaded for staged payment`);
+    expect(
+      await queryAll("SELECT active FROM listings WHERE id = ?", [inactive.id]),
+    ).toEqual([{ active: 0 }]);
   });
 
   test("fallback staging preserves provider checkout identifiers", async () => {

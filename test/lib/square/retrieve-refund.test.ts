@@ -193,12 +193,12 @@ describeSquare(() => {
   });
 
   describe("refundPayment", () => {
-    test("returns false when access token not set", async () => {
+    test("returns failed when access token not set", async () => {
       const result = await squareApi.refundPayment("pay_123");
-      expect(result).toBe(false);
+      expect(result).toBe("failed");
     });
 
-    test("returns false when payment retrieval returns null", async () => {
+    test("returns failed when payment retrieval returns null", async () => {
       const retrieveStub = stub(squareApi, "retrievePayment", () =>
         Promise.resolve(null),
       );
@@ -206,7 +206,7 @@ describeSquare(() => {
         () => retrieveStub,
         async () => {
           const result = await squareApi.refundPayment("pay_123");
-          expect(result).toBe(false);
+          expect(result).toBe("failed");
           // Prove we reached the null-retrieval branch, not an earlier exit.
           expect(retrieveStub.calls).toHaveLength(1);
           expect(retrieveStub.calls[0]!.args[0]).toBe("pay_123");
@@ -214,7 +214,7 @@ describeSquare(() => {
       );
     });
 
-    test("returns false while Square reports the refund as pending", async () => {
+    test("returns pending while Square processes the refund", async () => {
       await withSquareClient(
         {
           paymentsGet: () =>
@@ -233,7 +233,7 @@ describeSquare(() => {
         },
         async ({ paymentsGet, refundsRefundPayment }) => {
           const result = await squareApi.refundPayment("pay_refund_me");
-          expect(result).toBe(false);
+          expect(result).toBe("pending");
 
           // Verify payments.get was called to fetch amount
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
@@ -251,7 +251,7 @@ describeSquare(() => {
       );
     });
 
-    test("returns true only for an authoritative completed refund", async () => {
+    test("returns refunded for an authoritative completed refund", async () => {
       await withSquareClient(
         {
           paymentsGet: () =>
@@ -267,7 +267,9 @@ describeSquare(() => {
             }),
         },
         async () => {
-          expect(await squareApi.refundPayment("pay_completed")).toBe(true);
+          expect(await squareApi.refundPayment("pay_completed")).toBe(
+            "refunded",
+          );
         },
       );
     });
@@ -288,7 +290,9 @@ describeSquare(() => {
             }),
         },
         async () => {
-          expect(await squareApi.refundPayment("pay_succeeded")).toBe(true);
+          expect(await squareApi.refundPayment("pay_succeeded")).toBe(
+            "refunded",
+          );
         },
       );
     });
@@ -298,7 +302,7 @@ describeSquare(() => {
       ["refund id", { status: "COMPLETED" }],
       ["refund status", { id: "refund_missing_status" }],
     ] as const) {
-      test(`returns false when the Square response lacks the ${name}`, async () => {
+      test(`returns failed when the Square response lacks the ${name}`, async () => {
         await withSquareClient(
           {
             paymentsGet: () =>
@@ -312,7 +316,7 @@ describeSquare(() => {
           },
           async () => {
             expect(await squareApi.refundPayment("pay_bad_response")).toBe(
-              false,
+              "failed",
             );
           },
         );
@@ -346,7 +350,7 @@ describeSquare(() => {
       );
     });
 
-    test("returns false when refund SDK call throws", async () => {
+    test("returns failed when refund SDK call throws", async () => {
       await withSquareClient(
         {
           paymentsGet: () =>
@@ -363,7 +367,7 @@ describeSquare(() => {
         },
         async () => {
           const result = await squareApi.refundPayment("pay_fail");
-          expect(result).toBe(false);
+          expect(result).toBe("failed");
         },
       );
     });

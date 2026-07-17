@@ -29,7 +29,7 @@ const expectTerminalRefund = async (
   result: PaymentResult,
   refundCalls: number,
 ): Promise<void> => {
-  expect(result).toMatchObject({ refunded: true, success: false });
+  expect(result).toMatchObject({ refundStatus: "refunded", success: false });
   expect(refundCalls).toBe(1);
   expect(await attendeeIds()).toEqual([]);
 };

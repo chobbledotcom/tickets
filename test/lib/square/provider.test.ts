@@ -273,7 +273,7 @@ describeSquare(() => {
         async () => {
           const result =
             await squarePaymentProvider.refundPayment("pay_prov_ref");
-          expect(result).toBe(true);
+          expect(result).toBe("refunded");
         },
       );
     });

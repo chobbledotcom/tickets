@@ -196,7 +196,7 @@ const buildRefundProblemResponse = async (
   ctx: RefundResponseCtx,
 ): Promise<Response> => {
   const { listing, refundAllUrl, counts, remaining } = ctx;
-  const { refundedCount, failedCount, errorCount } = counts;
+  const { refundedCount, pendingCount, failedCount, errorCount } = counts;
   const problemCount = failedCount + errorCount;
   const errorNote =
     errorCount > 0
@@ -204,8 +204,8 @@ const buildRefundProblemResponse = async (
       : "";
   const msg =
     remaining > 0
-      ? `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. ${remaining} remaining — submit again to continue.`
-      : `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
+      ? `${refundedCount} refund(s) succeeded, ${pendingCount} pending, and ${problemCount} failed${errorNote}. ${remaining} remaining. Submit again to continue.`
+      : `${refundedCount} refund(s) succeeded, ${pendingCount} pending, and ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
   await logActivity(
     `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${listing.name}'`,
     listing.id,
@@ -219,7 +219,8 @@ const buildRefundAllResponse = async (
 ): Promise<Response> => {
   const { counts, listing, refundAllUrl, totalRefundable, remaining } = ctx;
   const refundedCount = counts.refundedCount;
-  const hasProblems = counts.failedCount + counts.errorCount > 0;
+  const hasProblems =
+    counts.pendingCount + counts.failedCount + counts.errorCount > 0;
 
   if (hasProblems) {
     return buildRefundProblemResponse({

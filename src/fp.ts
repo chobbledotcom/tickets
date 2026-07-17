@@ -110,7 +110,7 @@ export const filter =
  * Curried map
  */
 export const map =
-  <T, U>(fn: (item: T) => U) =>
+  <T, U>(fn: (item: T, index: number, array: T[]) => U) =>
   (array: T[]): U[] =>
     array.map(fn);
 

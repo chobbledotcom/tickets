@@ -15,8 +15,15 @@ describe("Square hosted checkout closing", () => {
       order: () => number;
     }) => void | Promise<void>,
   ) => {
-    const get = spy(() =>
-      Promise.resolve({ order: { state: states.shift() ?? "OPEN" } }),
+    const get = spy((input: { orderId: string }) =>
+      Promise.resolve({
+        order: {
+          id: input.orderId,
+          state: states.shift() ?? "OPEN",
+          tenders: [],
+          totalMoney: { amount: BigInt(1000), currency: "GBP" },
+        },
+      }),
     );
     const remove = spy(deleteLink);
     const client = {
@@ -35,6 +42,21 @@ describe("Square hosted checkout closing", () => {
         }),
     );
   };
+
+  const expectWrongDeletedResource = (deleted: {
+    cancelledOrderId: string;
+    id: string;
+  }) =>
+    withSquareOrderStates(
+      ["OPEN"],
+      () => Promise.resolve(deleted),
+      async (calls) => {
+        await expect(
+          squareApi.closePaymentLink("link", "order"),
+        ).rejects.toThrow("Square closed the wrong payment link or order");
+        expect(calls.order()).toBe(1);
+      },
+    );
 
   test("keeps the payment-link id while the session id remains the order id", () =>
     withMocks(
@@ -104,6 +126,18 @@ describe("Square hosted checkout closing", () => {
       },
     ));
 
+  test("propagates a delete failure when the rechecked order remains open", () =>
+    withSquareOrderStates(
+      ["OPEN", "OPEN"],
+      () => Promise.reject(new Error("Square unavailable")),
+      async (calls) => {
+        await expect(
+          squareApi.closePaymentLink("link", "order"),
+        ).rejects.toThrow("Square unavailable");
+        expect(calls.order()).toBe(2);
+      },
+    ));
+
   test("deletes an unpaid payment link and verifies the cancelled order", () =>
     withSquareOrderStates(
       ["OPEN"],
@@ -120,6 +154,45 @@ describe("Square hosted checkout closing", () => {
         expect(calls.deleteLink()).toBe(1);
       },
     ));
+
+  test("does not delete an open order whose tender payment completed", () => {
+    const remove = spy(() => Promise.resolve({}));
+    const client = {
+      checkout: { paymentLinks: { delete: remove } },
+      orders: {
+        get: () =>
+          Promise.resolve({
+            order: {
+              id: "order_paid",
+              state: "OPEN",
+              tenders: [{ paymentId: "payment_paid" }],
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
+            },
+          }),
+      },
+    };
+    return withMocks(
+      () => ({
+        client: stub(squareApi, "getSquareClient", () =>
+          Promise.resolve(client as never),
+        ),
+        payment: stub(squareApi, "retrievePayment", () =>
+          Promise.resolve({
+            amountMoney: { amount: BigInt(1000), currency: "GBP" },
+            id: "payment_paid",
+            orderId: "order_paid",
+            status: "COMPLETED",
+          }),
+        ),
+      }),
+      async () => {
+        expect(
+          await squareApi.closePaymentLink("link_paid", "order_paid"),
+        ).toBe("paid");
+        expect(remove.calls.length).toBe(0);
+      },
+    );
+  });
 
   for (const [state, result] of [
     ["COMPLETED", "paid"],
@@ -155,26 +228,10 @@ describe("Square hosted checkout closing", () => {
   }
 
   test("throws when the payment-link deletion response names another order", () =>
-    withSquareOrderStates(
-      ["OPEN", "OPEN"],
-      () => Promise.resolve({ cancelledOrderId: "other", id: "link" }),
-      async () => {
-        await expect(
-          squareApi.closePaymentLink("link", "order"),
-        ).rejects.toThrow("Square closed the wrong payment link or order");
-      },
-    ));
+    expectWrongDeletedResource({ cancelledOrderId: "other", id: "link" }));
 
   test("throws when the payment-link deletion response names another link", () =>
-    withSquareOrderStates(
-      ["OPEN", "OPEN"],
-      () => Promise.resolve({ cancelledOrderId: "order", id: "other" }),
-      async () => {
-        await expect(
-          squareApi.closePaymentLink("link", "order"),
-        ).rejects.toThrow("Square closed the wrong payment link or order");
-      },
-    ));
+    expectWrongDeletedResource({ cancelledOrderId: "order", id: "other" }));
 
   test("throws when the Square order does not exist", () => {
     const client = {
@@ -190,6 +247,26 @@ describe("Square hosted checkout closing", () => {
         await expect(
           squareApi.closePaymentLink("link", "missing"),
         ).rejects.toThrow("Square order missing not found");
+      },
+    );
+  });
+
+  test("throws when the Square order has no total", () => {
+    const client = {
+      checkout: { paymentLinks: { delete: spy() } },
+      orders: {
+        get: () => Promise.resolve({ order: { id: "order", state: "OPEN" } }),
+      },
+    };
+    return withMocks(
+      () =>
+        stub(squareApi, "getSquareClient", () =>
+          Promise.resolve(client as never),
+        ),
+      async () => {
+        await expect(
+          squareApi.closePaymentLink("link", "order"),
+        ).rejects.toThrow("Square order order has no total");
       },
     );
   });
