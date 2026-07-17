@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { getDb } from "#shared/db/client.ts";
 import { groups } from "#shared/db/groups.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -288,13 +289,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
           "couldn't complete your booking",
           "contact support",
         );
-        const { getAttendeesRaw } = await import(
-          "#shared/db/attendees/queries.ts"
-        );
-        const ghost = (await getAttendeesRaw(listing.id)).find(
-          (a) => a.quantity === 0,
-        );
-        expect(ghost).toBeDefined();
+        const ghost = await getDb().execute({
+          args: [listing.id],
+          sql: "SELECT 1 FROM listing_attendees WHERE listing_id = ? AND quantity = 0",
+        });
+        expect(ghost.rows.length).toBe(1);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

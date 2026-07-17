@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getNewestAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -55,6 +56,27 @@ describeWithEnv("db > attendees > getNewestAttendeesRaw", { db: true }, () => {
 
     const raw = await getNewestAttendeesRaw(2);
     expect(raw.length).toBe(2);
+  });
+
+  test("excludes a staged attendee before applying the limit", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    const ordinary = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Ordinary",
+      "ordinary@example.com",
+    );
+    const staged = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Staged",
+      "staged@example.com",
+    );
+    await insertCheckoutStage(staged.id, "newest-stage");
+
+    expect((await getNewestAttendeesRaw(1)).map((row) => row.id)).toEqual([
+      ordinary.id,
+    ]);
   });
 
   test("counts the limit in attendees and returns each one's every booking line", async () => {

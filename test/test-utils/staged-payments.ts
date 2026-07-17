@@ -16,6 +16,7 @@ import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type {
+  PaymentProviderType,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
@@ -29,6 +30,8 @@ export const stagePaymentCallback = async (fields: {
   amountTotal: number;
   metadata: SessionMetadata | Record<string, string>;
   paymentReference: string;
+  provider?: PaymentProviderType;
+  providerCheckoutId?: string;
   sessionId: string;
 }): Promise<void> => {
   if (await checkoutStagesApi.loadByPaymentSession(fields.sessionId)) return;
@@ -85,8 +88,8 @@ export const stagePaymentCallback = async (fields: {
   };
   const staged = await attendeesApi.createStagedCheckoutAtomic(attendeeInput, {
     paymentSessionId: fields.sessionId,
-    provider: "stripe",
-    providerCheckoutId: fields.sessionId,
+    provider: fields.provider ?? "stripe",
+    providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
   });
   if (inactiveIds.length > 0) {
     await execute(

@@ -232,7 +232,7 @@ describeStripe("Stripe webhook setup", () => {
       expectFailedResultWithNoDeletes(result, calls);
     });
 
-    test("subscribes only to completed checkouts", async () => {
+    test("subscribes to completed and expired checkouts", async () => {
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -241,6 +241,7 @@ describeStripe("Stripe webhook setup", () => {
       expect([...calls.createdBody!.entries()]).toEqual([
         ["api_version", Stripe.API_VERSION],
         ["enabled_events[0]", "checkout.session.completed"],
+        ["enabled_events[1]", "checkout.session.expired"],
         ["url", webhookUrl],
       ]);
     });

@@ -33,6 +33,7 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import { queryOne } from "#shared/db/client.ts";
 import type { Listing } from "#shared/types.ts";
 import { isPaidListing } from "#shared/types.ts";
@@ -175,7 +176,8 @@ export const getListingOverviewStats = async (
        COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = 1 THEN 1 ELSE 0 END), 0) AS rows_checked_in
      FROM listing_attendees AS listingAttendee
      JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
-     WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
+      WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'
+        AND ${ordinaryAttendeeCondition("attendee")}`,
     [listing.id],
   );
   // Only a paid listing can carry never-paid sales, so a free listing skips the

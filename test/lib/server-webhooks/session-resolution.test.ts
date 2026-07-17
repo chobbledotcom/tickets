@@ -1,7 +1,10 @@
 // jscpd:ignore-start
+import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
@@ -13,6 +16,10 @@ import {
   expectWebhookPending,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
+import {
+  attendeeExists,
+  insertOrphanAttendee,
+} from "../../shared/db/prune/helpers.ts";
 
 // jscpd:ignore-end
 
@@ -62,6 +69,64 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
         mockResolve.restore();
       },
     );
+  });
+
+  test("an authenticated Stripe expiry closes and purges its staged checkout", async () => {
+    await setupStripe();
+    const attendeeId = await insertOrphanAttendee(new Date().toISOString());
+    await insertCheckoutStage(attendeeId, "cs_expired", {
+      createdAt: new Date().toISOString(),
+    });
+    const close = stub(stripePaymentProvider, "closeCheckout", () =>
+      Promise.resolve("closed" as const),
+    );
+    try {
+      await expectWebhookIgnored({
+        data: {
+          object: {
+            amount_total: 0,
+            id: "cs_expired",
+            metadata: { email: "e@example.com", items: "[]", name: "E" },
+            payment_status: "unpaid",
+          },
+        },
+        id: "evt_expired",
+        type: "checkout.session.expired",
+      });
+      expect(close.calls.length).toBe(1);
+      expect(await attendeeExists(attendeeId)).toBe(false);
+    } finally {
+      close.restore();
+    }
+  });
+
+  test("an expiry close failure keeps the stage for scheduled retry", async () => {
+    await setupStripe();
+    const attendeeId = await insertOrphanAttendee(new Date().toISOString());
+    await insertCheckoutStage(attendeeId, "cs_expiry_retry", {
+      createdAt: new Date().toISOString(),
+    });
+    const close = stub(stripePaymentProvider, "closeCheckout", () =>
+      Promise.reject(new Error("Stripe unavailable")),
+    );
+    try {
+      await expectWebhookIgnored({
+        data: {
+          object: {
+            amount_total: 0,
+            id: "cs_expiry_retry",
+            metadata: { email: "e@example.com", items: "[]", name: "E" },
+            payment_status: "unpaid",
+          },
+        },
+        id: "evt_expiry_retry",
+        type: "checkout.session.expired",
+      });
+      expect(close.calls.length).toBe(1);
+      expect(await attendeeExists(attendeeId)).toBe(true);
+    } finally {
+      close.restore();
+    }
   });
 
   test("webhook acknowledges when resolveWebhookSession returns null", async () => {

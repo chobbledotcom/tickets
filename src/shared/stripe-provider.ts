@@ -25,6 +25,7 @@ import {
   isoFromUnixSeconds,
   retrieveCheckoutSession,
   retrievePaymentIntent,
+  STRIPE_CHECKOUT_WEBHOOK_EVENTS,
   setupWebhookEndpoint,
   refundPayment as stripeRefund,
   verifyWebhookSignature,
@@ -43,7 +44,7 @@ const createStripeCheckoutSession = makeCreateCheckoutSession(
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType: "checkout.session.completed",
+  checkoutWebhookEvents: STRIPE_CHECKOUT_WEBHOOK_EVENTS,
   closeCheckout: ({ providerCheckoutId }) =>
     closeCheckoutSession(providerCheckoutId),
   createCheckoutSession: createStripeCheckoutSession,

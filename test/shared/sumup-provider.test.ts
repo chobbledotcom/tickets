@@ -264,6 +264,18 @@ describe("sumup-provider", () => {
       );
     });
 
+    test("returns a failed session for authoritative terminal cleanup", async () => {
+      await stageCheckout();
+      await withFetched(
+        checkout({ status: "EXPIRED", transactionId: "" }),
+        async () => {
+          expect(
+            await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+          ).toMatchObject({ paymentStatus: "failed" });
+        },
+      );
+    });
+
     test("fetches the checkout by listing id and returns the paid session", async () => {
       await stageCheckout();
       await withFetched(checkout(), async (calls) => {

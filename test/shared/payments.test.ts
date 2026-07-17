@@ -7,6 +7,7 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   type BookingItem,
   BookingItemsSchema,
+  checkoutWebhookEventKind,
   getActivePaymentProvider,
   isPaymentStatus,
 } from "#shared/payments.ts";
@@ -33,6 +34,22 @@ describe("isPaymentStatus", () => {
       expect(isPaymentStatus(other)).toBe(false);
     });
   }
+});
+
+describe("checkoutWebhookEventKind", () => {
+  const events = { completed: "paid", expired: "expired" };
+
+  test("classifies each declared event and rejects other events", () => {
+    expect(checkoutWebhookEventKind(events, "paid")).toBe("completed");
+    expect(checkoutWebhookEventKind(events, "expired")).toBe("expired");
+    expect(checkoutWebhookEventKind(events, "updated")).toBe("other");
+  });
+
+  test("does not classify expiry when the provider declares none", () => {
+    expect(
+      checkoutWebhookEventKind({ completed: "paid", expired: null }, "expired"),
+    ).toBe("other");
+  });
 });
 
 describe("booking line validation", () => {

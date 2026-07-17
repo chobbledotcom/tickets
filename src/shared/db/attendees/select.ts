@@ -30,6 +30,7 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import type { Attendee } from "#shared/types.ts";
 
@@ -287,6 +288,7 @@ type WhereClause = { clause: string; args: InValue[] };
 const whereClauses = (where: AttendeeWhere): WhereClause[] => {
   const parts: WhereClause[] = [
     { args: [], clause: KIND_CLAUSE[where.kind ?? "attendee"] },
+    { args: [], clause: ordinaryAttendeeCondition("attendee") },
   ];
   const inList = (column: string, ids: number[] | undefined) => {
     if (ids === undefined) return;

@@ -25,6 +25,7 @@ import {
 import type {
   CheckoutCloseResult,
   CheckoutIntent,
+  CheckoutWebhookEventTypes,
   SetupWebhookEndpoint,
   WebhookEvent,
   WebhookSetupResult,
@@ -240,13 +241,18 @@ const deleteWebhookEndpoints = async (
 };
 
 /** Create the checkout-completion webhook endpoint at the given URL. */
+export const STRIPE_CHECKOUT_WEBHOOK_EVENTS = {
+  completed: "checkout.session.completed",
+  expired: "checkout.session.expired",
+} as const satisfies CheckoutWebhookEventTypes;
+
 const createCheckoutWebhook = async (
   client: Stripe,
   webhookUrl: string,
 ): Promise<Stripe.WebhookEndpoint> =>
   client.webhookEndpoints.create({
     api_version: (await loadStripe()).API_VERSION,
-    enabled_events: ["checkout.session.completed"],
+    enabled_events: Object.values(STRIPE_CHECKOUT_WEBHOOK_EVENTS),
     url: webhookUrl,
   });
 

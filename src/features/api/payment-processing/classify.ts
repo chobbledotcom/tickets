@@ -4,7 +4,7 @@
  * ours before anything downstream processes or refunds it.
  */
 
-import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
+import { closeStageAndShowCancelPage } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import type {
   BookingIntent,
@@ -137,7 +137,11 @@ export const validatePaidSession = async (
   if (session.paymentStatus === "failed") {
     return {
       ok: false,
-      response: await cancelPageResponse(session, logRedirectError),
+      response: await closeStageAndShowCancelPage(
+        session,
+        provider,
+        logRedirectError,
+      ),
     };
   }
 

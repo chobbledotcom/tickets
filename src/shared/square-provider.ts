@@ -38,7 +38,7 @@ import {
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType: "payment.updated",
+  checkoutWebhookEvents: { completed: "payment.updated", expired: null },
 
   closeCheckout: ({ providerCheckoutId, sessionId }) =>
     closePaymentLink(providerCheckoutId, sessionId),

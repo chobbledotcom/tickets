@@ -10,6 +10,7 @@ import { groupToMap, mapParallel } from "#fp";
 import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { type ListsByIds, rowsByIds } from "#shared/db/query.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
@@ -71,7 +72,9 @@ export const getListingChoiceAnswerMap = async (
             FROM listing_attendees AS listingAttendee
             JOIN attendees AS attendee
               ON attendee.id = listingAttendee.attendee_id
-           WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}')`,
+           WHERE listingAttendee.listing_id = ?
+             AND attendee.kind = '${ATTENDEE_KIND}'
+             AND ${ordinaryAttendeeCondition("attendee")})`,
     [listingId],
   );
   return choiceAnswerMapFromRows(rows);

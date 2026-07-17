@@ -10,6 +10,7 @@ import type {
   ListingAttendeeRow,
 } from "#shared/db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import { listingAttendeeRowColumnsFrom } from "#shared/db/attendees/queries.ts";
 import {
   pricePaidFromLedger,
@@ -145,7 +146,8 @@ const attendeeRowsForTokens = async <Row extends TokenIndexedRow>(
      FROM attendees AS ${ATTENDEE_ALIAS}
      WHERE ${ATTENDEE_ALIAS}.ticket_token_index IN (${inPlaceholders(
        tokenIndexes,
-     )}) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'`,
+     )}) AND ${ATTENDEE_ALIAS}.kind = '${ATTENDEE_KIND}'
+        AND ${ordinaryAttendeeCondition(ATTENDEE_ALIAS)}`,
     tokenIndexes,
   );
   return { rows, tokenIndexes, uniqueTokens };

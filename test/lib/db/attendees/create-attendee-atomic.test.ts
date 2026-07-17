@@ -128,6 +128,8 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       source: "admin",
     });
     expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(await getAttendeeRaw(result.attendees[0]!.id)).not.toBeNull();
     expect(await getVisits(await hashEmail("ghostonly@example.com"))).toBe(0);
   });
 

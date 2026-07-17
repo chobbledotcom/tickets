@@ -53,9 +53,10 @@ import {
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
-import { nowMs } from "#shared/now.ts";
+import { isoBefore, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
+import { pruneAbandonedCheckoutStages } from "#shared/staged-checkout.ts";
 
 /**
  * Build a pruner that deletes rows older than `retentionMs`, binding an
@@ -63,7 +64,7 @@ import { CONFIG_KEYS } from "#shared/settings/keys.ts";
  */
 const isoAgePruner =
   (sql: string, retentionMs: number) => async (): Promise<number> => {
-    const cutoffIso = new Date(nowMs() - retentionMs).toISOString();
+    const cutoffIso = isoBefore(retentionMs);
     const result = await execute(sql, [cutoffIso]);
     return result.rowsAffected;
   };
@@ -109,6 +110,9 @@ export const pruneSumupCheckouts = isoAgePruner(
   "DELETE FROM sumup_checkouts WHERE created_at < ?",
   PRUNE_SUMUP_RETENTION_MS,
 );
+
+const pruneCheckoutStorage = async (): Promise<number> =>
+  (await pruneSumupCheckouts()) + (await pruneAbandonedCheckoutStages());
 
 /** Delete unreferenced encrypted free-text strings older than retention. */
 export const pruneUnusedStrings = isoAgePruner(
@@ -205,8 +209,8 @@ const PRUNE_TASKS = (): PruneTask[] => [
     field: "last_pruned_sumup",
     key: CONFIG_KEYS.LAST_PRUNED_SUMUP,
     lastRaw: settings.lastPrunedSumup,
-    name: "sumup_checkouts",
-    run: pruneSumupCheckouts,
+    name: "checkout_storage",
+    run: pruneCheckoutStorage,
   },
   {
     field: "last_pruned_strings",

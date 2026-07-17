@@ -2,7 +2,7 @@
  * Webhook routes - payment callbacks and provider webhooks
  *
  * Payment flow (race-condition safe with two-phase locking):
- * 1. User submits form -> checkout session created with intent metadata (no attendee yet)
+ * 1. User submits form -> checkout session and hidden attendee stage are created
  * 2. User pays -> redirected to /payment/success OR webhook fires
  * 3. First handler reserves session (DB lock), creates attendee, finalizes lock
  * 4. Subsequent handlers see reserved/finalized session and return existing attendee
@@ -15,7 +15,7 @@
  */
 
 import { unique } from "#fp";
-import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
+import { closeStageAndShowCancelPage } from "#routes/api/payment-processing/cancel.ts";
 import {
   classifySessionIntent,
   paymentSessionErrorLogger,
@@ -50,10 +50,12 @@ import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { WEBHOOK_SIGNATURE_HEADERS } from "#shared/payment-providers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
+  checkoutWebhookEventKind,
   getActivePaymentProvider,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import { tryCloseAndPurgeCheckoutStageBySession } from "#shared/staged-checkout.ts";
 import { successPage } from "#templates/payment.tsx";
 
 /** Render the paid success page, drawing the sender email from settings. Shared
@@ -228,11 +230,7 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
   return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
 };
 
-/**
- * Handle GET /payment/cancel (redirect after cancelled payment)
- *
- * No attendee cleanup needed - attendee is only created after successful payment.
- */
+/** Handle GET /payment/cancel (redirect after cancelled payment). */
 /** Log a payment session error with cancel context prefix */
 const logCancelError = paymentSessionErrorLogger("cancel");
 
@@ -249,7 +247,11 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Payment session not found");
   }
 
-  return cancelPageResponse(session, logCancelError);
+  if (session.paymentStatus === "paid") {
+    return processSessionAndRedirect(sid);
+  }
+
+  return closeStageAndShowCancelPage(session, provider, logCancelError);
 });
 
 /**
@@ -385,8 +387,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   if (auth instanceof Response) return auth;
   const { provider, listing } = auth;
 
-  // Only handle checkout completed listings
-  if (listing.type !== provider.checkoutCompletedEventType) {
+  const eventKind = checkoutWebhookEventKind(
+    provider.checkoutWebhookEvents,
+    listing.type,
+  );
+  if (eventKind === "other") {
     // Acknowledge other listings without processing
     return webhookAckResponse();
   }
@@ -408,6 +413,19 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   }
 
   const session = sessionResult;
+
+  if (eventKind === "expired" || session.paymentStatus === "failed") {
+    await tryCloseAndPurgeCheckoutStageBySession(
+      session.id,
+      provider,
+      (error) =>
+        logDebug(
+          "Webhook",
+          `Checkout stage close failed (provider=${provider.type}, session=${session.id}): ${String(error)}`,
+        ),
+    );
+    return webhookAckResponse({ status: "closed" });
+  }
 
   // Verify payment is complete before classifying — an unpaid session may carry
   // a charge amount that would otherwise classify as trusted.

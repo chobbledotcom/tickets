@@ -9,6 +9,7 @@ import { saleLegPredicate } from "#shared/accounting/projection-sql.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import {
   decryptAttendeeFields,
   decryptPiiBlob,
@@ -130,6 +131,7 @@ export const getNewestAttendeesRaw = (
         args: [limit],
         sql: `SELECT newest.id FROM attendees AS newest
            WHERE newest.kind = '${ATTENDEE_KIND}'
+             AND ${ordinaryAttendeeCondition("newest")}
            ORDER BY newest.id DESC LIMIT ?`,
       },
     },
@@ -224,7 +226,8 @@ export const getAttendeesPage = async ({
         sql: `SELECT pageAttendee.id
            FROM attendees AS pageAttendee
            JOIN listing_attendees AS pageLine ON pageLine.attendee_id = pageAttendee.id
-           WHERE pageAttendee.kind = '${ATTENDEE_KIND}'${lineFilter}
+            WHERE pageAttendee.kind = '${ATTENDEE_KIND}'
+              AND ${ordinaryAttendeeCondition("pageAttendee")}${lineFilter}
            GROUP BY pageAttendee.id
            ORDER BY pageAttendee.id ${dir}
            LIMIT ? OFFSET ?`,

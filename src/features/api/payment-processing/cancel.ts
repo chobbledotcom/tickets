@@ -18,8 +18,14 @@ import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";
 import { groups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type {
+  PaymentProvider,
+  ValidatedPaymentSession,
+} from "#shared/payments.ts";
+import { tryCloseAndPurgeCheckoutStageBySession } from "#shared/staged-checkout.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
+
+type CancelLog = (detail: string) => void;
 
 /** The retry link for a cancelled checkout: the package group's page when the
  * order booked one package, else the (first) listing's own page. Returns null
@@ -57,7 +63,7 @@ const retryHrefFor = async (
 /** Render the payment-cancelled page for a session's first listing. */
 export const cancelPageResponse = async (
   session: ValidatedPaymentSession,
-  logFailure: (detail: string) => void,
+  logFailure: CancelLog,
 ): Promise<Response> => {
   const intent = extractIntent(session);
   const listingId = intent?.items[0]?.e ?? 0;
@@ -75,4 +81,19 @@ export const cancelPageResponse = async (
   // proves the intent parsed.
   const retryHref = await retryHrefFor(intent!, listing);
   return htmlResponse(paymentCancelPage(listing, retryHref));
+};
+
+/** Close and clear a staged checkout, but keep the useful retry page on a
+ * provider outage. The pending row remains for scheduled cleanup to retry. */
+export const closeStageAndShowCancelPage = async (
+  session: ValidatedPaymentSession,
+  provider: PaymentProvider,
+  logFailure: CancelLog,
+): Promise<Response> => {
+  await tryCloseAndPurgeCheckoutStageBySession(session.id, provider, (error) =>
+    logFailure(
+      `Could not close checkout stage ${session.id}: ${String(error)}`,
+    ),
+  );
+  return cancelPageResponse(session, logFailure);
 };

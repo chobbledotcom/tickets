@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   setSumupCheckoutId,
@@ -70,6 +71,8 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       amountTotal: 1000,
       metadata,
       paymentReference: "",
+      provider: "sumup",
+      providerCheckoutId: "co_e2e",
       sessionId: reference,
     });
     return reference;
@@ -86,7 +89,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
    *  status/transactionId. */
   const stubRetrieveCheckoutById = (
     reference: string,
-    status: "FAILED" | "PAID",
+    status: "FAILED" | "PAID" | "PENDING",
     transactionId: string,
   ) =>
     stub(sumupApi, "retrieveCheckoutById", () =>
@@ -144,6 +147,52 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Payment Cancelled");
     } finally {
       restore.restore();
+    }
+  });
+
+  test("purges a failed staged checkout from an authoritative webhook", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    const retrieve = stubRetrieveCheckoutById(reference, "FAILED", "");
+    const close = stub(sumupApi, "closeCheckoutById", () =>
+      Promise.resolve("closed" as const),
+    );
+    try {
+      const response = await handleRequest(
+        mockWebhookRequest(sumupWebhookEvent),
+      );
+      expect(await response.json()).toMatchObject({ status: "closed" });
+      expect(close.calls.length).toBe(1);
+      const stage = await getDb().execute({
+        args: [reference],
+        sql: "SELECT 1 FROM checkout_stages WHERE payment_session_id = ?",
+      });
+      expect(stage.rows).toEqual([]);
+    } finally {
+      retrieve.restore();
+      close.restore();
+    }
+  });
+
+  test("keeps a pending staged checkout from an ambiguous webhook", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    const retrieve = stubRetrieveCheckoutById(reference, "PENDING", "");
+    const close = stub(sumupApi, "closeCheckoutById");
+    try {
+      const response = await handleRequest(
+        mockWebhookRequest(sumupWebhookEvent),
+      );
+      expect(await response.json()).toMatchObject({ status: "pending" });
+      expect(close.calls.length).toBe(0);
+      const stage = await getDb().execute({
+        args: [reference],
+        sql: "SELECT 1 FROM checkout_stages WHERE payment_session_id = ?",
+      });
+      expect(stage.rows.length).toBe(1);
+    } finally {
+      retrieve.restore();
+      close.restore();
     }
   });
 });

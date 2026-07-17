@@ -1,9 +1,12 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -19,6 +22,10 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
+import {
+  attendeeExists,
+  insertOrphanAttendee,
+} from "../../shared/db/prune/helpers.ts";
 import { fillSoldOutListing } from "./_shared-setup.ts";
 
 // jscpd:ignore-end
@@ -90,6 +97,39 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
         },
         resetStripeClient,
+      );
+    });
+
+    test("closes and purges a staged checkout after a failed provider return", async () => {
+      await setupStripe();
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeId = await insertOrphanAttendee(new Date().toISOString());
+      await insertCheckoutStage(attendeeId, "cs_failed_stage");
+
+      await withMocks(
+        () => ({
+          close: stub(stripePaymentProvider, "closeCheckout", () =>
+            Promise.resolve("closed" as const),
+          ),
+          retrieve: stubRetrieveCheckoutSession({
+            amountTotal: 0,
+            metadata: {
+              email: "john@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "John",
+            },
+            paymentIntent: null,
+            paymentStatus: "failed",
+            sessionId: "cs_failed_stage",
+          }),
+        }),
+        async () => {
+          const response = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_failed_stage"),
+          );
+          expect(response.status).toBe(200);
+          expect(await attendeeExists(attendeeId)).toBe(false);
+        },
       );
     });
 

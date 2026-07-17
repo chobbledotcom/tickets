@@ -5,6 +5,8 @@ import type { OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
+import { getAttendeesByTokens } from "#shared/db/attendees/tokens.ts";
 import {
   checkoutStagesApi,
   findCheckoutStage,
@@ -177,6 +179,8 @@ describeWithEnv("staged checkout", { db: true }, () => {
           token,
         ),
       ).toMatchObject({ state: "pending" });
+      expect(await getAttendeeRaw(stage!.attendee_id)).toBeNull();
+      expect(await getAttendeesByTokens([token])).toEqual([null]);
       expect(
         await findCheckoutStage(
           createdSession.sessionId,

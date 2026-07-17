@@ -308,6 +308,23 @@ export type WebhookEvent = {
   };
 };
 
+export type CheckoutWebhookEventTypes = {
+  completed: string;
+  expired: string | null;
+};
+
+export type CheckoutWebhookEventKind = "completed" | "expired" | "other";
+
+export const checkoutWebhookEventKind = (
+  eventTypes: CheckoutWebhookEventTypes,
+  eventType: string,
+): CheckoutWebhookEventKind =>
+  eventType === eventTypes.completed
+    ? "completed"
+    : eventTypes.expired !== null && eventType === eventTypes.expired
+      ? "expired"
+      : "other";
+
 /** Result of webhook endpoint setup */
 export type WebhookSetupResult =
   | { success: true; endpointId: string; secret: string }
@@ -342,7 +359,7 @@ export type CheckoutCloseResult = "closed" | "paid";
  */
 export interface PaymentProvider {
   /** The webhook event type name that indicates a completed checkout */
-  readonly checkoutCompletedEventType: string;
+  readonly checkoutWebhookEvents: CheckoutWebhookEventTypes;
 
   /** Close an unpaid hosted checkout. Failures throw so callers cannot delete
    * local state unless the provider confirms either closure or payment. */
@@ -435,6 +452,10 @@ const providerLoaders: Record<
     (await import("#shared/sumup-provider.ts")).sumupPaymentProvider,
 };
 
+export const getPaymentProvider = async (
+  providerType: PaymentProviderType,
+): Promise<PaymentProvider> => providerLoaders[providerType]();
+
 export const getActivePaymentProvider =
   async (): Promise<PaymentProvider | null> => {
     const providerType = paymentsApi.getConfiguredProvider();
@@ -444,5 +465,5 @@ export const getActivePaymentProvider =
     }
 
     logDebug("Payment", `Resolving payment provider: ${providerType}`);
-    return await providerLoaders[providerType]();
+    return await getPaymentProvider(providerType);
   };

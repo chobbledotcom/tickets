@@ -7,6 +7,7 @@ import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { attendeeOwnedDeleteStatements } from "#shared/db/attendees/delete.ts";
 import {
   execute,
+  queryAll,
   queryOne,
   queryOnePrimary,
   withTransaction,
@@ -47,11 +48,15 @@ export type CheckoutStage = {
   ticketToken: string;
 };
 
+export type CheckoutStageCleanup = Omit<CheckoutStage, "ticketToken">;
+
 export type PendingCheckoutStage = {
   paymentSessionId: string;
   provider: PaymentProviderType;
   providerCheckoutId: string;
 };
+
+const CHECKOUT_STAGE_CLEANUP_LIMIT = 8;
 
 export const checkoutStageClaimStatement = (
   stage: Pick<CheckoutStage, "attendeeId" | "paymentSessionId">,
@@ -80,13 +85,19 @@ const checkoutStage = (
   row: v.InferOutput<typeof CheckoutStageRowSchema>,
   ticketToken: string,
 ): CheckoutStage => ({
+  ...checkoutStageWithoutToken(row),
+  ticketToken,
+});
+
+const checkoutStageWithoutToken = (
+  row: Omit<v.InferOutput<typeof CheckoutStageRowSchema>, "ticket_tokens">,
+): CheckoutStageCleanup => ({
   attendeeId: row.attendee_id,
   createdAt: row.created_at,
   paymentSessionId: row.payment_session_id,
   provider: row.provider,
   providerCheckoutId: row.provider_checkout_id,
   state: row.state,
-  ticketToken,
 });
 
 export const pendingCheckoutStageInsert = async (
@@ -137,6 +148,52 @@ const checkoutStageFromRow = async (raw: unknown): Promise<CheckoutStage> => {
     await decrypt(row.ticket_tokens as EnvKeyEncrypted),
   );
 };
+
+/** Select only a small oldest-first batch whose provider expiry window passed. */
+export const selectOldPendingCheckoutStages = async (
+  createdBefore: string,
+): Promise<CheckoutStageCleanup[]> => {
+  const rows = await queryAll<unknown>(
+    `SELECT payment_session_id, attendee_id, provider, provider_checkout_id,
+            state, created_at
+       FROM checkout_stages
+      WHERE state = 'pending' AND created_at < ?
+      ORDER BY created_at, payment_session_id
+      LIMIT ?`,
+    [createdBefore, CHECKOUT_STAGE_CLEANUP_LIMIT],
+  );
+  return rows.map((raw) => {
+    const row = v.parse(v.omit(CheckoutStageRowSchema, ["ticket_tokens"]), raw);
+    return checkoutStageWithoutToken(row);
+  });
+};
+
+/** Remove a closed stage only if payment has not claimed it in the meantime. */
+export const purgePendingCheckoutStage = async (
+  stage: CheckoutStageCleanup,
+): Promise<boolean> =>
+  withTransaction(async (tx) => {
+    const claim = await tx.execute({
+      args: [stage.paymentSessionId, stage.attendeeId],
+      sql: `UPDATE checkout_stages SET state = state
+             WHERE payment_session_id = ? AND attendee_id = ? AND state = 'pending'
+               AND NOT EXISTS (
+                 SELECT 1 FROM processed_payments AS payment
+                  WHERE payment.payment_session_id = checkout_stages.payment_session_id
+               )`,
+    });
+    if (claim.rowsAffected !== 1) return false;
+    await tx.batch([
+      ...attendeeOwnedDeleteStatements({ args: [stage.attendeeId], sql: "?" }),
+      {
+        args: [stage.paymentSessionId, stage.attendeeId],
+        sql: `DELETE FROM checkout_stages
+               WHERE payment_session_id = ? AND attendee_id = ? AND state = 'pending'`,
+      },
+      { args: [stage.attendeeId], sql: "DELETE FROM attendees WHERE id = ?" },
+    ]);
+    return true;
+  });
 
 /** Load an open checkout stage from the primary by its payment session. */
 export const loadCheckoutStageByPaymentSession = async (
@@ -228,7 +285,10 @@ const finalizeCheckoutStageRefund = async ({
 
 export const checkoutStagesApi = {
   beginRefund: beginCheckoutStageRefund,
+  cleanupLimit: CHECKOUT_STAGE_CLEANUP_LIMIT,
   finalizeRefund: finalizeCheckoutStageRefund,
   find: findCheckoutStage,
   loadByPaymentSession: loadCheckoutStageByPaymentSession,
+  purgePending: purgePendingCheckoutStage,
+  selectOldPending: selectOldPendingCheckoutStages,
 };

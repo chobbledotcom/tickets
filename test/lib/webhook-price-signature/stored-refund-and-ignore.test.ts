@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { getDb, queryOne } from "#shared/db/client.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
@@ -330,8 +330,11 @@ describeWithEnv(
           expect((await webhookRequest()).status).toBe(503);
           expect((await webhookRequest()).status).toBe(503);
           expect(refund.calls.length).toBe(2);
-          const [attendee] = await getAttendeesRaw(listing.id);
-          expect(attendee?.quantity).toBe(0);
+          const staged = await getDb().execute({
+            args: [listing.id],
+            sql: "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
+          });
+          expect(staged.rows[0]?.quantity).toBe(0);
           const record = await isSessionProcessed("cs_refund_retry");
           expect(record).toBeNull();
         },

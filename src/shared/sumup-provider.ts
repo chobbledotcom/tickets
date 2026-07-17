@@ -74,7 +74,10 @@ const createSumupCheckoutSession = makeCreateCheckoutSession(
 
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
-  checkoutCompletedEventType: "CHECKOUT_STATUS_CHANGED",
+  checkoutWebhookEvents: {
+    completed: "CHECKOUT_STATUS_CHANGED",
+    expired: null,
+  },
   async closeCheckout({ providerCheckoutId, sessionId }) {
     const stored = providerCheckoutId
       ? null
@@ -106,8 +109,9 @@ export const sumupPaymentProvider: PaymentProvider = {
     // Non-null: the pre-filter just matched this id to a staging row
     const stored = (await getSumupCheckout(checkout.reference))!;
     const session = buildValidatedSession(checkout, stored.metadata);
-    // Not yet (or never) paid: acknowledge without processing.
-    return session.paymentStatus === "paid" ? session : "skip";
+    // Pending is ambiguous and may still pay. Terminal failures are authoritative
+    // and let the shared webhook boundary close and clear the local stage.
+    return session.paymentStatus === "unpaid" ? "skip" : session;
   },
 
   /* jscpd:ignore-start -- PaymentProvider interface conformance, not

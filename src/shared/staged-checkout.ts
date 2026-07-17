@@ -8,13 +8,17 @@ import {
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
+import type { CheckoutStageCleanup } from "#shared/db/checkout-stages.ts";
 import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
+import { logDebug } from "#shared/logger.ts";
+import { isoBefore } from "#shared/now.ts";
 import type {
   CheckoutIntent,
   CheckoutSessionResult,
   PaymentProvider,
 } from "#shared/payments.ts";
+import { getPaymentProvider } from "#shared/payments.ts";
 /* jscpd:ignore-end */
 
 export type PaidCheckoutResult =
@@ -26,6 +30,72 @@ export type PaidCheckoutResult =
       providerCheckoutId: string;
       sessionId: string;
     };
+
+const CHECKOUT_STAGE_RETENTION_MS = 48 * 60 * 60 * 1000;
+
+/** Close one hosted checkout, then purge its local stage only after closure. */
+export const closeAndPurgeCheckoutStage = async (
+  stage: CheckoutStageCleanup,
+  provider: PaymentProvider,
+): Promise<"kept" | "purged"> => {
+  const result = await provider.closeCheckout({
+    providerCheckoutId: stage.providerCheckoutId,
+    sessionId: stage.paymentSessionId,
+  });
+  if (result === "paid") return "kept";
+  return (await checkoutStagesApi.purgePending(stage)) ? "purged" : "kept";
+};
+
+/** Close a known stage at a provider callback boundary. No stage is a no-op. */
+export const closeAndPurgeCheckoutStageBySession = async (
+  paymentSessionId: string,
+  provider: PaymentProvider,
+): Promise<"kept" | "missing" | "purged"> => {
+  const stage = await checkoutStagesApi.loadByPaymentSession(paymentSessionId);
+  if (stage === null) return "missing";
+  if (stage.provider !== provider.type) {
+    throw new Error(
+      `Checkout stage ${paymentSessionId} provider did not match`,
+    );
+  }
+  if (stage.state === "refunding") return "kept";
+  return closeAndPurgeCheckoutStage(stage, provider);
+};
+
+/** Try callback-boundary cleanup without making the customer/provider retry.
+ * Scheduled pruning remains the backstop when closure fails. */
+export const tryCloseAndPurgeCheckoutStageBySession = async (
+  paymentSessionId: string,
+  provider: PaymentProvider,
+  onError: (error: unknown) => void,
+): Promise<void> => {
+  try {
+    await closeAndPurgeCheckoutStageBySession(paymentSessionId, provider);
+  } catch (error) {
+    onError(error);
+  }
+};
+
+/** Close and purge one bounded batch of abandoned pending stages. */
+export const pruneAbandonedCheckoutStages = async (): Promise<number> => {
+  const cutoff = isoBefore(CHECKOUT_STAGE_RETENTION_MS);
+  const stages = await checkoutStagesApi.selectOldPending(cutoff);
+  let purged = 0;
+  for (const stage of stages) {
+    try {
+      const provider = await getPaymentProvider(stage.provider);
+      if ((await closeAndPurgeCheckoutStage(stage, provider)) === "purged") {
+        purged += 1;
+      }
+    } catch (error) {
+      logDebug(
+        "Prune",
+        `checkout stage close failed (provider=${stage.provider}, session=${stage.paymentSessionId}): ${String(error)}`,
+      );
+    }
+  }
+  return purged;
+};
 
 type CreatePaidCheckoutInput = {
   baseUrl: string;

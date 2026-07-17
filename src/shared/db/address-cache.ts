@@ -16,7 +16,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
-import { nowMs } from "#shared/now.ts";
+import { isoBefore, nowMs } from "#shared/now.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -29,8 +29,7 @@ export const computeAddressSearchIndex = (
 ): Promise<BlindIndex> => hmacHash(`${provider}:${normalisedSearch}`);
 
 /** The oldest `created` a cache row may have and still be served. */
-const freshCutoffIso = (): string =>
-  new Date(nowMs() - ADDRESS_CACHE_MS).toISOString();
+const freshCutoffIso = (): string => isoBefore(ADDRESS_CACHE_MS);
 
 /** Read a fresh cached result. Null on miss (absent or expired). Rows cached
  * before matches carried coordinates hold bare line strings; those read as a

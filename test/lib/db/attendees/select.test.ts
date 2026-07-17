@@ -11,6 +11,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeField,
@@ -271,13 +272,13 @@ describe("attendee SELECT — exact generated SQL", () => {
         "created_desc",
       ).from,
     ).toBe(
-      "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND listingAttendee.listing_id IN (?, ?) AND listingAttendee.quantity > 0 AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?) ORDER BY attendee.created DESC",
+      `FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND ${ordinaryAttendeeCondition("attendee")} AND listingAttendee.listing_id IN (?, ?) AND listingAttendee.quantity > 0 AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?) ORDER BY attendee.created DESC`,
     );
   });
 
   test("a single-attendee LEFT read omits ORDER BY entirely", () => {
     expect(attendeeFromWhere("left", { attendeeIds: [1] }).from).toBe(
-      "FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND attendee.id IN (?)",
+      `FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND ${ordinaryAttendeeCondition("attendee")} AND attendee.id IN (?)`,
     );
   });
 
@@ -293,7 +294,7 @@ describe("attendee SELECT — exact generated SQL", () => {
         "upcoming",
       ).from,
     ).toBe(
-      "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id JOIN listings AS listing ON listingAttendee.listing_id = listing.id WHERE attendee.kind IN ('attendee', 'servicing') AND listingAttendee.quantity > 0 AND listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ? ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id",
+      `FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id JOIN listings AS listing ON listingAttendee.listing_id = listing.id WHERE attendee.kind IN ('attendee', 'servicing') AND ${ordinaryAttendeeCondition("attendee")} AND listingAttendee.quantity > 0 AND listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ? ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
     );
   });
 });
