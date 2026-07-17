@@ -814,27 +814,18 @@ src/features/admin/attendees-edit.ts:68:49  ?? → ||   # the LHS is undefined o
 # value type here is "object" or undefined — an object is always truthy, and
 # undefined falls through to the RHS for both. (Source-side mirror at :245
 # holds the same type.)
-src/shared/merge/attendee-merge.ts:244:38  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
-src/shared/merge/attendee-merge.ts:245:38  ?? → ||   # same as :244 — Map<number,object>.get returns undefined or a truthy object
-src/shared/merge/attendee-merge.ts:250:45  ?? → ||   # questionTextMap.get returns undefined or a truthy string; both ?? and || fall through for undefined, and a string only differs on ""  which an empty `get` never returns
-src/shared/merge/attendee-merge.ts:251:35  ?? → ||   # sa?.answerId is undefined|number; ?? vs || differ only on 0 (falsy non-null), and answer ids are positive
-src/shared/merge/attendee-merge.ts:252:39  ?? → ||   # sa?.answerText is undefined|string; differs only on "" — this code path is non-conflict (sa !== null), so answerText is a real choice's text, never ""
-src/shared/merge/attendee-merge.ts:253:35  ?? → ||   # ta?.answerId is undefined|number; positive ints only
-src/shared/merge/attendee-merge.ts:254:39  ?? → ||   # ta?.answerText same as :252 — real choice text, never ""
+src/shared/merge/attendee-merge.ts:248:38  ?? → ||   # Map<number,object>.get returns undefined or a truthy object — ?? and || agree for both
+src/shared/merge/attendee-merge.ts:249:38  ?? → ||   # same as :248 — Map<number,object>.get returns undefined or a truthy object
+src/shared/merge/attendee-merge.ts:254:45  ?? → ||   # questionTextMap.get returns undefined or a truthy string; both ?? and || fall through for undefined, and a string only differs on ""  which an empty `get` never returns
+src/shared/merge/attendee-merge.ts:255:35  ?? → ||   # sa?.answerId is undefined|number; ?? vs || differ only on 0 (falsy non-null), and answer ids are positive
+src/shared/merge/attendee-merge.ts:256:39  ?? → ||   # sa?.answerText is undefined|string; differs only on "" — this code path is non-conflict (sa !== null), so answerText is a real choice's text, never ""
+src/shared/merge/attendee-merge.ts:257:35  ?? → ||   # ta?.answerId is undefined|number; positive ints only
+src/shared/merge/attendee-merge.ts:258:39  ?? → ||   # ta?.answerText same as :256 — real choice text, never ""
 
 # Attendee merge service (attendee-merge.ts) — targetByKey lookup
 # `targetByKey.get(bookingKey(...)) ?? null`. Map.get returns undefined or a
 # ListingAttendeeRow object (always truthy); ?? and || agree on both.
-src/shared/merge/attendee-merge.ts:344:10  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
-
-# Attendee merge service (attendee-merge.ts) — strandsPayment's two early
-# returns feed exactly one consumer, `strandedPaymentErrors`'s
-# `diff.bookingItems.filter(strandsPayment)`: Array.prototype.filter coerces
-# its predicate result with ToBoolean, so `false` and `undefined` both fall
-# out of the filtered set the same way. `strandsPayment` is module-private,
-# so no other caller can ever read the literal return value.
-src/shared/merge/attendee-merge.ts:462:52  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
-src/shared/merge/attendee-merge.ts:463:49  return false → return undefined   # filter()'s predicate only checks truthiness; false and undefined agree
+src/shared/merge/attendee-merge.ts:343:10  ?? → ||   # Map<string, ListingAttendeeRow>.get: undefined or a truthy object
 
 # Attendee merge service (attendee-merge.ts) — `applyPiiDecisions` writes the
 # merged PII into `mergedPii` and returns it; `applyAttendeeMerge` is the sole
@@ -845,7 +836,7 @@ src/shared/merge/attendee-merge.ts:463:49  return false → return undefined   #
 # is unobservable: the field is computed but never read. (PII itself is
 # re-blobbed by the feature layer from `decision.pii` and `targetPii` raw —
 # not from `mergedPii` — so nothing downstream reads it either.)
-src/shared/merge/attendee-merge.ts:502:57  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
+src/shared/merge/attendee-merge.ts:501:57  = → +=   # mergedPii is computed then discarded by applyAttendeeMerge; only piiFieldsFromSource is observed
 
 # Attendee merge service (attendee-merge.ts) — `moneyReversalLegs`'s keyParts
 # prefix strings ("merge-unbill", "merge-credit") are the FIRST element of an
@@ -859,8 +850,8 @@ src/shared/merge/attendee-merge.ts:502:57  = → +=   # mergedPii is computed th
 # hash change can't surface via an idempotent-replay either; and no test or
 # production code queries the merged attendee's reversal legs by their
 # `event_group` value.
-src/shared/merge/attendee-merge.ts:715:18  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
-src/shared/merge/attendee-merge.ts:722:20  merge-credit → ""   # same as :715 — keyParts prefix feeds only the non-reversible hashes; never observed
+src/shared/merge/attendee-merge.ts:719:18  merge-unbill → ""   # keyParts prefix feeds only the non-reversible event_group/reference hashes; never observed
+src/shared/merge/attendee-merge.ts:726:20  merge-credit → ""   # same as :719 — keyParts prefix feeds only the non-reversible hashes; never observed
 
 # Admin attendee-merge routes (src/features/admin/attendees-merge.ts) — mutants
 # with no observable effect through any reachable caller or input.

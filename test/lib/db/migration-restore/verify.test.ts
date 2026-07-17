@@ -62,10 +62,11 @@ describeWithEnv(
       // constraint rebuild owning no additive objects to drop/restore), and the
       // attendee-listings-tag settings rewrite (data-only; covered by its own
       // data test), listing_image_thumb (historically added a column that
-      // first_class_images now drops), and remove_broken_image_records
-      // (data-only; covered by its own data test). enabled_features now owns the
-      // triggers that keep saved feature data and visibility in step.
-      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 18);
+      // first_class_images now drops), remove_broken_image_records (data-only;
+      // covered by its own data test), and removal-only migrations whose
+      // absent-table checks cannot be rebuilt by a restore case. enabled_features
+      // now owns the triggers that keep saved feature data and visibility in step.
+      expect(additiveMigrations.length).toBe(MIGRATIONS.length - 19);
     });
 
     test("restores triggers attached to a dropped table", async () => {

@@ -16,6 +16,7 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
+import { checkoutStageDeleteStatement } from "#shared/db/attendees/delete.ts";
 import { executeBatch, insert, type SqlStatement } from "#shared/db/client.ts";
 import { legacyMergePaymentReferenceStatement } from "#shared/db/payment-references.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
@@ -805,6 +806,10 @@ export const applyAttendeeMerge = async (
     // Insert moved/replaced source bookings
     ...insertStatements,
     ...(sourceLegacyPaymentStatement ? [sourceLegacyPaymentStatement] : []),
+    checkoutStageDeleteStatement({
+      args: [targetId, sourceId],
+      sql: "?, ?",
+    }),
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.
