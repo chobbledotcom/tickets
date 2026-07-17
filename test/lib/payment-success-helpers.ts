@@ -16,6 +16,10 @@ export const renderPaymentSuccess = async (
   response: Response;
   html: string;
 }> => {
+  const { stageStripeCallback } = await import(
+    "#test-utils/staged-payments.ts"
+  );
+  await stageStripeCallback(sessionId);
   const redirectResponse = await handleRequest(
     mockRequest(`/payment/success?session_id=${sessionId}`),
   );

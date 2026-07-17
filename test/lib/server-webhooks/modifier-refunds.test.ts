@@ -9,7 +9,7 @@ import { singleModifierMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectKeptAsQuantityZeroAndRefunded,
+  expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
 } from "#test-utils/webhooks.ts";
 import { createServiceChargeScenario } from "./service-charge-scenario.ts";
@@ -48,7 +48,7 @@ describeWithEnv(
       // dropped) and refunded once, with a system note recording the reason.
       // The session is recorded as a terminal failure (placeholder kept, no
       // ticket attendee): attendee_id stays null and failure_data is set.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_modifier_mismatch",
         mockRefund,
@@ -86,7 +86,7 @@ describeWithEnv(
       );
       // Signed by us → the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_addon_only_mismatch",
         mockRefund,
@@ -127,7 +127,7 @@ describeWithEnv(
       );
       // Signed by us → the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_modifier_soldout",
         mockRefund,

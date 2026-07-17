@@ -13,6 +13,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
 
 /**
  * Paid orders booking the SAME listing through two paths at once — a package
@@ -52,12 +53,13 @@ const paidSession = async (
   email: string,
   buyer: string,
 ) => {
+  const metadata = signedMeta({ email, name: buyer, ...fields }, total);
   const mockVerify = await stubWebhookVerify({
     data: {
       object: {
         amount_total: total,
         id: `cs_${ref}`,
-        metadata: signedMeta({ email, name: buyer, ...fields }, total),
+        metadata,
         payment_intent: `pi_${ref}`,
         payment_status: "paid",
       },
@@ -71,6 +73,12 @@ const paidSession = async (
       status: "succeeded",
     } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
   );
+  await stagePaymentCallback({
+    amountTotal: total,
+    metadata,
+    paymentReference: `pi_${ref}`,
+    sessionId: `cs_${ref}`,
+  });
   return { mockRefund, mockVerify };
 };
 
@@ -116,19 +124,14 @@ const expectPathRows = async (
 };
 
 /** Run a dual-path session's refusal epilogue: the webhook answers
- * saved-and-refunded, the listing keeps one quantity-0 placeholder per path,
- * exactly one refund fires — and both stubs are restored either way. */
+ * saved-and-refunded, removes the stage, and refunds exactly once. */
 const expectDualPathRefused = async (
   listing: Listing,
-  group: Group,
   stubs: Awaited<ReturnType<typeof paidSession>>,
 ): Promise<void> => {
   try {
     await expectSavedAndRefunded();
-    await expectPathRows(listing.id, [
-      [0, 0],
-      [group.id, 0],
-    ]);
+    await expectPathRows(listing.id, []);
     expect(stubs.mockRefund.calls.length).toBe(1);
   } finally {
     stubs.mockVerify.restore();
@@ -143,7 +146,7 @@ const expectSavedAndRefunded = () =>
     200,
     (json) => {
       expect(json.processed).toBe(false);
-      expect(json.error).toContain("saved your details");
+      expect(json.error).toContain("couldn't complete your booking");
     },
   );
 
@@ -169,9 +172,8 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       "Dual Buyer",
     );
 
-    // The booking is kept as quantity-0 placeholders — one per PATH, each
-    // remembering which path it was — and the payment refunded once.
-    await expectDualPathRefused(listing, group, stubs);
+    // The staged booking is removed and the payment is refunded once.
+    await expectDualPathRefused(listing, stubs);
   });
 
   test("a listing gone hidden mid-checkout refuses its standalone path", async () => {
@@ -192,13 +194,12 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
     );
     // …then the operator hides them mid-checkout: the standalone page now
     // 404s, so the untagged path must fail the stale check even though a
-    // tagged line shares its listing id — saved and refunded (one quantity-0
-    // placeholder per path), never a standalone ticket for a concealed
-    // listing.
+    // tagged line shares its listing id. It is refunded and removed, never
+    // turned into a standalone ticket for a concealed listing.
     const { groups } = await import("#shared/db/groups.ts");
     await groups.table.update(group.id, { hidePackageListings: true });
 
-    await expectDualPathRefused(listing, group, stubs);
+    await expectDualPathRefused(listing, stubs);
   });
 
   test("a non-first line deleted mid-checkout keeps a ghost for EVERY signed line", async () => {
@@ -226,10 +227,8 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
       "ghost@example.com",
       "Ghost Buyer",
     );
-    // The SECOND line's listing vanishes while the buyer pays. The stored
-    // operator record must keep one quantity-0 ghost per signed line — the
-    // bundle line under its package id and the deleted line under its own id —
-    // never a single ghost pinned to the first item's (surviving) listing.
+    // The second line's listing vanishes while the buyer pays. The whole staged
+    // order must be refunded and removed.
     const { deleteListing } = await import("#shared/db/listings/delete.ts");
     await deleteListing(doomed.id);
 
@@ -250,10 +249,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
           Number(row.package_group_id),
           row.quantity,
         ]),
-      ).toEqual([
-        [listing.id, group.id, 0],
-        [doomed.id, 0, 0],
-      ]);
+      ).toEqual([]);
       expect(mockRefund.calls.length).toBe(1);
     } finally {
       mockVerify.restore();
@@ -382,9 +378,7 @@ describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
 
     try {
       await expectSavedAndRefunded();
-      // The addon keeps exactly one quantity-0 placeholder for its aggregated
-      // line — a plain (package-less) slot.
-      await expectPathRows(addon.id, [[0, 0]]);
+      await expectPathRows(addon.id, []);
       expect(mockRefund.calls.length).toBe(1);
     } finally {
       mockVerify.restore();

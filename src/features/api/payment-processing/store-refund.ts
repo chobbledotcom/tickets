@@ -1,25 +1,22 @@
 /**
- * The keep-and-refund paths of the payment machine. When a signed-by-us payment
+ * The refund paths of the payment machine. When a signed-by-us payment
  * can't be honoured — a price changed, a listing was deleted, an extra sold out,
  * the event filled, or an unexpected error hit after the charge — we never drop
- * the customer: we store a quantity-0 placeholder, refund the payment, record the
- * cash round-trip in the ledger, and flag the attendee with a plain-language
- * note. A balance session settles the existing attendee instead of creating one.
+ * the customer: we refund the payment, record the cash round-trip and terminal
+ * replay atomically, then remove the unbooked staged attendee. A balance session
+ * settles the existing attendee instead of creating one.
  */
 
+/* jscpd:ignore-start */
 import {
-  attendeeBaseFields,
-  bookingSlot,
   type HonourResult,
   sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
-import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
   type RefundCode,
   type RefundSpec,
   refundAndFail,
-  refundedNoteText,
   refundSpec,
   tryRefund,
 } from "#routes/api/payment-processing/refunds.ts";
@@ -28,57 +25,27 @@ import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { bookingDateFields } from "#shared/booking-date-fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
+import { checkoutStagesApi } from "#shared/db/checkout-stages.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { createSystemNote } from "#shared/db/system-notes.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import type { BookingItem, ValidatedPaymentSession } from "#shared/payments.ts";
+import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
-import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import { stagedRefundLegs } from "#shared/refund-ledger.ts";
+
+/* jscpd:ignore-end */
 
 /** User-facing message when the outstanding balance changed mid-payment. */
 const BALANCE_CHANGED_MESSAGE =
   "The outstanding balance for this booking changed while you were paying.";
 
 /**
- * User-facing message when a signed-by-us payment can't be honoured (price
- * changed, charge mismatch, sold out, or an unexpected error) so the booking is
- * kept and refunded. The refund clause is appended by formatPaymentError (or the
- * refund-pending suffix below), so this just covers "we saved your details".
+ * User-facing message when a signed-by-us payment cannot be honoured. The caller
+ * appends whether the refund completed or support must help.
  */
-const BOOKING_SAVED_MESSAGE =
-  "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
-
-/** The quantity-0, money-free booking lines for a stored-but-refunded placeholder
- *  — one per validated item, carrying the listing's current date range so the
- *  ghost still sits on the right day, and each line's package path so a listing
- *  booked through two paths keeps two distinct slots (identical slots would be
- *  refused as duplicates and crash the store-and-refund). */
-export const placeholderBookings = (
-  validatedItems: ValidatedItem[],
-  intent: BookingIntent,
-) =>
-  validatedItems.map(({ item, listing }) => ({
-    ...bookingSlot(item),
-    pricePaid: 0,
-    quantity: 0,
-    ...bookingDateFields(listing, intent.date, intent.dayCount),
-  }));
-
-/** Quantity-0 ghost rows for a since-deleted listing: no date fields, because
- * the listing row is gone and there is nothing left to derive a range from. Used
- * per SIGNED LINE so a multi-item cart's deleted line is named with its package
- * path rather than collapsed onto the first listing. */
-export const datelessGhostBookings = (items: readonly BookingItem[]) =>
-  items.map((item) => ({ ...bookingSlot(item), pricePaid: 0, quantity: 0 }));
-
-type PlaceholderBookings = Parameters<
-  typeof attendeesApi.createAttendeeAtomic
->[0]["bookings"];
+const BOOKING_FAILED_MESSAGE = "We couldn't complete your booking.";
 
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
@@ -136,79 +103,67 @@ export const settleBalanceSession = async (
   return sessionSuccess(attendeeId, listingId);
 };
 
-/**
- * Keep a signed-by-us booking we can't honour rather than dropping it into limbo:
- * store it as a quantity-0 placeholder (overbook-tolerant, so capacity — or a
- * since-deleted listing — can never downgrade the store into a drop), refund the
- * payment, record the cash round-trip in the ledger (a `payment` + `refund_cash`
- * with NO `sale` leg, so the placeholder recognises no revenue and its projected
- * price_paid stays 0), and flag the attendee with a plain-language system note
- * carrying the reason and the provider's payment reference. The customer is told
- * their details were saved and the payment refunded; no ticket is issued.
- *
- * We never report `refunded: false`. The booking now exists, so a retry must NOT
- * re-create it — an un-refunded payment is recorded as a terminal, operator-
- * resolved outcome (the note's manual-refund instruction stands) rather than
- * released for re-processing.
- */
-export const storeRefundedBooking = async (
+/** Refund a paid staged booking that cannot be honoured. A failed provider call
+ * leaves the stage in `refunding` for retry. A successful provider call records
+ * the payment and reversal, stores replay data, and removes the staged attendee
+ * in one database transaction. */
+export const refundStagedBooking = async (
   session: ValidatedPaymentSession,
-  intent: BookingIntent,
-  bookings: PlaceholderBookings,
+  listingId: number,
   spec: RefundSpec,
 ): Promise<PaymentFailureResult> => {
   if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
-  const listingId = bookings[0]!.listingId;
-  // A quantity-0 overbook insert has no capacity gate and consumes no modifier
-  // stock, so it always writes the row — trust it. (If the PII can't encrypt the
-  // whole system is broken; we don't defend against that.)
-  const stored = await attendeesApi.createAttendeeAtomic({
-    ...(await attendeeBaseFields(session, intent)),
-    allowOverbook: true,
-    bookings,
-  });
-  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
-    .attendees[0]!.id;
+  const stage = await checkoutStagesApi.loadByPaymentSession(session.id);
+  if (!stage) throw new Error(`Checkout stage ${session.id} is missing`);
+  if (stage.state === "pending") {
+    await checkoutStagesApi.beginRefund(session.id);
+  }
   const refunded = await tryRefund(session.paymentReference, listingId);
-  await recordPlaceholderRefund(
-    {
-      amount: session.amountTotal,
-      attendeeId,
-      eventId: session.id,
-      listingId,
-      occurredAt: businessTime(session),
-    },
-    spec.code,
-    refunded,
-  );
-  if (refunded) {
-    await logActivity(
-      `Automatic refund (${spec.code}); booking kept at quantity 0`,
-      listingId,
-      attendeeId,
-    );
-  } else {
+  if (!refunded) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      detail: `Staged refund failed for ${stage.attendeeId} (${spec.code}): ${spec.detail}`,
       listingId,
     });
+    return {
+      detail: spec.detail,
+      error: BOOKING_FAILED_MESSAGE,
+      refunded: false,
+      status: 503,
+      success: false,
+    };
   }
-  await createSystemNote(
-    attendeeId,
-    refundedNoteText(attendeeId, spec, refunded, session.paymentReference),
+  const failure = {
+    error: spec.error ?? BOOKING_FAILED_MESSAGE,
+    refunded: true,
+    status: spec.status ?? 200,
+  };
+  await checkoutStagesApi.finalizeRefund({
+    failure,
+    legs: await stagedRefundLegs(
+      {
+        amount: session.amountTotal,
+        attendeeId: stage.attendeeId,
+        eventId: session.id,
+        listingId,
+        occurredAt: businessTime(session),
+      },
+      spec.code,
+    ),
+    paymentReference: session.paymentReference,
+    stage: { ...stage, state: "refunding" },
+  });
+  await logActivity(
+    `Automatic refund (${spec.code}); staged booking removed`,
+    listingId,
   );
-  // Status 200: a fully-handled terminal outcome (booking kept, money returned or
-  // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
-  // refund retry — the booking exists, so a retry can't re-create it), and the
-  // customer sees an informational "saved your details" message.
+  // Status 200 acknowledges the terminal refund. A failed refund returns 503
+  // above and keeps the stage retryable.
   return {
     detail: spec.detail,
-    error: refunded
-      ? BOOKING_SAVED_MESSAGE
-      : `${BOOKING_SAVED_MESSAGE} Your refund is being arranged — please contact us if it does not arrive.`,
-    ...(refunded ? { refunded: true } : {}),
-    status: 200,
+    error: failure.error,
+    refunded: true,
+    status: failure.status,
     success: false,
   };
 };
@@ -223,10 +178,11 @@ const FAILURE_REFUND_CODES: Record<
   capacity_exceeded: "capacity_full",
   encryption_error: "capacity_full",
   sold_out: "sold_out",
+  stage_mismatch: "unexpected_error",
   unexpected_error: "unexpected_error",
 };
 
-/** The placeholder refund reason for a booking we tried but couldn't honour. */
+/** The refund reason for a staged booking we tried but could not honour. */
 export const specForFailure = (
   failure: Extract<HonourResult, { ok: false }>,
 ): RefundSpec =>

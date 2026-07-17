@@ -2,16 +2,13 @@
  * Turn a validated, correctly-priced session into a real attendee: create the
  * attendee plus its per-listing bookings atomically, finalize the payment
  * session in the same batch, and persist the answers the buyer gave. Every
- * failure here is *structured* (never a refund) so the caller can keep a
- * quantity-0 placeholder instead of dropping a paid customer.
+ * failure here is structured so the caller can route the staged payment to its
+ * durable refund path.
  */
 
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
-import {
-  orderLineTotal,
-  paidByItem,
-} from "#routes/api/payment-processing/pricing.ts";
+import { paidByItem } from "#routes/api/payment-processing/pricing.ts";
 import type {
   BookingIntent,
   PaymentResult,
@@ -26,9 +23,9 @@ import type {
 } from "#shared/checkout-pricing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
+import type { CheckoutStage } from "#shared/db/checkout-stages.ts";
 import {
   decryptSessionTokens,
   type ProcessedPayment,
@@ -47,10 +44,8 @@ import type {
 } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
-/** The listing id + package path shared by every booking row we build from a
- * signed line — a fresh booking, a quantity-0 placeholder, or a dateless ghost.
- * A line's package path keeps a listing booked through two paths in two distinct
- * slots. */
+/** The listing id and package path for a signed booking line. A package path
+ * keeps one listing booked through two paths in two distinct slots. */
 export const bookingSlot = (item: BookingItem) => ({
   listingId: item.e,
   packageGroupId: lineGroupId(item) ?? 0,
@@ -134,12 +129,11 @@ export type CreatedEntry = {
 /**
  * The outcome of trying to honour a signed booking at the charged price: the
  * created entries, or a structured reason it couldn't be created. The caller
- * decides what to do — a success finalizes a real ticket; any failure keeps a
- * quantity-0 placeholder and refunds. createAttendeeForSession never refunds
- * itself.
+ * decides what to do: success finalizes a real ticket and failure enters the
+ * staged refund path. createAttendeeForSession never refunds itself.
  */
 export type HonourResult =
-  | { ok: true; entries: CreatedEntry[] }
+  | { ok: true }
   | { ok: null; error: unknown }
   | {
       ok: false;
@@ -147,6 +141,7 @@ export type HonourResult =
         | "sold_out"
         | "capacity_exceeded"
         | "encryption_error"
+        | "stage_mismatch"
         | "unexpected_error";
       detail: string;
     };
@@ -206,15 +201,6 @@ export const saveSessionAnswers = async (
   await saveAttendeeAnswers(grouped);
 };
 
-export const attendeeBaseFields = async (
-  session: ValidatedPaymentSession,
-  intent: BookingIntent,
-) => ({
-  ...contactFields(intent),
-  paymentId: session.paymentReference,
-  statusId: await getPublicStatusId(),
-});
-
 export const logPromoCodeModifiers = async (
   specs: ModifierSpec[],
   applications: ModifierApplication[],
@@ -240,8 +226,8 @@ export const logPromoCodeModifiers = async (
  * is set iff the attendee row exists — closing the crash window between a
  * separate post-transaction finalize and the attendee INSERT. durationDays is
  * listing-scoped and re-read here so the stored range always matches the
- * listing's current duration policy. Returns a structured failure (never
- * refunds) so the caller can keep the booking as a placeholder instead.
+ * listing's current duration policy. Returns a structured failure so the caller
+ * can refund the staged booking.
  */
 export const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
@@ -249,11 +235,11 @@ export const createAttendeeForSession = async (
   validatedItems: ValidatedItem[],
   pricingIntent: CheckoutIntent,
   pricedOrder: PricedOrder,
-  ticketToken: string,
+  stage: CheckoutStage,
 ): Promise<HonourResult> => {
   let prepared: {
-    attendeeInput: Parameters<typeof attendeesApi.createBookingAtomic>[0];
-    plan: Parameters<typeof attendeesApi.createBookingAtomic>[1];
+    attendeeInput: Parameters<typeof attendeesApi.activateStagedAttendee>[1];
+    plan: Parameters<typeof attendeesApi.activateStagedAttendee>[2];
   };
   try {
     // Per-LINE paid amounts: a listing booked through two paths is two lines
@@ -273,11 +259,6 @@ export const createAttendeeForSession = async (
         };
       }),
     );
-    const remainingBalance =
-      intent.reservationAmount === undefined
-        ? 0
-        : pricedOrder.fullSubtotal - orderLineTotal(pricedOrder);
-
     // Build every fallible input before starting the atomic write. A failure
     // here is known not to have committed, while a write failure below must be
     // checked against primary state before deciding whether to refund.
@@ -292,12 +273,11 @@ export const createAttendeeForSession = async (
     );
     prepared = {
       attendeeInput: {
-        ...(await attendeeBaseFields(session, intent)),
+        ...contactFields(intent),
         bookings,
-        remainingBalance,
-        ticketToken,
+        paymentId: session.paymentReference,
       },
-      plan,
+      plan: { ...plan, finalize: plan.finalize! },
     };
   } catch (error) {
     return {
@@ -306,34 +286,30 @@ export const createAttendeeForSession = async (
       reason: "unexpected_error",
     };
   }
-  let result: Awaited<ReturnType<typeof attendeesApi.createBookingAtomic>>;
+  let result: Awaited<ReturnType<typeof attendeesApi.activateStagedAttendee>>;
   try {
-    result = await attendeesApi.createBookingAtomic(
+    result = await attendeesApi.activateStagedAttendee(
+      stage,
       prepared.attendeeInput,
       prepared.plan,
     );
   } catch (error) {
     return { error, ok: null };
   }
-  if (result === "sold-out") {
-    return {
-      detail: "a chosen add-on or extra sold out during payment",
-      ok: false,
-      reason: "sold_out",
-    };
-  }
-
-  // All-or-nothing: a capacity failure rolled the transaction back (no legs).
   if (!result.success) {
     return {
-      detail: formatPostPaymentError(
-        result.reason,
-        validatedItems[0]!.listing.name,
-      ),
+      detail:
+        result.reason === "sold_out"
+          ? "a chosen add-on or extra sold out during payment"
+          : result.reason === "stage_mismatch"
+            ? `Staged order did not match session ${session.id}`
+            : formatPostPaymentError(
+                result.reason,
+                validatedItems[0]!.listing.name,
+              ),
       ok: false,
       reason: result.reason,
     };
   }
-  const entries = pairEntriesByListing(result.attendees, validatedItems);
-  return { entries, ok: true };
+  return { ok: true };
 };

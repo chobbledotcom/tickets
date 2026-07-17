@@ -3,7 +3,6 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { getNoteRows } from "#shared/db/system-notes.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -11,6 +10,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
 
 /**
  * The three-verdict trust model. A paid session's price proof is the ONLY signal
@@ -105,6 +105,12 @@ export const runWebhook = async (
   body: (refund: ReturnType<typeof stubRefundOk>) => Promise<void>,
 ): Promise<void> => {
   const refund = stubRefundOk();
+  await stagePaymentCallback({
+    amountTotal: session.amount_total ?? 1000,
+    metadata: session.metadata,
+    paymentReference: `pi_${session.id}`,
+    sessionId: session.id,
+  });
   const mockVerify = await stubCompletedSession({
     amount_total: session.amount_total ?? 1000,
     id: session.id,
@@ -134,10 +140,19 @@ export const runFailedRefund = async (
       ReturnType<typeof stripeApi.retrievePaymentIntent>
     >),
   );
+  const metadata = signedMeta(1000, {
+    items: singleItem(listingId, 1, 1000),
+  });
+  await stagePaymentCallback({
+    amountTotal: 1200,
+    metadata,
+    paymentReference: `pi_${id}`,
+    sessionId: id,
+  });
   const mockVerify = await stubCompletedSession({
     amount_total: 1200,
     id,
-    metadata: signedMeta(1000, { items: singleItem(listingId, 1, 1000) }),
+    metadata,
   });
   try {
     await body(refund);
@@ -148,20 +163,17 @@ export const runFailedRefund = async (
   }
 };
 
-/** Assert the webhook kept the booking as a quantity-0 placeholder (with a system
- *  note) and refused with the generic "saved your details" message. */
+/** Assert the webhook refunded and removed the staged booking. */
 export const expectStoredRefundRecord = async (
   listingId: number,
 ): Promise<void> => {
-  const [attendee] = await getAttendeesRaw(listingId);
-  expect(attendee?.quantity).toBe(0);
-  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+  expect(await getAttendeesRaw(listingId)).toEqual([]);
 };
 
 export const expectStoredRefund = async (listingId: number): Promise<void> => {
   await assertJson(webhookRequest(), 200, (json) => {
     expect(json.processed).toBe(false);
-    expect(json.error).toContain("saved your details");
+    expect(json.error).toContain("couldn't complete your booking");
   });
   await expectStoredRefundRecord(listingId);
 };
@@ -235,8 +247,8 @@ export const packageMetadata = (
     price,
   );
 
-/** Drive a 1500 package session through the webhook and assert it was kept as
- * a refunded placeholder (the post-checkout change invalidated the price). */
+/** Drive a 1500 package session through the webhook and assert it was refunded
+ * after a post-checkout change invalidated the price. */
 export const expectPackageRefund = (
   id: string,
   listingId: number,

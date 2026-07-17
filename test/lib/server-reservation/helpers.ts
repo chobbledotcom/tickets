@@ -219,27 +219,20 @@ export const setupReservationListing = async (
   });
 };
 
-/** Verify a checkout webhook kept a sold-out or price-mismatched booking as a
- * refunded, quantity-0 placeholder: no add-on stock consumed, the payment
- * refunded, and a system note left behind. Returns the listing's attendees
- * (a single placeholder row) so callers can layer on further assertions. */
-export const expectRefundedPlaceholder = async (
+/** Verify a sold-out or price-mismatched checkout was refunded and removed
+ * without consuming add-on stock. */
+export const expectRefundedCheckout = async (
   listing: { id: number },
   addOnId: number,
   refund: { calls: Array<{ args: unknown[] }> },
   paymentIntentId: string,
   responseText: string,
-): Promise<Array<{ id: number }>> => {
-  expect(responseText).toContain("saved your details");
+): Promise<void> => {
+  expect(responseText).toContain("couldn't complete your booking");
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const attendees = await getAttendeesRaw(listing.id);
-  expect(attendees.length).toBe(1);
-  // The placeholder posts no sale leg, so the still-sold-out add-on is not
-  // consumed.
+  expect(attendees).toEqual([]);
   expect(await modifierUsageCount(addOnId)).toBe(0);
   expect(refund.calls[0]!.args).toEqual([paymentIntentId]);
   expect(refund.calls.length).toBe(1);
-  const { getNoteRows } = await import("#shared/db/system-notes.ts");
-  expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
-  return attendees;
 };

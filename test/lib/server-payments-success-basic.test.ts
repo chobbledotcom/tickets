@@ -14,6 +14,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stageStripeCallback } from "#test-utils/staged-payments.ts";
 import { twoListingsAttendees } from "./attendee-read-helpers.ts";
 
 /** Assert every package member's most recent booking landed on `date` and
@@ -80,6 +81,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_multi_success");
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
@@ -147,6 +149,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_pkg_paid");
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_pkg_paid"),
         );
@@ -218,6 +221,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_pkg_dated");
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_pkg_dated"),
         );
@@ -296,6 +300,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_pkg_flex_paid");
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_pkg_flex_paid"),
         );

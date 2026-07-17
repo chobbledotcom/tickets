@@ -29,6 +29,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
 
 /** Run the shared "e2e: accounting lifecycle" suite body under a db env,
  *  resetting the Stripe client between tests. */
@@ -180,6 +181,12 @@ export const withStripeSuccess = async (
     >),
   );
   try {
+    await stagePaymentCallback({
+      amountTotal: order.total,
+      metadata,
+      paymentReference: order.paymentIntent,
+      sessionId,
+    });
     await body(
       await handleRequest(
         mockRequest(`/payment/success?session_id=${sessionId}`),

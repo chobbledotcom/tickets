@@ -12,7 +12,7 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectKeptAsQuantityZeroAndRefunded,
+  expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
@@ -113,7 +113,7 @@ describeWithEnv(
 
       // Signed by us → the whole order is kept as a quantity-0 placeholder
       // (one attendee against both listings), not dropped, and refunded once.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing1.id,
         "cs_multi_soldout_wh",
         mockRefund,

@@ -156,13 +156,12 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_bad"),
         );
-        // Signed by us → the reservation is kept and refunded (HTTP 200), not
-        // dropped.
+        // Signed by us, so the invalid reservation is refunded and removed.
         expect(response.status).toBe(200);
         const { rows } = await getDb().execute(
           "SELECT COUNT(*) AS c FROM attendees",
         );
-        expect(Number(rows[0]!.c)).toBe(1);
+        expect(Number(rows[0]!.c)).toBe(0);
       } finally {
         session.restore();
         refund.restore();

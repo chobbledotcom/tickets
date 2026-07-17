@@ -9,9 +9,9 @@ import { signedMeta } from "#test-utils/factories.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectKeptAsQuantityZeroAndRefunded,
-  expectMergedMultiListingAttendee,
+  expectMultiListingStageRemoved,
   expectSessionFailed,
+  expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
   postWebhookAndAssert,
   stubRefundPayment,
@@ -80,13 +80,13 @@ describeWithEnv(
           expect(json.processed).toBe(false);
           // The capacity reason now lives in the note; the customer sees the
           // generic saved-details message.
-          expect(json.error).toContain("saved your details");
+          expect(json.error).toContain("couldn't complete your booking");
         },
       );
 
       // Signed by us → the order is kept as a quantity-0 placeholder (one
       // attendee across both listings), not dropped, and refunded once.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing1.id,
         "cs_multi_cap",
         mockRefund,
@@ -132,12 +132,7 @@ describeWithEnv(
 
       // The multi-listing booking is kept across both listings as one
       // quantity-0 placeholder and refunded once, with a system note.
-      const attendee = await expectMergedMultiListingAttendee(
-        listing1.id,
-        listing2.id,
-      );
-      const { getNoteRows } = await import("#shared/db/system-notes.ts");
-      expect((await getNoteRows([attendee.id])).length).toBe(1);
+      await expectMultiListingStageRemoved(listing1.id, listing2.id);
       await expectSessionFailed("cs_multi_mismatch");
 
       // Verify refund was attempted exactly once
@@ -174,7 +169,7 @@ describeWithEnv(
 
       // Signed by us → the booking is kept as a quantity-0 placeholder and
       // refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_item_mismatch",
         mockRefund,
@@ -211,7 +206,7 @@ describeWithEnv(
 
       // Signed by us → the booking is kept as a quantity-0 placeholder and
       // refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_total_mismatch",
         mockRefund,

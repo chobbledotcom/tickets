@@ -8,7 +8,7 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectKeptAsQuantityZeroAndRefunded,
+  expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
@@ -132,7 +132,7 @@ describeWithEnv(
       );
       // Signed by us → the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_bad_daycount",
         mockRefund,

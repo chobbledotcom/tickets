@@ -3,16 +3,17 @@
  * signed-by-us payment must be refunded.
  *
  * `tryRefund` and friends issue the money-back call and turn it into a handled
- * {@link PaymentFailureResult}; {@link RefundSpec} names *why* a booking we
- * kept had to be refunded, stamped PII-free into the ledger reversal and the
- * attendee's system note.
+ * {@link PaymentFailureResult}; {@link RefundSpec} names why a staged booking
+ * had to be refunded and stamps that reason into the ledger reversal.
  */
 
+/* jscpd:ignore-start */
 import type {
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { markSessionFailed } from "#shared/db/processed-payments.ts";
 import {
   ErrorCode,
   type ErrorCodeType,
@@ -23,6 +24,8 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+
+/* jscpd:ignore-end */
 
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
@@ -112,13 +115,18 @@ export const refundAndFail = async (
   detail?: string,
 ): Promise<PaymentFailureResult> => {
   const refunded = await refundAndLog(session, message, listingId);
-  return {
+  const failure: PaymentFailureResult = {
     detail,
     error: message,
     refunded,
     status,
     success: false,
   };
+  // Provider and database writes cannot share one transaction. If this write
+  // fails, the caller releases the reservation; retry confirms the provider
+  // already refunded before storing the same terminal result.
+  if (refunded) await markSessionFailed(session.id, failure);
+  return failure;
 };
 
 /**
@@ -128,20 +136,14 @@ export const refundAndFail = async (
  * refund so the customer gets their money back.
  */
 export const validationFailure = (
-  session: ValidatedPaymentSession,
+  _session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
-  listingId: number,
-): Promise<PaymentFailureResult> | PaymentFailureResult => {
-  if (validation.status === 404) {
-    return {
-      detail: `Post-payment listing not found (session=${session.id})`,
-      error: validation.error,
-      status: 404,
-      success: false,
-    };
-  }
-  return refundAndFail(session, validation.error, listingId, validation.status);
-};
+  _listingId: number,
+): PaymentFailureResult => ({
+  error: validation.error,
+  status: validation.status,
+  success: false,
+});
 
 /** Log a price mismatch and refund the session */
 const priceMismatchRefund = (
@@ -177,21 +179,23 @@ export const refuseMismatch = (
 
 /**
  * Why a signed-by-us payment must be refunded even though we can't just drop it.
- * `code` is a PII-free reason stamped into the ledger reversal and the system
- * note; `reason` is the operator-facing phrase for the note; `detail` is the
- * internal log line (ids/prices, never PII); `notify` optionally pages an alert.
+ * `code` is a PII-free reason stamped into the ledger reversal; `reason` is the
+ * operator-facing phrase; `detail` is the internal log line (ids/prices, never
+ * PII); `notify` optionally pages an alert.
  */
 export type RefundSpec = {
   code: string;
   reason: string;
   detail: string;
+  error?: string;
   notify?: ErrorCodeType;
+  status?: number | undefined;
 };
 
 /**
  * Every reason we keep-and-refund a signed booking, as one table: the
- * operator-facing phrase for the system note, plus (where the failure means a
- * broken promise rather than plain bad luck) the alert to page. Unexpected
+ * operator-facing reason, plus (where the failure means a broken promise rather
+ * than plain bad luck) the alert to page. Unexpected
  * errors and removed listings page because someone should look; a full event
  * or a sold-out extra is normal operation.
  */
@@ -237,33 +241,11 @@ export const chargeMismatchSpec = (
 ): RefundSpec =>
   refundSpec("charge_mismatch")(chargedVsSigned(session, agreed));
 
-/** A signed booking whose listing was deleted between checkout and payment:
- *  nothing left to honour, but we keep a quantity-0 ghost so the customer (and
- *  their refund) is never lost. */
+/** A signed booking whose listing was deleted between checkout and payment has
+ * nothing left to honour, so its staged payment must be refunded. */
 export const deletedListingSpec = (
   session: ValidatedPaymentSession,
 ): RefundSpec =>
   refundSpec("listing_removed")(
     `Listing not found for a signed session (session=${session.id})`,
   );
-
-/**
- * The PII-free system note for a stored-but-refunded booking. Explains in plain
- * language what happened, carries the provider's payment reference and our reason
- * code so the charge/refund can be reconciled in the provider dashboard, and
- * links the operator to the attendee's ledger statement. No names or emails.
- */
-export const refundedNoteText = (
-  attendeeId: number,
-  spec: RefundSpec,
-  refunded: boolean,
-  paymentReference: string,
-): string => {
-  const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
-  // PII-free: the provider's payment reference lets the operator reconcile the
-  // charge/refund in the provider dashboard; the reason code names why.
-  const ref = ` Payment reference: ${paymentReference} (code: ${spec.code}).`;
-  return refunded
-    ? `This booking was kept at quantity 0 but its payment was refunded because ${spec.reason}.${ref} Please check the ${ledger}.`
-    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${spec.reason}.${ref} Please refund it manually and check the ${ledger}.`;
-};

@@ -126,7 +126,7 @@ export const expectWebhookProcessed = async (
 export const expectWebhookKeptAndRefunded = async (
   event: Parameters<typeof stubWebhookVerify>[0],
   refundId = "re_test",
-  errorContains: string | string[] = "saved your details",
+  errorContains: string | string[] = "couldn't complete your booking",
   signature?: string,
 ) => {
   const mockVerify = await stubWebhookVerify(event);
@@ -157,22 +157,18 @@ export const expectWebhookKeptAndRefunded = async (
 
 /**
  * Locate the sole quantity-0 placeholder on a listing that already carries
- * other attendees (so `expectKeptAsQuantityZeroAndRefunded`'s "exactly one
- * attendee" check doesn't apply), assert one exists, and return it — the
- * shared way both the redirect and webhook sold-out scenarios find the late
- * buyer's kept placeholder alongside the original attendee.
+ * other attendees and assert the refunded stage left no quantity-zero record.
  */
-export const findKeptPlaceholder = async (
+export const expectNoRefundPlaceholder = async (
   listingId: number,
-): Promise<{ id: number }> => {
+): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
   const placeholders = (await getAttendeesRaw(listingId)).filter(
     (a) => a.quantity === 0,
   );
   // The invariant this helper documents: exactly one kept placeholder, so a
   // duplicate-placeholder regression fails here rather than silently passing.
-  expect(placeholders.length).toBe(1);
-  return placeholders[0]!;
+  expect(placeholders.length).toBe(0);
 };
 
 /**
@@ -197,31 +193,24 @@ export const expectSessionFailed = async (sessionId: string): Promise<void> => {
  * (the sole attendee on a fresh listing, or one of several on a listing that
  * already had a paying attendee).
  */
-export const expectRefundedWithNote = async (
-  attendeeId: number,
-  mockRefund: { calls: unknown[] },
-): Promise<void> => {
+export const expectRefundedWithoutAttendee = async (mockRefund: {
+  calls: unknown[];
+}): Promise<void> => {
   expect(mockRefund.calls.length).toBe(1);
-  const { getNoteRows } = await import("#shared/db/system-notes.ts");
-  expect((await getNoteRows([attendeeId])).length).toBe(1);
 };
 
 /**
- * Assert the standard "kept and refunded" aftermath: the order survives as a
- * single quantity-0 placeholder attendee on `listingId` (never dropped), the
- * refund fired exactly once with a system note (see `expectRefundedWithNote`),
- * and (see `expectSessionFailed`) the session is filed as a terminal failure.
+ * Assert the standard staged-refund aftermath: no quantity-zero attendee is
+ * retained, the refund fired once, and the terminal replay row remains.
  */
-export const expectKeptAsQuantityZeroAndRefunded = async (
+export const expectStagedAttendeeRemovedAndRefunded = async (
   listingId: number,
   sessionId: string,
   mockRefund: { calls: unknown[] },
 ): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
-  const attendees = await getAttendeesRaw(listingId);
-  expect(attendees.length).toBe(1);
-  expect(attendees[0]!.quantity).toBe(0);
-  await expectRefundedWithNote(attendees[0]!.id, mockRefund);
+  expect(await getAttendeesRaw(listingId)).toEqual([]);
+  await expectRefundedWithoutAttendee(mockRefund);
   await expectSessionFailed(sessionId);
 };
 
@@ -233,18 +222,13 @@ export const expectKeptAsQuantityZeroAndRefunded = async (
  * at the top of the `can_pay_more` and price-mismatch multi-ticket
  * "kept and refunded" scenarios.
  */
-export const expectMergedMultiListingAttendee = async (
+export const expectMultiListingStageRemoved = async (
   listing1Id: number,
   listing2Id: number,
-): Promise<{ id: number }> => {
+): Promise<void> => {
   const { getAttendeesRaw } = await import("#shared/db/attendees/queries.ts");
-  const attendees1 = await getAttendeesRaw(listing1Id);
-  const attendees2 = await getAttendeesRaw(listing2Id);
-  expect(attendees1.length).toBe(1);
-  expect(attendees2.length).toBe(1);
-  expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
-  expect(attendees1[0]!.quantity).toBe(0);
-  return attendees1[0]!;
+  expect(await getAttendeesRaw(listing1Id)).toEqual([]);
+  expect(await getAttendeesRaw(listing2Id)).toEqual([]);
 };
 
 /**
@@ -305,27 +289,35 @@ export const stubRetrieveCheckoutSession = (
     | { email: string; items: string; name: string }
   ),
 ) =>
-  stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
+  stub(stripeApi, "retrieveCheckoutSession", async () => {
+    const metadata =
+      "metadata" in session
+        ? session.metadata
+        : signedMeta(
+            {
+              email: session.email,
+              items: session.items,
+              name: session.name,
+            },
+            session.amountTotal,
+          );
+    const { stagePaymentCallback } = await import("./staged-payments.ts");
+    await stagePaymentCallback({
+      amountTotal: session.amountTotal,
+      metadata: metadata as Record<string, string>,
+      paymentReference: session.paymentIntent ?? "",
+      sessionId: session.sessionId,
+    });
+    return {
       amount_total: session.amountTotal,
       id: session.sessionId,
-      metadata:
-        "metadata" in session
-          ? session.metadata
-          : signedMeta(
-              {
-                email: session.email,
-                items: session.items,
-                name: session.name,
-              },
-              session.amountTotal,
-            ),
+      metadata,
       payment_intent: session.paymentIntent,
       payment_status: session.paymentStatus ?? "paid",
     } as unknown as Awaited<
       ReturnType<typeof stripeApi.retrieveCheckoutSession>
-    >),
-  );
+    >;
+  });
 
 /** Assert a listing has exactly one attendee recorded with the given
  *  `price_paid` — the tail check for a processed webhook whose test cares

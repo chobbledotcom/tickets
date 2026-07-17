@@ -15,6 +15,7 @@ import {
   submitPackageBooking,
 } from "#test-utils/packages.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stageStripeCallback } from "#test-utils/staged-payments.ts";
 
 /** The REAL booking rows for a listing (a refunded order's quantity-0
  * placeholder is not a booking), newest first, with their parent allocation. */
@@ -287,6 +288,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     );
 
     try {
+      await stageStripeCallback("cs_pkg_child_paid");
       const redirectResponse = await handleRequest(
         mockRequest("/payment/success?session_id=cs_pkg_child_paid"),
       );
@@ -329,6 +331,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     );
 
     try {
+      await stageStripeCallback("cs_pkg_child_drift");
       // The operator removes the child edge while the customer is paying: the
       // signed child nodeKey no longer resolves, so the order refunds rather
       // than booking a bundle the current config can't represent.
@@ -399,6 +402,7 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     );
 
     try {
+      await stageStripeCallback("cs_pkg_grown");
       // The operator gives the member a required add-on while the customer is
       // paying: the current page would demand a child mix the signed order
       // never chose, so the order refunds rather than booking without it.

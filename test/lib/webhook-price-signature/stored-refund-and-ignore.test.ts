@@ -4,12 +4,11 @@ import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { queryOne } from "#shared/db/client.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -59,35 +58,24 @@ describeWithEnv(
         },
         { processed: false, refundCalls: 1 },
       );
-      const [attendee] = await getAttendeesRaw(listing.id);
-      expect(attendee).toBeDefined();
-      // Stored as a quantity-0 placeholder: it consumes no capacity and is not
-      // a ticket, just a kept record of a refunded booking.
-      expect(attendee!.quantity).toBe(0);
+      expect(await getAttendeesRaw(listing.id)).toEqual([]);
 
       // The ledger holds ONLY the cash round-trip — a `payment` we received and
       // a `refund_cash` returning it, stamped with the PII-free reason code — so
       // the attendee nets back to zero. Crucially there is NO `sale` leg: the
       // booking was never honoured, so no revenue is recognised and the
       // quantity-0 line's projected price_paid stays 0 (the no-quantity invariant).
-      const account = attendeeAccount(attendee!.id);
+      const refundRow = await queryOne<{ source_id: string }>(
+        "SELECT source_id FROM transfers WHERE kind = 'refund_cash'",
+        [],
+      );
+      const account = attendeeAccount(Number(refundRow!.source_id));
       const legs = await transfersByAccount(account);
       const refundCash = legs.find((leg) => leg.kind === "refund_cash");
       expect(refundCash?.memo).toBe("price_changed");
       expect(balanceOf(account)(legs)).toBe(0);
       expect(legs.some((leg) => leg.kind === "payment")).toBe(true);
       expect(legs.some((leg) => leg.kind === "sale")).toBe(false);
-
-      // The system note names the reason (PII-free) and links to the ledger.
-      const notes = await getNotesForAttendee(
-        attendee!.id,
-        await getTestPrivateKey(),
-      );
-      expect(notes).toHaveLength(1);
-      expect(notes[0]!.note).toContain("price changed");
-      expect(notes[0]!.note).toContain(
-        `/admin/ledger/attendee/${attendee!.id}`,
-      );
     });
 
     // ---- session-state invariants (regression: the finalize/store-refund seam) -
@@ -108,8 +96,7 @@ describeWithEnv(
         },
         { processed: false, refundCalls: 1 },
       );
-      // The booking exists in the diary…
-      expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       // …but the session is NOT finalized: attendee_id stays null and the refund
       // is the terminal outcome. If a change finalizes it, a replay would wrongly
       // hand the customer a ticket — so pin both fields.
@@ -132,7 +119,7 @@ describeWithEnv(
           // the booking or re-refund. This is the exact failure an over-eager finalize
           // would cause, which the type system can't see.
           await expectDeliveryReplays(false);
-          expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+          expect((await getAttendeesRaw(listing.id)).length).toBe(0);
           expect(refund.calls.length).toBe(1);
         },
       );
@@ -168,7 +155,7 @@ describeWithEnv(
       // — so a signed payment that hits an unexpected error after the charge is kept
       // at quantity 0 and refunded, not crash-looped over money already taken.
       const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-      const boom = stub(attendeesApi, "createBookingAtomic", () =>
+      const boom = stub(attendeesApi, "activateStagedAttendee", () =>
         Promise.reject(new Error("synthetic create failure")),
       );
       try {
@@ -194,11 +181,8 @@ describeWithEnv(
 
     test("a signed session for a since-deleted listing is kept as a ghost and refunded", async () => {
       await setupStripe();
-      // No listing with this id exists (as if deleted between checkout and the
-      // webhook). The proof still proves the session is ours, so rather than drop a
-      // paid customer we keep a quantity-0 ghost against the dead listing id (there
-      // is no FK to listings), refund, and flag it — never the foreign-session
-      // no-refund path.
+      // No listing with this id exists, as if it was deleted after checkout. The
+      // signed session is still ours, so it is refunded rather than ignored.
       await runWebhook(
         {
           id: "cs_missing_listing",
@@ -331,7 +315,7 @@ describeWithEnv(
 
     // ---- failed-refund behaviour for a stored booking -------------------------
 
-    test("a stored booking whose refund fails is kept, flagged, and recorded as terminal", async () => {
+    test("a failed refund stays on the retry-only rail", async () => {
       const listing = await setupWithListing();
       // The provider refund keeps failing and the payment is not yet refunded. The
       // booking is already stored (signed by us → never dropped), so a retry must
@@ -343,15 +327,13 @@ describeWithEnv(
         false,
         listing.id,
         async (refund) => {
-          // A second delivery replays the recorded outcome — it does not re-create the
-          // attendee or re-attempt the (now operator-owned) refund.
-          await expectDeliveryReplays(false);
-          expect(refund.calls.length).toBe(1);
+          expect((await webhookRequest()).status).toBe(503);
+          expect((await webhookRequest()).status).toBe(503);
+          expect(refund.calls.length).toBe(2);
           const [attendee] = await getAttendeesRaw(listing.id);
           expect(attendee?.quantity).toBe(0);
-          expect(await getNoteRows([attendee!.id])).toHaveLength(1);
           const record = await isSessionProcessed("cs_refund_retry");
-          expect(record?.failure_data).not.toBe("");
+          expect(record).toBeNull();
         },
       );
     });

@@ -63,6 +63,15 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     );
     await storeSumupCheckout(reference, metadata);
     await setSumupCheckoutId(reference, "co_e2e");
+    const { stagePaymentCallback } = await import(
+      "#test-utils/staged-payments.ts"
+    );
+    await stagePaymentCallback({
+      amountTotal: 1000,
+      metadata,
+      paymentReference: "",
+      sessionId: reference,
+    });
     return reference;
   };
 

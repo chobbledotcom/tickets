@@ -12,7 +12,7 @@
 
 import type { InValue } from "@libsql/client";
 /* jscpd:ignore-start */
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { decrypt } from "#shared/crypto/encryption.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
@@ -79,15 +79,6 @@ const noteCreatorVia =
   ) =>
   async (attendeeId: number, note: string): Promise<void> =>
     insertNote(attendeeId, type, await seal(note));
-
-/**
- * Record an auto-generated system note. The text MUST be PII-free: it is
- * encrypted with the symmetric DB key (recoverable from a DB dump + that key),
- * and exists so a system path with no owner session can write it.
- */
-export const createSystemNote = noteCreatorVia("system", (note) =>
-  encrypt(note),
-);
 
 /** Record an operator-authored note, encrypted with the owner public key. */
 export const createOwnerNote = noteCreatorVia("owner", (note) =>

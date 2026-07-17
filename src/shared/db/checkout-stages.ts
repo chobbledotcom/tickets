@@ -1,9 +1,22 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
+import { insertManyStatement } from "#shared/accounting/rows.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryOne, queryOnePrimary } from "#shared/db/client.ts";
+import { attendeeOwnedDeleteStatements } from "#shared/db/attendees/delete.ts";
+import {
+  execute,
+  queryOne,
+  queryOnePrimary,
+  withTransaction,
+} from "#shared/db/client.ts";
+import { encryptPaymentReference } from "#shared/db/payment-references.ts";
+import {
+  type StoredPaymentFailure,
+  UNRESOLVED_RESERVATION,
+} from "#shared/db/processed-payments.ts";
+import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   PaymentProviderSchema,
@@ -39,6 +52,29 @@ export type PendingCheckoutStage = {
   provider: PaymentProviderType;
   providerCheckoutId: string;
 };
+
+export const checkoutStageClaimStatement = (
+  stage: Pick<CheckoutStage, "attendeeId" | "paymentSessionId">,
+  state: CheckoutStageState,
+): { args: InValue[]; sql: string } => ({
+  args: [stage.paymentSessionId, stage.attendeeId, state],
+  sql: `UPDATE checkout_stages SET state = state
+         WHERE payment_session_id = ? AND attendee_id = ? AND state = ?`,
+});
+
+export const claimCheckoutStagePayment = (
+  tx: Parameters<Parameters<typeof withTransaction>[0]>[0],
+  stage: CheckoutStage,
+  state: CheckoutStageState,
+): ReturnType<typeof tx.batch> =>
+  tx.batch([
+    checkoutStageClaimStatement(stage, state),
+    {
+      args: [stage.paymentSessionId],
+      sql: `UPDATE processed_payments SET processed_at = processed_at
+             WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    },
+  ]);
 
 const checkoutStage = (
   row: v.InferOutput<typeof CheckoutStageRowSchema>,
@@ -131,8 +167,68 @@ const beginCheckoutStageRefund = async (
   }
 };
 
+type FinalizeCheckoutStageRefund = {
+  failure: StoredPaymentFailure;
+  legs: TransferInput[];
+  paymentReference: string;
+  stage: CheckoutStage;
+};
+
+/** Atomically preserve the replay result and refund ledger, then remove the
+ * staged attendee while keeping its historical ledger account. */
+const finalizeCheckoutStageRefund = async ({
+  failure,
+  legs,
+  paymentReference,
+  stage,
+}: FinalizeCheckoutStageRefund): Promise<void> => {
+  const recordedAt = nowIso();
+  const failureData = await encrypt(JSON.stringify(failure));
+  const encryptedReference = await encryptPaymentReference(paymentReference);
+  await withTransaction(async (tx) => {
+    const [stageClaim, paymentClaim] = await claimCheckoutStagePayment(
+      tx,
+      stage,
+      "refunding",
+    );
+    if (stageClaim!.rowsAffected !== 1 || paymentClaim!.rowsAffected !== 1) {
+      throw new Error(
+        `Checkout refund ${stage.paymentSessionId} was not ready to finalize`,
+      );
+    }
+    await tx.batch([
+      insertManyStatement(legs, recordedAt),
+      {
+        args: [
+          failureData,
+          encryptedReference,
+          recordedAt,
+          stage.paymentSessionId,
+        ],
+        sql: `UPDATE processed_payments
+                 SET failure_data = ?, payment_reference = ?, provider_refunded_at = ?
+               WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+      },
+      ...attendeeOwnedDeleteStatements({
+        args: [stage.attendeeId],
+        sql: "?",
+      }),
+      {
+        args: [stage.paymentSessionId, stage.attendeeId],
+        sql: `DELETE FROM checkout_stages
+               WHERE payment_session_id = ? AND attendee_id = ? AND state = 'refunding'`,
+      },
+      {
+        args: [stage.attendeeId],
+        sql: "DELETE FROM attendees WHERE id = ?",
+      },
+    ]);
+  });
+};
+
 export const checkoutStagesApi = {
   beginRefund: beginCheckoutStageRefund,
+  finalizeRefund: finalizeCheckoutStageRefund,
   find: findCheckoutStage,
   loadByPaymentSession: loadCheckoutStageByPaymentSession,
 };

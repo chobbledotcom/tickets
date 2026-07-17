@@ -12,6 +12,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stageStripeCallback } from "#test-utils/staged-payments.ts";
 import { renderPaymentSuccess } from "./payment-success-helpers.ts";
 
 // jscpd:ignore-end
@@ -51,6 +52,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_single_thankyou");
         const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_single_thankyou"),
         );
@@ -163,6 +165,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_hidden_replay");
         // First request redirects with tokens (no stored tokens — a hidden package
         // carries no explicit thank-you URL, so storeTokens is false).
         const response1 = await handleRequest(
@@ -213,6 +216,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_dupe_session");
         // First request should redirect with tokens
         const response1 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_dupe_session"),
@@ -269,6 +273,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_cart_single");
         // First request: process and redirect with tokens
         const response1 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_cart_single"),
@@ -332,6 +337,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_multi_dupe");
         // First request should redirect with tokens
         const response1 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_dupe"),

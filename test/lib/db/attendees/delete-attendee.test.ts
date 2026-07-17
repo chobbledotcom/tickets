@@ -13,7 +13,7 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
-import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
+import { getNoteRows } from "#shared/db/system-notes.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,6 +22,7 @@ import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { insertModifierUsage } from "#test-utils/modifiers.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import { createTestSystemNote } from "#test-utils/system-notes.ts";
 
 describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
   test("removes attendee", async () => {
@@ -224,7 +225,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "Noted Attendee",
       "noted@example.com",
     );
-    await createSystemNote(attendee.id, "a note that should be purged");
+    await createTestSystemNote(attendee.id, "a note that should be purged");
     expect(await getNoteRows([attendee.id])).toHaveLength(1);
 
     await deleteAttendee(attendee.id);

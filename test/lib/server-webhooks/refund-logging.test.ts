@@ -86,9 +86,7 @@ describeWithEnv("server webhooks > refund logging", { db: true }, () => {
 
       // Verify refund was logged to activity log tagged to listing
       const refundEntry = await findRefundActivityEntry(listing.id);
-      expect(refundEntry.message).toContain(
-        "no longer accepting registrations",
-      );
+      expect(refundEntry.message).toContain("staged booking removed");
     } finally {
       console.debug = origDebug;
       setSuppressDebugLogs(null);

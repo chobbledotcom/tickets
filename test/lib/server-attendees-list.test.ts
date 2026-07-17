@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEES_PAGE_SIZE } from "#shared/db/attendees/queries.ts";
-import { createSystemNote } from "#shared/db/system-notes.ts";
 import {
   assertAdminHtml,
   expectHtml,
@@ -17,6 +16,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { createTestSystemNote } from "#test-utils/system-notes.ts";
 
 /** Create a standard listing with plenty of capacity */
 const makeListing = (name: string, maxAttendees = 100) =>
@@ -382,7 +382,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
         "Alice",
         "alice@example.com",
       );
-      await createSystemNote(attendee.id, "Refunded — follow up tomorrow.");
+      await createTestSystemNote(attendee.id, "Refunded — follow up tomorrow.");
 
       const response = await adminGet("/admin/attendees");
       const html = await response.text();

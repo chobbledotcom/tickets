@@ -19,7 +19,7 @@ import { bookFreeOrder, bookPaidReservation } from "./_shared-setup.ts";
 import {
   createProgrammeCharge,
   createSave10Promo,
-  expectRefundedPlaceholder,
+  expectRefundedCheckout,
   latestAttendee,
   modifierRefs,
   setPublicReservation,
@@ -109,19 +109,16 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_addon_sold"),
         );
-        // Signed by us → the sold-out add-on no longer drops the booking: it is
-        // kept as a quantity-0 placeholder and refunded (HTTP 200), with the
-        // reason recorded in a system note and the generic message to the buyer.
+        // Signed by us, so the sold-out checkout is refunded and removed.
         expect(response.status).toBe(200);
-        await expectRefundedPlaceholder(
+        await expectRefundedCheckout(
           listing,
           addOn.id,
           refund,
           "pi_cs_addon_sold",
           await response.text(),
         );
-        // The session is recorded as a terminal failure (placeholder kept, no
-        // ticket attendee): attendee_id stays null and failure_data is set.
+        // The session is recorded as a terminal failure with no ticket attendee.
         const { isSessionProcessed } = await import(
           "#shared/db/processed-payments.ts"
         );

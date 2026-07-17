@@ -8,7 +8,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectAttendeeWithPricePaid,
-  expectKeptAsQuantityZeroAndRefunded,
+  expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
@@ -82,7 +82,7 @@ describeWithEnv(
 
       // Signed by us → the booking is kept as a quantity-0 placeholder and
       // refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_pay_less",
         mockRefund,
@@ -118,7 +118,7 @@ describeWithEnv(
 
       // Signed by us → the booking is kept as a quantity-0 placeholder and
       // refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_pay_too_much",
         mockRefund,

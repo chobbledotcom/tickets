@@ -31,18 +31,28 @@ const followPaymentRedirectAndGetAttendees = async (
   },
   listingId: number,
 ) => {
+  const metadata = signMeta(
+    webhookMeta({
+      email: session.email,
+      items: session.items,
+      name: session.name,
+    }),
+    session.amountTotal,
+  );
+  const { stagePaymentCallback } = await import(
+    "#test-utils/staged-payments.ts"
+  );
+  await stagePaymentCallback({
+    amountTotal: session.amountTotal,
+    metadata,
+    paymentReference: session.paymentIntent,
+    sessionId: session.sessionId,
+  });
   const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
       amount_total: session.amountTotal,
       id: session.sessionId,
-      metadata: signMeta(
-        webhookMeta({
-          email: session.email,
-          items: session.items,
-          name: session.name,
-        }),
-        session.amountTotal,
-      ),
+      metadata,
       payment_intent: session.paymentIntent,
       payment_status: "paid",
     } as unknown as Awaited<

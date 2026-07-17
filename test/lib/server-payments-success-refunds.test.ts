@@ -20,6 +20,7 @@ import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 import { setupStripe } from "#test-utils/settings.ts";
+import { stageStripeCallback } from "#test-utils/staged-payments.ts";
 import { createHiddenPackageGroup } from "./payment-success-helpers.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
@@ -108,6 +109,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
       );
       try {
+        await stageStripeCallback("cs_stale_hidden_multi");
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_hidden_multi"),
         );
@@ -170,6 +172,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         } as unknown as Awaited<ReturnType<typeof stripeApi.refundPayment>>),
       );
       try {
+        await stageStripeCallback("cs_stale_pkg_group");
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_stale_pkg_group"),
         );
@@ -221,6 +224,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_multi_inactive");
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_inactive"),
         );
@@ -274,26 +278,23 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_refund_fail");
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_refund_fail"),
         );
-        // Kept as a quantity-0 placeholder; the refund FAILED, so the customer is
-        // told their details are saved and the refund is being arranged (HTTP 200).
         await expectHtmlResponse(
           response,
-          200,
-          "saved your details",
-          "refund is being arranged",
+          503,
+          "couldn't complete your booking",
+          "contact support",
         );
         const { getAttendeesRaw } = await import(
           "#shared/db/attendees/queries.ts"
         );
-        const { getNoteRows } = await import("#shared/db/system-notes.ts");
         const ghost = (await getAttendeesRaw(listing.id)).find(
           (a) => a.quantity === 0,
         );
         expect(ghost).toBeDefined();
-        expect(await getNoteRows([ghost!.id])).toHaveLength(1);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -301,7 +302,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
-    test("ticket payment capacity failure is kept as a placeholder and refunded", async () => {
+    test("ticket payment capacity failure removes its stage after refund", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -352,27 +353,25 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       );
 
       try {
+        await stageStripeCallback("cs_multi_rollback");
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_rollback"),
         );
-        // The capacity failure no longer drops the booking: it's kept as a
-        // quantity-0 placeholder across BOTH listings and refunded (HTTP 200).
         await expectHtmlResponse(
           response,
           200,
-          "saved your details",
+          "couldn't complete your booking",
           "refunded",
         );
 
-        // The paid customer is never lost: a quantity-0 ghost is kept on listing1
-        // (not rolled back to nothing).
         const { getAttendeesRaw } = await import(
           "#shared/db/attendees/queries.ts"
         );
-        const ghost1 = (await getAttendeesRaw(listing1.id)).find(
-          (a) => a.quantity === 0,
-        );
-        expect(ghost1).toBeDefined();
+        expect(
+          (await getAttendeesRaw(listing1.id)).filter(
+            (attendee) => attendee.quantity === 0,
+          ),
+        ).toEqual([]);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();

@@ -6,7 +6,6 @@
  * so the booking is stored and refunded rather than completed.
  */
 
-import { sumOf } from "#fp";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
   type RefundSpec,
@@ -69,12 +68,6 @@ export const checkoutIntentForSession = (
     ? { reservationAmount: intent.reservationAmount }
     : {}),
 });
-
-export const orderLineTotal = (order: PricedOrder): number =>
-  sumOf(
-    (line: PricedOrder["lines"][number]) =>
-      line.chargedUnitAmount * line.quantity,
-  )(order.lines);
 
 /** Each intent item's charged total, keyed by the item OBJECT (a listing
  * booked through two paths is two items, each with its own amount). */

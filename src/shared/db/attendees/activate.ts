@@ -18,7 +18,10 @@ import {
   buildBatchCapacitySql,
   type CapacityBucket,
 } from "#shared/db/capacity.ts";
-import type { CheckoutStage } from "#shared/db/checkout-stages.ts";
+import {
+  type CheckoutStage,
+  claimCheckoutStagePayment,
+} from "#shared/db/checkout-stages.ts";
 import {
   resultRows,
   type SqlStatement,
@@ -31,7 +34,6 @@ import {
   usageBatchInsert,
 } from "#shared/db/modifier-usage.ts";
 import { batchFinalizeStatements } from "#shared/db/payment-finalize.ts";
-import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import type { ContactInfo } from "#shared/types.ts";
@@ -184,18 +186,11 @@ const claimActivation = async (
   tx: TxScope,
   stage: CheckoutStage,
 ): Promise<void> => {
-  const [stageClaim, paymentClaim] = await tx.batch([
-    {
-      args: [stage.paymentSessionId, stage.attendeeId],
-      sql: `UPDATE checkout_stages SET state = state
-             WHERE payment_session_id = ? AND attendee_id = ? AND state = 'pending'`,
-    },
-    {
-      args: [stage.paymentSessionId],
-      sql: `UPDATE processed_payments SET processed_at = processed_at
-             WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-    },
-  ]);
+  const [stageClaim, paymentClaim] = await claimCheckoutStagePayment(
+    tx,
+    stage,
+    "pending",
+  );
   if (stageClaim!.rowsAffected !== 1) {
     throw new Error(
       `Checkout stage ${stage.paymentSessionId} was not pending for attendee ${stage.attendeeId}`,

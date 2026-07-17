@@ -4,7 +4,6 @@ import { spy } from "@std/testing/mock";
 import { queryOne } from "#shared/db/client.ts";
 import {
   createOwnerNote,
-  createSystemNote,
   decryptNotes,
   deleteAttendeeNote,
   getAttendeeNote,
@@ -19,6 +18,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSystemNote } from "#test-utils/system-notes.ts";
 
 /** Create a listing + attendee and return the attendee id. */
 const makeAttendee = async (name = "Note Target"): Promise<number> => {
@@ -57,8 +57,8 @@ describeWithEnv("db > system-notes", { db: true }, () => {
       "Theirs",
       "theirs@example.com",
     );
-    await createSystemNote(mine.id, "Note on this listing");
-    await createSystemNote(theirs.id, "Note on another listing");
+    await createTestSystemNote(mine.id, "Note on this listing");
+    await createTestSystemNote(theirs.id, "Note on another listing");
 
     const rows = await getNoteRowsForListing(listing.id);
     expect(rows.map((r) => r.attendee_id)).toEqual([mine.id]);
@@ -84,7 +84,7 @@ describeWithEnv("db > system-notes", { db: true }, () => {
 
   test("stores and reads back a decrypted system note", async () => {
     const attendeeId = await makeAttendee();
-    await createSystemNote(attendeeId, "Refunded: price changed");
+    await createTestSystemNote(attendeeId, "Refunded: price changed");
 
     const notes = await getNotesForAttendee(
       attendeeId,
@@ -115,7 +115,7 @@ describeWithEnv("db > system-notes", { db: true }, () => {
 
   test("never stores note text in plaintext", async () => {
     const attendeeId = await makeAttendee();
-    await createSystemNote(attendeeId, "system secret");
+    await createTestSystemNote(attendeeId, "system secret");
     // The symmetric encryption format is the enc:1: envelope, not the plaintext.
     const stored = await rawNote(attendeeId);
     expect(stored?.note.startsWith("enc:")).toBe(true);
@@ -131,9 +131,9 @@ describeWithEnv("db > system-notes", { db: true }, () => {
 
   test("returns an attendee's notes oldest first", async () => {
     const attendeeId = await makeAttendee();
-    await createSystemNote(attendeeId, "first");
+    await createTestSystemNote(attendeeId, "first");
     await createOwnerNote(attendeeId, "second");
-    await createSystemNote(attendeeId, "third");
+    await createTestSystemNote(attendeeId, "third");
 
     const notes = await getNotesForAttendee(
       attendeeId,
@@ -145,9 +145,9 @@ describeWithEnv("db > system-notes", { db: true }, () => {
   test("groups notes for several attendees by attendee id", async () => {
     const a = await makeAttendee("Alice Notes");
     const b = await makeAttendee("Bob Notes");
-    await createSystemNote(a, "a1");
-    await createSystemNote(b, "b1");
-    await createSystemNote(a, "a2");
+    await createTestSystemNote(a, "a1");
+    await createTestSystemNote(b, "b1");
+    await createTestSystemNote(a, "a2");
 
     const notes = await decryptNotes(
       await getNoteRows([a, b]),
@@ -165,7 +165,7 @@ describeWithEnv("db > system-notes", { db: true }, () => {
   test("loadNotesForAttendees derives the key only when notes exist", async () => {
     const withNotes = await makeAttendee("Has Notes");
     const withoutNotes = await makeAttendee("No Notes");
-    await createSystemNote(withNotes, "hi");
+    await createTestSystemNote(withNotes, "hi");
 
     const lazyKey = spy(() => getTestPrivateKey());
 
@@ -184,7 +184,7 @@ describeWithEnv("db > system-notes", { db: true }, () => {
   test("getAttendeeNote loads one note scoped to its attendee", async () => {
     const owner = await makeAttendee("Scoped Owner");
     const other = await makeAttendee("Other Owner");
-    await createSystemNote(owner, "scoped note");
+    await createTestSystemNote(owner, "scoped note");
     const [row] = await getNoteRows([owner]);
     const pk = await getTestPrivateKey();
 
@@ -200,8 +200,8 @@ describeWithEnv("db > system-notes", { db: true }, () => {
   test("deleteAttendeeNote removes only the scoped note", async () => {
     const owner = await makeAttendee("Delete Owner");
     const other = await makeAttendee("Keep Owner");
-    await createSystemNote(owner, "delete me");
-    await createSystemNote(other, "keep me");
+    await createTestSystemNote(owner, "delete me");
+    await createTestSystemNote(other, "keep me");
     const [ownerRow] = await getNoteRows([owner]);
     const [otherRow] = await getNoteRows([other]);
 

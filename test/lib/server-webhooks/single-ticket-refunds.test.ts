@@ -17,7 +17,7 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectKeptAsQuantityZeroAndRefunded,
+  expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
   stubRefundPayment,
@@ -63,7 +63,7 @@ describeWithEnv(
 
       // Signed by us, so the booking is kept as a quantity-0 placeholder (not
       // dropped) and refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_mismatch",
         mockRefund,
@@ -83,18 +83,28 @@ describeWithEnv(
 
       // amountTotal (800) differs from expectedPrice (1000 * 1 = 1000)
       // Price decreased after checkout was created — should refund
+      const metadata = signMeta(
+        webhookMeta({
+          email: "redirect@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Redirect Mismatch",
+        }),
+        800,
+      );
+      const { stagePaymentCallback } = await import(
+        "#test-utils/staged-payments.ts"
+      );
+      await stagePaymentCallback({
+        amountTotal: 800,
+        metadata,
+        paymentReference: "pi_redirect_mismatch",
+        sessionId: "cs_redirect_mismatch",
+      });
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
           amount_total: 800,
           id: "cs_redirect_mismatch",
-          metadata: signMeta(
-            webhookMeta({
-              email: "redirect@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Redirect Mismatch",
-            }),
-            800,
-          ),
+          metadata,
           payment_intent: "pi_redirect_mismatch",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -114,13 +124,13 @@ describeWithEnv(
         await expectHtmlResponse(
           response,
           200,
-          "saved your details",
+          "couldn't complete your booking",
           "refunded",
         );
 
         // Signed by us, so the booking is kept as a quantity-0 placeholder (not
         // dropped) and refunded once, with a system note recording the reason.
-        await expectKeptAsQuantityZeroAndRefunded(
+        await expectStagedAttendeeRemovedAndRefunded(
           listing.id,
           "cs_redirect_mismatch",
           mockRefund,

@@ -104,7 +104,15 @@ test("reports a preparation error before the atomic write starts", async () => {
     [{ expectedPrice: 1000, item: bookingItem, listing }],
     pricingIntent,
     pricedOrder,
-    "stable-ticket-token",
+    {
+      attendeeId: 1,
+      createdAt: "2026-07-17T00:00:00.000Z",
+      paymentSessionId: session.id,
+      provider: "stripe",
+      providerCheckoutId: session.id,
+      state: "pending",
+      ticketToken: "stable-ticket-token",
+    },
   );
   expect(result).toEqual({
     detail:

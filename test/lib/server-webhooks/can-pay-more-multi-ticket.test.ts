@@ -8,10 +8,10 @@ import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectKeptAsQuantityZeroAndRefunded,
-  expectMergedMultiListingAttendee,
-  expectRefundedWithNote,
+  expectMultiListingStageRemoved,
+  expectRefundedWithoutAttendee,
   expectSessionFailed,
+  expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
@@ -117,11 +117,8 @@ describeWithEnv(
 
       // Signed by us → the order is kept as one quantity-0 placeholder across
       // both listings and refunded once, with a system note.
-      const attendee = await expectMergedMultiListingAttendee(
-        listing1.id,
-        listing2.id,
-      );
-      await expectRefundedWithNote(attendee.id, mockRefund);
+      await expectMultiListingStageRemoved(listing1.id, listing2.id);
+      await expectRefundedWithoutAttendee(mockRefund);
       await expectSessionFailed("cs_no_pay_more");
     });
 
@@ -195,7 +192,7 @@ describeWithEnv(
 
       // Signed by us → the booking is kept as a quantity-0 placeholder and
       // refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
+      await expectStagedAttendeeRemovedAndRefunded(
         listing.id,
         "cs_qty2_over_max",
         mockRefund,

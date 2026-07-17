@@ -207,6 +207,23 @@ export const stubWebhookVerify = async (listingData: {
   type: string;
   data: { object: Record<string, unknown> };
 }) => {
+  const object = listingData.data.object;
+  if (
+    listingData.type === "checkout.session.completed" &&
+    typeof object.id === "string" &&
+    typeof object.amount_total === "number" &&
+    object.metadata &&
+    typeof object.metadata === "object"
+  ) {
+    const { stagePaymentCallback } = await import("./staged-payments.ts");
+    await stagePaymentCallback({
+      amountTotal: object.amount_total,
+      metadata: object.metadata as Record<string, string>,
+      paymentReference:
+        typeof object.payment_intent === "string" ? object.payment_intent : "",
+      sessionId: object.id,
+    });
+  }
   const { stripePaymentProvider } = await import("#shared/stripe-provider.ts");
   return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
     Promise.resolve({ listing: listingData, valid: true as const }),

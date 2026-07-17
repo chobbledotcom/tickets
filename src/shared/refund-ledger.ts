@@ -252,13 +252,9 @@ export const recordAttendeeRefundsBatch = async (
   }
 };
 
-/**
- * The money facts of a stored-but-refunded placeholder: the attendee we kept at
- * quantity 0, the listing the cash was for, and the amount the provider charged.
- * `eventId` keys the booking event group (use the payment session id) so a
- * redelivery replays as a no-op; `occurredAt` is the provider's checkout time.
- */
-export type PlaceholderRefundFacts = {
+/** Money facts for a staged booking refunded before it became a sale.
+ * `eventId` keys the payment so redelivery replays as a no-op. */
+export type StagedRefundFacts = {
   readonly attendeeId: number;
   readonly listingId: number;
   readonly amount: number;
@@ -266,59 +262,32 @@ export type PlaceholderRefundFacts = {
   readonly eventId: string;
 };
 
-/**
- * Record the cash round-trip of a stored-but-refunded placeholder booking — the
- * quantity-0 line we keep so a signed payment we can't honour is never lost from
- * the diary. Posts the `payment` we received and, when the provider refund
- * succeeded, the `refund_cash` returning it. Both event groups are posted in one
- * atomic batch, so the payment can never commit without its completed refund.
- * Deliberately posts NO `sale` leg:
- * the booking was never honoured, so no revenue is recognised and the quantity-0
- * line's projected `price_paid` stays 0 (a sale leg would re-break that invariant
- * and read as still-paid). A failed refund posts only the payment, so the ledger
- * shows we still hold the customer's money until a manual refund reverses it —
- * `memo` (a PII-free reason code) is stamped on the refund leg.
- *
- * {@link recordAttendeeRefund} can't be reused here: this placeholder records a
- * cash-only booking that was never honoured, so there is no sale leg or
- * fully-paid account to reverse. Never throws — the provider refund has already
- * settled, so a ledger write must not turn it into a 500. `posted` reports
- * whether every required leg was stored: just the payment when no refund
- * completed, or the payment and refund together when one did. A failed post is
- * logged and reported as `posted: false`.
- */
-export const recordPlaceholderRefund = (
-  facts: PlaceholderRefundFacts,
+/** Build the cash-only order and its reversal for a paid booking that never
+ * became a sale. The caller may store both in its own atomic finalization. */
+const stagedRefundMoneyLegs = async (
+  facts: StagedRefundFacts,
   memo: string,
-  refunded: boolean,
-): Promise<{ posted: boolean }> =>
-  postWithoutThrowing(
-    "placeholder refund ledger post",
-    facts.attendeeId,
-    async () => {
-      // Gross 0 drops the sale leg, leaving just the payment. The refund mapper
-      // only needs the leg's money identity, so it can map the reversal before
-      // either group is stored and the batch can commit both or neither.
-      const payment = await mapBooking({
-        amountPaid: facts.amount,
-        attendeeId: facts.attendeeId,
-        bookingFee: 0,
-        eventId: facts.eventId,
-        lines: [{ gross: 0, listingId: facts.listingId }],
-        modifiers: [],
-        occurredAt: facts.occurredAt,
-      });
-      const groups = refunded
-        ? [
-            payment,
-            await mapRefund({
-              memo,
-              occurredAt: facts.occurredAt,
-              orderLegs: asOrderLegs(payment, facts.occurredAt),
-            }),
-          ]
-        : [payment];
-      await postTransferGroups(groups);
-      return true;
-    },
-  );
+): Promise<TransferInput[]> => {
+  const payment = await mapBooking({
+    amountPaid: facts.amount,
+    attendeeId: facts.attendeeId,
+    bookingFee: 0,
+    eventId: facts.eventId,
+    lines: [{ gross: 0, listingId: facts.listingId }],
+    modifiers: [],
+    occurredAt: facts.occurredAt,
+  });
+  return [
+    ...payment,
+    ...(await mapRefund({
+      memo,
+      occurredAt: facts.occurredAt,
+      orderLegs: asOrderLegs(payment, facts.occurredAt),
+    })),
+  ];
+};
+
+export const stagedRefundLegs = (
+  facts: StagedRefundFacts,
+  memo: string,
+): Promise<TransferInput[]> => stagedRefundMoneyLegs(facts, memo);

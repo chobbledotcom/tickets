@@ -4,7 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { getNoteRows } from "#shared/db/system-notes.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -56,15 +55,16 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       sessionId: string,
       mockRefund: { calls: unknown[] },
       countRemaining: () => Promise<number>,
+      expectedRemaining = 0,
     ) => {
       const second = await handleRequest(
         mockRequest(`/payment/success?session_id=${sessionId}`),
       );
       expect(second.status).toBe(200);
       const html = await second.text();
-      expect(html).toContain("saved your details");
+      expect(html).toContain("couldn't complete your booking");
       expect(html).not.toContain("being processed");
-      expect(await countRemaining()).toBe(1);
+      expect(await countRemaining()).toBe(expectedRemaining);
       expect(mockRefund.calls.length).toBe(1);
     };
 
@@ -143,12 +143,11 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectHtmlResponse(
             first,
             200,
-            "saved your details",
+            "couldn't complete your booking",
             "refunded",
           );
           const afterFirst = await placeholders();
-          expect(afterFirst.length).toBe(1);
-          expect((await getNoteRows([afterFirst[0]!.id])).length).toBe(1);
+          expect(afterFirst.length).toBe(0);
           expect(mockRefund.calls.length).toBe(1);
 
           // The session is recorded as a terminal failure.
@@ -163,6 +162,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "cs_replay_soldout",
             mockRefund,
             async () => (await placeholders()).length,
+            0,
           );
         },
         resetStripeClient,
@@ -198,12 +198,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const first = await handleRequest(
             mockRequest("/payment/success?session_id=cs_replay_price"),
           );
-          await expectHtmlResponse(first, 200, "saved your details");
+          await expectHtmlResponse(
+            first,
+            200,
+            "couldn't complete your booking",
+          );
 
           const attendees = await getAttendeesRaw(listing.id);
-          expect(attendees.length).toBe(1);
-          expect(attendees[0]?.quantity).toBe(0);
-          expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+          expect(attendees.length).toBe(0);
           expect(mockRefund.calls.length).toBe(1);
 
           // The session is recorded as a terminal failure.

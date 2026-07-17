@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { addDays } from "#shared/dates.ts";
-import { createSystemNote } from "#shared/db/system-notes.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { logActivity } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -19,6 +18,7 @@ import {
   adminGet,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
+import { createTestSystemNote } from "#test-utils/system-notes.ts";
 import { createDailyListing } from "./_shared-setup.ts";
 
 // jscpd:ignore-end
@@ -102,7 +102,7 @@ describeWithEnv(
           gross: 5000,
           listingId: listing.id,
         });
-        await createSystemNote(confirmed.id, "Called ahead about access");
+        await createTestSystemNote(confirmed.id, "Called ahead about access");
         // An incomplete booking: a recognised sale that was never paid.
         const incomplete = await createPaidAttendeeWithoutLedger(
           listing.id,

@@ -16,7 +16,6 @@ import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   decryptSessionTokens,
   isSessionProcessed,
-  releaseReservation,
 } from "#shared/db/processed-payments.ts";
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
@@ -31,6 +30,7 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { expectProcessedPaymentReference } from "#test-utils/processed-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
+  expectStoredRefund,
   redirectRequest,
   runWebhook,
   setupWithListing,
@@ -260,7 +260,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     }
   });
 
-  test("refunds one placeholder when the atomic create rolled back", async () => {
+  test("refunds and removes the stage when the atomic create rolled back", async () => {
     const listing = await setupWithListing();
     const session = {
       id: "cs_proven_rollback",
@@ -278,16 +278,9 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     );
     try {
       await runWebhook(session, async (refund) => {
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
-        await assertJson(webhookRequest(), 200, (json) => {
-          expect(json.processed).toBe(false);
-        });
+        await expectStoredRefund(listing.id);
+        await expectStoredRefund(listing.id);
         expect(refund.calls.length).toBe(1);
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees).toHaveLength(1);
-        expect(attendees[0]!.quantity).toBe(0);
       });
     } finally {
       await execute("DROP TRIGGER test_late_payment_finalize_failure");
@@ -302,7 +295,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     });
 
     await runWebhook({ id: sessionId, metadata }, async (refund) => {
-      const createBooking = attendeesApi.createBookingAtomic;
+      const activateStage = attendeesApi.activateStagedAttendee;
       const committedBooking = Promise.withResolvers<{
         attendeeId: number;
         ticketToken: string;
@@ -310,16 +303,16 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       const releaseBooking = Promise.withResolvers<void>();
       const pauseBooking = stub(
         attendeesApi,
-        "createBookingAtomic",
+        "activateStagedAttendee",
         async (...args) => {
-          const result = await createBooking(...args);
-          if (result === "sold-out" || !result.success) {
+          const result = await activateStage(...args);
+          if (!result.success) {
             throw new Error("Expected booking to commit");
           }
-          const attendee = result.attendees[0]!;
+          const [stage] = args;
           committedBooking.resolve({
-            attendeeId: attendee.id,
-            ticketToken: attendee.ticket_token,
+            attendeeId: stage.attendeeId,
+            ticketToken: stage.ticketToken,
           });
           await releaseBooking.promise;
           return result;
@@ -372,33 +365,5 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
         retrieve.restore();
       }
     });
-  });
-
-  test("rethrows an ambiguous create without refunding", async () => {
-    const listing = await setupWithListing();
-    const sessionId = "cs_ambiguous_create";
-    const ambiguous = stub(attendeesApi, "createBookingAtomic", async () => {
-      await releaseReservation(sessionId);
-      throw new Error("synthetic ambiguous result");
-    });
-    try {
-      await runWebhook(
-        {
-          id: sessionId,
-          metadata: signedMeta(1000, {
-            items: singleItem(listing.id, 1, 1000),
-          }),
-        },
-        async (refund) => {
-          await expect(webhookRequest()).rejects.toThrow(
-            "synthetic ambiguous result",
-          );
-          expect(refund.calls.length).toBe(0);
-          expect(await getAttendeesRaw(listing.id)).toEqual([]);
-        },
-      );
-    } finally {
-      ambiguous.restore();
-    }
   });
 });

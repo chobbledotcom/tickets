@@ -13,12 +13,12 @@ import { makeParent } from "#test-utils/parents.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
-  expectRefundedWithNote,
+  expectNoRefundPlaceholder,
+  expectRefundedWithoutAttendee,
   expectSessionFailed,
   expectWebhookIgnored,
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
-  findKeptPlaceholder,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -134,8 +134,8 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
     );
     // The late buyer is not dropped: a quantity-0 placeholder is kept
     // alongside the original sold-out attendee, refunded once, with a note.
-    const placeholder = await findKeptPlaceholder(listing.id);
-    await expectRefundedWithNote(placeholder.id, mockRefund);
+    await expectNoRefundPlaceholder(listing.id);
+    await expectRefundedWithoutAttendee(mockRefund);
     await expectSessionFailed("cs_soldout");
   });
 

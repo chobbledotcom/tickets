@@ -58,13 +58,17 @@ const CHECKOUT_STAGE_ROWS = {
   table: "checkout_stages",
 } as const;
 
-const DEPENDENT_ROW_TARGETS = [
-  CHECKOUT_STAGE_ROWS,
-  { field: "attendee_id", table: "processed_payments" },
+const ATTENDEE_OWNED_ROW_TARGETS = [
   { field: "attendee_id", table: "attendee_answers" },
   { field: "attendee_id", table: "listing_attendees" },
   { field: "attendee_id", table: "system_notes" },
   { field: "servicing_attendee_id", table: "service_costs" },
+] as const;
+
+const DEPENDENT_ROW_TARGETS = [
+  CHECKOUT_STAGE_ROWS,
+  { field: "attendee_id", table: "processed_payments" },
+  ...ATTENDEE_OWNED_ROW_TARGETS,
 ] as const;
 
 const dependentDeleteStatement = (
@@ -79,6 +83,14 @@ const dependentDeleteStatement = (
 export const checkoutStageDeleteStatement = (
   attendeeIds: SqlStatement,
 ): SqlStatement => dependentDeleteStatement(CHECKOUT_STAGE_ROWS, attendeeIds);
+
+/** Delete data owned by attendees without touching checkout or payment state. */
+export const attendeeOwnedDeleteStatements = (
+  attendeeIds: SqlStatement,
+): SqlStatement[] =>
+  ATTENDEE_OWNED_ROW_TARGETS.map((target) =>
+    dependentDeleteStatement(target, attendeeIds),
+  );
 
 /** Build the common dependent-row deletes for one or many attendee ids. */
 export const attendeeDependentDeleteStatements = (

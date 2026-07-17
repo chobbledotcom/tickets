@@ -138,7 +138,7 @@ export const validateAllItems = async (
     const itemGroupId = lineGroupId(item);
     // `null` here means "fail closed" (the line is no longer a valid package
     // member); it is carried through so the price-mismatch pass refunds it via
-    // the normal stored-placeholder path.
+    // the normal staged-refund path.
     validatedItems.push({
       expectedPrice: expectedItemPrice(
         itemGroupId === undefined ? undefined : pricingByGroup.get(itemGroupId),

@@ -13,9 +13,9 @@ import { singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
-  expectRefundedWithNote,
+  expectNoRefundPlaceholder,
+  expectRefundedWithoutAttendee,
   expectSessionFailed,
-  findKeptPlaceholder,
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
@@ -183,7 +183,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectHtmlResponse(
             response,
             200,
-            "saved your details",
+            "couldn't complete your booking",
             "automatically refunded",
           );
 
@@ -194,8 +194,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // The placeholder is kept alongside the original (sold-out) attendee,
           // with a system note recording the reason, and the session is filed
           // as a terminal failure (placeholder kept, no ticket attendee).
-          const placeholder = await findKeptPlaceholder(listing.id);
-          await expectRefundedWithNote(placeholder.id, mockRefund);
+          await expectNoRefundPlaceholder(listing.id);
+          await expectRefundedWithoutAttendee(mockRefund);
           await expectSessionFailed("cs_test");
         },
         resetStripeClient,

@@ -56,8 +56,8 @@ describeWithEnv(
         );
         const html = await expectHtmlResponse(
           response,
-          410,
-          "no longer accepting registrations",
+          503,
+          "couldn't complete your booking",
         );
         // Should show "contact support" since refund failed (no payment reference)
         expect(html).toContain("contact support");
@@ -143,7 +143,7 @@ describeWithEnv(
       );
     });
 
-    test("a real create error propagates instead of refunding", async () => {
+    test("an unexpected uncommitted activation error refunds", async () => {
       await setupStripe();
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -160,29 +160,20 @@ describeWithEnv(
       });
       const mockRefund = stubRefundPayment();
       const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-      // The booking honour path uses createBookingAtomic; the quantity-0
-      // placeholder fallback uses createAttendeeAtomic. A genuinely broken
-      // create breaks both, so the error escapes instead of becoming a refund.
-      const mockBooking = stub(attendeesApi, "createBookingAtomic", () =>
-        Promise.reject(new Error("synthetic create failure")),
-      );
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
+      const activation = stub(attendeesApi, "activateStagedAttendee", () =>
         Promise.reject(new Error("synthetic create failure")),
       );
       using _env = withEnv({ TEST_EXPECT_ERROR: undefined });
       try {
-        // A non-sold-out error is not swallowed as a refund: it propagates.
-        await expect(
-          handleRequest(
-            mockRequest("/payment/success?session_id=cs_create_boom"),
-          ),
-        ).rejects.toThrow("synthetic create failure");
-        expect(mockRefund.calls.length).toBe(0);
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_create_boom"),
+        );
+        await expectHtmlResponse(response, 200, "automatically refunded");
+        expect(mockRefund.calls.length).toBe(1);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
-        mockBooking.restore();
-        mockAtomic.restore();
+        activation.restore();
       }
     });
 

@@ -14,12 +14,13 @@ import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
 } from "#shared/db/orphan-attendees.ts";
-import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
+import { getNoteRows } from "#shared/db/system-notes.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestSystemNote } from "#test-utils/system-notes.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -148,7 +149,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
           processed_at: nowIso(),
         }),
       );
-      await createSystemNote(id, "orphan note");
+      await createTestSystemNote(id, "orphan note");
 
       await purgeOrphanedAttendees(nowIso());
 

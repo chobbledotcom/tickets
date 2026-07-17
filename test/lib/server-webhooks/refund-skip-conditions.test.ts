@@ -60,7 +60,7 @@ describeWithEnv(
         },
         200,
         (json) => {
-          expect(json.error).toContain("no longer accepting");
+          expect(json.error).toContain("couldn't complete your booking");
         },
       );
     });
@@ -116,14 +116,16 @@ describeWithEnv(
         // provider), so it is retryable: 5xx for the provider to re-deliver once
         // reconfigured, rather than ack a still-charged customer.
         expect(response.status).toBe(503);
-        expect(await response.text()).toContain("no longer accepting");
+        expect(await response.text()).toContain(
+          "couldn't complete your booking",
+        );
       } finally {
         mockVerify.restore();
         mockGetConfigured.restore();
       }
     });
 
-    test("multi-ticket webhook skips refund when second listing not found", async () => {
+    test("multi-ticket webhook refunds when a signed listing is missing", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -157,7 +159,6 @@ describeWithEnv(
         },
       );
 
-      // An unverifiable session must NOT trigger a refund.
       expect(mockRefund.calls.length).toBe(0);
 
       // No attendees created (the session is ignored before any creation pass)

@@ -15,7 +15,7 @@ import {
   createOptionalAddOn,
   createProgrammeCharge,
   createSave10Promo,
-  expectRefundedPlaceholder,
+  expectRefundedCheckout,
   modifierRefs,
   setupReservationListing,
   stubPaidSession,
@@ -129,11 +129,9 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_free_addon_bad"),
         );
-        // Signed by us → kept as a quantity-0 placeholder and refunded (HTTP 200):
-        // the reason now lives in a system note, so the customer sees the generic
-        // saved-details message rather than the specific price/total reason.
+        // Signed by us, so the invalid checkout is refunded and removed.
         expect(response.status).toBe(200);
-        await expectRefundedPlaceholder(
+        await expectRefundedCheckout(
           listing,
           addOn.id,
           refund,
