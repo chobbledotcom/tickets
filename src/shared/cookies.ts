@@ -2,25 +2,21 @@ import { isSecureMode } from "#shared/config.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import { SESSION_MAX_AGE_S } from "#shared/limits.ts";
 
-export { isSecureMode };
-
 const secureAttribute = (): string => (isSecureMode() ? "; Secure" : "");
 
-const sessionCookieName = (): string =>
+export const getSessionCookieName = (): string =>
   isSecureMode() ? "__Host-session" : "session";
-
-export const getSessionCookieName = (): string => sessionCookieName();
 
 export const buildSessionCookie = (
   token: string,
   options?: { maxAge?: number },
 ): string => {
   const maxAge = options?.maxAge ?? SESSION_MAX_AGE_S;
-  return `${sessionCookieName()}=${token}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+  return `${getSessionCookieName()}=${token}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 };
 
 export const clearSessionCookie = (): string =>
-  `${sessionCookieName()}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
+  `${getSessionCookieName()}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
 
 /** Cookie name prefix for flash messages (keyed by per-request ID) */
 const FLASH_COOKIE_PREFIX = "flash_";

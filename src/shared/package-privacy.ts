@@ -1,5 +1,5 @@
 import {
-  getPackageDisplayById,
+  getPackageDisplaysByIds,
   type PackageDisplay,
 } from "#shared/db/groups.ts";
 
@@ -79,12 +79,11 @@ export const concealMemberNames = <T extends { name: string }>(
 export const resolveNamesConcealed = async (
   packageGroupIds: Iterable<number>,
 ): Promise<boolean> => {
-  for (const groupId of new Set(packageGroupIds)) {
-    if ((await getPackageDisplayById(groupId))?.hideListings ?? true) {
-      return true;
-    }
-  }
-  return false;
+  const groupIds = [...new Set(packageGroupIds)];
+  const displays = await getPackageDisplaysByIds(groupIds);
+  return groupIds.some(
+    (groupId) => displays.get(groupId)?.hideListings ?? true,
+  );
 };
 
 /** The stand-in names concealing a page's hidden bundles, for pages selling

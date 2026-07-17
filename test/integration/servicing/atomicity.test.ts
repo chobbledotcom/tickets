@@ -18,7 +18,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { withPoisonedTransactionExecute } from "#test-utils/db-poison.ts";
+import { withPoisonedTransactionWrite } from "#test-utils/db-poison.ts";
 import {
   createServicingHold,
   createTestServicingEvent,
@@ -32,7 +32,7 @@ import {
 
 /** Fail the FIRST `attendee_answers` write (the answer save), so the
  *  create/update compensation runs. */
-const withAnswerSaveFailure = withPoisonedTransactionExecute(
+const withAnswerSaveFailure = withPoisonedTransactionWrite(
   (sql) => sql.includes("attendee_answers"),
   "answer save boom",
 );
@@ -43,7 +43,7 @@ const withAnswerSaveFailure = withPoisonedTransactionExecute(
  *  old answers, then the re-insert fails and rolls the delete back, so the
  *  compensation must restore the WHOLE prior answer set (choice + free-text),
  *  not just its choice half. */
-const withAnswerInsertFailure = withPoisonedTransactionExecute(
+const withAnswerInsertFailure = withPoisonedTransactionWrite(
   (sql) => sql.includes("INSERT INTO attendee_answers"),
   "answer insert boom",
 );

@@ -88,7 +88,7 @@ export const onUsersInvalidated = (listener: () => void): void => {
   usersInvalidationListeners.push(listener);
 };
 
-const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
+export const getAllUsers = (): Promise<User[]> => usersCache.getAll();
 
 registerCache(() => ({ entries: usersCache.size(), name: "users" }));
 
@@ -266,11 +266,6 @@ export const isUsernameTaken = async (username: string): Promise<boolean> => {
   const user = await getUserByUsername(username);
   return user !== null;
 };
-
-/**
- * Get all users (for admin user management page, from cache)
- */
-export const getAllUsers = (): Promise<User[]> => loadAllUsers();
 
 /** Get the minimal encrypted user fields needed to show assignable users. */
 export const getUserDisplayFields = (): Promise<UserDisplayFields[]> =>

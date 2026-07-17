@@ -88,21 +88,15 @@ export const prepareStringRows = async (
   );
 };
 
-/** Run the interning statements and return the trailing SELECT's result. When a
- *  `tx` is given, each statement runs on the caller's open transaction via
- *  `tx.execute`; otherwise as one `executeBatchWithResults` write batch. Either
- *  way the SELECT shares the INSERT's transaction, preserving the
- *  read-your-writes invariant the id resolution depends on. */
+/** Run the interning statements together and return the trailing SELECT. */
 const runInternStatements = async (
   statements: SqlStatement[],
   tx?: TxScope,
 ): Promise<ResultSet> => {
-  if (!tx) return (await executeBatchWithResults(statements)).at(-1)!;
-  // Run each statement on the open transaction; the trailing SELECT sees the
-  // rows the INSERT OR IGNORE just wrote in that same transaction.
-  let result: ResultSet | undefined;
-  for (const stmt of statements) result = await tx.execute(stmt);
-  return result!;
+  const results = await (tx
+    ? tx.batch(statements)
+    : executeBatchWithResults(statements));
+  return results.at(-1)!;
 };
 
 /**
@@ -111,8 +105,8 @@ const runInternStatements = async (
  * just-written rows: a brand-new string's id read from a replica that hasn't
  * replicated the insert comes back missing, so the id resolves to undefined and
  * the value is silently lost. When `tx` is given each statement runs on the
- * caller's open transaction via `tx.execute`, so the SELECT sees the INSERT's
- * rows within that transaction; otherwise one `executeBatchWithResults` write
+ * caller's open transaction, so the SELECT sees the INSERT's rows within that
+ * transaction; otherwise one `executeBatchWithResults` write
  * batch is a single primary-pinned transaction that holds the same invariant.
  *
  * The per-text `INSERT OR IGNORE` values are batched into one multi-row
@@ -160,7 +154,7 @@ export const internStringRows = async (
  * Intern a list of free-text answers, returning the `text → id` map. Encrypts
  * and HMAC-indexes each unique text, then inserts-or-ignores, refreshes
  * `created`, and reads the ids back in one atomic batch. When `tx` is given,
- * every statement runs on the caller's open transaction via `tx.execute` (so
+ * every statement runs together on the caller's open transaction (so
  * the read-your-writes SELECT shares the INSERT's transaction); otherwise as
  * one `executeBatchWithResults` write batch.
  *

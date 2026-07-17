@@ -30,7 +30,7 @@ import {
 } from "#shared/booking/signed-metadata.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import {
-  getPackageGroupById,
+  getPackageDisplaysByIds,
   loadPackageMemberPricing,
 } from "#shared/db/groups.ts";
 import {
@@ -86,8 +86,10 @@ export const loadPackagePricingByGroup = async (
   intent: BookingIntent,
 ): Promise<Map<number, PackagePricing>> => {
   const pricingByGroup = new Map<number, PackagePricing>();
-  for (const groupId of lineGroupIds(intent.items)) {
-    if ((await getPackageGroupById(groupId)) === null) continue;
+  const groupIds = [...lineGroupIds(intent.items)];
+  const packageDisplays = await getPackageDisplaysByIds(groupIds);
+  for (const groupId of groupIds) {
+    if (!packageDisplays.has(groupId)) continue;
     const pricing = await loadPackageMemberPricing(groupId);
     pricingByGroup.set(groupId, {
       dayPriceMap: pricing.dayPrices,
