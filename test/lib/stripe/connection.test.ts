@@ -223,15 +223,16 @@ describeStripe("stripe", () => {
       expect(sanitizeErrorDetail(new TypeError("bad type"))).toBe("TypeError");
     });
 
-    test("extracts Stripe statusCode, code, and type", () => {
+    test("extracts safe Stripe error fields", () => {
       const err = new Error("Invalid API Key provided: sk_test_****1234");
       Object.assign(err, {
         code: "api_key_invalid",
+        requestId: "req_123",
         statusCode: 401,
         type: "StripeAuthenticationError",
       });
       expect(sanitizeErrorDetail(err)).toBe(
-        "status=401 code=api_key_invalid type=StripeAuthenticationError",
+        "status=401 code=api_key_invalid type=StripeAuthenticationError request=req_123",
       );
     });
 

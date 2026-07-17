@@ -136,11 +136,19 @@ export const sanitizeErrorDetail = (err: unknown): string => {
   if ("type" in err && typeof err.type === "string") {
     parts.push(`type=${err.type}`);
   }
+  if ("requestId" in err && typeof err.requestId === "string") {
+    parts.push(`request=${err.requestId}`);
+  }
 
   return parts.length > 0 ? parts.join(" ") : err.name;
 };
 
 type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
+
+const STRIPE_CLIENT_CONFIG = {
+  maxNetworkRetries: 2,
+  timeout: 20_000,
+} satisfies StripeConfig;
 
 /**
  * Get Stripe client configuration for mock server (if configured)
@@ -151,6 +159,7 @@ const getMockConfigImpl = (): StripeConfig | undefined => {
 
   const mockPort = Number.parseInt(getEnv("STRIPE_MOCK_PORT") || "12111", 10);
   return {
+    ...STRIPE_CLIENT_CONFIG,
     host: mockHost,
     maxNetworkRetries: 0,
     port: mockPort,
@@ -167,7 +176,7 @@ const createStripeClient = async (secretKey: string): Promise<Stripe> => {
   const StripeClass = await loadStripe();
   return mockConfig
     ? new StripeClass(secretKey, mockConfig)
-    : new StripeClass(secretKey);
+    : new StripeClass(secretKey, STRIPE_CLIENT_CONFIG);
 };
 
 const clientCache = cachedClientFactory({
@@ -182,7 +191,7 @@ const clientCache = cachedClientFactory({
 const getClientImpl = (): Promise<Stripe | null> => clientCache.getClient();
 
 /** Run operation with stripe client, return null if not available */
-const withClient = createWithClient(getClientImpl);
+const withClient = createWithClient(getClientImpl, sanitizeErrorDetail);
 
 type StripeCheckoutLineItem = NonNullable<
   Stripe.Checkout.SessionCreateParams["line_items"]
@@ -228,11 +237,12 @@ const deleteWebhookEndpoints = async (
 };
 
 /** Create the checkout-completion webhook endpoint at the given URL. */
-const createCheckoutWebhook = (
+const createCheckoutWebhook = async (
   client: Stripe,
   webhookUrl: string,
 ): Promise<Stripe.WebhookEndpoint> =>
   client.webhookEndpoints.create({
+    api_version: (await loadStripe()).API_VERSION,
     enabled_events: ["checkout.session.completed"],
     url: webhookUrl,
   });
