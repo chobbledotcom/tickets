@@ -3,8 +3,6 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   executeBatch,
   inPlaceholders,
@@ -33,6 +31,8 @@ import { LISTING_COUNT_SELECT } from "./sql.ts";
 import {
   computeSlugIndex,
   type ListingInput,
+  type ListingOption,
+  listingOptionProjection,
   rawListingsTable,
 } from "./table.ts";
 /* jscpd:ignore-end */
@@ -204,25 +204,11 @@ export const getListingsById = async (): Promise<
   Map<number, ListingWithCount>
 > => new Map((await getAllListings()).map((listing) => [listing.id, listing]));
 
-export type ListingOption = Pick<Listing, "active" | "id" | "name">;
-
-type ListingOptionRow = {
-  active: number;
-  id: number;
-  name: EnvKeyEncrypted;
-};
-
 /** Read the narrow listing option projection used by item pickers. */
-export const getAllListingOptions = async (): Promise<ListingOption[]> => {
-  const rows = await queryAll<ListingOptionRow>(
-    "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
+export const getAllListingOptions = (): Promise<ListingOption[]> =>
+  listingOptionProjection.queryAll(
+    `SELECT ${listingOptionProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
   );
-  return mapParallel(async (row: ListingOptionRow) => ({
-    active: row.active === 1,
-    id: row.id,
-    name: await decrypt(row.name),
-  }))(rows);
-};
 
 /** Read and decrypt names only for the requested listing ids. */
 export const getListingNamesByIds = envNameSource("listings", "listing").byIds;

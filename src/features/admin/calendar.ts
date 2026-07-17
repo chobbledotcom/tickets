@@ -5,10 +5,10 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 /* jscpd:ignore-start */
 import {
+  fieldById,
   filter,
   flatMap,
   map,
-  mapBy,
   pipe,
   reduce,
   sortStrings,
@@ -207,7 +207,7 @@ const buildLogisticsCsvContext = async (
     attendeeIds(attendees),
   );
   return {
-    agentNames: mapBy("id", (agent: LogisticsAgent) => agent.name)(agents),
+    agentNames: fieldById("name")(agents),
     assignments: new Map(
       rows.map((r) => [bookingAssignmentKey(r.attendeeId, r.listingId), r]),
     ),

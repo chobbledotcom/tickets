@@ -1,4 +1,4 @@
-import { map, mapBy, pipe } from "#fp";
+import { fieldById, map, pipe } from "#fp";
 import { attendeeLineRow } from "#shared/attendee-table-rows.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { type Attendee, isPaidListing } from "#shared/types.ts";
@@ -102,7 +102,7 @@ export const ListingRosterPanel = (opts: ListingPanelOptions): JSX.Element => {
       })}
       <AttendeeNotesSummary
         isOwner={opts.isOwner ?? false}
-        names={mapBy("id", (attendee: Attendee) => attendee.name)(attendees)}
+        names={fieldById("name")(attendees)}
         notes={systemNotes}
       />
       <AttendeesSection

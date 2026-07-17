@@ -165,6 +165,127 @@ export interface Table<Row, Input> {
   ) => Promise<SqlStatement>;
 }
 
+type TableColumn<Row> = keyof Row & string;
+type ProjectionColumns<Row> = readonly [
+  TableColumn<Row>,
+  ...TableColumn<Row>[],
+];
+
+/** A selected row before the table's declared read transforms run. Database
+ * values are unknown here because booleans and encrypted strings have a
+ * different stored representation from the application's Row type. */
+export type StoredTableProjectionRow<
+  Row,
+  Columns extends ProjectionColumns<Row>,
+> = {
+  [Column in Columns[number]]: unknown;
+};
+
+type SelectedTableProjectionRow<
+  Row,
+  Columns extends ProjectionColumns<Row>,
+> = Pick<Row, Columns[number]>;
+
+type TableProjectionQuery<Result> = (
+  sql: string,
+  args?: InValue[],
+) => Promise<Result>;
+
+export interface TableProjection<Row, Columns extends ProjectionColumns<Row>> {
+  readonly columns: Columns;
+  columnsSql: (alias?: string) => string;
+  queryAll: TableProjectionQuery<SelectedTableProjectionRow<Row, Columns>[]>;
+  queryOneOrNull: TableProjectionQuery<SelectedTableProjectionRow<
+    Row,
+    Columns
+  > | null>;
+  read: (
+    row: StoredTableProjectionRow<Row, Columns>,
+    rowId?: unknown,
+  ) => Promise<SelectedTableProjectionRow<Row, Columns>>;
+  readAll: (
+    rows: StoredTableProjectionRow<Row, Columns>[],
+  ) => Promise<SelectedTableProjectionRow<Row, Columns>[]>;
+}
+
+/** Define an explicit physical-column projection and reuse the table's read
+ * transforms without loading or decrypting the rest of the row. */
+export const defineTableProjection = <
+  Row,
+  Input,
+  const Columns extends ProjectionColumns<Row>,
+>(
+  table: Table<Row, Input>,
+  columns: Columns,
+): TableProjection<Row, Columns> => {
+  const missingColumn = columns.find(
+    (column) => !table.columns.includes(column),
+  );
+  if (missingColumn) {
+    throw new Error(
+      `Cannot select projected column ${missingColumn} from ${table.name}`,
+    );
+  }
+
+  const read = async (
+    row: StoredTableProjectionRow<Row, Columns>,
+    rowId?: unknown,
+  ): Promise<SelectedTableProjectionRow<Row, Columns>> => {
+    const stored = row as Record<string, unknown>;
+    const missingValueColumn = columns.find(
+      (column) => !Object.hasOwn(stored, column),
+    );
+    if (missingValueColumn) {
+      throw new Error(
+        `Projected column ${missingValueColumn} is missing from ${table.name} query result`,
+      );
+    }
+    const readRowId = rowId === undefined ? stored[table.primaryKey] : rowId;
+    const entries = await mapParallel(
+      async (column: Columns[number]) =>
+        [
+          column,
+          await table.readColumn(
+            column,
+            stored[column] as Row[Columns[number]],
+            readRowId,
+          ),
+        ] as const,
+    )([...columns]);
+    return Object.fromEntries(entries) as SelectedTableProjectionRow<
+      Row,
+      Columns
+    >;
+  };
+  const readAll = (
+    rows: StoredTableProjectionRow<Row, Columns>[],
+  ): Promise<SelectedTableProjectionRow<Row, Columns>[]> =>
+    mapParallel((row: StoredTableProjectionRow<Row, Columns>) => read(row))(
+      rows,
+    );
+
+  return {
+    columns,
+    columnsSql: (alias?: string): string =>
+      columns
+        .map((column) => (alias ? `${alias}.${column}` : column))
+        .join(", "),
+    queryAll: async (sql, args) =>
+      readAll(
+        await queryAll<StoredTableProjectionRow<Row, Columns>>(sql, args),
+      ),
+    queryOneOrNull: async (sql, args) => {
+      const row = await queryOne<StoredTableProjectionRow<Row, Columns>>(
+        sql,
+        args,
+      );
+      return row === null ? null : read(row);
+    },
+    read,
+    readAll,
+  };
+};
+
 type TableRowInsert<Input, Condition = SqlStatement | undefined> = {
   condition?: Condition;
   input: Input;
@@ -587,7 +708,9 @@ type ColumnTransform<In, Out = In> = (v: In) => Promise<Out> | Out;
 
 /** Wrap encrypt/decrypt functions to handle null values */
 const wrapNullable =
-  <T>(fn: ColumnTransform<T>): ((v: T | null) => Promise<T | null>) =>
+  <T extends {}>(
+    fn: ColumnTransform<T>,
+  ): ((v: T | null) => Promise<T | null>) =>
   (v) =>
     v === null ? Promise.resolve(null) : Promise.resolve(fn(v));
 
@@ -630,7 +753,9 @@ export const col = {
     }) as unknown as ColumnDef<T>,
 
   /** Wrap an existing encrypted column def to pass through null values */
-  encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
+  encryptedNullable: <T extends {}>(
+    def: ColumnDef<T>,
+  ): ColumnDef<T | null> => ({
     read: def.read ? wrapNullable(def.read) : undefined,
     write: def.write ? wrapNullable(def.write) : undefined,
   }),
@@ -650,7 +775,7 @@ export const col = {
 
   /** A read-only column that is NOT a physical column on the table: it is
    * projected into the row by the caller's SELECT (a subquery `AS <col>`), read
-   * back through `read`, and never written (generated ⇒ excluded from INSERT/
+   * back through `read`, and never written (`projected` excludes it from INSERT/
    * UPDATE, `rowToInput`, and the insert/update return row). Use for a value that
    * lives elsewhere but rides the entity's shape — e.g. `day_prices`, projected
    * from the `day_count` rows of `listing_prices`. `read` must tolerate a missing
@@ -658,7 +783,6 @@ export const col = {
   projected: <App>(
     read: (raw: InValue | undefined, rowId?: unknown) => Promise<App> | App,
   ): ColumnDef<App> => ({
-    generated: true,
     projected: true,
     read: read as (v: App) => App,
   }),

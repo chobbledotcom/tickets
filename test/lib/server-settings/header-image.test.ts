@@ -124,6 +124,15 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
         await expectHtmlResponse(response, 200, "Upload Image");
       });
     });
+
+    test("advertises only image formats the server accepts", async () => {
+      await withStorageEnabled(async () => {
+        const html = await assertAdminHtml("/admin/settings");
+        expect(html).toContain("JPEG, PNG, or WebP");
+        expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
+        expect(html).not.toContain("GIF");
+      });
+    });
   });
 
   describe("POST /admin/settings/header-image", () => {

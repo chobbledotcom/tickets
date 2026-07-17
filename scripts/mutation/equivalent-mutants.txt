@@ -88,13 +88,25 @@ src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # 
 # timestamp is never read because `items` is null, and size is an array length.
 src/fp.ts:221:32  !== → !=   # compact input is T|null|undefined; loose null comparison removes exactly null and undefined too
 src/fp.ts:277:17  === → ==   # lazyRef set input is T|null and cannot be undefined, so both comparisons select only null
-src/fp.ts:416:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
-src/fp.ts:416:33  0 → -1   # same: the unloaded timestamp is never observed
-src/fp.ts:418:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
-src/fp.ts:418:20  0 → -1   # same: only changes relative to the captured generation matter
-src/fp.ts:422:22  !== → !=   # items is T[]|null and cannot be undefined, so both comparisons select only a loaded array
-src/fp.ts:433:17  ++ → --   # either direction changes generation and invalidates every older captured copy
-src/fp.ts:436:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+src/fp.ts:429:33  0 → 1   # initial time is replaced when items first load; null items short-circuit the TTL check
+src/fp.ts:429:33  0 → -1   # same: the unloaded timestamp is never observed
+src/fp.ts:431:20  0 → 1   # generation starts at an arbitrary value and is only compared with a captured copy
+src/fp.ts:431:20  0 → -1   # same: only changes relative to the captured generation matter
+src/fp.ts:435:22  !== → !=   # items is T[]|null and cannot be undefined, so both comparisons select only a loaded array
+src/fp.ts:446:17  ++ → --   # either direction changes generation and invalidates every older captured copy
+src/fp.ts:449:49  ?? → ||   # items?.length is undefined or a non-negative integer; 0 and undefined both produce 0
+
+# Table inputs make these operators equivalent: nullable query results exclude
+# undefined, paired null checks already reject both nullish values, optional
+# conditions/dependencies are objects or arrays, and non-generated primary keys
+# are overwritten from the input-column fold in either initial-row branch.
+src/shared/db/table.ts:282:17  === → ==   # queryOne returns StoredRow|null, never undefined
+src/shared/db/table.ts:349:25  !== → !=   # paired checks reject both null and undefined before applying a write transform
+src/shared/db/table.ts:501:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
+src/shared/db/table.ts:541:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:667:59  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:694:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:715:6  === → ==   # wrapNullable constrains T to exclude undefined, so v is T|null
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.

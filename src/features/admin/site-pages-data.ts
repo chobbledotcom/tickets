@@ -5,7 +5,7 @@
  * the tabbed entity page (site-pages-page.ts), so both build the same data.
  */
 
-import { mapBy } from "#fp";
+import { fieldById } from "#fp";
 import { t } from "#i18n";
 import { getAllGroupNames } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
@@ -24,11 +24,7 @@ import {
 } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 // jscpd:ignore-end
-import type {
-  SitePage,
-  SitePageItemType,
-  SitePageNavRow,
-} from "#shared/types.ts";
+import type { SitePage, SitePageItemType } from "#shared/types.ts";
 import type {
   EditModel,
   ListModel,
@@ -76,7 +72,7 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   // (sort_order, item_id) ordering as the per-page query) — not a fifth read.
   const pageItems = allItems.filter((i) => i.page_id === page.id);
   const forest = buildForest(navRows, allItems);
-  const pageById = mapBy("id", (page: SitePageNavRow) => page.name)(navRows);
+  const pageById = fieldById("name")(navRows);
   const label = (type: SitePageItemType, id: number): string => {
     const lookup: Record<SitePageItemType, string | undefined> = {
       group: groupNames.get(id),

@@ -1,12 +1,10 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
-import { decrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
-import { decryptNameSlug } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
+import { defineTableProjection } from "#shared/db/table.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#shared/types.ts";
+import { rawListingsTable } from "./table.ts";
 
 export type ListingOfferFlags = Pick<
   Listing,
@@ -15,53 +13,48 @@ export type ListingOfferFlags = Pick<
 
 type ListingPickerRow = ListingOfferFlags & { name: string };
 
-type RawOfferFlagRow = {
-  active: number;
-  hidden: number;
-  months_per_unit: number;
-  purchase_only: number;
-};
+const listingOfferFlagsProjection = defineTableProjection(rawListingsTable, [
+  "active",
+  "hidden",
+  "months_per_unit",
+  "purchase_only",
+]);
 
-const OFFER_FLAG_COLUMNS =
-  "listing.active, listing.hidden, listing.months_per_unit, listing.purchase_only";
+const listingPickerProjection = defineTableProjection(rawListingsTable, [
+  "id",
+  "name",
+  ...listingOfferFlagsProjection.columns,
+]);
 
-const offerFlagsOf = (row: RawOfferFlagRow): ListingOfferFlags => ({
-  active: row.active !== 0,
-  hidden: row.hidden !== 0,
-  months_per_unit: row.months_per_unit,
-  purchase_only: row.purchase_only !== 0,
-});
+const catalogListingProjection = defineTableProjection(rawListingsTable, [
+  "id",
+  "slug",
+  "name",
+  "unit_price",
+  "listing_type",
+  "customisable_days",
+  "can_pay_more",
+]);
 
 /** Read the flags that decide whether one listing may be offered. */
 export const getListingOfferFlags = async (
   id: number,
 ): Promise<ListingOfferFlags | undefined> => {
-  const row = await queryOne<RawOfferFlagRow>(
-    `SELECT ${OFFER_FLAG_COLUMNS} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
+  const row = await listingOfferFlagsProjection.queryOneOrNull(
+    `SELECT ${listingOfferFlagsProjection.columnsSql("listing")} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
     [id],
   );
-  return row ? offerFlagsOf(row) : undefined;
+  return row ?? undefined;
 };
 
 /** Read names and offer flags for the admin site-page picker. */
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await queryAll<
-    RawOfferFlagRow & { id: number; name: EnvKeyEncrypted }
-  >(
-    `SELECT listing.id, listing.name, ${OFFER_FLAG_COLUMNS} FROM listings AS listing ORDER BY listing.id ASC`,
+  const rows = await listingPickerProjection.queryAll(
+    `SELECT ${listingPickerProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
   );
-  const entries = await Promise.all(
-    rows.map(
-      async (row) =>
-        [
-          row.id,
-          { ...offerFlagsOf(row), name: await decrypt(row.name) },
-        ] as const,
-    ),
-  );
-  return new Map(entries);
+  return new Map(rows.map(({ id, ...listing }) => [id, listing] as const));
 };
 
 const catalogVisibleSql = (hiddenDefault: boolean | undefined): string => {
@@ -75,18 +68,8 @@ const catalogVisibleSql = (hiddenDefault: boolean | undefined): string => {
 
 /** Read only active, effectively visible listings for the public catalog. */
 export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
-  type CatalogRow = Omit<
-    CatalogSourceListing,
-    "active" | "hidden" | "customisable_days" | "can_pay_more" | "name" | "slug"
-  > & {
-    customisable_days: number;
-    can_pay_more: number;
-    name: EnvKeyEncrypted;
-    slug: EnvKeyEncrypted;
-  };
-  const rows = await queryAll<CatalogRow>(
-    `SELECT listing.id, listing.slug, listing.name, listing.unit_price,
-            listing.listing_type, listing.customisable_days, listing.can_pay_more
+  const rows = await catalogListingProjection.queryAll(
+    `SELECT ${catalogListingProjection.columnsSql("listing")}
      FROM listings AS listing
      WHERE listing.active = 1
        AND ${catalogVisibleSql(settings.listingDefaults.hidden)}
@@ -103,16 +86,9 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
             AND listingGroup.hide_package_listings = 1
        )`,
   );
-  return Promise.all(
-    rows.map(async (row) => ({
-      active: true,
-      can_pay_more: row.can_pay_more === 1,
-      customisable_days: row.customisable_days === 1,
-      hidden: false,
-      id: row.id,
-      listing_type: row.listing_type,
-      ...(await decryptNameSlug(row, decrypt)),
-      unit_price: row.unit_price,
-    })),
-  );
+  return rows.map((row) => ({
+    active: true,
+    hidden: false,
+    ...row,
+  }));
 };

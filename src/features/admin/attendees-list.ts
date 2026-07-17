@@ -4,7 +4,7 @@
  * listing detail and attendee edit pages.
  */
 
-import { filter, map, mapBy, unique } from "#fp";
+import { fieldById, filter, map, unique } from "#fp";
 import { csvResponse } from "#routes/admin/actions.ts";
 import {
   generateCalendarCsv,
@@ -142,7 +142,7 @@ export const handleAttendeesListGet: TypedRouteHandler<
         hasNext,
         listingId,
         listings,
-        names: mapBy("id", (attendee: Attendee) => attendee.name)(decrypted),
+        names: fieldById("name")(decrypted),
         page,
         phonePrefix: settings.phonePrefix,
         rows: built,

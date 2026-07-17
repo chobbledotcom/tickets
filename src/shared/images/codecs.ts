@@ -21,7 +21,8 @@ import webpDecode, { init as webpDecInit } from "@jsquash/webp/decode.js";
 import webpEncode, { init as webpEncInit } from "@jsquash/webp/encode.js";
 import { simd } from "wasm-feature-detect";
 import { onceSuccessful } from "#shared/once-successful.ts";
-import type { DecodableMime, RawImage } from "./types.ts";
+import type { DecodableMime } from "./formats.ts";
+import type { RawImage } from "./types.ts";
 import {
   jpegDec as jpegDecBytes,
   pngDec as pngDecBytes,

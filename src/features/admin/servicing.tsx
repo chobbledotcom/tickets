@@ -1,6 +1,6 @@
 /** Admin servicing-event route shell. */
 
-import { identity, map, mapBy, unique } from "#fp";
+import { identity, map, mapById, unique } from "#fp";
 import { t } from "#i18n";
 import { handlersFor } from "#routes/admin/handlers.ts";
 import {
@@ -139,7 +139,7 @@ const parseCreateInput = async (form: FormParams) => {
   applyDemoOverrides(form, SERVICING_DEMO_FIELDS);
   const listings = await getAllListings();
   return normalizeServicingForSave(
-    parseServicingForm(form, mapBy("id", identity<ListingWithCount>)(listings)),
+    parseServicingForm(form, mapById(identity<ListingWithCount>)(listings)),
   );
 };
 

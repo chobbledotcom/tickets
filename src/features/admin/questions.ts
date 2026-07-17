@@ -4,7 +4,7 @@ import { planReorder } from "#shared/reorder.ts";
  * Admin routes for custom questions management (owner-only)
  */
 
-import { mapBy, mapNotNullish } from "#fp";
+import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
@@ -78,7 +78,7 @@ import { defineForm } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms.tsx";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
-import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import type { AdminSession } from "#shared/types.ts";
 import {
   type AnswerModifierOption,
   adminAnswerDeletePage,
@@ -156,10 +156,7 @@ const handleQuestionsGet = ownerPage(async (session) => {
   // Resolve listing ids to their decrypted names for the Listings column,
   // dropping any ids whose listing has since been deleted (listing_questions
   // rows are not pruned on listing deletion, so orphans can linger).
-  const nameById = mapBy(
-    "id",
-    (listing: ListingWithCount) => listing.name,
-  )(allListings);
+  const nameById = fieldById("name")(allListings);
   const listingNames = new Map(
     [...questionListingIds].map(([questionId, ids]) => [
       questionId,

@@ -77,6 +77,16 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(def).toEqual({});
   });
 
+  test("col.boolean converts between booleans and stored integers", async () => {
+    const { col } = await import("#shared/db/table.ts");
+    const def = col.boolean(false);
+    expect(def.default?.()).toBe(false);
+    expect(await def.read?.(0 as unknown as boolean)).toBe(false);
+    expect(await def.read?.(1 as unknown as boolean)).toBe(true);
+    expect(await def.write?.(false)).toBe(0);
+    expect(await def.write?.(true)).toBe(1);
+  });
+
   test("col.transform creates column with custom transforms", async () => {
     const { col } = await import("#shared/db/table.ts");
     const write = (v: string) => v.toUpperCase();
@@ -102,7 +112,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
   test("col.encryptedNullable wrapping simple column has no transforms", async () => {
     const { col } = await import("#shared/db/table.ts");
-    const def = col.encryptedNullable(col.simple());
+    const def = col.encryptedNullable(col.simple<string>());
     expect(def.write).toBeUndefined();
     expect(def.read).toBeUndefined();
   });
@@ -235,6 +245,10 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       thankYouUrl: "http://test.com",
     });
     expect(row.slug).toBe("test-listing");
+    expect(row.active).toBe(1);
+    expect(row.max_quantity).toBe(1);
+    expect(row.unit_price).toBe(0);
+    expect(row.webhook_url).toBeNull();
 
     const fromDb = await testTable.findById(row.id);
     expect(fromDb?.slug).toBe("test-listing");

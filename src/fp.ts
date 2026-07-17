@@ -364,6 +364,19 @@ export const mapBy =
     return result;
   };
 
+/** Index items by `id` and a chosen value. */
+export const mapById = <T extends { id: unknown }, V>(
+  valueFrom: (item: T) => V,
+): ((items: Iterable<T>) => Map<T["id"], V>) => mapBy("id", valueFrom);
+
+/** Index one field from each item by its `id`. */
+export const fieldById =
+  <Field extends PropertyKey>(field: Field) =>
+  <T extends { id: unknown } & Record<Field, unknown>>(
+    items: Iterable<T>,
+  ): Map<T["id"], T[Field]> =>
+    mapById((item: T) => item[field])(items);
+
 /**
  * A copy of `base` with `extra` entries merged on top (an `extra` key wins over
  * the same key in `base`). Curried so a constant overlay (a fixed content type,

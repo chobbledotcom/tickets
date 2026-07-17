@@ -10,7 +10,7 @@
  */
 
 // jscpd:ignore-start
-import { mapParallel } from "#fp";
+import { fieldById, mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
@@ -35,13 +35,16 @@ import {
   clearImageUsesForItemStatement,
   imageFilenameSubqueries,
 } from "#shared/db/images.ts";
-import { decryptNameSlug } from "#shared/db/query.ts";
 import {
   unclaimedSlugCondition,
   updateRowWithUnclaimedSlug,
 } from "#shared/db/slug-registry.ts";
 import type { SluggedContentInput } from "#shared/db/slugged-content-input.ts";
-import { col } from "#shared/db/table.ts";
+import {
+  col,
+  defineTableProjection,
+  type StoredTableProjectionRow,
+} from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -74,6 +77,19 @@ export const newsPostsTable = defineIdTable<NewsPost, NewsPostInput>(
     snippet: col.encryptedText(encrypt, decrypt),
   },
 );
+
+const newsSummaryProjection = defineTableProjection(newsPostsTable, [
+  "id",
+  "created",
+  "slug",
+  "name",
+  "snippet",
+]);
+
+const newsNameProjection = defineTableProjection(newsPostsTable, [
+  "id",
+  "name",
+]);
 
 /** What the admin form provides: every editable column. The permalink is
  * derived on create, never entered, so `slug`/`slugIndex`/`created` are out. */
@@ -113,53 +129,36 @@ registerTableInvalidation(["news_posts"], () => existenceCache.invalidate());
 export const hasNewsPosts = async (): Promise<boolean> =>
   (await existenceCache.getAll()).length > 0;
 
-/** A summary row as stored: slug, name, and snippet still sealed. */
-type SealedSummaryRow = Omit<NewsPostSummary, "slug" | "name" | "snippet"> & {
-  slug: EnvKeyEncrypted;
-  name: EnvKeyEncrypted;
-  snippet: EnvKeyEncrypted | "";
-};
-
 /** A card row as stored: the sealed summary plus sealed image projections. */
-type SealedCardRow = SealedSummaryRow & {
+type SealedCardRow = StoredTableProjectionRow<
+  NewsPost,
+  typeof newsSummaryProjection.columns
+> & {
   [K in keyof ItemImageProjection]: EnvKeyEncrypted | "";
 };
-
-/** Decrypt one summary row (slug, name, and snippet). */
-const decryptSummary = async (
-  row: SealedSummaryRow,
-): Promise<NewsPostSummary> => ({
-  created: row.created,
-  id: row.id,
-  ...(await decryptNameSlug(row, decrypt)),
-  snippet: await decryptTextOrEmpty(row.snippet),
-});
 
 /** Load the summary projection for every post, newest first: id, created,
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
-export const getNewsPostSummaries = async (): Promise<NewsPostSummary[]> => {
-  const rows = await queryAll<SealedSummaryRow>(
-    `SELECT id, created, slug, name, snippet
+export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
+  newsSummaryProjection.queryAll(
+    `SELECT ${newsSummaryProjection.columnsSql()}
        FROM news_posts
       ORDER BY created DESC, id DESC`,
   );
-  return mapParallel(decryptSummary)(rows);
-};
 
 /** Load the card projection for every post, newest first: the summary plus
  * the post's first linked image — for the public /news list, the one reader
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
   const rows = await queryAll<SealedCardRow>(
-    `SELECT news_post.id, news_post.created, news_post.slug, news_post.name,
-            news_post.snippet,
+    `SELECT ${newsSummaryProjection.columnsSql("news_post")},
             ${imageFilenameSubqueries("news", "news_post.id")}
        FROM news_posts AS news_post
       ORDER BY news_post.created DESC, news_post.id DESC`,
   );
   return mapParallel(async (row: SealedCardRow) => ({
-    ...(await decryptSummary(row)),
+    ...(await newsSummaryProjection.read(row)),
     image_alt_text: await decryptTextOrEmpty(row.image_alt_text),
     image_thumb_url: await decryptImageFilenameOrEmpty(
       row.image_thumb_url,
@@ -175,14 +174,10 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 /** id → decrypted name for every post, newest first — the image library's
  * link-target labels (nothing but the name decrypted). */
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
-  const rows = await queryAll<{ id: number; name: EnvKeyEncrypted }>(
-    "SELECT id, name FROM news_posts ORDER BY created DESC, id DESC",
+  const rows = await newsNameProjection.queryAll(
+    `SELECT ${newsNameProjection.columnsSql()} FROM news_posts ORDER BY created DESC, id DESC`,
   );
-  const entries = await mapParallel(
-    async (row: { id: number; name: EnvKeyEncrypted }) =>
-      [row.id, await decrypt(row.name)] as const,
-  )(rows);
-  return new Map(entries);
+  return fieldById("name")(rows);
 };
 
 /** One full post (fully decrypted) by id — the admin single-post views.

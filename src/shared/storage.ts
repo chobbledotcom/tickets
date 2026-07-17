@@ -8,8 +8,14 @@
 import { lazyRef, once, sort } from "#fp";
 import { decryptBytes, encryptBytes } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
+import {
+  canDecodeImageMime,
+  type DecodableMime,
+  IMAGE_FORMATS,
+  IMAGE_MIMES,
+  type ImageMime,
+} from "#shared/images/formats.ts";
 import type { ImageTargetTranscoder } from "#shared/images/transcode.ts";
-import type { DecodableMime } from "#shared/images/types.ts";
 import {
   formatBytes,
   MAX_ATTACHMENT_SIZE,
@@ -91,33 +97,10 @@ const getLocalStoragePath = (): string | null => {
   return getEnv("LOCAL_STORAGE_PATH") ?? null;
 };
 
-/** Known image types — single source of truth for mime, extension, and magic
- * bytes. GIF is still recognised so legacy `.gif` files (stored before uploads
- * were transcoded to WebP) keep serving, but it is not an accepted *upload*
- * format — see `UPLOADABLE_MIMES`. */
-const IMAGE_TYPES = [
-  { ext: ".jpg", magic: [0xff, 0xd8, 0xff], mime: "image/jpeg" },
-  { ext: ".png", magic: [0x89, 0x50, 0x4e, 0x47], mime: "image/png" },
-  { ext: ".gif", magic: [0x47, 0x49, 0x46, 0x38], mime: "image/gif" },
-  { ext: ".webp", magic: [0x52, 0x49, 0x46, 0x46], mime: "image/webp" },
-] as const;
-
-/** MIME types accepted for *upload*. Every upload is decoded and transcoded to
- * WebP, so this is exactly the set the image pipeline can decode
- * (`DecodableMime`): JPEG, PNG, and WebP. GIF is deliberately excluded — a
- * static WebP transcode would silently drop any animation. */
-export const UPLOADABLE_MIMES: readonly DecodableMime[] = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-];
-
-/** Whether a content type is an accepted image-upload format. */
-const isUploadableMime = (mime: string): mime is DecodableMime =>
-  (UPLOADABLE_MIMES as readonly string[]).includes(mime);
-
 /** Derived lookup: file extension → MIME type, for serving stored files. */
-const EXT_TO_MIME = Object.fromEntries(IMAGE_TYPES.map((t) => [t.ext, t.mime]));
+const EXT_TO_MIME = Object.fromEntries(
+  IMAGE_MIMES.map((mime) => [IMAGE_FORMATS[mime].extension, mime]),
+) as Record<string, ImageMime>;
 
 /**
  * Returns which storage backend is active: "bunny", "local", or "none".
@@ -144,7 +127,7 @@ export const getImageProxyUrl = (filename: string): string =>
 /**
  * Get the MIME type for an image filename from its extension.
  */
-export const getMimeTypeFromFilename = (filename: string): string | null => {
+export const getMimeTypeFromFilename = (filename: string): ImageMime | null => {
   const dotIndex = filename.lastIndexOf(".");
   if (dotIndex === -1) return null;
   return EXT_TO_MIME[filename.slice(dotIndex)] ?? null;
@@ -154,9 +137,15 @@ export const getMimeTypeFromFilename = (filename: string): string | null => {
  * Detect the actual image type from magic bytes.
  * Returns the MIME type if matched, null otherwise.
  */
-export const detectImageType = (data: Uint8Array): string | null => {
-  for (const { mime, magic } of IMAGE_TYPES) {
-    if (data.length >= magic.length && magic.every((b, i) => data[i] === b)) {
+export const detectImageType = (data: Uint8Array): ImageMime | null => {
+  for (const mime of IMAGE_MIMES) {
+    const { magic } = IMAGE_FORMATS[mime];
+    const matches = magic.every(
+      ({ bytes, offset }) =>
+        data.length >= offset + bytes.length &&
+        bytes.every((byte, index) => data[offset + index] === byte),
+    );
+    if (matches) {
       return mime;
     }
   }
@@ -177,7 +166,7 @@ export type ImageValidationResult =
 /**
  * Validate an image file: check size, the declared MIME type, and the magic
  * bytes. Both the declared type and the sniffed content must be an accepted
- * upload format (`UPLOADABLE_MIMES`); a mismatch or an unsupported format (e.g.
+ * upload format; a mismatch or an unsupported format (e.g.
  * a GIF, or a file whose bytes don't match any decodable format) is rejected.
  * On success, `detectedType` is the sniffed format the transcoder will decode.
  */
@@ -189,12 +178,12 @@ export const validateImage = (
     return { error: "too_large", valid: false };
   }
 
-  if (!isUploadableMime(contentType)) {
+  if (!canDecodeImageMime(contentType)) {
     return { error: "invalid_type", valid: false };
   }
 
   const detectedType = detectImageType(data);
-  if (!detectedType || !isUploadableMime(detectedType)) {
+  if (!detectedType || !canDecodeImageMime(detectedType)) {
     return { error: "invalid_content", valid: false };
   }
 

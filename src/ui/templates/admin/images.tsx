@@ -6,6 +6,7 @@
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm, type Field, Flash, renderFields } from "#shared/forms.tsx";
+import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl, isStorageEnabled } from "#shared/storage.ts";
 import {
@@ -70,7 +71,7 @@ const imageFields = (): Field[] => [
 // No `required`: file inputs never render the attribute (renderFieldInput
 // omits it) and the upload POST checks the file's presence itself.
 const imageUploadField = (): Field => ({
-  accept: "image/jpeg,image/png,image/webp",
+  accept: IMAGE_UPLOAD_ACCEPT,
   label: t("images.field.file"),
   name: "image",
   type: "file",
