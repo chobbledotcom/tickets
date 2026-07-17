@@ -117,7 +117,7 @@ describeWithEnv(
         date,
       });
       await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
+        `/admin/built-sites/${site.id}/renewal`,
         "Choose a valid deadline date",
         false,
       )(response);
@@ -138,7 +138,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/rotate-renewal-token`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/renewal`,
           "Renewal token rotated",
         )(response);
 
@@ -167,7 +167,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/rotate-renewal-token`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/renewal`,
           "Renewal is not provisioned for this site",
           false,
         )(response);
@@ -265,7 +265,7 @@ describeWithEnv(
             { months: "1" },
           );
           await expectFlashRedirect(
-            `/admin/built-sites/${site.id}/edit`,
+            `/admin/built-sites/${site.id}/renewal`,
             expect.stringContaining("could not be pushed"),
             false,
           )(response);
@@ -322,7 +322,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/override-deadline`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/renewal`,
           "Choose a deadline date",
           false,
         )(response);
@@ -355,7 +355,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/re-sync-deadline`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/renewal`,
           "Deadline re-synced",
         )(response);
 
@@ -395,7 +395,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/re-sync-deadline`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/renewal`,
           "No deadline to re-sync",
           false,
         )(response);
@@ -446,7 +446,7 @@ describeWithEnv(
           { months: "3" },
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/renewal`,
           "Create a qualifying renewal tier listing before provisioning",
           false,
         )(response);
@@ -473,7 +473,7 @@ describeWithEnv(
           { months: "3" },
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/renewal`,
           "Renewal is already provisioned for this site",
           false,
         )(response);
@@ -497,7 +497,7 @@ describeWithEnv(
             { months: "3" },
           );
           await expectFlashRedirect(
-            `/admin/built-sites/${site.id}/edit`,
+            `/admin/built-sites/${site.id}/renewal`,
             "Renewal could not be pushed to the site",
             false,
           )(response);
@@ -595,7 +595,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/secrets`,
           expect.stringContaining("missing secret(s)"),
         )(response);
 
@@ -631,7 +631,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/secrets`,
           "Set 1 missing secret(s): NTFY_URL",
         )(response);
         // Only the genuinely-missing secret is written.
@@ -655,7 +655,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/secrets`,
           "No missing secrets — nothing to set",
         )(response);
         expect(secrets.setCalls.length).toBe(0);
@@ -680,7 +680,7 @@ describeWithEnv(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
         await expectFlashRedirect(
-          `/admin/built-sites/${site.id}/edit`,
+          `/admin/built-sites/${site.id}/secrets`,
           expect.stringContaining("Secrets could not be set"),
           false,
         )(response);

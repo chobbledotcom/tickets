@@ -8,12 +8,15 @@ import {
   siteHomeForm,
   siteOrderForm,
 } from "#routes/admin/site.ts";
-import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { flashOptsPage } from "#templates/admin/admin-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
-import { SaveForm } from "#templates/components/save-form.tsx";
+import {
+  renderedFieldsSaveForm,
+  SaveForm,
+} from "#templates/components/save-form.tsx";
 
 /** The public-site guide footer shared by the home, contact and order editors
  * (all three map to the guide's `#public-site` section). The site editors are
@@ -58,19 +61,7 @@ const siteDataPage =
   ): string =>
     siteEditorPage(title, active)(session, error, success)(renderBody(a, b));
 
-/** One of the site text editors: its schema-rendered fields inside a form that
- * ends with the standard save button. */
-const SiteTextForm = ({
-  action,
-  html,
-}: {
-  action: string;
-  html: string;
-}): JSX.Element => (
-  <SaveForm action={action} submitLabel={t("common.save")}>
-    <Raw html={html} />
-  </SaveForm>
-);
+const siteTextForm = renderedFieldsSaveForm(t("common.save"));
 
 /**
  * Homepage editor - website title + homepage text
@@ -82,13 +73,13 @@ export const adminSiteHomePage = siteDataPage<string, string>(
     <>
       <h2>{t("site.home.heading")}</h2>
 
-      <SiteTextForm
-        action="/admin/site"
-        html={siteHomeForm.render({
+      {siteTextForm(
+        "/admin/site",
+        siteHomeForm.render({
           homepage_text: homepageText,
           website_title: websiteTitle,
-        })}
-      />
+        }),
+      )}
     </>
   ),
 );
@@ -166,12 +157,12 @@ export const adminSiteContactPage = siteDataPage<string, ContactFormState>(
     <>
       <h2>{t("site.contact.heading")}</h2>
 
-      <SiteTextForm
-        action="/admin/site/contact"
-        html={siteContactForm.render({
+      {siteTextForm(
+        "/admin/site/contact",
+        siteContactForm.render({
           contact_page_text: contactPageText,
-        })}
-      />
+        }),
+      )}
 
       <ContactFormToggle
         botpoisonEnabled={contactForm.botpoisonEnabled}
@@ -245,10 +236,10 @@ export const adminSiteOrderPage = siteDataPage<string, OrderPageState>(
         </label>
       </SaveForm>
 
-      <SiteTextForm
-        action="/admin/site/order"
-        html={siteOrderForm.render({ order_intro_text: introText })}
-      />
+      {siteTextForm(
+        "/admin/site/order",
+        siteOrderForm.render({ order_intro_text: introText }),
+      )}
     </>
   ),
 );

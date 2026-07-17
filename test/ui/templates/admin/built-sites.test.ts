@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  adminBuiltSiteEditPage,
-  adminBuiltSitesPage,
-} from "#templates/admin/built-sites.tsx";
+  renewalPanelFor,
+  SecretsPanel,
+  UpdatePanel,
+} from "#templates/admin/built-sites/panels.tsx";
+import { adminBuiltSitesPage } from "#templates/admin/built-sites.tsx";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -30,11 +32,10 @@ describe("adminBuiltSitesPage", () => {
     expect(html).toContain("never");
   });
 
-  test("links each site name to its edit page and has no list delete link", () => {
+  test("links each site name to its entity page and has no list delete link", () => {
     const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
     const html = adminBuiltSitesPage([site], TEST_SESSION);
-    expect(html).toContain('href="/admin/built-sites/7/edit">Linky</a>');
-    // Delete now lives on the edit page, not the list.
+    expect(html).toContain('href="/admin/built-sites/7">Linky</a>');
     expect(html).not.toContain("/admin/built-sites/7/delete");
   });
 
@@ -46,13 +47,13 @@ describe("adminBuiltSitesPage", () => {
     expect(html).toContain("won't be able to renew");
   });
 
-  test("shows site data without write links in read-only mode", () => {
+  test("keeps the read-only entity link but hides create actions", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
     const html = adminBuiltSitesPage([site], TEST_SESSION);
     expect(html).toContain("Linky");
     expect(html).not.toContain('href="/admin/built-sites/new"');
-    expect(html).not.toContain('href="/admin/built-sites/7/edit"');
+    expect(html).toContain('href="/admin/built-sites/7"');
   });
 
   test("lists each tier with units sold from attendee_count", () => {
@@ -92,7 +93,7 @@ describe("adminBuiltSitesPage", () => {
   });
 });
 
-describe("adminBuiltSiteEditPage — provisioned site", () => {
+describe("renewalPanelFor — provisioned site", () => {
   const provisionedSite = testBuiltSite({
     readOnlyFrom: "2027-01-15T00:00:00Z",
     renewalToken: "real-customer-renewal-token",
@@ -100,7 +101,7 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
   });
 
   test("shows renewal URL and rotate/bump/override/re-sync forms; no tier picker", () => {
-    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION);
+    const html = String(renewalPanelFor(provisionedSite));
     expect(html).toContain("Renewal URL");
     expect(html).toContain("rotate-renewal-token");
     expect(html).toContain("bump-deadline");
@@ -113,7 +114,7 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
   });
 
   test("renders the actual renewal URL (token, not placeholder)", () => {
-    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION);
+    const html = String(renewalPanelFor(provisionedSite));
     // The real token must appear inside a /renew/?t=… URL. The previous
     // implementation rendered "<token>" literally with a bogus host — guard
     // against regression by asserting both the path shape and the token.
@@ -122,21 +123,21 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
   });
 
   test("labels the shared bump/override forms inline (no headings)", () => {
-    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION);
+    const html = String(renewalPanelFor(provisionedSite));
     expect(html).toContain('<label for="bump_months">Bump deadline by months');
     expect(html).toContain('<label for="override_date">Override deadline');
     expect(html).not.toContain("<h3>Bump deadline</h3>");
   });
 });
 
-describe("adminBuiltSiteEditPage — unprovisioned site", () => {
+describe("renewalPanelFor — unprovisioned site", () => {
   const unprovisionedSite = testBuiltSite({
     readOnlyFrom: "",
     renewalTokenIndex: null,
   });
 
   test("shows Provision Renewal form, bump/override forms; no Rotate/Re-sync; no tier picker", () => {
-    const html = adminBuiltSiteEditPage(unprovisionedSite, TEST_SESSION);
+    const html = String(renewalPanelFor(unprovisionedSite));
     expect(html).toContain("Provision renewal");
     expect(html).toContain("provision-renewal");
     expect(html).toContain("bump-deadline");
@@ -147,40 +148,29 @@ describe("adminBuiltSiteEditPage — unprovisioned site", () => {
   });
 
   test("labels the shared bump/override forms with headings (no inline labels)", () => {
-    const html = adminBuiltSiteEditPage(unprovisionedSite, TEST_SESSION);
+    const html = String(renewalPanelFor(unprovisionedSite));
     expect(html).toContain("<h3>Bump deadline</h3>");
     expect(html).toContain("<h3>Override deadline</h3>");
     expect(html).not.toContain('for="bump_months"');
     expect(html).not.toContain('for="override_date"');
   });
-
-  test("links to the delete page from the edit page", () => {
-    const html = adminBuiltSiteEditPage(
-      testBuiltSite({ id: 9, name: "Del" }),
-      TEST_SESSION,
-    );
-    expect(html).toContain("/admin/built-sites/9/delete");
-    expect(html).toContain("Delete this site");
-  });
 });
 
-describe("adminBuiltSiteEditPage — secrets panel", () => {
+describe("SecretsPanel", () => {
   const site = testBuiltSite({ id: 9, name: "Sec" });
 
   test("lists the missing secrets with a backfill button", () => {
-    const html = adminBuiltSiteEditPage(
-      site,
-      TEST_SESSION,
-      undefined,
-      undefined,
-      {
-        expected: ["DB_URL", "NTFY_URL", "STORAGE_ZONE_KEY"],
-        missing: ["NTFY_URL", "STORAGE_ZONE_KEY"],
-        ok: true,
-        present: ["DB_URL", "DB_ENCRYPTION_KEY"],
-      },
+    const html = String(
+      SecretsPanel({
+        site,
+        view: {
+          expected: ["DB_URL", "NTFY_URL", "STORAGE_ZONE_KEY"],
+          missing: ["NTFY_URL", "STORAGE_ZONE_KEY"],
+          ok: true,
+          present: ["DB_URL", "DB_ENCRYPTION_KEY"],
+        },
+      }),
     );
-    expect(html).toContain("Secrets");
     expect(html).toContain("/admin/built-sites/9/add-secrets");
     expect(html).toContain("<code>NTFY_URL</code>");
     expect(html).toContain("<code>STORAGE_ZONE_KEY</code>");
@@ -195,17 +185,16 @@ describe("adminBuiltSiteEditPage — secrets panel", () => {
   });
 
   test("omits the live-secrets list when the site has none set", () => {
-    const html = adminBuiltSiteEditPage(
-      site,
-      TEST_SESSION,
-      undefined,
-      undefined,
-      {
-        expected: ["NTFY_URL"],
-        missing: ["NTFY_URL"],
-        ok: true,
-        present: [],
-      },
+    const html = String(
+      SecretsPanel({
+        site,
+        view: {
+          expected: ["NTFY_URL"],
+          missing: ["NTFY_URL"],
+          ok: true,
+          present: [],
+        },
+      }),
     );
     expect(html).not.toContain("Secrets currently on this site");
     expect(html).toContain("/admin/built-sites/9/add-secrets");
@@ -214,45 +203,43 @@ describe("adminBuiltSiteEditPage — secrets panel", () => {
   });
 
   test("confirms when every expected secret is already present", () => {
-    const html = adminBuiltSiteEditPage(
-      site,
-      TEST_SESSION,
-      undefined,
-      undefined,
-      {
-        expected: ["DB_URL", "NTFY_URL"],
-        missing: [],
-        ok: true,
-        present: ["DB_URL", "NTFY_URL"],
-      },
+    const html = String(
+      SecretsPanel({
+        site,
+        view: {
+          expected: ["DB_URL", "NTFY_URL"],
+          missing: [],
+          ok: true,
+          present: ["DB_URL", "NTFY_URL"],
+        },
+      }),
     );
     expect(html).toContain("All expected secrets are present");
     expect(html).not.toContain("add-secrets");
   });
 
   test("shows the error when secrets cannot be read", () => {
-    const html = adminBuiltSiteEditPage(
-      site,
-      TEST_SESSION,
-      undefined,
-      undefined,
-      {
-        error:
-          "BUNNY_API_KEY is not configured on this host, so its secrets can't be read.",
-        ok: false,
-      },
+    const html = String(
+      SecretsPanel({
+        site,
+        view: {
+          error:
+            "BUNNY_API_KEY is not configured on this host, so its secrets can't be read.",
+          ok: false,
+        },
+      }),
     );
     expect(html).toContain("BUNNY_API_KEY is not configured");
     expect(html).not.toContain("add-secrets");
   });
 
   test("notes when the secrets view is unavailable", () => {
-    const html = adminBuiltSiteEditPage(site, TEST_SESSION);
+    const html = String(SecretsPanel({ site }));
     expect(html).toContain("Secrets status is unavailable");
   });
 });
 
-describe("adminBuiltSiteEditPage — update panel", () => {
+describe("UpdatePanel", () => {
   const site = testBuiltSite({ id: 42, name: "Panel Site" });
   const baseState = {
     hasHostingId: true,
@@ -265,18 +252,10 @@ describe("adminBuiltSiteEditPage — update panel", () => {
     upToDate: false,
   };
   const render = (overrides: Partial<typeof baseState> = {}): string =>
-    adminBuiltSiteEditPage(
-      site,
-      TEST_SESSION,
-      undefined,
-      undefined,
-      undefined,
-      { ...baseState, ...overrides },
-    );
+    String(UpdatePanel({ site, state: { ...baseState, ...overrides } }));
 
   test("shows the version, latest release, and an update button when behind", () => {
     const html = render();
-    expect(html).toContain("Software update");
     expect(html).toContain("Thu, 01 Jan 2026 00:00:00 UTC");
     expect(html).toContain("2099-01-01 - Big Update (v2099-01-01-120000)");
     expect(html).toContain("An update is available");

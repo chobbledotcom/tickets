@@ -178,12 +178,9 @@ describe("defineEntityPage", () => {
     expect((await page.renderPage(SESSION, 7, "edit")).status).toBe(404);
   });
 
-  test("a sections override replaces the tab's content at the given status", async () => {
+  test("a panel override replaces the tab's content at the given status", async () => {
     const response = await page.renderPage(SESSION, 7, "actions", {
-      sections: () =>
-        Promise.resolve([
-          { html: Raw({ html: "<p>override</p>" }), kind: "custom" as const },
-        ]),
+      panel: () => Promise.resolve(Raw({ html: "<p>override</p>" })),
       status: 400,
     });
     expect(response.status).toBe(400);

@@ -30,6 +30,7 @@ import {
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   createTestApiKeyFull,
@@ -313,7 +314,7 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(html).toContain(`href="/admin/api-keys/${id}"`);
     });
 
-    test("GET /admin/api-keys/:id shows the manage page with a delete link", async () => {
+    test("GET /admin/api-keys/:id shows the summary and canonical tab links", async () => {
       const { id } = await createTestApiKeyFull("Managed Key");
       const cookie = await testCookie();
 
@@ -324,16 +325,65 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(first.status).toBe(200);
       const firstHtml = await first.text();
       expect(firstHtml).toContain("Managed Key");
-      expect(firstHtml).toContain(`/admin/api-keys/${id}/delete`);
+      expect(firstHtml).toContain(`href="/admin/api-keys/${id}"`);
+      expect(firstHtml).toContain(`href="/admin/api-keys/${id}/actions"`);
+      expect(firstHtml).not.toContain(`/admin/api-keys/${id}/delete`);
       expect(firstHtml).toContain("Never");
 
-      // Once used, the manage page renders the formatted last-used date.
+      // Once used, the summary renders the formatted last-used date.
       await touchApiKeyLastUsed(id);
       const second = await handleRequest(
         mockRequest(`/admin/api-keys/${id}`, { headers: { cookie } }),
       );
       const secondHtml = await second.text();
       expect(secondHtml).not.toContain("Never");
+    });
+
+    test("GET /admin/api-keys/:id/actions shows the delete action", async () => {
+      const { id } = await createTestApiKeyFull("Managed Key");
+      const cookie = await testCookie();
+
+      const response = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}/actions`, { headers: { cookie } }),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(`href="/admin/api-keys/${id}/delete"`);
+      expect(html).toContain(`href="/admin/api-keys/${id}"`);
+      expect(html).toContain(`href="/admin/api-keys/${id}/actions"`);
+    });
+
+    test("GET /admin/api-keys/:id rejects an unknown tab", async () => {
+      const { id } = await createTestApiKeyFull("Managed Key");
+      const cookie = await testCookie();
+
+      const response = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}/unknown`, { headers: { cookie } }),
+      );
+
+      expect(response.status).toBe(404);
+    });
+
+    test("read-only mode keeps the summary but hides the actions tab", async () => {
+      using _env = withEnv({
+        READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+      });
+      const { id } = await createTestApiKeyFull("Read-only Key");
+      const cookie = await testCookie();
+
+      const summary = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}`, { headers: { cookie } }),
+      );
+      const actions = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}/actions`, { headers: { cookie } }),
+      );
+
+      expect(summary.status).toBe(200);
+      expect(await summary.text()).not.toContain(
+        `href="/admin/api-keys/${id}/actions"`,
+      );
+      expect(actions.status).toBe(404);
     });
 
     test("GET /admin/api-keys/:id returns 404 for a nonexistent key", async () => {

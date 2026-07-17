@@ -7,6 +7,7 @@ import { userAgents } from "#shared/db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#shared/db/users.ts";
 import { expectHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -62,9 +63,58 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     const { userId } = await vanWithAssignedAgent("umanage", "drivermanage");
 
     await expectHtml(await adminGet(`/admin/users/${userId}`), {
-      contains: ["drivermanage", "Van 1", `/admin/users/${userId}/agents`],
+      contains: [
+        "drivermanage",
+        "Van 1",
+        'class="entity-tabs"',
+        `href="/admin/users/${userId}"`,
+        `href="/admin/users/${userId}/agents"`,
+        `href="/admin/users/${userId}/actions"`,
+      ],
       status: 200,
     });
+  });
+
+  test("the Actions tab offers deletion for another user", async () => {
+    const { userId } = await vanWithAssignedAgent("uactions", "driveractions");
+
+    await expectHtml(await adminGet(`/admin/users/${userId}/actions`), {
+      contains: [`href="/admin/users/${userId}/delete"`],
+      status: 200,
+    });
+  });
+
+  test("the manage page hides agent assignment for a non-agent user", async () => {
+    const html = await (await adminGet("/admin/users/1")).text();
+    expect(html).not.toContain("/admin/users/1/agents");
+  });
+
+  test("the manage page hides deleting the current user", async () => {
+    const html = await (await adminGet("/admin/users/1")).text();
+    expect(html).not.toContain("/admin/users/1/delete");
+  });
+
+  test("the manage page hides write routes in read-only mode", async () => {
+    const { userId } = await vanWithAssignedAgent(
+      "uareadonly",
+      "driverreadonly",
+    );
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+
+    const html = await (await adminGet(`/admin/users/${userId}`)).text();
+    expect(html).not.toContain(`/admin/users/${userId}/agents`);
+    expect(html).not.toContain(`/admin/users/${userId}/delete`);
+  });
+
+  test("the agent assignment page is unavailable in read-only mode", async () => {
+    const { userId } = await vanWithAssignedAgent(
+      "uareadonlytab",
+      "driverreadonlytab",
+    );
+    using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+
+    const response = await adminGet(`/admin/users/${userId}/agents`);
+    expectRedirect(response, "/read-only");
   });
 
   test("the edit-agents page renders the agent's checkboxes", async () => {
@@ -93,7 +143,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
   test("editing agents for a non-agent user is rejected", async () => {
     // User 1 is the owner created during setup — not a delivery agent.
     const response = await adminGet("/admin/users/1/agents");
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(404);
   });
 
   test("editing agents for a missing user is a 404", async () => {

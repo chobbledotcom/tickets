@@ -1,8 +1,3 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
-/**
- * Admin price-modifier management routes — accessible to owners and managers.
- */
-
 /* jscpd:ignore-start */
 import { once } from "#fp";
 import { t } from "#i18n";
@@ -11,16 +6,16 @@ import {
   createRecalculatePageRenderer,
   parseEditableAggregateForm,
 } from "#routes/admin/aggregate-recalculation.ts";
+import {
+  type EntityPage,
+  entityEditErrorRenderer,
+} from "#routes/admin/entity-pages.ts";
+import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
+import { handlersFor } from "#routes/admin/handlers.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { modifierAccount } from "#shared/accounting/accounts.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
@@ -73,9 +68,10 @@ import type {
 } from "#templates/admin/modifiers/links.tsx";
 import {
   adminModifierDeletePage,
-  adminModifierEditPage,
   adminModifierNewPage,
   adminModifiersPage,
+  ModifierEditPanel,
+  ModifiersGuideFooter,
 } from "#templates/admin/modifiers/pages.tsx";
 import { getModifierAggregateFields } from "#templates/fields/aggregate.ts";
 import {
@@ -118,10 +114,6 @@ const extractModifierAggregateValues = (
   usage_count: values.usage_count,
 });
 
-/** Resolve an opt-in add-on's would-be listing scope to ids the booking page
- * would actually load it from: `"listings"` keeps its directly-linked ids,
- * `"groups"` expands to every listing in the linked groups (matching the booking
- * page's resolution), and a whole-order scope is `null` (reachable everywhere). */
 const resolveAddOnScope = (
   scope: ModifierScope | undefined,
   listingIds: number[],
@@ -133,9 +125,6 @@ const resolveAddOnScope = (
   return null;
 };
 
-/** The post-save trigger/active/scope of an opt-in add-on, with its would-be
- * links (submitted ids on a scope save, stored ids on a field edit/create). A
- * missing `scope` is whole-order, like the stored default. */
 type AddOnSaveCandidate = {
   active: boolean;
   trigger: ModifierTrigger;
@@ -145,14 +134,6 @@ type AddOnSaveCandidate = {
   groupIds: number[];
 };
 
-/**
- * The error to block an opt-in add-on save (scope/trigger/active edit or scope
- * links) that would leave the add-on reachable **only** through a suppressed
- * child listing, or null when allowed. Resolves the would-be scope to listing
- * ids, then defers to the shared reachability core
- * ({@link childUnreachableAddOnError}) so this modifier-side block and the
- * parent-edge block can't diverge.
- */
 const childAddOnSaveError = async (
   candidate: AddOnSaveCandidate,
 ): Promise<string | null> => {
@@ -189,10 +170,6 @@ const childAddOnSaveError = async (
   );
 };
 
-/** The child-reachability error for a create/edit through the modifier resource:
- * its trigger/active/scope come from the submitted input, while its links are the
- * stored ones (a field edit never touches them; a create has none yet). Skipped
- * unless the input is a complete opt-in add-on. */
 const childAddOnInputError = async (
   input: ModifierInput,
   id: number | undefined,
@@ -214,13 +191,6 @@ const childAddOnInputError = async (
   });
 };
 
-/** The value error for a modifier: the kind-aware magnitude/sign rules
- * ({@link validateCalcValue}), plus a currency-precision guard for a fixed
- * amount — it's a currency value (converted major→minor when the modifier
- * resolves), so an over-precise amount is rejected rather than letting
- * `toMinorUnits` silently round it at apply time. A percentage or multiplier is
- * not a currency amount, so it keeps its precision. Null when the value is
- * valid. */
 const modifierValueError = (kind: CalcKind, value: number): string | null => {
   const valueError = validateCalcValue(kind, value);
   if (valueError) return valueError;
@@ -229,10 +199,6 @@ const modifierValueError = (kind: CalcKind, value: number): string | null => {
     : null;
 };
 
-/** Validate rules that span multiple modifier fields, then — when the parents
- * feature is on — block an opt-in add-on whose would-be scope is reachable only
- * through a suppressed child listing. Choice membership is enforced by the form
- * schema before this input is built. */
 const validateModifier = (
   input: ModifierInput,
   id?: number,
@@ -256,14 +222,9 @@ const validateModifier = (
   return childAddOnInputError(input, id);
 };
 
-/** The kind-aware `calc_value` check, run on the validated form values before
- * they are converted to a {@link ModifierInput}. */
 const modifierValuesError = (values: ModifierFormValues): string | null =>
   modifierValueError(values.calc_kind, values.calc_value);
 
-// Built lazily on first use (never at module load), so `getModifierForm()` —
-// whose picklist option labels resolve through `t()` — stays off the admin
-// routes' cold-start path. `once` caches the resource after the first build.
 const getModifiersResource = once(() =>
   defineNamedResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
     form: getModifierForm(),
@@ -275,23 +236,6 @@ const getModifiersResource = once(() =>
   }),
 );
 
-// The list renders the projected total_revenue (Display = Modifier from
-// getAllModifiers), while the resource and the delete page load the stored row
-// (Row = ModifierRow). The edit GET/POST are served by the projection-aware
-// handleEditGet/handleEditPost below, so this CRUD config omits renderEdit.
-const crud = createCrudHandlers({
-  getAll: getAllModifiers,
-  getName: (m: ModifierRow) => m.name,
-  listPath: "/admin/modifiers",
-  renderDelete: adminModifierDeletePage,
-  renderList: adminModifiersPage,
-  renderNew: adminModifierNewPage,
-  resource: getModifiersResource,
-  singular: "Modifier",
-});
-
-/** The candidate listings/groups + current links for the scope editor, or null
- * when the modifier applies to the whole order (no links to manage). */
 const scopeLinksFor = async (
   modifier: Modifier,
 ): Promise<ScopeLinks | null> => {
@@ -319,9 +263,6 @@ const scopeLinksFor = async (
   return null;
 };
 
-/** The candidate answers + current links for an "answer"-triggered modifier's
- * editor, or null otherwise. Options are flattened across every question so the
- * owner can wire several answers (across questions) to one pricing modifier. */
 const answerLinksFor = async (
   modifier: Modifier,
 ): Promise<AnswerLinks | null> => {
@@ -338,8 +279,6 @@ const answerLinksFor = async (
   };
 };
 
-const withModifier = withEntityLoader(getModifier);
-
 const loadModifierLedgerForSession = (
   session: { adminLevel: string },
   modifier: Modifier,
@@ -348,33 +287,63 @@ const loadModifierLedgerForSession = (
   return loadAccountLedger(modifierAccount(modifier.id));
 };
 
-/** Edit page with the scope link editor (listing/group-scoped modifiers) and
- * the answer link editor (answer-triggered modifiers). */
-const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
-  request,
-  { id },
-) =>
-  requireSessionOr(request, (session) =>
-    withModifier(id)(async (modifier) => {
-      const flash = applyFlash(request);
-      const [links, answerLinks, ledger] = await Promise.all([
-        scopeLinksFor(modifier),
-        answerLinksFor(modifier),
-        loadModifierLedgerForSession(session, modifier),
-      ]);
-      return htmlResponse(
-        adminModifierEditPage(
-          modifier,
-          session,
-          flash.error,
-          links,
-          flash.success,
-          answerLinks,
-          ledger,
-        ),
-      );
-    }),
-  );
+const loadModifierEditPanel = async (
+  modifier: Modifier,
+  session: { adminLevel: string },
+  error?: string,
+  values?: Record<string, string | number | null>,
+): Promise<JSX.Element> => {
+  const [links, answerLinks, ledger] = await Promise.all([
+    scopeLinksFor(modifier),
+    answerLinksFor(modifier),
+    loadModifierLedgerForSession(session, modifier),
+  ]);
+  return ModifierEditPanel({
+    answerLinks,
+    links,
+    modifier,
+    ...(error ? { error } : {}),
+    ...(ledger ? { ledger } : {}),
+    ...(values ? { values } : {}),
+  });
+};
+
+const modifierPage: EntityPage<Modifier> = defineEditEntityPage({
+  basePath: (id) => `/admin/modifiers/${id}`,
+  deleteLabelKey: "modifiers.delete.submit",
+  edit: (modifier, ctx) => loadModifierEditPanel(modifier, ctx.session),
+  guard: requireSessionOr,
+  guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
+  load: (id) => getModifier(id),
+  navActive: { section: "/admin/modifiers" },
+});
+
+const renderModifierEditError = entityEditErrorRenderer(
+  () => modifierPage,
+  (modifier, ctx, form, error) =>
+    loadModifierEditPanel(
+      modifier,
+      ctx.session,
+      error,
+      Object.fromEntries(form.entries()),
+    ),
+);
+
+// The list and entity page load the ledger-projected Modifier; writes and the
+// delete confirmation use the stored ModifierRow.
+const crud = createCrudHandlers({
+  getAll: getAllModifiers,
+  getName: (m: ModifierRow) => m.name,
+  listPath: "/admin/modifiers",
+  renderDelete: adminModifierDeletePage,
+  renderEditError: renderModifierEditError,
+  renderList: adminModifiersPage,
+  renderNew: adminModifierNewPage,
+  resource: getModifiersResource,
+  singular: "Modifier",
+});
+
+const withModifier = withEntityLoader(getModifier);
 
 const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   request,
@@ -388,7 +357,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
       ModifierAggregateValues
     >(form, getModifierAggregateFields(), extractModifierAggregateValues);
     if (!aggregates.ok) {
-      return errorRedirect(`/admin/modifiers/${id}/edit`, aggregates.error);
+      return renderModifierEditError(id, _session, form, aggregates.error);
     }
     const result = await getModifiersResource().update(id, form);
     if (result.ok) {
@@ -399,7 +368,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
       return redirect("/admin/modifiers", "Modifier updated", true);
     }
     if ("notFound" in result) return notFoundResponse();
-    return errorRedirect(`/admin/modifiers/${id}/edit`, result.error);
+    return renderModifierEditError(id, _session, form, result.error);
   });
 
 /**
@@ -541,9 +510,11 @@ const handleAnswerLinks: TypedRouteHandler<
 /** Modifier routes */
 export const adminHandlers = handlersFor("modifiers")({
   getModifiers: crud.listGet,
+  getModifiersById: (request, { id }) =>
+    modifierPage.renderTab(request, id, ""),
+  getModifiersByIdByTab: (request, { id, tab }) =>
+    modifierPage.renderTab(request, id, tab),
   getModifiersByIdDelete: crud.deleteGet,
-
-  getModifiersByIdEdit: handleEditGet,
   getModifiersNew: crud.newGet,
   getModifiersRecalculateByModifierId: handleModifierRecalculateGet,
   postModifiers: crud.createPost,

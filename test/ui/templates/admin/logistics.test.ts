@@ -4,8 +4,8 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession, LogisticsAgent } from "#shared/types.ts";
 import {
   type AgentUserOption,
-  adminLogisticsAgentEditPage,
   adminLogisticsPage,
+  LogisticsAgentEditPanel,
   logisticsAgentPages,
 } from "#templates/admin/logistics.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -25,9 +25,14 @@ beforeAll(async () => {
   await signCsrfToken();
 });
 
-describe("adminLogisticsAgentEditPage", () => {
+describe("LogisticsAgentEditPanel", () => {
+  const renderPanel = (
+    selectedUserIds: ReadonlySet<number> = new Set(),
+  ): string =>
+    String(LogisticsAgentEditPanel({ agent, selectedUserIds, users }));
+
   test("groups the form into agent-details and assigned-users fieldsets", () => {
-    const html = adminLogisticsAgentEditPage(agent, users, new Set(), session);
+    const html = renderPanel();
     expect(html).toContain("<legend>Agent details</legend>");
     expect(html).toContain("<legend>Assigned users</legend>");
     expect(html).toContain("Van 1");
@@ -38,34 +43,50 @@ describe("adminLogisticsAgentEditPage", () => {
   });
 
   test("explains that agent-class users only see the deliveries page", () => {
-    const html = adminLogisticsAgentEditPage(agent, users, new Set(), session);
+    const html = renderPanel();
     expect(html).toContain(
       "Agent-class users can only see the deliveries page",
     );
   });
 
   test("lists every user class as an assignable checkbox", () => {
-    const html = adminLogisticsAgentEditPage(agent, users, new Set(), session);
+    const html = renderPanel();
     expect(html).toContain('name="user_ids"');
     expect(html).toContain("driver (agent)");
     expect(html).toContain("boss (manager)");
   });
 
   test("pre-checks the users already assigned to the agent", () => {
-    const html = adminLogisticsAgentEditPage(
-      agent,
-      users,
-      new Set([2]),
-      session,
-    );
+    const html = renderPanel(new Set([2]));
     // The assigned user's checkbox is checked; the unassigned one is not.
     expect(html).toMatch(/value="2"[^>]*checked|checked[^>]*value="2"/);
     expect(html).not.toMatch(/value="1"[^>]*checked|checked[^>]*value="1"/);
   });
 
   test("shows a placeholder when there are no users to assign", () => {
-    const html = adminLogisticsAgentEditPage(agent, [], new Set(), session);
+    const html = String(
+      LogisticsAgentEditPanel({
+        agent,
+        selectedUserIds: new Set(),
+        users: [],
+      }),
+    );
     expect(html).toContain("No users to assign yet.");
+  });
+
+  test("renders submitted values and an error", () => {
+    const html = String(
+      LogisticsAgentEditPanel({
+        agent,
+        error: "Agent Name is required",
+        selectedUserIds: new Set([1]),
+        users,
+        values: { name: "Submitted van" },
+      }),
+    );
+    expect(html).toContain('value="Submitted van"');
+    expect(html).toContain("Agent Name is required");
+    expect(html).toMatch(/value="1"[^>]*checked|checked[^>]*value="1"/);
   });
 });
 
@@ -112,7 +133,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     expect(html).toContain('href="/admin/guide#logistics"');
     expect(html).toContain("Logistics guide");
     expect(html).toContain("Logistics Agents");
-    expect(html).toContain('href="/admin/logistics/7/edit"');
+    expect(html).toContain('href="/admin/logistics/7"');
   });
 
   test("renders a row per agent and marks enabled logistics active", async () => {
@@ -121,7 +142,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
 
     expect(html).toContain("Logistics Agents");
     expect(html).toContain("Agents (e.g. vans, drivers, or crew)");
-    expect(html).toContain('href="/admin/logistics/7/edit"');
+    expect(html).toContain('href="/admin/logistics/7"');
     expect(html).toContain("Van 1");
     // The inline add form, its section fieldset and the add (plus) button.
     expect(html).toContain('action="/admin/logistics"');
@@ -140,6 +161,6 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     expect(html).toContain("Logistics Agents");
     expect(html).toContain("No logistics agents yet.");
     // No agent rows are rendered.
-    expect(html).not.toContain('href="/admin/logistics/7/edit"');
+    expect(html).not.toContain('href="/admin/logistics/7"');
   });
 });

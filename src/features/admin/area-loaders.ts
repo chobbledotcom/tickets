@@ -283,7 +283,7 @@ export const ADMIN_AREA_LOADERS: Record<AdminAreaId, AdminAreaLoader> = {
   ),
   settingsLogistics: area(
     () => import("#routes/admin/settings-logistics.ts"),
-    ["logistics", "settings", "users", "validation"],
+    ["entity-pages", "logistics", "settings", "users", "validation"],
   ),
   settingsStatuses: area(
     () => import("#routes/admin/settings-statuses.ts"),

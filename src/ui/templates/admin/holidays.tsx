@@ -10,22 +10,20 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
-import { CsrfForm, entityToFieldValues, Flash } from "#shared/forms.tsx";
+import { entityToFieldValues } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
+import { editPanel } from "#templates/admin/admin-page.tsx";
 import {
   defineAdminResourcePages,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
-import {
-  ActionButton,
-  GuideFooter,
-  SaveChangesButton,
-} from "#templates/components/actions.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
   type DataColumn,
   dataTable,
 } from "#templates/components/data-table.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { getHolidayForm } from "#templates/fields/admin.ts";
 
 /* jscpd:ignore-end */
@@ -71,17 +69,17 @@ export const HolidayEditPanel = ({
   holiday: Holiday;
   error?: string;
   values?: HolidayRenderValues;
-}): JSX.Element => (
-  <>
-    <Flash error={error} />
-    <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
+}): JSX.Element =>
+  editPanel(error)(
+    <SaveForm
+      action={`/admin/holidays/${holiday.id}/edit`}
+      submitLabel={t("common.save_changes")}
+    >
       <Raw
         html={getHolidayForm().render(values ?? holidayToFieldValues(holiday))}
       />
-      {SaveChangesButton()}
-    </CsrfForm>
-  </>
-);
+    </SaveForm>,
+  );
 
 export const getHolidayPages = (): ReturnType<
   typeof defineAdminResourcePages<Holiday>
@@ -114,8 +112,6 @@ export const getHolidayPages = (): ReturnType<
       deleteButton: t("holidays.delete.submit"),
       deleteLabel: t("holidays.delete.confirm_label"),
       deleteTitle: t("holidays.delete.heading"),
-      editHeading: t("holidays.edit.heading"),
-      editTitle: t("holidays.edit.title"),
       listTitle: t("terms.holidays"),
     },
     list: {

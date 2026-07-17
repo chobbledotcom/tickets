@@ -3,7 +3,7 @@ import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";
-import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { NewTabUrl } from "#templates/components/new-tab-link.tsx";
@@ -45,9 +45,7 @@ const BuiltSitesTable = ({
         "built_sites.table_read_only",
       )}
       rows={sites.map((site) => [
-        <WritableLink href={`/admin/built-sites/${site.id}/edit`}>
-          {site.name}
-        </WritableLink>,
+        <a href={`/admin/built-sites/${site.id}`}>{site.name}</a>,
         <NewTabUrl url={site.siteUrl} />,
         site.assignedAttendeeId
           ? t("built_sites.status_assigned", { id: site.assignedAttendeeId })

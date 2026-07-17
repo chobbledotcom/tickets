@@ -13,17 +13,17 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
-import { DeleteSection, GuideFooter } from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
-import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
-type ApiKeyDisplay = {
+export type ApiKeyDisplay = {
   id: number;
   name: string;
   created: string;
@@ -39,6 +39,12 @@ const lastUsedCell = (apiKey: ApiKeyDisplay): string =>
 /** Render a created date as a locale-formatted date string. */
 const createdCell = (apiKey: ApiKeyDisplay): string =>
   new Date(apiKey.created).toLocaleDateString();
+
+/** The read-only fields shown on one API key's Overview tab. */
+export const apiKeySummaryRows = (apiKey: ApiKeyDisplay): SummaryRow[] => [
+  { labelKey: "common.created", value: createdCell(apiKey) },
+  { labelKey: "api_keys.col.last_used", value: lastUsedCell(apiKey) },
+];
 
 /** The success/error flash shown at the top of a page, read from its opts. */
 const OptsFlash = ({
@@ -133,44 +139,6 @@ export const adminApiKeysPage = (
     </>,
   );
 };
-
-/**
- * Per-key management page — the destination for the name link in the API keys
- * table. API keys aren't editable, so this read-only summary exists mainly to
- * host the delete action (moved off the table and behind a typed-name
- * confirmation).
- */
-export const adminApiKeyManagePage = (
-  apiKey: ApiKeyDisplay,
-  session: AdminSession,
-  opts: { error?: string | undefined; success?: string | undefined } = {},
-): string =>
-  apiKeysShell(
-    session,
-    `${t("api_keys.title")}: ${apiKey.name}`,
-    <>
-      <h1>{apiKey.name}</h1>
-      <OptsFlash opts={opts} />
-      <DetailTable>
-        <tr>
-          <th>{t("common.created")}</th>
-          <td>{createdCell(apiKey)}</td>
-        </tr>
-        <tr>
-          <th>{t("api_keys.col.last_used")}</th>
-          <td>{lastUsedCell(apiKey)}</td>
-        </tr>
-      </DetailTable>
-      <WritableOnly>
-        <DeleteSection
-          heading={t("common.delete")}
-          href={`/admin/api-keys/${apiKey.id}/delete`}
-        >
-          {t("api_keys.delete_submit")}
-        </DeleteSection>
-      </WritableOnly>
-    </>,
-  );
 
 /**
  * Admin API key delete confirmation page

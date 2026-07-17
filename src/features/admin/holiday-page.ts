@@ -4,12 +4,8 @@
  */
 
 /* jscpd:ignore-start */
-import {
-  defineEntityPage,
-  deleteActionTab,
-  type EntityPage,
-} from "#routes/admin/entity-pages.ts";
-import { writeFormTab } from "#routes/admin/entity-write-tab.ts";
+import type { EntityPage } from "#routes/admin/entity-pages.ts";
+import { defineEditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import type { Holiday } from "#shared/types.ts";
@@ -17,21 +13,11 @@ import { HolidayEditPanel } from "#templates/admin/holidays.tsx";
 
 /* jscpd:ignore-end */
 
-const actionsTab = deleteActionTab<Holiday>(
-  "holidays.delete.submit",
-  (holiday) => `/admin/holidays/${holiday.id}/delete`,
-);
-
-export const holidayPage: EntityPage<Holiday> = defineEntityPage({
+export const holidayPage: EntityPage<Holiday> = defineEditEntityPage({
   basePath: (id) => `/admin/holidays/${id}`,
+  deleteLabelKey: "holidays.delete.submit",
+  edit: (holiday) => Promise.resolve(HolidayEditPanel({ holiday })),
   guard: requireOwnerOr,
   load: (id) => holidays.table.findById(id),
   navActive: "/admin/holidays",
-  tabs: [
-    writeFormTab("edit", "entity.tab.edit", (holiday) =>
-      Promise.resolve(HolidayEditPanel({ holiday })),
-    ),
-    actionsTab,
-  ],
-  titleOf: (holiday) => holiday.name,
 });

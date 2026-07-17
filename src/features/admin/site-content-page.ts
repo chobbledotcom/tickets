@@ -7,7 +7,6 @@
 
 /* jscpd:ignore-start */
 import {
-  customTab,
   defineEntityPage,
   deleteActionTab,
   type EntityPage,
@@ -17,6 +16,7 @@ import { requireSiteOr } from "#routes/auth.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { ImageUseItemType } from "#shared/types.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
+import { writeFormTab } from "./entity-write-tab.ts";
 import { loadItemImagesPanel } from "./item-images.ts";
 
 /* jscpd:ignore-end */
@@ -49,25 +49,16 @@ export interface SiteContentPageDef<E extends { id: number }> {
 export const defineSiteContentPage = <E extends { id: number }>(
   def: SiteContentPageDef<E>,
 ): EntityPage<E> => {
-  const editTab = customTab<E>({
-    intent: "write-form",
-    labelKey: "entity.tab.edit",
-    load: (entity) => Promise.resolve(def.editPanel(entity)),
-    slug: "edit",
-  });
-  const imagesTab: TabDef<E> = {
-    intent: "write-form",
-    labelKey: "entity.tab.images",
-    sections: [
-      {
-        kind: "custom",
-        load: (entity) =>
-          loadItemImagesPanel(def.itemType, entity.id, def.basePath(entity.id)),
-      },
-    ],
-    slug: "images",
-    visible: imagesVisible,
-  };
+  const editTab = writeFormTab<E>("edit", "entity.tab.edit", (entity) =>
+    Promise.resolve(def.editPanel(entity)),
+  );
+  const imagesTab = writeFormTab<E>(
+    "images",
+    "entity.tab.images",
+    (entity) =>
+      loadItemImagesPanel(def.itemType, entity.id, def.basePath(entity.id)),
+    imagesVisible,
+  );
   // Delete is the only action, and the delete confirmation GET is itself
   // blocked in read-only mode (READ_ONLY_GET_PATTERNS), so the shared helper
   // makes the whole tab write-only.

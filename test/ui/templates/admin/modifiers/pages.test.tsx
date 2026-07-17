@@ -3,10 +3,8 @@ import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
-import { account } from "#shared/ledger/account.ts";
 import {
   adminModifierDeletePage,
-  adminModifierEditPage,
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
@@ -92,116 +90,6 @@ describe("adminModifierNewPage", () => {
     expect(html).toContain("/icons.svg#plus");
     // The create page marks the Modifiers section active in the admin nav.
     expect(html).toContain('<a class="active" href="/admin/modifiers">');
-  });
-});
-
-describe("adminModifierEditPage", () => {
-  test("renders the edit form pre-filled with the modifier and its actions", () => {
-    const html = adminModifierEditPage(
-      mod({
-        min_visits: 2,
-        name: "Loyalty",
-        total_revenue: 2500,
-        total_uses: 7,
-        usage_count: 3,
-      }),
-      SESSION,
-    );
-    expect(html).toContain("Edit Modifier");
-    expect(html).toContain("Loyalty");
-    expect(html).toContain('value="10"');
-    expect(html).toContain("Running totals");
-    expect(html).toContain("/admin/modifiers/recalculate/1");
-    expect(html).toContain('name="min_visits"');
-    expect(html).toContain('value="2"');
-    expect(html).toContain("Delete Modifier");
-    // The delete action is a danger link inside the page's actions row.
-    expect(html).toContain(
-      '<p class="actions"><a class="danger" href="/admin/modifiers/1/delete">',
-    );
-    expect(html).toContain("/admin/guide#modifiers");
-    expect(html).toContain('<a class="active" href="/admin/modifiers">');
-  });
-
-  test("renders the separate revenue-correction form", () => {
-    const html = adminModifierEditPage(
-      mod({ name: "Loyalty", total_revenue: 2500 }),
-      SESSION,
-    );
-    expect(html).toContain("<h2>Adjust revenue</h2>");
-    expect(html).toContain('action="/admin/modifiers/1/revenue"');
-    expect(html).toContain('name="total_revenue"');
-    expect(html).toContain("This adds a correction to Money.");
-  });
-
-  test("shows a modifier ledger add-entry action only when a ledger is passed", () => {
-    const withLedger = adminModifierEditPage(
-      mod({ id: 1, name: "Helmet hire" }),
-      SESSION,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      {
-        account: account("modifier", 1),
-        lines: [],
-        names: {
-          attendees: new Map(),
-          listings: new Map(),
-          modifiers: new Map([[1, "Helmet hire"]]),
-        },
-      },
-    );
-    expect(withLedger).toContain("Add money change");
-    expect(withLedger).toContain(
-      'href="/admin/ledger/modifier/1/add?return_url=%2Fadmin%2Fmodifiers%2F1%2Fedit"',
-    );
-    // No ledger passed → no embedded statement section.
-    expect(adminModifierEditPage(mod({ id: 1 }), SESSION)).not.toContain(
-      "Add money change",
-    );
-  });
-
-  test("renders the trigger 'code' option and labelled promo-code field", () => {
-    const html = adminModifierEditPage(mod(), SESSION);
-    expect(html).toContain('<option value="code">Promo code</option>');
-    expect(html).toContain('<label>Promo code<input name="code"');
-  });
-
-  test("wires in the scope editor only when scope links are passed", () => {
-    const scoped = adminModifierEditPage(
-      mod({ scope: "listings" }),
-      SESSION,
-      undefined,
-      {
-        kind: "listings",
-        options: [{ active: true, id: 7, name: "VIP Pass" }],
-        selected: [7],
-      },
-    );
-    expect(scoped).toContain("Linked listings");
-    expect(scoped).toContain("VIP Pass");
-    // A whole-order modifier passes no links → no scope editor.
-    const unscoped = adminModifierEditPage(mod(), SESSION);
-    expect(unscoped).not.toContain("Linked listings");
-    expect(unscoped).not.toContain("Linked groups");
-  });
-
-  test("wires in the answer editor only when answer links are passed", () => {
-    const answered = adminModifierEditPage(
-      mod({ trigger: "answer" }),
-      SESSION,
-      undefined,
-      null,
-      undefined,
-      { options: [{ id: 10, name: "Size — Large" }], selected: [10] },
-    );
-    expect(answered).toContain("Linked answers");
-    expect(answered).toContain("Size — Large");
-    // No answer links → no answer editor.
-    expect(adminModifierEditPage(mod(), SESSION)).not.toContain(
-      "Linked answers",
-    );
   });
 });
 

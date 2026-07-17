@@ -226,9 +226,20 @@ export const successAdminPage = adminOpenerFor((success?: string) =>
  *  returns a function taking (session, error) and producing a page-body
  *  receiver. Renders an error Flash when error is set; otherwise no Flash.
  *  Used by the holiday/logistics edit pages. */
-export const errorAdminPage = adminOpenerFor((error?: string) =>
-  error === undefined ? null : <Flash error={error} />,
-);
+export const errorFlash = (error?: string): JSX.Element | null =>
+  error === undefined ? null : <Flash error={error} />;
+
+/** Wrap an entity edit panel with its optional rejected-form error. */
+export const editPanel =
+  (error?: string) =>
+  (children: Child): JSX.Element => (
+    <>
+      {errorFlash(error)}
+      {children}
+    </>
+  );
+
+export const errorAdminPage = adminOpenerFor(errorFlash);
 
 /** Dashboard admin opener: takes the page title (and optional `active`),
  *  returns a function taking (session, error, success) and producing a

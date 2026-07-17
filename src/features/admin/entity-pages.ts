@@ -211,12 +211,12 @@ const loadSection = async <E>(
 };
 
 /** Options for {@link EntityPage.renderPage}: an HTTP status (400 for
- * failure re-renders) and an optional replacement for the active tab's
- * sections (the failing form, submitted values and errors intact). */
+ * failure re-renders) and an optional replacement panel for the active tab
+ * (the failing form, submitted values and errors intact). */
 export interface RenderPageOpts<E> {
   baseUrl?: string;
+  panel?: SlotLoader<E>;
   query?: URLSearchParams;
-  sections?: (entity: E, ctx: PageCtx) => Promise<LoadedSection[]>;
   status?: number;
 }
 
@@ -278,8 +278,8 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
       tabHref: (slug) => path(id, slug),
     };
     const sections: LoadedSection[] = [];
-    if (opts.sections) {
-      sections.push(...(await opts.sections(entity, ctx)));
+    if (opts.panel) {
+      sections.push({ html: await opts.panel(entity, ctx), kind: "custom" });
     } else {
       for (const section of active.sections) {
         sections.push(await loadSection(section, entity, ctx));
@@ -328,16 +328,6 @@ export const customSection = <E>(load: SlotLoader<E>): Section<E> => ({
   load,
 });
 
-/** A tab whose single section renders custom markup (an Edit / Images / panel
- * tab). Takes the same fields as a tab but a `load` in place of `sections`, so
- * callers pass only what differs. */
-export const customTab = <E>(
-  config: Omit<TabDef<E>, "sections"> & { load: SlotLoader<E> },
-): TabDef<E> => {
-  const { load, ...tab } = config;
-  return { ...tab, sections: [customSection(load)] };
-};
-
 /** The standard write-only Actions tab for an entity whose only action is a
  * type-the-name delete confirmation. */
 export const deleteActionTab = <E>(
@@ -364,23 +354,38 @@ export const deleteActionTab = <E>(
   slug: "actions",
 });
 
+type ErrorPanel<E, Values> = (
+  entity: E,
+  ctx: PageCtx,
+  values: Values,
+  error: string,
+) => JSX.Element | Promise<JSX.Element>;
+
+const makeEditErrorRenderer =
+  <Values>(valuesFrom: (form: FormParams) => Values) =>
+  <E, Id extends EntityId>(
+    getPage: () => EntityPage<E, Id>,
+    panel: ErrorPanel<E, Values>,
+  ): EditErrorRenderer<Id> =>
+  (id, session, form, error) => {
+    const values = valuesFrom(form);
+    return getPage().renderPage(session, id, "edit", {
+      panel: (entity, ctx) =>
+        Promise.resolve(panel(entity, ctx, values, error)),
+      status: 400,
+    });
+  };
+
 /** Build the rejected-edit renderer expected by the CRUD factories. The
  * entity-specific callback only builds its panel from the loaded row, submitted
  * form, and error; this helper supplies the tab shell and status 400. */
-export const entityEditErrorRenderer =
-  <E, Id extends EntityId = number>(
-    getPage: () => EntityPage<E, Id>,
-    panel: (
-      entity: E,
-      ctx: PageCtx,
-      form: FormParams,
-      error: string,
-    ) => JSX.Element | Promise<JSX.Element>,
-  ): EditErrorRenderer<Id> =>
-  (id, session, form, error) =>
-    getPage().renderPage(session, id, "edit", {
-      sections: async (entity, ctx) => [
-        { html: await panel(entity, ctx, form, error), kind: "custom" },
-      ],
-      status: 400,
-    });
+export const entityEditErrorRenderer = makeEditErrorRenderer(
+  (form: FormParams) => form,
+);
+
+/** Rejected-edit renderer for ordinary schema forms whose panel only needs the
+ * submitted values and error. */
+export const entityValuesEditErrorRenderer = makeEditErrorRenderer(
+  (form: FormParams): Record<string, string> =>
+    Object.fromEntries(form.entries()),
+);

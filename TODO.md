@@ -138,7 +138,7 @@ generalized passes: render, fold, price, capacity, revalidate.
 
 ---
 
-## Entity pages migration — slices 3–5
+## Entity pages migration — slices 4–5
 
 *Origin: `edit-pages.md`.*
 
@@ -156,17 +156,16 @@ re-rendering. Migration is deliberately gradual and hardest-first.
 - Listings: `src/features/admin/listing-page.ts` (slice 2).
 - Groups: `src/features/admin/group-page.ts` (part of slice 4).
 - Holidays: `src/features/admin/holiday-page.ts` (part of slice 4).
+- Modifiers: `src/features/admin/modifiers.ts` (slice 3).
+- Users, built sites, and attendee statuses (part of slice 4).
+- API keys and logistics agents also use the framework.
 - Site pages and news also use the framework through
   `src/features/admin/site-content-page.ts`.
 
 **Remaining slices (each is roughly one PR; keep them small):**
 
-- **Slice 3 — Modifiers.** The third copy of the composition
-  (`src/features/admin/modifiers.ts`). Migrating it validates the framework
-  generalizes.
-- **Slice 4 — the long tail.** Users, questions, built-sites,
-  attendee-statuses, and `history/:hmac` remain — one focused PR each. Groups
-  and holidays are complete.
+- **Slice 4 — the long tail.** Questions and `history/:hmac` remain. Groups,
+  holidays, users, built sites, and attendee statuses are complete.
 - **Slice 5 — generalize `system_notes`** from attendee-only to
   `(entity_type, entity_id)` so any entity page can carry a notes section. The
   notes DB module currently has no `entity_type` column; this is a small

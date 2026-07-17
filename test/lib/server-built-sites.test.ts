@@ -16,9 +16,15 @@ import {
   deleteTestBuiltSite,
   updateTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
-import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  adminGet,
+  createTestManagerSession,
+  testCookie,
+} from "#test-utils/session.ts";
 
 const builtSitesTestEnv = {
   db: true,
@@ -51,11 +57,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         200,
         "My Site",
         "https://mysite.b-cdn.net",
-        `/admin/built-sites/${site.id}/edit`,
+        `/admin/built-sites/${site.id}`,
       );
-      // The site name links to the edit page; delete moved to that page.
       expect(html).toContain(
-        `href="/admin/built-sites/${site.id}/edit">My Site</a>`,
+        `href="/admin/built-sites/${site.id}">My Site</a>`,
       );
       expect(html).not.toContain(`/admin/built-sites/${site.id}/delete`);
     });
@@ -195,7 +200,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         site_url: "https://nodb.b-cdn.net",
       });
       await expectFlashRedirect(
-        "/admin/built-sites",
+        "/admin/built-sites/1",
         expect.stringContaining("created"),
       )(response);
     });
@@ -265,8 +270,8 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     });
   });
 
-  describe("GET /admin/built-sites/:id/edit", () => {
-    testRequiresAuth("/admin/built-sites/1/edit", {
+  describe("GET /admin/built-sites/:id/:tab", () => {
+    testRequiresAuth("/admin/built-sites/1", {
       setup: async () => {
         await createTestBuiltSite();
       },
@@ -278,32 +283,84 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         name: "Edit Me",
         siteUrl: "https://editme.b-cdn.net",
       });
-      const response = await adminGet(`/admin/built-sites/${site.id}/edit`);
+      const response = await adminGet(`/admin/built-sites/${site.id}`);
       await expectHtmlResponse(
         response,
         200,
-        "Edit Built Site",
         "Edit Me",
         "https://editme.b-cdn.net",
         "54321",
       );
     });
 
-    test("renders the Secrets and Delete sections", async () => {
+    test("renders tab links but only loads the active edit panel", async () => {
       const site = await createTestBuiltSite({
         hostingId: "8000",
         name: "Sections",
       });
-      const response = await adminGet(`/admin/built-sites/${site.id}/edit`);
-      const html = await expectHtmlResponse(response, 200, "Edit Built Site");
-      expect(html).toContain("Secrets");
+      const response = await adminGet(`/admin/built-sites/${site.id}`);
+      const html = await expectHtmlResponse(response, 200, "Sections");
+      expect(html).toContain(`/admin/built-sites/${site.id}/secrets`);
+      expect(html).toContain(`/admin/built-sites/${site.id}/actions`);
+      expect(html).not.toContain("Secrets status is unavailable");
+      expect(html).not.toContain(`/admin/built-sites/${site.id}/delete`);
+    });
+
+    test("loads renewal controls only on the renewal tab", async () => {
+      const site = await createTestBuiltSite({ name: "Renewal Tab" });
+      const response = await adminGet(`/admin/built-sites/${site.id}/renewal`);
+      const html = await expectHtmlResponse(response, 200, "Current deadline");
+      expect(html).toContain(`/admin/built-sites/${site.id}/bump-deadline`);
+      expect(html).not.toContain('name="site_url"');
+    });
+
+    test("loads delete only on the actions tab", async () => {
+      const site = await createTestBuiltSite({ name: "Actions Tab" });
+      const response = await adminGet(`/admin/built-sites/${site.id}/actions`);
+      const html = await expectHtmlResponse(response, 200, "Delete this site");
       expect(html).toContain(`/admin/built-sites/${site.id}/delete`);
-      expect(html).toContain("Delete this site");
+      expect(html).not.toContain('name="site_url"');
     });
 
     test("returns 404 for non-existent built site", async () => {
-      const response = await adminGet("/admin/built-sites/999/edit");
+      const response = await adminGet("/admin/built-sites/999");
       expectStatus(404)(response);
+    });
+
+    test("returns 404 for an unknown tab", async () => {
+      const site = await createTestBuiltSite({ name: "Known Tabs" });
+      const response = await adminGet(`/admin/built-sites/${site.id}/unknown`);
+      expectStatus(404)(response);
+    });
+
+    test("forbids managers from every built-site tab", async () => {
+      const site = await createTestBuiltSite({ name: "Owner only" });
+      const cookie = await createTestManagerSession();
+      const response = await awaitTestRequest(
+        `/admin/built-sites/${site.id}/renewal`,
+        { cookie },
+      );
+      expectStatus(403)(response);
+    });
+
+    test("loads recoverable secrets failures only on the secrets tab", async () => {
+      const site = await createTestBuiltSite({ name: "Secrets status" });
+      const response = await adminGet(`/admin/built-sites/${site.id}/secrets`);
+      const html = await expectHtmlResponse(response, 200, "no hosting ID");
+      expect(html).not.toContain("Unknown — no read-only database credentials");
+    });
+
+    test("loads update status only on the update tab", async () => {
+      const site = await createTestBuiltSite({ name: "Update status" });
+      const response = await adminGet(`/admin/built-sites/${site.id}/update`);
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Unknown — no read-only database credentials",
+      );
+      expect(html).not.toContain(
+        "BUNNY_API_KEY is not configured on this host, so its secrets can't be read",
+      );
     });
 
     test("shows flashed success and error messages", async () => {
@@ -377,12 +434,28 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
           site_url: "https://test.b-cdn.net",
         },
       );
-      expect(response.status).toBe(302);
-      expectFlash(
+      const html = await expectHtmlResponse(
         response,
-        expect.stringContaining("Site Name is required"),
-        false,
+        400,
+        "Site Name is required",
+        "https://test.b-cdn.net",
       );
+      expect(html).toContain('aria-current="page"');
+      expect(html).toContain(`href="/admin/built-sites/${site.id}/edit"`);
+      expect(html).not.toContain("Secrets status is unavailable");
+    });
+
+    test("shows read-only status without edit or action controls", async () => {
+      const site = await createTestBuiltSite({ name: "Read-only site" });
+      using _readOnly = withEnv({
+        READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+      });
+      const response = await adminGet(`/admin/built-sites/${site.id}`);
+      const html = await expectHtmlResponse(response, 200, "Current deadline");
+      expect(html).not.toContain(`/admin/built-sites/${site.id}/edit`);
+      expect(html).not.toContain(`/admin/built-sites/${site.id}/actions`);
+      expect(html).not.toContain(`/admin/built-sites/${site.id}/bump-deadline`);
+      expect(html).toContain(`/admin/built-sites/${site.id}/secrets`);
     });
   });
 
