@@ -66,17 +66,21 @@ export class PaymentUserError extends namedError("PaymentUserError") {}
 type GuardedAsync = <T>(
   fn: () => Promise<T>,
   errorCode: ErrorCodeType,
+  errorDetail?: (err: unknown) => string,
 ) => Promise<T | null>;
 
 /** Safely execute async operation, returning null on error.
  * Re-throws PaymentUserError so user-facing messages propagate. */
-export const safeAsync: GuardedAsync = async (fn, errorCode) => {
+export const safeAsync: GuardedAsync = async (
+  fn,
+  errorCode,
+  errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
+) => {
   try {
     return await fn();
   } catch (err) {
     if (err instanceof PaymentUserError) throw err;
-    const detail = err instanceof Error ? err.message : "unknown";
-    logError({ code: errorCode, detail });
+    logError({ code: errorCode, detail: errorDetail(err) });
     return null;
   }
 };
@@ -141,13 +145,16 @@ export const buildProviderLineItems = <Item>(
  * Returns null if the client is not available or the operation fails.
  */
 export const createWithClient =
-  <Client>(getClient: () => Client | null | Promise<Client | null>) =>
+  <Client>(
+    getClient: () => Client | null | Promise<Client | null>,
+    errorDetail?: (err: unknown) => string,
+  ) =>
   async <T>(
     op: (client: Client) => Promise<T>,
     errorCode: ErrorCodeType,
   ): Promise<T | null> => {
     const client = await getClient();
-    return client ? safeAsync(() => op(client), errorCode) : null;
+    return client ? safeAsync(() => op(client), errorCode, errorDetail) : null;
   };
 
 /** Convert registration line items to compact, edge-tagged booking items (v2).
