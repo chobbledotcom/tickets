@@ -13,7 +13,7 @@ import { nowIso } from "#shared/now.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withPoisonedTransactionExecute } from "#test-utils/db-poison.ts";
+import { withPoisonedTransactionWrite } from "#test-utils/db-poison.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 import {
   addAnswer,
@@ -169,7 +169,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const { a1, a2, att } = await seedColourAttendeeWithRed();
       expect(await choiceAnswersFor(att)).toEqual([a1.id]);
 
-      await withPoisonedTransactionExecute(
+      await withPoisonedTransactionWrite(
         (sql) => sql.includes("INSERT INTO attendee_answers"),
         "insert boom",
       )(async () => {
@@ -198,7 +198,7 @@ describeWithEnv("custom questions", { db: true }, () => {
         "Keep me",
       );
 
-      await withPoisonedTransactionExecute(
+      await withPoisonedTransactionWrite(
         (sql) => sql.includes("INSERT INTO attendee_answers"),
         "insert boom",
       )(async () => {

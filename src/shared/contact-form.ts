@@ -15,7 +15,7 @@
  * submitter, with anti-spoof handling) lives here.
  */
 
-import { getBotpoisonPublicKey, getEffectiveDomain } from "#shared/config.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   deliverMessage,
@@ -33,10 +33,6 @@ import {
  */
 export const isContactFormActive = (): boolean =>
   settings.contactFormEnabled && settings.businessEmail !== "";
-
-/** Public Botpoison key to embed in the form for the browser widget. Empty when
- * Botpoison is not configured, in which case no widget is shown. */
-export const contactFormPublicKey = (): string => getBotpoisonPublicKey();
 
 /** Warning prepended when the submitter claimed an address on the owner's own
  * business email host. */

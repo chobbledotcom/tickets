@@ -14,6 +14,7 @@ import {
   inPlaceholders,
   nextSortOrder,
   queryAll,
+  queryIdColumn,
   queryOne,
 } from "#shared/db/client.ts";
 import {
@@ -198,9 +199,6 @@ const buildAttributeGroups = (
   )(rows).values(),
 ];
 
-const queryIds = async (sql: string): Promise<number[]> =>
-  map((row: { id: number }) => row.id)(await queryAll<{ id: number }>(sql));
-
 const groupAttributeRows = async (
   rows: JoinedAttributeRow[],
 ): Promise<AttributeWithOptions[]> =>
@@ -245,10 +243,10 @@ export const getAttributeId = async (id: number): Promise<number | null> =>
   )?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
-  queryIds("SELECT id FROM attributes ORDER BY sort_order, id");
+  queryIdColumn("SELECT id FROM attributes ORDER BY sort_order, id");
 
 export const getAllAttributeOptionIds = async (): Promise<Set<number>> =>
-  new Set(await queryIds("SELECT id FROM attribute_options"));
+  new Set(await queryIdColumn("SELECT id FROM attribute_options"));
 
 type OptionListingRow = StoredTableProjectionRow<
   Listing,

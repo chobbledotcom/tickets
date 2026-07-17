@@ -12,9 +12,8 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { BOTPOISON_FIELD, verifyBotpoisonSolution } from "#shared/botpoison.ts";
-import { isBotpoisonEnabled } from "#shared/config.ts";
+import { getBotpoisonPublicKey, isBotpoisonEnabled } from "#shared/config.ts";
 import {
-  contactFormPublicKey,
   isContactFormActive,
   sendContactMessage,
 } from "#shared/contact-form.ts";
@@ -262,7 +261,7 @@ const renderContactPage = async (request: Request): Promise<Response> => {
   const flash = applyFlash(request);
   return htmlResponse(
     contactPage({
-      botpoisonPublicKey: contactFormPublicKey(),
+      botpoisonPublicKey: getBotpoisonPublicKey(),
       content: settings.contactPageText || null,
       ...(flash.error !== undefined ? { error: flash.error } : {}),
       formActive,

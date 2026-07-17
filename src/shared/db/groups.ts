@@ -191,35 +191,6 @@ export const isGroupSlugTaken = (
     excludeGroupId ? { id: excludeGroupId, table: "groups" } : undefined,
   );
 
-/** WHERE fragment matching listings that are members of the given group, via the
- * group_listings join table (subquery form avoids duplicate rows). */
-const IN_GROUP_SQL =
-  "listing.id IN (SELECT listing_id FROM group_listings WHERE group_id = ?)";
-
-/** Query listings in a group with attendee counts, optionally filtering to active only */
-const queryGroupListings = (
-  groupId: number,
-  activeOnly: boolean,
-): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts(
-    activeOnly
-      ? `WHERE listing.active = 1 AND ${IN_GROUP_SQL}`
-      : `WHERE ${IN_GROUP_SQL}`,
-    [groupId],
-  );
-
-/** One group's members with attendee counts; `activeOnly` gates the public
- * liveness view (active members only) from the full list (active + inactive). */
-const listingsInGroup =
-  (activeOnly: boolean) =>
-  (groupId: number): Promise<ListingWithCount[]> =>
-    queryGroupListings(groupId, activeOnly);
-
-/**
- * Get active listings in a group with attendee counts.
- */
-export const getActiveListingsByGroupId = listingsInGroup(true);
-
 /**
  * Members of SEVERAL groups at once, keyed by group id — the batched form of the
  * single-group loaders for a multi-group surface. A page with many group leaves
@@ -268,6 +239,18 @@ export const getListingsByGroupIds = async (
     ]),
   );
 };
+
+/** One group's entry from the shared one-or-many membership query. */
+const listingsInGroup =
+  (activeOnly: boolean) =>
+  async (groupId: number): Promise<ListingWithCount[]> =>
+    requiredMapValue(
+      await getListingsByGroupIds([groupId], activeOnly),
+      groupId,
+      "Missing group listing membership",
+    );
+
+export const getActiveListingsByGroupId = listingsInGroup(true);
 
 /** Does a group row exist? The add-item revalidation's single-row check — no
  * name decryption, never the whole table. */
@@ -480,32 +463,6 @@ export const packageMembersError = async (
  * name on tickets/emails. */
 export type PackageDisplay = { name: string; hideListings: boolean };
 
-/** The package display for a booking's PERSISTED `package_group_id`, or null when
- * the id is 0 (not a package) or names a group that no longer exists or is not a
- * package. Grouping on the stored id — set on every booking row of one package
- * checkout — is exact: a standalone order of the same listings carries id 0, so
- * it is never mistaken for the package. The group's name is decrypted on the way
- * out. */
-/** Load a group by id only when it is a live package, else null. The one home
- * for "this id names a package group" — a non-positive id, a missing group, or a
- * non-package group all read as null. */
-export const getPackageGroupById = async (
-  groupId: number,
-): Promise<Group | null> => {
-  if (groupId <= 0) return null;
-  const group = await groups.table.findById(groupId);
-  return group?.is_package ? group : null;
-};
-
-export const getPackageDisplayById = async (
-  groupId: number,
-): Promise<PackageDisplay | null> => {
-  const group = await getPackageGroupById(groupId);
-  return group === null
-    ? null
-    : { hideListings: group.hide_package_listings, name: group.name };
-};
-
 /** Whether any booking row is stamped with this package's group id — sold
  * tickets whose display (and hidden-member concealment) resolves through the
  * live package row. Refund placeholders (quantity 0) don't count. */
@@ -521,16 +478,29 @@ export const hasPackageBookings = (groupId: number): Promise<boolean> =>
  * the ticket view collapse each token's package rows into one card per package,
  * so an attendee holding both a package booking and a standalone one (e.g. after
  * an attendee merge) doesn't fall back to per-row cards that leak a hidden member.
- * Groups are cached, so the per-id resolution is cheap. */
+ * Groups are resolved together from their shared cache. */
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const result = new Map<number, PackageDisplay>();
-  for (const id of new Set(groupIds)) {
-    const display = await getPackageDisplayById(id);
-    if (display) result.set(id, display);
-  }
-  return result;
+  const packageGroups = await mapParallel((row: Group) =>
+    rawGroupsTable.fromDb(row),
+  )(
+    await rowsByIds<Group>(
+      [...new Set(groupIds)],
+      (placeholders) =>
+        `SELECT ${GROUP_COLUMNS} FROM groups
+        WHERE id IN (${placeholders}) AND is_package = 1`,
+    ),
+  );
+  return new Map(
+    packageGroups.map((group) => [
+      group.id,
+      {
+        hideListings: group.hide_package_listings,
+        name: group.name,
+      },
+    ]),
+  );
 };
 
 /** The package displays behind a set of booked rows — each row's attendee names

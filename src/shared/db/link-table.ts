@@ -154,9 +154,7 @@ export const linkTableSide = (
       ),
     setIds: (keyId, ids) => executeBatch(replaceStatements(keyId, ids)),
     setIdsTx: async (tx, keyId, ids) => {
-      for (const stmt of replaceStatements(keyId, ids)) {
-        await tx.execute(stmt);
-      }
+      await tx.batch(replaceStatements(keyId, ids));
     },
   };
 };

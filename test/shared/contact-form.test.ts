@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import {
-  contactFormPublicKey,
   isContactFormActive,
   sendContactMessage,
 } from "#shared/contact-form.ts";
@@ -60,16 +59,6 @@ describe("contact form availability", () => {
       contact_form_enabled: true,
     });
     expect(isContactFormActive()).toBe(false);
-  });
-
-  test("contactFormPublicKey returns the public env key when set", () => {
-    sandbox.setEnv(BOTH_KEYS);
-    expect(contactFormPublicKey()).toBe("pk_test_public");
-  });
-
-  test("contactFormPublicKey is empty when Botpoison is not configured", () => {
-    sandbox.setEnv(NO_KEYS);
-    expect(contactFormPublicKey()).toBe("");
   });
 });
 
