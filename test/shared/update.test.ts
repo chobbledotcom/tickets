@@ -4,6 +4,10 @@ import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+} from "#shared/subrequest-budget.ts";
+import {
   deployLatestReleaseToDeno,
   deployRelease,
   formatBuildDate,
@@ -104,8 +108,15 @@ describe("deployLatestReleaseToDeno", () => {
       }),
     );
     try {
-      const release = await deployLatestReleaseToDeno("app_123");
-      expect(release.tagName).toBe("v2099-01-01-120000");
+      await runWithSubrequestBudget(async () => {
+        const release = await deployLatestReleaseToDeno("app_123");
+        expect(release.tagName).toBe("v2099-01-01-120000");
+        expect(getSubrequestUsage()).toEqual({
+          database: 0,
+          external: 2,
+          total: 2,
+        });
+      });
       expect(deployStub.calls).toHaveLength(1);
       expect(deployStub.calls[0]!.args[0]).toBe("app_123");
     } finally {
