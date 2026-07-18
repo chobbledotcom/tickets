@@ -12,13 +12,20 @@
 import { bold, dim, green, red, yellow } from "../precommit/colors.ts";
 import { projectRoot } from "../project-root.ts";
 import type { Mutant } from "./generate.ts";
+import type { MutationPhase, PhaseTiming } from "./phases.ts";
 
 export type Status = "killed" | "survived" | "timed-out" | "ignored";
 
 export interface MutantResult {
+  detectedBy: MutationPhase | null;
   file: string;
   mutant: Mutant;
   status: Status;
+  timings: PhaseTiming[];
+}
+
+export interface PhaseTimingSummary extends PhaseTiming {
+  runs: number;
 }
 
 export interface Summary {
@@ -28,6 +35,7 @@ export interface Summary {
   /** Known-equivalent survivors suppressed via the ignore-list. */
   ignored: number;
   killed: number;
+  phaseTimings: PhaseTimingSummary[];
   score: number;
   survived: number;
   survivors: MutantResult[];
@@ -59,11 +67,24 @@ export const summarize = (results: MutantResult[]): Summary => {
   const ignored = count("ignored");
   const effective = total - ignored;
   const detected = count("killed") + count("timed-out");
+  const timings = results.flatMap((result) => result.timings);
+  const timingsByPhase = Object.groupBy(timings, (timing) => timing.phase);
+  const phaseTimings = Object.entries(timingsByPhase).map(
+    ([phase, entries]): PhaseTimingSummary => ({
+      durationMs: entries!.reduce(
+        (total, entry) => total + entry.durationMs,
+        0,
+      ),
+      phase: phase as MutationPhase,
+      runs: entries!.length,
+    }),
+  );
   return {
     detected,
     effective,
     ignored,
     killed: count("killed"),
+    phaseTimings,
     // Suppressed-equivalent mutants are excluded from the denominator — they
     // can never be killed, so counting them would understate the real score.
     score: effective === 0 ? 100 : (detected / effective) * 100,
@@ -125,6 +146,40 @@ const renderRow = (row: {
 }): string =>
   `  ${row.color(row.label)}${" ".repeat(LABEL_WIDTH - row.label.length)}${row.value}`;
 
+type TimingOutput = "markdown" | "terminal";
+
+const TIMING_FORMATS: Record<
+  TimingOutput,
+  { heading: string[]; row: (timing: PhaseTimingSummary) => string }
+> = {
+  markdown: {
+    heading: [
+      "",
+      "### Phase timings",
+      "",
+      "These are cumulative phase times across mutant attempts. Parallel test batches count once per stage.",
+      "",
+      "| phase | runs | time |",
+      "| --- | ---: | ---: |",
+    ],
+    row: (timing) =>
+      `| ${timing.phase} | ${timing.runs} | ${Math.round(timing.durationMs)}ms |`,
+  },
+  terminal: {
+    heading: ["", dim("  phase timings (cumulative elapsed):")],
+    row: (timing) =>
+      dim(
+        `    ${timing.phase}: ${Math.round(timing.durationMs)}ms in ${timing.runs} run(s)`,
+      ),
+  },
+};
+
+const timingLines = (s: Summary, output: TimingOutput): string[] => {
+  if (s.phaseTimings.length === 0) return [];
+  const format = TIMING_FORMATS[output];
+  return [...format.heading, ...s.phaseTimings.map(format.row)];
+};
+
 /** Build a "one survivor on a line" formatter from how it should wrap the
  *  location and the two operators. The terminal and Markdown reports show the
  *  same three pieces (location, old operator, new operator); only the
@@ -160,6 +215,7 @@ export const formatSummaryLines = (s: Summary): string[] => {
       green(
         `  All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
       ),
+      ...timingLines(s, "terminal"),
     ];
   }
   const allDetected = green(
@@ -170,6 +226,7 @@ export const formatSummaryLines = (s: Summary): string[] => {
   return [
     bold("\nMutation testing summary"),
     ...countRows(s).map(renderRow),
+    ...timingLines(s, "terminal"),
     ...(s.survivors.length === 0
       ? [allDetected]
       : [
@@ -201,6 +258,7 @@ const markdownSummary = (s: Summary): string => {
       "## 🧬 Mutation testing",
       "",
       `✅ All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
+      ...timingLines(s, "markdown"),
       "",
     ].join("\n");
   }
@@ -235,6 +293,7 @@ const markdownSummary = (s: Summary): string => {
     `| timed out | ${s.timedOut} |`,
     `| survived | ${s.survived} |`,
     ...(s.ignored > 0 ? [`| ignored (suppressed) | ${s.ignored} |`] : []),
+    ...timingLines(s, "markdown"),
     ...survivorTable,
     "",
   ].join("\n");

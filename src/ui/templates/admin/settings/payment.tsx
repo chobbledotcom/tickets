@@ -5,7 +5,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { CsrfForm, renderFields } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { renderFields } from "#shared/forms/rendering.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {

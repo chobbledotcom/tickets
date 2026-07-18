@@ -1,34 +1,19 @@
 import { t } from "#i18n";
 import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
-import { booleanToCheckbox, CsrfForm } from "#shared/forms.tsx";
+import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
+import { booleanToCheckbox } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { SiteSecretsView } from "#shared/site-secrets.ts";
-import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
-/* jscpd:ignore-start */
-import {
-  FormHeader,
-  flashFormPage,
-  renderAdminPage,
-} from "#templates/admin/admin-page.tsx";
-/* jscpd:ignore-end */
+import { editPanel, flashFormPage } from "#templates/admin/admin-page.tsx";
 import {
   BuiltSitesGuideFooter,
   BuiltSitesListActions,
   BuiltSitesListBody,
 } from "#templates/admin/built-sites/list-parts.tsx";
-import {
-  renewalPanelFor,
-  SecretsPanel,
-  UpdatePanel,
-} from "#templates/admin/built-sites/panels.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import { AdminListPage } from "#templates/admin/list-page.tsx";
-import {
-  ActionButton,
-  SaveChangesButton,
-} from "#templates/components/actions.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
+import { saveFormComponent } from "#templates/components/save-form.tsx";
 import { getBuiltSiteForm } from "#templates/fields/admin.ts";
 
 export const adminBuiltSitesPage = (
@@ -88,53 +73,36 @@ export const adminBuiltSiteNewPage = flashFormPage(
   ),
 );
 
-export const adminBuiltSiteEditPage = (
-  site: BuiltSite,
-  session: AdminSession,
-  error?: string,
-  success?: string,
-  secretsView?: SiteSecretsView,
-  updateState?: BuiltSiteUpdateState,
-): string =>
-  renderAdminPage(
-    "/admin/built-sites",
-    session,
-    t("built_sites.edit_site_title"),
-    <>
-      <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
-        <FormHeader
-          error={error}
-          success={success}
-          title={t("built_sites.edit_site_title")}
-        />
-        <Raw html={getBuiltSiteForm().render(builtSiteToFieldValues(site))} />
-        {SaveChangesButton()}
-      </CsrfForm>
+type BuiltSiteRenderValues = FormRenderValuesFor<
+  ReturnType<typeof getBuiltSiteForm>["fields"]
+>;
 
-      <h2>{t("built_sites.renewal_title")}</h2>
-      {renewalPanelFor(site)}
+const BuiltSiteSaveForm = saveFormComponent<{
+  action: string;
+  children: JSX.Element;
+}>(({ children }) => ({
+  children,
+  submitLabel: t("common.save_changes"),
+}));
 
-      <h2>{t("built_sites.secrets_title")}</h2>
-      <SecretsPanel site={site} view={secretsView} />
+/** The entity page's ordinary Edit tab, including rejected submitted values. */
+interface BuiltSiteEditPanelProps {
+  error?: string | undefined;
+  site: BuiltSite;
+  values?: BuiltSiteRenderValues;
+}
 
-      {updateState && (
-        <>
-          <h2>{t("built_sites.update_title")}</h2>
-          <UpdatePanel site={site} state={updateState} />
-        </>
-      )}
-
-      <h2>{t("common.delete")}</h2>
-      <p class="prose">
-        <ActionButton
-          href={`/admin/built-sites/${site.id}/delete`}
-          icon="trash-2"
-          variant="secondary"
-        >
-          {t("built_sites.delete_this_site")}
-        </ActionButton>
-      </p>
-    </>,
+export const BuiltSiteEditPanel = ({
+  error,
+  site,
+  values,
+}: BuiltSiteEditPanelProps): JSX.Element =>
+  editPanel(error)(
+    <BuiltSiteSaveForm action={`/admin/built-sites/${site.id}/edit`}>
+      <Raw
+        html={getBuiltSiteForm().render(values ?? builtSiteToFieldValues(site))}
+      />
+    </BuiltSiteSaveForm>,
   );
 
 export const adminBuiltSiteDeletePage = entityDeletePage((site: BuiltSite) => ({

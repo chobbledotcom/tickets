@@ -37,11 +37,8 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
-import {
-  adminAttendeeStatusesPage,
-  adminAttendeeStatusFormPage,
-  statusPages,
-} from "#templates/admin/settings-statuses.tsx";
+import { statusPages } from "#templates/admin/settings-statuses.tsx";
+import { attendeeStatusPage } from "./attendee-status-page.ts";
 
 /* jscpd:ignore-end */
 
@@ -110,16 +107,11 @@ const DELETE_ERRORS: Record<AttendeeStatusDeleteError, string> = {
 const listGet = ownerPage(async (session) => {
   const statuses = await attendeeStatuses.getAll();
   const flash = getFlash();
-  return adminAttendeeStatusesPage(
-    statuses,
-    session,
-    flash.error,
-    flash.success,
-  );
+  return statusPages.listPage(statuses, session, flash.error, flash.success);
 });
 
 const newGet = ownerPage((session) =>
-  adminAttendeeStatusFormPage(session, { error: getFlash().error }),
+  statusPages.newPage(session, getFlash().error),
 );
 
 const statusHandler = createIdEntityHandler<AttendeeStatus>(getAttendeeStatus);
@@ -137,10 +129,6 @@ const ownerStatusPage = (
     return htmlResponse(render(status, session));
   });
 
-const editGet = ownerStatusPage((status, session) =>
-  adminAttendeeStatusFormPage(session, { error: getFlash().error, status }),
-);
-
 const createPost = ownerFormHandler(async ({ form }) => {
   const parsed = parseStatusFormOr(form, `${LIST_PATH}/new`);
   if (parsed instanceof Response) return parsed;
@@ -150,16 +138,18 @@ const createPost = ownerFormHandler(async ({ form }) => {
 });
 
 const editPost = statusHandlers.post(
-  async (_existing, _session, form, _request, { id }) => {
-    const parsed = parseStatusFormOr(form, `${LIST_PATH}/${id}/edit`);
-    if (parsed instanceof Response) return parsed;
+  async (_existing, session, form, _request, { id }) => {
+    const renderError = (error: string): Promise<Response> =>
+      attendeeStatusPage.renderEditError(id, session, form, error);
+    const parsed = parseStatusForm(form);
+    if (!parsed.ok) return renderError(parsed.error);
 
-    const saved = await attendeeStatusWrites.save(id, parsed);
+    const saved = await attendeeStatusWrites.save(id, parsed.data);
     if (!saved.ok) {
-      return errorRedirect(`${LIST_PATH}/${id}/edit`, SAVE_ERRORS[saved.error]);
+      return renderError(SAVE_ERRORS[saved.error]);
     }
-    await logActivity(`Attendee status '${parsed.name}' updated`);
-    return redirect(LIST_PATH, "Status updated", true);
+    await logActivity(`Attendee status '${parsed.data.name}' updated`);
+    return redirect(attendeeStatusPage.path(id), "Status updated", true);
   },
 );
 
@@ -198,8 +188,11 @@ const moveHandler = (dir: "up" | "down") =>
 
 export const adminHandlers = handlersFor("settingsStatuses")({
   getSettingsStatuses: listGet,
+  getSettingsStatusesById: (request, { id }) =>
+    attendeeStatusPage.renderTab(request, id, ""),
+  getSettingsStatusesByIdByTab: (request, { id, tab }) =>
+    attendeeStatusPage.renderTab(request, id, tab),
   getSettingsStatusesByIdDelete: deleteGet,
-  getSettingsStatusesByIdEdit: editGet,
   getSettingsStatusesNew: newGet,
   postSettingsStatuses: createPost,
   postSettingsStatusesByIdDelete: deletePost,

@@ -6,17 +6,17 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Flash } from "#shared/forms/flash.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#shared/types.ts";
 import { AdminPage } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
+import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import {
-  ActionButton,
-  GuideFooter,
-  SaveChangesButton,
-} from "#templates/components/actions.tsx";
+  type RenderedFieldsSaveForm,
+  renderedFieldsSaveForm,
+} from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
 
@@ -52,14 +52,8 @@ export const collectionPage =
  * carrying the pre-filled fields and a save button. Unlike {@link EditForm} it
  * renders no heading — the tabbed entity page draws the page title above the
  * tab strip. */
-export const contentEditPanel = (
-  action: string,
-  fieldsHtml: string,
-): JSX.Element => (
-  <CsrfForm action={action}>
-    <Raw html={fieldsHtml} />
-    {SaveChangesButton()}
-  </CsrfForm>
+export const contentEditPanel: RenderedFieldsSaveForm = renderedFieldsSaveForm(
+  t("common.save_changes"),
 );
 
 /** The "Guide: …" help link for a Site content page, rendered as a

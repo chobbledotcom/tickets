@@ -19,9 +19,9 @@ import {
   type ActionDef,
   defineEntityPage,
   type EntityPage,
-  type PageCtx,
   type TabDef,
 } from "#routes/admin/entity-pages.ts";
+import { panelTab, writeFormTab } from "#routes/admin/entity-write-tab.ts";
 import { type AuthSession, requireContentOr } from "#routes/auth.ts";
 /* jscpd:ignore-end */
 import { isStorageEnabled } from "#shared/storage.ts";
@@ -42,23 +42,6 @@ import {
 /** Gate tabs that expose attendee PII or staff operations. */
 const staffOnly = (_group: Group, session: AuthSession): boolean =>
   isStaffRole(session.adminLevel);
-
-/** A tab whose one section is a custom-rendered panel — the shape every group
- * tab but Actions takes. Keeps the tab list declarative and free of repeated
- * `{ kind: "custom", load }` boilerplate. */
-const panelTab = (
-  slug: string,
-  labelKey: string,
-  load: (group: Group, ctx: PageCtx) => Promise<JSX.Element>,
-  visible: (group: Group, session: AuthSession) => boolean,
-  intent?: "view" | "write-form",
-): TabDef<Group> => ({
-  ...(intent ? { intent } : {}),
-  labelKey,
-  sections: [{ kind: "custom", load }],
-  slug,
-  visible,
-});
 
 /** The Actions tab entries. Each `visible` mirrors the gate its old detail-nav
  * link used, so no dead or forbidden link renders. The tab itself is open to
@@ -134,19 +117,12 @@ export const groupPage: EntityPage<Group> = defineEntityPage({
       (group) => loadGroupAttendeesPanel(group),
       staffOnly,
     ),
-    panelTab(
-      "edit",
-      "entity.tab.edit",
-      loadGroupEditPanel,
-      editVisible,
-      "write-form",
-    ),
-    panelTab(
+    writeFormTab("edit", "entity.tab.edit", loadGroupEditPanel, editVisible),
+    writeFormTab(
       "images",
       "entity.tab.images",
       loadGroupImagesPanel,
       imagesVisible,
-      "write-form",
     ),
     actionsTab(),
   ],

@@ -4,7 +4,10 @@ import { redirect } from "#routes/response.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearFormStash, takeForm } from "#shared/form-stash.ts";
-import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
+import {
+  clearSavedFormData,
+  setSavedFormData,
+} from "#shared/forms/saved-data.ts";
 import { FORM_STASH_MAX_BYTES } from "#shared/limits.ts";
 import { fail, ok } from "#shared/response.ts";
 import {

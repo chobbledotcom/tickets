@@ -1,14 +1,16 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
+import type { Field } from "#shared/forms/field.ts";
 import {
-  clearSavedFormData,
-  type Field,
   renderField,
   renderFields,
   renderSelectOptions,
+} from "#shared/forms/rendering.tsx";
+import {
+  clearSavedFormData,
   setSavedFormData,
-} from "#shared/forms.tsx";
+} from "#shared/forms/saved-data.ts";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },

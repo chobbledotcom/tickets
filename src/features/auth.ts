@@ -29,7 +29,7 @@ import {
 } from "#shared/db/users.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { setSavedFormData } from "#shared/forms.tsx";
+import { setSavedFormData } from "#shared/forms/saved-data.ts";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";

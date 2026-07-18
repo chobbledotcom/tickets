@@ -174,10 +174,7 @@ const renderSubmittedForm = (
   data.attendee === null
     ? Promise.resolve(htmlResponse(attendeeFormPage(data, session)))
     : attendeePage.renderPage(session, data.attendee.id, "edit", {
-        sections: () =>
-          Promise.resolve([
-            { html: AttendeeFormPanel({ data }), kind: "custom" as const },
-          ]),
+        panel: () => Promise.resolve(AttendeeFormPanel({ data })),
       });
 
 /** Common submit handler for create + edit. `attendeeId` is null in create. */

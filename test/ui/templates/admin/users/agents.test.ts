@@ -3,10 +3,10 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { LogisticsAgent } from "#shared/types.ts";
 import {
-  adminUserAgentsPage,
   adminUserNewPage,
   adminUsersPage,
   type DisplayUser,
+  UserAgentsPanel,
 } from "#templates/admin/users.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
@@ -48,7 +48,7 @@ describe("adminUserNewPage agent selector", () => {
   });
 });
 
-describe("adminUserAgentsPage", () => {
+describe("UserAgentsPanel", () => {
   // The user whose agent assignments the page edits (distinct from the
   // agentUser factory above, which builds display-row fixtures).
   const editedUser: DisplayUser = {
@@ -60,7 +60,14 @@ describe("adminUserAgentsPage", () => {
   };
 
   test("pre-checks the agents already assigned", () => {
-    const html = adminUserAgentsPage(editedUser, AGENTS, new Set([2]), SESSION);
+    const html = String(
+      UserAgentsPanel({
+        action: "/admin/users/7/agents",
+        agents: AGENTS,
+        selectedIds: new Set([2]),
+        user: editedUser,
+      }),
+    );
     expect(html).toContain("Assigned agents for driver");
     expect(html).toContain('action="/admin/users/7/agents"');
     // Van 2 (id 2) is checked, Van 1 (id 1) is not.
@@ -74,7 +81,14 @@ describe("adminUserAgentsPage", () => {
   });
 
   test("prompts to add agents when none exist", () => {
-    const html = adminUserAgentsPage(editedUser, [], new Set(), SESSION);
+    const html = String(
+      UserAgentsPanel({
+        action: "/admin/users/7/agents",
+        agents: [],
+        selectedIds: new Set(),
+        user: editedUser,
+      }),
+    );
     expect(html).toContain("No logistics agents exist yet");
   });
 });

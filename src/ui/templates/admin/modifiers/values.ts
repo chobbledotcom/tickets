@@ -5,11 +5,11 @@
 
 import { t } from "#i18n";
 import { toMajorUnits } from "#shared/currency.ts";
+import type { Field } from "#shared/forms/field.ts";
 import {
   booleanToCheckbox,
   entityToFieldValues,
-  type Field,
-} from "#shared/forms.tsx";
+} from "#shared/forms/values.ts";
 import type { Modifier } from "#shared/types.ts";
 import { getModifierForm } from "#templates/fields/modifier.ts";
 

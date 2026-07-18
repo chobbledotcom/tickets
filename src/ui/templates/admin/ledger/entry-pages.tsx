@@ -1,7 +1,8 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import type { AdminSession } from "#shared/types.ts";

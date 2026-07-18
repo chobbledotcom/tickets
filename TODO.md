@@ -138,36 +138,34 @@ generalized passes: render, fold, price, capacity, revalidate.
 
 ---
 
-## Entity pages migration — slices 2–5
+## Entity pages migration — slices 4–5
 
 *Origin: `edit-pages.md`.*
 
 **Background.** "Entity pages" is one declarative, schema-driven, tabbed
 framework (`defineEntityPage`) that replaces every hand-assembled admin "edit X"
-page. A page becomes data: tabs of typed sections (summary / form / ledger /
-activity / notes / actions / custom) rendered through an exhaustive `Record`,
-with per-tab authorization, path-segment tabs, and in-place 400-error re-render.
-Migration is deliberately gradual and hardest-first.
+page. A page becomes data: tabs of typed sections (summary / activity / actions /
+custom), with per-tab authorization, path-segment tabs, and in-place 400-error
+re-rendering. Migration is deliberately gradual and hardest-first.
 
-**Already shipped (slice 1, PRs #1500, #1502, #1503) — do not redo:**
+**Already shipped — do not redo:**
 - Framework: `src/shared/entity-pages/core.ts`, `src/features/admin/
   entity-pages.ts`, `src/ui/templates/admin/entity-pages.tsx`.
-- Attendees fully migrated onto it: `src/features/admin/attendee-page.ts`
-  (the only current caller of `defineEntityPage`); legacy attendee action URLs
-  removed; tabs left-aligned, section-panel grouping added.
+- Attendees: `src/features/admin/attendee-page.ts` (slice 1, PRs #1500, #1502,
+  #1503).
+- Listings: `src/features/admin/listing-page.ts` (slice 2).
+- Groups: `src/features/admin/group-page.ts` (part of slice 4).
+- Holidays: `src/features/admin/holiday-page.ts` (part of slice 4).
+- Modifiers: `src/features/admin/modifiers.ts` (slice 3).
+- Users, built sites, and attendee statuses (part of slice 4).
+- API keys and logistics agents also use the framework.
+- Site pages and news also use the framework through
+  `src/features/admin/site-content-page.ts`.
 
 **Remaining slices (each is roughly one PR; keep them small):**
 
-- **Slice 2 — Listings.** Collapse the separate listing detail + edit pages into
-  one entity page. `src/features/admin/listings*.ts` and
-  `src/ui/templates/admin/listings.tsx` do NOT yet use `defineEntityPage`. This
-  is the second copy of the tab/section composition, so it's the natural next
-  proof after attendees.
-- **Slice 3 — Modifiers.** The third copy of the composition
-  (`src/features/admin/modifiers.ts`). Migrating it validates the framework
-  generalizes.
-- **Slice 4 — the long tail.** Groups, users, questions, built-sites,
-  attendee-statuses, holidays, and `history/:hmac` — one small PR each.
+- **Slice 4 — the long tail.** Questions and `history/:hmac` remain. Groups,
+  holidays, users, built sites, and attendee statuses are complete.
 - **Slice 5 — generalize `system_notes`** from attendee-only to
   `(entity_type, entity_id)` so any entity page can carry a notes section. The
   notes DB module currently has no `entity_type` column; this is a small
@@ -964,30 +962,6 @@ they were left out of that PR's scope.
   (a doc-accuracy pass, not a dedup): pick the example per endpoint — a paid
   response for the priced package bundle, or document both free and paid shapes —
   so the sample response matches the sample request.
-
----
-
-## Split `src/shared/forms.tsx` (~779 lines) into focused modules
-
-*Origin: CodeRabbit review on PR #1800 (jscpd 0% work).*
-
-`src/shared/forms.tsx` is well over the ~400-line guideline (779 lines) and is
-grandfathered in `biome.json`'s `noExcessiveLinesPerFile` override. It mixes two
-concerns that should live apart:
-
-- **Form-shell / scaffold** — `CsrfForm`, `ConfirmForm`, `Flash`, and the
-  submit/section scaffolding (the pieces that wrap a form and its buttons).
-- **Field rendering** — `defineForm`, the `Field[]` renderers, `validateForm`,
-  and the value-type machinery.
-
-Follow-up: split the shell/scaffold components into their own module (e.g.
-`src/shared/forms/shell.tsx`) and keep the field-rendering helpers in
-`forms/fields.tsx`, re-exporting from `forms.tsx` only if needed. Migrate every
-importer, then delete the `biome.json` override entry for `forms.tsx`. Out of
-scope for the dedup PR (a pure structural move, no behaviour change), but worth
-doing next time this file is touched.
-
----
 
 ## Placeholder refund — replay marker gap when the atomic ledger batch fails
 

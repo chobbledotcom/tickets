@@ -16,11 +16,12 @@ export const routes = [
   route("getBuiltSites", "builtSites", "GET", "/admin/built-sites"),
   route("getBuiltSitesNew", "builtSites", "GET", "/admin/built-sites/new"),
   route("postBuiltSites", "builtSites", "POST", "/admin/built-sites"),
+  route("getBuiltSitesById", "builtSites", "GET", "/admin/built-sites/:id"),
   route(
-    "getBuiltSitesByIdEdit",
+    "getBuiltSitesByIdByTab",
     "builtSites",
     "GET",
-    "/admin/built-sites/:id/edit",
+    "/admin/built-sites/:id/:tab",
   ),
   route(
     "postBuiltSitesByIdEdit",

@@ -1,0 +1,149 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import {
+  failAfterCleanups,
+  removeIfPresent,
+  runCleanups,
+  withCleanup,
+} from "../../scripts/cleanup.ts";
+
+const failingCleanup =
+  (calls: string[], name: string, error: unknown) => () => {
+    calls.push(name);
+    throw error;
+  };
+
+describe("script cleanup", () => {
+  test("runs cleanup tasks in order after a successful task", async () => {
+    const calls: string[] = [];
+
+    const result = await withCleanup(() => {
+      calls.push("task");
+      return Promise.resolve(42);
+    }, [
+      () => {
+        calls.push("stripe");
+      },
+      () => {
+        calls.push("state");
+      },
+      () => {
+        calls.push("assets");
+      },
+    ]);
+
+    expect(result).toBe(42);
+    expect(calls).toEqual(["task", "stripe", "state", "assets"]);
+  });
+
+  test("attempts every cleanup and aggregates their errors", async () => {
+    const calls: string[] = [];
+    const stripeError = new Error("stripe stop failed");
+    const assetError = new Error("asset removal failed");
+
+    const error = await runCleanups([
+      failingCleanup(calls, "stripe", stripeError),
+      () => {
+        calls.push("state");
+      },
+      failingCleanup(calls, "assets", assetError),
+    ]).catch((error) => error);
+
+    expect(calls).toEqual(["stripe", "state", "assets"]);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors).toEqual([stripeError, assetError]);
+  });
+
+  test("preserves the task error together with cleanup errors", async () => {
+    const taskError = new Error("tests failed");
+    const stripeError = new Error("stripe stop failed");
+    const stateError = new Error("state cleanup failed");
+
+    const error = await withCleanup(
+      () => Promise.reject(taskError),
+      [() => Promise.reject(stripeError), () => Promise.reject(stateError)],
+    ).catch((error) => error);
+
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors).toEqual([
+      taskError,
+      stripeError,
+      stateError,
+    ]);
+  });
+
+  test("rethrows one task error unchanged after cleanup", async () => {
+    const taskError = new Error("tests failed");
+    let cleaned = false;
+
+    const error = await withCleanup(
+      () => Promise.reject(taskError),
+      [
+        () => {
+          cleaned = true;
+        },
+      ],
+    ).catch((error) => error);
+
+    expect(cleaned).toBe(true);
+    expect(error).toBe(taskError);
+  });
+
+  test("rethrows one cleanup AggregateError unchanged", async () => {
+    const cleanupError = new AggregateError(
+      [new Error("dispose failed"), new Error("remove failed")],
+      "asset cleanup failed",
+    );
+
+    const error = await withCleanup(
+      () => Promise.resolve("finished"),
+      [() => Promise.reject(cleanupError)],
+    ).catch((error) => error);
+
+    expect(error).toBe(cleanupError);
+  });
+
+  test("accepts a generated file that is already gone", async () => {
+    await expect(
+      removeIfPresent("generated.js", () =>
+        Promise.reject(new Deno.errors.NotFound("already removed")),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  test("surfaces generated file removal failures", async () => {
+    const removeError = new Deno.errors.PermissionDenied("cannot remove");
+
+    await expect(
+      removeIfPresent("generated.js", () => Promise.reject(removeError)),
+    ).rejects.toBe(removeError);
+  });
+
+  test("preserves setup and rollback failures", async () => {
+    const setupError = new Error("setup failed");
+    const rollbackError = new Error("rollback failed");
+    const result = failAfterCleanups(setupError, [
+      () => Promise.reject(rollbackError),
+    ]).catch((error) => error);
+
+    const error = await result;
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors).toEqual([
+      setupError,
+      rollbackError,
+    ]);
+  });
+
+  test("uses Deno remove by default", async () => {
+    const paths: Array<string | URL> = [];
+    using _remove = stub(Deno, "remove", (path) => {
+      paths.push(path);
+      return Promise.resolve();
+    });
+
+    await removeIfPresent("generated.js");
+
+    expect(paths).toEqual(["generated.js"]);
+  });
+});

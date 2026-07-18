@@ -17,7 +17,7 @@ import {
   type Field,
   type InputField,
   requireChoiceOptions,
-} from "#shared/forms.tsx";
+} from "#shared/forms/field.ts";
 import { formatBytes, MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import {
   ContactFieldSchema,

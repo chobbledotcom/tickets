@@ -6,7 +6,7 @@ import {
   type FormDefinition,
   type FormValues,
 } from "#shared/forms/definition.ts";
-import type { Field } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
 import {
   CalcKindSchema,
   ModifierDirectionSchema,

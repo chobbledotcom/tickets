@@ -1,28 +1,18 @@
 /**
  * Resource-level admin page factory.
  *
- * Several owner-only settings resources (holidays, attendee statuses,
- * logistics agents) share one workflow — a list page (table + actions + empty
- * state), a create page, an edit page (form + delete section), and a
- * type-the-name delete confirmation page. Each used to hand-wire that
- * workflow against `AdminPage`/`DataTable`/`ConfirmPage` directly, so every
- * new resource had to re-remember the same path/title/flash/table/delete
- * conventions.
- *
- * This factory turns one config object into the four standard pages. The
+ * Several owner-only settings resources share one workflow: a list page, a
+ * create page, and a type-the-name delete confirmation page. This factory
+ * turns one config object into those three pages. The
  * resource declares its paths (derived from `basePath`), titles, table
  * columns (typed via {@link DataColumn}), form fields (a `renderFields`
  * callback so non-`Field[]` forms like the attendee-status checkboxes still
- * fit), optional extra edit-only form content carried by a typed `TEditCtx`
- * (the logistics assigned-users selector), and the delete confirmation copy.
- * `AdminPage`, `DataTable`, and `ConfirmPage` stay as the low-level
- * primitives the factory renders through — they are no longer the main
- * public abstraction each resource wires by hand.
+ * fit), and the delete confirmation copy.
+ * `AdminPage`, `DataTable`, and `ConfirmPage` are its rendering primitives.
  */
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { CsrfForm } from "#shared/forms.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
@@ -31,11 +21,6 @@ import {
 } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage, type TCall } from "#templates/admin/confirm-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
-import {
-  DeleteSection,
-  SaveChangesButton,
-  SubmitButton,
-} from "#templates/components/actions.tsx";
 import {
   type DataColumn,
   dataTable,
@@ -61,16 +46,12 @@ export type DeleteSpec<TEntity> = {
   danger: boolean;
 };
 
-/** A resource's page labels. Functions receive the entity for edit/delete. */
+/** A resource's page labels. */
 export type ResourceLabels = {
   listTitle: string;
   addTitle: string;
   addHeading: string;
   addSubmit: string;
-  editTitle: string;
-  editHeading: string;
-  /** Edit submit button label. Defaults to `common.save_changes`. */
-  editSubmit?: string;
   deleteTitle: string;
   deleteButton: string;
   deleteLabel: string;
@@ -91,29 +72,17 @@ export type ResourceList<TEntity> = {
   guideFooter?: Child;
 };
 
-export type AdminResourcePagesConfig<
-  TEntity extends { id: number },
-  TEditCtx = undefined,
-> = {
+export type AdminResourcePagesConfig<TEntity extends { id: number }> = {
   /** The nav `active` key (e.g. "/admin/settings"). */
   active: string;
-  /** Base collection path (e.g. "/admin/holidays"). `…/:id/edit` and
-   *  `…/:id/delete` are derived from it. */
+  /** Base collection path (e.g. "/admin/holidays"). */
   basePath: string;
   labels: ResourceLabels;
   /** The list-page facet (columns + empty state + optional intro/actions).
    *  Omitted by resources whose list page is hand-rolled (logistics). */
   list?: ResourceList<TEntity>;
-  /** Render the form fields for new/edit. Receives `undefined` on the create
-   *  page and the entity on edit — so a single callback covers both. Return
-   *  a `<Raw html={renderFields(...)}/>` for `Field[]`-backed forms, or any
-   *  JSX for hand-rolled field markup. */
+  /** Render the create form fields. */
   renderFields: (entity: TEntity | undefined) => Child;
-  /** Optional extra content rendered inside the edit form (after the fields),
-   *  e.g. the logistics assigned-users selector. `TEditCtx` carries whatever
-   *  extra runtime data the edit page needs (defaults to `undefined` when the
-   *  edit form has no extra data). */
-  renderEditExtra?: (entity: TEntity, ctx: TEditCtx) => Child;
   /** Delete confirmation spec. */
   delete: DeleteSpec<TEntity>;
 };
@@ -138,17 +107,20 @@ export type AdminListPage<TEntity> = (
   ...args: Parameters<FlashPageRenderer>
 ) => string;
 
-/** Build the four standard admin pages (list/new/edit/delete) for a resource
- *  from one config. The edit page takes an optional typed `ctx` whose value
- *  is forwarded to `renderEditExtra` — so a resource whose edit form needs
- *  extra runtime data (logistics assigned users) supplies it without forcing
- *  every other resource to widen its signature. */
-export const defineAdminResourcePages = <
-  TEntity extends { id: number },
-  TEditCtx = undefined,
->(
-  config: AdminResourcePagesConfig<TEntity, TEditCtx>,
-) => {
+export interface AdminResourcePages<TEntity extends { id: number }> {
+  deletePage: (
+    entity: TEntity,
+    session: AdminSession,
+    error?: string,
+  ) => string;
+  listPage: AdminListPage<TEntity>;
+  newPage: (session: AdminSession, error?: string) => string;
+}
+
+/** Build the standard list/new/delete pages for a resource. */
+export const defineAdminResourcePages = <TEntity extends { id: number }>(
+  config: AdminResourcePagesConfig<TEntity>,
+): AdminResourcePages<TEntity> => {
   const listPage: AdminListPage<TEntity> = (
     entities,
     session,
@@ -183,33 +155,6 @@ export const defineAdminResourcePages = <
       </SaveForm>,
     );
 
-  const editPage = (
-    entity: TEntity,
-    session: AdminSession,
-    error?: string,
-    ctx?: TEditCtx,
-  ): string =>
-    flashAdminPage(config.labels.editTitle, config.active)(session, error)(
-      <>
-        <CsrfForm action={`${config.basePath}/${entity.id}/edit`}>
-          <h1>{config.labels.editHeading}</h1>
-          {config.renderFields(entity)}
-          {config.renderEditExtra?.(entity, ctx as TEditCtx)}
-          {config.labels.editSubmit !== undefined ? (
-            <SubmitButton icon="save">{config.labels.editSubmit}</SubmitButton>
-          ) : (
-            SaveChangesButton()
-          )}
-        </CsrfForm>
-        <DeleteSection
-          heading={t("common.delete")}
-          href={`${config.basePath}/${entity.id}/delete`}
-        >
-          {config.labels.deleteButton}
-        </DeleteSection>
-      </>,
-    );
-
   const deletePage = (
     entity: TEntity,
     session: AdminSession,
@@ -236,5 +181,5 @@ export const defineAdminResourcePages = <
     });
   };
 
-  return { deletePage, editPage, listPage, newPage };
+  return { deletePage, listPage, newPage };
 };

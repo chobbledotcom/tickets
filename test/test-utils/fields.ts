@@ -1,4 +1,4 @@
-import type { Field } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
 
 /** Look up a field by name, failing loudly if a factory stops emitting it. */
 export const byName = (fields: readonly Field[], name: string): Field => {

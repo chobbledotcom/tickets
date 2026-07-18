@@ -22,11 +22,12 @@ export const routes = [
     "POST",
     "/admin/modifiers/:id/edit",
   ),
+  route("getModifiersById", "modifiers", "GET", "/admin/modifiers/:id"),
   route(
-    "getModifiersByIdEdit",
+    "getModifiersByIdByTab",
     "modifiers",
     "GET",
-    "/admin/modifiers/:id/edit",
+    "/admin/modifiers/:id/:tab",
   ),
   route(
     "getModifiersRecalculateByModifierId",

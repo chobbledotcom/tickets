@@ -27,9 +27,11 @@ const result = (
   status: MutantResult["status"],
   line: number,
 ): MutantResult => ({
+  detectedBy: null,
   file,
   mutant: mutant(line),
   status,
+  timings: [],
 });
 
 const ignoreList = (entries: string[]): IgnoreList => ({

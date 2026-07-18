@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import { getLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
 import { agentUsers } from "#shared/db/user-agents.ts";
@@ -13,11 +14,14 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { awaitTestRequest, withExpectedError } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
   createTestAgentSession,
   createTestEditorSession,
+  createTestManagerSession,
 } from "#test-utils/session.ts";
 import { enableFeature, storedFeatureEnabled } from "#test-utils/settings.ts";
 
@@ -86,9 +90,21 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "Logistics agent created",
       )(response);
       const list = await adminGet("/admin/logistics");
-      // The agent name links to its edit page; delete lives on that page now.
-      await expectHtmlResponse(list, 200, "Van 1", "/edit");
+      await expectHtmlResponse(list, 200, "Van 1", "/admin/logistics/");
       expect(await storedFeatureEnabled("logistics")).toBe(true);
+    });
+
+    test("does not assign users through a crafted create form", async () => {
+      const userId = (await getAllUsers())[0]!.id;
+      const { response } = await adminFormPost("/admin/logistics", {
+        name: "Unassigned van",
+        user_ids: String(userId),
+      });
+      expect(response.status).toBe(302);
+      const id = (await logisticsAgents.getAll()).find(
+        (agent) => agent.name === "Unassigned van",
+      )!.id;
+      expect(await agentUsers.getIds(id)).toEqual([]);
     });
 
     test("rejects an empty agent name", async () => {
@@ -111,14 +127,18 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
     test("edits an agent", async () => {
       const id = await createAgent("Van A");
-      const editForm = await adminGet(`/admin/logistics/${id}/edit`);
+      const editForm = await adminGet(`/admin/logistics/${id}`);
       const editHtml = await editForm.text();
       // The form must post to the real edit route (no stray /agents/ segment).
       expect(editHtml).toContain(`action="/admin/logistics/${id}/edit"`);
-      expect(editHtml).toContain("Edit Logistics Agent");
+      expect(editHtml).toContain(`href="/admin/logistics/${id}"`);
+      expect(editHtml).toContain(`href="/admin/logistics/${id}/actions"`);
       expect(editHtml).toContain("Van A");
-      // Delete moved off the agents list onto the edit page.
-      expect(editHtml).toContain(`/admin/logistics/${id}/delete`);
+      expect(editHtml).not.toContain(`/admin/logistics/${id}/delete`);
+      const actionsHtml = await (
+        await adminGet(`/admin/logistics/${id}/actions`)
+      ).text();
+      expect(actionsHtml).toContain(`/admin/logistics/${id}/delete`);
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Van B",
       });
@@ -146,9 +166,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(await agentUsers.getIds(id)).toEqual([userId]);
 
       // The edit form pre-checks the assigned user.
-      const editHtml = await (
-        await adminGet(`/admin/logistics/${id}/edit`)
-      ).text();
+      const editHtml = await (await adminGet(`/admin/logistics/${id}`)).text();
       expect(editHtml).toMatch(new RegExp(`checked[^>]*value="${userId}"`));
 
       // Submitting an unknown user id clears the links (it is dropped).
@@ -156,6 +174,34 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         name: "Crewed Van",
         user_ids: "999999",
       });
+      expect(await agentUsers.getIds(id)).toEqual([]);
+    });
+
+    test("rolls back the name when assigned-user writes fail", async () => {
+      const id = await createAgent("Atomic van");
+      const userId = (await getAllUsers())[0]!.id;
+      await getDb().execute(`
+        CREATE TRIGGER fail_agent_user_link
+        BEFORE INSERT ON user_logistics_agents
+        BEGIN
+          SELECT RAISE(ABORT, 'agent user link failed');
+        END
+      `);
+
+      const response = await withExpectedError(
+        async () =>
+          (
+            await adminFormPost(`/admin/logistics/${id}/edit`, {
+              name: "Partly saved van",
+              user_ids: String(userId),
+            })
+          ).response,
+      );
+
+      expect(response.status).toBe(503);
+      expect((await logisticsAgents.table.findById(id))!.name).toBe(
+        "Atomic van",
+      );
       expect(await agentUsers.getIds(id)).toEqual([]);
     });
 
@@ -169,9 +215,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       });
 
       // The edit form offers the agent user but never the editor.
-      const editHtml = await (
-        await adminGet(`/admin/logistics/${id}/edit`)
-      ).text();
+      const editHtml = await (await adminGet(`/admin/logistics/${id}`)).text();
       expect(editHtml).toContain(`value="${agentUserId}"`);
       expect(editHtml).not.toContain(`value="${editorUserId}"`);
 
@@ -221,7 +265,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("returns 404 editing a missing agent", async () => {
-      const response = await adminGet("/admin/logistics/999/edit");
+      const response = await adminGet("/admin/logistics/999");
       expectStatus(404)(response);
     });
 
@@ -232,18 +276,40 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expectStatus(404)(response);
     });
 
-    test("rejects an empty name on edit, keeping the old name", async () => {
+    test("rejects an empty name in place with submitted assignments", async () => {
       const id = await createAgent("Keep Me");
+      const userId = (await getAllUsers())[0]!.id;
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "   ",
+        user_ids: String(userId),
       });
-      await expectFlashRedirect(
-        `/admin/logistics/${id}/edit`,
-        "Agent Name is required",
-        false,
-      )(response);
+      const body = await response.text();
+      expect(response.status).toBe(400);
+      expect(body).toContain("Agent Name is required");
+      expect(body).toMatch(
+        new RegExp(
+          `checked[^>]*value="${userId}"|value="${userId}"[^>]*checked`,
+        ),
+      );
       const kept = (await logisticsAgents.getAll()).find((a) => a.id === id);
       expect(kept!.name).toBe("Keep Me");
+      expect(await agentUsers.getIds(id)).toEqual([]);
+    });
+
+    test("keeps edit and actions unavailable in read-only mode", async () => {
+      const id = await createAgent("Read only van");
+      using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
+
+      expectStatus(404)(await adminGet(`/admin/logistics/${id}`));
+      expectStatus(404)(await adminGet(`/admin/logistics/${id}/actions`));
+    });
+
+    test("keeps the entity page owner-only", async () => {
+      const id = await createAgent("Owner van");
+      const response = await awaitTestRequest(`/admin/logistics/${id}`, {
+        cookie: await createTestManagerSession("logistics-manager"),
+      });
+      expectStatus(403)(response);
     });
   });
 });

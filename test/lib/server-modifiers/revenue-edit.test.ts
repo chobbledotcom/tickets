@@ -183,11 +183,16 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         total_uses: "-1",
         usage_count: "4",
       });
-      await expectFlashRedirect(
-        `/admin/modifiers/${id}/edit`,
+      await expectHtmlResponse(
+        response,
+        400,
         "Total Uses must be 0 or greater",
-        false,
-      )(response);
+        'name="total_uses"',
+        'value="-1"',
+        'name="usage_count"',
+        'value="4"',
+        'value="Bad"',
+      );
     });
 
     test("deactivates a modifier when the toggle is cleared on edit", async () => {
@@ -205,13 +210,15 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/edit`,
-        createData({ calc_value: "150" }),
+        createData({ calc_value: "150", name: "Rejected name" }),
       );
-      await expectFlashRedirect(
-        `/admin/modifiers/${id}/edit`,
+      await expectHtmlResponse(
+        response,
+        400,
         "Percentage must be greater than 0 and at most 100",
-        false,
-      )(response);
+        'value="Rejected name"',
+        'value="150"',
+      );
     });
 
     test("returns 404 when editing a missing modifier", async () => {

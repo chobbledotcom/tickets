@@ -2,8 +2,10 @@ import {
   createConfirmedHandlers,
   type FormGuard,
 } from "#routes/admin/confirmation.ts";
+import type { EditErrorRenderer } from "#routes/admin/entity-write-tab.ts";
 import {
   AUTH_FORM,
+  type AuthSession,
   authPage,
   CONTENT_FORM,
   OWNER_FORM,
@@ -13,19 +15,9 @@ import {
   type SessionGuard,
   withAuth,
 } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
 /* jscpd:ignore-start */
-import {
-  createIdEntityHandler,
-  type IdRouteHandler,
-  idRouteFor,
-} from "#routes/entity.ts";
-import {
-  errorRedirect,
-  htmlResponse,
-  notFoundResponse,
-  redirect,
-} from "#routes/response.ts";
+import { type IdRouteHandler, idRouteFor } from "#routes/entity.ts";
+import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -35,8 +27,8 @@ import type { NamedResource } from "#shared/rest/resource.ts";
 import type { AdminSession } from "#shared/types.ts";
 
 /**
- * `Row` is the stored row the resource writes and the edit/delete pages load via
- * `table.findById`; `Display` is the (optionally richer) row the list page
+ * `Row` is the stored row the resource writes; `Display` is the (optionally
+ * richer) row the list page
  * renders. They differ only when a list column is projected at read time rather
  * than stored — e.g. modifiers, whose `total_revenue` is a ledger projection
  * absent from the stored {@link ModifierRow} but present on the displayed
@@ -62,7 +54,9 @@ type CrudConfig<Row, Input, Display = Row> = {
     successMessage?: string,
   ) => string;
   renderNew: (session: AdminSession, error?: string) => string;
-  renderEdit?: (row: Row, session: AdminSession, error?: string) => string;
+  /** Render a rejected edit in place. Entity pages use this to preserve the
+   * submitted values at status 400. */
+  renderEditError?: EditErrorRenderer;
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
   getName: (row: Row) => string;
   /** Optional delete guard: a returned message blocks the deletion and renders
@@ -71,8 +65,8 @@ type CrudConfig<Row, Input, Display = Row> = {
 };
 
 type AuthGuards = {
-  requireSession: SessionGuard<AdminSession>;
-  withForm: FormGuard<AdminSession>;
+  requireSession: SessionGuard<AuthSession>;
+  withForm: FormGuard<AuthSession>;
 };
 
 /** Create CRUD handlers that require owner role */
@@ -99,7 +93,7 @@ export const createContentCrudHandlers = createCrudHandlersWithAuth({
 function createCrudHandlersWithAuth(auth: AuthGuards) {
   return <Row, Input, Display = Row>(cfg: CrudConfig<Row, Input, Display>) => {
     type FormHandler = ResponseHandler<
-      [session: AdminSession, form: FormParams]
+      [session: AuthSession, form: FormParams]
     >;
 
     // Resolve the resource per-request. When `cfg.resource` is a factory, this
@@ -114,22 +108,10 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
         auth.withForm(request, handler);
 
     const authHtml = authPage(auth.requireSession);
-    const rowHandler = createIdEntityHandler<Row>((id) =>
-      resource().table.findById(id),
-    )(auth.requireSession);
-
-    const authRowHtml = (
-      render: (row: Row, session: AdminSession, error?: string) => string,
-    ): IdRouteHandler =>
-      rowHandler((row, session, request) => {
-        const flash = applyFlash(request);
-        return htmlResponse(render(row, session, flash.error));
-      });
-
     const logAndRedirect = async (
       verb: string,
       row: Row,
-      session: AdminSession,
+      session: AuthSession,
     ): Promise<Response> => {
       await logActivity(`${cfg.singular} '${cfg.getName(row)}' ${verb}`);
       return redirect(
@@ -160,8 +142,6 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
 
     const createPost = authForm(createHandler);
 
-    const editGet = cfg.renderEdit ? authRowHtml(cfg.renderEdit) : undefined;
-
     const editPost: IdRouteHandler = (request, { id }) =>
       auth.withForm(request, async (session, form) => {
         const result = await resource().update(id, form);
@@ -169,7 +149,9 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
           return logAndRedirect("updated", result.row, session);
         }
         if ("notFound" in result) return notFoundResponse();
-        return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
+        return cfg.renderEditError
+          ? cfg.renderEditError(id, session, form, result.error)
+          : errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
       });
 
     const confirmedDelete = createConfirmedHandlers<Row, AdminSession>({
@@ -194,7 +176,6 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
       createPost,
       deleteGet: idRouteFor(confirmedDelete.get),
       deletePost: idRouteFor(confirmedDelete.post),
-      editGet,
       editPost,
       listGet,
       newGet,

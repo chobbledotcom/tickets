@@ -39,7 +39,7 @@ import {
 } from "#routes/admin/servicing/form-model.ts";
 import { SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { FormParams } from "#shared/form-data.ts";
-import type { Field } from "#shared/forms.tsx";
+import type { Field } from "#shared/forms/field.ts";
 
 // jscpd:ignore-end
 

@@ -20,7 +20,7 @@ import {
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   getListingsByGroupIds,
-  getPackageDisplayById,
+  getPackageDisplaysByIds,
   groups,
   isGroupSlugTaken,
   listingGroups,
@@ -32,6 +32,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 describeWithEnv("db > groups", { db: true, triggers: true }, () => {
   /** Create a capped group with two listings (each with listing-level max of 10). */
@@ -648,44 +649,79 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
     });
   });
 
-  describe("getPackageDisplayById", () => {
-    test("returns the package display for an is_package group id", async () => {
+  describe("getPackageDisplaysByIds", () => {
+    test("loads several package displays in one round trip", async () => {
       const pkg = await createTestGroup({
         isPackage: true,
         name: "Bundle",
         slug: "bundle-disp",
       });
-      expect(await getPackageDisplayById(pkg.id)).toEqual({
-        hideListings: false,
-        name: "Bundle",
-      });
-    });
-
-    test("carries the group's hide-listings flag", async () => {
-      const pkg = await createTestGroup({
+      const hidden = await createTestGroup({
         isPackage: true,
         name: "Hidden Bundle",
         slug: "hidden-bundle-disp",
       });
-      await groups.table.update(pkg.id, { hidePackageListings: true });
-      expect(await getPackageDisplayById(pkg.id)).toEqual({
-        hideListings: true,
-        name: "Hidden Bundle",
+      await groups.table.update(hidden.id, { hidePackageListings: true });
+      const regular = await createTestGroup({
+        name: "Regular",
+        slug: "regular-disp",
       });
+      const { roundTrips, value } = await runAndCountRoundTrips(() =>
+        getPackageDisplaysByIds([
+          pkg.id,
+          hidden.id,
+          regular.id,
+          pkg.id,
+          0,
+          -1,
+          987654,
+        ]),
+      );
+
+      expect(roundTrips).toBe(1);
+      expect(value).toEqual(
+        new Map([
+          [pkg.id, { hideListings: false, name: "Bundle" }],
+          [hidden.id, { hideListings: true, name: "Hidden Bundle" }],
+        ]),
+      );
     });
 
-    test("returns null for 0 (not a package) and negative ids", async () => {
-      expect(await getPackageDisplayById(0)).toBeNull();
-      expect(await getPackageDisplayById(-1)).toBeNull();
+    test("returns no displays when no ids are requested", async () => {
+      const { roundTrips, value } = await runAndCountRoundTrips(() =>
+        getPackageDisplaysByIds([]),
+      );
+
+      expect(roundTrips).toBe(0);
+      expect(value).toEqual(new Map());
     });
 
-    test("returns null for a non-package group", async () => {
-      const regular = await createTestGroup({ name: "Reg", slug: "reg-disp" });
-      expect(await getPackageDisplayById(regular.id)).toBeNull();
+    test("does not query for standalone package markers", async () => {
+      const { roundTrips, value } = await runAndCountRoundTrips(() =>
+        getPackageDisplaysByIds([0, 0, -1]),
+      );
+
+      expect(roundTrips).toBe(0);
+      expect(value).toEqual(new Map());
     });
 
-    test("returns null for a group id that no longer exists", async () => {
-      expect(await getPackageDisplayById(987654)).toBeNull();
+    test("reflects package changes after cache invalidation", async () => {
+      const pkg = await createTestGroup({
+        isPackage: true,
+        name: "Changed Bundle",
+        slug: "changed-bundle-disp",
+      });
+      expect((await getPackageDisplaysByIds([pkg.id])).get(pkg.id)).toEqual({
+        hideListings: false,
+        name: "Changed Bundle",
+      });
+
+      await groups.table.update(pkg.id, { hidePackageListings: true });
+
+      expect((await getPackageDisplaysByIds([pkg.id])).get(pkg.id)).toEqual({
+        hideListings: true,
+        name: "Changed Bundle",
+      });
     });
   });
 

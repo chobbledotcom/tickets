@@ -6,8 +6,9 @@
  * way. Owning the button row here keeps those forms from each re-writing it.
  */
 
-import { CsrfForm, hiddenInputs } from "#shared/forms.tsx";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
+import { hiddenInputs } from "#shared/forms/hidden-inputs.tsx";
+import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { type IconName, SubmitButton } from "#templates/components/actions.tsx";
 
@@ -48,6 +49,20 @@ export const SaveForm = ({
     </SubmitButton>
   </CsrfForm>
 );
+
+/** Build save forms for fields already rendered by a form schema. */
+export type RenderedFieldsSaveForm = (
+  action: string,
+  fieldsHtml: string,
+) => JSX.Element;
+
+export const renderedFieldsSaveForm =
+  (submitLabel: string): RenderedFieldsSaveForm =>
+  (action: string, fieldsHtml: string): JSX.Element => (
+    <SaveForm action={action} submitLabel={submitLabel}>
+      <Raw html={fieldsHtml} />
+    </SaveForm>
+  );
 
 /** Build a form component that wraps its body in a {@link SaveForm}. Give it a
  *  function from the component's props to the form's submit configuration and

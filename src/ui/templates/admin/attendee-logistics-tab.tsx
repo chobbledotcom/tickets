@@ -20,7 +20,7 @@ import {
   type OtherAttendeeLine,
 } from "#routes/admin/attendee-logistics.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
-import { CsrfForm } from "#shared/forms.tsx";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { LogisticsSection } from "#templates/admin/attendee-form.tsx";
 import { TitledSection } from "#templates/admin/entity-pages.tsx";
 import { SaveActions } from "#templates/components/actions.tsx";

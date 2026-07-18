@@ -2,9 +2,8 @@ import { t } from "#i18n";
 import { toMajorUnits } from "#shared/currency.ts";
 import {
   booleanToCheckbox,
-  CsrfForm,
   entityToFieldValues,
-} from "#shared/forms.tsx";
+} from "#shared/forms/values.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   availableDayCounts,
@@ -13,9 +12,9 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 import { flashFormPage } from "#templates/admin/admin-page.tsx";
-import { SaveChangesButton } from "#templates/components/actions.tsx";
 import { DataTable, namedColumns } from "#templates/components/data-table.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
+import { SaveForm } from "#templates/components/save-form.tsx";
 import { getGroupCreateForm, getGroupForm } from "#templates/fields/group.ts";
 
 const groupToFieldValues = (
@@ -143,9 +142,11 @@ export const GroupEditPanel = ({
   listings,
   members,
 }: PackageMembersProps & { group: Group }): JSX.Element => (
-  <CsrfForm action={`/admin/groups/${group.id}/edit`}>
+  <SaveForm
+    action={`/admin/groups/${group.id}/edit`}
+    submitLabel={t("common.save_changes")}
+  >
     <Raw html={getGroupForm().render(groupToFieldValues(group))} />
     <PackageMembersTable listings={listings} members={members} />
-    {SaveChangesButton()}
-  </CsrfForm>
+  </SaveForm>
 );

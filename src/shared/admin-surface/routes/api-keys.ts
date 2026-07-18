@@ -14,7 +14,13 @@ export const routes = [
     "/admin/api-keys/:apiKeyId/delete",
   ),
   route("getApiKeys", "apiKeys", "GET", "/admin/api-keys"),
-  route("getApiKeysByApiKeyId", "apiKeys", "GET", "/admin/api-keys/:apiKeyId"),
   route("getApiKeysDocs", "apiKeys", "GET", "/admin/api-keys/docs"),
   route("postApiKeys", "apiKeys", "POST", "/admin/api-keys"),
+  route("getApiKeysByApiKeyId", "apiKeys", "GET", "/admin/api-keys/:apiKeyId"),
+  route(
+    "getApiKeysByApiKeyIdByTab",
+    "apiKeys",
+    "GET",
+    "/admin/api-keys/:apiKeyId/:tab",
+  ),
 ] as const;

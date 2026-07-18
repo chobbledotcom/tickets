@@ -9,25 +9,14 @@ import type {
   AdminSession,
   LogisticsAgent,
 } from "#shared/types.ts";
-import {
-  type AssignmentEditPage,
-  errorAdminPage,
-  flashOptsPage,
-} from "#templates/admin/admin-page.tsx";
+import { errorAdminPage, flashOptsPage } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
-import { WritableOnly } from "#templates/admin/writable-only.tsx";
-import {
-  ActionButton,
-  DeleteSection,
-  GuideFooter,
-} from "#templates/components/actions.tsx";
+import { GuideFooter } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
   CheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable, textCol } from "#templates/components/data-table.tsx";
-import { DetailTable } from "#templates/components/detail-table.tsx";
-import { LabelledRow } from "#templates/components/labelled-row.tsx";
 import { NewResourceForm } from "#templates/components/new-resource-form.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { getInviteUserForm } from "#templates/fields/admin.ts";
@@ -74,13 +63,13 @@ const AgentSelector = ({
 );
 
 /** Comma-joined assigned agent names, or the "none assigned" fallback. */
-const agentNamesDisplay = (user: DisplayUser): string =>
+export const agentNamesDisplay = (user: DisplayUser): string =>
   user.agentNames && user.agentNames.length > 0
     ? user.agentNames.join(", ")
     : t("users.agents.none_assigned");
 
 /** Status label for a user */
-const userStatus = (user: DisplayUser): string => {
+export const userStatus = (user: DisplayUser): string => {
   // An activated user has joined and set a password; otherwise they are an
   // outstanding invite, which is either still open or expired.
   if (user.activated) return t("users.status.active");
@@ -143,63 +132,6 @@ export const adminUsersPage = (
   );
 
 /**
- * Per-user management page — the destination for the username link in the
- * users table. Consolidates the activate, edit-agents, and delete actions that
- * used to sit inline in the table's "Actions" columns.
- */
-export const adminUserManagePage = (
-  user: DisplayUser,
-  session: AdminSession,
-  opts: {
-    currentUserId: number;
-    error?: string | undefined;
-    success?: string | undefined;
-  },
-): string =>
-  flashOptsPage(`${t("terms.users")}: ${user.username}`, "/admin/users")(
-    session,
-    opts,
-  )(
-    <>
-      <h1>{user.username}</h1>
-
-      <DetailTable>
-        <LabelledRow label={t("users.col.role")}>{user.adminLevel}</LabelledRow>
-        <LabelledRow label={t("common.status")}>{userStatus(user)}</LabelledRow>
-        {user.adminLevel === "agent" && (
-          <LabelledRow label={t("users.agents.legend")}>
-            {agentNamesDisplay(user)}
-          </LabelledRow>
-        )}
-      </DetailTable>
-
-      <p class="actions">
-        {user.adminLevel === "agent" && (
-          <WritableOnly>
-            <ActionButton
-              href={`/admin/users/${user.id}/agents`}
-              variant="secondary"
-            >
-              {t("users.agents.edit_link")}
-            </ActionButton>
-          </WritableOnly>
-        )}
-      </p>
-
-      {user.id !== opts.currentUserId && (
-        <WritableOnly>
-          <DeleteSection
-            heading={t("common.delete")}
-            href={`/admin/users/${user.id}/delete`}
-          >
-            {t("users.delete_user.submit")}
-          </DeleteSection>
-        </WritableOnly>
-      )}
-    </>,
-  );
-
-/**
  * Admin delete user confirmation page
  */
 export const adminUserDeletePage = entityDeletePage((user: DisplayUser) => ({
@@ -247,36 +179,33 @@ export const adminUserNewPage = (
     </NewResourceForm>,
   );
 
-/**
- * Admin page for editing which logistics agents an agent user drives.
- */
-export const adminUserAgentsPage: AssignmentEditPage<
-  DisplayUser,
-  LogisticsAgent
-> = (user, agents, selectedIds, session, error) =>
-  errorAdminPage(
-    `${t("users.agents.title")}: ${user.username}`,
-    "/admin/users",
-  )(
-    session,
-    error,
-  )(
-    <>
-      <h1>{t("users.agents.heading", { username: user.username })}</h1>
-      {agents.length === 0 ? (
-        <p>
-          <em>
-            {t("users.agents.none_exist")}{" "}
-            <a href="/admin/logistics">{t("nav.logistics")}</a>.
-          </em>
-        </p>
-      ) : (
-        <SaveForm
-          action={`/admin/users/${user.id}/agents`}
-          submitLabel={t("users.agents.save")}
-        >
-          <AgentSelector agents={agents} selected={selectedIds} />
-        </SaveForm>
-      )}
-    </>,
-  );
+export interface UserAgentsPanelProps {
+  action: string;
+  agents: LogisticsAgent[];
+  selectedIds: ReadonlySet<number>;
+  user: DisplayUser;
+}
+
+/** Form panel for choosing which logistics agents an agent user drives. */
+export const UserAgentsPanel = ({
+  action,
+  agents,
+  selectedIds,
+  user,
+}: UserAgentsPanelProps): JSX.Element => (
+  <>
+    <h2>{t("users.agents.heading", { username: user.username })}</h2>
+    {agents.length === 0 ? (
+      <p>
+        <em>
+          {t("users.agents.none_exist")}{" "}
+          <a href="/admin/logistics">{t("nav.logistics")}</a>.
+        </em>
+      </p>
+    ) : (
+      <SaveForm action={action} submitLabel={t("users.agents.save")}>
+        <AgentSelector agents={agents} selected={selectedIds} />
+      </SaveForm>
+    )}
+  </>
+);
