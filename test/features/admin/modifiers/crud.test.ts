@@ -229,7 +229,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.direction).toBe("charge");
     });
 
-    test("rejects a zero percentage", async () => {
+    test("rejects a zero percentage discount", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",
         createData({ calc_value: "0" }),
@@ -237,6 +237,18 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await expectFlashRedirect(
         "/admin/modifiers/new",
         "Percentage must be greater than 0 and at most 100",
+        false,
+      )(response);
+    });
+
+    test("rejects a zero percentage charge", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_value: "0", direction: "charge" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Percentage must be greater than 0",
         false,
       )(response);
     });

@@ -76,8 +76,9 @@ export const validateCalcValue = (
 ): string | null => {
   if (!Number.isFinite(value)) return "Enter a valid number";
   if (kind === "percent") {
-    return value > 0 && (direction === "charge" || value <= 100)
-      ? null
+    if (value > 0 && (direction === "charge" || value <= 100)) return null;
+    return direction === "charge"
+      ? "Percentage must be greater than 0"
       : "Percentage must be greater than 0 and at most 100";
   }
   if (kind === "multiply") {

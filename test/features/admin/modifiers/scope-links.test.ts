@@ -125,13 +125,16 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
 
     test("links groups via the scope form", async () => {
+      const group = await createTestGroup({ name: "Linked group" });
       await adminFormPost(
         "/admin/modifiers",
         createData({ name: "GS", scope: "groups" }),
       );
       const { id } = await lastModifier();
-      await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "42" });
-      expect(await modifierGroups.getIds(id)).toEqual([42]);
+      await adminFormPost(`/admin/modifiers/${id}/links`, {
+        group_ids: String(group.id),
+      });
+      expect(await modifierGroups.getIds(id)).toEqual([group.id]);
     });
 
     test("drops a non-positive id from the scope form", async () => {

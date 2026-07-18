@@ -118,6 +118,12 @@ describe("validateCalcValue", () => {
       expect(validateCalcValue("percent", 101, "charge")).toBeNull();
       expect(validateCalcValue("percent", 150, "charge")).toBeNull();
     });
+
+    test("rejects a zero charge without claiming it is capped at 100", () => {
+      expect(validateCalcValue("percent", 0, "charge")).toBe(
+        "Percentage must be greater than 0",
+      );
+    });
   });
 
   describe("multiply", () => {
