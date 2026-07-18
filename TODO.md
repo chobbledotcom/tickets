@@ -537,28 +537,6 @@ helper) before the brace-depth checks, and add a direct regression test for the
 comment-with-`}`-then-nested-template case asserting `parseArgList` doesn't
 misinterpret the comma.
 
-## Pluralise the payment-success ticket link (from PR #1773 review)
-
-`src/ui/templates/payment.tsx` (~line 89) renders the ticket link with the
-singular key `payment.success.view_ticket` ("View your ticket") unconditionally,
-even for a multi-ticket order (e.g. a `/t/a+b` combined booking). The plural key
-`payment.success.view_tickets` ("View your tickets") already exists in
-`src/locales/en/payment.json` but has no caller, so it is currently dead.
-
-A CodeRabbit review on PR #1773 flagged the multi-ticket test
-(`test/ui/templates/payment.test.ts`, "renders ticket link ... for multiple
-tickets") for asserting the singular text. That assertion is correct for what
-the template renders today; the real gap is that the template never pluralises.
-
-Fix direction: pick the key by ticket count where the link is rendered — use
-`view_tickets` when the ticket URL covers more than one ticket, `view_ticket`
-otherwise (the count is derivable from the `+`-joined token URL). Then update the
-multi-ticket test to assert "View your tickets" and keep the single-ticket test on
-"View your ticket". This is a small behaviour change, kept out of the
-copy-consistency PR #1773 on purpose.
-
----
-
 ## Restrictions audit — "why can't I combine X with Y?" follow-ups
 
 *Origin: an audit of every place the app refuses a combination a user might

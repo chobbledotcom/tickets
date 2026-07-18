@@ -85,7 +85,11 @@ export const successPage = ({
         {ticketUrl ? (
           <p>
             <NewTabLink href={ticketUrl}>
-              {t("payment.success.view_ticket")}
+              {t(
+                ticketUrl.includes("+")
+                  ? "payment.success.view_tickets"
+                  : "payment.success.view_ticket",
+              )}
             </NewTabLink>
           </p>
         ) : null}

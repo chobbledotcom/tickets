@@ -108,7 +108,7 @@ describe("successPage", () => {
     const html = successPage({ paid: true, ticketUrl: "/t/abc123+def456" });
     expect(html).toContain('href="/t/abc123+def456"');
     expect(html).toContain('target="_blank"');
-    expect(html).toContain("View your ticket");
+    expect(html).toContain("View your tickets");
   });
 
   test("renders ticket link with singular text for single ticket", () => {
