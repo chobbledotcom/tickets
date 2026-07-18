@@ -170,8 +170,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
       expect(updated.total_uses).toBe(12);
       expect(updated.usage_count).toBe(4);
-      // total_revenue is no longer an editable override — it projects from the
-      // ledger, which has no modifier legs here, so it stays 0.
+      // The ledger has no modifier legs here, so projected revenue stays 0.
       expect(updated.total_revenue).toBe(0);
     });
 

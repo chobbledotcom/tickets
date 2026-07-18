@@ -634,13 +634,6 @@ bug (harmless today because of the multiplier workaround).*
   header-based webhook dispatch, and a multi-select UI. Reasonable to leave for a
   single-merchant site; revisit if operators ask.
 
-- **Percentage modifiers capped at 100% even for surcharges.** `validateCalcValue`
-  (`src/shared/price-modifier.ts` ~line 88) checks the magnitude before the
-  charge/discount direction, so a +150% surcharge is wrongly rejected (the cap is
-  only correct for discounts). Fix: pass `direction` into `validateCalcValue` and
-  allow `> 100` when `direction === "charge"`. Small, self-contained; the ×2.5
-  multiplier is the current workaround.
-
 - **A status in use by attendees can't be deleted, with no way out.**
   `src/features/admin/settings-statuses.ts` (~lines 200–221) blocks the delete
   outright. Fix: add a "reassign these N attendees to <status>, then delete" flow

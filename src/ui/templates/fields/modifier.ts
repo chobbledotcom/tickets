@@ -1,6 +1,7 @@
 /** Modifier form fields (same for create and edit — no slug). */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import {
   defineForm,
   type FormDefinition,
@@ -17,6 +18,15 @@ import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { picklistOptions } from "#templates/fields/picklist-options.ts";
 
 /* jscpd:ignore-end */
+
+const DECIMAL_VALUE_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
+
+const isDecimalValue = (value: string): boolean => {
+  const trimmed = value.trim();
+  return (
+    DECIMAL_VALUE_PATTERN.test(trimmed) && Number.isFinite(Number(trimmed))
+  );
+};
 
 /**
  * Modifier form fields (per-request builder). Built on demand rather than at
@@ -56,13 +66,11 @@ const getModifierFields = () =>
       name: "calc_value",
       // Required, so `validateSingleField` rejects empty input before `parse`
       // runs; `parse` therefore only ever sees a value the validator accepted.
-      parse: (value: string) => Number.parseFloat(value),
+      parse: (value: string) => Number(value),
       required: true,
       type: "text",
       validate: (value: string) =>
-        Number.isFinite(Number.parseFloat(value))
-          ? null
-          : "Enter a valid number",
+        isDecimalValue(value) ? null : t("modifiers.error.invalid_number"),
     },
     {
       defaultValue: "automatic",
