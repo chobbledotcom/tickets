@@ -52,6 +52,10 @@ describeWithEnv("main app router", { db: true }, () => {
     expect((await route("/listings/extra")).status).toBe(404);
   });
 
+  test("does not expose scheduled maintenance through the app router", async () => {
+    expect((await route("/scheduled", "POST")).status).toBe(404);
+  });
+
   test("turns a null result from a known prefix into not found", async () => {
     expect((await route("/custom.css/extra")).status).toBe(404);
   });
