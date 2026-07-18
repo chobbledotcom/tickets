@@ -1,0 +1,24 @@
+:root {
+  --border-radius: 0;
+  --box-shadow: 5px 5px 0;
+  --color-accent: #ffe600;
+  --color-bg: #f7f5ef;
+  --color-bg-secondary: #dedbd0;
+  --color-link: #0047bb;
+  --color-secondary: #d82222;
+  --color-secondary-accent: #ffe60055;
+  --color-shadow: #161616;
+  --color-table: #161616;
+  --color-text: #161616;
+  --color-text-secondary: #575757;
+  --font-family: "Arial Narrow", Impact, sans-serif;
+}
+
+button,
+input,
+select,
+textarea,
+table,
+fieldset {
+  border-width: 2px;
+}

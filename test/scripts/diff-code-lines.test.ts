@@ -5,8 +5,19 @@ import {
   emptyAreaTally,
   formatReport,
   freshState,
+  gitDiffArgs,
   tallyDiff,
 } from "../../scripts/diff-code-lines-lib.ts";
+
+test("requests a raw unified diff that external Git tools cannot replace", () => {
+  expect(gitDiffArgs("origin/main")).toEqual([
+    "diff",
+    "--no-ext-diff",
+    "--no-color",
+    "--unified=0",
+    "origin/main...HEAD",
+  ]);
+});
 
 describe("diff-code-lines classify", () => {
   test("treats a multi-line import block as import across its lines", () => {

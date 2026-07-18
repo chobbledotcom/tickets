@@ -17,8 +17,9 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { attendeeFormPost } from "#routes/admin/attendees-route-helpers.ts";
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { AUTH_FORM, formGuard, requireSessionOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
+import { createEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -27,6 +28,7 @@ import {
   createOwnerNote,
   deleteAttendeeNote,
   getAttendeeNote,
+  type SystemNote,
 } from "#shared/db/system-notes.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -64,6 +66,20 @@ const withLoadedAttendee = async (
 ): Promise<Response> => {
   const attendee = await loadAttendeeOr404(attendeeId);
   return attendee instanceof Response ? attendee : then(attendee);
+};
+
+type NoteRouteParams = { attendeeId: number; noteId: number };
+const loadNote = async ({
+  attendeeId,
+  noteId,
+}: NoteRouteParams): Promise<SystemNote | null> =>
+  getAttendeeNote(attendeeId, noteId, await requireRequestPrivateKey());
+const noteEntityHandler = createEntityHandler<NoteRouteParams, SystemNote>(
+  loadNote,
+);
+const noteHandlers = {
+  get: noteEntityHandler(requireSessionOr),
+  post: noteEntityHandler(formGuard(AUTH_FORM)),
 };
 
 /** Render the add-note form for a loaded attendee (initial GET or a re-render
@@ -128,17 +144,9 @@ const handleAddNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/not
   );
 
 /** GET /admin/attendee/:attendeeId/note/:noteId/delete — are-you-sure page. */
-const handleDeleteNoteGet: TypedRouteHandler<
-  "GET /admin/attendee/:attendeeId/note/:noteId/delete"
-> = (request, { attendeeId, noteId }) =>
-  requireSessionOr(request, async (session) => {
-    const note = await getAttendeeNote(
-      attendeeId,
-      noteId,
-      await requireRequestPrivateKey(),
-    );
-    if (!note) return notFoundResponse();
-    return htmlResponse(
+const handleDeleteNoteGet: TypedRouteHandler<"GET /admin/attendee/:attendeeId/note/:noteId/delete"> =
+  noteHandlers.get((note, session, request, { attendeeId }) =>
+    htmlResponse(
       adminDeleteNotePage({
         error: applyFlash(request).error,
         note,
@@ -148,15 +156,13 @@ const handleDeleteNoteGet: TypedRouteHandler<
         ),
         session,
       }),
-    );
-  });
+    ),
+  );
 
 /** POST /admin/attendee/:attendeeId/note/:noteId/delete — delete the note. */
-const handleDeleteNotePost: TypedRouteHandler<
-  "POST /admin/attendee/:attendeeId/note/:noteId/delete"
-> = (request, { attendeeId, noteId }) =>
-  withAuth(request, AUTH_FORM, async (_session, form) => {
-    await deleteAttendeeNote(attendeeId, noteId);
+const handleDeleteNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/note/:noteId/delete"> =
+  noteHandlers.post(async (note, _session, form, _request, { attendeeId }) => {
+    await deleteAttendeeNote(attendeeId, note.id);
     return redirect(
       returnTarget(attendeeId, form.getString("return_url")),
       t("notes.deleted"),

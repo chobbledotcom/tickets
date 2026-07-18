@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  attributeOptionsOrder,
+  attributesOrder,
   deleteAttribute,
   deleteAttributeOption,
   getAllAttributeOptionIds,
@@ -9,8 +11,6 @@ import {
   getSelectedAttributesForListings,
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
-  swapAttributeOptionOrder,
-  swapAttributeOrder,
 } from "#shared/db/attributes.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -37,8 +37,12 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "In person",
     ]);
 
-    await swapAttributeOrder(first.id, second.id);
-    await swapAttributeOptionOrder(first.options[0]!.id, first.options[1]!.id);
+    await attributesOrder.swap({ first: first.id, second: second.id });
+    await attributeOptionsOrder.swap({
+      first: first.options[0]!.id,
+      scope: first.id,
+      second: first.options[1]!.id,
+    });
 
     const attributes = await getAllAttributesWithOptions();
     expect(names(attributes)).toEqual(["Format", "Difficulty"]);

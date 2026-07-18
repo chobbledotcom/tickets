@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   processExists,
+  runDeno,
   stopProcess,
   stopProcessNow,
 } from "../../scripts/process.ts";
@@ -44,6 +45,13 @@ const fakeChild = (
 };
 
 describe("script process helpers", () => {
+  test("runs the current Deno executable", async () => {
+    const result = await runDeno(["eval", "Deno.exit(7)"], Deno.cwd());
+
+    expect(result.code).toBe(7);
+    expect(result.success).toBe(false);
+  });
+
   test("checks process liveness without spawning a shell command", () => {
     expect(processExists(Deno.pid)).toBe(true);
     expect(processExists(99_999_999)).toBe(false);

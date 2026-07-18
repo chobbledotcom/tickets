@@ -1,0 +1,15 @@
+:root {
+  --border-radius: 2px;
+  --box-shadow: 3px 3px 0;
+  --color-accent: #dce8d5;
+  --color-bg: #f8f4e8;
+  --color-bg-secondary: #dce8d5;
+  --color-link: #285943;
+  --color-secondary: #9c4a2f;
+  --color-secondary-accent: #9c4a2f1a;
+  --color-shadow: #285943;
+  --color-table: #285943;
+  --color-text: #18352a;
+  --color-text-secondary: #5c6f64;
+  --font-family: Georgia, "Times New Roman", serif;
+}

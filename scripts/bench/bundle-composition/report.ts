@@ -23,6 +23,7 @@ import {
 } from "../../edge-cdn-assets.ts";
 import { buildRemoteModule, wasmFilename } from "../../inline-jsquash-wasm.ts";
 import { cleanCdnUrl } from "../../static-cdn.ts";
+import { countJavaScriptAstNodes } from "./javascript-ast.ts";
 import {
   applicationArea,
   attributeGeneratedBytes,
@@ -246,6 +247,9 @@ const main = async (): Promise<void> => {
   console.log("Bunny edge bundle composition");
   console.log(
     `${alreadyCdn ? "Current CDN-enabled build" : "Self-contained build"}: ${number.format(attribution.totalBytes)} bytes`,
+  );
+  console.log(
+    `Parsed JavaScript AST: ${number.format(countJavaScriptAstNodes(code))} nodes`,
   );
   if (!alreadyCdn) {
     console.log(

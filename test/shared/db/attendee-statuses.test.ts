@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import {
   type AttendeeStatusWriteInput,
   attendeeStatuses,
+  attendeeStatusOrder,
   attendeeStatusWrites,
   DEFAULT_ATTENDEE_STATUS_NAME,
   ensureDefaultAttendeeStatus,
@@ -10,7 +11,6 @@ import {
   getPaidDefaultStatus,
   getPublicDefaultStatus,
   getPublicStatusId,
-  swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
@@ -133,10 +133,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(storedWaitlist?.is_reservation).toBe(false);
   });
 
-  test("swapAttendeeStatusOrder swaps two statuses' sort_order", async () => {
+  test("ordered rows swap two statuses' sort_order", async () => {
     const a = await attendeeStatuses.table.insert({ name: "A", sortOrder: 5 });
     const b = await attendeeStatuses.table.insert({ name: "B", sortOrder: 6 });
-    await swapAttendeeStatusOrder(a.id, b.id);
+    await attendeeStatusOrder.swap({ first: a.id, second: b.id });
     expect((await getAttendeeStatus(a.id))?.sort_order).toBe(6);
     expect((await getAttendeeStatus(b.id))?.sort_order).toBe(5);
   });
@@ -223,8 +223,30 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       ),
     ]);
     expect(results).toEqual([
-      { ok: true, value: first.id },
-      { ok: true, value: second.id },
+      {
+        ok: true,
+        value: {
+          id: first.id,
+          is_paid_default: true,
+          is_public_default: true,
+          is_reservation: false,
+          name: "First",
+          reservation_amount: "0",
+          sort_order: 0,
+        },
+      },
+      {
+        ok: true,
+        value: {
+          id: second.id,
+          is_paid_default: true,
+          is_public_default: true,
+          is_reservation: false,
+          name: "Second",
+          reservation_amount: "0",
+          sort_order: 0,
+        },
+      },
     ]);
 
     const defaults = await getDb().execute(
@@ -289,7 +311,18 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       statusInput("Candidate"),
     );
 
-    expect(await promoted).toEqual({ ok: true, value: candidate.id });
+    expect(await promoted).toEqual({
+      ok: true,
+      value: {
+        id: candidate.id,
+        is_paid_default: false,
+        is_public_default: true,
+        is_reservation: false,
+        name: "Candidate",
+        reservation_amount: "0",
+        sort_order: 0,
+      },
+    });
     expect(await staleEdit).toEqual({
       error: "public_default_required",
       ok: false,

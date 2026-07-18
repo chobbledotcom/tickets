@@ -6,7 +6,7 @@ import {
   listingQuestions,
   questionListings,
 } from "#shared/db/questions/queries.ts";
-import { swapQuestionOrder } from "#shared/db/questions/sort-order.ts";
+import { questionsOrder } from "#shared/db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -43,7 +43,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const { q1, q2 } = await createOrderedQuestionPair("A1", "A2");
 
       // Put q2 ahead of q1 globally.
-      await swapQuestionOrder(q1.id, q2.id);
+      await questionsOrder.swap({ first: q1.id, second: q2.id });
 
       const listing = await createTestListing();
       await listingQuestions.setIds(listing.id, [q1.id, q2.id]);

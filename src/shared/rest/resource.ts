@@ -51,6 +51,16 @@ export type UpdateResult<Row> =
 /** Result type for delete operations */
 export type DeleteResult = SuccessResult<object> | ErrorResult | NotFoundResult;
 
+/** The small CRUD contract route factories need. A full NamedResource satisfies
+ * it, while transaction-backed domains can implement it without pretending to
+ * be a table-backed resource. */
+export interface NamedOperations<Row, Id = number> {
+  create: (form: FormParams) => Promise<CreateResult<Row>>;
+  delete: (id: Id) => Promise<DeleteResult>;
+  loadOrNull: (id: Id) => Promise<Row | null>;
+  update: (id: Id, form: FormParams) => Promise<UpdateResult<Row>>;
+}
+
 /** Validation function type — Id defaults to InValue for broad compatibility */
 type ValidateFn<Input, Id = InValue> =
   | ((input: Input, id?: Id) => Promise<string | null>)
@@ -59,17 +69,11 @@ type ValidateFn<Input, Id = InValue> =
 /**
  * Resource interface - provides typed REST operations
  */
-export interface Resource<
-  Row,
-  Input,
-  _Values extends FieldValues = FieldValues,
-> {
-  create: (form: FormParams) => Promise<CreateResult<Row>>;
-  delete: (id: InValue) => Promise<DeleteResult>;
+export interface Resource<Row, Input, _Values extends FieldValues = FieldValues>
+  extends NamedOperations<Row, InValue> {
   readonly fields: readonly Field[];
   parseInput: (form: FormParams) => Promise<ParseResult<Input>>;
   readonly table: Table<Row, Input>;
-  update: (id: InValue, form: FormParams) => Promise<UpdateResult<Row>>;
   verifyName?: (row: Row, confirmName: string) => boolean;
 }
 
@@ -261,6 +265,7 @@ export const defineResource = <
     create,
     delete: deleteRow,
     fields: schema.fields,
+    loadOrNull: table.findById,
     parseInput,
     table,
     update,
