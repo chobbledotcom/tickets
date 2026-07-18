@@ -6,10 +6,12 @@ import type { ListingWithCount } from "#shared/types.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
+import {
+  registerPublicTemplateHooks,
+  ticketListing,
+} from "#test/templates/public/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
-
-import { registerPublicTemplateHooks, ticketListing } from "./helpers.ts";
 
 describeWithEnv(
   "listing images",

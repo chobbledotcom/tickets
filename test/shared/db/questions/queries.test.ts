@@ -7,15 +7,15 @@ import {
   questionListings,
 } from "#shared/db/questions/queries.ts";
 import { questionsOrder } from "#shared/db/questions/tables.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createOrderedQuestionPair,
   createQuestion,
   createQuestionWithAnswers,
   expectQuestionTexts,
   seedQuestionWithAndWithoutAnswers,
-} from "./helpers.ts";
+} from "#test/shared/db/questions/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Two answered questions ("Q1", "Q2") and a fresh listing — the shared
  *  arrange behind the assign/replace mapping tests. */

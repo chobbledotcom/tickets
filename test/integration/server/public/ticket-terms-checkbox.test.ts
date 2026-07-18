@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
+import { expectBasicTicketBookingRedirectsToThanks } from "#test/lib/server-public/basic-ticket-booking.ts";
 import {
   assertPublicHtml,
   expectFlash,
@@ -15,7 +16,6 @@ import {
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { expectBasicTicketBookingRedirectsToThanks } from "../../../lib/server-public/basic-ticket-booking.ts";
 
 // jscpd:ignore-end
 

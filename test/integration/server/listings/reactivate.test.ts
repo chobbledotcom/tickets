@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { testConfirmIdentifierMismatch } from "#test/lib/server-listings/confirm-identifier-mismatch.ts";
 import {
   assertAdminHtml,
   expectFlashRedirect,
@@ -13,7 +14,6 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
-import { testConfirmIdentifierMismatch } from "../../../lib/server-listings/confirm-identifier-mismatch.ts";
 
 // jscpd:ignore-end
 

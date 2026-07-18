@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import {
   configureSquare,
   linkResult,
   withSquareClient,
-} from "../../lib/square/fixtures.ts";
-import { describeSquare } from "../../lib/square/harness.ts";
+} from "#test/lib/square/fixtures.ts";
+import { describeSquare } from "#test/lib/square/harness.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 
 describeSquare(() => {
   describe("squarePaymentProvider integration", () => {

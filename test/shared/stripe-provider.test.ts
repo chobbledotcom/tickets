@@ -11,13 +11,13 @@ import {
   stripeApi,
 } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { lineFor, stripeClient } from "#test/lib/stripe/fixtures.ts";
+import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
-import { lineFor, stripeClient } from "./fixtures.ts";
-import { describeStripe } from "./harness.ts";
 
 describeStripe("stripe-provider", () => {
   /** Stub `checkout.sessions.retrieve` with `impl`, then run `body`. */

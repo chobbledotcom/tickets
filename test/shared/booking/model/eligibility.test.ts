@@ -13,13 +13,13 @@ import {
   childPassesAllChecks,
   childUsesSameDays,
 } from "#shared/booking/model.ts";
-import { useSetting } from "#test-utils/settings.ts";
 import {
   dailyOverrides,
   resolved,
   today,
   weekdayOf,
-} from "../../../lib/booking-model-fixtures.ts";
+} from "#test/lib/booking-model-fixtures.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — child eligibility", () => {
   useSetting({ timezone: "UTC" });

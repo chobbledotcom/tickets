@@ -6,12 +6,12 @@ import {
 } from "#shared/columns/attendee-columns.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
-import { testAttendee } from "#test-utils/factories.ts";
 import {
   makeAttendeeRow as makeRow,
   attendeeColumnOpts as opts,
-} from "../../../lib/column-order/attendee-column-fixtures.ts";
+} from "#test/lib/column-order/attendee-column-fixtures.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { testAttendee } from "#test-utils/factories.ts";
 
 setupTestEncryptionKey();
 

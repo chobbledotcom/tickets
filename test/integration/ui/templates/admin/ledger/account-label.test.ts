@@ -7,7 +7,7 @@ import {
   renderLedger,
   setUpLedgerPageCrypto,
   transfer,
-} from "../../../../../ui/templates/admin/ledger/helpers.ts";
+} from "#test/ui/templates/admin/ledger/helpers.ts";
 
 describe("money account labels", () => {
   beforeAll(setUpLedgerPageCrypto);

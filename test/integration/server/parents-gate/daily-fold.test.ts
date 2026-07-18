@@ -2,6 +2,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import {
+  childExcludingParentDay,
+  firstBookableDate,
+  makeDailyChildFilledOnDayA,
+  makeDailyGroupWithFiller,
+} from "#test/lib/server-parents-gate/helpers.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -16,12 +22,6 @@ import {
   makeParent,
   parentField,
 } from "#test-utils/parents.ts";
-import {
-  childExcludingParentDay,
-  firstBookableDate,
-  makeDailyChildFilledOnDayA,
-  makeDailyGroupWithFiller,
-} from "../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 

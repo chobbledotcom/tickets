@@ -6,9 +6,9 @@ import {
   constructTestWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/stripe.ts";
+import { signedHeader } from "#test/lib/stripe/fixtures.ts";
+import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { activateStripe } from "#test-utils/settings.ts";
-import { signedHeader } from "../../lib/stripe/fixtures.ts";
-import { describeStripe } from "../../lib/stripe/harness.ts";
 
 describeStripe("stripe", () => {
   describe("verifyWebhookSignature - timestamp parsing", () => {

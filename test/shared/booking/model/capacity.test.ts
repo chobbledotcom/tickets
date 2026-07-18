@@ -5,8 +5,8 @@ import {
   parentAndChildFitGroup,
   ticketsThatFitInPool,
 } from "#shared/booking/model.ts";
+import { listing } from "#test/lib/booking-model-fixtures.ts";
 import { useSetting } from "#test-utils/settings.ts";
-import { listing } from "../../../lib/booking-model-fixtures.ts";
 
 describe("booking model — capacity", () => {
   useSetting({ timezone: "UTC" });

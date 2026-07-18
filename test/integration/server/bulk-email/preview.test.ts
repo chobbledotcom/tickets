@@ -2,19 +2,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
 import {
+  seedDraft,
+  seedListingWithAttendees,
+  seedMarketingDraftWithUnsubscriber,
+  seedSingleAttendeeListing,
+  useResend,
+} from "#test/lib/server-bulk-email/helpers.ts";
+import {
   expectFlash,
   expectFlashRedirect,
   expectRedirect,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import {
-  seedDraft,
-  seedListingWithAttendees,
-  seedMarketingDraftWithUnsubscriber,
-  seedSingleAttendeeListing,
-  useResend,
-} from "../../../lib/server-bulk-email/helpers.ts";
 
 /** Read the rendered preview page's HTML. */
 const getPreviewHtml = async (): Promise<string> =>

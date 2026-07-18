@@ -19,8 +19,8 @@ import {
   packageQuantityFieldName,
   quantityFieldName,
 } from "#shared/booking/tree.ts";
+import { treePackage as pkg } from "#test/lib/package-cap-fixtures.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-import { treePackage as pkg } from "./package-cap-fixtures.ts";
 
 const resolved = (overrides = {}, closed = false, groupRemaining?: number) =>
   buildTicketListing(testListingWithCount(overrides), closed, groupRemaining);

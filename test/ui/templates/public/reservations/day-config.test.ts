@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import {
+  registerPublicTemplateHooks,
+  ticketListing,
+} from "#test/templates/public/helpers.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-
-import { registerPublicTemplateHooks, ticketListing } from "./helpers.ts";
 
 describe("ticketPage day-count selector", () => {
   registerPublicTemplateHooks();

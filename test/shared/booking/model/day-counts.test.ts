@@ -11,11 +11,11 @@ import {
   type TicketListing,
   updateForMembersWithChildren,
 } from "#shared/booking/model.ts";
-import { useSetting } from "#test-utils/settings.ts";
 import {
   oneChildSupportingDayTwo,
   resolved,
-} from "../../../lib/booking-model-fixtures.ts";
+} from "#test/lib/booking-model-fixtures.ts";
+import { useSetting } from "#test-utils/settings.ts";
 
 describe("booking model — day-count support", () => {
   useSetting({ timezone: "UTC" });

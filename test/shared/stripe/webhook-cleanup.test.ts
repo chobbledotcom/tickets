@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { cleanupOldWebhookEndpoints } from "#shared/stripe.ts";
-import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
-import { describeStripe } from "../../lib/stripe/harness.ts";
+import { describeStripe } from "#test/lib/stripe/harness.ts";
 import {
   cleanupWithWebhookApi,
   newWebhookApiCalls,
-} from "../../lib/stripe/webhook-mocks.ts";
+} from "#test/lib/stripe/webhook-mocks.ts";
+import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
 
 describeStripe("Stripe webhook cleanup", () => {
   describe("endpoint cleanup", () => {

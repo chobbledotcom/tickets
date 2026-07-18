@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import { hasInputWithValue } from "#test-utils/csrf.ts";
 import {
   listingB,
   registerPublicTemplateHooks,
   singleListingPageHtml,
   ticketListing,
-} from "./helpers.ts";
+} from "#test/templates/public/helpers.ts";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
 
 describe("ticketPage — fields & form", () => {
   registerPublicTemplateHooks();

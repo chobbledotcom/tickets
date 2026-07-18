@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
+import {
+  latestAttendee,
+  submitBuyerOrder,
+} from "#test/lib/server-reservation/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
-import {
-  latestAttendee,
-  submitBuyerOrder,
-} from "../../../lib/server-reservation/helpers.ts";
 
 describeWithEnv("server previous bookings", { db: true }, () => {
   afterEach(() => resetStripeClient());

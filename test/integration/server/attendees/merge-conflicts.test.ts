@@ -4,6 +4,18 @@ import { describe, it as test } from "@std/testing/bdd";
 // jscpd:ignore-end
 import { queryAll } from "#shared/db/client.ts";
 import {
+  createDualPackageAttendee,
+  dualPackageRows,
+} from "#test/lib/server-attendees/helpers.ts";
+import {
+  assignMergeAnswers,
+  mergeNonConflictingAnswer,
+  mergePair,
+  mergePairWithQuestion,
+  mergeWithAnswerConflict,
+  submitMerge,
+} from "#test/lib/server-attendees/merge.ts";
+import {
   expectFlash,
   expectHtmlResponse,
   expectRedirect,
@@ -13,18 +25,6 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
-import {
-  createDualPackageAttendee,
-  dualPackageRows,
-} from "../../../lib/server-attendees/helpers.ts";
-import {
-  assignMergeAnswers,
-  mergeNonConflictingAnswer,
-  mergePair,
-  mergePairWithQuestion,
-  mergeWithAnswerConflict,
-  submitMerge,
-} from "../../../lib/server-attendees/merge.ts";
 
 describeWithEnv(
   "server (admin attendees) > merge conflicts",

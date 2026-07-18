@@ -2,22 +2,14 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { buildRequest, parseBody } from "#cli/api-request.ts";
+import { loadConfig } from "#cli/config.ts";
+import { buildCurlArgs, curlFailureMessage, curlJson } from "#cli/curl.ts";
+import { clearScreen, writeErr, writeOut } from "#cli/io.ts";
+import { parseResource, resourcePath, resources } from "#cli/resources.ts";
 import { adminApiRoutes } from "#routes/admin/api.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withTempDir } from "#test-utils/files.ts";
-import { buildRequest, parseBody } from "../../../cli/api-request.ts";
-import { loadConfig } from "../../../cli/config.ts";
-import {
-  buildCurlArgs,
-  curlFailureMessage,
-  curlJson,
-} from "../../../cli/curl.ts";
-import { clearScreen, writeErr, writeOut } from "../../../cli/io.ts";
-import {
-  parseResource,
-  resourcePath,
-  resources,
-} from "../../../cli/resources.ts";
 
 describe("CLI config", () => {
   test("loads and normalizes environment config", async () => {
