@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   getAllActivityLog,
   getListingActivityLog,
@@ -10,12 +11,14 @@ import {
   getAttendeeRaw,
   getAttendeesRaw,
 } from "#shared/db/attendees/queries.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
 import {
+  getAllListings,
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
+import { LISTING_COUNT_SELECT } from "#shared/db/listings/sql.ts";
 import {
   isSessionProcessed,
   reserveSession,
@@ -34,6 +37,7 @@ import {
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
@@ -267,6 +271,25 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       const after = await getListingWithCount(listing.id);
       expect(after).toBeNull();
+    });
+
+    test("does not refill the cache from a stale replica after deletion", async () => {
+      const listing = await createTestListing({ name: "Deleted listing" });
+      const listSql = `${LISTING_COUNT_SELECT}  ORDER BY listing.created DESC, listing.id DESC`;
+      const staleReplicaResult = await getDb().execute(listSql);
+
+      await deleteListing(listing.id);
+
+      using _env = withEnv({ DB_URL: "libsql://replica.test" });
+      const replicaRead = stub(getDb(), "execute", () =>
+        Promise.resolve(staleReplicaResult),
+      );
+      try {
+        const listings = await getAllListings();
+        expect(listings.map((item) => item.id)).not.toContain(listing.id);
+      } finally {
+        replicaRead.restore();
+      }
     });
   });
 });

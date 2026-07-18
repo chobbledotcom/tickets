@@ -60,7 +60,11 @@ export type WriteInfo = {
   columns: ReadonlySet<string>;
 };
 
-type Invalidator = () => void;
+/** Why cached data was cleared. Only a committed write needs primary refills. */
+export type CacheInvalidation = "manual" | "write";
+
+type Invalidator = (cause: CacheInvalidation) => void;
+type Reset = () => void;
 type Registration = {
   invalidate: Invalidator;
   /** If set, an UPDATE only fires when it assigns at least one of these columns.
@@ -72,12 +76,12 @@ const invalidatorsByTable = new Map<string, Set<Registration>>();
 
 /** Full-clear hooks for caches that no table registration covers (e.g. the
  * per-token session cache, which is invalidated entry-by-entry on writes). */
-const resetHooks = new Set<Invalidator>();
+const resetHooks = new Set<Reset>();
 
 /** Register an extra full-clear to run when every cache is reset. Only needed
  * by caches without a table registration; `resetAllCaches` already fires every
  * table-registered invalidator. */
-export const registerCacheReset = (reset: Invalidator): Unregister => {
+export const registerCacheReset = (reset: Reset): Unregister => {
   resetHooks.add(reset);
   return () => resetHooks.delete(reset);
 };
@@ -95,7 +99,7 @@ export const resetAllCaches = (): void => {
     ...set,
   ]);
   for (const registration of unique(registrations)) {
-    registration.invalidate();
+    registration.invalidate("write");
   }
   for (const reset of resetHooks) reset();
 };
@@ -149,7 +153,7 @@ export const invalidateCachesForWrite = (
     ) {
       continue;
     }
-    reg.invalidate();
+    reg.invalidate("write");
   }
 };
 
@@ -172,7 +176,7 @@ export type DependsOnEntry =
 export const registerDependencies = (
   ownTable: string,
   deps: readonly DependsOnEntry[],
-  invalidate: () => void,
+  invalidate: Invalidator,
 ): Unregister => {
   const unregisters = [
     registerTableInvalidation([ownTable], invalidate),

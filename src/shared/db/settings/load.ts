@@ -13,12 +13,16 @@
  */
 
 import { unique } from "#fp";
-import { registerTableInvalidation } from "#shared/cache-registry.ts";
+import {
+  type CacheInvalidation,
+  registerTableInvalidation,
+} from "#shared/cache-registry.ts";
 import { queryAll } from "#shared/db/client.ts";
 import { applyKeys } from "#shared/db/settings/apply.ts";
 import {
   currentVersion,
   getCacheState,
+  invalidateVersionProbe,
   resetCache,
   setCacheState,
 } from "#shared/db/settings/cache.ts";
@@ -56,7 +60,8 @@ export const loadKeys = async (keys: readonly string[]): Promise<void> => {
 };
 
 /** Full invalidation — clears raw cache AND resets snapshot to defaults. */
-export const invalidateCache = (): void => {
+export const invalidateCache = (cause: CacheInvalidation = "manual"): void => {
+  invalidateVersionProbe(cause);
   setCacheState(null);
   for (const key of Object.keys(defaults) as (keyof SettingsData)[]) {
     setSnapshotField(key, defaults[key]);

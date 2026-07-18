@@ -5,6 +5,7 @@ import {
   type KeyedCache,
   type KeyedCacheConfig,
 } from "#shared/db/keyed-cache.ts";
+import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
 
 /** A minimal cached row: a numeric id and a secondary string key. */
 type Row = { id: number; key: string };
@@ -175,6 +176,27 @@ describe("db > keyed-cache", () => {
     cache.invalidate();
     await cache.getById(1); // re-fetched
     expect(calls.byId).toEqual([1, 1]);
+  });
+
+  test("refills from primary while replicas catch up after invalidation", async () => {
+    const reads: boolean[] = [];
+    const cache = createKeyedCache<Row>({
+      fetchAll: () => Promise.resolve([]),
+      fetchById: (id) => {
+        reads.push(mustReadFromPrimary());
+        return Promise.resolve(row(id));
+      },
+      idOf: (item) => item.id,
+      keyOf: (item) => item.key,
+      now,
+      ttlMs: 1000,
+    });
+
+    await cache.getById(1);
+    cache.invalidate("write");
+    await cache.getById(2);
+
+    expect(reads).toEqual([false, true]);
   });
 
   test("size reports the number of cached records", async () => {

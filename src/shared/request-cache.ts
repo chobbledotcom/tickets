@@ -4,17 +4,27 @@
  * Each incoming request gets a fresh cache scope. The first call to
  * getAll() fetches from the database; subsequent calls within the same
  * request return the cached result. Writes call invalidate() to clear
- * the cached data so the next read re-fetches.
+ * the cached data. Refills use the primary while replicas catch up, including
+ * when the next read happens in the request reached through a redirect.
  *
  * Outside a request context (e.g. tests), every getAll() call fetches
  * directly — no caching is applied.
  */
 
+/* jscpd:ignore-start -- imports */
 import type { CollectionCache } from "#fp";
+import type { CacheInvalidation } from "#shared/cache-registry.ts";
+import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 import { createScope } from "#shared/request-scoped.ts";
+
+/* jscpd:ignore-end */
 
 /** Per-request store: maps each cache's unique key to its cached data */
 type RequestStore = Map<symbol, unknown[] | Promise<unknown[]>>;
+
+interface RequestCollectionCache<T> extends CollectionCache<T> {
+  invalidate: (cause?: CacheInvalidation) => void;
+}
 
 const cacheScope = createScope<RequestStore>();
 
@@ -31,8 +41,9 @@ export const runWithRequestCache = <T>(fn: () => T): T =>
  */
 export const requestCache = <T>(
   fetchAll: () => Promise<T[]>,
-): CollectionCache<T> => {
+): RequestCollectionCache<T> => {
   const key = Symbol();
+  const primaryRefill = createPrimaryCacheRefill();
 
   return {
     getAll: async (): Promise<T[]> => {
@@ -40,7 +51,7 @@ export const requestCache = <T>(
       // scope (see createScope), so it fetches fresh instead of serving the
       // finished request's memoised data.
       const store = cacheScope.current();
-      if (!store) return fetchAll();
+      if (!store) return primaryRefill.fetch(fetchAll);
 
       const cached = store.get(key);
       if (cached) return cached as T[] | Promise<T[]>;
@@ -56,7 +67,7 @@ export const requestCache = <T>(
       promise.catch(() => {});
       store.set(key, promise);
       try {
-        const items = await fetchAll();
+        const items = await primaryRefill.fetch(fetchAll);
         // Replace the promise with the resolved array so future
         // reads within this request get the array directly.
         if (store.get(key) === promise) store.set(key, items);
@@ -71,7 +82,8 @@ export const requestCache = <T>(
       }
     },
 
-    invalidate: (): void => {
+    invalidate: (cause = "manual"): void => {
+      primaryRefill.afterInvalidation(cause === "write");
       cacheScope.current()?.delete(key);
     },
 

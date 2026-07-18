@@ -21,6 +21,7 @@ import {
   type WriteVerb,
 } from "#shared/cache-registry.ts";
 import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
+import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
 import {
   countDatabaseRoundTrip,
   enforceTransactionRoundTripGuard,
@@ -281,9 +282,18 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
   return rows.length === 0 ? null : rows[0]!;
 };
 
+/** Run a read on the primary when its cache refill requires read-your-writes. */
+const executeRead = async (...[sql, args]: SqlArgs): Promise<ResultSet> => {
+  if (!mustReadFromPrimary() || primaryReadMode() === "read") {
+    return execute(sql, args);
+  }
+  const [result] = await queryBatchPrimary([{ args: args ?? [], sql }]);
+  return result!;
+};
+
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(...[sql, args]: SqlArgs): Promise<T | null> =>
-  firstRowOrNull<T>(await execute(sql, args));
+  firstRowOrNull<T>(await executeRead(sql, args));
 
 /**
  * Query a single row on the primary (read-your-writes), returning null if not
@@ -304,7 +314,7 @@ export const queryOnePrimary = async <T>(
 
 /** Query all rows, returning a typed array */
 export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
-  resultRows<T>(await execute(sql, args));
+  resultRows<T>(await executeRead(sql, args));
 
 /**
  * True when the query returns at least one row. `sql` should be an existence
@@ -482,14 +492,25 @@ export const executeBatchWithoutCacheInvalidation = async (
   await runBatch(statements, "write", false);
 };
 
-/** Create a batch executor for a given transaction mode */
+/** A read/write batch with a fixed mode, or one chosen when it runs. */
+type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
+
+/** Create a batch executor for a fixed or per-call transaction mode. */
 const batchFor =
-  (mode: TransactionMode) =>
-  (statements: SqlStatement[]): Promise<ResultSet[]> =>
-    runBatch(statements, mode, true);
+  (mode: TransactionMode | (() => TransactionMode)): BatchExecutor =>
+  (statements) =>
+    runBatch(statements, typeof mode === "function" ? mode() : mode, true);
+
+/** Local SQLite has no replica and write mode would only take a needless lock. */
+const primaryReadMode = (): TransactionMode => {
+  const url = getEnv("DB_URL");
+  return url === ":memory:" || url?.startsWith("file:") ? "read" : "write";
+};
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
-export const queryBatch = batchFor("read");
+export const queryBatch = batchFor(() =>
+  mustReadFromPrimary() ? primaryReadMode() : "read",
+);
 
 /**
  * Run read queries pinned to the primary in a single round-trip.

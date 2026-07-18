@@ -123,7 +123,7 @@ export const newsSlugBase = (created: string, name: string): string =>
 const existenceCache = requestCache(() =>
   queryAll<{ id: number }>("SELECT id FROM news_posts LIMIT 1"),
 );
-registerTableInvalidation(["news_posts"], () => existenceCache.invalidate());
+registerTableInvalidation(["news_posts"], existenceCache.invalidate);
 
 /** Does at least one news post exist? (Drives the public News nav link.) */
 export const hasNewsPosts = async (): Promise<boolean> =>
