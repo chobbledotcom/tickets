@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
-  clearSavedFormData,
+  runWithSavedFormContext,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
 import { renderQuestions } from "#templates/public/reservations/questions.tsx";
@@ -133,26 +133,26 @@ describe("renderQuestions", () => {
   });
 
   test("restores a saved free-text answer from saved form data", () => {
-    setSavedFormData(new FormParams({ question_1: "Ada Lovelace" }));
-    const questions: QuestionWithAnswers[] = [
-      {
-        answers: [],
-        display_type: "free_text" as const,
-        id: 1,
-        text: "Your name?",
-      },
-    ];
-
-    const html = renderQuestions(questions).toString();
-    clearSavedFormData();
+    const html = runWithSavedFormContext(() => {
+      setSavedFormData(new FormParams({ question_1: "Ada Lovelace" }));
+      return renderQuestions([
+        {
+          answers: [],
+          display_type: "free_text" as const,
+          id: 1,
+          text: "Your name?",
+        },
+      ]).toString();
+    });
 
     expect(html).toContain('value="Ada Lovelace"');
   });
 
   test("restores selected select answers from saved form data", () => {
-    setSavedFormData(new FormParams({ question_1: "11" }));
-    const html = renderQuestions(colourQuestion("select")).toString();
-    clearSavedFormData();
+    const html = runWithSavedFormContext(() => {
+      setSavedFormData(new FormParams({ question_1: "11" }));
+      return renderQuestions(colourQuestion("select")).toString();
+    });
 
     expect(html).toContain('<option selected value="11">Blue</option>');
     expect(html).not.toContain('<option selected value="10">Red</option>');

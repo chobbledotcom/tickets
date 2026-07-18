@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** Import a one-listing blob and assert it is rejected with a message naming
@@ -49,9 +50,10 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    if (!result.ok) throw new Error(result.error);
+    requireSuccess(result);
     const imported = (await getListingWithCount(result.id))!;
-    expect(imported.closes_at).toContain("2026-06-01");
+    expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
+    expect(imported.date).toBe("2026-06-02T09:00:00.000Z");
   });
 
   test("rejects an impossible calendar date", async () => {

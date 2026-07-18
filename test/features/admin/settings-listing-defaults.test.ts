@@ -76,13 +76,12 @@ describe("admin > listing defaults form parse > bookable days", () => {
     );
   });
 
-  test("keeps the valid ticked days and drops invalid ones", () => {
-    const value = ok(
+  test("rejects a malformed day even when a valid day is also chosen", () => {
+    expect(
       parse(
         "default_bookable_days_enabled=1&default_bookable_days=Funday&default_bookable_days=Monday",
-      ),
-    );
-    expect(value.bookableDays).toEqual(["Monday"]);
+      ).error,
+    ).not.toBeNull();
   });
 
   test("rejects enabled with no valid day chosen", () => {

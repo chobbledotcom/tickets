@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { getDb, queryOne } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -39,7 +39,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     await deleteAttendee(attendee.id);
 
     const privateKey = await getTestPrivateKey();
-    const fetched = await getAttendee(attendee.id, privateKey);
+    const fetched = await getAttendeeOrNull(attendee.id, privateKey);
     expect(fetched).toBeNull();
   });
 
@@ -125,7 +125,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     await deleteAttendee(attendee.id, { releaseBookings: false });
 
     const privateKey = await getTestPrivateKey();
-    const fetched = await getAttendee(attendee.id, privateKey);
+    const fetched = await getAttendeeOrNull(attendee.id, privateKey);
     const updated = await getListingWithCount(listing.id);
     expect(fetched).toBeNull();
     expect(updated).toMatchObject({
@@ -247,7 +247,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     await expect(deleteAttendee(attendee.id)).resolves.toBeUndefined();
 
     const privateKey = await getTestPrivateKey();
-    const fetched = await getAttendee(attendee.id, privateKey);
+    const fetched = await getAttendeeOrNull(attendee.id, privateKey);
     expect(fetched).toBeNull();
   });
 });

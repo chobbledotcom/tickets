@@ -11,7 +11,7 @@ import {
   getAllActivityLog,
   getAttendeeActivityLog,
   getListingActivityLog,
-  getListingWithActivityLog,
+  getListingWithActivityLogOrNull,
   logActivity,
 } from "#shared/db/activityLog.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
@@ -190,7 +190,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(entries.length).toBe(2);
   });
 
-  test("getListingWithActivityLog returns listing and activity log together", async () => {
+  test("getListingWithActivityLogOrNull returns listing and activity log together", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,
       name: "Batch Test Listing",
@@ -201,7 +201,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     await logActivity("Second action", listing.id);
 
     const result = await withTestSession(() =>
-      getListingWithActivityLog(listing.id),
+      getListingWithActivityLogOrNull(listing.id),
     );
     expect(result).not.toBeNull();
     expect(result?.listing.id).toBe(listing.id);
@@ -213,8 +213,8 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(result?.entries[1]?.message).toBe("First action");
   });
 
-  test("getListingWithActivityLog returns null for non-existent listing", async () => {
-    const result = await getListingWithActivityLog(999);
+  test("getListingWithActivityLogOrNull returns null for non-existent listing", async () => {
+    const result = await getListingWithActivityLogOrNull(999);
     expect(result).toBeNull();
   });
 });

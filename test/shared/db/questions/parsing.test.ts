@@ -77,12 +77,15 @@ describe("parseQuestionAnswers free-text handling", () => {
     expect(result).toEqual({ error: "Answer is too long: Notes?", ok: false });
   });
 
-  test("skips an over-length optional free-text answer", () => {
-    expectOptionalFreeTextEmpty(
+  test("rejects a supplied over-length optional free-text answer", () => {
+    const result = parseQuestionAnswers({ optional: true })(
       new URLSearchParams({
         question_1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       }),
+      [freeText(1, "Notes?")],
     );
+
+    expect(result).toEqual({ error: "Answer is too long: Notes?", ok: false });
   });
 
   test("parses choice and free-text questions side by side", () => {

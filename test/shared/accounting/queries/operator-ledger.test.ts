@@ -201,16 +201,24 @@ describe("db > accounting > operator ledger stats and visible list", () => {
         amount: 1000,
         destination: account("revenue", 1),
         kind: "sale",
-        occurredAt: "2026-06-20T12:00:00.000Z",
-        reference: "early",
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "at-start",
+        source: account("attendee", 1),
+      }),
+      tx({
+        amount: 2000,
+        destination: account("revenue", 1),
+        kind: "sale",
+        occurredAt: "2026-06-22T12:00:00.000Z",
+        reference: "inside",
         source: account("attendee", 1),
       }),
       tx({
         amount: 4000,
         destination: account("revenue", 1),
         kind: "sale",
-        occurredAt: "2026-06-22T12:00:00.000Z",
-        reference: "late",
+        occurredAt: "2026-06-23T00:00:00.000Z",
+        reference: "at-end",
         source: account("attendee", 1),
       }),
     ]);
@@ -218,9 +226,14 @@ describe("db > accounting > operator ledger stats and visible list", () => {
       endMs: epochMs("2026-06-23T00:00:00.000Z"),
       startMs: epochMs("2026-06-21T00:00:00.000Z"),
     };
-    expect((await ledgerTotals(range)).income).toBe(4000);
+    expect(await ledgerTotals(range)).toEqual({
+      due: 3000,
+      fees: 0,
+      income: 3000,
+      refunded: 0,
+    });
     const rows = await visibleTransfers(range, null, 100);
-    expect(rows.map((r) => r.reference)).toEqual(["late"]);
+    expect(rows.map((r) => r.reference)).toEqual(["inside", "at-start"]);
   });
 
   test("transferActivityBounds spans the earliest and latest occurred_at", async () => {

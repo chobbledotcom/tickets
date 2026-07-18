@@ -81,9 +81,16 @@ const parseUrlField = (
  * at least one valid day (in canonical order). */
 const parseDaysField = (form: FormParams): FieldParse => {
   if (form.getString("default_bookable_days_enabled") !== "1") return {};
-  const days = VALID_DAY_NAMES.filter((day) =>
-    form.getAll("default_bookable_days").includes(day),
-  );
+  const submittedDays = form.getAll("default_bookable_days");
+  if (
+    submittedDays.some(
+      (submittedDay) =>
+        !VALID_DAY_NAMES.some((validDay) => validDay === submittedDay),
+    )
+  ) {
+    return { error: t("listing_defaults.days_required") };
+  }
+  const days = VALID_DAY_NAMES.filter((day) => submittedDays.includes(day));
   if (days.length === 0) return { error: t("listing_defaults.days_required") };
   return { value: days };
 };

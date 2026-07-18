@@ -182,7 +182,7 @@ export const MAX_DURATION_DAYS = 90;
 
 /**
  * The single definition of "a valid booking duration": a whole number of
- * days in [1, MAX_DURATION_DAYS], with non-finite input degrading to 1.
+ * days in [1, MAX_DURATION_DAYS]. Non-finite input is invalid and throws.
  *
  * Every read of `duration_days` and every `durationDays` parameter funnels
  * through here so the clamping policy lives in exactly one place — the column
@@ -190,10 +190,12 @@ export const MAX_DURATION_DAYS = 90;
  * agree by construction. Idempotent, so applying it to an already-normalized
  * value (e.g. a column-clamped `listing.duration_days`) is a safe no-op.
  */
-export const normalizeDurationDays = (value: number): number =>
-  Number.isFinite(value)
-    ? Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(value)))
-    : 1;
+export const normalizeDurationDays = (value: number): number => {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Invalid booking duration: ${String(value)}`);
+  }
+  return Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(value)));
+};
 
 /**
  * Per-day-count ticket prices for "customisable days" listings, in minor

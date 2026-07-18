@@ -17,6 +17,7 @@ import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -102,7 +103,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
 
       blob.listing.name = "Alone Copy";
       const result = await importCatalog(blob);
-      if (!result.ok) throw new Error(result.error);
+      requireSuccess(result);
       const imported = (await getListingWithCount(result.id))!;
       expect(imported.bookable_alone).toBe(true);
     });

@@ -95,7 +95,7 @@ describeWithEnv(
       expect(stats.attendees).toBe(1);
     });
 
-    test("treats non-numeric price_paid as zero", async () => {
+    test("includes a free booking with zero income", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 0,

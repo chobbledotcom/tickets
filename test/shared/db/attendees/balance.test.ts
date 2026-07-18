@@ -231,6 +231,11 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("order summary loads booking listings with one joined read", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
+    const one = await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      const summary = await getAttendeeOrderSummary(attendeeId);
+      return { queryCount: getQueryLog().length, summary };
+    });
     const otherListing = await createTestListing({
       maxAttendees: 10,
       thankYouUrl: "https://example.com/other",
@@ -241,27 +246,20 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
     });
 
-    const { entries, summary } = await runWithQueryLogContext(async () => {
+    const multiple = await runWithQueryLogContext(async () => {
       enableQueryLog();
       const summary = await getAttendeeOrderSummary(attendeeId);
-      return { entries: getQueryLog(), summary };
+      return { queryCount: getQueryLog().length, summary };
     });
 
-    expect(summary.lines.map((line) => line.listingId)).toEqual([
+    expect(one.summary.lines.map((line) => line.listingId)).toEqual([
+      listingId,
+    ]);
+    expect(multiple.summary.lines.map((line) => line.listingId)).toEqual([
       listingId,
       otherListing.id,
     ]);
-    expect(
-      entries.filter((entry) =>
-        entry.sql.includes("FROM listing_attendees AS listingAttendee"),
-      ),
-    ).toHaveLength(1);
-    expect(
-      entries.filter(
-        (entry) =>
-          entry.sql.includes("FROM listings AS listing") &&
-          !entry.sql.includes("JOIN listings"),
-      ),
-    ).toHaveLength(0);
+    expect(one.queryCount).toBe(2);
+    expect(multiple.queryCount).toBe(one.queryCount);
   });
 });

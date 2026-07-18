@@ -20,10 +20,10 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     expect(await checkBatchAvailability([])).toBe(true);
   });
 
-  test("returns false when listing not found", async () => {
-    expect(
-      await checkBatchAvailability([{ listingId: 999, quantity: 1 }]),
-    ).toBe(false);
+  test("throws when a listing is not found", async () => {
+    await expect(
+      checkBatchAvailability([{ listingId: 999, quantity: 1 }]),
+    ).rejects.toThrow("Listing not found: 999");
   });
 
   test("checks per-date capacity for daily listings", async () => {

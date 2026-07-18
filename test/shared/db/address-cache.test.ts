@@ -58,6 +58,12 @@ describeWithEnv("address cache", { db: true }, () => {
     expect(index).not.toContain("easypostcodes");
   });
 
+  test("the same provider and search always produce the same index", async () => {
+    const first = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
+    const second = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
+    expect(second).toBe(first);
+  });
+
   test("two providers' caches for the same search never collide", async () => {
     const a = await computeAddressSearchIndex("easypostcodes", "SW1A 2AA");
     const b = await computeAddressSearchIndex("other-provider", "SW1A 2AA");

@@ -44,7 +44,7 @@ describeWithEnv(
         [standard, daily],
         membership,
       );
-      expect(remaining.has(standardGroup.id)).toBe(true);
+      expect(remaining.get(standardGroup.id)).toBe(5);
       expect(remaining.has(dailyGroup.id)).toBe(false);
     });
 

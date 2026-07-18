@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
 import { getDb } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -38,22 +37,17 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(saved?.date).toBe("2026-06-15T12:00:00.000Z");
     });
 
-    test("stores an invalid date as empty and logs the bad value", async () => {
-      const errorSpy = spy(console, "error");
-      try {
-        const listing = await listingsTable.insert({
+    test("rejects an invalid date", async () => {
+      await expect(
+        listingsTable.insert({
           date: "not-a-dateZ",
           maxAttendees: 100,
           maxPrice: 10000,
           name: "test",
           slug: "test-date-read-invalid",
           slugIndex: await computeSlugIndex("test-date-read-invalid"),
-        });
-        expect((await getListingWithCount(listing.id))?.date).toBe("");
-        expect(errorSpy.calls.length).toBeGreaterThan(0);
-      } finally {
-        errorSpy.restore();
-      }
+        }),
+      ).rejects.toThrow("date has invalid datetime: not-a-dateZ");
     });
   });
 
@@ -116,8 +110,10 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(await insertWithDuration("test-dur-frac", 2.7)).toBe(2);
     });
 
-    test("degrades non-finite values to the 1-day default", async () => {
-      expect(await insertWithDuration("test-dur-nan", Number.NaN)).toBe(1);
+    test("rejects non-finite values", async () => {
+      await expect(
+        insertWithDuration("test-dur-nan", Number.NaN),
+      ).rejects.toThrow("Invalid booking duration: NaN");
     });
 
     test("clamps on update as well as insert", async () => {
@@ -136,7 +132,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   });
 
   describe("bookable_days read transform", () => {
-    test("returns empty array when DB contains non-array JSON", async () => {
+    test("rejects non-array JSON stored in the database", async () => {
       const listing = await listingsTable.insert({
         maxAttendees: 100,
         maxPrice: 10000,
@@ -148,8 +144,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         args: ['"not-an-array"', listing.id],
         sql: "UPDATE listings SET bookable_days = ? WHERE id = ?",
       });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.bookable_days).toEqual([]);
+      await expect(getListingWithCount(listing.id)).rejects.toThrow(
+        "Stored bookable_days must be a JSON array",
+      );
     });
   });
 });

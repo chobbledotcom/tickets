@@ -7,7 +7,10 @@ import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 const MIGRATIONS = await loadMigrations();
 const migration = MIGRATIONS.find(
   (m) => m.id === "2026-06-22_transfers_time_int",
-)!;
+);
+if (!migration) {
+  throw new Error("Migration 2026-06-22_transfers_time_int is not registered");
+}
 
 describe("db > migrations > transfers time INTEGER", () => {
   useTransactionalDb();

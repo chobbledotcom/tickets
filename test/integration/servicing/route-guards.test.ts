@@ -10,7 +10,7 @@
  * dropdown): a hand-crafted merge involving a servicing id is refused.
  *
  * Implementation contract (test-first):
- *   - `getAttendee` and the merge/refresh/balance/listing-scoped loaders share
+ *   - `getAttendeeOrNull` and the merge/refresh/balance/listing-scoped loaders share
  *     a single kind-guarded read (§20) defaulting to `kind='attendee'`; the
  *     servicing loaders default to `kind='servicing'`.
  */

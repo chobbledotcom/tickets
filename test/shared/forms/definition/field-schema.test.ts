@@ -217,7 +217,7 @@ describe("form field schema", () => {
     expect(form.sections).toEqual(["main", "advanced"]);
     expect(form.section("main")).toContain('name="name"');
     expect(form.section("advanced")).not.toContain('name="private"');
-    expect(typeof rejectUnknownSection).toBe("function");
+    expect(rejectUnknownSection).toThrow("Unknown section: missing");
   });
 
   test("throws when a field lookup uses an unknown name", () => {

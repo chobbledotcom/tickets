@@ -77,7 +77,8 @@ describe("adminUpdatePage", () => {
 
   test("includes release notes link", () => {
     const html = adminUpdatePage(SESSION, baseState());
-    expect(html).toContain(GITHUB_RELEASES_URL);
-    expect(html).toContain("release notes");
+    expect(html).toContain(
+      `<a href="${GITHUB_RELEASES_URL}">Read the release notes</a>`,
+    );
   });
 });

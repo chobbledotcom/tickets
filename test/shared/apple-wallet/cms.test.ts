@@ -1,12 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { readCertificateBytes } from "#shared/apple-wallet/certificate.ts";
 import {
   isValidAppleSigningPair,
   signManifest,
 } from "#shared/apple-wallet/cms.ts";
 import { createManifest, sha1Hex } from "#shared/apple-wallet.ts";
 import {
+  bytesEqual,
   encodeInteger,
   readDerChildren,
   readDerSequence,
@@ -153,13 +155,29 @@ describe("Apple Wallet signing", () => {
     const manifest = await createManifest({
       "pass.json": encoder.encode("pass"),
     });
+    const intermediatePem = nonRsaCertificatePem();
     const signature = await signManifest(
       manifest,
       creds.signingCert,
       creds.signingKey,
-      nonRsaCertificatePem(),
+      intermediatePem,
     );
-    expect(signature.length).toBeGreaterThan(500);
+    const [_, signedDataWrapper] = readDerSequence(
+      signature,
+      "CMS content info",
+    );
+    const [signedData] = readDerChildren(
+      requireDerTag(signedDataWrapper!, 0xa0, "signed data"),
+    );
+    const certificates = readDerChildren(
+      readDerSequence(signedData!.encoded, "CMS signed data")[3]!,
+    );
+    const intermediate = readCertificateBytes(intermediatePem);
+    expect(
+      certificates.some((certificate) =>
+        bytesEqual(certificate.encoded, intermediate),
+      ),
+    ).toBe(true);
   });
 
   test("binds the detached signature to the exact manifest bytes", async () => {

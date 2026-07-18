@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { getDb } from "#shared/db/client.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
-import { getListingWithActivityLog } from "#test-utils/activity-log.ts";
+import { getListingWithActivityLogOrNull } from "#test-utils/activity-log.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { getTestDataKey, getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -58,9 +58,9 @@ describe("test-utils — db-backed & settings contracts", () => {
       await createTestDbWithSetup();
     });
 
-    test("getListingWithActivityLog reads through the test admin session", async () => {
+    test("getListingWithActivityLogOrNull reads through the test admin session", async () => {
       const listing = await createTestListing({ name: "Logged Listing" });
-      const result = await getListingWithActivityLog(listing.id);
+      const result = await getListingWithActivityLogOrNull(listing.id);
 
       expect(result).not.toBeNull();
       expect(result!.listing.id).toBe(listing.id);

@@ -52,9 +52,10 @@ const setupGroupCappedSibling = async (
 };
 
 describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
-  test("returns false for non-existent listing", async () => {
-    const result = await hasAvailableSpots(999);
-    expect(result).toBe(false);
+  test("throws for a non-existent listing", async () => {
+    await expect(hasAvailableSpots(999)).rejects.toThrow(
+      "Listing not found: 999",
+    );
   });
 
   test("returns true when spots available", async () => {
@@ -153,8 +154,8 @@ describeWithEnv("db > attendees > hasAvailableSpots", { db: true }, () => {
     await runWithQueryLogContext(async () => {
       enableQueryLog();
       expect(await hasAvailableSpots(listing.id, 1, "2026-05-01")).toBe(true);
-      // One capacity query (listing + group caps, all days) plus the listing
-      // lookup — not the overlap + two group reads the old code ran.
+      // One listing lookup plus one capacity query covers listing and group
+      // limits for every day in the requested range.
       expect(getQueryLog().length).toBeLessThanOrEqual(2);
     });
   });
