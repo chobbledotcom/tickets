@@ -2,6 +2,7 @@
  * Users table operations
  */
 
+import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   hashPassword,
@@ -93,8 +94,10 @@ export const getAllUsers = (): Promise<User[]> => usersCache.getAll();
 registerCache(() => ({ entries: usersCache.size(), name: "users" }));
 
 /** Invalidate the users cache (for testing or after writes). */
-export const invalidateUsersCache = (): void => {
-  usersCache.invalidate();
+export const invalidateUsersCache = (
+  cause: CacheInvalidation = "manual",
+): void => {
+  usersCache.invalidate(cause);
   for (const listener of usersInvalidationListeners) listener();
 };
 

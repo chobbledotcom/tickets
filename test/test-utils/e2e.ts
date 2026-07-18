@@ -5,10 +5,10 @@
  */
 
 import { afterEach, beforeEach } from "@std/testing/bdd";
+import { invalidateCachesForTable } from "#shared/cache-registry.ts";
 import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
-import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { attendeeLineIndex } from "#test-utils/assertions.ts";
@@ -27,7 +27,7 @@ export const invalidateAllCaches = (): void => {
   invalidateListingsCache();
   groups.cache.invalidate();
   holidays.invalidate();
-  resetSessionCache();
+  invalidateCachesForTable("sessions");
 };
 
 /** Run the setup wizard and log in, landing on the admin dashboard. */

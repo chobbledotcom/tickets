@@ -661,11 +661,16 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
 } => {
   const cache = requestCache(config.fetchAll);
   registerCache(() => ({ entries: cache.size(), name: config.name }));
-  const invalidate = (): void => {
-    cache.invalidate();
+  registerDependencies(
+    config.table.name,
+    config.dependsOn ?? [],
+    cache.invalidate,
+  );
+  return {
+    getAll: () => cache.getAll(),
+    invalidate: () => cache.invalidate(),
+    table: config.table,
   };
-  registerDependencies(config.table.name, config.dependsOn ?? [], invalidate);
-  return { getAll: () => cache.getAll(), invalidate, table: config.table };
 };
 
 /**

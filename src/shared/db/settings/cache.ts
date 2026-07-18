@@ -20,7 +20,10 @@
  */
 
 import { lazyRef } from "#fp";
-import { registerCache } from "#shared/cache-registry.ts";
+import {
+  type CacheInvalidation,
+  registerCache,
+} from "#shared/cache-registry.ts";
 import {
   executeWithoutCacheInvalidation,
   queryAll,
@@ -77,6 +80,11 @@ const versionProbe = requestCache<number>(async () => [
 /** The settings version this request should be validated against. */
 export const currentVersion = async (): Promise<number> =>
   (await versionProbe.getAll())[0]!;
+
+/** Clear the request memo so a settings write reloads its version from primary. */
+export const invalidateVersionProbe = (
+  cause: CacheInvalidation = "manual",
+): void => versionProbe.invalidate(cause);
 
 /** Start fetching the settings version as early as possible in a request, so
  *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */

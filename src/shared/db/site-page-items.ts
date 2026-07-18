@@ -43,7 +43,7 @@ const fetchAllItems = (): Promise<SitePageItem[]> =>
 // Request-scoped: one query per request feeds the whole nav forest, fresh next
 // request, and cleared on any write to site_page_items.
 const itemsCache = requestCache(fetchAllItems);
-registerTableInvalidation(["site_page_items"], () => itemsCache.invalidate());
+registerTableInvalidation(["site_page_items"], itemsCache.invalidate);
 
 /** Every edge, ordered — the single read the public nav's forest is built from. */
 export const getAllPageItems = (): Promise<SitePageItem[]> =>

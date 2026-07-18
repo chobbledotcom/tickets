@@ -1,5 +1,6 @@
 import { createClient } from "@libsql/client";
 import { afterAll, afterEach, beforeEach, describe } from "@std/testing/bdd";
+import { invalidateCachesForTable } from "#shared/cache-registry.ts";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getDb, queryOne, setDb } from "#shared/db/client.ts";
@@ -7,7 +8,6 @@ import { groups } from "#shared/db/groups.ts";
 import { holidays } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -54,7 +54,7 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   maybeReclaimLeakedFds();
   setupTestEncryptionKey();
   settings.setup.clearCache();
-  resetSessionCache();
+  invalidateCachesForTable("sessions");
   invalidateUsersCache();
   invalidateListingsCache();
   holidays.invalidate();
@@ -168,7 +168,7 @@ export const resetDb = (): void => {
   groups.cache.invalidate();
   logisticsAgents.invalidate();
   attendeeStatuses.invalidate();
-  resetSessionCache();
+  invalidateCachesForTable("sessions");
   setTestSession(null);
   setDemoModeForTest(false);
   resetEffectiveDomain();
