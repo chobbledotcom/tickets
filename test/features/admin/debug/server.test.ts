@@ -5,10 +5,7 @@ import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import { LIMIT_ENTRIES } from "#shared/limits.ts";
 import { getRuntimeInfo } from "#shared/runtime.ts";
-import {
-  adminDebugPage,
-  type DebugPageState,
-} from "#templates/admin/debug.tsx";
+import { adminDebugPage } from "#templates/admin/debug.tsx";
 import {
   assertAdminHtml,
   expectHtmlResponse,
@@ -20,90 +17,11 @@ import {
   getMismatchedAppleWalletKey,
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { debugOwnerSession, makeDebugState } from "#test-utils/debug.ts";
 import { nonRsaCertificatePem } from "#test-utils/der.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
 import { activateStripe, enablePublicSite } from "#test-utils/settings.ts";
-
-/** Build a complete DebugPageState, overriding only the fields a test cares about. */
-const makeDebugState = (
-  overrides: Partial<DebugPageState> = {},
-): DebugPageState => ({
-  appleWallet: {
-    certValidation: {
-      signingCert: "Not set",
-      signingKey: "Not set",
-      wwdrCert: "Not set",
-    },
-    dbConfigured: false,
-    envConfigured: false,
-    passTypeId: "",
-    source: "",
-  },
-  availability: {
-    cutoff: "",
-    renewalConfigured: false,
-    serverTime: "1970-01-01T00:00:00.000Z",
-    state: "active",
-  },
-  build: { commit: "", timestamp: "" },
-  bunny: {
-    cdnEnabled: false,
-    cdnHostname: "",
-    customDomain: "",
-    dnsEnabled: false,
-    registeredSubdomain: "",
-    storageBackend: "none",
-    subdomainSuffix: "",
-  },
-  database: { hostConfigured: false, schemaHash: "", schemaInSync: false },
-  domain: "localhost",
-  email: {
-    apiKeyConfigured: false,
-    fromAddress: "",
-    hostProvider: "",
-    provider: "",
-  },
-  googleWallet: {
-    dbConfigured: false,
-    envConfigured: false,
-    issuerId: "",
-    privateKeyValid: "Not set",
-    source: "",
-  },
-  limits: [],
-  notifications: { ntfyConfigured: false, sentryConfigured: false },
-  payment: {
-    keyConfigured: false,
-    mode: "",
-    provider: "",
-    webhookConfigured: false,
-  },
-  runtime: {
-    arch: "",
-    denoVersion: "",
-    nodeCompatVersion: "",
-    os: "",
-    runtime: "unknown",
-    typescriptVersion: "",
-    userAgent: "",
-    v8Version: "",
-  },
-  site: {
-    bookingFee: "0",
-    contactForm: false,
-    country: "",
-    currency: "",
-    publicApi: false,
-    publicSite: false,
-    spamProtection: false,
-    timezone: "",
-  },
-  theme: "light",
-  ...overrides,
-});
-
-const ownerSession = { adminLevel: "owner" as const };
 
 const debugRow = (label: string, value: string): string =>
   `<tr><td>${label}</td><td>${value}</td></tr>`;
@@ -585,7 +503,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           subdomainSuffix: ".tickets",
         },
       });
-      const html = adminDebugPage(ownerSession, state);
+      const html = adminDebugPage(debugOwnerSession, state);
       expect(html).toContain("mylisting.example.com");
       expect(html).toContain(".tickets");
     });
@@ -690,7 +608,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           schemaInSync: false,
         },
       });
-      const html = adminDebugPage(ownerSession, state);
+      const html = adminDebugPage(debugOwnerSession, state);
       expect(html).toContain("Out of sync");
       expect(html).toContain("deadbeef");
     });
@@ -717,7 +635,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
           },
         ],
       });
-      const html = adminDebugPage(ownerSession, state);
+      const html = adminDebugPage(debugOwnerSession, state);
       expect(html).toContain("200B");
       expect(html).toContain("(overridden)");
     });
