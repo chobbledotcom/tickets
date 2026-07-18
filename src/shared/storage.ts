@@ -24,6 +24,7 @@ import {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
+import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
@@ -370,6 +371,7 @@ export const uploadRaw = async (
       controller.close();
     },
   });
+  countExternalSubrequest("storage upload");
   await sdk.file.upload(sz, `/${filename}`, stream as never, {
     contentType: "application/octet-stream",
   });
@@ -441,6 +443,7 @@ export const downloadRaw = async (
   }
   try {
     const { sdk, sz } = await connectZone();
+    countExternalSubrequest("storage download");
     const { stream } = await sdk.file.download(sz, `/${filename}`);
     return collectStream(stream as ReadableStream<Uint8Array>);
   } catch (err) {
@@ -472,6 +475,7 @@ export const deleteFile = async (filename: string): Promise<void> => {
     return;
   }
   const { sdk, sz } = await connectZone();
+  countExternalSubrequest("storage delete");
   await sdk.file.remove(sz, `/${filename}`);
 };
 
@@ -610,6 +614,7 @@ export const listFilesWithMeta = async (
   }
   const config = getStorageConfig();
   const url = `https://storage.bunnycdn.com/${config.zoneName}/${dir}`;
+  countExternalSubrequest("storage directory listing");
   const response = await fetch(url, {
     headers: { AccessKey: config.zoneKey },
   });

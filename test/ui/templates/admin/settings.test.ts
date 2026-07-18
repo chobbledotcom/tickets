@@ -455,6 +455,7 @@ describe("adminAdvancedSettingsPage", () => {
     hostGoogleWalletLabel: "",
     listingColumnOrder: "",
     paymentProvider: "",
+    scheduledTaskKey: "",
     showPublicApi: false,
     smsGatewayBaseUrl: "",
     smsGatewayPassphraseConfigured: false,

@@ -24,12 +24,13 @@ This is the recommended way to deploy it. Fork the repo, connect it to Bunny, an
    | `DB_URL`            | Your Bunny database URL            |
    | `DB_TOKEN`          | Your Bunny database auth token     |
    | `DB_ENCRYPTION_KEY` | 32-byte base64-encoded AES-256 key |
+   | `SCHEDULED_TASK_KEY` | Unique 32-byte base64url maintenance key |
 
 5. **Add GitHub Actions secrets** to your repository: `BUNNY_SCRIPT_ID` and `BUNNY_ACCESS_KEY`
 
 Pushes to `main` trigger the deploy workflow automatically. The database schema auto-migrates on first request. Visit `/setup/` to set your admin password and currency.
 
-For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny secrets. See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables.
+For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny secrets. Configure an external monitor using the [scheduled maintenance guide](docs/scheduled-maintenance.md). See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables.
 
 ---
 

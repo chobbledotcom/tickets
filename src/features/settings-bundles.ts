@@ -11,7 +11,6 @@
 import {
   CONFIG_KEYS,
   EMAIL_BODY_KEYS,
-  PRUNE_KEYS,
   SNAPSHOT_KEYS,
 } from "#shared/db/settings.ts";
 
@@ -29,8 +28,6 @@ export const getPrefix = (path: string): string => {
  *   and every HTML error page) reads theme + underline_links + header_image_url
  * - `applySecurityHeaders` rebuilds the CSP on every routed response, reading
  *   the payment provider (and square_sandbox when the provider is Square)
- * - pruning self-guards on last_pruned_*
- * - the activity-log backfill self-guards on its done flag + last-run stamp
  * - session auth + PII decryption read the key material
  * - listing reads resolve listing defaults at the cache layer
  *   (`resolveListingDefaults`), which can run on any route that loads a listing;
@@ -50,19 +47,8 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.HEADER_IMAGE_URL,
   CONFIG_KEYS.PAYMENT_PROVIDER,
   CONFIG_KEYS.SQUARE_SANDBOX,
-  CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
-  CONFIG_KEYS.LAST_PRUNED_SESSIONS,
-  CONFIG_KEYS.LAST_PRUNED_SUMUP,
-  // The orphaned-attendee auto-purge runs from the same fire-and-forget
-  // scheduler, so its enable flag, retention age, and last-run stamp must be
-  // readable on every request.
-  ...PRUNE_KEYS,
   CONFIG_KEYS.AUTO_PURGE_ORPHANS,
   CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
-  // The activity-log backfill runs from the same fire-and-forget scheduler and
-  // self-guards on these every request until it has converted every legacy row.
-  CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
-  CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
   CONFIG_KEYS.PUBLIC_KEY,
   CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
 ];
@@ -228,9 +214,6 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   // Renewal renders the same booking form, whose contact-field builder checks
   // the address-lookup provider.
   renew: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.ADDRESS_LOOKUP_PROVIDER],
-  // Cron prune trigger: maybeRunPrunes only reads the last_pruned_*/orphan
-  // settings, which are all in INFRA, so infra alone is enough.
-  scheduled: [],
   setup: [],
   // --- Inbound SMS webhook (JSON only) ---
   sms: [

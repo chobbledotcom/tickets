@@ -24,6 +24,7 @@ import {
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   builtSites,
+  builtSitesCrudTable,
   insertBuiltSite,
   providerOrBunny,
 } from "#shared/db/built-sites.ts";
@@ -158,14 +159,33 @@ const builderPost = createAuthedFormRoute({
     const dbError = dbProviderConfigError(dbProviderVal, values.db_url);
     if (dbError) return errorRedirect(BUILDER_PATH, dbError);
 
+    let retainedSiteId: number | null = null;
+    const assignable = form.getFlag("assignable");
     const result = await settings.withCurrentTask("builder", () =>
-      builderApi.buildSite({
-        ...(dbProviderVal === "manual" ? {} : { dbProvider }),
-        dbToken: values.db_token,
-        dbUrl: values.db_url,
-        hostingProvider,
-        siteName: values.site_name,
-      }),
+      builderApi.buildSite(
+        {
+          ...(dbProviderVal === "manual" ? {} : { dbProvider }),
+          dbToken: values.db_token,
+          dbUrl: values.db_url,
+          hostingProvider,
+          siteName: values.site_name,
+        },
+        async (prepared) => {
+          const row = await insertBuiltSite(
+            values.site_name,
+            prepared.defaultHostname,
+            prepared.dbUrl,
+            prepared.dbToken,
+            false,
+            prepared.hostingId,
+            undefined,
+            prepared.hostingProvider,
+            prepared.dbProvider,
+            prepared.scheduledTaskKey,
+          );
+          retainedSiteId = row.id;
+        },
+      ),
     );
 
     if (!result.ok) return errorRedirect(BUILDER_PATH, result.error);
@@ -173,17 +193,12 @@ const builderPost = createAuthedFormRoute({
     const buildResult = result.value;
     if (!buildResult.ok) return errorRedirect(BUILDER_PATH, buildResult.error);
 
-    await insertBuiltSite(
-      values.site_name,
-      buildResult.defaultHostname,
-      buildResult.dbUrl,
-      buildResult.dbToken,
-      form.getFlag("assignable"),
-      buildResult.hostingId,
-      undefined,
-      buildResult.hostingProvider,
-      buildResult.dbProvider,
-    );
+    if (retainedSiteId === null) {
+      throw new Error("Built site was published before it was retained");
+    }
+    if (assignable) {
+      await builtSitesCrudTable.update(retainedSiteId, { assignable: true });
+    }
     await logActivity(`Built new site: ${values.site_name}`);
 
     return redirect(

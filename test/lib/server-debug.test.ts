@@ -79,13 +79,6 @@ const makeDebugState = (
     provider: "",
     webhookConfigured: false,
   },
-  prune: {
-    addresses: "Never",
-    logins: "Never",
-    payments: "Never",
-    sessions: "Never",
-    strings: "Never",
-  },
   runtime: {
     arch: "",
     denoVersion: "",
@@ -700,21 +693,6 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       const html = adminDebugPage(ownerSession, state);
       expect(html).toContain("Out of sync");
       expect(html).toContain("deadbeef");
-    });
-  });
-
-  describe("Database pruning section", () => {
-    test("renders the most recent prune timestamp as ISO", async () => {
-      // Set a recent timestamp so the request-handler's fire-and-forget
-      // maybeRunPrunes() sees it as not-yet-due and doesn't overwrite.
-      const ts = Date.now() - 1000;
-      await settings.update.lastPrunedPayments(String(ts));
-      await settings.update.lastPrunedSessions(String(ts));
-      await settings.update.lastPrunedLogins(String(ts));
-      await settings.update.lastPrunedStrings(String(ts));
-      await settings.update.lastPrunedAddresses(String(ts));
-      const expected = new Date(ts).toISOString();
-      await assertAdminHtml("/admin/debug", "Database pruning", expected);
     });
   });
 

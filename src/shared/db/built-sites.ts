@@ -7,11 +7,12 @@ import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { queryAll, queryOne, rowExistsForIdList } from "#shared/db/client.ts";
+import { retryWrite } from "#shared/db/retry-write.ts";
 import type { ColumnDef, Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
+import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 /* jscpd:ignore-end */
 
@@ -46,8 +47,8 @@ export const siteAcceptsDeployTier = (
 ): boolean =>
   UPDATE_TIERS.indexOf(siteTier) <= UPDATE_TIERS.indexOf(deployTier);
 
-/** Encrypted site-data blob version */
-const SITE_DATA_BLOB_VERSION = 1;
+/** Encrypted site-data blob version written by current code. */
+const SITE_DATA_BLOB_VERSION = 2;
 
 /** Hosting provider for a built site. */
 export type HostingProvider = "bunny" | "deno";
@@ -77,12 +78,40 @@ export interface SiteDataBlob {
   rt?: string;
   /** Hosting ID — Bunny script ID or Deno app ID (optional, absent in older blobs) */
   s?: string;
+  /** Active scheduled-maintenance key. */
+  sk?: string;
+  /** Pending scheduled-maintenance key during rotation. */
+  sn?: string;
   /** Database token (optional, absent in older blobs) */
   t?: string;
   /** Site URL (default hostname) */
   u: string;
-  v: typeof SITE_DATA_BLOB_VERSION;
+  v: 1 | typeof SITE_DATA_BLOB_VERSION;
 }
+
+const siteDataFields = {
+  d: v.optional(v.string()),
+  dp: v.optional(v.picklist(["bunny", "turso"])),
+  hp: v.optional(v.picklist(["bunny", "deno"])),
+  n: v.string(),
+  rt: v.optional(v.string()),
+  s: v.optional(v.string()),
+  t: v.optional(v.string()),
+  u: v.string(),
+};
+const scheduledKeySchema = v.optional(
+  v.pipe(v.string(), v.check(isScheduledTaskKey)),
+);
+
+const SiteDataBlobSchema = v.variant("v", [
+  v.object({ ...siteDataFields, v: v.literal(1) }),
+  v.object({
+    ...siteDataFields,
+    sk: scheduledKeySchema,
+    sn: scheduledKeySchema,
+    v: v.literal(SITE_DATA_BLOB_VERSION),
+  }),
+]);
 
 /** Built site row as stored in the database */
 export interface BuiltSiteRow {
@@ -94,6 +123,7 @@ export interface BuiltSiteRow {
   read_only_from: string;
   renewal_token_index: string | null;
   site_data: string;
+  site_data_revision: number;
   /** Release channel — a CHECK constraint keeps this a valid UpdateTier. */
   updates: UpdateTier;
 }
@@ -129,6 +159,9 @@ export interface BuiltSite {
   /** Plain renewal token from the site-data blob when renewal access exists. Null when not provisioned. */
   renewalToken: string | null;
   renewalTokenIndex: string | null;
+  scheduledTaskKey: string | null;
+  scheduledTaskKeyNext: string | null;
+  siteDataRevision: number;
   /** Site URL (default hostname for this site). */
   siteUrl: string;
   /** Release channel this site opts into (see {@link UPDATE_TIERS}). */
@@ -160,6 +193,7 @@ type BuiltSitePlainFields = Pick<
   | "assignedListingId"
   | "readOnlyFrom"
   | "renewalTokenIndex"
+  | "siteDataRevision"
   | "updates"
 >;
 
@@ -207,6 +241,14 @@ const builtSitePlainColumns = [
     schema: nullStrCol,
     siteKey: "renewalTokenIndex",
     toInput: nullable<string>,
+  },
+  {
+    dbKey: "site_data_revision",
+    fromRow: passthrough<number>,
+    inputKey: "siteDataRevision",
+    schema: col.withDefault(() => 0),
+    siteKey: "siteDataRevision",
+    toInput: passthrough<number>,
   },
   {
     dbKey: "updates",
@@ -260,6 +302,8 @@ type BuiltSiteBlobFields = Pick<
   | "renewalToken"
   | "hostingProvider"
   | "dbProvider"
+  | "scheduledTaskKey"
+  | "scheduledTaskKeyNext"
 >;
 
 type BuiltSiteBlobInput = Omit<BuiltSiteBlobFields, "renewalToken"> & {
@@ -321,6 +365,18 @@ const builtSiteBlobColumns = [
     defaultValue: null,
     required: false,
     siteKey: "renewalToken",
+  },
+  {
+    blobKey: "sk",
+    defaultValue: null,
+    required: false,
+    siteKey: "scheduledTaskKey",
+  },
+  {
+    blobKey: "sn",
+    defaultValue: null,
+    required: false,
+    siteKey: "scheduledTaskKeyNext",
   },
 ] as const;
 
@@ -424,8 +480,16 @@ const toDbColumnValues = (
 });
 
 /** Parse a decrypted site data blob */
-export const parseSiteDataBlob = (json: string): SiteDataBlob =>
-  JSON.parse(json) as SiteDataBlob;
+export const parseSiteDataBlob = (json: string): SiteDataBlob => {
+  const blob = v.parse(SiteDataBlobSchema, JSON.parse(json)) as SiteDataBlob;
+  if (blob.sn && !blob.sk) {
+    throw new Error("Pending scheduled key requires an active key");
+  }
+  if (blob.sk && blob.sk === blob.sn) {
+    throw new Error("Active and pending scheduled keys must be different");
+  }
+  return blob;
+};
 
 /** Convert a raw DB row (after decryption) to a BuiltSite */
 const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
@@ -527,13 +591,31 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     id: InValue,
     input: Partial<BuiltSiteFormInput>,
   ): Promise<BuiltSite | null> => {
-    const existing = await builtSitesCrudTable.findById(id);
-    if (!existing) return null;
-    const row = (await builtSites.table.update(
-      id,
-      toRawInput({ ...existing, ...input }),
-    )) as BuiltSiteRow;
-    return rowToBuiltSite(row);
+    const updateStatement = rawBuiltSitesTable.updateStatement!;
+    return retryWrite(`Could not update built site ${String(id)}`, async () => {
+      const existing = await builtSitesCrudTable.findById(id);
+      if (!existing) return { value: null };
+      const nextRevision = existing.siteDataRevision + 1;
+      const statement = await updateStatement(
+        id,
+        toRawInput({
+          ...existing,
+          ...input,
+          siteDataRevision: nextRevision,
+        }),
+        { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
+      );
+      const stored = await queryOne<BuiltSiteRow>(
+        statement.sql,
+        statement.args,
+      );
+      if (stored) {
+        return {
+          value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)),
+        };
+      }
+      return null;
+    });
   },
 };
 
@@ -550,36 +632,6 @@ export const siteBaseUrl = (siteUrl: string): string => {
   return new URL(withScheme).origin;
 };
 
-/**
- * Atomically claim the least-recently-poked built site and return its id and
- * bunny URL — the scheduler pokes it to trigger its prune. A single UPDATE picks
- * the row via its WHERE subquery and stamps `last_pruned` in the same statement,
- * so two overlapping cron pokes can't both grab the same site: SQLite serialises
- * the writes and the second claim sees the first's fresh stamp, stepping on to
- * the next site. `last_pruned` empty ('') sorts first, so never-poked sites go
- * before any dated one and the master walks every site in round-robin order.
- * The stamp lands before the caller pokes the site, so a slow or failing site
- * doesn't stall the rotation. Returns null when there are no built sites.
- */
-export const claimNextBuiltSiteForPrune = async (): Promise<{
-  id: number;
-  siteUrl: string;
-} | null> => {
-  const row = await queryOne<{ id: number; site_data: EnvKeyEncrypted }>(
-    `UPDATE built_sites AS builtSite SET last_pruned = ?
-     WHERE builtSite.id = (
-       SELECT candidate.id FROM built_sites AS candidate
-       ORDER BY candidate.last_pruned ASC, candidate.id ASC
-       LIMIT 1
-     )
-     RETURNING id, site_data`,
-    [nowIso()],
-  );
-  if (!row) return null;
-  const siteUrl = parseSiteDataBlob(await decrypt(row.site_data)).u;
-  return { id: row.id, siteUrl };
-};
-
 /** Insert a new built site record */
 export const insertBuiltSite = (
   name: string,
@@ -591,6 +643,7 @@ export const insertBuiltSite = (
   updates: UpdateTier = DEFAULT_UPDATE_TIER,
   hostingProvider: HostingProvider = "bunny",
   dbProvider: DbProvider = "bunny",
+  scheduledTaskKey: string | null = null,
 ): Promise<BuiltSiteRow> =>
   builtSites.table.insert(
     toRawInput({
@@ -601,6 +654,7 @@ export const insertBuiltSite = (
       hostingId,
       hostingProvider,
       name,
+      scheduledTaskKey,
       siteUrl,
       updates,
     }),

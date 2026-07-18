@@ -14,19 +14,13 @@ import {
   getListingWithActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
+import { rawActivityMessage } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withTestSession } from "#test-utils/session.ts";
-
-/** Raw (still-encrypted) stored message for an activity-log row. */
-const rawMessage = async (id: number): Promise<string> =>
-  (await queryOne<{ message: string }>(
-    "SELECT message FROM activity_log WHERE id = ?",
-    [id],
-  ))!.message;
 
 describeWithEnv("db > activity log", { db: true }, () => {
   test("logActivity creates log entry with message", async () => {
@@ -54,7 +48,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
 
   test("stores messages encrypted with the owner key, not DB_ENCRYPTION_KEY", async () => {
     const entry = await logActivity("Sensitive note");
-    const stored = await rawMessage(entry.id);
+    const stored = await rawActivityMessage(entry.id);
 
     // Owner-key (hybrid RSA+AES) format, not the env-key (enc:) format.
     expect(stored.startsWith(HYBRID_PREFIX)).toBe(true);
@@ -82,7 +76,9 @@ describeWithEnv("db > activity log", { db: true }, () => {
     const entry = await logActivity("after a cache reset");
 
     // Stored owner-key (hybrid), not env-key — the reload found the DB key.
-    expect((await rawMessage(entry.id)).startsWith(HYBRID_PREFIX)).toBe(true);
+    expect((await rawActivityMessage(entry.id)).startsWith(HYBRID_PREFIX)).toBe(
+      true,
+    );
   });
 
   test("reads legacy env-key rows without a session", async () => {

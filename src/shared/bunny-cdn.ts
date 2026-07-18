@@ -12,7 +12,7 @@ import {
   getBunnyScriptId,
 } from "#shared/config.ts";
 import { type FetchResult, fetchText, parseApiError } from "#shared/fetch.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
 
@@ -343,10 +343,6 @@ const registerBunnySubdomainImpl = async (
     Value: target,
   };
   const dnsUrl = `${BUNNY_API_BASE}/dnszone/${zoneId}/records`;
-  logDebug(
-    "Domain",
-    `Adding DNS CNAME: url=${dnsUrl} name=${recordName} value=${target} fullDomain=${fullDomain}`,
-  );
   const addResponse = await bunnyJsonRequest(
     dnsUrl,
     JSON.stringify(dnsRecordBody),
@@ -381,12 +377,6 @@ const registerBunnySubdomainImpl = async (
     attempt < CERT_RETRY_COUNT && !cdnResult.ok;
     attempt++
   ) {
-    logDebug(
-      "Domain",
-      `Certificate not ready, retrying in ${certRetryDelay(
-        attempt,
-      )}ms (attempt ${attempt + 1}/${CERT_RETRY_COUNT})`,
-    );
     await bunnyCdnApi.delay(certRetryDelay(attempt));
     cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
   }
@@ -411,7 +401,6 @@ const deleteDnsRecordImpl = async (
   recordId: number,
 ): Promise<BunnyApiResult> => {
   const url = `${BUNNY_API_BASE}/dnszone/${zoneId}/records/${recordId}`;
-  logDebug("Domain", `Deleting DNS record: ${url}`);
   const response = await bunnyKeyRequest(url, "DELETE");
   return okOrError(response, "Delete DNS record");
 };
@@ -510,6 +499,15 @@ const setEdgeScriptSecretImpl = async (
     `Set secret ${name}`,
   );
 
+const deleteEdgeScriptSecretImpl = async (
+  scriptId: number,
+  secretId: number,
+): Promise<BunnyApiResult> =>
+  okOrError(
+    await scriptAction(scriptId, `secrets/${secretId}`, "DELETE", "{}"),
+    "Delete secret",
+  );
+
 /** A secret as reported by the Bunny API (name + metadata only — never the value). */
 export interface EdgeScriptSecret {
   Id: number;
@@ -588,7 +586,13 @@ const deployScriptCodeImpl = async (
 
 export const bunnyHostingProvider: HostingProviderApi = {
   configEnvVar: "BUNNY_API_KEY",
-  async createSite(name, code, secrets) {
+  async getSecretNames(hostingId) {
+    const result = await bunnyCdnApi.listEdgeScriptSecrets(Number(hostingId));
+    return result.ok
+      ? { names: result.secrets.map((s) => s.Name), ok: true as const }
+      : result;
+  },
+  async prepareSite(name, code, secrets) {
     const createResult = await bunnyCdnApi.createEdgeScript(name, code);
     if (!createResult.ok) return createResult;
     const { scriptId, pullZoneId, defaultHostname } = createResult;
@@ -612,16 +616,28 @@ export const bunnyHostingProvider: HostingProviderApi = {
           ok: false as const,
         };
     }
-    const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
-    if (!publishResult.ok) return publishResult;
     return { defaultHostname, hostingId: String(scriptId), ok: true as const };
   },
-  async getSecretNames(hostingId) {
-    const result = await bunnyCdnApi.listEdgeScriptSecrets(Number(hostingId));
-    return result.ok
-      ? { names: result.secrets.map((s) => s.Name), ok: true as const }
-      : result;
+  async promoteSecrets(hostingId, primary, removeName) {
+    const scriptId = Number(hostingId);
+    const listed = await bunnyCdnApi.listEdgeScriptSecrets(scriptId);
+    if (!listed.ok) return listed;
+    const remove = listed.secrets.find((secret) => secret.Name === removeName);
+    if (!remove) return { error: `Missing secret ${removeName}`, ok: false };
+    const set = await bunnyCdnApi.setEdgeScriptSecret(
+      scriptId,
+      primary[0],
+      primary[1],
+    );
+    if (!set.ok) return set;
+    const deleted = await bunnyCdnApi.deleteEdgeScriptSecret(
+      scriptId,
+      remove.Id,
+    );
+    if (!deleted.ok) return deleted;
+    return bunnyCdnApi.publishEdgeScript(scriptId);
   },
+  publishSite: (hostingId) => bunnyCdnApi.publishEdgeScript(Number(hostingId)),
   async setSecrets(hostingId, secrets) {
     const scriptId = Number(hostingId);
     if (Number.isNaN(scriptId))
@@ -640,6 +656,7 @@ export const bunnyCdnApi = {
   createEdgeScript: createEdgeScriptImpl,
   delay,
   deleteDnsRecord: deleteDnsRecordImpl,
+  deleteEdgeScriptSecret: deleteEdgeScriptSecretImpl,
   deployScriptCode: deployScriptCodeImpl,
   findPullZoneId: findPullZoneIdImpl,
   getCdnHostname: getCdnHostnameImpl,

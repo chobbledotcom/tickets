@@ -16,6 +16,7 @@ import {
 } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
+import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 
 /** GitHub repo URL — update here if the repo moves */
 export const GITHUB_REPO = "chobbledotcom/tickets";
@@ -191,6 +192,7 @@ export const formatBuildDate = (iso: string): string => {
  * Throws on network/API errors.
  */
 export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
+  countExternalSubrequest("GitHub release lookup");
   const response = await fetch(GITHUB_LATEST_RELEASE_URL, {
     headers: { Accept: "application/vnd.github.v3+json" },
   });
@@ -211,6 +213,7 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
 
 /** Download a release asset URL and return the source code text. */
 const downloadReleaseAsset = async (assetUrl: string): Promise<string> => {
+  countExternalSubrequest("GitHub release download");
   const assetResponse = await fetch(assetUrl);
   if (!assetResponse.ok) {
     throw new Error(

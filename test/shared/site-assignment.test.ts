@@ -17,6 +17,7 @@ import {
 } from "#shared/email.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
+import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import {
   assignAndNotifyBuiltSites,
   parseReadOnlyFromMs,
@@ -33,19 +34,25 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 const stubBuildSiteSuccess = (onCall?: (input: BuildSiteInput) => void) => {
   let counter = 0;
-  return stub(builderApi, "buildSite", (input: BuildSiteInput) => {
-    counter++;
-    onCall?.(input);
-    return Promise.resolve({
-      dbProvider: "bunny" as const,
-      dbToken: `token-${counter}`,
-      dbUrl: `libsql://auto-${counter}.test`,
-      defaultHostname: `auto-${counter}.b-cdn.net`,
-      hostingId: String(1000 + counter),
-      hostingProvider: "bunny" as const,
-      ok: true as const,
-    });
-  });
+  return stub(
+    builderApi,
+    "buildSite",
+    async (input: BuildSiteInput, retain) => {
+      counter++;
+      onCall?.(input);
+      const result = {
+        dbProvider: "bunny" as const,
+        dbToken: `token-${counter}`,
+        dbUrl: `libsql://auto-${counter}.test`,
+        defaultHostname: `auto-${counter}.b-cdn.net`,
+        hostingId: String(1000 + counter),
+        hostingProvider: "bunny" as const,
+        ok: true as const,
+      };
+      await retain({ ...result, scheduledTaskKey: generateScheduledTaskKey() });
+      return result;
+    },
+  );
 };
 
 const stubBuildSiteFailure = () =>
@@ -239,6 +246,27 @@ describeWithEnv(
           expect(existing.assignedAttendeeId).toBeNull();
           expect(buildStub.calls.length).toBe(1);
           expect(fetchStub.calls.length).toBe(0);
+        } finally {
+          buildStub.restore();
+        }
+      });
+
+      test("fails if an auto-build succeeds without retaining its site", async () => {
+        const buildStub = stub(builderApi, "buildSite", () =>
+          Promise.resolve({
+            dbProvider: "bunny" as const,
+            dbToken: "token",
+            dbUrl: "libsql://auto.test",
+            defaultHostname: "auto.b-cdn.net",
+            hostingId: "42",
+            hostingProvider: "bunny" as const,
+            ok: true as const,
+          }),
+        );
+        try {
+          await expect(
+            assignAndNotifyBuiltSites([siteEntry()]),
+          ).rejects.toThrow("Built site was not retained");
         } finally {
           buildStub.restore();
         }

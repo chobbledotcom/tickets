@@ -143,10 +143,13 @@ describeWithEnv("route message loading", { db: true }, () => {
       const { handleRequest } = await import("#routes");
 
       const response = await handleRequest(
-        mockRequest("/scheduled", { method: "POST" }),
+        mockRequest("/scheduled", {
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
+        }),
       );
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       expect(() => t("builder.site_builder_title")).toThrow(
         'Missing translation for key "builder.site_builder_title"',
       );

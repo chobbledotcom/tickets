@@ -22,6 +22,10 @@ import {
   logDebug,
   logError,
 } from "#shared/logger.ts";
+import {
+  scheduledAccessFromEnv,
+  scheduledResponse,
+} from "#shared/scheduled-access.ts";
 import { initSentry } from "#shared/sentry.ts";
 
 const runtimeLoadFinishedAt = performance.now();
@@ -75,8 +79,16 @@ const initialize = once((): Promise<boolean> => {
  * turned into a generic 503 so a single bad request never crashes the isolate.
  */
 export const serveHandler = async (request: Request): Promise<Response> => {
+  const scheduledAccess = scheduledAccessFromEnv(request);
+  if (scheduledAccess.kind === "rejected") {
+    return scheduledResponse(scheduledAccess.status);
+  }
   try {
     await initialize();
+    if (scheduledAccess.kind === "authorized") {
+      const { handleScheduledRequest } = await import("#routes/scheduled.ts");
+      return await handleScheduledRequest(request);
+    }
     return await handleRequest(request);
   } catch (error) {
     const url = new URL(request.url);
@@ -89,6 +101,8 @@ export const serveHandler = async (request: Request): Promise<Response> => {
       )}`,
       error,
     });
-    return temporaryErrorResponse();
+    return scheduledAccess.kind === "authorized"
+      ? scheduledResponse(503)
+      : temporaryErrorResponse();
   }
 };

@@ -375,7 +375,7 @@ export const acceptInvite = async (
  *
  * Single-use: the UPDATE is guarded on `password_hash = ''` (the unactivated
  * marker — buildUserInsert stores a literal empty string until a password is
- * set, and pruneExpiredInvites uses the same marker). So a replay or a race only
+ * set, and database pruning uses the same marker). So a replay or a race only
  * affects the row on the first submit; later submits no-op and return false
  * rather than overwriting the password the first submit set.
  */
@@ -492,20 +492,3 @@ export const isInviteExpired = async (user: User): Promise<boolean> =>
  * cannot delete an active account. invite_expiry is encrypted per row, but only
  * a handful of invites are ever outstanding, so decrypting each is cheap.
  */
-export const pruneExpiredInvites = async (): Promise<number> => {
-  const rows = await queryAll<Pick<User, "id" | "invite_expiry">>(
-    "SELECT id, invite_expiry FROM users WHERE wrapped_data_key IS NULL AND password_hash = '' AND invite_expiry IS NOT NULL",
-  );
-  const cutoff = now().getTime();
-  let pruned = 0;
-  for (const row of rows) {
-    // An unparseable expiry yields NaN, which compares false — such a row is
-    // left alone rather than deleted on a bad value.
-    const expiryMs = new Date(await decrypt(row.invite_expiry!)).getTime();
-    if (expiryMs < cutoff) {
-      await deleteUser(row.id);
-      pruned += 1;
-    }
-  }
-  return pruned;
-};

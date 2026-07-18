@@ -17,6 +17,7 @@ import {
 } from "#shared/crypto/keys.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb, insert } from "#shared/db/client.ts";
+import { runDatabasePruning } from "#shared/db/prune.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -26,7 +27,6 @@ import {
   hashInviteCode,
   invalidateUsersCache,
   migrateUserToV2Kek,
-  pruneExpiredInvites,
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import type { User } from "#shared/types.ts";
@@ -226,8 +226,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
         await wrapKeyWithToken(dataKey, "valid-code"),
       );
 
-      const pruned = await pruneExpiredInvites();
-      expect(pruned).toBe(1);
+      await runDatabasePruning();
       // The expired invite (and its DATA_KEY handoff) is gone; the valid one
       // remains so the invitee can still join.
       expect(await getUserByUsername("expired-invitee")).toBeNull();
@@ -256,8 +255,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       );
       invalidateUsersCache();
 
-      const pruned = await pruneExpiredInvites();
-      expect(pruned).toBe(0);
+      await runDatabasePruning();
       expect(await getUserByUsername("has-password")).not.toBeNull();
     });
   });

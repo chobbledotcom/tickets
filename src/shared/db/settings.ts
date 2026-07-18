@@ -85,7 +85,7 @@ import {
   serializeListingDefaults,
 } from "#shared/listing-defaults.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
-import { EMAIL_BODY_KEYS, PRUNE_KEYS } from "#shared/settings/registry.ts";
+import { EMAIL_BODY_KEYS } from "#shared/settings/registry.ts";
 import type {
   EmailTemplateFormat,
   EmailTemplateType,
@@ -106,7 +106,6 @@ export {
   CONFIG_KEYS,
   EMAIL_BODY_KEYS,
   getCurrentSettingsVersion,
-  PRUNE_KEYS,
   SNAPSHOT_KEYS,
 };
 

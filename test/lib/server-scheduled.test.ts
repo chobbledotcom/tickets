@@ -1,121 +1,131 @@
-/**
- * Tests for the public maintenance-ping endpoint (GET/POST /scheduled).
- *
- * Pruning runs as interval-gated pending work on every request, so hitting
- * /scheduled (like any request) prunes this site. On a builder, POST /scheduled
- * also pokes the least-recently-poked built site with a plain GET to trigger
- * its prune (the outbound call is stubbed here). There is no auth: the only
- * side effects are interval-gated prunes of already-expired data.
- */
-
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { insertBuiltSite } from "#shared/db/built-sites.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
+import { serveHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import {
-  attendeeExists,
-  insertOrphanAttendee,
-} from "#test-utils/db-helpers/attendees.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { expectFetchSilent, mockRequest } from "#test-utils/mocks.ts";
+  expectScheduledResponse,
+  scheduledAuthorization,
+  TEST_SCHEDULED_KEY,
+  TEST_SCHEDULED_NEXT_KEY,
+} from "#test-utils/scheduled.ts";
 
-/** GET or POST /scheduled. */
-const scheduled = (method: "GET" | "POST"): Promise<Response> =>
-  handleRequest(mockRequest("/scheduled", { method }));
-
-/** POST /scheduled and assert `poked` is null and no fetch was made. */
-const expectPostScheduledPokesNothing = async (): Promise<void> => {
-  await expectFetchSilent(async () => {
-    const response = await scheduled("POST");
-    expect((await response.json()).poked).toBe(null);
-  });
-};
-
-/** Insert an orphaned attendee created `days` ago (no listing booking). */
-const insertOldOrphan = (days: number): Promise<number> =>
-  insertOrphanAttendee(days, "sched-orphan");
-
-const lastPrunedOf = async (siteId: number): Promise<string> =>
-  (
-    await queryOne<{ last_pruned: string }>(
-      "SELECT last_pruned FROM built_sites WHERE id = ?",
-      [siteId],
-    )
-  )?.last_pruned ?? "";
-
-describeWithEnv("server (scheduled tasks): self-prune", { db: true }, () => {
-  test("pinging /scheduled prunes this site", async () => {
-    const orphanId = await insertOldOrphan(365);
-
-    const response = await scheduled("GET");
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, poked: null });
-    // Per-request pruning (auto-purge on by default) reaped the year-old orphan.
-    expect(await attendeeExists(orphanId)).toBe(false);
-  });
-
-  test("needs no auth — a bare POST is accepted", async () => {
-    const response = await scheduled("POST");
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, poked: null });
-  });
-});
+const scheduled = (key = TEST_SCHEDULED_KEY): Promise<Response> =>
+  serveHandler(
+    mockRequest("/scheduled", {
+      headers: scheduledAuthorization(key),
+      method: "POST",
+    }),
+  );
 
 describeWithEnv(
-  "server (scheduled tasks): built forwarding",
-  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  "server (scheduled maintenance)",
+  {
+    db: true,
+    env: {
+      SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
+      SCHEDULED_TASK_KEY_NEXT: TEST_SCHEDULED_NEXT_KEY,
+    },
+  },
   () => {
-    test("POST pokes the least-recently-poked built site with a GET", async () => {
-      const site = await insertBuiltSite("Client", "client.b-cdn.net");
-      using fetchStub = stubFetch(new Response("ok", { status: 200 }));
-      const response = await scheduled("POST");
-
-      expect(response.status).toBe(200);
-      const body = await response.json();
-      // No client hostname in the response — this endpoint is public.
-      expect(body.poked).toEqual({ ok: true, status: 200 });
-
-      // It poked the client's /scheduled with a plain unauthenticated GET.
-      expect(fetchStub.calls.length).toBe(1);
-      const [url, init] = fetchStub.calls[0]!.args as [string, RequestInit];
-      expect(url).toBe("https://client.b-cdn.net/scheduled");
-      expect(init.method).toBe("GET");
-      expect(init.headers).toBeUndefined();
-      // Redirects are followed only after SSRF re-validation, never blindly.
-      expect(init.redirect).toBe("manual");
-
-      // The site's rotation stamp was bumped so the next call walks onward.
-      expect(await lastPrunedOf(site.id)).not.toBe("");
+    test("runs authenticated local maintenance through the production handler", async () => {
+      await expectScheduledResponse(await scheduled(), 204);
     });
 
-    test("GET does not walk the fleet", async () => {
-      await insertBuiltSite("Client", "client.b-cdn.net");
-      using fetchStub = stubFetch(new Response("ok"));
-      const response = await scheduled("GET");
-      expect((await response.json()).poked).toBe(null);
-      expect(fetchStub.calls.length).toBe(0);
+    test("accepts the next key during rotation", async () => {
+      await expectScheduledResponse(
+        await scheduled(TEST_SCHEDULED_NEXT_KEY),
+        204,
+      );
     });
 
-    test("reports poked null when the builder has no built sites", async () => {
-      await expectPostScheduledPokesNothing();
+    test("returns 503 until site setup is complete", async () => {
+      await settings.setRaw("setup_complete", "false");
+      settings.setup.clearCache();
+      settings.invalidateCache();
+
+      await expectScheduledResponse(await scheduled(), 503);
     });
 
-    test("reports an error when the built site is unreachable", async () => {
-      await insertBuiltSite("Client", "client.b-cdn.net");
-      using _fetch = stubFetch(new Error("network down"));
-      const response = await scheduled("POST");
-      // The failure is reported without leaking the client hostname.
-      expect((await response.json()).poked).toEqual({ failed: true });
+    test("does not read an authenticated request body", async () => {
+      const request = mockRequest("/scheduled", {
+        body: "ignored",
+        headers: scheduledAuthorization(),
+        method: "POST",
+      });
+      await expectScheduledResponse(await serveHandler(request), 204);
+      expect(request.bodyUsed).toBe(false);
+    });
+
+    test("returns a bearer challenge for missing credentials", async () => {
+      const response = await serveHandler(
+        mockRequest("/scheduled", { method: "POST" }),
+      );
+      expect(response.headers.get("www-authenticate")).toBe("Bearer");
+      await expectScheduledResponse(response, 401);
+    });
+
+    test("returns a bearer challenge for malformed credentials", async () => {
+      const response = await serveHandler(
+        mockRequest("/scheduled", {
+          headers: { authorization: `Basic ${TEST_SCHEDULED_KEY}` },
+          method: "POST",
+        }),
+      );
+      expect(response.headers.get("www-authenticate")).toBe("Bearer");
+      await expectScheduledResponse(response, 401);
+    });
+
+    test("returns a bearer challenge for the wrong key", async () => {
+      const response = await scheduled("wrong");
+      expect(response.headers.get("www-authenticate")).toBe("Bearer");
+      await expectScheduledResponse(response, 401);
+    });
+
+    test("does not expose the endpoint through the normal app router", async () => {
+      const response = await handleRequest(
+        mockRequest("/scheduled", {
+          headers: {
+            ...scheduledAuthorization(),
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("does not make outbound scheduler requests on a builder", async () => {
+      const originalFetch = globalThis.fetch;
+      let calls = 0;
+      globalThis.fetch = () => {
+        calls += 1;
+        return Promise.reject(new Error("unexpected scheduler fetch"));
+      };
+      try {
+        await expectScheduledResponse(await scheduled(), 204);
+        expect(calls).toBe(0);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   },
 );
 
-describeWithEnv("server (scheduled tasks): not a builder", { db: true }, () => {
-  test("POST does not poke built sites when not a builder", async () => {
-    await insertBuiltSite("Client", "client.b-cdn.net");
-    await expectPostScheduledPokesNothing();
-  });
-});
+describeWithEnv(
+  "server (scheduled maintenance in read-only mode)",
+  {
+    db: true,
+    env: {
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+      SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
+    },
+  },
+  () => {
+    test("permits an authenticated local run", async () => {
+      await expectScheduledResponse(await scheduled(), 204);
+    });
+  },
+);

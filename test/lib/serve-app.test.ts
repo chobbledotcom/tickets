@@ -20,13 +20,87 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { devServerPort, serveHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withExpectedError } from "#test-utils/mocks.ts";
+import {
+  expectScheduledResponse,
+  scheduledAuthorization,
+  TEST_SCHEDULED_KEY,
+} from "#test-utils/scheduled.ts";
 
 const request = (path: string): Request =>
   new Request(`http://localhost${path}`, { headers: { host: "localhost" } });
 
 describeWithEnv("serve-app", { db: true }, () => {
   describe("serveHandler", () => {
+    test("rejects an unset scheduled endpoint before broken boot and Sentry", async () => {
+      using _env = withEnv({
+        MAIN_INSTANCE_KEY: "too-short",
+        SCHEDULED_TASK_KEY: undefined,
+        SENTRY_URL: "https://abc123@bugs.example.test/2",
+      });
+      using fetchStub = stubFetch(new Error("Sentry must not start"));
+
+      const response = await serveHandler(
+        new Request("http://localhost/scheduled", { method: "POST" }),
+      );
+
+      await expectScheduledResponse(response, 404);
+      expect(fetchStub.calls.length).toBe(0);
+    });
+
+    test("rejects a wrong scheduled key without reading the body", async () => {
+      using _env = withEnv({
+        MAIN_INSTANCE_KEY: "too-short",
+        SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
+      });
+      const request = new Request("http://localhost/scheduled", {
+        body: "caller-selected work",
+        headers: {
+          ...scheduledAuthorization("wrong"),
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+
+      const response = await serveHandler(request);
+
+      expect(response.headers.get("www-authenticate")).toBe("Bearer");
+      await expectScheduledResponse(response, 401);
+      expect(request.bodyUsed).toBe(false);
+    });
+
+    test("hides every non-POST scheduled method before boot", async () => {
+      using _env = withEnv({
+        MAIN_INSTANCE_KEY: "too-short",
+        SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
+      });
+      const response = await serveHandler(
+        new Request("http://localhost/scheduled", {
+          headers: scheduledAuthorization(),
+          method: "GET",
+        }),
+      );
+
+      await expectScheduledResponse(response, 404);
+    });
+
+    test("returns an empty scheduled 503 when authorized boot fails", async () => {
+      using _env = withEnv({
+        MAIN_INSTANCE_KEY: "too-short",
+        SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
+      });
+      await withExpectedError(async () => {
+        const response = await serveHandler(
+          new Request("http://localhost/scheduled", {
+            headers: scheduledAuthorization(),
+            method: "POST",
+          }),
+        );
+        await expectScheduledResponse(response, 503);
+      });
+    });
+
     test("a failing boot check returns 503 and does not poison later boots", async () => {
       // MAIN_INSTANCE_KEY must be unset or ≥32 bytes; a short one fails the
       // boot checks inside the handler, which must answer with the generic

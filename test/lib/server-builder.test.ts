@@ -25,7 +25,12 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { awaitTestRequest, withMocks } from "#test-utils/mocks.ts";
+import {
+  awaitTestRequest,
+  withExpectedError,
+  withMocks,
+} from "#test-utils/mocks.ts";
+import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 
 /** Stub all Bunny + GitHub APIs for a successful build */
@@ -51,9 +56,9 @@ const stubBuildAndCapture = () => {
     restore?: () => void;
   } = { input: null };
   return {
-    buildStub: stub(builderApi, "buildSite", (input) => {
+    buildStub: stub(builderApi, "buildSite", async (input, retain) => {
       capture.input = input;
-      return Promise.resolve({
+      const result = {
         dbProvider: "bunny" as const,
         dbToken: "tok",
         dbUrl: "libsql://test.io",
@@ -61,7 +66,9 @@ const stubBuildAndCapture = () => {
         hostingId: "42",
         hostingProvider: "bunny" as const,
         ok: true as const,
-      });
+      };
+      await retain({ ...result, scheduledTaskKey: TEST_SCHEDULED_KEY });
+      return result;
     }),
     capture,
     dbTestStub: stub(builderApi, "testDbConnection", () =>
@@ -329,6 +336,35 @@ describeWithEnv(
         }),
         async () => {
           await expectBuildFlashError("Create edge script failed");
+        },
+      );
+    });
+
+    test("fails if a provider reports success without retaining the site", async () => {
+      await withMocks(
+        () => ({
+          buildStub: stub(builderApi, "buildSite", () =>
+            Promise.resolve({
+              dbProvider: "bunny" as const,
+              dbToken: "token",
+              dbUrl: "libsql://test.io",
+              defaultHostname: "child.example.test",
+              hostingId: "42",
+              hostingProvider: "bunny" as const,
+              ok: true as const,
+            }),
+          ),
+          dbTestStub: stubDbOk(),
+        }),
+        async () => {
+          const { response } = await withExpectedError(() =>
+            adminFormPost("/admin/builder", {
+              db_token: "token",
+              db_url: "libsql://test.io",
+              site_name: "Unretained",
+            }),
+          );
+          expect(response.status).toBe(503);
         },
       );
     });

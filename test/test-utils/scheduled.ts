@@ -1,0 +1,50 @@
+import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
+import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
+import { toBase64Url } from "#shared/crypto/utils.ts";
+import { insertBuiltSite } from "#shared/db/built-sites.ts";
+
+export const TEST_SCHEDULED_KEY = toBase64Url(new Uint8Array(32).fill(7));
+export const TEST_SCHEDULED_NEXT_KEY = toBase64Url(new Uint8Array(32).fill(8));
+
+export const scheduledAuthorization = (
+  key = TEST_SCHEDULED_KEY,
+): Record<string, string> => ({ authorization: `Bearer ${key}` });
+
+export const expectScheduledResponse = async (
+  response: Response,
+  status: number,
+): Promise<void> => {
+  expect(response.status).toBe(status);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.text()).toBe("");
+};
+
+export const stubBunnySchedulerSecrets = (
+  stubs: { restore(): void }[],
+  names: string[],
+  result: { ok: true } | { error: string; ok: false },
+): void => {
+  stubs.push(
+    stub(bunnyHostingProvider, "getSecretNames", () =>
+      Promise.resolve({ names, ok: true }),
+    ),
+    stub(bunnyHostingProvider, "setSecrets", () => Promise.resolve(result)),
+  );
+};
+
+export const insertScheduledTestSite = (
+  active: string | null = TEST_SCHEDULED_KEY,
+) =>
+  insertBuiltSite(
+    "Child",
+    "child.example.test",
+    "",
+    "",
+    false,
+    "42",
+    undefined,
+    "bunny",
+    "bunny",
+    active,
+  );

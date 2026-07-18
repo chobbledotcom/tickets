@@ -1,3 +1,4 @@
+import { lazyRef } from "#fp";
 import { getCleanUrl, lowerContentType } from "#routes/middleware.ts";
 import {
   emptyCustomCssResponse,
@@ -35,9 +36,45 @@ export const bufferRequestIfNeeded: RequestTransform = (request) =>
 export const shouldLogQueries = (method: string, prefix: string): boolean =>
   method === "GET" && prefix === "admin";
 
-/** Whether routine background pruning is safe during this request. */
-export const shouldRunPrunes = (method: string, path: string): boolean =>
-  method !== "POST" || path !== "/admin/privacy/orphans";
+const ORGANIC_MAINTENANCE_THROTTLE_MS = 60_000;
+const ORGANIC_UNSAFE_PREFIXES = [
+  "/address-lookup",
+  "/api",
+  "/calculate",
+  "/gwallet",
+  "/join",
+  "/order",
+  "/pay",
+  "/payment",
+  "/renew",
+  "/scheduled",
+  "/setup",
+  "/sms",
+  "/ticket",
+  "/v1",
+  "/wallet",
+] as const;
+
+const pathIs = (path: string, prefix: string): boolean =>
+  path === prefix || path.startsWith(`${prefix}/`);
+
+export const shouldRunOrganicMaintenance = (
+  method: string,
+  path: string,
+  status: number,
+): boolean =>
+  (method === "GET" || method === "HEAD") &&
+  status >= 200 &&
+  status < 300 &&
+  !ORGANIC_UNSAFE_PREFIXES.some((prefix) => pathIs(path, prefix));
+
+const [getNextOrganicWake, setNextOrganicWake] = lazyRef(() => 0);
+
+export const claimOrganicMaintenanceWake = (time = Date.now()): boolean => {
+  if (time < getNextOrganicWake()) return false;
+  setNextOrganicWake(time + ORGANIC_MAINTENANCE_THROTTLE_MS);
+  return true;
+};
 
 /** Whether a busy-database page may retry the request automatically. */
 export const shouldRetryBusyRequest = (method: string): boolean =>

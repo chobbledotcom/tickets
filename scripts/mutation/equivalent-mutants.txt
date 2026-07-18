@@ -68,6 +68,15 @@ src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: In
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/shared/scheduled-access.ts:18:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
+src/shared/scheduled-access.ts:35:55  ?? → ||   # next is string|undefined; its only falsy string is already the same empty fallback
+src/shared/maintenance/runner.ts:94:40  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
+src/shared/db/built-site-scheduler.ts:42:20  ?? → ||   # parsed sk is a non-empty canonical scheduled key when present, so only undefined reaches the null fallback
+src/shared/db/built-site-scheduler.ts:44:21  ?? → ||   # parsed sn is a non-empty canonical scheduled key when present, so only undefined reaches the null fallback
+src/shared/deno-deploy-api.ts:91:34  ?? → ||   # env_vars is a record object when present, and every object is truthy
+src/shared/bunny-cdn.ts:477:42  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
+src/shared/bunny-cdn.ts:538:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
+src/shared/subrequest-budget.ts:38:40  ?? → ||   # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
 src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value

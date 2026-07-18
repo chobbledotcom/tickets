@@ -20,6 +20,7 @@ import {
   getIsolationScope,
   isInitialized,
 } from "@sentry/deno";
+import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 
 type InitOptions = {
   dsn: string;
@@ -33,6 +34,7 @@ const makeFetchTransport: ConstructorParameters<
   typeof DenoClient
 >[0]["transport"] = (options) =>
   createTransport(options, async (request) => {
+    countExternalSubrequest("Sentry transport");
     const response = await fetch(options.url, {
       body: fetchBody(request.body),
       headers: new Headers(options.headers),

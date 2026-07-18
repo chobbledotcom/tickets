@@ -127,11 +127,17 @@ describe("isValidContentType", () => {
     );
   });
 
-  for (const path of ["/scheduled", "/instance/site-credentials"]) {
-    test(`${path} accepts a bodyless POST`, () => {
-      expect(isValidContentType(requestWithType("POST"), path)).toBe(true);
-    });
-  }
+  test("normal middleware does not exempt the specialized scheduled route", () => {
+    expect(isValidContentType(requestWithType("POST"), "/scheduled")).toBe(
+      false,
+    );
+  });
+
+  test("/instance/site-credentials accepts a bodyless POST", () => {
+    expect(
+      isValidContentType(requestWithType("POST"), "/instance/site-credentials"),
+    ).toBe(true);
+  });
 
   for (const path of [
     "/payment/webhook",

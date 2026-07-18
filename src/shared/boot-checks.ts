@@ -7,6 +7,7 @@
 import { utf8ByteLength } from "#shared/bytes.ts";
 import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
+import { validateScheduledTaskKeys } from "#shared/scheduled-keys.ts";
 
 export type BootCheck = {
   name: string;
@@ -34,6 +35,7 @@ export const validateOptionalMainInstanceKey = (): void => {
 export const BOOT_CHECKS: readonly BootCheck[] = [
   { name: "DB_ENCRYPTION_KEY", run: validateEncryptionKey },
   { name: "MAIN_INSTANCE_KEY", run: validateOptionalMainInstanceKey },
+  { name: "SCHEDULED_TASK_KEY", run: validateScheduledTaskKeys },
 ];
 
 export const validateBootChecks = (): void => {

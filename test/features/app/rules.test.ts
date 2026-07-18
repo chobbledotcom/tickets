@@ -2,13 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   bufferRequestIfNeeded,
+  claimOrganicMaintenanceWake,
   ensureCustomCssResponse,
   isSetupPath,
   shouldBufferRequestBody,
   shouldLogQueries,
   shouldPrefetchSettings,
   shouldRetryBusyRequest,
-  shouldRunPrunes,
+  shouldRunOrganicMaintenance,
   trackingRedirectLocation,
 } from "#routes/app/rules.ts";
 
@@ -61,10 +62,33 @@ describe("request rules", () => {
     expect(shouldLogQueries("GET", "ticket")).toBe(false);
   });
 
-  test("skips background prunes only for the orphan settings POST", () => {
-    expect(shouldRunPrunes("POST", "/admin/privacy/orphans")).toBe(false);
-    expect(shouldRunPrunes("GET", "/admin/privacy/orphans")).toBe(true);
-    expect(shouldRunPrunes("POST", "/admin/privacy/erase")).toBe(true);
+  test("runs organic maintenance only after safe successful reads", () => {
+    expect(shouldRunOrganicMaintenance("GET", "/", 200)).toBe(true);
+    expect(shouldRunOrganicMaintenance("HEAD", "/admin", 204)).toBe(true);
+    expect(shouldRunOrganicMaintenance("POST", "/", 200)).toBe(false);
+    expect(shouldRunOrganicMaintenance("GET", "/", 404)).toBe(false);
+  });
+
+  test("excludes checkout, payment, webhook, and setup paths", () => {
+    for (const path of [
+      "/api/listing/book",
+      "/calculate/listing",
+      "/order",
+      "/pay/token",
+      "/payment/webhook",
+      "/renew",
+      "/sms/webhook",
+      "/ticket/listing",
+      "/setup",
+    ]) {
+      expect(shouldRunOrganicMaintenance("GET", path, 200)).toBe(false);
+    }
+  });
+
+  test("throttles repeated organic wakes in one warm isolate", () => {
+    expect(claimOrganicMaintenanceWake(100)).toBe(true);
+    expect(claimOrganicMaintenanceWake(60_099)).toBe(false);
+    expect(claimOrganicMaintenanceWake(60_100)).toBe(true);
   });
 
   test("retries busy requests only when they are safe to repeat", () => {

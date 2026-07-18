@@ -4,7 +4,6 @@ import {
   assignBuiltSite,
   builtSites,
   builtSitesCrudTable,
-  claimNextBuiltSiteForPrune,
   DEFAULT_UPDATE_TIER,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
@@ -84,27 +83,6 @@ describe("update tiers", () => {
   });
 });
 
-describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
-  test("returns null when there are no built sites", async () => {
-    expect(await claimNextBuiltSiteForPrune()).toBe(null);
-  });
-
-  test("walks sites least-recently-pruned first, then round-robins", async () => {
-    await insertBuiltSite("A", "a.example.com");
-    await insertBuiltSite("B", "b.example.com");
-
-    // Both start never-pruned (''), so the lowest id goes first; after each is
-    // stamped, the other (still '') is next; then it cycles back to the oldest.
-    const first = await claimNextBuiltSiteForPrune();
-    const second = await claimNextBuiltSiteForPrune();
-    const third = await claimNextBuiltSiteForPrune();
-
-    expect(first?.siteUrl).toBe("a.example.com");
-    expect(second?.siteUrl).toBe("b.example.com");
-    expect(third?.siteUrl).toBe("a.example.com");
-  });
-});
-
 describeWithEnv("built-sites", { db: true }, () => {
   test("toDbValues creates valid site-data JSON", async () => {
     const parsed = await formBlob({
@@ -113,7 +91,7 @@ describeWithEnv("built-sites", { db: true }, () => {
     });
     expect(parsed.n).toBe("Test Site");
     expect(parsed.u).toBe("test.b-cdn.net");
-    expect(parsed.v).toBe(1);
+    expect(parsed.v).toBe(2);
   });
 
   test("toDbValues includes db credentials when provided", async () => {
@@ -160,7 +138,7 @@ describeWithEnv("built-sites", { db: true }, () => {
     });
     expect(parsed.n).toBe("My Site");
     expect(parsed.u).toBe("my.b-cdn.net");
-    expect(parsed.v).toBe(1);
+    expect(parsed.v).toBe(2);
   });
 
   test("parseSiteDataBlob handles legacy blobs without db keys", () => {
@@ -276,6 +254,9 @@ describeWithEnv("built-sites", { db: true }, () => {
         readOnlyFrom: "",
         renewalToken: null,
         renewalTokenIndex: null,
+        scheduledTaskKey: null,
+        scheduledTaskKeyNext: null,
+        siteDataRevision: 0,
         siteUrl: "test.bunny.run",
         updates: "release" as const,
       };
@@ -318,6 +299,9 @@ describeWithEnv("built-sites", { db: true }, () => {
         readOnlyFrom: "",
         renewalToken: null,
         renewalTokenIndex: null,
+        scheduledTaskKey: null,
+        scheduledTaskKeyNext: null,
+        siteDataRevision: 0,
         siteUrl: "example.bunny.run",
         updates: "beta" as const,
       };

@@ -6,7 +6,7 @@
 
 import { sort } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { builderApi, resolveHostingProvider } from "#shared/builder.ts";
+import { resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
@@ -14,8 +14,6 @@ import { addMonthsIso, parseDateMs } from "#shared/dates.ts";
 import {
   assignBuiltSite,
   type BuiltSite,
-  builtSites,
-  builtSitesCrudTable,
   getAssignableBuiltSites,
   siteBaseUrl,
   updateBuiltSiteRenewalState,
@@ -30,6 +28,7 @@ import {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { buildAssignableSite } from "#shared/site-build.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
 /** Entry with the fields needed for site assignment */
@@ -78,33 +77,6 @@ export type SiteAssignmentConfigValidation =
       message: string;
       listingId?: number;
     };
-
-/** Compute the next sequential site name based on total site count, zero-padded to 5 digits. */
-const nextSiteName = async (): Promise<string> =>
-  String((await builtSites.getAll()).length + 1).padStart(5, "0");
-
-/** Build a new site on-demand and insert it as an assignable record. */
-const buildSiteForAssignment = async (): Promise<BuiltSite | null> => {
-  const name = await nextSiteName();
-  const result = await builderApi.buildSite({ siteName: name });
-  if (!result.ok) {
-    logError({
-      code: ErrorCode.CDN_REQUEST,
-      detail: `Failed to auto-build site '${name}': ${result.error}`,
-    });
-    return null;
-  }
-  return builtSitesCrudTable.insert({
-    assignable: true,
-    dbProvider: result.dbProvider,
-    dbToken: result.dbToken,
-    dbUrl: result.dbUrl,
-    hostingId: result.hostingId,
-    hostingProvider: result.hostingProvider,
-    name,
-    siteUrl: result.defaultHostname,
-  });
-};
 
 /** Pick the cheapest qualifying tier listing (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
 export const isQualifyingTierListing = (listing: RenewalTierListing): boolean =>
@@ -357,7 +329,7 @@ const assignSitesForEntries = async (
   for (const { listing, attendee } of needsSite) {
     const qty = attendee.quantity;
     for (let i = 0; i < qty; i++) {
-      const site = available[idx] ?? (await buildSiteForAssignment());
+      const site = available[idx] ?? (await buildAssignableSite());
       if (!site) break;
 
       assignments.push(

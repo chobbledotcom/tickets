@@ -24,7 +24,6 @@ const READ_ONLY_SAFE_PATHS = [
   /^\/unsubscribe$/,
   /^\/contact$/,
   /^\/instance\/site-credentials$/,
-  /^\/scheduled$/,
   /^\/checkin\/[^/]+$/,
 ];
 

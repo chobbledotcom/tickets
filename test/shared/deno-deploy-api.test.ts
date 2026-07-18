@@ -1,8 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { denoDeployApi, slugifyForDeno } from "#shared/deno-deploy-api.ts";
+import {
+  denoDeployApi,
+  denoHostingProvider,
+  slugifyForDeno,
+} from "#shared/deno-deploy-api.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { TEST_SCHEDULED_NEXT_KEY } from "#test-utils/scheduled.ts";
 
 const DENO_ENV = {
   DENO_DEPLOY_ORG_ID: "test-org-id",
@@ -11,6 +16,8 @@ const DENO_ENV = {
 
 interface CapturedRequest {
   body: unknown;
+  contentType?: string | null;
+  method?: string;
   url: string | undefined;
 }
 
@@ -20,6 +27,8 @@ const captureRequest =
   (url: string, init?: RequestInit): Response => {
     captured.url = url;
     captured.body = JSON.parse(init?.body as string);
+    captured.contentType = new Headers(init?.headers).get("content-type");
+    if (init?.method !== undefined) captured.method = init.method;
     return new Response(JSON.stringify(responseBody));
   };
 
@@ -52,13 +61,11 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   });
 
   test("slugifyForDeno pads short slugs to at least 3 chars", () => {
-    const result = slugifyForDeno("ab");
-    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(slugifyForDeno("ab")).toBe("abapp");
   });
 
   test("slugifyForDeno handles single-char input", () => {
-    const result = slugifyForDeno("a");
-    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(slugifyForDeno("a")).toBe("aapp");
   });
 
   // ── createApp ──────────────────────────────────────────────────────────────
@@ -76,6 +83,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     }
     expect(captured.url).toContain("/v2/apps");
     expect(captured.body).toEqual({ orgId: "test-org-id", slug: "my-app" });
+    expect(captured.contentType).toBe("application/json");
+    expect(captured.method).toBe("POST");
   });
 
   test("createApp uses Bearer auth header", async () => {
@@ -156,11 +165,18 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       expect(result.hostname).toBe("https://my-app.deno.dev");
     }
     expect(captured.url).toContain("/apps/app_dc/deployments");
-    expect(
-      (captured.body as { assets: { "main.ts": { content: string } } }).assets[
-        "main.ts"
-      ].content,
-    ).toBe("console.log('hello')");
+    expect(captured.method).toBe("POST");
+    expect(captured.body).toEqual({
+      assets: {
+        "main.ts": {
+          content: "console.log('hello')",
+          encoding: "utf-8",
+          kind: "file",
+        },
+      },
+      config: { runtime: { entrypoint: "main.ts", type: "dynamic" } },
+      production: true,
+    });
   });
 
   test("deployCode falls back to hostnames when domains is empty", async () => {
@@ -174,6 +190,23 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     if (result.ok) {
       expect(result.hostname).toBe("https://fallback.deno.dev");
     }
+  });
+
+  test("deployCode rejects an empty primary domain", async () => {
+    using _fetch = stubFetch(
+      new Response(
+        JSON.stringify({
+          domains: [""],
+          hostnames: ["fallback.deno.dev"],
+          id: "dep_empty",
+        }),
+      ),
+    );
+
+    expect(await denoDeployApi.deployCode("app_empty", "code")).toEqual({
+      error: "Deploy code failed: no hostname in response",
+      ok: false,
+    });
   });
 
   test("deployCode returns error when response has no hostname", async () => {
@@ -257,5 +290,73 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       expect(result.error).toContain("Get app failed (404)");
       expect(result.error).toContain("app not found");
     }
+  });
+
+  test("scheduler promotion replaces primary and clears next in one patch", async () => {
+    using fetchStub = stubFetch(new Response("{}"));
+
+    const result = await denoHostingProvider.promoteSecrets(
+      "app_1",
+      ["SCHEDULED_TASK_KEY", TEST_SCHEDULED_NEXT_KEY],
+      "SCHEDULED_TASK_KEY_NEXT",
+    );
+
+    expect(result.ok).toBe(true);
+    const init = fetchStub.calls[0]!.args[1] as RequestInit;
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({
+      env_vars: [
+        {
+          contexts: ["production"],
+          key: "SCHEDULED_TASK_KEY",
+          secret: true,
+          value: TEST_SCHEDULED_NEXT_KEY,
+        },
+        {
+          contexts: ["production"],
+          key: "SCHEDULED_TASK_KEY_NEXT",
+          secret: true,
+          value: null,
+        },
+      ],
+    });
+  });
+
+  test("scheduler promotion labels provider failures", async () => {
+    using _fetch = stubFetch(new Response("failed", { status: 500 }));
+
+    expect(
+      await denoHostingProvider.promoteSecrets(
+        "app_1",
+        ["SCHEDULED_TASK_KEY", TEST_SCHEDULED_NEXT_KEY],
+        "SCHEDULED_TASK_KEY_NEXT",
+      ),
+    ).toEqual({
+      error: "Promote app env vars failed (500): failed",
+      ok: false,
+    });
+  });
+
+  test("hosting provider names its required credential", () => {
+    expect(denoHostingProvider.configEnvVar).toBe("DENO_DEPLOY_TOKEN");
+  });
+
+  test("hosting publish returns only provider success", async () => {
+    using _fetch = stubFetch(
+      new Response(JSON.stringify({ domains: ["child.deno.dev"], id: "dep" })),
+    );
+
+    expect(await denoHostingProvider.publishSite("app_1", "code")).toEqual({
+      ok: true,
+    });
+  });
+
+  test("hosting publish preserves provider failure", async () => {
+    using _fetch = stubFetch(new Response("failed", { status: 500 }));
+
+    expect(await denoHostingProvider.publishSite("app_1", "code")).toEqual({
+      error: "Deploy code failed (500): failed",
+      ok: false,
+    });
   });
 });

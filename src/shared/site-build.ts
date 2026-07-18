@@ -1,0 +1,44 @@
+import { builderApi } from "#shared/builder.ts";
+import {
+  type BuiltSite,
+  builtSites,
+  builtSitesCrudTable,
+  insertBuiltSite,
+} from "#shared/db/built-sites.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
+
+const nextSiteName = async (): Promise<string> =>
+  String((await builtSites.getAll()).length + 1).padStart(5, "0");
+
+/** Build and retain one site before making it available for assignment. */
+export const buildAssignableSite = async (): Promise<BuiltSite | null> => {
+  const name = await nextSiteName();
+  const retainedId = { value: 0 };
+  const result = await builderApi.buildSite(
+    { siteName: name },
+    async (site) => {
+      const row = await insertBuiltSite(
+        name,
+        site.defaultHostname,
+        site.dbUrl,
+        site.dbToken,
+        false,
+        site.hostingId,
+        undefined,
+        site.hostingProvider,
+        site.dbProvider,
+        site.scheduledTaskKey,
+      );
+      retainedId.value = row.id;
+    },
+  );
+  if (!result.ok) {
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `Failed to auto-build site '${name}': ${result.error}`,
+    });
+    return null;
+  }
+  if (retainedId.value === 0) throw new Error("Built site was not retained");
+  return builtSitesCrudTable.update(retainedId.value, { assignable: true });
+};

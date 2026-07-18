@@ -30,14 +30,12 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
-import { maybeBackfillActivityLog } from "#shared/db/activity-log-backfill.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
   initDb,
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "#shared/db/migrations.ts";
-import { maybeRunPrunes } from "#shared/db/prune.ts";
 import { enableQueryLog } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { assertSettingsReadsDeclared } from "#shared/db/settings-audit.ts";
@@ -56,17 +54,19 @@ import {
   logError,
   logRequest,
 } from "#shared/logger.ts";
-import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
+import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
+import { flushPendingWork } from "#shared/pending-work.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { defineAppRoute, routeMainApp } from "./routes.ts";
 import {
   bufferRequestIfNeeded,
+  claimOrganicMaintenanceWake,
   ensureCustomCssResponse,
   isSetupPath,
   shouldLogQueries,
   shouldPrefetchSettings,
   shouldRetryBusyRequest,
-  shouldRunPrunes,
+  shouldRunOrganicMaintenance,
   trackingRedirectLocation,
 } from "./rules.ts";
 
@@ -157,11 +157,33 @@ const prepareRequestEnvironment = async (
 
   await settings.loadKeys(settingsForPath(path));
 
-  if (shouldRunPrunes(method, path)) {
-    addPendingWork(maybeRunPrunes());
-  }
-  addPendingWork(maybeBackfillActivityLog());
   loadEffectiveDomain(url);
+};
+
+const runOrganicMaintenance = async (
+  method: string,
+  path: string,
+  response: Response,
+): Promise<void> => {
+  if (
+    !shouldRunOrganicMaintenance(method, path, response.status) ||
+    !claimOrganicMaintenanceWake()
+  ) {
+    return;
+  }
+  try {
+    const [{ MAINTENANCE_TASKS }, { runMaintenance }] = await Promise.all([
+      import("#shared/maintenance/registry.ts"),
+      import("#shared/maintenance/runner.ts"),
+    ]);
+    await runMaintenance(MAINTENANCE_TASKS, {
+      externalAllowance: 0,
+      wakePolicy: "organic_safe",
+    });
+  } catch (error) {
+    reportMaintenanceFailure("organic maintenance failed", error);
+  }
+  await flushPendingWork();
 };
 
 const routeAndFinalize = async (
@@ -274,5 +296,6 @@ export const processRequest = async (
   } finally {
     await flushPendingWork();
   }
+  await runOrganicMaintenance(method, path, response);
   return response;
 };

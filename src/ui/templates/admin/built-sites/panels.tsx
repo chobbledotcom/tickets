@@ -163,6 +163,57 @@ const unprovisionedPanel = (site: BuiltSite): JSX.Element => (
 export const renewalPanelFor = (site: BuiltSite): JSX.Element =>
   isProvisioned(site) ? provisionedPanel(site) : unprovisionedPanel(site);
 
+export const MaintenancePanel = ({
+  site,
+}: {
+  site: BuiltSite;
+}): JSX.Element => (
+  <div class="prose">
+    <p>{t("built_sites.maintenance_intro")}</p>
+    {site.scheduledTaskKey ? (
+      <>
+        <p>
+          <strong>{t("built_sites.maintenance_active_key")}</strong>{" "}
+          <code>{site.scheduledTaskKey}</code>
+        </p>
+        {site.scheduledTaskKeyNext ? (
+          <>
+            <p>
+              <strong>{t("built_sites.maintenance_pending_key")}</strong>{" "}
+              <code>{site.scheduledTaskKeyNext}</code>
+            </p>
+            <p>{t("built_sites.maintenance_move_monitor")}</p>
+            <SiteActionForm action="stage-scheduler" siteId={site.id}>
+              <SubmitButton icon="rotate-ccw">
+                {t("built_sites.maintenance_verify_again")}
+              </SubmitButton>
+            </SiteActionForm>
+            <ConfirmActionButton
+              action="promote-scheduler"
+              confirmKey="built_sites.maintenance_promote_confirm"
+              icon="save"
+              labelKey="built_sites.maintenance_promote"
+              siteId={site.id}
+            />
+          </>
+        ) : (
+          <SiteActionForm action="stage-scheduler" siteId={site.id}>
+            <SubmitButton icon="rotate-ccw">
+              {t("built_sites.maintenance_start_rotation")}
+            </SubmitButton>
+          </SiteActionForm>
+        )}
+      </>
+    ) : (
+      <SiteActionForm action="provision-scheduler" siteId={site.id}>
+        <SubmitButton icon="hammer">
+          {t("built_sites.maintenance_provision")}
+        </SubmitButton>
+      </SiteActionForm>
+    )}
+  </div>
+);
+
 export const SecretsPanel = ({
   site,
   view,

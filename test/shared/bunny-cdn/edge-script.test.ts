@@ -175,7 +175,7 @@ describeWithEnv(
               }),
             ),
           ),
-        async () => {
+        async (fetchStub) => {
           const result = await bunnyCdnApi.createEdgeScript(
             "Test Script",
             "console.log('test')",
@@ -185,6 +185,18 @@ describeWithEnv(
             ok: true,
             pullZoneId: 99,
             scriptId: 42,
+          });
+          const [url, init] = fetchStub.calls[0]!.args as [string, RequestInit];
+          expect(url).toBe("https://api.bunny.net/compute/script");
+          expect(init.method).toBe("POST");
+          expect(new Headers(init.headers).get("content-type")).toBe(
+            "application/json",
+          );
+          expect(JSON.parse(init.body as string)).toEqual({
+            Code: "console.log('test')",
+            CreateLinkedPullZone: true,
+            Name: "Test Script",
+            ScriptType: 1,
           });
         },
       );
@@ -244,6 +256,15 @@ describeWithEnv(
           expect(String(fetchStub.calls[1]!.args[0])).toContain(
             "/compute/script/99/publish",
           );
+          expect(
+            fetchStub.calls.map(({ args }) => (args[1] as RequestInit).method),
+          ).toEqual(["POST", "POST"]);
+          expect(
+            JSON.parse(
+              (fetchStub.calls[0]!.args[1] as RequestInit).body as string,
+            ),
+          ).toEqual({ Code: "console.log(1)" });
+          expect((fetchStub.calls[1]!.args[1] as RequestInit).body).toBe("{}");
         },
       );
     });
@@ -308,6 +329,7 @@ describeWithEnv(
         "/compute/script/42/publish",
       );
       expect((fetchStub.calls[0]!.args[1] as RequestInit).method).toBe("POST");
+      expect((fetchStub.calls[0]!.args[1] as RequestInit).body).toBe("{}");
     });
 
     test("returns error on API failure", async () => {
@@ -401,6 +423,33 @@ describeWithEnv(
 );
 
 describeWithEnv(
+  "deleteEdgeScriptSecret",
+  { env: { BUNNY_API_KEY: "test-bunny-key" } },
+  () => {
+    test("deletes one secret by id", async () => {
+      using fetchStub = stubFetch(new Response(null, { status: 204 }));
+
+      expect(await bunnyCdnApi.deleteEdgeScriptSecret(42, 8)).toEqual({
+        ok: true,
+      });
+      const [url, init] = fetchStub.calls[0]!.args as [string, RequestInit];
+      expect(url).toBe("https://api.bunny.net/compute/script/42/secrets/8");
+      expect(init.method).toBe("DELETE");
+      expect(init.body).toBe("{}");
+    });
+
+    test("labels a secret delete failure", async () => {
+      using _fetch = stubFetch(new Response("failed", { status: 500 }));
+
+      expect(await bunnyCdnApi.deleteEdgeScriptSecret(42, 8)).toEqual({
+        error: "Delete secret failed (500): failed",
+        ok: false,
+      });
+    });
+  },
+);
+
+describeWithEnv(
   "updatePullZone",
   { env: { BUNNY_API_KEY: "test-bunny-key" } },
   () => {
@@ -410,9 +459,14 @@ describeWithEnv(
         DisableCookies: false,
       });
       expect(result.ok).toBe(true);
-      expect(String(fetchStub.calls[0]!.args[0])).toContain("/pullzone/99");
+      expect(String(fetchStub.calls[0]!.args[0])).toBe(
+        "https://api.bunny.net/pullzone/99",
+      );
       const init = fetchStub.calls[0]!.args[1] as RequestInit;
       expect(init.method).toBe("POST");
+      expect(new Headers(init.headers).get("content-type")).toBe(
+        "application/json",
+      );
       const body = JSON.parse(init.body as string);
       expect(body.DisableCookies).toBe(false);
     });

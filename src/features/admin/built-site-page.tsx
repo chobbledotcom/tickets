@@ -14,6 +14,7 @@ import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import {
+  MaintenancePanel,
   renewalPanelFor,
   SecretsPanel,
   UpdatePanel,
@@ -46,6 +47,12 @@ const updateTab = panelTab<BuiltSite>(
   ),
 );
 
+const maintenanceTab = panelTab<BuiltSite>(
+  "maintenance",
+  "built_sites.maintenance_title",
+  (site) => Promise.resolve(<MaintenancePanel site={site} />),
+);
+
 export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
   basePath,
   deleteLabelKey: "built_sites.delete_this_site",
@@ -53,7 +60,7 @@ export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
     Promise.resolve(
       <BuiltSiteEditPanel site={site} {...submittedValueProps(rejected)} />,
     ),
-  extraTabs: [renewalTab, secretsTab, updateTab],
+  extraTabs: [renewalTab, maintenanceTab, secretsTab, updateTab],
   guard: requireOwnerOr,
   guideFooter: () => Promise.resolve(<BuiltSitesGuideFooter />),
   load: (id) => builtSitesCrudTable.findById(id),

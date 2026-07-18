@@ -305,7 +305,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * (Stripe and Square both retry for up to ~3 days). Processed payment rows that
  * no longer carry useful refund references MUST outlive this window: pruning one
  * while a retry can still arrive could re-process the paid session and re-issue
- * a refund. Rows still needed for admin refunds are kept longer by prunePayments.
+ * a refund. Database pruning keeps rows that are still needed for admin refunds.
  */
 export const WEBHOOK_RETRY_WINDOW_DAYS = 3;
 
@@ -426,6 +426,13 @@ export const PRUNE_INTERVAL_HOURS = limit(
   24,
   "Prune: run interval",
   "hours",
+);
+
+export const MAINTENANCE_PRUNE_BATCH = limit(
+  "MAINTENANCE_PRUNE_BATCH",
+  500,
+  "Maintenance prune batch size",
+  "rows",
 );
 
 /**

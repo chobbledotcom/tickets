@@ -17,8 +17,10 @@ import {
 import { getAdminFeatureUsage } from "#shared/db/admin-features.ts";
 import { settings } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, getHostEmailConfig } from "#shared/email.ts";
+import { getEnv } from "#shared/env.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
+import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { getSuperuserState } from "#shared/superuser.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
@@ -122,6 +124,7 @@ const getAdvancedSettingsPageState = async (
     })(),
     listingColumnOrder: settings.listingColumnOrder,
     paymentProvider: settings.paymentProvider ?? "",
+    scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV) ?? "",
     showPublicApi: settings.showPublicApi,
     smsGatewayBaseUrl: settings.smsGatewayBaseUrl,
     smsGatewayPassphraseConfigured: settings.smsGateway.hasPassphrase,

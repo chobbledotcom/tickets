@@ -15,6 +15,7 @@ import {
   formatSeconds,
   LIMIT_ENTRIES,
   LOGIN_LOCKOUT_MS,
+  MAINTENANCE_PRUNE_BATCH,
   MAX_ADDRESS_LOOKUPS,
   MAX_ATTACHMENT_SIZE,
   MAX_BACKUPS,
@@ -142,6 +143,7 @@ describe("limits", () => {
         "FORM_STASH_MAX_ENTRIES",
         "FORM_STASH_TTL_MS",
         "LOGIN_LOCKOUT_MS",
+        "MAINTENANCE_PRUNE_BATCH",
         "MAX_ADDRESS_LOOKUPS",
         "MAX_APIKEY_ATTEMPTS",
         "MAX_ATTACHMENT_SIZE",
@@ -192,6 +194,9 @@ describe("limits", () => {
       );
       expect(currentByKey.get("MAX_LOGIN_ATTEMPTS")).toBe(MAX_LOGIN_ATTEMPTS);
       expect(currentByKey.get("LOGIN_LOCKOUT_MS")).toBe(LOGIN_LOCKOUT_MS);
+      expect(currentByKey.get("MAINTENANCE_PRUNE_BATCH")).toBe(
+        MAINTENANCE_PRUNE_BATCH,
+      );
       expect(currentByKey.get("PRUNE_PAYMENTS_RETENTION_DAYS")).toBe(
         PRUNE_PAYMENTS_RETENTION_DAYS,
       );
