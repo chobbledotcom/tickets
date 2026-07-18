@@ -1,29 +1,44 @@
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
+import type { DataColumn } from "#templates/components/data-table.tsx";
 import {
   ReorderArrows,
   type ReorderProps,
 } from "#templates/components/reorder.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 
-export const writableReorderProps = (
-  href: string,
-): { href?: string; reorder: boolean } =>
-  isReadOnly() ? { reorder: false } : { href, reorder: true };
+type ReorderArrowProps = ReorderProps & {
+  titles?: { down: string; up: string };
+};
 
-export const ReorderCell = ({
-  action,
-  index,
-  count,
-}: ReorderProps): JSX.Element => (
+const ReorderCell = (props: ReorderArrowProps): JSX.Element => (
   <td class={colClass("reorder")}>
-    <ReorderArrows action={action} count={count} index={index} />
+    <ReorderArrows {...props} />
   </td>
 );
 
+/** The reorder column for a schema-driven data table. */
+export const reorderColumn = <T,>(opts: {
+  action: (item: T) => ReorderProps["action"];
+  header: Child;
+  titles?: ReorderArrowProps["titles"];
+}): DataColumn<T> => ({
+  cell: (item, index, items) =>
+    isReadOnly() ? null : (
+      <ReorderArrows
+        action={opts.action(item)}
+        count={items.length}
+        index={index}
+        {...(opts.titles ? { titles: opts.titles } : {})}
+      />
+    ),
+  class: "reorder",
+  header: opts.header,
+});
+
 /** A ReorderTable row whose label links through to the item's own page:
  * reorder arrows, then the linked label, then any extra cells. */
-export const ReorderLinkRow = ({
+const ReorderLinkRow = ({
   action,
   children,
   count,
@@ -33,13 +48,15 @@ export const ReorderLinkRow = ({
   reorder = true,
 }: ReorderProps & {
   children?: Child;
-  href?: string | undefined;
+  href: string;
   label: Child;
   reorder?: boolean;
 }): JSX.Element => (
   <tr>
     {reorder && <ReorderCell action={action} count={count} index={index} />}
-    <td>{href ? <a href={href}>{label}</a> : label}</td>
+    <td>
+      <a href={href}>{label}</a>
+    </td>
     {children}
   </tr>
 );

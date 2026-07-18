@@ -24,7 +24,6 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
 import {
   unclaimedSiteSlugCondition,
   updateRowWithUnclaimedSlug,
@@ -166,5 +165,3 @@ export const updateSitePage = async (
 };
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */
-export const swapSitePageOrder = (id1: number, id2: number): Promise<void> =>
-  swapSortOrder("site_pages", id1, id2);

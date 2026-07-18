@@ -7,6 +7,7 @@ import {
   execute,
   executeBatch,
   inPlaceholders,
+  nextSortOrder,
   queryAll,
   resultRows,
   type TxScope,
@@ -97,6 +98,28 @@ export const assignNextSortOrder = async (
     },
   ]);
 };
+
+/** Bind the shared append and swap operations to one ordered table. */
+export const orderedRows = (
+  table: string,
+): {
+  append: (id: number) => Promise<void>;
+  swap: (first: number, second: number) => Promise<void>;
+} => ({
+  append: (id) => assignNextSortOrder(table, id),
+  swap: (first, second) => swapSortOrder(table, first, second),
+});
+
+/** Add parent-scoped next-order lookup to an ordered table. */
+export const orderedChildren = (
+  table: string,
+  parentField: string,
+): ReturnType<typeof orderedRows> & {
+  next: (parentId: number) => Promise<number>;
+} => ({
+  ...orderedRows(table),
+  next: (parentId) => nextSortOrder(table, parentField, parentId),
+});
 
 /** Collapse a result's rows to the set of one column's values, as strings —
  * the shared tail of the "which names/ids already exist" reads (applied

@@ -18,7 +18,6 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import type { NamedSortOrderInput } from "#shared/db/common-schema.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineCachedListTable, writeTableRow } from "#shared/db/table.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
@@ -254,17 +253,6 @@ export interface AttendeeStatusWrites {
 export const attendeeStatusWrites: AttendeeStatusWrites = {
   delete: deleteStatus,
   save: saveStatus,
-};
-
-/**
- * Swap the sort_order of two statuses, reading their current values so callers
- * only need the ids.
- */
-export const swapAttendeeStatusOrder = async (
-  id1: number,
-  id2: number,
-): Promise<void> => {
-  await swapSortOrder("attendee_statuses", id1, id2);
 };
 
 /**

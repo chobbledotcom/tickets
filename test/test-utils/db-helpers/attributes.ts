@@ -1,17 +1,19 @@
 import {
   type AttributeOption,
   type AttributeWithOptions,
-  assignNextAttributeSortOrder,
   attributeOptionsTable,
   attributesTable,
   listingAttributeOptions,
 } from "#shared/db/attributes.ts";
+import { orderedRows } from "#shared/db/query.ts";
+
+const attributeRows = orderedRows("attributes");
 
 export const createTestAttribute = async (
   name = "Test attribute",
 ): Promise<AttributeWithOptions> => {
   const attribute = await attributesTable.insert({ name });
-  await assignNextAttributeSortOrder(attribute.id);
+  await attributeRows.append(attribute.id);
   return { ...attribute, options: [] };
 };
 

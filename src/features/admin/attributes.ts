@@ -1,5 +1,4 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
-import { planReorder } from "#shared/reorder.ts";
 /**
  * Admin routes for listing attributes.
  */
@@ -19,17 +18,17 @@ import {
   createEntityHandler,
   orNotFound,
   ownerGetById,
+  throughParent,
 } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import {
   createAuthedFormRoute,
-  createAuthedHandler,
+  createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   type AttributeOption,
   type AttributeWithOptions,
-  assignNextAttributeSortOrder,
   attributeOptionsTable,
   attributesTable,
   deleteAttribute,
@@ -40,12 +39,10 @@ import {
   getAttributeIdsOrdered,
   getAttributeListingUse,
   getAttributeWithOptions,
-  getNextAttributeOptionSortOrder,
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
-  swapAttributeOptionOrder,
-  swapAttributeOrder,
 } from "#shared/db/attributes.ts";
+import { orderedChildren, orderedRows } from "#shared/db/query.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import {
@@ -61,6 +58,9 @@ import {
   optionListingCounts,
 } from "./attribute-page-data.ts";
 import { createListingChoicePost } from "./listing-choice-post.ts";
+
+const attributeRows = orderedRows("attributes");
+const optionRows = orderedChildren("attribute_options", "attribute_id");
 /* jscpd:ignore-end */
 
 export const attributeNameForm = defineForm({
@@ -104,7 +104,7 @@ const handleAttributesPost = createAuthedFormRoute({
   onInvalid: ({ error }) => errorRedirect("/admin/attributes", error),
   onValid: async ({ values: { name } }) => {
     const attribute = await attributesTable.insert({ name });
-    await assignNextAttributeSortOrder(attribute.id);
+    await attributeRows.append(attribute.id);
     await logActivity(`Attribute '${name}' created`);
     return redirect(
       `/admin/attributes/${attribute.id}`,
@@ -196,7 +196,7 @@ const handleAddOption = createAuthedFormRoute<
     orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
       await attributeOptionsTable.insert({
         attributeId: params.id,
-        sortOrder: await getNextAttributeOptionSortOrder(params.id),
+        sortOrder: await optionRows.next(params.id),
         text,
       });
       await logAttributeOptionActivity(text, "added to", attribute);
@@ -219,14 +219,11 @@ const attributeDelete = createConfirmedHandlers<AttributeWithOptions>({
   successRedirect: "/admin/attributes",
 });
 
-const loadAttributeOption = async ({
-  id,
-  optionId,
-}: AttributeOptionParams): Promise<AttributeOptionContext | null> => {
-  const attribute = await getAttributeWithOptions(id);
-  const option = attribute?.options.find((item) => item.id === optionId);
-  return attribute && option ? { attribute, option } : null;
-};
+const loadAttributeOption = ({ id, optionId }: AttributeOptionParams) =>
+  throughParent(getAttributeWithOptions(id), (attribute) => {
+    const option = attribute.options.find((item) => item.id === optionId);
+    return option ? { attribute, option } : null;
+  });
 
 const attributeOptionHandler = createEntityHandler<
   AttributeOptionParams,
@@ -316,28 +313,25 @@ const handleEditOptionPost = createAuthedFormRoute<
   },
 });
 
-const moveOptionHandler = (dir: "up" | "down") =>
-  attributeOptionHandlers.post(async ({ attribute, option }) => {
-    const pair = planReorder(
-      attribute.options.map((item) => item.id),
-      option.id,
-      dir,
-    );
-    if (pair) await swapAttributeOptionOrder(pair[0], pair[1]);
-    return redirect(`/admin/attributes/${attribute.id}`, "Option moved", true);
-  });
+const optionOrder = createOrderedCollectionHandlers({
+  auth: OWNER_FORM,
+  keys: ({ context }) => context.attribute.options.map((item) => item.id),
+  loadContext: loadAttributeOption,
+  movedMessage: "Option moved",
+  redirectPath: ({ context }) => `/admin/attributes/${context.attribute.id}`,
+  swap: optionRows.swap,
+  target: ({ context }) => context.option.id,
+});
 
-const moveAttributeHandler = (dir: "up" | "down") =>
-  createAuthedHandler<AttributeParams, number>({
-    auth: OWNER_FORM,
-    handle: async ({ context: attributeId }) => {
-      const attributeIds = await getAttributeIdsOrdered();
-      const pair = planReorder(attributeIds, attributeId, dir);
-      if (pair) await swapAttributeOrder(pair[0], pair[1]);
-      return redirect("/admin/attributes", "Attribute moved", true);
-    },
-    loadContext: ({ id }) => getAttributeId(id),
-  });
+const attributeOrder = createOrderedCollectionHandlers({
+  auth: OWNER_FORM,
+  keys: getAttributeIdsOrdered,
+  loadContext: ({ id }: AttributeParams) => getAttributeId(id),
+  movedMessage: "Attribute moved",
+  redirectPath: () => "/admin/attributes",
+  swap: attributeRows.swap,
+  target: ({ context }) => context,
+});
 
 const handleListingAttributesPost = createListingChoicePost({
   feature: "attributes",
@@ -364,12 +358,12 @@ export const adminHandlers = handlersFor("attributes")({
   postAttributesByIdDelete: (request, { id }) =>
     attributeDelete.post(request, id),
   postAttributesByIdEdit: handleAttributeEdit,
-  postAttributesByIdMoveDown: moveAttributeHandler("down"),
-  postAttributesByIdMoveUp: moveAttributeHandler("up"),
+  postAttributesByIdMoveDown: attributeOrder.down,
+  postAttributesByIdMoveUp: attributeOrder.up,
   postAttributesByIdOptions: handleAddOption,
   postAttributesByIdOptionsByOptionIdDelete: handleDeleteOptionPost,
   postAttributesByIdOptionsByOptionIdEdit: handleEditOptionPost,
-  postAttributesByIdOptionsByOptionIdMoveDown: moveOptionHandler("down"),
-  postAttributesByIdOptionsByOptionIdMoveUp: moveOptionHandler("up"),
+  postAttributesByIdOptionsByOptionIdMoveDown: optionOrder.down,
+  postAttributesByIdOptionsByOptionIdMoveUp: optionOrder.up,
   postListingByIdAttributes: handleListingAttributesPost,
 });

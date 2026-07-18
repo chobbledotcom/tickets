@@ -14,12 +14,11 @@ import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
 import type { ChildProps } from "#templates/components/child-props.ts";
+import { dataTable } from "#templates/components/data-table.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
-  ReorderLinkRow,
-  ReorderTable,
+  reorderColumn,
   reorderLinkTableAt,
-  writableReorderProps,
 } from "#templates/components/reorder-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 /* jscpd:ignore-end */
@@ -62,30 +61,32 @@ export const reorderCountTable = <T extends { id: number }>(opts: {
   label: (item: T) => Child;
   count: (item: T) => Child;
 }): JSX.Element =>
-  itemsOrEmptyNote(opts.items, opts.emptyText, (items) => (
-    <ReorderTable
-      columns={
-        <>
-          <th>{opts.labelHeader}</th>
-          <th class={colClass("quantity")}>{opts.countHeader}</th>
-        </>
-      }
-      orderLabel={opts.orderLabel}
-      reorder={!isReadOnly()}
-    >
-      {items.map((item, index) => (
-        <ReorderLinkRow
-          action={opts.moveAction(item)}
-          count={items.length}
-          index={index}
-          label={opts.label(item)}
-          {...writableReorderProps(opts.editHref(item))}
-        >
-          <QuantityCell>{opts.count(item)}</QuantityCell>
-        </ReorderLinkRow>
-      ))}
-    </ReorderTable>
-  ));
+  itemsOrEmptyNote(opts.items, opts.emptyText, (items) =>
+    dataTable([
+      ...(isReadOnly()
+        ? []
+        : [
+            reorderColumn({
+              action: opts.moveAction,
+              header: opts.orderLabel,
+            }),
+          ]),
+      {
+        cell: (item: T) =>
+          isReadOnly() ? (
+            opts.label(item)
+          ) : (
+            <a href={opts.editHref(item)}>{opts.label(item)}</a>
+          ),
+        header: opts.labelHeader,
+      },
+      {
+        cell: (item: T) => opts.count(item),
+        class: "quantity" as const,
+        header: opts.countHeader,
+      },
+    ])(items),
+  );
 
 /** A reorderable admin collection page: the "add new item" form (owner-only),
  * then either an empty note or the reorderable table of items, then the guide

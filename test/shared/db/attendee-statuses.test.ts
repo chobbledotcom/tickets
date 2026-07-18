@@ -10,16 +10,18 @@ import {
   getPaidDefaultStatus,
   getPublicDefaultStatus,
   getPublicStatusId,
-  swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { getDb } from "#shared/db/client.ts";
+import { orderedRows } from "#shared/db/query.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+
+const statusRows = orderedRows("attendee_statuses");
 
 const statusInput = (
   name: string,
@@ -133,10 +135,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(storedWaitlist?.is_reservation).toBe(false);
   });
 
-  test("swapAttendeeStatusOrder swaps two statuses' sort_order", async () => {
+  test("ordered rows swap two statuses' sort_order", async () => {
     const a = await attendeeStatuses.table.insert({ name: "A", sortOrder: 5 });
     const b = await attendeeStatuses.table.insert({ name: "B", sortOrder: 6 });
-    await swapAttendeeStatusOrder(a.id, b.id);
+    await statusRows.swap(a.id, b.id);
     expect((await getAttendeeStatus(a.id))?.sort_order).toBe(6);
     expect((await getAttendeeStatus(b.id))?.sort_order).toBe(5);
   });

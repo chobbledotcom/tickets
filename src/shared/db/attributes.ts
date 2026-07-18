@@ -12,7 +12,6 @@ import {
   deleteByFieldBatch,
   executeBatch,
   inPlaceholders,
-  nextSortOrder,
   queryAll,
   queryIdColumn,
   queryOne,
@@ -26,7 +25,6 @@ import {
   type ListingOption,
   listingOptionProjection,
 } from "#shared/db/listings/table.ts";
-import { assignNextSortOrder, swapSortOrder } from "#shared/db/query.ts";
 import {
   col,
   defineTable,
@@ -293,23 +291,6 @@ export const getAttributeListingUse = async (
     listings: await listingOptionProjection.readAll(usedListings),
   };
 };
-
-export const assignNextAttributeSortOrder = (
-  attributeId: number,
-): Promise<void> => assignNextSortOrder("attributes", attributeId);
-
-export const getNextAttributeOptionSortOrder = (
-  attributeId: number,
-): Promise<number> =>
-  nextSortOrder("attribute_options", "attribute_id", attributeId);
-
-export const swapAttributeOrder = (id1: number, id2: number): Promise<void> =>
-  swapSortOrder("attributes", id1, id2);
-
-export const swapAttributeOptionOrder = (
-  id1: number,
-  id2: number,
-): Promise<void> => swapSortOrder("attribute_options", id1, id2);
 
 export const deleteAttributeOption = (optionId: number): Promise<void> =>
   deleteByFieldBatch([

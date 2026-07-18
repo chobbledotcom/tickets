@@ -11,6 +11,7 @@ import {
   getListingNamesByIds,
   isSlugTaken,
 } from "#shared/db/listings/records.ts";
+import { orderedRows } from "#shared/db/query.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -27,7 +28,6 @@ import {
   getSitePageBySlugIndex,
   type SitePageInput,
   sitePages,
-  swapSitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
@@ -37,6 +37,8 @@ import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+
+const pageRows = orderedRows("site_pages");
 
 const makePage = async (
   slug: string,
@@ -196,10 +198,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
   });
 
   describe("root reorder", () => {
-    test("swapSitePageOrder exchanges two pages' sort_order", async () => {
+    test("ordered rows exchange two pages' sort_order", async () => {
       const a = await makePage("first", { sortOrder: 0 });
       const b = await makePage("second", { sortOrder: 1 });
-      await swapSitePageOrder(a.id, b.id);
+      await pageRows.swap(a.id, b.id);
       sitePages.invalidate();
       expect((await sitePages.getAll()).map((r) => r.slug)).toEqual([
         "second",
@@ -207,12 +209,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
     });
 
-    test("swapSitePageOrder is a no-op when either row is missing", async () => {
+    test("ordered rows are a no-op when either row is missing", async () => {
       // A stale reorder click racing a delete must not 500 (binding an
       // undefined sort_order) — the swap simply does nothing.
       const a = await makePage("survivor", { sortOrder: 0 });
-      await swapSitePageOrder(a.id, 9999);
-      await swapSitePageOrder(9999, a.id);
+      await pageRows.swap(a.id, 9999);
+      await pageRows.swap(9999, a.id);
       sitePages.invalidate();
       const row = (await sitePages.getAll()).find((r) => r.slug === "survivor");
       expect(row?.sort_order).toBe(0);

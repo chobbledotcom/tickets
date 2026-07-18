@@ -32,6 +32,15 @@ export const orNotFound = async <T>(
  *  every gated `:id` route (and the Site-tab editors) is built on. */
 export type EntityLoader<T> = (id: number) => Promise<T | null>;
 
+/** Load through a parent, returning null before the child lookup when missing. */
+export const throughParent = async <Parent, Context>(
+  load: Promise<Parent | null>,
+  child: (parent: Parent) => Context | null | Promise<Context | null>,
+): Promise<Context | null> => {
+  const parent = await load;
+  return parent ? child(parent) : null;
+};
+
 /** Handler for a POST that carries a record id, the session, and the form. */
 export type IdFormHandler = ResponseHandler<
   [id: number, session: AuthSession, form: FormParams]

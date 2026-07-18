@@ -1,6 +1,5 @@
 /* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
-import { planReorder } from "#shared/reorder.ts";
 /* jscpd:ignore-end */
 /**
  * Admin routes for managing attendee statuses (owner-only).
@@ -21,7 +20,10 @@ import {
 import { applyFlash } from "#routes/csrf.ts";
 import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { ownerFormHandler } from "#shared/app-forms.ts";
+import {
+  createOrderedCollectionHandlers,
+  ownerFormHandler,
+} from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   type AttendeeStatus,
@@ -31,14 +33,16 @@ import {
   attendeeStatuses,
   attendeeStatusWrites,
   getAttendeeStatus,
-  swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
+import { orderedRows } from "#shared/db/query.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { statusPages } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
+
+const statusRows = orderedRows("attendee_statuses");
 
 /* jscpd:ignore-end */
 
@@ -177,14 +181,16 @@ const deletePost = statusHandlers.post(
   },
 );
 
-/** Factory for move-up / move-down handlers (swap with the ordered neighbour). */
-const moveHandler = (dir: "up" | "down") =>
-  statusHandlers.post(async (_status, _session, _form, _request, { id }) => {
-    const ids = (await attendeeStatuses.getAll()).map((s) => s.id);
-    const pair = planReorder(ids, id, dir);
-    if (pair) await swapAttendeeStatusOrder(pair[0], pair[1]);
-    return redirect(LIST_PATH, "Status moved", true);
-  });
+const statusOrder = createOrderedCollectionHandlers({
+  auth: OWNER_FORM,
+  keys: async () =>
+    (await attendeeStatuses.getAll()).map((status) => status.id),
+  loadContext: ({ id }: { id: number }) => getAttendeeStatus(id),
+  movedMessage: "Status moved",
+  redirectPath: () => LIST_PATH,
+  swap: statusRows.swap,
+  target: ({ context }) => context.id,
+});
 
 export const adminHandlers = handlersFor("settingsStatuses")({
   getSettingsStatuses: listGet,
@@ -197,6 +203,6 @@ export const adminHandlers = handlersFor("settingsStatuses")({
   postSettingsStatuses: createPost,
   postSettingsStatusesByIdDelete: deletePost,
   postSettingsStatusesByIdEdit: editPost,
-  postSettingsStatusesByIdMoveDown: moveHandler("down"),
-  postSettingsStatusesByIdMoveUp: moveHandler("up"),
+  postSettingsStatusesByIdMoveDown: statusOrder.down,
+  postSettingsStatusesByIdMoveUp: statusOrder.up,
 });

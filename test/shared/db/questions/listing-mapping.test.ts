@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { orderedRows } from "#shared/db/query.ts";
 import {
   getListingQuestionIds,
   getQuestionsForListing,
   listingQuestions,
   questionListings,
 } from "#shared/db/questions/queries.ts";
-import { swapQuestionOrder } from "#shared/db/questions/sort-order.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -16,6 +16,8 @@ import {
   expectQuestionTexts,
   seedQuestionWithAndWithoutAnswers,
 } from "./helpers.ts";
+
+const questionRows = orderedRows("questions");
 
 /** Two answered questions ("Q1", "Q2") and a fresh listing — the shared
  *  arrange behind the assign/replace mapping tests. */
@@ -43,7 +45,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const { q1, q2 } = await createOrderedQuestionPair("A1", "A2");
 
       // Put q2 ahead of q1 globally.
-      await swapQuestionOrder(q1.id, q2.id);
+      await questionRows.swap(q1.id, q2.id);
 
       const listing = await createTestListing();
       await listingQuestions.setIds(listing.id, [q1.id, q2.id]);

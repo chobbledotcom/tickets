@@ -11,11 +11,13 @@ import {
   errorRedirect,
   htmlResponse,
   notFoundResponse,
+  redirect,
 } from "#routes/response.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ValidationResult } from "#shared/forms/validation.ts";
+import { planReorder } from "#shared/reorder.ts";
 import type { ParamsRoute, ResponseHandler } from "#shared/response-steps.ts";
 /* jscpd:ignore-end */
 
@@ -100,6 +102,37 @@ export const authedHandlerWithStep = <TParams, TContext>(
   handle: AuthedHandleStep<TParams, TContext>,
 ): ParamsRoute<TParams> =>
   createAuthedHandler<TParams, TContext>({ ...config, handle });
+
+type OrderedConfig<Params, Context, Key> = AuthedBase<Params, Context> & {
+  keys: (
+    args: AuthedHandlerArgs<Params, Context>,
+  ) => readonly Key[] | Promise<readonly Key[]>;
+  movedMessage: string;
+  redirectPath: (args: AuthedHandlerArgs<Params, Context>) => string;
+  swap: (
+    first: Key,
+    second: Key,
+    args: AuthedHandlerArgs<Params, Context>,
+  ) => Promise<void>;
+  target: (args: AuthedHandlerArgs<Params, Context>) => Key;
+};
+
+/** Build both move routes for any ordered admin collection. */
+export const createOrderedCollectionHandlers = <Params, Context, Key>(
+  config: OrderedConfig<Params, Context, Key>,
+): { down: ParamsRoute<Params>; up: ParamsRoute<Params> } => {
+  const move = (direction: "up" | "down"): ParamsRoute<Params> =>
+    authedHandlerWithStep(config, async (args) => {
+      const pair = planReorder(
+        await config.keys(args),
+        config.target(args),
+        direction,
+      );
+      if (pair) await config.swap(pair[0], pair[1], args);
+      return redirect(config.redirectPath(args), config.movedMessage, true);
+    });
+  return { down: move("down"), up: move("up") };
+};
 
 // ── createAuthedFormRoute: adds schema validation on top ──────────────
 
