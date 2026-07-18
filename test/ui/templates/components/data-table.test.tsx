@@ -119,6 +119,23 @@ describe("dataTable", () => {
     );
   });
 
+  test("merges a cell class with its schema column class", () => {
+    const html = String(
+      dataTable<Row>([
+        {
+          cell: (row) => row.amount,
+          cellAttrs: () => ({ class: "custom", title: "Extra" }),
+          class: "amount",
+          header: "Amount",
+        },
+      ])(rows.slice(0, 1)),
+    );
+
+    expect(html).toContain(
+      '<td class="col-amount custom" title="Extra">10</td>',
+    );
+  });
+
   test("renders a configured empty row across every schema column", () => {
     const html = String(dataTable(columns)([], { empty: "Nothing here" }));
     expect(html).toContain('<td colspan="2">Nothing here</td>');

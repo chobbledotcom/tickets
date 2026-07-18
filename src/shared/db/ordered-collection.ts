@@ -148,9 +148,9 @@ export const defineOrderedCollection = <
                SET ${order} = COALESCE((
                  SELECT MAX(orderedSibling.${order}) + 1
                    FROM ${table} AS orderedSibling
-                  WHERE ${scopeWhere}${keyColumns
-                    .map((column) => `orderedSibling.${column} != ?`)
-                    .join(" OR ")}
+                   WHERE ${scopeWhere}(${keyColumns
+                     .map((column) => `orderedSibling.${column} != ?`)
+                     .join(" OR ")})
                ), ${start})
              WHERE ${scopeWhere}${matches(keyColumns)}`,
     };

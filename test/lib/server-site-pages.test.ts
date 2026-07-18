@@ -22,6 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -95,6 +96,19 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       // Two roots ⇒ both arrows render (first has "down", second has "up").
       expect(html).toContain("move-down");
       expect(html).toContain("move-up");
+    });
+
+    test("removes the order column in read-only mode", async () => {
+      await create("read-only-page");
+      using _env = withEnv({
+        READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+      });
+
+      const html = await expectHtmlResponse(await adminGet(BASE), 200);
+
+      expect(html).not.toContain('class="col-reorder"');
+      expect(html).not.toContain("move-down");
+      expect(html).not.toContain("move-up");
     });
   });
 

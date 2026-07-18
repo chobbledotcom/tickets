@@ -29,8 +29,7 @@ import { SubmitButton } from "#templates/components/actions.tsx";
 import {
   type DataColumn,
   DataTable,
-  dataTable,
-  reorderColumn,
+  reorderTable,
 } from "#templates/components/data-table.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
@@ -77,13 +76,14 @@ const pageReorderTable = <T,>(opts: {
   columns: DataColumn<T>[];
   rows: T[];
 }): JSX.Element =>
-  dataTable([
-    reorderColumn<T>({
+  reorderTable(
+    {
       action: (row) => (direction) => `${opts.base(row)}/move-${direction}`,
       header: t("site.pages.order_column"),
-    }),
-    ...opts.columns,
-  ])(opts.rows);
+    },
+    opts.columns,
+    opts.rows,
+  );
 
 /** A page-list row's cells: the name link, one middle cell (public slug or
  * parent name), then the delete link. Shared by the root and nested lists. */

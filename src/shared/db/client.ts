@@ -40,6 +40,9 @@ import { retryWithBackoff } from "#shared/retry.ts";
 const WRITE_TABLE_RE =
   /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
 
+/** A CTE-led UPDATE's mutating statement, without its leading read expression. */
+const CTE_UPDATE_RE = /^\s*WITH\b[\s\S]*?\)\s*(UPDATE[\s\S]*)$/i;
+
 /**
  * Parse the column names assigned by an UPDATE SET clause.
  * Returns a lower-cased Set, or null if the SET clause cannot be found.
@@ -92,16 +95,17 @@ export const extractUpdateColumns = (
  * fails the write is treated as unconditional — safe over stale.
  */
 const invalidateForSql = (sql: string): void => {
-  const match = WRITE_TABLE_RE.exec(sql);
+  const writeSql = CTE_UPDATE_RE.exec(sql)?.[1] ?? sql;
+  const match = WRITE_TABLE_RE.exec(writeSql);
   if (!match) return;
   const table = match[1]!.toLowerCase();
-  const firstWord = sql.trimStart().split(/\s/)[0]!.toLowerCase();
+  const firstWord = writeSql.trimStart().split(/\s/)[0]!.toLowerCase();
   const verb: WriteVerb =
     firstWord === "delete" || firstWord === "update" || firstWord === "replace"
       ? (firstWord as WriteVerb)
       : "insert";
   if (verb === "update") {
-    const columns = extractUpdateColumns(sql);
+    const columns = extractUpdateColumns(writeSql);
     if (columns === null) {
       // Parse failure: fall back to unconditional (treat as INSERT-like)
       invalidateCachesForWrite(table, { columns: new Set(), verb: "insert" });

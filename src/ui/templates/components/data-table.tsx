@@ -190,11 +190,13 @@ const DataTableCell = <TRow,>({
   rows: readonly TRow[];
 }): JSX.Element => {
   const attrs = column.cellAttrs?.(row, index, rows);
+  const { class: customClass, ...otherAttrs } =
+    attrs === undefined ? {} : attrs;
+  const schemaClass = column.class === undefined ? "" : colClass(column.class);
+  const className = [schemaClass, customClass].filter(Boolean).join(" ");
   return (
     <td
-      {...(column.class === undefined
-        ? attrs
-        : { class: colClass(column.class), ...attrs })}
+      {...(className === "" ? otherAttrs : { class: className, ...otherAttrs })}
     >
       {column.cell(row, index, rows)}
     </td>

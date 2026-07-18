@@ -38,7 +38,7 @@ export const throughParent = async <Parent, Context>(
   child: (parent: Parent) => Context | null | Promise<Context | null>,
 ): Promise<Context | null> => {
   const parent = await load;
-  return parent ? child(parent) : null;
+  return parent === null ? null : child(parent);
 };
 
 /** Handler for a POST that carries a record id, the session, and the form. */

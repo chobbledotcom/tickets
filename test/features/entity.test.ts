@@ -37,6 +37,18 @@ describeWithEnv("entity route handlers", { db: true }, () => {
     expect(loadedChild).toBe(false);
   });
 
+  test("loads a child when its parent is zero", async () => {
+    let loadedParent: number | null = null;
+
+    const found = await throughParent(Promise.resolve(0), (parent) => {
+      loadedParent = parent;
+      return "child";
+    });
+
+    expect(found).toBe("child");
+    expect(loadedParent).toBe(0);
+  });
+
   test("returns null when the parent does not contain the child", async () => {
     expect(
       await throughParent(Promise.resolve({ id: 1 }), () => null),

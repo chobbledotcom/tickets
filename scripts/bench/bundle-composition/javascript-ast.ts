@@ -1,4 +1,5 @@
 import { parseSync } from "npm:oxc-parser@0.132.0";
+import { map } from "#fp";
 
 const countAstNodes = (root: object): number => {
   const visited = new WeakSet<object>();
@@ -9,7 +10,7 @@ const countAstNodes = (root: object): number => {
     }
     visited.add(value);
     if ("type" in value) count += 1;
-    for (const child of Object.values(value)) visit(child);
+    map(visit)(Object.values(value));
   };
   visit(root);
   return count;

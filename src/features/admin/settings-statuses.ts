@@ -90,7 +90,7 @@ const statusOperations: NamedOperations<AttendeeStatus> = {
       ? { ok: true }
       : { error: DELETE_ERRORS[result.error], ok: false };
   },
-  load: getAttendeeStatus,
+  loadOrNull: getAttendeeStatus,
   update: async (id, form) =>
     (await getAttendeeStatus(id)) === null
       ? { notFound: true, ok: false }

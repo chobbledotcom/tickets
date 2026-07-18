@@ -12,9 +12,12 @@ import { ownerFormById } from "#routes/entity.ts";
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import {
+  createOwnerCrudHandlers,
+  operationResponse,
+} from "#routes/admin/owner-crud.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
-import { notFoundResponse, redirect } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { clearLogisticsAgentReferences } from "#shared/db/logistics.ts";
 import {
@@ -92,17 +95,14 @@ const crud = createOwnerCrudHandlers({
 const handleAgentEditPost: IdRouteHandler = ownerFormById(
   async (id, session, form) => {
     const result = await logisticsAgentEditResource.update(id, form);
-    if (!result.ok) {
-      if ("notFound" in result) return notFoundResponse();
-      return logisticsAgentPage.renderEditError(
-        id,
-        session,
-        form,
-        result.error,
-      );
-    }
-    await logActivity(`Logistics agent '${result.row.name}' updated`);
-    return redirect("/admin/logistics", "Logistics agent updated", true);
+    return operationResponse(
+      result,
+      async ({ row }) => {
+        await logActivity(`Logistics agent '${row.name}' updated`);
+        return redirect("/admin/logistics", "Logistics agent updated", true);
+      },
+      (error) => logisticsAgentPage.renderEditError(id, session, form, error),
+    );
   },
 );
 

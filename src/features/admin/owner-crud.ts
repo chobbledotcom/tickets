@@ -21,8 +21,29 @@ import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 /* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import type { NamedOperations } from "#shared/rest/resource.ts";
+import type {
+  DeleteResult,
+  NamedOperations,
+  UpdateResult,
+} from "#shared/rest/resource.ts";
 import type { AdminSession } from "#shared/types.ts";
+
+type OperationFailure = Exclude<
+  DeleteResult | UpdateResult<unknown>,
+  { ok: true }
+>;
+
+/** Resolve one CRUD operation through its success or failure response path. */
+export const operationResponse = async <Success extends { ok: true }, Output>(
+  result: Success | OperationFailure,
+  onSuccess: (result: Success) => Output | Promise<Output>,
+  renderError: (error: string) => Response | Promise<Response>,
+): Promise<Output | Response> =>
+  result.ok
+    ? onSuccess(result)
+    : "notFound" in result
+      ? notFoundResponse()
+      : renderError(result.error);
 
 /**
  * `Row` is the stored row the resource writes; `Display` is the (optionally
@@ -100,7 +121,8 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
   return <Row, Display = Row>(cfg: CrudConfig<Row, Display>) => {
     const operations = (): NamedOperations<Row> =>
       typeof cfg.operations === "function" ? cfg.operations() : cfg.operations;
-    const activityName = cfg.activityName ?? cfg.singular;
+    const activityName =
+      cfg.activityName === undefined ? cfg.singular : cfg.activityName;
     const authHtml = authPage(auth.requireSession);
     const logAndRedirect = async (
       verb: string,
@@ -110,7 +132,7 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
     ): Promise<Response> => {
       await logActivity(`${activityName} '${cfg.getName(row)}' ${verb}`);
       return redirect(
-        getPath?.(row, session) ?? cfg.listPath,
+        getPath === undefined ? cfg.listPath : getPath(row, session),
         `${cfg.singular} ${verb}`,
         true,
       );
@@ -140,13 +162,14 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
     const editPost: IdRouteHandler = (request, { id }) =>
       formPost(async (session, form) => {
         const result = await operations().update(id, form);
-        if (result.ok) {
-          return logAndRedirect("updated", result.row, session);
-        }
-        if ("notFound" in result) return notFoundResponse();
-        return cfg.renderEditError
-          ? cfg.renderEditError(id, session, form, result.error)
-          : errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
+        return operationResponse(
+          result,
+          ({ row }) => logAndRedirect("updated", row, session),
+          (error) =>
+            cfg.renderEditError
+              ? cfg.renderEditError(id, session, form, error)
+              : errorRedirect(`${cfg.listPath}/${id}/edit`, error),
+        );
       })(request);
 
     const confirmedDelete = createConfirmedHandlers<Row, AdminSession>({
@@ -155,15 +178,20 @@ function createCrudHandlersWithAuth(auth: AuthGuards) {
         ? { guardError: (row: Row, id: number) => cfg.deleteGuard!(row, id) }
         : {}),
       identifier: cfg.getName,
-      identifierLabel: cfg.identifierLabel ?? `${cfg.singular} name`,
-      load: (id) => operations().load(id),
+      identifierLabel:
+        cfg.identifierLabel === undefined
+          ? `${cfg.singular} name`
+          : cfg.identifierLabel,
+      load: (id) => operations().loadOrNull(id),
       onConfirm: async (row, id) => {
         const result = await operations().delete(id);
-        if (!result.ok && !("notFound" in result)) {
-          return errorRedirect(`${cfg.listPath}/${id}/delete`, result.error);
-        }
-        await logActivity(`${activityName} '${cfg.getName(row)}' deleted`);
-        return;
+        return operationResponse(
+          result,
+          async (): Promise<undefined> => {
+            await logActivity(`${activityName} '${cfg.getName(row)}' deleted`);
+          },
+          (error) => errorRedirect(`${cfg.listPath}/${id}/delete`, error),
+        );
       },
       path: `${cfg.listPath}/:id/delete`,
       render: cfg.renderDelete,

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   execute,
   insert,
@@ -158,6 +159,7 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
     await insertPageItem(3, "listing", 8, 4);
     await insertPageItem(3, "group", 7, 5);
     await insertPageItem(3, "listing", 7, 0);
+    await insertPageItem(4, "group", 99, 100);
 
     await pageItems.append({ key: ["listing", 7], scope: 3 });
 
@@ -167,6 +169,22 @@ describeWithEnv("db > ordered collection", { db: true }, () => {
         [3, "listing", 7],
       ),
     ).toEqual({ sort_order: 6 });
+  });
+
+  test("invalidates table caches after a swap", async () => {
+    const first = await insertStatus(4);
+    const second = await insertStatus(5);
+    let invalidations = 0;
+    const unregister = registerTableInvalidation(["attendee_statuses"], () => {
+      invalidations += 1;
+    });
+
+    try {
+      await statuses.swap({ first, second });
+      expect(invalidations).toBe(1);
+    } finally {
+      unregister();
+    }
   });
 
   test("does not swap across scopes or when a row is stale", async () => {

@@ -57,7 +57,7 @@ export type DeleteResult = SuccessResult<object> | ErrorResult | NotFoundResult;
 export interface NamedOperations<Row, Id = number> {
   create: (form: FormParams) => Promise<CreateResult<Row>>;
   delete: (id: Id) => Promise<DeleteResult>;
-  load: (id: Id) => Promise<Row | null>;
+  loadOrNull: (id: Id) => Promise<Row | null>;
   update: (id: Id, form: FormParams) => Promise<UpdateResult<Row>>;
 }
 
@@ -265,7 +265,7 @@ export const defineResource = <
     create,
     delete: deleteRow,
     fields: schema.fields,
-    load: table.findById,
+    loadOrNull: table.findById,
     parseInput,
     table,
     update,
