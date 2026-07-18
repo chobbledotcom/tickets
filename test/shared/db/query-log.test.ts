@@ -21,7 +21,11 @@ import {
 // mirror is a cache hit — keeping their fire-and-forget flush deterministic
 // rather than time-dependent.
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
+import {
+  BUNNY_SUBREQUEST_LIMIT,
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+} from "#shared/subrequest-budget.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog resets previous entries", () => {
@@ -360,6 +364,17 @@ describe("query-log", () => {
       expect(() =>
         countRoundTrips(BUNNY_SUBREQUEST_LIMIT + 1, "startup"),
       ).not.toThrow();
+    });
+
+    test("counts database calls in the combined subrequest budget", () => {
+      runWithSubrequestBudget(() => {
+        countDatabaseRoundTrip("scheduled claim");
+        expect(getSubrequestUsage()).toEqual({
+          database: 1,
+          external: 0,
+          total: 1,
+        });
+      });
     });
   });
 
