@@ -9,6 +9,7 @@ import {
 } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { statementSql } from "#test-utils/record-queries.ts";
 
 describeWithEnv("db > settings > load", { db: true }, () => {
   test("reloads setting values from primary after a write", async () => {
@@ -16,6 +17,10 @@ describeWithEnv("db > settings > load", { db: true }, () => {
     const staleReplicaResult = await getDb().execute({
       args: [CONFIG_KEYS.PAYMENT_PROVIDER],
       sql: "SELECT key, value FROM settings WHERE key = ?",
+    });
+    const staleVersionResult = await getDb().execute({
+      args: [CONFIG_KEYS.SETTINGS_VERSION],
+      sql: "SELECT value FROM settings WHERE key = ?",
     });
 
     await execute("UPDATE settings SET value = ? WHERE key = ?", [
@@ -25,8 +30,12 @@ describeWithEnv("db > settings > load", { db: true }, () => {
     await bumpSettingsVersion();
 
     using _env = withEnv({ DB_URL: "libsql://replica.test" });
-    const replicaRead = stub(getDb(), "execute", () =>
-      Promise.resolve(staleReplicaResult),
+    const replicaRead = stub(getDb(), "execute", (statement) =>
+      Promise.resolve(
+        statementSql(statement).startsWith("SELECT value FROM settings")
+          ? staleVersionResult
+          : staleReplicaResult,
+      ),
     );
     try {
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
