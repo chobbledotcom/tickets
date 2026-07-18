@@ -19,6 +19,7 @@ const fakeResult = (
   newOperator: string,
   file = `${projectRoot}/src/example.ts`,
 ): MutantResult => ({
+  detectedBy: status === "killed" ? "direct-tests" : null,
   file,
   mutant: {
     column: 3,
@@ -29,6 +30,7 @@ const fakeResult = (
     start: 0,
   },
   status,
+  timings: [],
 });
 
 describe("mutation summary", () => {
@@ -39,6 +41,15 @@ describe("mutation summary", () => {
     using _env = withEnv({ GITHUB_STEP_SUMMARY: path ?? undefined });
     run();
     return path === null ? "" : await Deno.readTextFile(path).catch(() => "");
+  };
+
+  const timingSummary = (status: MutantResult["status"] = "killed") => {
+    const result = fakeResult(status, 1, "true", "false");
+    result.timings = [
+      { durationMs: 4, phase: "lint" },
+      { durationMs: 10, phase: "direct-tests" },
+    ];
+    return summarize([result]);
   };
 
   test("excludes ignored equivalent survivors from the score denominator", () => {
@@ -54,11 +65,63 @@ describe("mutation summary", () => {
       effective: 3,
       ignored: 1,
       killed: 1,
+      phaseTimings: [],
       survived: 1,
       timedOut: 1,
       total: 4,
     });
     expect(summary.score).toBeCloseTo(66.666, 2);
+  });
+
+  test("aggregates phase timing work", () => {
+    const first = fakeResult("killed", 1, "true", "false");
+    first.timings = [
+      { durationMs: 4, phase: "lint" },
+      { durationMs: 10, phase: "direct-tests" },
+    ];
+    const second = fakeResult("survived", 2, "false", "true");
+    second.timings = [
+      { durationMs: 6, phase: "lint" },
+      { durationMs: 20, phase: "direct-tests" },
+      { durationMs: 40, phase: "integration-tests" },
+    ];
+    const summary = summarize([first, second]);
+    expect(summary.phaseTimings).toEqual([
+      { durationMs: 10, phase: "lint", runs: 2 },
+      { durationMs: 30, phase: "direct-tests", runs: 2 },
+      { durationMs: 40, phase: "integration-tests", runs: 1 },
+    ]);
+  });
+
+  test("formats phase timing work in terminal summaries", () => {
+    expect(formatSummaryLines(timingSummary()).join("\n")).toContain(
+      "direct-tests: 10ms in 1 run(s)",
+    );
+  });
+
+  test("writes phase timing work in Markdown summaries", async () => {
+    using file = tempFile({ prefix: "mutation-timing-summary-" });
+    const markdown = await withStepSummary(file.path, () =>
+      writeStepSummary(timingSummary()),
+    );
+    expect(markdown).toContain("| direct-tests | 1 | 10ms |");
+  });
+
+  test("formats phase timing work when all mutants are ignored", () => {
+    const terminal = formatSummaryLines(timingSummary("ignored")).join("\n");
+
+    expect(terminal).toContain("phase timings (cumulative elapsed):");
+    expect(terminal).toContain("direct-tests: 10ms in 1 run(s)");
+  });
+
+  test("writes phase timing work when all mutants are ignored", async () => {
+    using file = tempFile({ prefix: "mutation-ignored-timing-summary-" });
+    const markdown = await withStepSummary(file.path, () =>
+      writeStepSummary(timingSummary("ignored")),
+    );
+
+    expect(markdown).toContain("### Phase timings");
+    expect(markdown).toContain("| direct-tests | 1 | 10ms |");
   });
 
   test("summarizes an empty result as an inconclusive perfect denominator", () => {

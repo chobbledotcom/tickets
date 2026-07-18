@@ -3,9 +3,18 @@
  */
 
 import { denoPlugins } from "@luca/esbuild-deno-loader";
-import { fromFileUrl } from "@std/path";
+import { fromFileUrl, resolve } from "@std/path";
 import * as esbuild from "esbuild";
 import * as sass from "sass";
+import { withGeneratedOutputRollback } from "./static-assets/output-rollback.ts";
+import {
+  createStaticAssetBuild,
+  disposeStaticBundleContexts,
+  rebuildStaticBundleContexts,
+  type StaticAssetBuild,
+  type StaticBundle,
+  settleAll,
+} from "./static-assets/session.ts";
 
 /**
  * deno.json path the deno-loader uses to resolve every bundle's imports —
@@ -53,39 +62,6 @@ const buildCss = async (quiet = false): Promise<void> => {
   if (!quiet) console.log(`CSS build complete: ${STATIC_ASSET_OUTFILES.css}`);
 };
 
-const buildBundle = async (
-  label: string,
-  options: esbuild.BuildOptions,
-  quiet = false,
-): Promise<void> => {
-  const result = await esbuild.build(options);
-  if (result.errors.length > 0) {
-    console.error(`${label} build failed:`);
-    for (const log of result.errors) {
-      console.error(log);
-    }
-    Deno.exit(1);
-  }
-  if (quiet) return;
-  if (options.outfile) {
-    console.log(`${label} build complete: ${options.outfile}`);
-  } else {
-    console.log(`${label} build complete`);
-  }
-};
-
-/**
- * The client JS bundles as data, so callers other than {@link buildStaticAssets}
- * can rebuild a single bundle with its exact esbuild config — entry point,
- * plugins, format, and all. The mutation tester (`scripts/mutation`) uses this
- * to rebuild only the bundle(s) a mutated source feeds, per mutant, under
- * `--harness`.
- */
-export interface StaticBundle {
-  label: string;
-  options: esbuild.BuildOptions;
-}
-
 /** A browser bundle built the standard way (bundled, minified, IIFE, deno
  *  loader plugins). `extra` overrides that default per bundle — the order
  *  widget needs ESM, the iframe-resizer child needs a licence banner. */
@@ -93,7 +69,7 @@ const browserBundle = (
   label: string,
   entryPoint: string,
   outfile: string,
-  extra: esbuild.BuildOptions = {},
+  extra: Omit<esbuild.BuildOptions, "outfile"> = {},
 ): StaticBundle => ({
   label,
   options: {
@@ -164,22 +140,89 @@ export const STATIC_JS_BUNDLES: StaticBundle[] = [
   ),
 ];
 
-export const buildStaticAssets = async (
-  options: { quiet?: boolean; stop?: boolean } = {},
-): Promise<void> => {
-  const quiet = options.quiet ?? false;
-  await Promise.all([
-    buildCss(quiet),
-    ...STATIC_JS_BUNDLES.map((bundle) =>
-      buildBundle(bundle.label, bundle.options, quiet),
-    ),
-  ]);
+const outfileOf = (bundle: StaticBundle): string =>
+  resolve(Deno.cwd(), bundle.options.outfile);
 
-  if (options.stop) {
-    esbuild.stop();
+const outputFiles = (): string[] => [
+  resolve(Deno.cwd(), STATIC_ASSET_OUTFILES.css),
+  ...STATIC_JS_BUNDLES.map(outfileOf),
+];
+
+const inputsOf = (
+  result: esbuild.BuildResult | undefined,
+  bundle: StaticBundle,
+): string[] => {
+  if (!result?.metafile) {
+    throw new Error(`Static bundle has no build metadata: ${bundle.label}`);
+  }
+  return Object.keys(result.metafile.inputs);
+};
+
+const createBundleContexts = async (): Promise<
+  Array<{ bundle: StaticBundle; context: esbuild.BuildContext }>
+> => {
+  const created: Array<{
+    bundle: StaticBundle;
+    context: esbuild.BuildContext;
+  }> = [];
+  try {
+    for (const bundle of STATIC_JS_BUNDLES) {
+      created.push({
+        bundle,
+        context: await esbuild.context({
+          ...bundle.options,
+          logLevel: "silent",
+          metafile: true,
+        }),
+      });
+    }
+    return created;
+  } catch (error) {
+    await disposeStaticBundleContexts(created);
+    throw error;
   }
 };
 
+export const buildStaticAssets = async (
+  options: { quiet?: boolean } = {},
+): Promise<StaticAssetBuild> => {
+  const quiet = options.quiet ?? false;
+  let contexts: Awaited<ReturnType<typeof createBundleContexts>> = [];
+  return withGeneratedOutputRollback(
+    outputFiles(),
+    async () => {
+      contexts = await createBundleContexts();
+      const cssBuild = buildCss(quiet);
+      const bundleBuild = rebuildStaticBundleContexts(contexts);
+      await settleAll([cssBuild, bundleBuild]);
+      const results = await bundleBuild;
+      const bundles = await Promise.all(
+        contexts.map(async ({ bundle, context }, index) => {
+          if (!quiet) {
+            console.log(
+              `${bundle.label} build complete: ${bundle.options.outfile}`,
+            );
+          }
+          return {
+            baseline: await Deno.readFile(outfileOf(bundle)),
+            bundle,
+            context,
+            inputs: inputsOf(results[index], bundle),
+          };
+        }),
+      );
+      return createStaticAssetBuild(bundles, {
+        resolve: (file) => resolve(Deno.cwd(), file),
+        stop: () => esbuild.stop(),
+        write: (file, contents) =>
+          Deno.writeFile(resolve(Deno.cwd(), file), contents),
+      });
+    },
+    () => [() => disposeStaticBundleContexts(contexts), () => esbuild.stop()],
+  );
+};
+
 if (import.meta.main) {
-  await buildStaticAssets({ stop: true });
+  const build = await buildStaticAssets();
+  await build.dispose();
 }

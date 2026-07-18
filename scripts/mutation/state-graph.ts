@@ -7,11 +7,10 @@
  * in a module the state builder runs — the schema tables, the migrations list,
  * the setup ceremony's settings and crypto paths — would be tested against
  * fixtures produced by the *unmutated* code and could falsely survive. The
- * runner uses this graph to find exactly those files and drops the state env
- * var for their mutants, so each of their test isolates rebuilds the golden DB
- * and ceremony in-process from the mutated source (the same fallback a bare
- * `deno test` uses). This mirrors the per-mutant client-bundle rebuild in
- * ./assets.ts.
+ * runner uses this graph to find exactly those files. Direct tests run without
+ * the stale state. Integration tests share one fresh state built from the
+ * mutant, instead of rebuilding the same database in every test isolate. This
+ * mirrors the per-mutant client-bundle rebuild owned by the static asset build.
  */
 
 import { fromFileUrl } from "@std/path";

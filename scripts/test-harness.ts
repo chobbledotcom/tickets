@@ -17,6 +17,12 @@ import {
   STATIC_ASSET_OUTFILES,
 } from "./build-static-assets.ts";
 import {
+  failAfterCleanups,
+  removeIfPresent,
+  runCleanups,
+  withCleanup,
+} from "./cleanup.ts";
+import {
   estimateTapEventCount,
   hasReporterArg,
   runCompactDenoTest,
@@ -27,8 +33,10 @@ import {
 } from "./coverage-output.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { projectRoot } from "./project-root.ts";
+import { fileExists, type StaticAssetBuild } from "./static-assets/session.ts";
 import { startStripeMock, stripeMockEnv } from "./stripe-mock.ts";
 import { JUNIT_PATH } from "./test-durations.ts";
+import { withEnvironment } from "./test-environment.ts";
 
 const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
 
@@ -36,37 +44,39 @@ const harnessLog = (...args: unknown[]): void => {
   if (verboseHarness) console.log(...args);
 };
 
-/** True if a file exists on disk */
-const fileExists = async (path: string): Promise<boolean> => {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 /**
  * Build the static client assets, returning a cleanup function that removes
  * only the outputs this call generated. Outputs that already existed (e.g. a
- * developer's prior `deno task build:static`) are left untouched, while a fresh
- * checkout is restored to its asset-free state once tests finish.
+ * developer's prior `deno task build:static`) remain after cleanup, while a
+ * fresh checkout is restored to its asset-free state once tests finish.
  */
-const setupStaticAssets = async (): Promise<() => Promise<void>> => {
+interface HarnessStaticAssets {
+  build: StaticAssetBuild;
+  cleanup(): Promise<void>;
+}
+
+const setupStaticAssets = async (): Promise<HarnessStaticAssets> => {
   const generated: string[] = [];
   for (const outfile of Object.values(STATIC_ASSET_OUTFILES)) {
     const path = join(projectRoot, outfile);
     if (!(await fileExists(path))) generated.push(path);
   }
 
-  await buildStaticAssets({ quiet: true, stop: true });
+  const build = await buildStaticAssets({ quiet: true });
 
-  return async () => {
-    for (const path of generated) {
-      await Deno.remove(path).catch(() => {});
-    }
+  return {
+    build,
+    cleanup: () =>
+      runCleanups([
+        () => build.dispose(),
+        ...generated.map((path) => () => removeIfPresent(path)),
+      ]),
   };
 };
+
+export interface TestHarnessResources {
+  staticAssets: StaticAssetBuild;
+}
 
 /** Build the deno test CLI args from the standard flags plus caller extras */
 const buildDenoTestArgs = (
@@ -170,10 +180,9 @@ const setupTestState = async (): Promise<() => Promise<void>> => {
   try {
     await writeTestState(dir);
   } catch (error) {
-    // Don't leave a half-built state dir behind. The build failure is the
-    // error worth surfacing, so this removal is best-effort by design.
-    await Deno.remove(dir, { recursive: true }).catch(() => {});
-    throw error;
+    return failAfterCleanups(error, [
+      () => Deno.remove(dir, { recursive: true }).catch(rethrowUnlessNotFound),
+    ]);
   }
   Deno.env.set(TEST_STATE_DIR_ENV, dir);
   harnessLog("test state prebuilt in", dir);
@@ -193,29 +202,38 @@ const setupTestState = async (): Promise<() => Promise<void>> => {
  * removed, leaving the working tree as it was found even if `task` throws.
  */
 export const withTestHarness = async <T>(
-  task: () => Promise<T>,
+  task: (resources: TestHarnessResources) => Promise<T>,
 ): Promise<T> => {
-  const cleanupStaticAssets = await setupStaticAssets();
+  const staticAssets = await setupStaticAssets();
   let stripeMockProcess: Awaited<ReturnType<typeof startStripeMock>> | null =
     null;
   let cleanupTestState: (() => Promise<void>) | null = null;
 
-  try {
+  return withCleanup(async () => {
     stripeMockProcess = await startStripeMock();
     const mockEnv = stripeMockEnv(stripeMockProcess.port);
     harnessLog("stripe-mock running on port", mockEnv.STRIPE_MOCK_PORT);
-    Deno.env.set("STRIPE_MOCK_HOST", mockEnv.STRIPE_MOCK_HOST);
-    Deno.env.set("STRIPE_MOCK_PORT", mockEnv.STRIPE_MOCK_PORT);
-    cleanupTestState = await setupTestState();
-    return await task();
-  } finally {
-    if (stripeMockProcess) {
+    return withEnvironment(
+      {
+        STRIPE_MOCK_HOST: mockEnv.STRIPE_MOCK_HOST,
+        STRIPE_MOCK_PORT: mockEnv.STRIPE_MOCK_PORT,
+      },
+      async () => {
+        cleanupTestState = await setupTestState();
+        return await task({ staticAssets: staticAssets.build });
+      },
+    );
+  }, [
+    async () => {
+      if (!stripeMockProcess) return;
       harnessLog("Stopping stripe-mock...");
       await stripeMockProcess.stop();
-    }
-    if (cleanupTestState) await cleanupTestState();
-    await cleanupStaticAssets();
-  }
+    },
+    async () => {
+      if (cleanupTestState) await cleanupTestState();
+    },
+    staticAssets.cleanup,
+  ]);
 };
 
 /**

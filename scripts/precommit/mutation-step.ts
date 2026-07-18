@@ -21,26 +21,24 @@
  * with a "run `git fetch origin main`" warning once the changed-source count
  * exceeds `STALE_BASE_SOURCE_LIMIT`.
  *
- * It mutates every changed `src/` file, runs every changed `test/` file against
- * the mutants, and demands a 100% kill rate. The whole src file is mutated
- * regardless of how little of it changed. Because the project requires 100%
- * coverage, a src change lands in the same commit range as the test change that
- * covers it, so the changed set is its own source→test mapping.
+ * It mutates every changed `src/` file and demands a 100% kill rate. The runner
+ * pairs mirror-located tests with their source and runs them first. Changed
+ * tests under `test/integration/` or `test/e2e/` are the later integration
+ * stage. Any other unmatched test is an error so it gets moved instead of
+ * hidden behind a fallback. The whole source file is mutated regardless of how
+ * little of it changed.
  *
- * Known limitations (this is a deliberately mapping-free, best-effort *local*
- * check; `deno task mutation` is the precise manual tool):
+ * Known limitations (this is a best-effort *local* check; `deno task mutation`
+ * is the precise manual tool):
  *
  *   - Committed-only. It scopes to `base...HEAD`, not the working tree, so
  *     *uncommitted* changes are not mutation-checked until committed. The
  *     canonical flow — commit, then `deno task precommit`, then push — runs on a
  *     clean tree where the worktree already equals HEAD, so this only affects
  *     dirty pre-checks. Commit (even a WIP commit) to bring changes under it.
- *   - No real source→test pairing. It runs *all* changed tests against *all*
- *     changed src, trusting that a src change ships with its covering test. If a
- *     changed src file's covering test is *unchanged* while an *unrelated* test
- *     file also changed in the range, that src is mutated only against the
- *     unrelated test and can report false survivors. Touch the covering test
- *     too, or verify that file with `deno task mutation` directly.
+ *   - Changed tests only. A source's unchanged covering test is absent from the
+ *     plan, so that source can report false survivors. Touch the covering test
+ *     too, or verify that source with `deno task mutation` directly.
  *   - Trusts the *local* base ref. The diff is against your local
  *     `origin/main`/`main` — never re-fetched. If that ref is stale *and* the
  *     branch sits on newer main commits you have not fetched (e.g. you checked
@@ -169,8 +167,10 @@ export const mutationNoticeSummary = (stdout: string): string | undefined => {
  *   - Changed src but no changed tests → skip (pass). There are no changed
  *     tests to mutate against; the 100%-coverage gate still applies, and
  *     changing a covering test brings the change under the gate.
- *   - Both → mutate every changed src file against every changed test file. The
- *     runner's exit code passes through, except code 2 ("no mutable operators
+ *   - Both → map direct tests to each changed source, then use explicit
+ *     integration/e2e tests as the later stage. The runner's exit code passes
+ *     through, except
+ *     code 2 ("no mutable operators
  *     in any changed src file", e.g. a types-only or re-export change) becomes a
  *     pass — there is genuinely nothing to mutate.
  */

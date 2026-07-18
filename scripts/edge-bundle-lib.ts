@@ -175,7 +175,10 @@ export const buildEdgeBundle = async (
   const { label, entryPoint, outfile, transformContent, guards } = options;
 
   // --- Step 1: Build client bundles ---
-  if (!options.skipClientBuild) await buildStaticAssets();
+  if (!options.skipClientBuild) {
+    const staticAssets = await buildStaticAssets();
+    await staticAssets.dispose();
+  }
 
   // --- Step 2: Build the edge bundle ---
 
