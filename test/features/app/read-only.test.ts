@@ -50,6 +50,7 @@ describe("read-only request guard", () => {
   });
 
   test("blocks every other public write by default", () => {
+    expect(readOnlyBlock("/scheduled", "POST")).toBe("page");
     expect(readOnlyBlock("/ticket/listing", "POST")).toBe("page");
     expect(readOnlyBlock("/read-only", "POST")).toBe("page");
     expect(readOnlyBlock("/unknown", "DELETE")).toBe("page");
