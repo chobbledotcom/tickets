@@ -1,3 +1,4 @@
+// test-groups: run-alone - this suite verifies isolate-lived wake throttling.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
