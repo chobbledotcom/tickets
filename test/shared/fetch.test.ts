@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { fetchText, parseApiError } from "#shared/fetch.ts";
+import {
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+} from "#shared/subrequest-budget.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describe("fetchText", () => {
@@ -65,6 +69,19 @@ describe("fetchText", () => {
     await expect(fetchText("https://example.com/fail")).rejects.toThrow(
       "Network error",
     );
+  });
+
+  test("counts one external subrequest", async () => {
+    using _fetch = stubFetch(new Response("ok"));
+
+    await runWithSubrequestBudget(async () => {
+      await fetchText("https://example.com/api");
+      expect(getSubrequestUsage()).toEqual({
+        database: 0,
+        external: 1,
+        total: 1,
+      });
+    });
   });
 });
 
