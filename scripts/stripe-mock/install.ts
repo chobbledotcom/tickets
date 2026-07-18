@@ -289,7 +289,7 @@ const commandsWithDefaults = (
 const removeStaleInstallTempDirs = async (binDir: string): Promise<void> => {
   for await (const entry of Deno.readDir(binDir)) {
     if (entry.isDirectory && entry.name.startsWith(INSTALL_TEMP_PREFIX)) {
-      await Deno.remove(join(binDir, entry.name), { recursive: true });
+      await removeTree(join(binDir, entry.name));
     }
   }
 };

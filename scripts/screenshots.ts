@@ -2,13 +2,15 @@ import { dirname, fromFileUrl, join, resolve } from "@std/path";
 import { chromium, type Page } from "playwright";
 import sharp from "sharp";
 import { browserLaunchOptions } from "./browser-options.ts";
+import { rethrowUnlessNotFound } from "./not-found.ts";
 import { denoCommand, removeTree, runDeno } from "./process.ts";
-import { isCompactWidth } from "./screenshots/checks.ts";
+import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
   type ThemeName,
 } from "./screenshots/options.ts";
+import { waitForHealthy } from "./screenshots/server.ts";
 import { findAvailablePort } from "./stripe-mock.ts";
 
 const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
@@ -16,6 +18,7 @@ const DB_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 const USERNAME = "screenshots";
 const PASSWORD = "screenshots-password";
 const TIMEOUT_MS = 60_000;
+const RETRY_MS = 200;
 
 interface AppServer {
   baseUrl: string;
@@ -118,26 +121,23 @@ const startServer = async (): Promise<AppServer> => {
   }).spawn();
 
   const deadline = Date.now() + TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(`${baseUrl}/health`);
-      await response.body?.cancel();
-      if (response.ok) {
-        return {
-          baseUrl,
-          stop: async () => {
-            try {
-              child.kill("SIGTERM");
-              await child.status;
-            } finally {
-              await removeTree(tempDir);
-            }
-          },
-        };
-      }
-    } catch {
-      await new Promise((resolvePromise) => setTimeout(resolvePromise, 200));
-    }
+  const healthy = await waitForHealthy(
+    () => fetch(`${baseUrl}/health`),
+    () => new Promise((resolvePromise) => setTimeout(resolvePromise, RETRY_MS)),
+    () => Date.now() < deadline,
+  );
+  if (healthy) {
+    return {
+      baseUrl,
+      stop: async () => {
+        try {
+          child.kill("SIGTERM");
+          await child.status;
+        } finally {
+          await removeTree(tempDir);
+        }
+      },
+    };
   }
   child.kill("SIGKILL");
   await child.status;
@@ -218,10 +218,6 @@ const applyTheme = async (
     .fill(`${await cssFor(theme)}\n${extraCss}`, { force: true });
   await submit(page, 'form[action="/admin/settings/custom-css"]');
 };
-
-const isolateElementCss = (selector: string): string =>
-  `body * { visibility: hidden !important; }
-${selector}, ${selector} * { visibility: visible !important; }`;
 
 interface Rgb {
   b: number;
@@ -324,11 +320,16 @@ const main = async (): Promise<void> => {
   try {
     const configuredBrowser = Deno.env.get("CHROMIUM_EXECUTABLE");
     const nixBrowser = "/etc/profiles/per-user/user/bin/chromium";
-    const executablePath =
-      configuredBrowser ??
-      (await Deno.stat(nixBrowser)
-        .then(() => nixBrowser)
-        .catch(() => undefined));
+    let nixBrowserOrUndefined: string | undefined;
+    if (!configuredBrowser) {
+      try {
+        await Deno.stat(nixBrowser);
+        nixBrowserOrUndefined = nixBrowser;
+      } catch (error) {
+        rethrowUnlessNotFound(error);
+      }
+    }
+    const executablePath = configuredBrowser ?? nixBrowserOrUndefined;
     browser = await chromium.launch(
       browserLaunchOptions(true, executablePath, [
         "--disable-features=CDPScreenshotNewSurface",
