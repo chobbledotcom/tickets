@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import {
   ensureBuiltSiteSchedulerNextKey,
@@ -11,86 +10,20 @@ import { queryAll } from "#shared/db/client.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { mockRequest, restoreStubsAfterEach } from "#test-utils/mocks.ts";
+import { restoreStubsAfterEach } from "#test-utils/mocks.ts";
 import {
   insertScheduledTestSite,
+  SCHEDULED_OWNER_ENV,
   stubBunnySchedulerSecrets,
-  TEST_SCHEDULED_KEY,
 } from "#test-utils/scheduled.ts";
-import {
-  adminFormPost,
-  adminGet,
-  createTestManagerSession,
-} from "#test-utils/session.ts";
+import { adminFormPost } from "#test-utils/session.ts";
 
 describeWithEnv(
-  "scheduled key owner pages",
-  {
-    db: true,
-    env: {
-      BUNNY_API_KEY: "test-key",
-      CAN_BUILD_SITES: "true",
-      SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
-    },
-  },
+  "built-site scheduler actions",
+  { db: true, env: SCHEDULED_OWNER_ENV },
   () => {
     const stubs: { restore(): void }[] = [];
     restoreStubsAfterEach(stubs);
-
-    test("shows the local active key only on the owner advanced page", async () => {
-      const response = await adminGet("/admin/settings-advanced");
-
-      expect(response.status).toBe(200);
-      expect(response.headers.get("cache-control")).toBe("private, no-store");
-      expect(await response.text()).toContain(TEST_SCHEDULED_KEY);
-    });
-
-    test("does not show the local key to a manager", async () => {
-      const managerCookie = await createTestManagerSession();
-      const response = await handleRequest(
-        mockRequest("/admin/settings-advanced", {
-          headers: { cookie: managerCookie },
-        }),
-      );
-
-      expect(response.status).toBe(403);
-      expect(await response.text()).not.toContain(TEST_SCHEDULED_KEY);
-    });
-
-    test("shows encrypted active and pending child values on the builder tab", async () => {
-      const site = await insertScheduledTestSite();
-      const { pending } = await ensureBuiltSiteSchedulerNextKey(site.id);
-
-      const response = await adminGet(
-        `/admin/built-sites/${site.id}/maintenance`,
-      );
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(response.headers.get("cache-control")).toBe("private, no-store");
-      expect(html).toContain(TEST_SCHEDULED_KEY);
-      expect(html).toContain(pending!);
-    });
-
-    test("offers setup when a child has no retained key", async () => {
-      const site = await insertScheduledTestSite(null);
-
-      const response = await adminGet(
-        `/admin/built-sites/${site.id}/maintenance`,
-      );
-
-      expect(await response.text()).toContain("provision-scheduler");
-    });
-
-    test("offers rotation when a child has only an active key", async () => {
-      const site = await insertScheduledTestSite();
-
-      const response = await adminGet(
-        `/admin/built-sites/${site.id}/maintenance`,
-      );
-
-      expect(await response.text()).toContain("stage-scheduler");
-    });
 
     test("provisions and verifies a child key", async () => {
       const site = await insertScheduledTestSite(null);

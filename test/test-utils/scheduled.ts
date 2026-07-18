@@ -7,6 +7,12 @@ import { insertBuiltSite } from "#shared/db/built-sites.ts";
 export const TEST_SCHEDULED_KEY = toBase64Url(new Uint8Array(32).fill(7));
 export const TEST_SCHEDULED_NEXT_KEY = toBase64Url(new Uint8Array(32).fill(8));
 
+export const SCHEDULED_OWNER_ENV = {
+  BUNNY_API_KEY: "test-key",
+  CAN_BUILD_SITES: "true",
+  SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
+} as const;
+
 export const scheduledAuthorization = (
   key = TEST_SCHEDULED_KEY,
 ): Record<string, string> => ({ authorization: `Bearer ${key}` });
