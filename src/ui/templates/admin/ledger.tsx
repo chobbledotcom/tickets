@@ -45,10 +45,10 @@ import {
   transferEventLabel,
 } from "#templates/admin/ledger/formatting.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
+import { dataTable } from "#templates/components/data-table.tsx";
 import { DetailTable } from "#templates/components/detail-table.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
-import { ReorderTable } from "#templates/components/reorder-table.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
+import type { ColumnKind } from "#templates/components/table-columns.ts";
 
 /**
  * Display names for the row-backed account legs the ledger renders, each a
@@ -201,14 +201,14 @@ export const amountCell = (
 export type LedgerColumn<Row> = {
   headerKey: string;
   cell: (row: Row) => JSX.Element | string;
-  class?: string;
+  class?: ColumnKind;
 };
 
 /** The right-aligned money column shape shared by every ledger table. */
 export const amountColumn = <Row,>(
   headerKey: string,
   cell: (row: Row) => JSX.Element | string,
-): LedgerColumn<Row> => ({ cell, class: colClass("amount"), headerKey });
+): LedgerColumn<Row> => ({ cell, class: "amount", headerKey });
 
 /**
  * Render a scrollable table from a column spec — the one place a ledger
@@ -222,29 +222,14 @@ export const LedgerColumnsTable = <Row,>({
 }: {
   columns: LedgerColumn<Row>[];
   rows: Row[];
-}): JSX.Element => (
-  <ReorderTable
-    columns={columns.map((column) => (
-      <th class={column.class}>{t(column.headerKey)}</th>
-    ))}
-    orderLabel=""
-    reorder={false}
-  >
-    {rows.length > 0 ? (
-      rows.map((row) => (
-        <tr>
-          {columns.map((column) => (
-            <td class={column.class}>{column.cell(row)}</td>
-          ))}
-        </tr>
-      ))
-    ) : (
-      <tr>
-        <td colspan={columns.length}>{t("admin.ledger.empty")}</td>
-      </tr>
-    )}
-  </ReorderTable>
-);
+}): JSX.Element =>
+  dataTable(
+    columns.map((column) => ({
+      cell: column.cell,
+      header: t(column.headerKey),
+      ...(column.class === undefined ? {} : { class: column.class }),
+    })),
+  )(rows, { empty: t("admin.ledger.empty") });
 
 /** The shared leading column: a transfer's business time. */
 export const timeColumn = <Row,>(

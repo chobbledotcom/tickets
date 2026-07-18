@@ -18,12 +18,13 @@ import {
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
-import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
-import type { DataColumn } from "#templates/components/data-table.tsx";
+import {
+  type DataColumn,
+  reorderColumn,
+} from "#templates/components/data-table.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
-import { ReorderArrows } from "#templates/components/reorder.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
@@ -43,30 +44,19 @@ const statusBadges = (s: AttendeeStatus): JSX.Element => (
   </>
 );
 
-/** Move-up / move-down controls for reordering a status. */
-const moveControls = (s: AttendeeStatus, i: number, count: number) => (
-  <ReorderArrows
-    action={(d) => `${LIST_PATH}/${s.id}/move-${d}`}
-    count={count}
-    index={i}
-    titles={{
-      down: t("statuses.move_down_title"),
-      up: t("statuses.move_up_title"),
-    }}
-  />
-);
-
 /** Columns for the attendee-statuses table — declared once so header/cell
  *  order can't drift. The reorder column carries the move-up/move-down
  *  controls as one typed column. */
 const statusColumns: DataColumn<AttendeeStatus>[] = [
-  {
-    cell: (s, i, rows) => (
-      <WritableOnly>{moveControls(s, i, rows.length)}</WritableOnly>
-    ),
-    class: "reorder",
+  reorderColumn({
+    action: (status) => (direction) =>
+      `${LIST_PATH}/${status.id}/move-${direction}`,
     header: t("statuses.order_header"),
-  },
+    titles: {
+      down: t("statuses.move_down_title"),
+      up: t("statuses.move_up_title"),
+    },
+  }),
   writableNameColumn(
     (s) => `${LIST_PATH}/${s.id}`,
     (s) => s.name,

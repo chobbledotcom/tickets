@@ -29,6 +29,16 @@ import { reduce } from "#fp";
 export type Area = "src" | "test" | "other";
 export type Kind = "code" | "import" | "comment" | "blank";
 
+/** Ask Git for parser-safe patch text even when the user configured an
+ * external diff renderer or coloured output. */
+export const gitDiffArgs = (base: string): string[] => [
+  "diff",
+  "--no-ext-diff",
+  "--no-color",
+  "--unified=0",
+  `${base}...HEAD`,
+];
+
 export type Tally = Record<Kind, number>;
 const emptyTally = (): Tally => ({ blank: 0, code: 0, comment: 0, import: 0 });
 

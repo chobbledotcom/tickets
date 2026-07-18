@@ -1,8 +1,7 @@
 /**
  * Generic reorderable-list UI primitives shared by the admin collection pages
- * (questions, attributes): a right-aligned count cell, an empty-or-table
- * helper, a reorderable detail-page count table, and a full reorderable
- * collection page shell.
+ * (questions, attributes): an empty-or-table helper, a reorderable detail-page
+ * count table, and a full reorderable collection page shell.
  */
 
 /* jscpd:ignore-start */
@@ -13,22 +12,13 @@ import type { AdminSession } from "#shared/types.ts";
 import { errorAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { GuideFooter, SubmitButton } from "#templates/components/actions.tsx";
-import type { ChildProps } from "#templates/components/child-props.ts";
-import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
-  ReorderLinkRow,
-  ReorderTable,
-  reorderLinkTableAt,
-  writableReorderProps,
-} from "#templates/components/reorder-table.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
+  type DataColumn,
+  type ReorderColumnOptions,
+  reorderTable,
+} from "#templates/components/data-table.tsx";
+import type { ReorderDirection } from "#templates/components/reorder.tsx";
 /* jscpd:ignore-end */
-
-/** A right-aligned quantity/count table cell — the `quantity`-classed `<td>`
- * the reorderable admin tables use for their trailing count column. */
-export const QuantityCell = ({ children }: ChildProps): JSX.Element => (
-  <td class={colClass("quantity")}>{children}</td>
-);
 
 /** Show the table (or whatever `whenPresent` builds) for a non-empty list, or
  * the plain "nothing yet" note the admin tables share when the list is empty. */
@@ -43,6 +33,16 @@ export const itemsOrEmptyNote = <T,>(
     </p>
   ) : (
     whenPresent(items)
+  );
+
+const itemsOrEmptyReorderTable = <T,>(
+  items: T[],
+  emptyText: string,
+  options: ReorderColumnOptions<T>,
+  columns: readonly DataColumn<T>[],
+): JSX.Element =>
+  itemsOrEmptyNote(items, emptyText, (rows) =>
+    reorderTable(options, columns, rows),
   );
 
 /** A reorderable detail-page table: a text column then a quantity column, each
@@ -62,30 +62,27 @@ export const reorderCountTable = <T extends { id: number }>(opts: {
   label: (item: T) => Child;
   count: (item: T) => Child;
 }): JSX.Element =>
-  itemsOrEmptyNote(opts.items, opts.emptyText, (items) => (
-    <ReorderTable
-      columns={
-        <>
-          <th>{opts.labelHeader}</th>
-          <th class={colClass("quantity")}>{opts.countHeader}</th>
-        </>
-      }
-      orderLabel={opts.orderLabel}
-      reorder={!isReadOnly()}
-    >
-      {items.map((item, index) => (
-        <ReorderLinkRow
-          action={opts.moveAction(item)}
-          count={items.length}
-          index={index}
-          label={opts.label(item)}
-          {...writableReorderProps(opts.editHref(item))}
-        >
-          <QuantityCell>{opts.count(item)}</QuantityCell>
-        </ReorderLinkRow>
-      ))}
-    </ReorderTable>
-  ));
+  itemsOrEmptyReorderTable(
+    opts.items,
+    opts.emptyText,
+    { action: opts.moveAction, header: opts.orderLabel },
+    [
+      {
+        cell: (item: T) =>
+          isReadOnly() ? (
+            opts.label(item)
+          ) : (
+            <a href={opts.editHref(item)}>{opts.label(item)}</a>
+          ),
+        header: opts.labelHeader,
+      },
+      {
+        cell: (item: T) => opts.count(item),
+        class: "quantity" as const,
+        header: opts.countHeader,
+      },
+    ],
+  );
 
 /** A reorderable admin collection page: the "add new item" form (owner-only),
  * then either an empty note or the reorderable table of items, then the guide
@@ -103,9 +100,7 @@ export const reorderableListPage = <T extends { id: number }>(opts: {
   items: T[];
   emptyText: string;
   orderLabel: string;
-  columns: Child;
-  rowLabel: (item: T) => Child;
-  rowCells: (item: T) => Child;
+  columns: readonly DataColumn<T>[];
   guideHref: string;
   guideLabel: Child;
 }): string =>
@@ -118,16 +113,15 @@ export const reorderableListPage = <T extends { id: number }>(opts: {
         </CsrfForm>
       </WritableOnly>
 
-      {itemsOrEmptyNote(opts.items, opts.emptyText, (items) =>
-        reorderLinkTableAt(
-          opts.basePath,
-          opts.orderLabel,
-          opts.columns,
-          items,
-          opts.rowLabel,
-          opts.rowCells,
-          !isReadOnly(),
-        ),
+      {itemsOrEmptyReorderTable(
+        opts.items,
+        opts.emptyText,
+        {
+          action: (item) => (direction) =>
+            `${opts.basePath}/${item.id}/move-${direction}`,
+          header: opts.orderLabel,
+        },
+        opts.columns,
       )}
 
       <GuideFooter href={opts.guideHref}>{opts.guideLabel}</GuideFooter>

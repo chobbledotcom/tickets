@@ -204,6 +204,7 @@ describe("wrapResourceForDemo", () => {
       },
       delete: () => Promise.resolve({ ok: true as const }),
       fields: [],
+      loadOrNull: () => Promise.resolve({ id: 1, name: "" }),
       parseInput: (_form: URLSearchParams) =>
         Promise.resolve({ input: {}, ok: true as const }),
       parsePartialInput: (_form: URLSearchParams) =>

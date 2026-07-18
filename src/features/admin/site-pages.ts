@@ -12,27 +12,15 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import {
-  type ConfirmedHandlers,
-  createConfirmedHandlers,
-} from "#routes/admin/confirmation.ts";
-import {
-  formGuard,
-  SITE_FORM,
-  SITE_MULTIPART,
-  sitePage,
-} from "#routes/auth.ts";
+import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
   createEntityHandler,
   createIdEntityHandler,
   type IdParam,
+  throughParent,
 } from "#routes/entity.ts";
-import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
-import {
-  authedFormConfig,
-  createAuthedFormRoute,
-  createAuthedHandler,
-} from "#shared/app-forms.ts";
+import { errorRedirect } from "#routes/response.ts";
+import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupExists } from "#shared/db/groups.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
@@ -42,16 +30,15 @@ import {
   getItemsForPage,
   type ItemRef,
   removePageItem,
-  swapPageItemOrder,
+  sitePageItemOrder,
 } from "#shared/db/site-page-items.ts";
 import {
   createSitePage,
   getSitePageById,
   type SitePageWriteInput,
-  swapSitePageOrder,
+  sitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
-import { planReorder } from "#shared/reorder.ts";
 import {
   eligibleChildPages,
   isReservedSlug,
@@ -61,7 +48,6 @@ import {
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
-  type AdminSession,
   isSitePageItemType,
   type SitePage,
   type SitePageItemType,
@@ -73,25 +59,14 @@ import {
   adminSitePagesListPage,
 } from "#templates/admin/site-pages.tsx";
 import { seoContentInput } from "./content-form-fields.ts";
-import { createItemImageHandlers } from "./item-images.ts";
 import {
   contentWriteOrError,
+  defineSiteContent,
   saveContent,
-  siteConfirmAuth,
-  siteContentPaths,
-  siteListPage,
 } from "./site-content.ts";
 import { buildListModel, offerableListing } from "./site-pages-data.ts";
 import { sitePageEditForm, sitePageForm } from "./site-pages-form.ts";
 import { sitePageEntityPage } from "./site-pages-page.ts";
-
-const paths = siteContentPaths("/admin/site/pages");
-const LIST_PATH = paths.list;
-const editPath = paths.edit;
-/** The Items and Images tabs live under the entity page; their POST
- * sub-actions bounce back to the relevant tab, not the Edit form. */
-const itemsPath = (id: number): string => `${LIST_PATH}/${id}/items`;
-const imagesPath = (id: number): string => `${LIST_PATH}/${id}/images`;
 
 // ─── Field validation ───────────────────────────────────────────
 
@@ -104,12 +79,16 @@ const contentFields = (
   slug,
 });
 
+type SitePageContentValues = Parameters<typeof contentFields>[0] & {
+  slug: string;
+};
+
 /** Normalize a validated slug and reject reserved public paths. The write itself
  * checks ownership atomically across listings, groups, and pages. */
-const availableSlugOrError = (
+const reservedSlugError = (
   value: string,
   errorPath: string,
-): string | Response => {
+): Response | undefined => {
   // The slug field's own validator already ran `validateSlug(normalizeSlug())`
   // (so the format is known-good here); re-normalise for the reserved check and
   // storage.
@@ -117,136 +96,92 @@ const availableSlugOrError = (
   if (isReservedSlug(slug)) {
     return errorRedirect(errorPath, t("site.pages.error.reserved"));
   }
-  return slug;
-};
-
-const withPageSlug = (
-  value: string,
-  errorPath: string,
-  save: (slug: string) => Promise<Response>,
-): Promise<Response> => {
-  const slug = availableSlugOrError(value, errorPath);
-  return slug instanceof Response ? Promise.resolve(slug) : save(slug);
+  return;
 };
 
 // ─── Page CRUD ──────────────────────────────────────────────────
 
-const renderList = siteListPage(buildListModel, adminSitePagesListPage);
+const content = defineSiteContent("/admin/site/pages", (paths) => ({
+  create: {
+    flashMessage: t("site.pages.created"),
+    logMessage: (_page: SitePage, values: SitePageContentValues) =>
+      `Page '${values.name}' created`,
+    validate: (values: SitePageContentValues) =>
+      reservedSlugError(values.slug, paths.newPage),
+    write: async (values: SitePageContentValues, transaction) =>
+      contentWriteOrError(
+        await createSitePage(
+          contentFields(values, normalizeSlug(values.slug)),
+          transaction,
+        ),
+        paths.newPage,
+        t("site.pages.error.slug_taken"),
+      ),
+  },
+  createForm: sitePageForm,
+  delete: {
+    identifier: (page: SitePage) => page.name,
+    identifierLabel: t("site.pages.name_label"),
+    onConfirm: async (page: SitePage) => {
+      const { deleteSitePageWithEdges } = await import(
+        "#shared/db/site-page-items.ts"
+      );
+      await deleteSitePageWithEdges(page.id);
+      await logActivity(`Page '${page.name}' deleted`);
+    },
+    render: adminSitePageDeletePage,
+    successMessage: t("site.pages.deleted"),
+  },
+  editForm: sitePageEditForm,
+  entityPage: sitePageEntityPage,
+  imageType: "page",
+  load: getSitePageById,
+  loadList: buildListModel,
+  renderList: adminSitePagesListPage,
+  renderNew: adminSitePageNewPage,
+  update: {
+    flashMessage: t("site.pages.updated"),
+    logMessage: (_page: SitePage, values: SitePageContentValues) =>
+      `Page '${values.name}' updated`,
+    validate: (values: SitePageContentValues, page: SitePage) =>
+      reservedSlugError(values.slug, paths.edit(page.id)),
+    write: async (values: SitePageContentValues, transaction, page) =>
+      contentWriteOrError(
+        await updateSitePage(
+          page.id,
+          contentFields(values, normalizeSlug(values.slug)),
+          transaction,
+        ),
+        paths.edit(page.id),
+        t("site.pages.error.slug_taken"),
+      ),
+  },
+}));
 
-const renderNew = sitePage((session, _request, flash) =>
-  adminSitePageNewPage(session, flash.error),
-);
-
-const loadPage = ({ id }: { id: number }): Promise<SitePage | null> =>
-  getSitePageById(id);
-const pageEditPath = (page: SitePage): string => editPath(page.id);
+const { paths } = content;
+const LIST_PATH = paths.list;
+/** The Items and Images tabs live under the entity page; their POST
+ * sub-actions bounce back to the relevant tab, not the Edit form. */
+const itemsPath = (id: number): string => `${LIST_PATH}/${id}/items`;
 const pageFormHandler = createIdEntityHandler<SitePage>(getSitePageById)(
   formGuard(SITE_FORM),
 );
-const createPageForm = authedFormConfig(
-  SITE_FORM,
-  sitePageForm,
-  () => paths.newPage,
-);
-const editPageForm = authedFormConfig(
-  SITE_FORM,
-  sitePageEditForm,
-  pageEditPath,
-  loadPage,
-);
-const handleCreate = createAuthedFormRoute({
-  ...createPageForm,
-  onValid: ({ values }) =>
-    withPageSlug(values.slug, paths.newPage, (slug) =>
-      saveContent(
-        async (transaction) => {
-          const result = await createSitePage(
-            contentFields(values, slug),
-            transaction,
-          );
-          return contentWriteOrError(
-            result,
-            paths.newPage,
-            t("site.pages.error.slug_taken"),
-          );
-        },
-        (page) => ({
-          flashMessage: t("site.pages.created"),
-          logMessage: `Page '${values.name}' created`,
-          path: editPath(page.id),
-        }),
-      ),
-    ),
-});
-const handleUpdate = createAuthedFormRoute({
-  ...editPageForm,
-  onValid: async ({ context: page, values }) => {
-    const path = editPath(page.id);
-    return withPageSlug(values.slug, path, (slug) =>
-      saveContent(
-        async (transaction) =>
-          contentWriteOrError(
-            await updateSitePage(
-              page.id,
-              contentFields(values, slug),
-              transaction,
-            ),
-            path,
-            t("site.pages.error.slug_taken"),
-          ),
-        () => ({
-          flashMessage: t("site.pages.updated"),
-          logMessage: `Page '${values.name}' updated`,
-          path,
-        }),
-      ),
-    );
-  },
-});
-
-const pageDelete: ConfirmedHandlers = createConfirmedHandlers<
-  SitePage,
-  AdminSession
->({
-  auth: siteConfirmAuth,
-  identifier: (p) => p.name,
-  identifierLabel: t("site.pages.name_label"),
-  load: (id) => getSitePageById(id),
-  onConfirm: async (page) => {
-    const { deleteSitePageWithEdges } = await import(
-      "#shared/db/site-page-items.ts"
-    );
-    await deleteSitePageWithEdges(page.id);
-    await logActivity(`Page '${page.name}' deleted`);
-  },
-  path: `${LIST_PATH}/:id/delete`,
-  render: (page, session, error) =>
-    adminSitePageDeletePage(page, session, error),
-  successMessage: t("site.pages.deleted"),
-  successRedirect: LIST_PATH,
-});
 
 // ─── Root reorder ───────────────────────────────────────────────
 
-/** Move a root page one step in `dir` by swapping sort_order with its neighbour
- * among the *root* pages (nested pages are ordered by their edge, not here). */
-const moveRoot = (dir: "up" | "down") =>
-  createAuthedHandler<IdParam>({
-    auth: SITE_FORM,
-    handle: async ({ params: { id } }) => {
-      const keys = (await loadPageForest()).forest.rootIds.map((rid) =>
-        targetKey("page", rid),
-      );
-      const swap = planReorder(keys, targetKey("page", id), dir);
-      if (swap) {
-        await swapSitePageOrder(
-          parseTargetKey(swap[0]).id,
-          parseTargetKey(swap[1]).id,
-        );
-      }
-      return redirect(LIST_PATH, t("site.pages.moved"), true);
-    },
-  });
+const rootPageOrder = createOrderedCollectionHandlers({
+  auth: SITE_FORM,
+  keys: async () =>
+    (await loadPageForest()).forest.rootIds.map((id) => targetKey("page", id)),
+  movedMessage: t("site.pages.moved"),
+  redirectPath: () => LIST_PATH,
+  swap: (first, second) =>
+    sitePageOrder.swap({
+      first: parseTargetKey(first).id,
+      second: parseTargetKey(second).id,
+    }),
+  target: ({ params }: { params: IdParam }) => targetKey("page", params.id),
+});
 
 // ─── Item manager ───────────────────────────────────────────────
 
@@ -306,12 +241,14 @@ const handleAddItem = pageFormHandler(async (page, _session, form) => {
 
 type ItemRouteParams = { id: number; itemId: number; itemType: string };
 type PageItem = { page: SitePage; ref: ItemRef };
+const loadPageItem = ({ id, itemId, itemType }: ItemRouteParams) =>
+  throughParent(getSitePageById(id), (page) =>
+    isSitePageItemType(itemType)
+      ? { page, ref: { id: itemId, type: itemType } }
+      : null,
+  );
 const pageItemHandler = createEntityHandler<ItemRouteParams, PageItem>(
-  async ({ id, itemId, itemType }) => {
-    if (!isSitePageItemType(itemType)) return null;
-    const page = await getSitePageById(id);
-    return page ? { page, ref: { id: itemId, type: itemType } } : null;
-  },
+  loadPageItem,
 )(formGuard(SITE_FORM));
 
 const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
@@ -328,61 +265,45 @@ const handleRemoveItem = pageItemHandler(async ({ page, ref }) =>
   ),
 );
 
-const moveItem = (dir: "up" | "down") =>
-  createAuthedHandler<ItemRouteParams>({
-    auth: SITE_FORM,
-    handle: async ({ params: { id, itemId, itemType } }) => {
-      if (!isSitePageItemType(itemType)) return notFoundResponse();
-      const ref: ItemRef = { id: itemId, type: itemType };
-      const items = await getItemsForPage(id);
-      const keys = items.map((i) => targetKey(i.item_type, i.item_id));
-      const swap = planReorder(keys, targetKey(ref.type, ref.id), dir);
-      if (swap) {
-        await swapPageItemOrder(
-          id,
-          parseTargetKey(swap[0]),
-          parseTargetKey(swap[1]),
-        );
-      }
-      return redirect(itemsPath(id), t("site.pages.moved"), true);
-    },
-  });
-
-// ─── Images ─────────────────────────────────────────────────────
-
-/** The shared per-entity image handlers, gated at the Site level (owner +
- * editor) to match the pages themselves. A successful save stays on the Images
- * tab, but a storage-disabled bounce redirects to the Edit tab: the Images tab
- * is hidden when storage is off, so a redirect there would 404 and swallow the
- * "storage not configured" message. */
-const pageImageHandlers = createItemImageHandlers({
-  auth: { form: SITE_FORM, multipart: SITE_MULTIPART },
-  disabledPath: editPath,
-  itemType: "page",
-  load: getSitePageById,
-  nameOf: (page) => page.name,
-  path: imagesPath,
+const pageItemOrder = createOrderedCollectionHandlers({
+  auth: SITE_FORM,
+  keys: async ({ params }) =>
+    (await getItemsForPage(params.id)).map((item) =>
+      targetKey(item.item_type, item.item_id),
+    ),
+  loadContext: async ({ itemId, itemType }: ItemRouteParams) =>
+    isSitePageItemType(itemType) ? { id: itemId, type: itemType } : null,
+  movedMessage: t("site.pages.moved"),
+  redirectPath: ({ params }) => itemsPath(params.id),
+  swap: (first, second, { params }) => {
+    const firstRef = parseTargetKey(first);
+    const secondRef = parseTargetKey(second);
+    return sitePageItemOrder.swap({
+      first: [firstRef.type, firstRef.id],
+      scope: params.id,
+      second: [secondRef.type, secondRef.id],
+    });
+  },
+  target: ({ context }) => targetKey(context.type, context.id),
 });
 
 // ─── Routes ─────────────────────────────────────────────────────
 
 export const adminHandlers = handlersFor("sitePages")({
-  getSitePages: renderList,
-  getSitePagesById: (request, { id }) =>
-    sitePageEntityPage.renderTab(request, id, ""),
-  getSitePagesByIdByTab: (request, { id, tab }) =>
-    sitePageEntityPage.renderTab(request, id, tab),
-  getSitePagesByIdDelete: (request, { id }) => pageDelete.get(request, id),
-  getSitePagesNew: renderNew,
-  postSitePages: handleCreate,
-  postSitePagesByIdDelete: (request, { id }) => pageDelete.post(request, id),
-  postSitePagesByIdEdit: handleUpdate,
-  postSitePagesByIdImages: pageImageHandlers.set,
-  postSitePagesByIdImagesUpload: pageImageHandlers.upload,
+  getSitePages: content.list,
+  getSitePagesById: content.entity,
+  getSitePagesByIdByTab: content.entityTab,
+  getSitePagesByIdDelete: content.deletePage,
+  getSitePagesNew: content.newPage,
+  postSitePages: content.create,
+  postSitePagesByIdDelete: content.delete,
+  postSitePagesByIdEdit: content.update,
+  postSitePagesByIdImages: content.images.set,
+  postSitePagesByIdImagesUpload: content.images.upload,
   postSitePagesByIdItems: handleAddItem,
-  postSitePagesByIdItemsByItemTypeByItemIdMoveDown: moveItem("down"),
-  postSitePagesByIdItemsByItemTypeByItemIdMoveUp: moveItem("up"),
+  postSitePagesByIdItemsByItemTypeByItemIdMoveDown: pageItemOrder.down,
+  postSitePagesByIdItemsByItemTypeByItemIdMoveUp: pageItemOrder.up,
   postSitePagesByIdItemsByItemTypeByItemIdRemove: handleRemoveItem,
-  postSitePagesByIdMoveDown: moveRoot("down"),
-  postSitePagesByIdMoveUp: moveRoot("up"),
+  postSitePagesByIdMoveDown: rootPageOrder.down,
+  postSitePagesByIdMoveUp: rootPageOrder.up,
 });

@@ -14,8 +14,13 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
+import { isReadOnly } from "#shared/env.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  ReorderArrows,
+  type ReorderProps,
+} from "#templates/components/reorder.tsx";
 import {
   type ColumnKind,
   colClass,
@@ -143,6 +148,59 @@ export type DataColumn<TRow> = {
   header: Child;
   class?: ColumnKind;
   cell: (row: TRow, index: number, rows: readonly TRow[]) => Child;
+  cellAttrs?: (
+    row: TRow,
+    index: number,
+    rows: readonly TRow[],
+  ) => Record<string, string | number | boolean | undefined>;
+};
+
+export type ReorderColumnOptions<TRow> = {
+  action: (row: TRow) => ReorderProps["action"];
+  header: Child;
+  titles?: { down: string; up: string };
+};
+
+/** The shared move-arrow column for schema-driven tables. */
+export const reorderColumn = <TRow,>(
+  options: ReorderColumnOptions<TRow>,
+): DataColumn<TRow> => ({
+  cell: (row, index, rows) =>
+    isReadOnly() ? null : (
+      <ReorderArrows
+        action={options.action(row)}
+        count={rows.length}
+        index={index}
+        {...(options.titles === undefined ? {} : { titles: options.titles })}
+      />
+    ),
+  class: "reorder",
+  header: options.header,
+});
+
+const DataTableCell = <TRow,>({
+  column,
+  row,
+  index,
+  rows,
+}: {
+  column: DataColumn<TRow>;
+  row: TRow;
+  index: number;
+  rows: readonly TRow[];
+}): JSX.Element => {
+  const attrs = column.cellAttrs?.(row, index, rows);
+  const { class: customClass, ...otherAttrs } =
+    attrs === undefined ? {} : attrs;
+  const schemaClass = column.class === undefined ? "" : colClass(column.class);
+  const className = [schemaClass, customClass].filter(Boolean).join(" ");
+  return (
+    <td
+      {...(className === "" ? otherAttrs : { class: className, ...otherAttrs })}
+    >
+      {column.cell(row, index, rows)}
+    </td>
+  );
 };
 
 /**
@@ -163,18 +221,46 @@ export const dataTable =
       tableClass?: string;
       bodyAttrs?: Record<string, string>;
       foot?: Child;
+      empty?: Child;
     },
   ): JSX.Element => (
     <DataTable
       bodyAttrs={options?.bodyAttrs}
       columns={[...columns]}
       foot={options?.foot}
-      rows={rows.map((row, index) =>
-        columns.map((column) => column.cell(row, index, rows)),
-      )}
+      rows={
+        rows.length === 0 && options?.empty !== undefined
+          ? [
+              <tr>
+                <td colspan={columns.length}>{options.empty}</td>
+              </tr>,
+            ]
+          : rows.map((row, index) => (
+              <tr>
+                {columns.map((column) => (
+                  <DataTableCell
+                    column={column}
+                    index={index}
+                    row={row}
+                    rows={rows}
+                  />
+                ))}
+              </tr>
+            ))
+      }
       scrollClass={options?.scrollClass}
       tableClass={options?.tableClass}
     />
+  );
+
+/** Render a schema table with its write-only move-arrow column. */
+export const reorderTable = <TRow,>(
+  options: ReorderColumnOptions<TRow>,
+  columns: readonly DataColumn<TRow>[],
+  rows: readonly TRow[],
+): JSX.Element =>
+  dataTable(isReadOnly() ? columns : [reorderColumn(options), ...columns])(
+    rows,
   );
 
 /** An admin collection body: the shared "nothing yet" paragraph when the list

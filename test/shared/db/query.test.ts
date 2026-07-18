@@ -1,12 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, insert, queryOne } from "#shared/db/client.ts";
+import { execute, insert } from "#shared/db/client.ts";
 import {
   columnMapByIds,
   mapByIds,
   nameSource,
   rowsByIds,
-  swapSortOrder,
 } from "#shared/db/query.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -24,48 +23,8 @@ const insertStatus = async (
   return Number((await execute(stmt.sql, stmt.args)).lastInsertRowid);
 };
 
-const sortOrderOf = async (id: number): Promise<number> => {
-  const row = await queryOne<{ sort_order: number }>(
-    "SELECT sort_order FROM attendee_statuses WHERE id = ?",
-    [id],
-  );
-  return row!.sort_order;
-};
-
 /** Identity "decryptor" for the plaintext names inserted above. */
 const plaintextName = (raw: string): Promise<string> => Promise.resolve(raw);
-
-describeWithEnv("db > query > swapSortOrder", { db: true }, () => {
-  test("swaps the two rows' sort_order values", async () => {
-    const low = await insertStatus("Low", 10);
-    const high = await insertStatus("High", 20);
-
-    await swapSortOrder("attendee_statuses", low, high);
-
-    expect(await sortOrderOf(low)).toBe(20);
-    expect(await sortOrderOf(high)).toBe(10);
-  });
-
-  test("swapping back restores the original order", async () => {
-    const low = await insertStatus("Low", 10);
-    const high = await insertStatus("High", 20);
-
-    await swapSortOrder("attendee_statuses", low, high);
-    await swapSortOrder("attendee_statuses", low, high);
-
-    expect(await sortOrderOf(low)).toBe(10);
-    expect(await sortOrderOf(high)).toBe(20);
-  });
-
-  test("is a no-op when one of the ids is missing", async () => {
-    // A stale reorder click racing a delete: nothing may change.
-    const survivor = await insertStatus("Survivor", 10);
-
-    await swapSortOrder("attendee_statuses", survivor, 999_999);
-
-    expect(await sortOrderOf(survivor)).toBe(10);
-  });
-});
 
 describeWithEnv("db > query > id-keyed lookups", { db: true }, () => {
   test("rowsByIds returns an empty array for empty ids without building a query", async () => {

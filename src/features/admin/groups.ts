@@ -318,15 +318,15 @@ const groupsResource = defineNamedResource({
 // come from a staff CRUD below.
 const contentCreate = createContentCrudHandlers({
   ...crudConfig,
-  resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
+  operations: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
 });
 const content = createContentCrudHandlers({
   ...crudConfig,
-  resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
+  operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
 const staffCrud = createCrudHandlers({
   ...crudConfig,
-  resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
+  operations: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
 });
 
 /** Look up group by id, return 404 if not found */

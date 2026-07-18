@@ -1,4 +1,4 @@
-import { route } from "#shared/admin-surface/definitions.ts";
+import { moveRoutes, route } from "#shared/admin-surface/definitions.ts";
 
 export const routes = [
   route(
@@ -34,18 +34,7 @@ export const routes = [
     "POST",
     "/admin/attributes/:id/edit",
   ),
-  route(
-    "postAttributesByIdMoveDown",
-    "attributes",
-    "POST",
-    "/admin/attributes/:id/move-down",
-  ),
-  route(
-    "postAttributesByIdMoveUp",
-    "attributes",
-    "POST",
-    "/admin/attributes/:id/move-up",
-  ),
+  ...moveRoutes("postAttributesById", "attributes", "/admin/attributes/:id"),
   route(
     "postAttributesByIdOptions",
     "attributes",
@@ -64,17 +53,10 @@ export const routes = [
     "POST",
     "/admin/attributes/:id/options/:optionId/edit",
   ),
-  route(
-    "postAttributesByIdOptionsByOptionIdMoveDown",
+  ...moveRoutes(
+    "postAttributesByIdOptionsByOptionId",
     "attributes",
-    "POST",
-    "/admin/attributes/:id/options/:optionId/move-down",
-  ),
-  route(
-    "postAttributesByIdOptionsByOptionIdMoveUp",
-    "attributes",
-    "POST",
-    "/admin/attributes/:id/options/:optionId/move-up",
+    "/admin/attributes/:id/options/:optionId",
   ),
   route(
     "postListingByIdAttributes",

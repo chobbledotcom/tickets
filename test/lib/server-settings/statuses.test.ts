@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   attendeeStatuses,
   getAttendeeStatus,
@@ -15,7 +16,11 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  adminGet,
+  withTestSession,
+} from "#test-utils/session.ts";
 
 /* jscpd:ignore-end */
 
@@ -97,6 +102,15 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       expect(created.reservation_amount).toBe("10%");
       // Assigned the next sort_order after the seed (0).
       expect(created.sort_order).toBe(1);
+    });
+
+    test("logs a created status with its full activity name", async () => {
+      await adminFormPost(PATH, { name: "Invited" });
+
+      const entries = await withTestSession(() => getAllActivityLog());
+      expect(entries.map((entry) => entry.message)).toContain(
+        "Attendee status 'Invited' created",
+      );
     });
 
     test("rejects a missing name", async () => {
