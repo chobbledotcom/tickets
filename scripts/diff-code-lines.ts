@@ -12,17 +12,12 @@
  * branch's own changes since it forked, ignoring later commits on the base).
  */
 
-import { formatReport, tallyDiff } from "./diff-code-lines-lib.ts";
+import { formatReport, gitDiffArgs, tallyDiff } from "./diff-code-lines-lib.ts";
 import { runCommand } from "./precommit/git.ts";
 
 const runGitDiff = async (base: string): Promise<string> => {
   // --unified=0: only changed lines, no surrounding context to misclassify.
-  const result = await runCommand([
-    "git",
-    "diff",
-    "--unified=0",
-    `${base}...HEAD`,
-  ]);
+  const result = await runCommand(["git", ...gitDiffArgs(base)]);
   if (!result.success) {
     throw new Error(`git diff failed: ${result.stderr}`);
   }
