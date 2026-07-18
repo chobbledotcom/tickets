@@ -1,4 +1,4 @@
-import type { InValue, Row } from "@libsql/client";
+import type { InValue } from "@libsql/client";
 import {
   execute,
   resultRows,
@@ -7,46 +7,42 @@ import {
 } from "#shared/db/client.ts";
 
 type Columns = string | readonly [string, ...string[]];
-type Values<Names extends Columns> = Names extends string
+type ColumnValues<Names extends Columns> = Names extends string
   ? InValue
   : { readonly [Index in keyof Names]: InValue };
 type ScopeValues<Scope extends Columns | undefined> = Scope extends Columns
-  ? { scope: Values<Scope> }
+  ? { scope: ColumnValues<Scope> }
   : { scope?: never };
-type Operation<Scope extends Columns | undefined> = ScopeValues<Scope> & {
-  transaction?: TxScope;
-};
-type NextManyOperation<Scope extends Columns | undefined> = {
-  items: readonly ScopeValues<Scope>[];
-  transaction?: TxScope | undefined;
-};
-type KeysOperation<Scope extends Columns | undefined, Keys> = Operation<Scope> &
-  Keys;
-type KeyOperation<
-  Key extends Columns,
+type Operation<
   Scope extends Columns | undefined,
-> = KeysOperation<Scope, { key: Values<Key> }>;
+  Fields = object,
+> = ScopeValues<Scope> & Fields & { transaction?: TxScope };
+
 type SwapOperation<
   Key extends Columns,
   Scope extends Columns | undefined,
-> = KeysOperation<Scope, { first: Values<Key>; second: Values<Key> }>;
+> = Operation<Scope, { first: ColumnValues<Key>; second: ColumnValues<Key> }>;
 
 export interface OrderedCollection<
   Key extends Columns,
   Scope extends Columns | undefined,
 > {
-  append: (operation: KeyOperation<Key, Scope>) => Promise<void>;
-  next: (operation: Operation<Scope>) => Promise<number>;
-  nextMany: (operation: NextManyOperation<Scope>) => Promise<number[]>;
-  swap: (operation: SwapOperation<Key, Scope>) => Promise<void>;
+  append(
+    operation: Operation<Scope, { key: ColumnValues<Key> }>,
+  ): Promise<void>;
+  next(operation: Operation<Scope>): Promise<number>;
+  nextMany(operation: {
+    items: readonly ScopeValues<Scope>[];
+    transaction?: TxScope | undefined;
+  }): Promise<number[]>;
+  swap(operation: SwapOperation<Key, Scope>): Promise<void>;
 }
 
 type FlatSwap<Key extends Columns> = (
-  first: Values<Key>,
-  second: Values<Key>,
+  first: ColumnValues<Key>,
+  second: ColumnValues<Key>,
 ) => Promise<void>;
 
-/** Adapt a flat descriptor's swap to collection-handler callback arguments. */
 export const flatCollectionSwap =
   <Key extends Columns>(
     collection: OrderedCollection<Key, undefined>,
@@ -55,16 +51,15 @@ export const flatCollectionSwap =
     collection.swap({ first, second });
 
 type ScopedSwap<Key extends Columns, Context> = (
-  first: Values<Key>,
-  second: Values<Key>,
+  first: ColumnValues<Key>,
+  second: ColumnValues<Key>,
   context: Context,
 ) => Promise<void>;
 
-/** Bind a handler context's scope to every swap through a scoped descriptor. */
 export const scopedCollectionSwap =
   <Key extends Columns, Scope extends Columns, Context>(
     collection: OrderedCollection<Key, Scope>,
-    scopeOf: (context: Context) => Values<Scope>,
+    scopeOf: (context: Context) => ColumnValues<Scope>,
   ): ScopedSwap<Key, Context> =>
   (first, second, context) =>
     collection.swap({
@@ -73,27 +68,23 @@ export const scopedCollectionSwap =
       second,
     } as unknown as SwapOperation<Key, Scope>);
 
-type OrderedCollectionDescriptor<
+interface OrderedCollectionConfig<
   Key extends Columns,
   Scope extends Columns | undefined,
-> = {
+> {
   key: Key;
   order?: string;
   scope?: Scope;
   start?: number;
   table: string;
-};
+}
 
-const columnNames = (columns: Columns | undefined): readonly string[] =>
-  columns === undefined
-    ? []
-    : typeof columns === "string"
-      ? [columns]
-      : columns;
+const columnNames = (columns: Columns): readonly string[] =>
+  typeof columns === "string" ? [columns] : columns;
 
 const columnValues = <Names extends Columns>(
   columns: Names,
-  values: Values<Names>,
+  values: ColumnValues<Names>,
 ): readonly InValue[] =>
   typeof columns === "string"
     ? [values as InValue]
@@ -102,13 +93,6 @@ const columnValues = <Names extends Columns>(
 const matches = (columns: readonly string[]): string =>
   columns.map((column) => `${column} = ?`).join(" AND ");
 
-const sameValues = (first: readonly InValue[], second: readonly InValue[]) =>
-  first.every((value, index) => value === second[index]);
-
-/**
- * Bind ordered-row operations to trusted internal SQL identifiers. A descriptor
- * may name one or many key columns and an optional one-or-many-column scope.
- */
 export const defineOrderedCollection = <
   Key extends Columns,
   Scope extends Columns | undefined = undefined,
@@ -118,39 +102,36 @@ export const defineOrderedCollection = <
   scope,
   start = 0,
   table,
-}: OrderedCollectionDescriptor<Key, Scope>): OrderedCollection<Key, Scope> => {
+}: OrderedCollectionConfig<Key, Scope>): OrderedCollection<Key, Scope> => {
   const keyColumns = columnNames(key);
-  const scopeColumns = columnNames(scope);
+  const scopeClause =
+    scope === undefined ? "1 = 1" : matches(columnNames(scope));
+  const scopeWhere = `${scopeClause} AND `;
   const scopeArgs = (operation: ScopeValues<Scope>): readonly InValue[] =>
     scope === undefined
       ? []
-      : columnValues(scope, operation.scope as Values<Scope & Columns>);
-  const scopeWhere = (): string =>
-    scopeColumns.length === 0 ? "" : `${matches(scopeColumns)} AND `;
-  const rowWhere = (
-    values: readonly InValue[],
-    scoped: readonly InValue[],
-  ): { args: InValue[]; sql: string } => ({
-    args: [...scoped, ...values],
-    sql: `${scopeWhere()}${matches(keyColumns)}`,
-  });
+      : columnValues(scope, operation.scope as ColumnValues<Scope & Columns>);
+  const inTransaction = <Result>(
+    operation: { transaction?: TxScope | undefined },
+    run: (transaction: TxScope) => Promise<Result>,
+  ): Promise<Result> => useTransaction(operation.transaction, run);
 
-  const nextStatement = (item: ScopeValues<Scope>) => ({
-    args: [...scopeArgs(item)],
-    sql: `SELECT COALESCE(MAX(${order}) + 1, ${start}) AS next_order
-            FROM ${table}
-           WHERE ${scopeWhere().replace(/ AND $/, "") || "1 = 1"}`,
-  });
-  const nextMany = (operation: NextManyOperation<Scope>): Promise<number[]> =>
-    useTransaction(operation.transaction, async (transaction) => {
+  const nextMany: OrderedCollection<Key, Scope>["nextMany"] = (operation) =>
+    inTransaction(operation, async (transaction) => {
       const results = await transaction.batch(
-        operation.items.map(nextStatement),
+        operation.items.map((item) => ({
+          args: [...scopeArgs(item)],
+          sql: `SELECT COALESCE(MAX(${order}) + 1, ${start}) AS next_order
+                  FROM ${table}
+                 WHERE ${scopeClause}`,
+        })),
       );
       return results.map((result) =>
         Number(resultRows<{ next_order: number }>(result)[0]!.next_order),
       );
     });
-  const next = async (operation: Operation<Scope>): Promise<number> =>
+
+  const next: OrderedCollection<Key, Scope>["next"] = async (operation) =>
     (
       await nextMany({
         items: [operation],
@@ -158,63 +139,57 @@ export const defineOrderedCollection = <
       })
     )[0]!;
 
-  const append = async (operation: KeyOperation<Key, Scope>): Promise<void> => {
+  const append: OrderedCollection<Key, Scope>["append"] = async (operation) => {
     const scoped = scopeArgs(operation);
     const keyed = columnValues(key, operation.key);
-    const where = rowWhere(keyed, scoped);
     const statement = {
-      args: [...scoped, ...keyed, ...where.args],
+      args: [...scoped, ...keyed, ...scoped, ...keyed],
       sql: `UPDATE ${table}
                SET ${order} = COALESCE((
                  SELECT MAX(orderedSibling.${order}) + 1
                    FROM ${table} AS orderedSibling
-                   WHERE ${scopeWhere()}${keyColumns
-                     .map((column) => `orderedSibling.${column} != ?`)
-                     .join(" OR ")}
+                  WHERE ${scopeWhere}${keyColumns
+                    .map((column) => `orderedSibling.${column} != ?`)
+                    .join(" OR ")}
                ), ${start})
-             WHERE ${where.sql}`,
+             WHERE ${scopeWhere}${matches(keyColumns)}`,
     };
-    if (operation.transaction) {
-      await operation.transaction.execute(statement);
-    } else {
-      await execute(statement.sql, statement.args);
-    }
+    await (operation.transaction
+      ? operation.transaction.execute(statement)
+      : execute(statement.sql, statement.args));
   };
 
-  const swap = (operation: SwapOperation<Key, Scope>): Promise<void> =>
-    useTransaction(operation.transaction, async (transaction) => {
-      const scoped = scopeArgs(operation);
+  const swap: OrderedCollection<Key, Scope>["swap"] = (operation) =>
+    inTransaction(operation, async (transaction) => {
       const first = columnValues(key, operation.first);
       const second = columnValues(key, operation.second);
-      if (sameValues(first, second)) return;
-      const rows = resultRows<Row>(
-        await transaction.execute({
-          args: [...scoped, ...first, ...second],
-          sql: `SELECT ${[...keyColumns, order].join(", ")}
+      const pair = `(${matches(keyColumns)} OR ${matches(keyColumns)})`;
+      const differentKey = keyColumns
+        .map((column) => `swapping.${column} != orderedItem.${column}`)
+        .join(" OR ");
+      await transaction.execute({
+        args: [
+          scopeArgs(operation),
+          first,
+          second,
+          scopeArgs(operation),
+          first,
+          second,
+        ].flat(),
+        sql: `WITH swapping AS MATERIALIZED (
+                SELECT ${[...keyColumns, order].join(", ")}
                   FROM ${table}
-                 WHERE ${scopeWhere()}(${matches(keyColumns)} OR ${matches(
-                   keyColumns,
-                 )})`,
-        }),
-      );
-      const orderFor = (values: readonly InValue[]): number | undefined =>
-        rows.find((row) =>
-          keyColumns.every((column, index) => row[column] === values[index]),
-        )?.[order] as number | undefined;
-      const firstOrder = orderFor(first);
-      const secondOrder = orderFor(second);
-      if (firstOrder === undefined || secondOrder === undefined) return;
-      const setOrder = (values: readonly InValue[], value: number) => {
-        const where = rowWhere(values, scoped);
-        return {
-          args: [value, ...where.args],
-          sql: `UPDATE ${table} SET ${order} = ? WHERE ${where.sql}`,
-        };
-      };
-      await transaction.batch([
-        setOrder(first, secondOrder),
-        setOrder(second, firstOrder),
-      ]);
+                 WHERE ${scopeWhere}${pair}
+              )
+              UPDATE ${table} AS orderedItem
+                 SET ${order} = (
+                   SELECT ${order}
+                     FROM swapping
+                    WHERE ${differentKey}
+                 )
+               WHERE ${scopeWhere}${pair}
+                 AND (SELECT COUNT(*) FROM swapping) = 2`,
+      });
     });
 
   return { append, next, nextMany, swap };
