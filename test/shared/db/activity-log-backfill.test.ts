@@ -104,4 +104,10 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     );
     await expect(runActivityLogBackfill(settings.publicKey)).rejects.toThrow();
   });
+
+  test("fails loudly when a raw activity row does not exist", async () => {
+    await expect(rawActivityMessage(999_999)).rejects.toThrow(
+      "Activity log entry not found: 999999",
+    );
+  });
 });
