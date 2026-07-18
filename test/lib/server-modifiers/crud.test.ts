@@ -214,6 +214,21 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       )(response);
     });
 
+    test("creates a percentage charge above 100", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_value: "150", direction: "charge" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers",
+        "Modifier created",
+        true,
+      )(response);
+      const modifier = await lastModifier();
+      expect(modifier.calc_value).toBe(150);
+      expect(modifier.direction).toBe("charge");
+    });
+
     test("rejects a zero percentage", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",
