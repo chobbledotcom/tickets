@@ -15,7 +15,7 @@ import {
   createQuestionWithAnswers,
   expectQuestionTexts,
   seedQuestionWithAndWithoutAnswers,
-} from "../shared/db/questions/helpers.ts";
+} from "./helpers.ts";
 
 /** Two answered questions ("Q1", "Q2") and a fresh listing — the shared
  *  arrange behind the assign/replace mapping tests. */
