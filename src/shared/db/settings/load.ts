@@ -25,6 +25,7 @@ import {
   invalidateVersionProbe,
   resetCache,
   setCacheState,
+  settingsReadRefill,
 } from "#shared/db/settings/cache.ts";
 import {
   defaults,
@@ -48,11 +49,13 @@ export const loadKeys = async (keys: readonly string[]): Promise<void> => {
   const s = cached.version === version ? cached : resetCache(version);
   const missing = unique([...keys]).filter((k) => !s.loaded.has(k));
   if (missing.length === 0) return;
-  const rows = await queryAll<{ key: string; value: string }>(
-    `SELECT key, value FROM settings WHERE key IN (${missing
-      .map(() => "?")
-      .join(", ")})`,
-    missing,
+  const rows = await settingsReadRefill.fetch(() =>
+    queryAll<{ key: string; value: string }>(
+      `SELECT key, value FROM settings WHERE key IN (${missing
+        .map(() => "?")
+        .join(", ")})`,
+      missing,
+    ),
   );
   for (const row of rows) s.values.set(row.key, row.value);
   await applyKeys(missing, s.values);
