@@ -65,7 +65,7 @@ export const stripeMockEnv = (
 });
 
 /** Ask the OS for a currently free localhost port. */
-const findAvailablePort = (): number => {
+export const findAvailablePort = (): number => {
   const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
   const { port } = listener.addr as Deno.NetAddr;
   listener.close();

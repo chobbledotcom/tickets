@@ -30,15 +30,17 @@
         in
         {
           default = pkgs.mkShell {
-            packages = [
-              deno
-              (pkgs.writeShellScriptBin "pc" ''
-                exec ${deno}/bin/deno task precommit "$@"
-              '')
-              pkgs.biome
-              pkgs.openssl
-              pkgs.buildah
-            ];
+            packages =
+              [
+                deno
+                (pkgs.writeShellScriptBin "pc" ''
+                  exec ${deno}/bin/deno task precommit "$@"
+                '')
+                pkgs.biome
+                pkgs.openssl
+                pkgs.buildah
+              ]
+              ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
             shellHook = ''
               deno_version="$(${deno}/bin/deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
               if [ "$deno_version" != "${denoVersion}" ]; then
@@ -50,6 +52,7 @@
               echo "  deno task start      - run server"
               echo "  deno task test       - run tests"
               echo "  deno task build:edge - build for edge"
+              echo "  deno task screenshot - capture representative pages"
               echo "  deno task precommit  - typecheck + lint + cpd + build + test"
               echo "  pc                   - run precommit"
               echo "  nix run .#docker     - build container image"
@@ -57,6 +60,10 @@
               export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"
               export DB_URL=":memory:"
               export PORT=8080
+              ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+                export CHROMIUM_EXECUTABLE="${pkgs.chromium}/bin/chromium"
+                export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}:''${LD_LIBRARY_PATH:-}"
+              ''}
 
               install_precommit_hook() {
                 if ! ${pkgs.git}/bin/git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
