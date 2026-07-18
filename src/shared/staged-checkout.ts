@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { identity, mapById } from "#fp";
+import { identity, map, mapById } from "#fp";
 import {
   bookingsForOrder,
   type CanonicalOrderBooking,
@@ -139,7 +139,13 @@ export const createAndHandlePaidCheckout = async <T>(
 const paidCheckoutBookingsOrNull = async (
   intent: CheckoutIntent,
 ): Promise<CanonicalOrderBooking[] | null> => {
-  const listingIds = [...new Set(intent.items.map((item) => item.listingId))];
+  const listingIds = [
+    ...new Set(
+      map((item: CheckoutIntent["items"][number]) => item.listingId)(
+        intent.items,
+      ),
+    ),
+  ];
   const listings = await getListingsWithCountsByIds(listingIds);
   const listingById = mapById(identity<(typeof listings)[number]>)(listings);
   if (listingById.size !== listingIds.length) {

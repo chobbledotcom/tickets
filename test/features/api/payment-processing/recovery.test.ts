@@ -13,6 +13,7 @@ import { getDb, queryAll } from "#shared/db/client.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -160,7 +161,10 @@ describeWithEnv(
       expect(
         (await reserveSession("refunding-processing-error")).reserved,
       ).toBe(true);
-      await beginCheckoutStageRefund("refunding-processing-error");
+      await beginCheckoutStageRefund(
+        "refunding-processing-error",
+        testCheckoutRefund(),
+      );
       await expect(
         recoverOrRefundUnexpectedProcessing(
           "refunding-processing-error",
@@ -174,6 +178,21 @@ describeWithEnv(
           ["refunding-processing-error"],
         ),
       ).toEqual([]);
+    });
+
+    test("rejects a refunding stage without its stored reason", async () => {
+      const facts = await recoveryFacts("refunding-without-reason");
+      await stageSession("refunding-without-reason", facts.intent);
+      await getDb().execute(
+        "UPDATE checkout_stages SET state = 'refunding' WHERE payment_session_id = ?",
+        ["refunding-without-reason"],
+      );
+
+      await expect(
+        processPaymentSession("refunding-without-reason", facts.data),
+      ).rejects.toThrow(
+        "Refunding checkout stage refunding-without-reason has no reason",
+      );
     });
 
     test("refunds a pending stage after an unexpected processing error", async () => {

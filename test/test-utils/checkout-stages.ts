@@ -1,5 +1,17 @@
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb, insert } from "#shared/db/client.ts";
+import type {
+  RefundCode,
+  StoredCheckoutRefund,
+} from "#shared/refund-reasons.ts";
+
+export const testCheckoutRefund = (
+  code: RefundCode = "unexpected_error",
+): StoredCheckoutRefund => ({
+  code,
+  detail: "Test checkout refund",
+  reason: "a test checkout could not be completed",
+});
 
 /** Insert a dormant checkout stage for cleanup-path tests. */
 export const insertCheckoutStage = async (

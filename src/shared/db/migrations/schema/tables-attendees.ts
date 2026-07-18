@@ -169,6 +169,7 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["provider", "TEXT NOT NULL"],
         ["provider_checkout_id", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL"],
+        ["refund_spec", "TEXT NOT NULL DEFAULT ''"],
         ["state", "TEXT NOT NULL CHECK (state IN ('pending', 'refunding'))"],
         ["created_at", "TEXT NOT NULL"],
       ],

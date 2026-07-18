@@ -307,6 +307,26 @@ describeStripe("stripe", () => {
         },
       );
     });
+
+    test("reuses one idempotency key when a refund is retried", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.refunds, "create", () =>
+            Promise.resolve({ id: "re_retry", status: "pending" } as never),
+          ),
+        async (refundSpy) => {
+          await refundPayment("pi_retry");
+          await refundPayment("pi_retry");
+          const keys = refundSpy.calls.map(
+            (call) =>
+              (call.args[1] as { idempotencyKey: string }).idempotencyKey,
+          );
+          expect(keys[0]).toMatch(/^[A-Za-z0-9_-]{43}$/);
+          expect(keys[1]).toBe(keys[0]);
+        },
+      );
+    });
   });
 
   describe("verifyWebhookSignature", () => {

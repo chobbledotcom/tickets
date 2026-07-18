@@ -4,6 +4,7 @@ import { getDb } from "#shared/db/client.ts";
 import checkoutStagesMigration from "#shared/db/migrations/2026-07-15_checkout_stages.ts";
 import dropCheckoutStageRevisionsMigration from "#shared/db/migrations/2026-07-16_drop_checkout_stage_revisions.ts";
 import checkoutStageProviderIdMigration from "#shared/db/migrations/2026-07-17_checkout_stage_provider_id.ts";
+import checkoutStageRefundSpecMigration from "#shared/db/migrations/2026-07-18_checkout_stage_refund_spec.ts";
 import {
   applySchemaChanges,
   recreateTable,
@@ -100,6 +101,14 @@ describeWithEnv(
         },
         {
           cid: 5,
+          dflt_value: "''",
+          name: "refund_spec",
+          notnull: 1,
+          pk: 0,
+          type: "TEXT",
+        },
+        {
+          cid: 6,
           dflt_value: null,
           name: "state",
           notnull: 1,
@@ -107,7 +116,7 @@ describeWithEnv(
           type: "TEXT",
         },
         {
-          cid: 6,
+          cid: 7,
           dflt_value: null,
           name: "created_at",
           notnull: 1,
@@ -193,6 +202,26 @@ describeWithEnv(
         "SELECT payment_session_id FROM checkout_stages",
       );
       expect(rows.rows).toEqual([]);
+    });
+
+    test("the refund-spec migration adds storage for a pending refund reason", async () => {
+      await getDb().execute(
+        "ALTER TABLE checkout_stages DROP COLUMN refund_spec",
+      );
+      const migration = checkoutStageRefundSpecMigration(context);
+      expect(migration.requires).toEqual({
+        columns: { checkout_stages: ["refund_spec"] },
+      });
+
+      await migration.up();
+      await migration.verify();
+
+      const columns = await getDb().execute(
+        "PRAGMA table_info(checkout_stages)",
+      );
+      expect(
+        columns.rows.find((row) => row.name === "refund_spec"),
+      ).toMatchObject({ dflt_value: "''", notnull: 1, type: "TEXT" });
     });
 
     for (const state of ["booked", "failed", "unknown"]) {

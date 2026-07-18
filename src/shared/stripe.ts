@@ -22,6 +22,7 @@ import {
   type SignedTestWebhook,
   signedTestWebhook,
 } from "#shared/payment-helpers.ts";
+import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type {
   CheckoutCloseResult,
   CheckoutIntent,
@@ -483,7 +484,11 @@ export const stripeApi: {
   /** Refund a payment */
   refundPayment: (intentId: string): Promise<Stripe.Refund | null> =>
     withClient(
-      (s) => s.refunds.create({ payment_intent: intentId }),
+      async (s) =>
+        s.refunds.create(
+          { payment_intent: intentId },
+          { idempotencyKey: await refundIdempotencyKey("stripe", intentId) },
+        ),
       ErrorCode.STRIPE_REFUND,
     ),
 

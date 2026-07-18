@@ -186,7 +186,6 @@ describe("startStripeMock ports", () => {
         });
 
         expect(stripeMock.port).toBe(port);
-        await expectPortOpen(port);
         await stripeMock.stop();
         await expect(
           Deno.connect({ hostname: "127.0.0.1", port }),

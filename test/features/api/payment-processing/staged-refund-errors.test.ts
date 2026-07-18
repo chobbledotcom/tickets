@@ -16,6 +16,7 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -85,7 +86,7 @@ describeWithEnv(
       const intent = intentFor(listing.id);
       const attendeeId = await stageSession("lost-refund-claim", intent);
       expect((await reserveSession("lost-refund-claim")).reserved).toBe(true);
-      await beginCheckoutStageRefund("lost-refund-claim");
+      await beginCheckoutStageRefund("lost-refund-claim", testCheckoutRefund());
       const stage =
         await loadCheckoutStageByPaymentSession("lost-refund-claim");
       if (!stage) throw new Error("Expected refunding stage");

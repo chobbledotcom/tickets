@@ -103,6 +103,7 @@ const preparationResult = (options: {
       paymentSessionId: session.id,
       provider: "stripe",
       providerCheckoutId: session.id,
+      refund: null,
       state: "pending",
       ticketToken: "stable-ticket-token",
     },

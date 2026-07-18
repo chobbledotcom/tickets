@@ -12,7 +12,6 @@
 
 /* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { toBase64Url } from "#shared/crypto/utils.ts";
 import { settings } from "#shared/db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { fetchText } from "#shared/fetch.ts";
@@ -31,6 +30,7 @@ import {
   type SignedTestWebhook,
   signedTestWebhook,
 } from "#shared/payment-helpers.ts";
+import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type {
   CheckoutCloseResult,
   CheckoutIntent,
@@ -166,18 +166,6 @@ const SQUARE_BASE_URL = {
 /** JSON.stringify with BigInt → Number conversion for Square money fields */
 const jsonStringify = (obj: unknown): string =>
   JSON.stringify(obj, (_, v) => (typeof v === "bigint" ? Number(v) : v));
-
-/** Square limits refund idempotency keys to 45 characters. A SHA-256 digest in
- * unpadded base64url is 43 and stays stable for every retry of one payment. */
-const squareRefundIdempotencyKey = async (
-  paymentId: string,
-): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(`square-refund:${paymentId}`),
-  );
-  return toBase64Url(new Uint8Array(digest));
-};
 
 /** Optional method and JSON body for one Square REST call (GET, no body, when
  * omitted). Shared by {@link squareRequestInit} and the fetch built on it. */
@@ -713,7 +701,7 @@ export const squareApi: {
           amount: payment.amountMoney!.amount,
           currency: payment.amountMoney!.currency as string,
         },
-        idempotencyKey: await squareRefundIdempotencyKey(paymentId),
+        idempotencyKey: await refundIdempotencyKey("square", paymentId),
         paymentId,
       });
       const refund = response.refund;
@@ -779,10 +767,12 @@ export const squareApi: {
         },
         id: payment.id,
         orderId: payment.orderId,
-        refundedMoney: {
-          amount: payment.refundedMoney?.amount as bigint | undefined,
-          currency: payment.refundedMoney?.currency as string | undefined,
-        },
+        refundedMoney: payment.refundedMoney
+          ? {
+              amount: payment.refundedMoney.amount as bigint | undefined,
+              currency: payment.refundedMoney.currency as string | undefined,
+            }
+          : undefined,
         status: payment.status,
       };
     }, ErrorCode.SQUARE_SESSION),

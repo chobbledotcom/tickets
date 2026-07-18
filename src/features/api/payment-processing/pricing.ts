@@ -7,10 +7,7 @@
  */
 
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
-import {
-  type RefundSpec,
-  refundSpec,
-} from "#routes/api/payment-processing/refunds.ts";
+import { refundSpec } from "#routes/api/payment-processing/refunds.ts";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
@@ -20,6 +17,7 @@ import type {
   CheckoutItem,
   ModifierSpec,
 } from "#shared/payments.ts";
+import type { RefundSpec } from "#shared/refund-reasons.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 /** Check if the amount charged matches the current listing price (including booking fee).

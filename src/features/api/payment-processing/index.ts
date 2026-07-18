@@ -137,13 +137,10 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
     );
   }
   if (stage.state === "refunding") {
-    return refundStagedBooking(
-      session,
-      signedListingId,
-      refundSpec("unexpected_error")(
-        `Continuing refund for session ${sessionId}`,
-      ),
-    );
+    if (!stage.refund) {
+      throw new Error(`Refunding checkout stage ${sessionId} has no reason`);
+    }
+    return refundStagedBooking(session, signedListingId, stage.refund);
   }
 
   // Phase 2: Validate listings.

@@ -12,6 +12,7 @@ import { DatabaseBusyError, getDb, queryAll } from "#shared/db/client.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -187,6 +188,45 @@ describeWithEnv("payment processing > staged refunds", { db: true }, () => {
 
       await completeRefund("refund-pending", intent);
       expect(attempt).toBe(2);
+    } finally {
+      refund.restore();
+    }
+  });
+
+  test("keeps the original capacity refund reason after a pending retry", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 1,
+      unitPrice: 1000,
+    });
+    const intent = intentFor(listing.id);
+    await stageSession("refund-reason", intent);
+    await bookTestAttendee(
+      [listing.id],
+      "Capacity winner",
+      "winner@example.com",
+    );
+    let attempt = 0;
+    const refund = stub(stripePaymentProvider, "refundPayment", () =>
+      Promise.resolve(++attempt === 1 ? "pending" : "refunded"),
+    );
+    try {
+      expect(
+        await processPaymentSession(
+          "refund-reason",
+          paidSession("refund-reason", intent),
+        ),
+      ).toMatchObject({ refundStatus: "pending" });
+      await processPaymentSession(
+        "refund-reason",
+        paidSession("refund-reason", intent),
+      );
+      expect(
+        await queryAll(
+          "SELECT memo FROM transfers WHERE kind = 'refund_cash'",
+          [],
+        ),
+      ).toEqual([{ memo: "capacity_full" }]);
     } finally {
       refund.restore();
     }

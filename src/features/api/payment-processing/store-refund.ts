@@ -14,8 +14,6 @@ import {
 } from "#routes/api/payment-processing/create.ts";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import {
-  type RefundCode,
-  type RefundSpec,
   refundAndFail,
   refundSpec,
   tryRefund,
@@ -38,6 +36,11 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { stagedRefundLegs } from "#shared/refund-ledger.ts";
+import {
+  type RefundCode,
+  type RefundSpec,
+  storedCheckoutRefund,
+} from "#shared/refund-reasons.ts";
 
 /* jscpd:ignore-end */
 
@@ -120,7 +123,7 @@ export const refundStagedBooking = async (
   const stage = await loadCheckoutStageByPaymentSession(session.id);
   if (!stage) throw new Error(`Checkout stage ${session.id} is missing`);
   if (stage.state === "pending") {
-    await beginCheckoutStageRefund(session.id);
+    await beginCheckoutStageRefund(session.id, storedCheckoutRefund(spec));
   }
   const refundStatus = await tryRefund(session.paymentReference, listingId);
   if (refundStatus !== "refunded") {
@@ -157,7 +160,11 @@ export const refundStagedBooking = async (
       spec.code,
     ),
     paymentReference: session.paymentReference,
-    stage: { ...stage, state: "refunding" },
+    stage: {
+      ...stage,
+      refund: stage.refund ?? storedCheckoutRefund(spec),
+      state: "refunding",
+    },
   });
   await logActivity(
     `Automatic refund (${spec.code}); staged booking removed`,

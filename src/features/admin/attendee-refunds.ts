@@ -132,6 +132,9 @@ const handleAttendeeRefund = verifiedAttendeeAction(
       { attendee: data.attendee, references },
       listingId,
     );
+    if (refunded.outcome === "pending") {
+      return refundError(attendeeId, t("error.refund_pending"), returnUrl);
+    }
     if (refunded.outcome !== "refunded") {
       return refundError(attendeeId, t("error.refund_failed"), returnUrl);
     }

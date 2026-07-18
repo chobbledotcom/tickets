@@ -47,6 +47,7 @@ const completedPaymentForOrder = (
 ): CompletedSquarePayment | null => {
   const amount = payment.amountMoney?.amount;
   const currency = payment.amountMoney?.currency;
+  const refunded = payment.refundedMoney;
   if (
     payment.id !== paymentId ||
     payment.status !== "COMPLETED" ||
@@ -55,7 +56,11 @@ const completedPaymentForOrder = (
     !currency ||
     currency !== order.totalMoney.currency ||
     amount < BigInt(0) ||
-    amount > BigInt(Number.MAX_SAFE_INTEGER)
+    amount > BigInt(Number.MAX_SAFE_INTEGER) ||
+    (refunded !== undefined &&
+      (typeof refunded.amount !== "bigint" ||
+        refunded.amount !== BigInt(0) ||
+        refunded.currency !== currency))
   ) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,

@@ -362,6 +362,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-17_checkout_stage_provider_id",
     () => import("./2026-07-17_checkout_stage_provider_id.ts"),
   ),
+  // Keep the original reason while a provider refund is still processing.
+  entry(
+    "2026-07-18_checkout_stage_refund_spec",
+    () => import("./2026-07-18_checkout_stage_refund_spec.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

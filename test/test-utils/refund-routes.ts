@@ -1,6 +1,6 @@
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { paymentsApi } from "#shared/payments.ts";
+import { type PaymentRefundResult, paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import {
@@ -24,21 +24,21 @@ type RefundRouteCtx = {
 };
 
 type RefundCheck = (mockRefund: Stub) => Promise<void> | void;
-type RefundBehavior = boolean | ((reference: string) => Promise<boolean>);
+type ProviderRefundBehavior =
+  | PaymentRefundResult
+  | boolean
+  | ((reference: string) => Promise<boolean | PaymentRefundResult>);
 type RefundMockOptions = {
-  alreadyRefunded?: RefundBehavior;
+  alreadyRefunded?: boolean;
 };
 
-const refundResult = (
-  behavior: RefundBehavior,
-): ((reference: string) => Promise<boolean>) =>
-  typeof behavior === "function" ? behavior : () => Promise.resolve(behavior);
-
-const providerRefundResult = (behavior: RefundBehavior) => {
-  const result = refundResult(behavior);
-  return async (reference: string) =>
-    (await result(reference)) ? ("refunded" as const) : ("failed" as const);
-};
+const providerRefundResult =
+  (behavior: ProviderRefundBehavior) =>
+  async (reference: string): Promise<PaymentRefundResult> => {
+    const value =
+      typeof behavior === "function" ? await behavior(reference) : behavior;
+    return typeof value === "boolean" ? (value ? "refunded" : "failed") : value;
+  };
 
 /** POST the refund-all confirmation form for a listing as the owner. */
 export const postRefundAll = async (listing: {
@@ -139,7 +139,7 @@ export const withRefreshPaymentProbe = async <T>(
 };
 
 export const withRefundMock = async (
-  refundBehavior: RefundBehavior,
+  refundBehavior: ProviderRefundBehavior,
   fn: (mockRefund: Stub) => Promise<void>,
   options: RefundMockOptions = {},
 ) => {
@@ -149,10 +149,8 @@ export const withRefundMock = async (
       "refundPayment",
       providerRefundResult(refundBehavior),
     );
-    const mockRefunded = stub(
-      provider,
-      "isPaymentRefunded",
-      refundResult(options.alreadyRefunded ?? false),
+    const mockRefunded = stub(provider, "isPaymentRefunded", () =>
+      Promise.resolve(options.alreadyRefunded ?? false),
     );
     try {
       await fn(mockRefund);

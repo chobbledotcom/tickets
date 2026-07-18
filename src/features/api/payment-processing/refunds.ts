@@ -27,6 +27,7 @@ import type {
 } from "#shared/payments.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import type { RefundCode, RefundSpec } from "#shared/refund-reasons.ts";
 
 /* jscpd:ignore-end */
 
@@ -193,15 +194,6 @@ export const refuseMismatch = (
  * operator-facing phrase; `detail` is the internal log line (ids/prices, never
  * PII); `notify` optionally pages an alert.
  */
-export type RefundSpec = {
-  code: string;
-  reason: string;
-  detail: string;
-  error?: string;
-  notify?: ErrorCodeType;
-  status?: number | undefined;
-};
-
 /**
  * Every reason we keep-and-refund a signed booking, as one table: the
  * operator-facing reason, plus (where the failure means a broken promise rather
@@ -229,9 +221,10 @@ const REFUND_REASONS = {
     notify: ErrorCode.PAYMENT_SESSION,
     reason: "an unexpected error stopped the booking being completed",
   },
-} as const satisfies Record<string, { reason: string; notify?: ErrorCodeType }>;
-
-export type RefundCode = keyof typeof REFUND_REASONS;
+} as const satisfies Record<
+  RefundCode,
+  { reason: string; notify?: ErrorCodeType }
+>;
 
 /** Build the RefundSpec for a reason code: the table supplies the note phrase
  *  and any alert, the caller supplies the internal log line (ids/prices, never

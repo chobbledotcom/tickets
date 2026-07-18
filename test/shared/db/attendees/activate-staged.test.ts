@@ -13,6 +13,7 @@ import { getDb } from "#shared/db/client.ts";
 import { getVisits, hashEmail } from "#shared/db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -43,7 +44,7 @@ describeWithEnv("db > staged attendee activation", { db: true }, () => {
       ticketToken: "ticket-stage_lookup",
     });
 
-    await beginCheckoutStageRefund("stage_lookup");
+    await beginCheckoutStageRefund("stage_lookup", testCheckoutRefund());
 
     expect(
       await loadCheckoutStageByPaymentSession("stage_lookup"),

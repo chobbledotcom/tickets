@@ -256,6 +256,19 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
+    test("shows that an accepted refund is still processing", async () => {
+      const ctx = await setupRefundTest("pi_test_pending");
+
+      await withRefundMock("pending", async () => {
+        const response = await submitRefund(ctx);
+        await expectFlashRedirect(
+          `/admin/attendees/${ctx.attendee.id}/refund`,
+          expect.stringContaining("Refund is still being processed"),
+          false,
+        )(response);
+      });
+    });
+
     test("surfaces a provider refund the ledger could not record", async () => {
       // The booking predates the ledger, so the provider refund succeeds but the
       // reversal finds no clean order to post — refund status is ledger-only now,

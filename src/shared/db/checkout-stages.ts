@@ -19,6 +19,10 @@ import {
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
 import {
+  type StoredCheckoutRefund,
+  StoredCheckoutRefundSchema,
+} from "#shared/refund-reasons.ts";
+import {
   PaymentProviderSchema,
   type PaymentProviderType,
 } from "#shared/types.ts";
@@ -33,6 +37,7 @@ const CheckoutStageRowSchema = v.object({
   payment_session_id: v.string(),
   provider: PaymentProviderSchema,
   provider_checkout_id: v.string(),
+  refund_spec: v.string(),
   state: CheckoutStageStateSchema,
   ticket_tokens: v.string(),
 });
@@ -43,11 +48,15 @@ export type CheckoutStage = {
   paymentSessionId: string;
   provider: PaymentProviderType;
   providerCheckoutId: string;
+  refund: StoredCheckoutRefund | null;
   state: CheckoutStageState;
   ticketToken: string;
 };
 
-export type CheckoutStageCleanup = Omit<CheckoutStage, "ticketToken">;
+export type CheckoutStageCleanup = Omit<
+  CheckoutStage,
+  "refund" | "ticketToken"
+>;
 
 export type PendingCheckoutStage = {
   paymentSessionId: string;
@@ -83,16 +92,26 @@ export const claimCheckoutStagePayment = (
     },
   ]);
 
-const checkoutStage = (
+const checkoutStage = async (
   row: v.InferOutput<typeof CheckoutStageRowSchema>,
   ticketToken: string,
-): CheckoutStage => ({
+): Promise<CheckoutStage> => ({
   ...checkoutStageWithoutToken(row),
+  refund:
+    row.refund_spec === ""
+      ? null
+      : v.parse(
+          StoredCheckoutRefundSchema,
+          JSON.parse(await decrypt(row.refund_spec as EnvKeyEncrypted)),
+        ),
   ticketToken,
 });
 
 const checkoutStageWithoutToken = (
-  row: Omit<v.InferOutput<typeof CheckoutStageRowSchema>, "ticket_tokens">,
+  row: Omit<
+    v.InferOutput<typeof CheckoutStageRowSchema>,
+    "refund_spec" | "ticket_tokens"
+  >,
 ): CheckoutStageCleanup => ({
   attendeeId: row.attendee_id,
   createdAt: row.created_at,
@@ -114,12 +133,13 @@ export const pendingCheckoutStageInsert = async (
     stage.provider,
     stage.providerCheckoutId,
     await encrypt(ticketToken),
+    "",
     "pending",
     nowIso(),
   ],
   sql: `INSERT INTO checkout_stages
-          (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, state, created_at)
-        VALUES (?, ${attendeeIdSql}, ?, ?, ?, ?, ?)`,
+          (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, refund_spec, state, created_at)
+        VALUES (?, ${attendeeIdSql}, ?, ?, ?, ?, ?, ?)`,
 });
 
 /** Find one stage only when the session, attendee, and plaintext token all match. */
@@ -131,7 +151,8 @@ export const findCheckoutStage = async (
   const raw = await queryOnePrimary<unknown>(
     `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
             checkout_stage.provider, checkout_stage.provider_checkout_id,
-            checkout_stage.ticket_tokens, checkout_stage.state,
+            checkout_stage.ticket_tokens, checkout_stage.refund_spec,
+            checkout_stage.state,
             checkout_stage.created_at
        FROM checkout_stages AS checkout_stage
       WHERE checkout_stage.payment_session_id = ?
@@ -170,7 +191,10 @@ export const selectOldPendingCheckoutStages = async (
     [createdBefore, CHECKOUT_STAGE_CLEANUP_LIMIT],
   );
   return rows.map((raw) => {
-    const row = v.parse(v.omit(CheckoutStageRowSchema, ["ticket_tokens"]), raw);
+    const row = v.parse(
+      v.omit(CheckoutStageRowSchema, ["refund_spec", "ticket_tokens"]),
+      raw,
+    );
     return checkoutStageWithoutToken(row);
   });
 };
@@ -209,7 +233,8 @@ export const loadCheckoutStageByPaymentSession = async (
   const row = await queryOnePrimary<unknown>(
     `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
             checkout_stage.provider, checkout_stage.provider_checkout_id,
-            checkout_stage.ticket_tokens, checkout_stage.state,
+            checkout_stage.ticket_tokens, checkout_stage.refund_spec,
+            checkout_stage.state,
             checkout_stage.created_at
        FROM checkout_stages AS checkout_stage
       WHERE checkout_stage.payment_session_id = ?`,
@@ -221,11 +246,13 @@ export const loadCheckoutStageByPaymentSession = async (
 /** Permanently route a pending stage toward refunding instead of activation. */
 export const beginCheckoutStageRefund = async (
   paymentSessionId: string,
+  refund: StoredCheckoutRefund,
 ): Promise<void> => {
+  const encryptedRefund = await encrypt(JSON.stringify(refund));
   const result = await execute(
-    `UPDATE checkout_stages SET state = 'refunding'
+    `UPDATE checkout_stages SET state = 'refunding', refund_spec = ?
       WHERE payment_session_id = ? AND state = 'pending'`,
-    [paymentSessionId],
+    [encryptedRefund, paymentSessionId],
   );
   if (result.rowsAffected !== 1) {
     throw new Error(

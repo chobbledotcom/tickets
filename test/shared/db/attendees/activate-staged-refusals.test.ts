@@ -9,6 +9,7 @@ import {
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -143,9 +144,9 @@ describeWithEnv(
       ).rejects.toThrow(
         "Payment session activate_missing_claim was not claimed",
       );
-      await expect(beginCheckoutStageRefund("missing-stage")).rejects.toThrow(
-        "Checkout stage missing-stage did not enter refunding",
-      );
+      await expect(
+        beginCheckoutStageRefund("missing-stage", testCheckoutRefund()),
+      ).rejects.toThrow("Checkout stage missing-stage did not enter refunding");
     });
 
     test("throws and rolls back when the stage is already refunding", async () => {
@@ -153,7 +154,10 @@ describeWithEnv(
       const setup = await setupActivationStage("activate_refunding", [
         activationBooking(listing.id),
       ]);
-      await beginCheckoutStageRefund("activate_refunding");
+      await beginCheckoutStageRefund(
+        "activate_refunding",
+        testCheckoutRefund(),
+      );
 
       await expect(
         activateStagedAttendee(setup.stage, setup.input, setup.plan),

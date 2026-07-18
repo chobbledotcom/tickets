@@ -38,12 +38,14 @@ const sessionMocks = ({
   metadata = ORDER_META,
   orderId,
   paymentId,
+  refundedMoney,
   status,
 }: {
   createdAt?: string;
   metadata?: typeof ORDER_META;
   orderId: string;
   paymentId: string;
+  refundedMoney?: NonNullable<SquarePayment>["refundedMoney"];
   status: string;
 }) => ({
   order: stub(squareApi, "retrieveOrder", () =>
@@ -61,6 +63,7 @@ const sessionMocks = ({
       amountMoney: money(1000),
       id: paymentId,
       orderId,
+      ...(refundedMoney ? { refundedMoney } : {}),
       status,
     }),
   ),
@@ -188,6 +191,30 @@ describe("square-provider", () => {
         },
       );
     });
+
+    for (const [label, refundedMoney, paymentStatus] of [
+      ["partially refunded", money(400), "unpaid"],
+      ["refunded in another currency", money(0, "EUR"), "unpaid"],
+      ["missing refunded amount", { currency: "GBP" }, "unpaid"],
+      ["not refunded", money(0), "paid"],
+    ] as const) {
+      test(`returns ${paymentStatus} when a completed payment is ${label}`, async () => {
+        await withMocks(
+          () =>
+            sessionMocks({
+              orderId: `order_${label}`,
+              paymentId: `pay_${label}`,
+              refundedMoney,
+              status: "COMPLETED",
+            }),
+          async () => {
+            expect(
+              await squarePaymentProvider.retrieveSession(`order_${label}`),
+            ).toMatchObject({ paymentStatus });
+          },
+        );
+      });
+    }
 
     test("returns unpaid when order state is OPEN and payment is not COMPLETED", async () => {
       await withMocks(
