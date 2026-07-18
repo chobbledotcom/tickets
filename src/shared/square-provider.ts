@@ -116,7 +116,12 @@ export const squarePaymentProvider: PaymentProvider = {
       typeof payment.order_id === "string" ? payment.order_id : null;
     const paymentId = typeof payment.id === "string" ? payment.id : null;
 
-    if (!orderId || !paymentId) return Promise.resolve(null);
+    if (!orderId || !paymentId) {
+      if (listing.type.startsWith("payment.")) {
+        throw new Error("Square payment webhook is missing order_id or id");
+      }
+      return null;
+    }
 
     // Skip non-completed payments to avoid unnecessary API calls
     if (typeof payment.status === "string" && payment.status !== "COMPLETED") {

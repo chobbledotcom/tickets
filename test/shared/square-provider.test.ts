@@ -512,43 +512,49 @@ describe("square-provider", () => {
       expect(result).toBe("skip");
     });
 
-    test("returns null when no order_id or id found", async () => {
-      const result = await squarePaymentProvider.resolveWebhookSession({
-        data: {
-          object: {
-            payment: {
-              status: "COMPLETED",
-            },
-          },
-        },
-        id: "evt_no_id",
-        type: "payment.updated",
-      });
-      expect(result).toBeNull();
-    });
-
-    test("does not mistake a payment id for a missing order id", async () => {
-      await withMocks(
-        () => ({
-          order: stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
-        }),
-        async (mocks) => {
-          const result = await squarePaymentProvider.resolveWebhookSession({
-            data: {
-              object: {
-                payment: {
-                  id: "pay_fallback_id",
-                  status: "COMPLETED",
-                },
+    test("rejects a payment event without its required identifiers", async () => {
+      await expect(
+        squarePaymentProvider.resolveWebhookSession({
+          data: {
+            object: {
+              payment: {
+                status: "COMPLETED",
               },
             },
-            id: "evt_no_order",
-            type: "payment.updated",
-          });
-          expect(mocks.order.calls).toEqual([]);
-          expect(result).toBeNull();
-        },
-      );
+          },
+          id: "evt_no_id",
+          type: "payment.updated",
+        }),
+      ).rejects.toThrow("Square payment webhook is missing order_id or id");
+    });
+
+    test("rejects a payment id without its order id", async () => {
+      await expect(
+        squarePaymentProvider.resolveWebhookSession({
+          data: {
+            object: {
+              payment: {
+                id: "pay_fallback_id",
+                status: "COMPLETED",
+              },
+            },
+          },
+          id: "evt_no_order",
+          type: "payment.updated",
+        }),
+      ).rejects.toThrow("Square payment webhook is missing order_id or id");
+    });
+
+    test("ignores an unrelated event without payment identifiers", async () => {
+      expect(
+        await squarePaymentProvider.resolveWebhookSession({
+          data: {
+            object: {},
+          },
+          id: "evt_refund",
+          type: "refund.updated",
+        }),
+      ).toBeNull();
     });
 
     test("returns skip when order exists but has no metadata", async () => {
