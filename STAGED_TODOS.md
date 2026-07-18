@@ -49,6 +49,15 @@ and test files are being reorganised during mutation hardening.
 - [ ] Keep SumUp checkout metadata for as long as a live stage references it.
   General metadata pruning must not remove the information needed to inspect or
   refund a pending or refunding stage.
+- [ ] Do not offer a new checkout while provider closure is unresolved. A cancel
+  request whose close attempt fails must keep the old session payable without
+  showing a retry action that can create a second live checkout.
+- [ ] Replay a terminal local Square result before interpreting the provider's
+  current refund fields. A refund update or refreshed success URL must return
+  the stored result instead of treating the original payment as unpaid.
+- [ ] Acknowledge Square payment events that do not belong to a ticket order.
+  An active account can receive `payment.updated` events with no `order_id`;
+  classify those as unrelated work and return the normal successful receipt.
 
 ### Queue progress and limits
 
