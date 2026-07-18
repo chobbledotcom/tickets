@@ -10,7 +10,7 @@ import {
 import type { KeyEncrypted, PasswordHash } from "#shared/crypto/sealed.ts";
 import { getAttendee } from "#shared/db/attendees/queries.ts";
 import { getDb, insert } from "#shared/db/client.ts";
-import { loginLimiter } from "#shared/db/login-attempts.ts";
+import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
 import { createSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
@@ -251,6 +251,18 @@ describeWithEnv("db > auth", { db: true }, () => {
 
       const limited = await loginLimiter.isLimited("192.168.1.4");
       expect(limited).toBe(true);
+    });
+
+    test("clearLoginAttempts clears attempts", async () => {
+      const ip = "192.168.1.5";
+      for (let attempt = 0; attempt < MAX_LOGIN_ATTEMPTS; attempt++) {
+        await loginLimiter.record(ip);
+      }
+      expect(await loginLimiter.isLimited(ip)).toBe(true);
+
+      await clearLoginAttempts(ip);
+
+      expect(await loginLimiter.isLimited(ip)).toBe(false);
     });
 
     test("login limiter clears expired lockout", async () => {
