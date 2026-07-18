@@ -26,6 +26,7 @@ export interface ScreenshotOptions {
   elementSelector?: string;
   names: ScreenshotName[];
   outputDir: string;
+  scenarioPath?: string;
   themes: ThemeName[];
 }
 
@@ -49,7 +50,7 @@ export const parseScreenshotOptions = (args: string[]): ScreenshotOptions => {
   const parsed = parseArgs(args, {
     alias: { o: "output", t: "theme" },
     default: { output: "screenshots", theme: "default" },
-    string: ["element", "output", "theme"],
+    string: ["element", "output", "scenario", "theme"],
   });
   if (parsed._.length > 1) {
     throw new Error(
@@ -57,10 +58,16 @@ export const parseScreenshotOptions = (args: string[]): ScreenshotOptions => {
     );
   }
   const requestedNames = String(parsed._[0] ?? "all");
+  if (parsed.scenario && parsed._.length > 0) {
+    throw new Error("A scenario cannot be combined with named screenshots.");
+  }
   return {
     ...(parsed.element ? { elementSelector: parsed.element } : {}),
-    names: selections(SCREENSHOT_NAMES, requestedNames, "screenshot"),
+    names: parsed.scenario
+      ? []
+      : selections(SCREENSHOT_NAMES, requestedNames, "screenshot"),
     outputDir: parsed.output,
+    ...(parsed.scenario ? { scenarioPath: parsed.scenario } : {}),
     themes: selections(THEME_NAMES, parsed.theme, "theme"),
   };
 };

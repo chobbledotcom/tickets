@@ -4,12 +4,20 @@ import sharp from "sharp";
 import { browserLaunchOptions } from "./browser-options.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
 import { denoCommand, removeTree, runDeno } from "./process.ts";
-import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
+import {
+  isCompactWidth,
+  isolateElementCss,
+  wasImageTrimmed,
+} from "./screenshots/checks.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
   type ThemeName,
 } from "./screenshots/options.ts";
+import {
+  loadScreenshotScenario,
+  type ScreenshotScenario,
+} from "./screenshots/scenario.ts";
 import { waitForHealthy } from "./screenshots/server.ts";
 import { findAvailablePort } from "./stripe-mock.ts";
 
@@ -19,6 +27,7 @@ const USERNAME = "screenshots";
 const PASSWORD = "screenshots-password";
 const TIMEOUT_MS = 60_000;
 const RETRY_MS = 200;
+const MOBILE_VIEWPORT = { height: 844, width: 390 };
 
 interface AppServer {
   baseUrl: string;
@@ -155,7 +164,7 @@ const submit = async (page: Page, formSelector: string): Promise<void> => {
   ]);
 };
 
-const setupApp = async (page: Page, baseUrl: string): Promise<SceneContext> => {
+const setupAdmin = async (page: Page, baseUrl: string): Promise<void> => {
   await page.goto(`${baseUrl}/setup/`);
   await page.locator('[name="admin_username"]').fill(USERNAME);
   await page.locator('[name="admin_password"]').fill(PASSWORD);
@@ -174,7 +183,10 @@ const setupApp = async (page: Page, baseUrl: string): Promise<SceneContext> => {
   await page.goto(`${baseUrl}/admin/settings`);
   await page.locator('[name="payment_provider"][value="none"]').check();
   await submit(page, 'form[action="/admin/settings/payment-provider"]');
+};
 
+const setupApp = async (page: Page, baseUrl: string): Promise<SceneContext> => {
+  await setupAdmin(page, baseUrl);
   await page.goto(`${baseUrl}/admin/seeds`);
   await page.locator('[name="listing_count"]').fill("5");
   await page.locator('[name="attendees_per_listing"]').fill("8");
@@ -241,7 +253,9 @@ const trimElementScreenshot = async (
   const padding = 32;
   const image = sharp(png);
   const source = await image.metadata();
-  if (!source.width) throw new Error("The screenshot PNG has no width.");
+  if (!source.width || !source.height) {
+    throw new Error("The screenshot PNG has no size.");
+  }
   const result = await image
     .trim({ background, threshold: 5 })
     .extend({
@@ -253,7 +267,7 @@ const trimElementScreenshot = async (
     })
     .png()
     .toFile(outputPath);
-  if (result.width === source.width + padding * 2) {
+  if (!wasImageTrimmed(source, result, padding)) {
     throw new Error("The selected screenshot element has no visible content.");
   }
 };
@@ -273,7 +287,20 @@ const capture = async (
   await scene.prepare?.(page);
   await page.waitForFunction('document.fonts.status === "loaded"');
   await scene.verify?.(page);
+  await capturePreparedPage(page, outputPath, elementSelector);
+};
+
+const capturePreparedPage = async (
+  page: Page,
+  outputPath: string,
+  elementSelector?: string,
+  fullPage = false,
+): Promise<void> => {
   if (elementSelector) {
+    const initialViewport = page.viewportSize();
+    if (!initialViewport) {
+      throw new Error("Could not read the screenshot viewport.");
+    }
     const element = page.locator(elementSelector).first();
     await element.waitFor({ state: "attached" });
     const initialBox = await element.boundingBox();
@@ -283,8 +310,10 @@ const capture = async (
       );
     }
     await page.setViewportSize({
-      height: Math.ceil(Math.max(1000, initialBox.height + 128)),
-      width: 1440,
+      height: Math.ceil(
+        Math.max(initialViewport.height, initialBox.height + 128),
+      ),
+      width: initialViewport.width,
     });
     await element.evaluate((node) =>
       Reflect.apply(Reflect.get(node, "scrollIntoView"), node, [
@@ -304,10 +333,56 @@ const capture = async (
       parseRgb(backgroundColor),
       outputPath,
     );
-    await page.setViewportSize({ height: 1000, width: 1440 });
+    await page.setViewportSize(initialViewport);
     return;
   }
-  await page.screenshot({ path: outputPath });
+  await page.screenshot({ fullPage, path: outputPath });
+};
+
+const captureScenario = async (
+  scenario: ScreenshotScenario,
+  page: Page,
+  baseUrl: string,
+  outputDir: string,
+): Promise<void> => {
+  await setupAdmin(page, baseUrl);
+  await applyTheme(
+    page,
+    baseUrl,
+    "default",
+    `${scenario.css}\n${
+      scenario.elementSelector
+        ? isolateElementCss(scenario.elementSelector)
+        : ""
+    }`,
+  );
+  await scenario.run({
+    baseUrl,
+    page,
+    submit: (formSelector) => submit(page, formSelector),
+  });
+  await page.waitForFunction('document.fonts.status === "loaded"');
+  const outputPath = join(outputDir, `${scenario.name}.png`);
+  await capturePreparedPage(
+    page,
+    outputPath,
+    scenario.elementSelector,
+    scenario.fullPage,
+  );
+  console.log(`${scenario.name}.png`);
+};
+
+const chromiumExecutable = async (): Promise<string | undefined> => {
+  const configured = Deno.env.get("CHROMIUM_EXECUTABLE");
+  if (configured) return configured;
+  const nixBrowser = "/etc/profiles/per-user/user/bin/chromium";
+  try {
+    await Deno.stat(nixBrowser);
+    return nixBrowser;
+  } catch (error) {
+    rethrowUnlessNotFound(error);
+    return;
+  }
 };
 
 const main = async (): Promise<void> => {
@@ -315,21 +390,13 @@ const main = async (): Promise<void> => {
   const options = parseScreenshotOptions(Deno.args);
   const outputDir = resolve(ROOT, options.outputDir);
   await Deno.mkdir(outputDir, { recursive: true });
+  const scenario = options.scenarioPath
+    ? await loadScreenshotScenario(resolve(ROOT, options.scenarioPath))
+    : undefined;
   const server = await startServer();
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
-    const configuredBrowser = Deno.env.get("CHROMIUM_EXECUTABLE");
-    const nixBrowser = "/etc/profiles/per-user/user/bin/chromium";
-    let nixBrowserOrUndefined: string | undefined;
-    if (!configuredBrowser) {
-      try {
-        await Deno.stat(nixBrowser);
-        nixBrowserOrUndefined = nixBrowser;
-      } catch (error) {
-        rethrowUnlessNotFound(error);
-      }
-    }
-    const executablePath = configuredBrowser ?? nixBrowserOrUndefined;
+    const executablePath = await chromiumExecutable();
     browser = await chromium.launch(
       browserLaunchOptions(true, executablePath, [
         "--disable-features=CDPScreenshotNewSurface",
@@ -340,10 +407,14 @@ const main = async (): Promise<void> => {
       colorScheme: "light",
       deviceScaleFactor: 2,
       reducedMotion: "reduce",
-      viewport: { height: 1000, width: 1440 },
+      viewport: MOBILE_VIEWPORT,
     });
     const page = await context.newPage();
     page.setDefaultTimeout(TIMEOUT_MS);
+    if (scenario) {
+      await captureScenario(scenario, page, server.baseUrl, outputDir);
+      return;
+    }
     const sceneContext = await setupApp(page, server.baseUrl);
     for (const theme of options.themes) {
       const themeDir = join(outputDir, theme);

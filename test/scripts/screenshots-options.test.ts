@@ -40,6 +40,26 @@ describe("screenshot options", () => {
     ).toEqual(THEME_NAMES);
   });
 
+  it("loads an external scenario without built-in scenes", () => {
+    expect(
+      parseScreenshotOptions([
+        "--scenario",
+        "../tickets-site/scripts/screenshots/charity-events.js",
+      ]),
+    ).toEqual({
+      names: [],
+      outputDir: "screenshots",
+      scenarioPath: "../tickets-site/scripts/screenshots/charity-events.js",
+      themes: ["default"],
+    });
+  });
+
+  it("rejects a scenario combined with a built-in scene", () => {
+    expect(() =>
+      parseScreenshotOptions(["listing", "--scenario", "charity-events.js"]),
+    ).toThrow("A scenario cannot be combined with named screenshots.");
+  });
+
   it("rejects unknown scene names", () => {
     expect(() => parseScreenshotOptions(["missing"])).toThrow(
       "Unknown screenshot: missing",
