@@ -195,7 +195,7 @@ const modifierValuesError = (values: ModifierFormValues): string | null => {
     values.calc_value,
     values.direction,
   );
-  if (valueError) return valueError;
+  if (valueError) return t(valueError);
   return values.calc_kind === "fixed" &&
     exceedsCurrencyPrecision(values.calc_value)
     ? "Amount has more decimal places than your currency allows"

@@ -229,6 +229,18 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.direction).toBe("charge");
     });
 
+    test("rejects a percentage charge with trailing junk", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_value: "150abc", direction: "charge" }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Enter a valid number",
+        false,
+      )(response);
+    });
+
     test("rejects a zero percentage discount", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",

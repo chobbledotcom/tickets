@@ -40,6 +40,13 @@ export type ModifierTrigger = v.InferOutput<typeof ModifierTriggerSchema>;
 export const ModifierScopeSchema = v.picklist(["all", "listings", "groups"]);
 export type ModifierScope = v.InferOutput<typeof ModifierScopeSchema>;
 
+export type CalcValueError =
+  | "modifiers.error.amount_positive"
+  | "modifiers.error.invalid_number"
+  | "modifiers.error.multiplier_positive"
+  | "modifiers.error.percent_positive"
+  | "modifiers.error.percent_range";
+
 /** Normalise a promo code for storage and matching: trimmed and lower-cased so
  * codes are case-insensitive. The blind index is the HMAC of this. */
 export const normalizeCode = (code: string): string =>
@@ -73,16 +80,16 @@ export const validateCalcValue = (
   kind: CalcKind,
   value: number,
   direction: ModifierDirection,
-): string | null => {
-  if (!Number.isFinite(value)) return "Enter a valid number";
+): CalcValueError | null => {
+  if (!Number.isFinite(value)) return "modifiers.error.invalid_number";
   if (kind === "percent") {
     if (value > 0 && (direction === "charge" || value <= 100)) return null;
     return direction === "charge"
-      ? "Percentage must be greater than 0"
-      : "Percentage must be greater than 0 and at most 100";
+      ? "modifiers.error.percent_positive"
+      : "modifiers.error.percent_range";
   }
   if (kind === "multiply") {
-    return value > 0 ? null : "Multiplier must be greater than 0";
+    return value > 0 ? null : "modifiers.error.multiplier_positive";
   }
-  return value > 0 ? null : "Amount must be greater than 0";
+  return value > 0 ? null : "modifiers.error.amount_positive";
 };

@@ -61,14 +61,20 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
-      await expectHtmlResponse(response, 200, 'value="50"');
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toMatch(
+        /<input(?=[^>]*name="min_subtotal")(?=[^>]*value="50")[^>]*>/,
+      );
     });
 
     test("shows the stock limit on the edit form", async () => {
       await adminFormPost("/admin/modifiers", createData({ stock: "7" }));
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
-      await expectHtmlResponse(response, 200, 'value="7"');
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toMatch(
+        /<input(?=[^>]*name="stock")(?=[^>]*value="7")[^>]*>/,
+      );
     });
 
     test("returns 404 for a missing modifier", async () => {

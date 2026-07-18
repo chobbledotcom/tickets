@@ -1,6 +1,7 @@
 /** Modifier form fields (same for create and edit — no slug). */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
 import {
   defineForm,
   type FormDefinition,
@@ -56,13 +57,13 @@ const getModifierFields = () =>
       name: "calc_value",
       // Required, so `validateSingleField` rejects empty input before `parse`
       // runs; `parse` therefore only ever sees a value the validator accepted.
-      parse: (value: string) => Number.parseFloat(value),
+      parse: (value: string) => Number(value),
       required: true,
       type: "text",
       validate: (value: string) =>
-        Number.isFinite(Number.parseFloat(value))
+        Number.isFinite(Number(value))
           ? null
-          : "Enter a valid number",
+          : t("modifiers.error.invalid_number"),
     },
     {
       defaultValue: "automatic",

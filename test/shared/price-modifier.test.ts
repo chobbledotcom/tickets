@@ -91,7 +91,7 @@ describe("modifierDelta", () => {
 describe("validateCalcValue", () => {
   test("rejects a non-finite value", () => {
     expect(validateCalcValue("fixed", Number.NaN, "charge")).toBe(
-      "Enter a valid number",
+      "modifiers.error.invalid_number",
     );
   });
 
@@ -102,7 +102,7 @@ describe("validateCalcValue", () => {
     });
 
     test("rejects zero, negative, and above-100 discounts", () => {
-      const message = "Percentage must be greater than 0 and at most 100";
+      const message = "modifiers.error.percent_range";
       expect(validateCalcValue("percent", 0, "discount")).toBe(message);
       expect(validateCalcValue("percent", -1, "discount")).toBe(message);
       expect(validateCalcValue("percent", 150, "discount")).toBe(message);
@@ -110,7 +110,7 @@ describe("validateCalcValue", () => {
 
     test("rejects exactly one past the upper boundary", () => {
       expect(validateCalcValue("percent", 101, "discount")).toBe(
-        "Percentage must be greater than 0 and at most 100",
+        "modifiers.error.percent_range",
       );
     });
 
@@ -121,7 +121,7 @@ describe("validateCalcValue", () => {
 
     test("rejects a zero charge without claiming it is capped at 100", () => {
       expect(validateCalcValue("percent", 0, "charge")).toBe(
-        "Percentage must be greater than 0",
+        "modifiers.error.percent_positive",
       );
     });
   });
@@ -137,7 +137,7 @@ describe("validateCalcValue", () => {
 
     test("rejects a non-positive factor", () => {
       expect(validateCalcValue("multiply", 0, "charge")).toBe(
-        "Multiplier must be greater than 0",
+        "modifiers.error.multiplier_positive",
       );
     });
   });
@@ -153,7 +153,7 @@ describe("validateCalcValue", () => {
 
     test("rejects a non-positive amount", () => {
       expect(validateCalcValue("fixed", 0, "charge")).toBe(
-        "Amount must be greater than 0",
+        "modifiers.error.amount_positive",
       );
     });
   });
