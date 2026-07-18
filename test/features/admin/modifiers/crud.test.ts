@@ -336,6 +336,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(html).toContain(
         `aria-current="page" class="active" href="/admin/modifiers/${id}/edit"`,
       );
+      expect(html).toContain('<a class="active" href="/admin/modifiers">');
       expect(html).toContain(`href="/admin/modifiers/${id}/actions"`);
     });
 
