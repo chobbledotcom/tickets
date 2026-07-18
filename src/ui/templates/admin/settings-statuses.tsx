@@ -20,9 +20,11 @@ import {
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { Badge } from "#templates/components/badge.tsx";
-import type { DataColumn } from "#templates/components/data-table.tsx";
+import {
+  type DataColumn,
+  reorderColumn,
+} from "#templates/components/data-table.tsx";
 import { ProseIntro } from "#templates/components/prose-heading.tsx";
-import { reorderColumn } from "#templates/components/reorder-table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */

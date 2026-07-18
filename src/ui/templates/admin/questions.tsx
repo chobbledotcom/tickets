@@ -34,20 +34,17 @@ import {
   CheckboxLabel,
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
-import { quantityHeader } from "#templates/components/header-row.tsx";
 import {
   LinkedItemsCheckboxes,
   toLinkedItemOptions,
 } from "#templates/components/linked-items.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
-  QuantityCell,
   reorderableListPage,
   reorderCountTable,
 } from "#templates/components/reorder-list.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 import { SelectField } from "#templates/components/select-field.tsx";
-import { colClass } from "#templates/components/table-columns.ts";
 import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 import {
   type ListingPanelProps,
@@ -71,7 +68,7 @@ const QUESTION_ANSWER_MOVE_ROUTES = {
 /** Listings cell for a question row: a count whose title attribute spells out
  * the assigned listing names (comma + space separated), or "All" when the
  * question is assigned to every listing. */
-const QuestionListingsCell = ({
+const questionListings = ({
   question,
   listingNames,
   totalListings,
@@ -79,16 +76,21 @@ const QuestionListingsCell = ({
   question: QuestionWithAnswers;
   listingNames: string[];
   totalListings: number;
-}): JSX.Element => {
+}): { count: number; title: string } => {
   const all = question.assign_all === true;
   const count = all ? totalListings : listingNames.length;
   const title = all ? t("questions.all_listings") : listingNames.join(", ");
-  return (
-    <td class={colClass("quantity")} title={title}>
-      {count}
-    </td>
-  );
+  return { count, title };
 };
+
+const questionListingsFor =
+  (listingNames: Map<number, string[]>, totalListings: number) =>
+  (question: QuestionWithAnswers): { count: number; title: string } =>
+    questionListings({
+      listingNames: listingNames.get(question.id) ?? [],
+      question,
+      totalListings,
+    });
 
 const QuestionListingAssignment = ({
   allListings,
@@ -160,13 +162,31 @@ export const adminQuestionsPage = (
     addFormHtml: questionTextForm.render(),
     addLabel: t("questions.add_submit"),
     basePath: "/admin/questions",
-    columns: (
-      <>
-        <th>{t("questions.question_column")}</th>
-        {quantityHeader("questions.answers_column")}
-        {quantityHeader("questions.listings_column")}
-      </>
-    ),
+    columns: [
+      {
+        cell: (question) => (
+          <a href={`/admin/questions/${question.id}`}>
+            {questionTextFlat(question.text)}
+          </a>
+        ),
+        header: t("questions.question_column"),
+      },
+      {
+        cell: (question) => question.answers.length,
+        class: "quantity",
+        header: t("questions.answers_column"),
+      },
+      {
+        cell: (question) =>
+          questionListingsFor(listingNames, totalListings)(question).count,
+        cellAttrs: (question) => ({
+          title: questionListingsFor(listingNames, totalListings)(question)
+            .title,
+        }),
+        class: "quantity",
+        header: t("questions.listings_column"),
+      },
+    ],
     emptyText: t("questions.no_questions"),
     error,
     guideHref: "/admin/guide#questions",
@@ -174,17 +194,6 @@ export const adminQuestionsPage = (
     items: questions,
     newFormId: "new-question",
     orderLabel: t("questions.order_column"),
-    rowCells: (q) => (
-      <>
-        <QuantityCell>{q.answers.length}</QuantityCell>
-        <QuestionListingsCell
-          listingNames={listingNames.get(q.id) ?? []}
-          question={q}
-          totalListings={totalListings}
-        />
-      </>
-    ),
-    rowLabel: (q) => questionTextFlat(q.text),
     session,
     title: t("questions.title"),
   });

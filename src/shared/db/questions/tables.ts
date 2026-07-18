@@ -5,6 +5,7 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import type {
   Answer,
   Question,
@@ -61,4 +62,16 @@ export const answersTable = defineTable<Answer, AnswerInput>({
     ...questionIdAndSortOrder,
     text: encryptedText,
   },
+});
+
+export const questionsOrder = defineOrderedCollection({
+  key: "id",
+  start: 1,
+  table: "questions",
+});
+
+export const answersOrder = defineOrderedCollection({
+  key: "id",
+  scope: "question_id",
+  table: "answers",
 });

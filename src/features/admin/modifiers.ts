@@ -329,11 +329,11 @@ const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
   listPath: "/admin/modifiers",
+  operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,
   renderEditError: modifierPage.renderEditError,
   renderList: adminModifiersPage,
   renderNew: adminModifierNewPage,
-  resource: getModifiersResource,
   singular: "Modifier",
 });
 

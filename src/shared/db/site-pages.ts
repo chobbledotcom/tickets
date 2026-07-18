@@ -13,17 +13,13 @@
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import {
-  queryOne,
-  resultRows,
-  type TxScope,
-  useTransaction,
-} from "#shared/db/client.ts";
+import { queryOne, type TxScope, useTransaction } from "#shared/db/client.ts";
 import {
   defineIdTable,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
+import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import {
   unclaimedSiteSlugCondition,
   updateRowWithUnclaimedSlug,
@@ -79,6 +75,11 @@ export const sitePages = cachedTable({
   table: rawSitePagesTable,
 });
 
+export const sitePageOrder = defineOrderedCollection({
+  key: "id",
+  table: "site_pages",
+});
+
 /** Every {@link SitePage} column, listed explicitly (AGENTS.md) so a future
  * column can't silently widen what the single-page reads fetch and decrypt. */
 const SITE_PAGE_COLUMNS =
@@ -128,11 +129,7 @@ export const createSitePage = async (
 ): Promise<Result<SitePage, "slugTaken">> => {
   const slugIndex = await computeSitePageSlugIndex(input.slug);
   return useTransaction(transaction, async (tx) => {
-    const res = await tx.execute({
-      args: [],
-      sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_pages",
-    });
-    const nextOrder = Number(resultRows<{ next: number }>(res)[0]!.next);
+    const nextOrder = await sitePageOrder.next({ transaction: tx });
     const row = await writeTableRow(tx, rawSitePagesTable, {
       condition: unclaimedSiteSlugCondition(slugIndex),
       input: {

@@ -330,22 +330,6 @@ export const rowExistsForIdList =
   (leadingId: number, ids: number[]): Promise<boolean> =>
     rowExists(buildSql(inPlaceholders(ids)), [leadingId, ...ids]);
 
-/**
- * The next `sort_order` for rows of `table` in one group: one past the current
- * max, or 0 when the group is empty. `table` and `groupColumn` must be trusted
- * constants, never input.
- */
-export const nextSortOrder = async (
-  table: string,
-  groupColumn: string,
-  groupId: number,
-): Promise<number> =>
-  (await queryOne<{ next_order: number }>(
-    `SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order
-       FROM ${table} WHERE ${groupColumn} = ?`,
-    [groupId],
-  ))!.next_order;
-
 /** Run a query whose single selected column is aliased `id` and return the ids. */
 export const queryIdColumn = async (
   sql: string,

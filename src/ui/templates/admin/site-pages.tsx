@@ -30,9 +30,9 @@ import {
   type DataColumn,
   DataTable,
   dataTable,
+  reorderColumn,
 } from "#templates/components/data-table.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
-import { reorderColumn } from "#templates/components/reorder-table.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */

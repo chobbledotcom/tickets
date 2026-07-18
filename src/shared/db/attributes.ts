@@ -25,6 +25,7 @@ import {
   type ListingOption,
   listingOptionProjection,
 } from "#shared/db/listings/table.ts";
+import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import {
   col,
   defineTable,
@@ -79,6 +80,18 @@ export const attributeOptionsTable = defineTable<
     sort_order: col.simple<number>(),
     text: col.encrypted(encrypt, decrypt),
   },
+});
+
+export const attributesOrder = defineOrderedCollection({
+  key: "id",
+  start: 1,
+  table: "attributes",
+});
+
+export const attributeOptionsOrder = defineOrderedCollection({
+  key: "id",
+  scope: "attribute_id",
+  table: "attribute_options",
 });
 
 export const listingAttributeOptions = linkTableSide(

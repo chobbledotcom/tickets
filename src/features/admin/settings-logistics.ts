@@ -80,10 +80,10 @@ const crud = createOwnerCrudHandlers({
   getAll: logisticsAgents.getAll,
   getName: (agent) => agent.name,
   listPath: "/admin/logistics",
+  operations: logisticsAgentsResource,
   renderDelete: logisticsAgentPages.deletePage,
   renderList: adminLogisticsPage,
   renderNew: logisticsAgentPages.newPage,
-  resource: logisticsAgentsResource,
   singular: "Logistics agent",
 });
 

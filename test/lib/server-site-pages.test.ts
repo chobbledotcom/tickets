@@ -260,6 +260,17 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect((await getSitePageById(b.id))?.slug).toBe("keep-b");
     });
 
+    test("update rejects a reserved slug", async () => {
+      await create("keep-reserved");
+      const page = await findPage("keep-reserved");
+      const { response } = await adminFormPost(`${BASE}/${page.id}/edit`, {
+        name: "Still here",
+        slug: "contact",
+      });
+      expectErrorFlash(response, "reserved");
+      expect((await getSitePageById(page.id))?.slug).toBe("keep-reserved");
+    });
+
     test("update rejects a missing name and changes nothing", async () => {
       await create("unchanged");
       const page = await findPage("unchanged");

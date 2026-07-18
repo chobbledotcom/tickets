@@ -22,11 +22,9 @@ import {
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { quantityHeader } from "#templates/components/header-row.tsx";
 import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
   itemsOrEmptyNote,
-  QuantityCell,
   reorderableListPage,
   reorderCountTable,
 } from "#templates/components/reorder-list.tsx";
@@ -55,12 +53,21 @@ export const adminAttributesPage = (
     addFormHtml: attributeNameForm.render(),
     addLabel: t("attributes.add_submit"),
     basePath: "/admin/attributes",
-    columns: (
-      <>
-        <th>{t("attributes.attribute_column")}</th>
-        {quantityHeader("attributes.options_column")}
-      </>
-    ),
+    columns: [
+      {
+        cell: (attribute) => (
+          <a href={`/admin/attributes/${attribute.id}`}>
+            {attributeNameFlat(attribute.name)}
+          </a>
+        ),
+        header: t("attributes.attribute_column"),
+      },
+      {
+        cell: (attribute) => attribute.options.length,
+        class: "quantity",
+        header: t("attributes.options_column"),
+      },
+    ],
     emptyText: t("attributes.none"),
     error,
     guideHref: "/admin/guide#listings",
@@ -68,10 +75,6 @@ export const adminAttributesPage = (
     items: attributes,
     newFormId: "new-attribute",
     orderLabel: t("attributes.order_column"),
-    rowCells: (attribute) => (
-      <QuantityCell>{attribute.options.length}</QuantityCell>
-    ),
-    rowLabel: (attribute) => attributeNameFlat(attribute.name),
     session,
     title: t("attributes.title"),
   });

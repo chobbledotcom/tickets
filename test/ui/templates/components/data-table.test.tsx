@@ -7,7 +7,11 @@ import {
   type DataColumn,
   DataTable,
   dataTable,
+  namedColumns,
+  reorderColumn,
+  reorderTable,
 } from "#templates/components/data-table.tsx";
+import { withEnv } from "#test-utils/env.ts";
 
 type Row = { id: number; name: string; amount: number };
 
@@ -25,7 +29,25 @@ const rows: Row[] = [
   { amount: 20, id: 2, name: "Second" },
 ];
 
+const reorderOptions = (titles?: { down: string; up: string }) => ({
+  action: (row: Row) => (direction: "up" | "down") =>
+    `/r/${row.id}/${direction}` as const,
+  header: "Order",
+  ...(titles === undefined ? {} : { titles }),
+});
+const renderReorderColumn = (titles?: { down: string; up: string }): string =>
+  String(dataTable<Row>([reorderColumn(reorderOptions(titles))])(rows));
+const renderReorderTable = (): string =>
+  String(reorderTable<Row>(reorderOptions(), columns, rows));
+
 describe("dataTable", () => {
+  test("builds named text columns from translation keys", () => {
+    expect(namedColumns("common.status")).toEqual([
+      { header: t("common.name") },
+      { header: t("common.status") },
+    ]);
+  });
+
   test("declares header and cells in one column order", () => {
     const html = String(dataTable(columns)(rows));
     // Header order matches the column declaration.
@@ -76,6 +98,77 @@ describe("dataTable", () => {
     ])(rows);
     String(indexed);
     expect(seen).toEqual({ count: 2, i: 1 });
+  });
+
+  test("applies row-specific attributes to a schema cell", () => {
+    const html = String(
+      dataTable<Row>([
+        {
+          cell: (row) => row.amount,
+          cellAttrs: (row) => ({ title: `${row.name} amount` }),
+          class: "amount",
+          header: "Amount",
+        },
+      ])(rows),
+    );
+    expect(html).toContain(
+      '<td class="col-amount" title="First amount">10</td>',
+    );
+    expect(html).toContain(
+      '<td class="col-amount" title="Second amount">20</td>',
+    );
+  });
+
+  test("renders a configured empty row across every schema column", () => {
+    const html = String(dataTable(columns)([], { empty: "Nothing here" }));
+    expect(html).toContain('<td colspan="2">Nothing here</td>');
+    expect(html).not.toContain("<tbody></tbody>");
+  });
+
+  test("renders reorder actions and custom titles while writable", () => {
+    using _env = withEnv({ READ_ONLY_FROM: undefined });
+    const html = renderReorderColumn({ down: "Lower", up: "Raise" });
+
+    expect(html).toContain('action="/r/1/down"');
+    expect(html).toContain('title="Lower"');
+    expect(html).toContain('action="/r/2/up"');
+    expect(html).toContain('title="Raise"');
+  });
+
+  test("omits optional reorder titles", () => {
+    using _env = withEnv({ READ_ONLY_FROM: undefined });
+    const html = renderReorderColumn();
+
+    expect(html).not.toContain(" title=");
+  });
+
+  test("removes the whole reorder column in read-only mode", () => {
+    using _env = withEnv({
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+    });
+    const html = renderReorderTable();
+
+    expect(html).not.toContain("Order");
+    expect(html).not.toContain("/down");
+    expect(html).toContain("Name");
+  });
+
+  test("renders an empty reorder cell when its column is used read-only", () => {
+    using _env = withEnv({
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+    });
+    const html = renderReorderColumn();
+
+    expect(html).toContain('<td class="col-reorder"></td>');
+    expect(html).not.toContain("/down");
+  });
+
+  test("adds the reorder column while writable", () => {
+    using _env = withEnv({ READ_ONLY_FROM: undefined });
+    const html = renderReorderTable();
+
+    expect(html).toContain("Order");
+    expect(html).toContain('action="/r/1/down"');
   });
 
   // The full serialisation for the `columns`/`rows` fixtures, parameterised by

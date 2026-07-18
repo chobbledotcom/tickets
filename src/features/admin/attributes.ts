@@ -29,7 +29,9 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import {
   type AttributeOption,
   type AttributeWithOptions,
+  attributeOptionsOrder,
   attributeOptionsTable,
+  attributesOrder,
   attributesTable,
   deleteAttribute,
   deleteAttributeOption,
@@ -42,7 +44,10 @@ import {
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
 } from "#shared/db/attributes.ts";
-import { orderedChildren, orderedRows } from "#shared/db/query.ts";
+import {
+  flatCollectionSwap,
+  scopedCollectionSwap,
+} from "#shared/db/ordered-collection.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import {
@@ -59,8 +64,6 @@ import {
 } from "./attribute-page-data.ts";
 import { createListingChoicePost } from "./listing-choice-post.ts";
 
-const attributeRows = orderedRows("attributes");
-const optionRows = orderedChildren("attribute_options", "attribute_id");
 /* jscpd:ignore-end */
 
 export const attributeNameForm = defineForm({
@@ -104,7 +107,7 @@ const handleAttributesPost = createAuthedFormRoute({
   onInvalid: ({ error }) => errorRedirect("/admin/attributes", error),
   onValid: async ({ values: { name } }) => {
     const attribute = await attributesTable.insert({ name });
-    await attributeRows.append(attribute.id);
+    await attributesOrder.append({ key: attribute.id });
     await logActivity(`Attribute '${name}' created`);
     return redirect(
       `/admin/attributes/${attribute.id}`,
@@ -194,10 +197,14 @@ const handleAddOption = createAuthedFormRoute<
   onInvalid: redirectToAttribute,
   onValid: ({ params, values: { text } }) =>
     orNotFound(getAttributeWithOptions(params.id), async (attribute) => {
-      await attributeOptionsTable.insert({
+      const option = await attributeOptionsTable.insert({
         attributeId: params.id,
-        sortOrder: await optionRows.next(params.id),
+        sortOrder: 0,
         text,
+      });
+      await attributeOptionsOrder.append({
+        key: option.id,
+        scope: params.id,
       });
       await logAttributeOptionActivity(text, "added to", attribute);
       return redirect(`/admin/attributes/${params.id}`, "Option added", true);
@@ -319,7 +326,10 @@ const optionOrder = createOrderedCollectionHandlers({
   loadContext: loadAttributeOption,
   movedMessage: "Option moved",
   redirectPath: ({ context }) => `/admin/attributes/${context.attribute.id}`,
-  swap: optionRows.swap,
+  swap: scopedCollectionSwap(
+    attributeOptionsOrder,
+    ({ context }: { context: AttributeOptionContext }) => context.attribute.id,
+  ),
   target: ({ context }) => context.option.id,
 });
 
@@ -329,7 +339,7 @@ const attributeOrder = createOrderedCollectionHandlers({
   loadContext: ({ id }: AttributeParams) => getAttributeId(id),
   movedMessage: "Attribute moved",
   redirectPath: () => "/admin/attributes",
-  swap: attributeRows.swap,
+  swap: flatCollectionSwap(attributesOrder),
   target: ({ context }) => context,
 });
 

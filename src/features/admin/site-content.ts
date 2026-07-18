@@ -5,51 +5,97 @@
  */
 
 /* jscpd:ignore-start */
-import type { FormGuard } from "#routes/admin/confirmation.ts";
-import { requireSiteOr, SITE_FORM, sitePage, withAuth } from "#routes/auth.ts";
+import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
+import {
+  requireSiteOr,
+  SITE_FORM,
+  SITE_MULTIPART,
+  sitePage,
+  withAuth,
+} from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
+import {
+  authedFormConfig,
+  createAuthedFormRoute,
+  type FormValidator,
+} from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { type TxScope, withTransaction } from "#shared/db/client.ts";
-import type { RequestRoute } from "#shared/response-steps.ts";
+import type { ParamsRoute, RequestRoute } from "#shared/response-steps.ts";
 import type { Result } from "#shared/result.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { AdminSession, ImageUseItemType } from "#shared/types.ts";
+import { createItemImageHandlers } from "./item-images.ts";
+import type { CollectionRenderers } from "./owner-crud.ts";
+
 /* jscpd:ignore-end */
-
-/** Standard list/new/edit paths for a Site-tab collection under `base`. */
-export const siteContentPaths = (
-  base: string,
-): {
-  edit: (id: number) => string;
-  list: string;
-  newPage: string;
-} => ({
-  edit: (id: number): string => `${base}/${id}/edit`,
-  list: base,
-  newPage: `${base}/new`,
-});
-
-/** Load and render a Site collection list with its success flash. */
-export const siteListPage = <T>(
-  load: () => Promise<T>,
-  render: (items: T, session: AdminSession, success?: string) => string,
-): RequestRoute =>
-  sitePage(async (session, _request, flash) =>
-    render(await load(), session, flash.success),
-  );
-
-/** The confirmed-delete auth pair every Site-tab delete flow uses. */
-export const siteConfirmAuth: {
-  requireSession: typeof requireSiteOr;
-  withForm: FormGuard<AdminSession>;
-} = {
-  requireSession: requireSiteOr,
-  withForm: (r, h) => withAuth(r, SITE_FORM, h),
-};
 
 type SavedContent = {
   flashMessage: string;
   logMessage: string;
   path: string;
+};
+
+type MaybePromise<T> = T | Promise<T>;
+
+type ContentStep<Values, Entity, Context extends [] | [Entity]> = {
+  flashMessage: string;
+  logMessage: (entity: Entity, values: Values) => string;
+  validate?: (
+    values: Values,
+    ...context: Context
+  ) => MaybePromise<Response | undefined>;
+  write: (
+    values: Values,
+    transaction: TxScope,
+    ...context: Context
+  ) => Promise<Entity | Response>;
+};
+
+type SiteContentDefinition<
+  Entity extends { id: number },
+  List,
+  CreateValues,
+  EditValues,
+> = CollectionRenderers<List> & {
+  create: ContentStep<CreateValues, Entity, []>;
+  createForm: FormValidator<CreateValues>;
+  delete: {
+    identifier: (entity: Entity) => string;
+    identifierLabel: string;
+    onConfirm: (entity: Entity) => Promise<void>;
+    render: (entity: Entity, session: AdminSession, error?: string) => string;
+    successMessage: string;
+  };
+  editForm: FormValidator<EditValues>;
+  entityPage: {
+    renderTab: (request: Request, id: number, tab: string) => Promise<Response>;
+  };
+  imageType: ImageUseItemType;
+  load: (id: number) => Promise<Entity | null>;
+  loadList: () => Promise<List>;
+  update: ContentStep<EditValues, Entity, [Entity]>;
+};
+
+type SiteContentPaths = {
+  edit: (id: number) => string;
+  list: string;
+  newPage: string;
+};
+
+type SiteContentLifecycle = {
+  create: ParamsRoute<Record<string, never>>;
+  delete: ParamsRoute<{ id: number }>;
+  deletePage: ParamsRoute<{ id: number }>;
+  entity: ParamsRoute<{ id: number }>;
+  entityTab: (
+    request: Request,
+    params: { id: number; tab: string },
+  ) => Promise<Response>;
+  images: ReturnType<typeof createItemImageHandlers>;
+  list: RequestRoute;
+  newPage: RequestRoute;
+  paths: SiteContentPaths;
+  update: ParamsRoute<{ id: number }>;
 };
 
 /** Write content and its activity row in one transaction. The callback may
@@ -83,3 +129,107 @@ export const contentWriteOrError = <T>(
     : result.error === "notFound"
       ? notFoundResponse()
       : errorRedirect(path, slugError);
+
+/** Define the standard Site content lifecycle while leaving domain validation,
+ * writes, messages, logs, tabs, and image paths with the caller. */
+export const defineSiteContent = <
+  Entity extends { id: number },
+  List,
+  CreateValues,
+  EditValues,
+>(
+  basePath: string,
+  define: (
+    paths: SiteContentPaths,
+  ) => SiteContentDefinition<Entity, List, CreateValues, EditValues>,
+): SiteContentLifecycle => {
+  const paths = {
+    edit: (id: number): string => `${basePath}/${id}/edit`,
+    list: basePath,
+    newPage: `${basePath}/new`,
+  };
+  const definition = define(paths);
+  const loadEntity = ({ id }: { id: number }): Promise<Entity | null> =>
+    definition.load(id);
+  const create = createAuthedFormRoute({
+    ...authedFormConfig(SITE_FORM, definition.createForm, () => paths.newPage),
+    onValid: async ({ values }) => {
+      const error = await definition.create.validate?.(values);
+      return error
+        ? error
+        : saveContent(
+            (transaction) => definition.create.write(values, transaction),
+            (entity) => ({
+              flashMessage: definition.create.flashMessage,
+              logMessage: definition.create.logMessage(entity, values),
+              path: paths.edit(entity.id),
+            }),
+          );
+    },
+  });
+  const update = createAuthedFormRoute({
+    ...authedFormConfig(
+      SITE_FORM,
+      definition.editForm,
+      (entity: Entity) => paths.edit(entity.id),
+      loadEntity,
+    ),
+    onValid: async ({ context: entity, values }) => {
+      const error = await definition.update.validate?.(values, entity);
+      return error
+        ? error
+        : saveContent(
+            (transaction) =>
+              definition.update.write(values, transaction, entity),
+            (saved) => ({
+              flashMessage: definition.update.flashMessage,
+              logMessage: definition.update.logMessage(saved, values),
+              path: paths.edit(saved.id),
+            }),
+          );
+    },
+  });
+  const confirmedDelete = createConfirmedHandlers<Entity, AdminSession>({
+    auth: {
+      requireSession: requireSiteOr,
+      withForm: (request, handler) => withAuth(request, SITE_FORM, handler),
+    },
+    ...definition.delete,
+    load: definition.load,
+    onConfirm: async (entity) => {
+      await definition.delete.onConfirm(entity);
+      return;
+    },
+    path: `${paths.list}/:id/delete`,
+    successRedirect: paths.list,
+  });
+  return {
+    create,
+    delete: (request, { id }) => confirmedDelete.post(request, id),
+    deletePage: (request, { id }) => confirmedDelete.get(request, id),
+    entity: (request, { id }) =>
+      definition.entityPage.renderTab(request, id, ""),
+    entityTab: (request, { id, tab }) =>
+      definition.entityPage.renderTab(request, id, tab),
+    images: createItemImageHandlers({
+      auth: { form: SITE_FORM, multipart: SITE_MULTIPART },
+      disabledPath: paths.edit,
+      itemType: definition.imageType,
+      load: definition.load,
+      nameOf: definition.delete.identifier,
+      path: (id) => `${paths.list}/${id}/images`,
+    }),
+    list: sitePage(async (session, _request, flash) =>
+      definition.renderList(
+        await definition.loadList(),
+        session,
+        flash.success,
+      ),
+    ),
+    newPage: sitePage((session, _request, flash) =>
+      definition.renderNew(session, flash.error),
+    ),
+    paths,
+    update,
+  };
+};

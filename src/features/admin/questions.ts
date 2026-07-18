@@ -41,7 +41,10 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
-import { orderedChildren, orderedRows } from "#shared/db/query.ts";
+import {
+  flatCollectionSwap,
+  scopedCollectionSwap,
+} from "#shared/db/ordered-collection.ts";
 import {
   type Answer,
   QUESTION_DISPLAY_TYPES,
@@ -67,7 +70,12 @@ import {
   listingQuestions,
   questionListings,
 } from "#shared/db/questions/queries.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import {
+  answersOrder,
+  answersTable,
+  questionsOrder,
+  questionsTable,
+} from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms/field.ts";
@@ -89,9 +97,6 @@ import { getAnswerAggregateFields } from "#templates/fields/aggregate.ts";
 
 /* jscpd:ignore-end */
 import { createListingChoicePost } from "./listing-choice-post.ts";
-
-const questionRows = orderedRows("questions");
-const answerRows = orderedChildren("answers", "question_id");
 
 export const questionTextForm = defineForm({
   fields: [
@@ -181,7 +186,7 @@ const handleQuestionsPost = createAuthedFormRoute({
       displayType,
       text,
     });
-    await questionRows.append(question.id);
+    await questionsOrder.append({ key: question.id });
     await logActivity(`Question '${text}' created`);
     return redirect(
       `/admin/questions/${question.id}`,
@@ -287,8 +292,12 @@ const handleAddAnswer = createAuthedFormRoute<
         "Free-text questions don't have answer options",
       );
     }
-    const sortOrder = await answerRows.next(params.id);
-    await answersTable.insert({ questionId: params.id, sortOrder, text });
+    const answer = await answersTable.insert({
+      questionId: params.id,
+      sortOrder: 0,
+      text,
+    });
+    await answersOrder.append({ key: answer.id, scope: params.id });
     await logActivity(`Answer '${text}' added to question ${params.id}`);
     return redirect(`/admin/questions/${params.id}`, "Answer added", true);
   },
@@ -511,7 +520,10 @@ const answerOrder = createOrderedCollectionHandlers({
   loadContext: loadQuestionAndAnswer,
   movedMessage: "Answer moved",
   redirectPath: ({ context }) => `/admin/questions/${context.question.id}`,
-  swap: answerRows.swap,
+  swap: scopedCollectionSwap(
+    answersOrder,
+    ({ context }: { context: AnswerContext }) => context.question.id,
+  ),
   target: ({ context }) => context.answer.id,
 });
 
@@ -522,7 +534,7 @@ const questionOrder = createOrderedCollectionHandlers({
   loadContext: ({ id }: QuestionIdParams) => getQuestionWithAnswers(id),
   movedMessage: "Question moved",
   redirectPath: () => "/admin/questions",
-  swap: questionRows.swap,
+  swap: flatCollectionSwap(questionsOrder),
   target: ({ context }) => context.id,
 });
 

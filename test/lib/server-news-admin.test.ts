@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import { getNewsPostById, getNewsPostCards } from "#shared/db/news-posts.ts";
 import type { NewsPost } from "#shared/types.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
@@ -12,6 +13,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestNewsPost } from "#test-utils/db-helpers/misc.ts";
+import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -101,6 +103,21 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(post.meta_title).toBe("");
       expect(post.meta_description).toBe("");
       expect(post.snippet).toBe("");
+    });
+
+    test("rolls back the post when activity logging fails", async () => {
+      await getDb().execute(`
+        CREATE TRIGGER fail_news_activity_log
+        BEFORE INSERT ON activity_log
+        BEGIN
+          SELECT RAISE(ABORT, 'activity log write failed');
+        END
+      `);
+
+      const { response } = await withExpectedError(() => create("Not saved"));
+
+      expect(response.status).toBe(503);
+      expect(await getNewsPostCards()).toEqual([]);
     });
   });
 

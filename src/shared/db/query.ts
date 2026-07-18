@@ -5,14 +5,9 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import {
   execute,
-  executeBatch,
   inPlaceholders,
-  nextSortOrder,
   queryAll,
   resultRows,
-  type TxScope,
-  update,
-  withTransaction,
 } from "#shared/db/client.ts";
 /* jscpd:ignore-end */
 
@@ -25,101 +20,6 @@ export const queryAndMap =
   <Row, Out>(toOut: (row: Row) => Promise<Out>) =>
   async (sql: string): Promise<Out[]> =>
     mapParallel(toOut)(resultRows<Row>(await execute(sql)));
-
-/**
- * Swap the `sort_order` of two rows in one write transaction, so concurrent
- * reorders serialise on the write lock instead of applying the same stale
- * snapshot and leaving two rows sharing a sort_order (there is no
- * (…, sort_order) uniqueness constraint to repair such drift). `readOrders`
- * loads the two current orders (keyed however the table identifies its rows);
- * `writeSwap` writes them crossed over. No-op when either order is missing (a
- * stale click racing a delete): binding an undefined sort_order would fail the
- * NOT NULL constraint with a 500.
- */
-export const swapSortOrders = <Row>(
-  select: { sql: string; args: InValue[] },
-  ordersFrom: (rows: Row[]) => [number | undefined, number | undefined],
-  writeSwap: (
-    tx: TxScope,
-    firstOrder: number,
-    secondOrder: number,
-  ) => Promise<void>,
-): Promise<void> =>
-  withTransaction(async (tx) => {
-    const [first, second] = ordersFrom(
-      resultRows<Row>(await tx.execute(select)),
-    );
-    if (first === undefined || second === undefined) return;
-    await writeSwap(tx, first, second);
-  });
-
-/**
- * Swap the `sort_order` of two rows (by id) in a table that has `id` and
- * `sort_order` columns. The current values are read first so callers only need
- * the two ids. `table` is always an internal constant, never user input.
- */
-export const swapSortOrder = (
-  table: string,
-  id1: number,
-  id2: number,
-): Promise<void> =>
-  swapSortOrders<{ id: number; sort_order: number }>(
-    {
-      args: [id1, id2],
-      sql: `SELECT id, sort_order FROM ${table} WHERE id IN (?, ?)`,
-    },
-    (rows) => {
-      const orderById = new Map(rows.map((r) => [r.id, r.sort_order]));
-      return [orderById.get(id1), orderById.get(id2)];
-    },
-    async (tx, order1, order2) => {
-      await tx.execute(update(table, { sort_order: order2 }, { id: id1 }));
-      await tx.execute(update(table, { sort_order: order1 }, { id: id2 }));
-    },
-  );
-
-/**
- * Give a freshly-created row the next `sort_order`: one more than the largest
- * among its siblings (always >= 1, so a new row never collides with legacy rows
- * still sat at 0). `table` is always an internal constant, never user input.
- */
-export const assignNextSortOrder = async (
-  table: string,
-  id: number,
-): Promise<void> => {
-  await executeBatch([
-    {
-      args: [id, id],
-      sql: `UPDATE ${table}
-            SET sort_order = COALESCE(
-              (SELECT MAX(sort_order) FROM ${table} WHERE id != ?), 0
-            ) + 1
-            WHERE id = ?`,
-    },
-  ]);
-};
-
-/** Bind the shared append and swap operations to one ordered table. */
-export const orderedRows = (
-  table: string,
-): {
-  append: (id: number) => Promise<void>;
-  swap: (first: number, second: number) => Promise<void>;
-} => ({
-  append: (id) => assignNextSortOrder(table, id),
-  swap: (first, second) => swapSortOrder(table, first, second),
-});
-
-/** Add parent-scoped next-order lookup to an ordered table. */
-export const orderedChildren = (
-  table: string,
-  parentField: string,
-): ReturnType<typeof orderedRows> & {
-  next: (parentId: number) => Promise<number>;
-} => ({
-  ...orderedRows(table),
-  next: (parentId) => nextSortOrder(table, parentField, parentId),
-});
 
 /** Collapse a result's rows to the set of one column's values, as strings —
  * the shared tail of the "which names/ids already exist" reads (applied

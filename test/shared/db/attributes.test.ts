@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  attributeOptionsOrder,
+  attributesOrder,
   deleteAttribute,
   deleteAttributeOption,
   getAllAttributeOptionIds,
@@ -10,7 +12,6 @@ import {
   listingAttributeOptions,
   pruneInvalidAttributeOptionIds,
 } from "#shared/db/attributes.ts";
-import { orderedChildren, orderedRows } from "#shared/db/query.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
@@ -25,9 +26,6 @@ const names = <T extends { name: string }>(items: T[]): string[] =>
 const optionTexts = <T extends { text: string }>(items: T[]): string[] =>
   items.map((item) => item.text);
 
-const attributeRows = orderedRows("attributes");
-const optionRows = orderedChildren("attribute_options", "attribute_id");
-
 describeWithEnv("db > attributes", { db: true }, () => {
   test("lists attributes and options in their display order", async () => {
     const first = await createTestAttributeWithOptions("Difficulty", [
@@ -39,8 +37,12 @@ describeWithEnv("db > attributes", { db: true }, () => {
       "In person",
     ]);
 
-    await attributeRows.swap(first.id, second.id);
-    await optionRows.swap(first.options[0]!.id, first.options[1]!.id);
+    await attributesOrder.swap({ first: first.id, second: second.id });
+    await attributeOptionsOrder.swap({
+      first: first.options[0]!.id,
+      scope: first.id,
+      second: first.options[1]!.id,
+    });
 
     const attributes = await getAllAttributesWithOptions();
     expect(names(attributes)).toEqual(["Format", "Difficulty"]);
