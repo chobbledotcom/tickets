@@ -139,6 +139,13 @@ describe("modifier fields", () => {
     });
   });
 
+  test("rejects JavaScript-only number syntax", async () => {
+    await withMessageGroups(["modifiers"], () => {
+      expect(validateWith("calc_value", "0x10")).toBe("Enter a valid number");
+      expect(validateWith("calc_value", "1e2")).toBe("Enter a valid number");
+    });
+  });
+
   test("parses a valid percentage", async () => {
     await withMessageGroups(["modifiers"], () => {
       expect(parseWith("calc_value", "150")).toBe(150);

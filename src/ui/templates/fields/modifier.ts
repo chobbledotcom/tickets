@@ -19,6 +19,15 @@ import { picklistOptions } from "#templates/fields/picklist-options.ts";
 
 /* jscpd:ignore-end */
 
+const DECIMAL_VALUE_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
+
+const isDecimalValue = (value: string): boolean => {
+  const trimmed = value.trim();
+  return (
+    DECIMAL_VALUE_PATTERN.test(trimmed) && Number.isFinite(Number(trimmed))
+  );
+};
+
 /**
  * Modifier form fields (per-request builder). Built on demand rather than at
  * module load so the picklist option labels resolve through `t()` only when the
@@ -61,9 +70,7 @@ const getModifierFields = () =>
       required: true,
       type: "text",
       validate: (value: string) =>
-        Number.isFinite(Number(value))
-          ? null
-          : t("modifiers.error.invalid_number"),
+        isDecimalValue(value) ? null : t("modifiers.error.invalid_number"),
     },
     {
       defaultValue: "automatic",

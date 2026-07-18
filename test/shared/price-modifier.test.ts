@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   CalcKindSchema,
+  MAX_PERCENT_CHARGE,
   ModifierDirectionSchema,
   ModifierScopeSchema,
   ModifierTriggerSchema,
@@ -117,6 +118,15 @@ describe("validateCalcValue", () => {
     test("accepts charges above 100", () => {
       expect(validateCalcValue("percent", 101, "charge")).toBeNull();
       expect(validateCalcValue("percent", 150, "charge")).toBeNull();
+      expect(
+        validateCalcValue("percent", MAX_PERCENT_CHARGE, "charge"),
+      ).toBeNull();
+    });
+
+    test("rejects charges above the safe limit", () => {
+      expect(
+        validateCalcValue("percent", MAX_PERCENT_CHARGE + 1, "charge"),
+      ).toBe("modifiers.error.percent_charge_range");
     });
 
     test("rejects a zero charge without claiming it is capped at 100", () => {

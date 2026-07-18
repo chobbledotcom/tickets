@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
+import { MAX_PERCENT_CHARGE } from "#shared/price-modifier.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -237,6 +238,21 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await expectFlashRedirect(
         "/admin/modifiers/new",
         "Enter a valid number",
+        false,
+      )(response);
+    });
+
+    test("rejects a percentage charge above the safe limit", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({
+          calc_value: String(MAX_PERCENT_CHARGE + 1),
+          direction: "charge",
+        }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers/new",
+        "Percentage must be greater than 0 and at most 10,000",
         false,
       )(response);
     });

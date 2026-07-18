@@ -44,8 +44,41 @@ export type CalcValueError =
   | "modifiers.error.amount_positive"
   | "modifiers.error.invalid_number"
   | "modifiers.error.multiplier_positive"
+  | "modifiers.error.percent_charge_range"
   | "modifiers.error.percent_positive"
   | "modifiers.error.percent_range";
+
+/** Largest percentage charge an operator may save. This keeps later price
+ * arithmetic bounded while allowing surcharges far above 100%. */
+export const MAX_PERCENT_CHARGE = 10_000;
+
+interface PercentRule {
+  max: number;
+  nonPositiveError: CalcValueError;
+  tooLargeError: CalcValueError;
+}
+
+const PERCENT_RULES = {
+  charge: {
+    max: MAX_PERCENT_CHARGE,
+    nonPositiveError: "modifiers.error.percent_positive",
+    tooLargeError: "modifiers.error.percent_charge_range",
+  },
+  discount: {
+    max: 100,
+    nonPositiveError: "modifiers.error.percent_range",
+    tooLargeError: "modifiers.error.percent_range",
+  },
+} as const satisfies Record<ModifierDirection, PercentRule>;
+
+const validatePercent = (
+  value: number,
+  direction: ModifierDirection,
+): CalcValueError | null => {
+  const rule = PERCENT_RULES[direction];
+  if (value <= 0) return rule.nonPositiveError;
+  return value <= rule.max ? null : rule.tooLargeError;
+};
 
 /** Normalise a promo code for storage and matching: trimmed and lower-cased so
  * codes are case-insensitive. The blind index is the HMAC of this. */
@@ -82,12 +115,7 @@ export const validateCalcValue = (
   direction: ModifierDirection,
 ): CalcValueError | null => {
   if (!Number.isFinite(value)) return "modifiers.error.invalid_number";
-  if (kind === "percent") {
-    if (value > 0 && (direction === "charge" || value <= 100)) return null;
-    return direction === "charge"
-      ? "modifiers.error.percent_positive"
-      : "modifiers.error.percent_range";
-  }
+  if (kind === "percent") return validatePercent(value, direction);
   if (kind === "multiply") {
     return value > 0 ? null : "modifiers.error.multiplier_positive";
   }
