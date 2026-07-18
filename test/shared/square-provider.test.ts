@@ -37,6 +37,7 @@ const sessionMocks = ({
   createdAt,
   metadata = ORDER_META,
   orderId,
+  orderState = "COMPLETED",
   paymentId,
   refundedMoney,
   status,
@@ -44,6 +45,7 @@ const sessionMocks = ({
   createdAt?: string;
   metadata?: typeof ORDER_META;
   orderId: string;
+  orderState?: string;
   paymentId: string;
   refundedMoney?: NonNullable<SquarePayment>["refundedMoney"];
   status: string;
@@ -53,7 +55,7 @@ const sessionMocks = ({
       ...(createdAt ? { createdAt } : {}),
       id: orderId,
       metadata,
-      state: "COMPLETED",
+      state: orderState,
       tenders: [{ id: "tender_1", paymentId }],
       totalMoney: money(1000),
     }),
@@ -178,6 +180,7 @@ describe("square-provider", () => {
         () =>
           sessionMocks({
             orderId: "order_open",
+            orderState: "OPEN",
             paymentId: "pay_2",
             status: "COMPLETED",
           }),

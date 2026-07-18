@@ -233,7 +233,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         expect(mockRefund.calls.length).toBe(2);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          expect.stringContaining("errored"),
+          expect.stringContaining("had errors"),
           false,
         )(response);
       });
@@ -334,7 +334,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         async () => {
           const response = await postRefundAll(listing);
           await expectPartialRefund(listing, response);
-          expectFlash(response, expect.stringContaining("1 errored"), false);
+          expectFlash(response, expect.stringContaining("1 had errors"), false);
         },
       );
     });

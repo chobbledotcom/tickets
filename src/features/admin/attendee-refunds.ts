@@ -1,8 +1,10 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
+
 /**
  * Admin attendee refund routes (single + bulk)
  */
 
+import { compact } from "#fp";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
@@ -201,14 +203,22 @@ const buildRefundProblemResponse = async (
   const { listing, refundAllUrl, counts, remaining } = ctx;
   const { refundedCount, pendingCount, failedCount, errorCount } = counts;
   const problemCount = failedCount + errorCount;
-  const errorNote =
+  const msg = compact([
+    t("admin.attendees.refund_all_problem_summary", {
+      pendingCount,
+      problemCount,
+      refundedCount,
+    }),
     errorCount > 0
-      ? ` (${errorCount} errored — check the activity log for details)`
-      : "";
-  const msg =
-    remaining > 0
-      ? `${refundedCount} refund(s) succeeded, ${pendingCount} pending, and ${problemCount} failed${errorNote}. ${remaining} remaining. Submit again to continue.`
-      : `${refundedCount} refund(s) succeeded, ${pendingCount} pending, and ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
+      ? t("admin.attendees.refund_all_problem_errors", { errorCount })
+      : null,
+    t(
+      remaining > 0
+        ? "admin.attendees.refund_all_problem_remaining"
+        : "admin.attendees.refund_all_problem_complete",
+      { remaining },
+    ),
+  ]).join(" ");
   await logActivity(
     `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${listing.name}'`,
     listing.id,

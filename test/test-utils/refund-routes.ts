@@ -142,7 +142,7 @@ export const withRefundMock = async (
   refundBehavior: ProviderRefundBehavior,
   fn: (mockRefund: Stub) => Promise<void>,
   options: RefundMockOptions = {},
-) => {
+): Promise<void> => {
   await withStripeProvider(async (provider) => {
     const mockRefund = stub(
       provider,
