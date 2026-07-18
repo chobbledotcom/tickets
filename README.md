@@ -266,6 +266,33 @@ For the current repository layout and path conventions, see [`REPO_STRUCTURE.md`
 
 ## Development
 
+### Screenshots
+
+The screenshot runner starts a throwaway local site, completes setup, and fills
+it with sample listings and attendees. It captures a 1440px viewport at 2x
+device scale, producing 2880px-wide PNG files under
+`screenshots/<theme>/`.
+
+```bash
+deno task screenshot:attendees-list
+deno task screenshot:listing
+deno task screenshot:all
+deno task screenshot attendees-list,listing --theme forest
+deno task screenshot all --theme all --output ../tickets-site/images/screenshots
+deno task screenshot listing-attendees --element 'form[action$="/attendee"]'
+```
+
+Themes are applied through the site's custom CSS form. The choices are
+`default`, `forest`, `sunset`, and `ink`; use `--theme all` to capture every
+selected page in every theme. Set `CHROMIUM_EXECUTABLE` when Chromium is not in
+Playwright's normal browser cache. On NixOS, `nix develop` provides Chromium and
+sets this variable for you.
+
+Form scenes such as `listing-form` and `add-attendee-form` hide the rest of the
+page, trim the image to the visible content, and add 32px of the page background
+around it. Use `--element` with any CSS selector to make an element-only version
+of another scene.
+
 ```bash
 # Install Deno, cache dependencies, run all checks
 ./setup.sh
