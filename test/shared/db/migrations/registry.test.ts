@@ -29,4 +29,11 @@ describe("db > migration registry", () => {
   test("MIGRATION_IDS lists the registry ids in run order", () => {
     expect(MIGRATION_IDS).toEqual(MIGRATION_REGISTRY.map((entry) => entry.id));
   });
+
+  test("runs the maintenance schema before dropping the old prune marker", () => {
+    expect(MIGRATION_IDS.slice(-2)).toEqual([
+      "2026-07-18_maintenance_tasks",
+      "2026-07-18_drop_built_sites_last_pruned",
+    ]);
+  });
 });
