@@ -189,7 +189,12 @@ describeWithEnv("db > system-notes", { db: true }, () => {
     const pk = await getTestPrivateKey();
 
     const found = await getAttendeeNote(owner, row!.id, pk);
-    expect(found?.note).toBe("scoped note");
+    expect(found).toMatchObject({
+      attendee_id: owner,
+      id: row!.id,
+      note: "scoped note",
+      type: "system",
+    });
 
     // The same note id under a different attendee must not resolve.
     expect(await getAttendeeNote(other, row!.id, pk)).toBeNull();

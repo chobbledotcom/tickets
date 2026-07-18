@@ -91,8 +91,9 @@ export const squarePaymentProvider: PaymentProvider = {
     // Fully refunded only: a partial refund leaves the customer still charged,
     // so it must not count as refunded (matches Stripe's charge.refunded and
     // SumUp's REFUNDED status, and keeps the refund-idempotency fallback honest).
-    const charged = payment.amountMoney?.amount ?? BigInt(0);
-    const refunded = payment.refundedMoney?.amount ?? BigInt(0);
+    const charged = payment.amountMoney?.amount;
+    const refunded = payment.refundedMoney?.amount;
+    if (charged === undefined || refunded === undefined) return false;
     return charged > BigInt(0) && refunded >= charged;
   },
 
@@ -180,7 +181,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
     return squareSession(completeOrder, {
       amountTotal: Number(order.totalMoney.amount),
-      paymentReference: paymentIds[0] ?? "",
+      paymentReference: paymentIds.length === 0 ? "" : paymentIds[0]!,
       paymentStatus: "unpaid",
     });
   },

@@ -20,6 +20,10 @@ import { lineFor, stripeClient } from "./fixtures.ts";
 import { describeStripe } from "./harness.ts";
 
 describeStripe("stripe-provider", () => {
+  test("declares that Stripe webhooks require signatures", () => {
+    expect(stripePaymentProvider.requiresWebhookSignature).toBe(true);
+  });
+
   /** Stub `checkout.sessions.retrieve` with `impl`, then run `body`. */
   const whileRetrieving = (
     client: Awaited<ReturnType<typeof stripeClient>>,
@@ -480,7 +484,10 @@ describeStripe("stripe-provider", () => {
         async (retrieveSpy) => {
           const result = await retrievePaymentIntent("pi_test_123");
           expect(result).toBeNull();
-          expect(retrieveSpy.calls.length).toBeGreaterThan(0);
+          expect(retrieveSpy.calls[0]!.args).toEqual([
+            "pi_test_123",
+            { expand: ["latest_charge"] },
+          ]);
         },
       );
     });

@@ -1,10 +1,17 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { handleReservationConflict } from "#routes/api/payment-processing/replay.ts";
+import {
+  handleReservationConflict,
+  replayBalanceFromLedger,
+  replaySessionFromLedger,
+} from "#routes/api/payment-processing/replay.ts";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
+import { bookingEventGroup } from "#shared/accounting/mappers.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import type { ProcessedPayment } from "#shared/db/processed-payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { tx } from "#test-utils/ledger.ts";
 
 const intent = {
   items: [{ e: 17 }, { e: 18 }],
@@ -55,4 +62,32 @@ describeWithEnv("payment replay conflicts", { db: true }, () => {
       });
     });
   }
+
+  test("records an orphaned booking session as already processed", async () => {
+    const sessionId = "orphaned-booking-session";
+    await postTransfers([
+      tx({
+        eventGroup: await bookingEventGroup(sessionId),
+        reference: "orphan",
+      }),
+    ]);
+    expect(await replaySessionFromLedger(sessionId, 17, "payment-ref")).toEqual(
+      {
+        detail:
+          "Ledger already records session orphaned-booking-session with no live booking (listing 17)",
+        error: "This payment has already been processed.",
+        status: 200,
+        success: false,
+      },
+    );
+  });
+
+  test("returns null when booking and balance ledgers do not contain the session", async () => {
+    expect(
+      await replaySessionFromLedger("new-session", 17, "payment-ref"),
+    ).toBeNull();
+    expect(
+      await replayBalanceFromLedger("new-balance", 42, 17, "payment-ref"),
+    ).toBeNull();
+  });
 });

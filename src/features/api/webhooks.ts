@@ -56,7 +56,6 @@ import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   checkoutWebhookEventKind,
   getActivePaymentProvider,
-  type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
 import { tryCloseAndPurgeCheckoutStageBySession } from "#shared/staged-checkout.ts";
@@ -112,7 +111,7 @@ const withSessionId =
 const singleListingThankYou = async (listingId: number): Promise<string> => {
   if ((await getHiddenPackageMemberIds([listingId])).size > 0) return "";
   const listing = await getListingWithCount(listingId);
-  return listing?.thank_you_url.trim() ?? "";
+  return listing === null ? String() : listing.thank_you_url.trim();
 };
 
 const processSessionAndRedirect = async (
@@ -130,7 +129,7 @@ const processSessionAndRedirect = async (
   // booked listing ids, so it can't recover that URL once >1 listing is booked
   // — that path renders the success page directly here (below), where the
   // verified intent still holds it, rather than redirecting to the token path.
-  const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
+  const explicitThankYou = validation.data.intent.thankYouUrl;
 
   // The ticket token is finalized atomically with the booking, so a racing
   // webhook and redirect always resolve the same attendee and token.
@@ -138,10 +137,12 @@ const processSessionAndRedirect = async (
 
   if (!result.success) {
     // Log once at the redirect boundary
-    const listingId = validation.data.intent.items[0]?.e;
+    const listingId = validation.data.intent.items[0]!.e;
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `[redirect] ${result.detail ?? result.error}`,
+      detail: `[redirect] ${
+        result.detail === undefined ? result.error : result.detail
+      }`,
       listingId,
     });
     return paymentErrorResponse(formatPaymentError(result), result.status);
@@ -153,7 +154,7 @@ const processSessionAndRedirect = async (
   if (explicitThankYou && result.ticketTokens.length > 0) {
     return renderPaidSuccessPage(
       explicitThankYou,
-      `/t/${result.ticketTokens.join("+")}`,
+      `/t/${result.ticketTokens[0]!}`,
     );
   }
 
@@ -163,9 +164,7 @@ const processSessionAndRedirect = async (
   if (result.ticketTokens.length > 0) {
     await clearSessionTokens(sessionId);
     return redirectResponse(
-      `/payment/success?tokens=${encodeURIComponent(
-        result.ticketTokens.join("+"),
-      )}`,
+      `/payment/success?tokens=${encodeURIComponent(result.ticketTokens[0]!)}`,
     );
   }
 
@@ -173,10 +172,11 @@ const processSessionAndRedirect = async (
   // explicit (parent) thank-you URL from the intent wins; otherwise resolve the
   // listing lazily (the only place a thank-you URL is needed) so the webhook
   // path never loads it; a since-deleted listing simply yields no URL.
-  let thankYouUrl = explicitThankYou;
-  if (!thankYouUrl && validation.data.intent.items.length === 1) {
-    thankYouUrl = await singleListingThankYou(result.listingId);
-  }
+  const thankYouUrl = explicitThankYou
+    ? explicitThankYou
+    : validation.data.intent.items.length === 1
+      ? await singleListingThankYou(result.listingId)
+      : "";
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
   );
@@ -229,7 +229,8 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
 
   const url = new URL(request.url);
   const paramKeys = [...url.searchParams.keys()].join(",") || "none";
-  const referer = request.headers.get("referer") ?? "none";
+  const refererHeader = request.headers.get("referer");
+  const referer = refererHeader === null ? "none" : refererHeader;
   logError({
     code: ErrorCode.PAYMENT_SESSION,
     detail: `Payment success callback with no session_id or tokens | params=[${paramKeys}] referer=${referer}`,
@@ -293,7 +294,6 @@ const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
  */
 const webhookResultResponse = (
   result: PaymentResult,
-  session: ValidatedPaymentSession,
   payload: string,
   listingIdForLog: number | undefined,
 ): Response => {
@@ -301,17 +301,16 @@ const webhookResultResponse = (
   // Log once at the boundary — inner functions pass structured context via detail.
   logError({
     code: ErrorCode.PAYMENT_SESSION,
-    detail: result.detail ?? result.error,
+    detail: result.detail === undefined ? result.error : result.detail,
     listingId: listingIdForLog,
   });
   logDebug("Webhook", `Failed payload: ${payload}`);
-  if (result.status === 409 && result.refundStatus === undefined) {
-    return plainResponse(result.error, 409);
+  if (result.status === 409) {
+    if (result.refundStatus === undefined) {
+      return plainResponse(result.error, 409);
+    }
   }
-  if (
-    (result.refundStatus === "failed" || result.refundStatus === "pending") &&
-    session.paymentReference
-  ) {
+  if (result.refundStatus === "failed" || result.refundStatus === "pending") {
     return plainResponse(result.error, 503);
   }
   return webhookAckResponse({ error: result.error, processed: false });
@@ -320,10 +319,12 @@ const webhookResultResponse = (
 /** Detect which provider sent the webhook based on request headers. Reads the
  * signature header of each provider that signs its webhooks (per the shared
  * registry) and returns the first one present. */
-const getWebhookSignatureHeader = (request: Request): string | null =>
-  WEBHOOK_SIGNATURE_HEADERS.map((header) => request.headers.get(header)).find(
-    Boolean,
-  ) ?? null;
+const getWebhookSignatureHeader = (request: Request): string | null => {
+  const signature = WEBHOOK_SIGNATURE_HEADERS.map((header) =>
+    request.headers.get(header),
+  ).find(Boolean);
+  return signature === undefined ? null : signature;
+};
 
 /**
  * Authenticate an incoming webhook: resolve the provider, require the signature
@@ -353,7 +354,8 @@ const authenticateWebhook = async (
     return plainResponse("Payment provider not configured", 400);
   }
 
-  const signature = getWebhookSignatureHeader(request) ?? "";
+  const signatureHeader = getWebhookSignatureHeader(request);
+  const signature = signatureHeader === null ? "" : signatureHeader;
   if (provider.requiresWebhookSignature && !signature) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
@@ -489,7 +491,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     session,
     verdict,
   });
-  return webhookResultResponse(result, session, payload, listingIdForLog);
+  return webhookResultResponse(result, payload, listingIdForLog);
 };
 
 /** Payment routes definition */

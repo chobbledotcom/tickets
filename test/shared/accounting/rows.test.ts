@@ -3,7 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   bookingLegBatchInsert,
   fromDb,
+  insertManyStatement,
   insertStatement,
+  selectByEventGroup,
+  selectById,
   selectTransfers,
 } from "#shared/accounting/rows.ts";
 import { executeBatch } from "#shared/db/client.ts";
@@ -24,6 +27,15 @@ const boundValue = (
   return statement.args[columns.indexOf(column)];
 };
 
+const transferFor = (reference: string): TransferInput => ({
+  amount: 100,
+  destination: account("revenue", 7),
+  eventGroup: reference,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+  reference,
+  source: account("attendee", 3),
+});
+
 describe("accounting > rows > insertStatement", () => {
   const base: TransferInput = {
     amount: 5000,
@@ -34,7 +46,6 @@ describe("accounting > rows > insertStatement", () => {
     source: account("attendee", 1),
   };
   const recordedAt = "2026-06-21T12:00:00.000Z";
-
   test("defaults posted_by and reverses_id only when absent, preserving explicit edge values", () => {
     // `?? "system"` / `?? null` default solely on undefined, so an explicit ""
     // actor and a 0 reverses_id are kept — a `|| "system"` / `|| null` would
@@ -49,6 +60,22 @@ describe("accounting > rows > insertStatement", () => {
     const absent = insertStatement(base, recordedAt);
     expect(boundValue(absent, "posted_by")).toBe("system");
     expect(boundValue(absent, "reverses_id")).toBe(null);
+    expect(boundValue(absent, "kind")).toBe("");
+    expect(boundValue(absent, "memo")).toBe("");
+  });
+
+  test("refuses an empty multi-row insert", () => {
+    expect(() => insertManyStatement([], recordedAt)).toThrow(
+      "Cannot insert an empty transfer list",
+    );
+  });
+
+  test("separates every column, value, and row in a multi-row insert", () => {
+    const statement = insertManyStatement([base, base], recordedAt);
+    expect(statement.sql).toBe(
+      "INSERT INTO transfers (source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference, event_group, kind, memo, reverses_id, posted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    expect(statement.args).toHaveLength(26);
   });
 });
 
@@ -148,5 +175,27 @@ describe("accounting > rows > stored-row round-trip", () => {
     // on what "no kind" looks like (mirroring reverses_id).
     expect(stored!.kind).toBeUndefined();
     expect("kind" in stored!).toBe(false);
+  });
+
+  test("selectById returns only the requested transfer and null for a miss", async () => {
+    await executeBatch([
+      insertStatement(transferFor("first"), recordedAt),
+      insertStatement(transferFor("second"), recordedAt),
+    ]);
+    const all = await selectTransfers(fromDb, " ORDER BY id", []);
+
+    expect((await selectById(fromDb, all[1]!.id))?.reference).toBe("second");
+    expect(await selectById(fromDb, all[1]!.id + 1)).toBeNull();
+  });
+
+  test("selectByEventGroup returns only the requested event", async () => {
+    await executeBatch([
+      insertStatement(transferFor("first"), recordedAt),
+      insertStatement(transferFor("second"), recordedAt),
+    ]);
+
+    expect(
+      (await selectByEventGroup(fromDb, "second")).map((row) => row.reference),
+    ).toEqual(["second"]);
   });
 });

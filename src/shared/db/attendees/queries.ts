@@ -165,12 +165,9 @@ export type AttendeesPage = {
  * so the extra attendee is exactly the last distinct id.
  */
 const trimAttendeePage = (rows: Attendee[]): AttendeesPage => {
-  const ids: number[] = [];
-  for (const row of rows) {
-    if (ids[ids.length - 1] !== row.id) ids.push(row.id);
-  }
-  if (ids.length <= ATTENDEES_PAGE_SIZE) return { hasNext: false, rows };
-  const extraId = ids[ids.length - 1];
+  const ids = new Set(rows.map((row) => row.id));
+  if (ids.size <= ATTENDEES_PAGE_SIZE) return { hasNext: false, rows };
+  const extraId = [...ids].pop();
   return { hasNext: true, rows: rows.filter((row) => row.id !== extraId) };
 };
 

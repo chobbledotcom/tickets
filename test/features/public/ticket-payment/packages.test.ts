@@ -197,7 +197,11 @@ describeWithEnv(
       });
 
       test("getTicketContext exposes the package (group id + prices) for a package group", async () => {
-        const group = await createTestGroup({ isPackage: true, name: "Ctx" });
+        const group = await createTestGroup({
+          isPackage: true,
+          maxAttendees: 5,
+          name: "Ctx",
+        });
         const a = await createTestListing({ name: "CA" });
         await setListingGroups(a.id, [group.id]);
         await setGroupPackageMembers(group.id, [
@@ -217,6 +221,8 @@ describeWithEnv(
         expect(ctx.packages).toHaveLength(1);
         expect(ctx.packages[0]!.groupId).toBe(group.id);
         expect(ctx.packages[0]!.prices.get(a.id)).toBe(2000);
+        expect(ctx.packageMemberGroupIds.get(a.id)).toContain(group.id);
+        expect(ctx.packageGroupRemainingByGroupId.has(group.id)).toBe(true);
       });
 
       test("getTicketContext carries no packages for a non-package group", async () => {

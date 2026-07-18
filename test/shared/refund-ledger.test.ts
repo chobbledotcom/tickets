@@ -22,7 +22,10 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import {
+  recordAttendeeRefund,
+  stagedRefundLegs,
+} from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import {
@@ -38,6 +41,26 @@ import {
 } from "./refund-ledger/helpers.ts";
 
 // -- recordAttendeeRefund (integration) ---------------------------------- //
+
+test("staged refund legs record and reverse only the provider cash", async () => {
+  const legs = await stagedRefundLegs(
+    {
+      amount: 500,
+      attendeeId: ATTENDEE,
+      eventId: "staged-payment",
+      listingId: 7,
+      occurredAt: BOOKING_AT,
+    },
+    "capacity_full",
+  );
+
+  expect(
+    legs.map(({ amount, kind, memo }) => ({ amount, kind, memo })),
+  ).toEqual([
+    { amount: 500, kind: "payment", memo: undefined },
+    { amount: 500, kind: "refund_cash", memo: "capacity_full" },
+  ]);
+});
 
 describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
   const errors = setupErrorSpy();
@@ -289,5 +312,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     // "Logs" is part of the contract: the operator's only breadcrumb for a
     // stranded refund is the classified error.
     expect(errors.lastMessage()).toContain("E_LEDGER_POST");
+    expect(errors.lastMessage()).toContain(
+      `refund ledger post failed for attendee ${ATTENDEE}`,
+    );
   });
 });

@@ -35,7 +35,7 @@ export type CompletedSquarePayment = {
 const MAX_TENDERS_TO_CHECK = 10;
 
 export const squareTenderPaymentIds = (order: SquareOrder): string[] =>
-  (order.tenders ?? [])
+  (order.tenders === undefined ? [] : order.tenders)
     .slice(-MAX_TENDERS_TO_CHECK)
     .reverse()
     .flatMap((tender) => (tender.paymentId ? [tender.paymentId] : []));

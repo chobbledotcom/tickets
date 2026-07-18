@@ -113,8 +113,8 @@ const legColumns = (
   lit("recorded_at", instantToEpochMs(recordedAt)),
   lit("reference", t.reference),
   lit("event_group", t.eventGroup),
-  lit("kind", t.kind ?? ""),
-  lit("memo", t.memo ?? ""),
+  lit("kind", t.kind || ""),
+  lit("memo", t.memo || ""),
   lit("reverses_id", t.reversesId ?? null),
   lit("posted_by", t.postedBy ?? "system"),
 ];
@@ -133,7 +133,10 @@ const renderInsert = (
 ): SqlStatement => {
   const exprs = columns.map((column) => column.expr).join(", ");
   return {
-    args: [...columns.flatMap((column) => column.args), ...(guard?.args ?? [])],
+    args: [
+      ...columns.flatMap((column) => column.args),
+      ...(guard ? guard.args : []),
+    ],
     sql:
       `INSERT INTO transfers (${columns.map((column) => column.col).join(", ")}) ` +
       (guard ? `SELECT ${exprs} WHERE ${guard.sql}` : `VALUES (${exprs})`),
@@ -146,7 +149,8 @@ export const insertManyStatement = (
   recordedAt: string,
 ): SqlStatement => {
   const rows = inputs.map((input) => legColumns(input, recordedAt));
-  const first = rows[0]!;
+  const [first] = rows;
+  if (!first) throw new Error("Cannot insert an empty transfer list");
   return {
     args: rows.flatMap((columns) => columns.flatMap((column) => column.args)),
     sql: `INSERT INTO transfers (${first.map((column) => column.col).join(", ")}) VALUES ${rows
@@ -262,4 +266,4 @@ export const selectById = async (
   read: RowReader,
   id: number,
 ): Promise<Transfer | null> =>
-  (await selectTransfers(read, " WHERE id = ?", [id]))[0] ?? null;
+  (await selectTransfers(read, " WHERE id = ?", [id]))[0] || null;

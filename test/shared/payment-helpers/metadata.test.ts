@@ -327,6 +327,17 @@ describe("payment-helpers", () => {
       expect(metadata.site_token_index).toBe("hashed-index-value");
     });
 
+    test("buildMetadata includes the balance attendee id when present", () => {
+      const metadata = buildMetadata({
+        balanceAttendeeId: 42,
+        date: null,
+        email: "balance@example.com",
+        items: [{ e: 5, p: 1500, q: 1 }],
+        name: "Balance payer",
+      });
+      expect(metadata.balance_attendee_id).toBe("42");
+    });
+
     test("buildMetadata omits site_token_index when absent", () => {
       const metadata = buildMetadata({
         date: null,

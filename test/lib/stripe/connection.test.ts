@@ -61,10 +61,14 @@ describeStripe("stripe", () => {
 
   describe("testStripeConnection", () => {
     test("returns error when no API key configured", async () => {
-      expectApiKeyError(
-        await testStripeConnection(),
-        "No Stripe secret key configured",
-      );
+      expect(await testStripeConnection()).toEqual({
+        apiKey: {
+          error: "No Stripe secret key configured",
+          valid: false,
+        },
+        ok: false,
+        webhooks: [],
+      });
     });
 
     test("returns error when balance.retrieve fails", async () => {
@@ -154,7 +158,7 @@ describeStripe("stripe", () => {
               },
             ],
           }),
-        async () => {
+        async ({ listSpy }) => {
           const result = await testStripeConnection();
           expect(result.ok).toBe(true);
           expect(result.apiKey.valid).toBe(true);
@@ -168,6 +172,29 @@ describeStripe("stripe", () => {
           expect(first!.enabledEvents).toContain("checkout.session.completed");
           expect(second!.endpointId).toBe("we_test_other");
           expect(second!.url).toBe("https://other.com/webhook");
+          expect(listSpy.calls[0]!.args).toEqual([{ limit: 100 }]);
+        },
+      );
+    });
+
+    test("reports success with exactly one webhook", async () => {
+      const client = await stripeClient();
+      await withBalanceAndList(
+        client,
+        okBalance(false),
+        () =>
+          Promise.resolve({
+            data: [
+              {
+                enabled_events: ["checkout.session.completed"],
+                id: "we_only",
+                status: "enabled",
+                url: "https://example.com/payment/webhook",
+              },
+            ],
+          }),
+        async () => {
+          expect((await testStripeConnection()).ok).toBe(true);
         },
       );
     });

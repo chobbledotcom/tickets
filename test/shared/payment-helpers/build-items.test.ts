@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
+  assembleCheckoutMetadata,
   buildItemsMetadata,
   extractSessionMetadata,
   packMetadata,
@@ -127,6 +128,16 @@ describeWithEnv(
           sig,
         ),
       ).toBe(false);
+    });
+
+    test("packs metadata only for providers whose registry requires it", async () => {
+      const total = priceCheckout(intent).total;
+      const square = await assembleCheckoutMetadata("square", intent, total);
+      const stripe = await assembleCheckoutMetadata("stripe", intent, total);
+      expect(typeof square.b).toBe("string");
+      expect("phone" in square).toBe(false);
+      expect(stripe.phone).toBe(intent.phone);
+      expect("b" in stripe).toBe(false);
     });
   },
 );

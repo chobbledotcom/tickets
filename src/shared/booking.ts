@@ -109,9 +109,8 @@ export const processBooking = async (
   answerIds?: number[],
 ): Promise<BookingResult> => {
   const paymentsEnabled = isPaymentsEnabled();
-  const needsPayment =
-    (paymentsEnabled && listing.unit_price > 0) ||
-    (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
+  const unitPrice = customUnitPrice ?? listing.unit_price;
+  const needsPayment = paymentsEnabled && unitPrice > 0;
 
   if (needsPayment) {
     return processPaidBooking({
@@ -121,7 +120,7 @@ export const processBooking = async (
       date,
       listing,
       quantity,
-      unitPrice: customUnitPrice ?? listing.unit_price,
+      unitPrice,
     });
   }
 
@@ -131,10 +130,7 @@ export const processBooking = async (
   // reservation — so nothing is collected up front but the balance is tracked.
   // The attendee starts in the public-default status, matching the web free
   // path so a balance-carrying booking is never left status-less.
-  const unitPrice = customUnitPrice ?? listing.unit_price;
-  const remainingBalance = paymentsEnabled
-    ? 0
-    : Math.max(0, unitPrice * quantity);
+  const remainingBalance = paymentsEnabled ? 0 : unitPrice * quantity;
   const result = await attendeesApi.createAttendeeAtomic(
     {
       ...contact,

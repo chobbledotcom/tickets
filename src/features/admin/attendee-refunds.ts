@@ -54,7 +54,7 @@ import { requirePaymentProvider } from "./require-provider.ts";
 const refundError = (
   attendeeId: number,
   msg: string,
-  returnUrl = "",
+  returnUrl: string,
 ): Response =>
   errorRedirect(
     attendeeActionUrlWithReturn(attendeeId, "refund", returnUrl),

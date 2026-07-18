@@ -30,6 +30,7 @@
 src/features/admin/entity-pages.ts:275:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/site-content-page.ts:87:38  ?? → ||   # extraTabs is an array when present, and arrays are always truthy
 src/ui/templates/admin/holidays.tsx:79:45  ?? → ||   # values is a render-values object when present, so it is always truthy
+src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record object when present, so it is always truthy
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
@@ -64,10 +65,6 @@ src/shared/accounting/mappers.ts:270:32  ?? → ||   # refundKind(leg.kind ?? ""
 src/shared/accounting/store.ts:200:60  ?? → ||    # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
 src/shared/accounting/store.ts:223:42  ?? → ||    # planGroup originalsById.get(): Transfer|undefined — a Transfer object is always truthy
 src/shared/accounting/store.ts:221:23  || → &&    # planGroup: for id in {undefined,null} both ternary branches yield null (Map<number,_>.get(undefined|null) === undefined, then ?? null === null), so || and && coincide
-src/shared/accounting/rows.ts:113:21  ?? → ||    # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts:114:21  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts:262:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
-src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
@@ -120,10 +117,6 @@ src/shared/db/login-attempts.ts:46:39  ?? → ||
 # What stays here are `?? F` vs `|| F` sites whose left operand can never be a
 # falsy-but-non-null value (a Map/object/array is always truthy, and the only
 # falsy number is 0 with 0??0===0||0), so the two operators always agree.
-src/features/public/ticket-payment.ts:345:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
-src/features/public/ticket-payment.ts:418:42  ?? → ||   # packageGroupId: number|undefined; the only falsy number is 0, 0??0===0||0, and undefined→0 either way
-src/features/public/ticket-payment.ts:446:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
-src/features/public/ticket-payment.ts:596:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
 
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:318:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
@@ -241,7 +234,13 @@ src/shared/db/attendees/capacity/groups.ts:166:55  ?? → ||   # membership.get(
 src/shared/db/attendees/capacity/groups.ts:178:39  ?? → ||   # membership.get(): number[]|undefined — an array is always truthy
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:167:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:540:16  || → &&   # malformed JSON either returns {} directly or throws while reading null, which the same catch converts to {}
+src/shared/payment-helpers.ts:599:40  ?? → ||   # the value is a string length or undefined; 0 and absence both produce 0
+src/shared/stripe-provider.ts:75:43  ?? → ||   # refund state is boolean|null; both operators preserve false and use the fallback for null
+src/shared/stripe-provider.ts:148:44  ?? → ||   # payment reference is string|null; the empty string and null both resolve to ""
+src/shared/sumup-provider.ts:171:27  ?? → ||   # webhook order id is string|undefined; empty and absent both resolve to ""
+src/shared/sumup-provider.ts:176:34  ?? → ||   # webhook payment id is string|undefined; empty and absent both resolve to ""
 
 # Settings registry: readOnly is optional but can only be true when present, so
 # `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
@@ -345,7 +344,7 @@ src/features/admin/groups.ts:432:55  ?? → ||   # handleGroupEditGet dayPrices.
 src/shared/listings-actions.ts:120:17  ?? → ||   # validateListingGroup existingId ?? 0: a listing id is ≥1 or undefined, never 0, so ?? and || coincide
 
 # attendee merge/refund route: mutants with no observable effect.
-src/features/admin/attendee-refunds.ts:172:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
+src/features/admin/attendee-refunds.ts:183:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
 
 # attendee columns Listings/answers rework
 src/shared/columns/attendee-columns.ts:133:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
@@ -877,9 +876,9 @@ src/shared/db/contact-tokens.ts:315:18  ?? → ||    # `removedSource ?? sync.so
 # attendees/tokens.ts — `?? → ||` sites where the operand is a Map#get() whose
 # value is always a truthy object or array (never a falsy-but-non-null value),
 # so ?? and || agree for every possible value.
-src/shared/db/attendees/tokens.ts:159:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
-src/shared/db/attendees/tokens.ts:162:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 159), so ?? and || agree
-src/shared/db/attendees/tokens.ts:175:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
+src/shared/db/attendees/tokens.ts:165:45  ?? → ||    # resultsInTokenOrder: byTokenIndex.get() is Result|undefined; Result is AttendeeWithBookings or AttendeeBookingRows (always a truthy object), so ?? and || agree
+src/shared/db/attendees/tokens.ts:168:56  ?? → ||    # resultsInTokenOrder: tokenToResult.get() is Result|undefined; Result is always a truthy object (see 165), so ?? and || agree
+src/shared/db/attendees/tokens.ts:187:48  ?? → ||    # tokenResultMap: bookingsByAttendee.get() is Booking[]|undefined; an array is always truthy (even empty), so ?? and || agree
 src/shared/sentry.ts:72:23  !== → !=    # loadSentry(): LoadedSentry|null never returns undefined, so strict and loose null comparisons agree
 
 # bundle-composition/model.ts — SourceMapSegment is either the one-value
@@ -955,7 +954,7 @@ src/shared/logger.ts:77:70  ?? → ||   # getRequestId's `getStore() ?? ""`: the
 
 # Admin refund waves (refunds/waves.ts) — one provably-equivalent survivor from
 # the packByReferenceCount run.
-src/features/admin/refunds/waves.ts:16:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
+src/features/admin/refunds/waves.ts:17:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
 
 # Attendee PII (db/attendees/pii.ts) — two provably-equivalent survivors from
 # the decryptPiiBlob run.
@@ -968,8 +967,8 @@ scripts/unit-tests-report-imports.ts:135:23   → "mutated"   # stem()'s first r
 
 # getAttendees filter/query builder (src/shared/db/attendees/select.ts) — the
 # defaulted `kind`/`join` operands are string unions that never include "".
-src/shared/db/attendees/select.ts:289:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
-src/shared/db/attendees/select.ts:383:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
+src/shared/db/attendees/select.ts:290:47  ?? → ||   # where.kind: AttendeeKindFilter|undefined — every member ("attendee"/"servicing"/"attendee-or-servicing") is truthy, so `?? "attendee"` and `|| "attendee"` agree on every input
+src/shared/db/attendees/select.ts:388:26  ?? → ||   # query.join: AttendeeJoin|undefined — "inner"/"left" are both truthy, so `?? "inner"` and `|| "inner"` agree on every input
 
 # i18n (shared/i18n.ts) — four provably-equivalent survivors.
 # needsIcu decides only whether a message takes the plain-string fast path or is
@@ -995,3 +994,69 @@ src/ui/templates/admin/questions.tsx:256:50  ?? → ||   # `answerCounts?.get(a.
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
 src/shared/cache-registry.ts:126:47  ?? → ||   # get(): Set|undefined — a Set is always truthy
+
+# Staged-checkout mutation hardening: attendee write/read invariants that no
+# input can distinguish. Direct mirror tests kill every observable sibling.
+src/shared/db/attendees/activate.ts:80:35  ?? → ||   # a booking date is a non-empty valid date or null; null takes the same fallback
+src/shared/db/attendees/activate.ts:82:43  ?? → ||   # package group id is undefined, 0, or positive; the fallback is 0
+src/shared/db/attendees/activate.ts:83:45  ?? → ||   # order parent id is undefined, 0, or positive; the fallback is 0
+src/shared/db/attendees/activate.ts:320:40  ?? → ||   # price is undefined or numeric; 0 and absence both produce 0
+src/shared/db/attendees/activate.ts:320:27  0 → 1   # legacy pricePaid is an encryption input that is not serialized into the staged row
+src/shared/db/attendees/activate.ts:320:44  0 → 1   # legacy pricePaid is an encryption input that is not serialized into the staged row
+src/shared/db/attendees/capacity/checks.ts:31:20  1 → 0   # duration normalization maps both 0 and 1 to one day
+src/shared/db/attendees/capacity/checks.ts:93:18  1 → 0   # duration normalization maps both 0 and 1 to one day
+src/shared/db/attendees/capacity/checks.ts:125:63  ?? → ||   # allowed duration is positive or normalized identically
+src/shared/db/attendees/capacity/checks.ts:125:67  1 → 0   # duration normalization maps both 0 and 1 to one day
+src/shared/db/attendees/capacity/checks.ts:126:53  ?? → ||   # existing load is a number or absent; 0 and absence both add from zero
+src/shared/db/attendees/create-batch.ts:94:44  IncompleteBooking → ""   # the private error is caught only by instanceof; its class name has no observable use
+src/shared/db/attendees/create-batch.ts:146:17  0 → 1   # every posted leg in the batch is assigned the same event group, so its seed value is unobservable
+src/shared/db/attendees/create-batch.ts:187:30  0 → 1   # every posted leg in the batch is assigned the same event group, so its seed value is unobservable
+src/shared/db/attendees/create.ts:56:21  ?? → ||   # attendee kinds are non-empty union values
+src/shared/db/attendees/create.ts:63:25  ?? → ||   # address fallback is "", so empty and missing agree
+src/shared/db/attendees/create.ts:66:21  ?? → ||   # phone fallback is "", so empty and missing agree
+src/shared/db/attendees/create.ts:67:51  ?? → ||   # instructions fallback is "", so empty and missing agree
+src/shared/db/attendees/create.ts:79:67  ?? → ||   # allowed durations are positive; zero normalizes to one
+src/shared/db/attendees/create.ts:79:71  1 → 0   # zero duration normalizes to one
+src/shared/db/attendees/create.ts:112:52  ?? → ||   # validation only asks whether quantity is negative
+src/shared/db/attendees/create.ts:112:56  1 → 0   # both defaults are non-negative in this validation
+src/shared/db/attendees/create.ts:127:40  ?? → ||   # legacy pricePaid is not serialized into the created row
+src/shared/db/attendees/create.ts:127:44  0 → 1   # legacy pricePaid is not serialized into the created row
+src/shared/db/attendees/create.ts:129:22  ?? → ||   # valid ticket tokens are non-empty
+src/shared/db/attendees/create.ts:163:21  ?? → ||   # booking source union values are non-empty
+src/shared/db/attendees/create.ts:195:27  ?? → ||   # valid dates are non-empty; the fallback is null
+src/shared/db/attendees/create.ts:199:25  ?? → ||   # attendee kinds are non-empty union values
+src/shared/db/attendees/create.ts:200:47  ?? → ||   # package group id is undefined, 0, or positive; the fallback is 0
+src/shared/db/attendees/create.ts:201:35  ?? → ||   # payment fallback is "", so empty and missing agree
+src/shared/db/attendees/create.ts:202:37  ?? → ||   # price 0 and missing both produce 0
+src/shared/db/attendees/create.ts:204:49  ?? → ||   # balance 0 and missing both produce 0
+src/shared/db/attendees/create.ts:205:33  ?? → ||   # status is null or a positive id
+src/shared/db/attendees/queries.ts:376:26  ?? → ||   # attendee id is positive or absent
+src/shared/db/attendees/queries.ts:385:78  ?? → ||   # a returned attendee is an object and therefore truthy
+src/shared/db/attendees/queries.ts:414:46  false → true   # this narrow name lookup discards every decrypted field except name
+
+# Payment-core survivors proved equivalent by validated metadata and domain
+# invariants. Observable branches and messages have direct mirror assertions.
+src/features/api/folded-booking.ts:88:42  ?? → ||   # childrenByParentId.get() is an array or undefined; arrays are truthy
+src/features/api/folded-booking.ts:119:31  ?? → ||   # running quantity is positive after first use; 0 equals the 0 fallback
+src/features/api/folded-booking.ts:177:53  1 → 0   # a successful parent fold with a child contains at least parent and child
+src/features/api/folded-booking.ts:296:50  0 → 1   # a zero-total enabled-payment order derives a zero balance from its order and ledger
+src/features/api/folded-booking.ts:305:70  0 → 1   # owedOrderForLedger derives gross value from item lines, not this feeSubtotal hint
+src/features/api/folded-booking.ts:318:53  0 → 1   # every folded entry belongs to the same attendee, so either entry returns the same attendee
+src/features/api/folded-booking.ts:385:17  1 → 0   # non-custom duration handling normalizes both 0 and 1 to one day
+src/features/api/payment-processing/cancel.ts:69:40  ?? → ||   # parsed listing ids are positive; missing falls back to 0 under both operators
+src/features/api/payment-processing/classify.ts:179:93  ?? → ||   # payment status is a non-empty enum or missing
+src/features/api/payment-processing/create.ts:53:36  ?? → ||   # package group id is undefined, 0, or positive; the fallback is 0
+src/features/api/payment-processing/create.ts:116:12  Sorry, this listing sold out while you were completing payment. → ""   # this unnamed-listing branch is unreachable because the caller always supplies a required non-empty listing name
+src/features/api/payment-processing/create.ts:188:28  ?? → ||   # listingAnswerIds is an object or undefined
+src/features/api/payment-processing/create.ts:191:67  ?? → ||   # per-listing text answers are an array or undefined
+src/features/api/payment-processing/create.ts:194:46  ?? → ||   # grouped answers are an object or undefined
+src/features/api/payment-processing/create.ts:198:35  ?? → ||   # textAnswerIds is an array or undefined
+src/features/api/payment-processing/items.ts:49:24  false → true   # the only production caller always supplies includeListingName explicitly
+src/features/api/payment-processing/items.ts:81:41  ?? → ||   # allocations is an array or undefined
+src/features/api/payment-processing/items.ts:149:24  ?? → ||   # dayCount is positive when present; missing uses the same positive fallback
+src/features/api/payment-processing/items.ts:149:28  1 → 0   # custom sessions carry dayCount; non-custom duration normalizes 0 and 1 identically
+src/features/api/payment-processing/pricing.ts:56:25  && → ||   # validated metadata carries r exactly on k:"p" package lines, so both conditions agree
+src/features/api/payment-processing/pricing.ts:75:40  ?? → ||   # running charged amount is numeric; 0 equals the 0 fallback
+src/features/api/payment-processing/store-refund.ts:146:22  ?? → ||   # spec.error is undefined or a required non-empty message
+src/features/api/payment-processing/store-refund.ts:148:24  ?? → ||   # spec.status is undefined or a positive HTTP status
+src/features/api/payment-processing/store-refund.ts:165:27  ?? → ||   # stage.refund is a truthy object or null

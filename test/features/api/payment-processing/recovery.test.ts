@@ -129,6 +129,21 @@ describeWithEnv(
       ).rejects.toThrow("ambiguous activation");
     });
 
+    test("rethrows when a stage exists but no unresolved reservation proves rollback", async () => {
+      const facts = await recoveryFacts("stage-only-recovery");
+      await stageSession("stage-only-recovery", facts.intent);
+      await expect(
+        recoverOrRefundUnexpectedCreate({
+          complete: () => Promise.reject(new Error("must not complete")),
+          error: new Error("stage alone is ambiguous"),
+          intent: facts.intent,
+          session: facts.data.session,
+          ticketToken: "stage-only-token",
+          validatedItems: facts.validatedItems,
+        }),
+      ).rejects.toThrow("stage alone is ambiguous");
+    });
+
     test("rethrows an ordinary processing error when its stage is missing", async () => {
       const facts = await recoveryFacts("missing-processing-stage");
       await expect(

@@ -61,6 +61,18 @@ describeStripe("stripe", () => {
       }
     });
 
+    test("keeps an empty timestamp distinct from a missing timestamp", async () => {
+      await activateStripe(TEST_SECRET, "we_test_empty_timestamp");
+      const result = await verifyWebhookSignature(
+        '{"test":true}',
+        "t=,v1=abc123",
+      );
+      expect(result).toEqual({
+        error: "Signature verification failed",
+        valid: false,
+      });
+    });
+
     test("secureCompare handles strings of different lengths", async () => {
       await activateStripe(TEST_SECRET, "we_test_len");
 

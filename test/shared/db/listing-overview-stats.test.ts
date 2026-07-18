@@ -17,6 +17,7 @@ import {
   overviewStatsFromAttendees,
   overviewStatsFromDbStats,
 } from "#templates/admin/listings/overview.tsx";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -238,6 +239,32 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     expect(stats.incompleteQuantity).toBe(0);
   });
 
+  test("excludes an attendee while its checkout is staged", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      unitPrice: 500,
+    });
+    const staged = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Staged",
+      "staged@example.com",
+      "",
+      500,
+      2,
+    );
+    await insertCheckoutStage(staged.id, "overview-staged");
+
+    expect(await getListingOverviewStats(listing)).toEqual({
+      completeQuantitySum: 0,
+      incompleteQuantity: 0,
+      incompleteSales: 0,
+      rowsCheckedIn: 0,
+      rowsTotal: 0,
+      ticketsCheckedIn: 0,
+      ticketsTotal: 0,
+    });
+  });
+
   test("does not count a refunded balance-paid attendee whose reference was pruned", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,
@@ -284,5 +311,56 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     const stats = await getListingOverviewStats(listing);
     expect(stats.incompleteQuantity).toBe(0);
     expect(stats.incompleteSales).toBe(0);
+  });
+
+  test("does not treat another attendee's payment in the same event group as payment", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      unitPrice: 500,
+    });
+    const unpaid = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Unpaid",
+      "unpaid-shared-group@example.com",
+      "",
+      500,
+      1,
+    );
+    const other = await createPaidAttendeeWithoutLedger(
+      listing.id,
+      "Other",
+      "other-shared-group@example.com",
+      "",
+      0,
+      1,
+    );
+    await postIncompleteSale(unpaid.id, listing.id, 500);
+    await postWriteoffAdjustment(attendeeAccount(unpaid.id), 500, [
+      "clear-shared-group",
+      unpaid.id,
+    ]);
+    const booking = await execute(
+      "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+      [unpaid.id, listing.id],
+    );
+    await postTransfers([
+      {
+        amount: 1,
+        destination: attendeeAccount(other.id),
+        eventGroup: "other-attendee-original-group",
+        kind: KIND.payment,
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "other-attendee-shared-group-payment",
+        source: WORLD,
+      },
+    ]);
+    await execute("UPDATE transfers SET event_group = ? WHERE reference = ?", [
+      String(booking.rows[0]!.ledger_event_group),
+      "other-attendee-shared-group-payment",
+    ]);
+
+    const stats = await getListingOverviewStats(listing);
+    expect(stats.incompleteQuantity).toBe(1);
+    expect(stats.incompleteSales).toBe(500);
   });
 });

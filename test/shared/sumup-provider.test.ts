@@ -9,6 +9,7 @@ import { type SumupCheckout, sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import "./sumup-checkout-close.test.ts";
 
 /** Booking metadata as buildItemsMetadata would write it. */
 const META = {
@@ -50,6 +51,14 @@ describe("sumup-provider", () => {
 
   afterEach(() => {
     resetDb();
+  });
+
+  test("declares its webhook event and unsigned verification", () => {
+    expect(sumupPaymentProvider.checkoutWebhookEvents).toEqual({
+      completed: "CHECKOUT_STATUS_CHANGED",
+      expired: null,
+    });
+    expect(sumupPaymentProvider.requiresWebhookSignature).toBe(false);
   });
 
   describe("retrieveSession", () => {

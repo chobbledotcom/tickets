@@ -1,16 +1,37 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
+  alreadyProcessedResult,
+  bookingSlot,
   createAttendeeForSession,
+  logPromoCodeModifiers,
   pairEntriesByListing,
+  saveSessionAnswers,
+  sessionSuccess,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
+import { encrypt } from "#shared/crypto/encryption.ts";
+import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
+import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
 
 /** A validated item carries a listing (the only field the pairing reads). */
 const item = (id: number) => ({ listing: testListingWithCount({ id }) });
 /** A created booking row — the pairing keys on its `listing_id`. */
 const row = (listing_id: number) => ({ listing_id });
+const intentContact = {
+  address: "",
+  date: null,
+  phone: "",
+  special_instructions: "",
+};
 
 describe("pairEntriesByListing", () => {
   test("pairs a one-row-per-item order by listing id", () => {
@@ -47,6 +68,48 @@ describe("pairEntriesByListing", () => {
       [item(10), item(30)],
     );
     expect(entries.map((e) => e.listing.id)).toEqual([10, 30, 30]);
+  });
+});
+
+test("builds standalone and package booking slots", () => {
+  expect(bookingSlot({ e: 7, p: 100, q: 1 })).toEqual({
+    listingId: 7,
+    packageGroupId: 0,
+  });
+  expect(bookingSlot({ e: 7, k: "p", p: 100, q: 1, r: 9 })).toEqual({
+    listingId: 7,
+    packageGroupId: 9,
+  });
+});
+
+test("builds session success with default and explicit ticket tokens", () => {
+  expect(sessionSuccess(2, 7)).toEqual({
+    attendee: { id: 2 },
+    listingId: 7,
+    success: true,
+    ticketTokens: [],
+  });
+  expect(sessionSuccess(2, 7, ["one"])).toMatchObject({
+    ticketTokens: ["one"],
+  });
+});
+
+test("replays encrypted ticket tokens from a processed payment", async () => {
+  expect(
+    await alreadyProcessedResult(7, {
+      attendee_id: 2,
+      failure_data: "",
+      payment_reference: "",
+      payment_session_id: "session",
+      processed_at: "2026-07-18T00:00:00.000Z",
+      provider_refunded_at: "",
+      ticket_tokens: await encrypt("one+two"),
+    }),
+  ).toEqual({
+    attendee: { id: 2 },
+    listingId: 7,
+    success: true,
+    ticketTokens: ["one", "two"],
   });
 });
 
@@ -137,5 +200,155 @@ test("reports a preparation error when a paid amount was not loaded", async () =
       "Unexpected error preparing session cs_missing_paid_amount: Error: Paid amount for checkout item 0 was not loaded",
     ok: false,
     reason: "unexpected_error",
+  });
+});
+
+for (const [reason, detail] of [
+  ["sold_out", "a chosen add-on or extra sold out during payment"],
+  [
+    "capacity_exceeded",
+    "Sorry, Test Listing sold out while you were completing payment.",
+  ],
+  ["encryption_error", "Registration failed."],
+  ["unexpected_error", "Registration failed."],
+] as const) {
+  test(`reports the exact ${reason} activation failure`, async () => {
+    using _activate = stub(attendeesApi, "activateStagedAttendee", () =>
+      Promise.resolve({ reason, success: false } as never),
+    );
+    expect(
+      await preparationResult({
+        matchingPricedItem: true,
+        sessionId: `cs_${reason}`,
+        total: 1000,
+      }),
+    ).toMatchObject({ detail, ok: false, reason });
+  });
+}
+
+describeWithEnv("payment creation details", { db: true }, () => {
+  test("saves a resolved text answer and skips a corrupt unresolved ref", async () => {
+    const listing = await createTestListing();
+    const attendee = await bookTestAttendee(
+      [listing.id],
+      "Answer buyer",
+      "answer@example.com",
+    );
+    const question = await getDb().execute(
+      "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text') RETURNING id",
+    );
+    const questionId = Number(question.rows[0]!.id);
+    const stringId = (await getOrCreateStringIds(["Saved answer"])).get(
+      "Saved answer",
+    )!;
+    await saveSessionAnswers(
+      [{ attendee: { id: attendee.id }, listing } as never],
+      {
+        ...intentContact,
+        email: "answer@example.com",
+        items: [{ e: listing.id, p: 0, q: 1 }],
+        listingTextAnswerIds: {
+          [String(listing.id)]: [
+            { q: questionId, s: stringId },
+            { q: questionId + 1 } as never,
+          ],
+        },
+        modifiers: [],
+        name: "Answer buyer",
+      },
+    );
+    expect(
+      await queryAll(
+        "SELECT question_id, string_id FROM attendee_answers WHERE attendee_id = ?",
+        [attendee.id],
+      ),
+    ).toEqual([{ question_id: questionId, string_id: stringId }]);
+  });
+
+  test("does no answer write when answer metadata is absent", async () => {
+    await saveSessionAnswers([], {
+      ...intentContact,
+      email: "none@example.com",
+      items: [{ e: 1, p: 0, q: 1 }],
+      modifiers: [],
+      name: "No answers",
+    });
+    expect(
+      await queryAll("SELECT attendee_id FROM attendee_answers", []),
+    ).toEqual([]);
+  });
+
+  test("saves an answer when only choice metadata is present", async () => {
+    const listing = await createTestListing();
+    const attendee = await bookTestAttendee(
+      [listing.id],
+      "Choice buyer",
+      "choice@example.com",
+    );
+    const question = await getDb().execute(
+      "INSERT INTO questions (text, display_type) VALUES ('Pick?', 'radio') RETURNING id",
+    );
+    const choiceQuestionId = Number(question.rows[0]!.id);
+    const answer = await getDb().execute(
+      "INSERT INTO answers (question_id, text) VALUES (?, 'Yes') RETURNING id",
+      [choiceQuestionId],
+    );
+    const answerId = Number(answer.rows[0]!.id);
+    await saveSessionAnswers(
+      [{ attendee: { id: attendee.id }, listing } as never],
+      {
+        ...intentContact,
+        email: "choice@example.com",
+        items: [{ e: listing.id, p: 0, q: 1 }],
+        listingAnswerIds: { [String(listing.id)]: [answerId] },
+        modifiers: [],
+        name: "Choice buyer",
+      },
+    );
+    expect(
+      await queryAll(
+        "SELECT answer_id FROM attendee_answers WHERE attendee_id = ?",
+        [attendee.id],
+      ),
+    ).toEqual([{ answer_id: answerId }]);
+  });
+
+  test("logs positive and negative promo effects", async () => {
+    const listing = await createTestListing();
+    const attendee = await bookTestAttendee(
+      [listing.id],
+      "Promo buyer",
+      "promo@example.com",
+    );
+    await logPromoCodeModifiers(
+      [
+        { id: 1, name: "SAVE" } as never,
+        { id: 2, name: "EXTRA" } as never,
+        { id: 3, name: "FREE" } as never,
+      ],
+      [
+        { delta: -500, modifierId: 1 } as never,
+        { delta: 250, modifierId: 2 } as never,
+        { delta: 0, modifierId: 3 } as never,
+      ],
+      listing as never,
+      attendee.id,
+    );
+    const rows = await queryAll<{ message: string }>(
+      "SELECT message FROM activity_log WHERE attendee_id = ? ORDER BY id",
+      [attendee.id],
+    );
+    const privateKey = await getTestPrivateKey();
+    expect(
+      await Promise.all(
+        rows.map((row) =>
+          decryptWithOwnerKey(row.message as never, privateKey),
+        ),
+      ),
+    ).toEqual([
+      "Promo code 'SAVE' used: £5 off",
+      "Promo code 'EXTRA' used: +£2.50",
+      "Promo code 'FREE' used: +£0",
+    ]);
   });
 });

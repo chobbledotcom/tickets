@@ -36,8 +36,12 @@ export const lineFor = (listing: Listing, quantity = 1): CheckoutItem =>
  * the pieces the tests inspect (line items and metadata).
  */
 export type CreatedSessionParams = {
+  customer_email?: string;
   line_items: {
-    price_data: { product_data: { name: string }; unit_amount: number };
+    price_data: {
+      product_data: { description?: string; name: string };
+      unit_amount: number;
+    };
     quantity: number;
   }[];
   metadata: Record<string, string>;
@@ -58,6 +62,17 @@ export const okBalance = (livemode: boolean) => () =>
 /** A webhookEndpoints.list behaviour that resolves to no endpoints. */
 export const noWebhooks = () => Promise.resolve({ data: [] });
 
+const connectionSpies = (
+  client: StripeClient,
+  balance: () => Promise<unknown>,
+  list: () => Promise<unknown>,
+) => ({
+  balanceSpy: stub(client.balance, "retrieve", balance as never),
+  listSpy: stub(client.webhookEndpoints, "list", list as never),
+});
+
+type ConnectionSpies = ReturnType<typeof connectionSpies>;
+
 /**
  * Stubs both the balance check and the webhook-endpoints list for a connection
  * test, restoring both afterwards. Most testStripeConnection cases drive these
@@ -67,15 +82,9 @@ export const withBalanceAndList = (
   client: StripeClient,
   balance: () => Promise<unknown>,
   list: () => Promise<unknown>,
-  body: () => void | Promise<void>,
+  body: (spies: ConnectionSpies) => void | Promise<void>,
 ): Promise<void> =>
-  withMocks(
-    () => ({
-      balanceSpy: stub(client.balance, "retrieve", balance as never),
-      listSpy: stub(client.webhookEndpoints, "list", list as never),
-    }),
-    body,
-  );
+  withMocks(() => connectionSpies(client, balance, list), body);
 
 const hmacHex = async (secret: string, message: string): Promise<string> => {
   const encoder = new TextEncoder();

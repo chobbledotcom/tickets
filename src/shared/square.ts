@@ -45,6 +45,7 @@ import {
   type SquareOrder,
   type SquarePayment,
 } from "#shared/square-payments.ts";
+import { stringEntries } from "#shared/string-entries.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /* jscpd:ignore-end */
@@ -66,8 +67,15 @@ type SquareRawTender = {
 /** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
 const mapTender = (t: SquareRawTender) => ({
   id: t.id,
-  paymentId: t.paymentId ?? t.payment_id,
+  paymentId: typeof t.paymentId === "string" ? t.paymentId : t.payment_id,
 });
+
+const stringMetadata = (
+  metadata: Record<string, string | null> | undefined,
+): Record<string, string> | undefined =>
+  metadata
+    ? Object.fromEntries(stringEntries(Object.entries(metadata)))
+    : undefined;
 
 /** A single line item for Square checkout */
 type SquareLineItem = {
@@ -177,15 +185,18 @@ export type SquareRequestOptions = { method?: string; body?: unknown };
 export const squareRequestInit = (
   token: string,
   options?: SquareRequestOptions,
-): { headers: Record<string, string>; method: string; body?: string } => ({
-  headers: {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    "Square-Version": SQUARE_API_VERSION,
-  },
-  method: options?.method ?? "GET",
-  ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
-});
+): { headers: Record<string, string>; method: string; body?: string } => {
+  const method = options?.method;
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Square-Version": SQUARE_API_VERSION,
+    },
+    method: method === undefined ? "GET" : method,
+    ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
+  };
+};
 
 /** Make an authenticated request to the Square REST API */
 const squareFetch = async (
@@ -224,7 +235,7 @@ type SquareDeletePaymentLinkResponse = {
 type SquareOrderResponse = {
   order?: {
     id?: string;
-    metadata?: Record<string, string>;
+    metadata?: Record<string, string | null>;
     tenders?: SquareRawTender[];
     state?: string;
     total_money?: { amount: number; currency: string };
@@ -310,7 +321,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
               ? {
                   id: link.id,
                   orderId: link.order_id,
-                  url: link.long_url ?? link.url,
+                  url: link.long_url || link.url,
                 }
               : undefined,
           };
@@ -564,7 +575,11 @@ const fetchOrder = async (
   ) {
     throw new Error(`Square order ${orderId} has no total`);
   }
-  return { ...order, totalMoney: order.totalMoney };
+  return {
+    ...order,
+    metadata: stringMetadata(order.metadata),
+    totalMoney: order.totalMoney,
+  };
 };
 
 export const retrieveCompletedPaymentForOrder = async (
@@ -719,7 +734,7 @@ export const squareApi: {
         : "failed";
     }, ErrorCode.SQUARE_REFUND);
 
-    return result ?? "failed";
+    return result === null ? "failed" : result;
   },
 
   resetSquareClient: (): void => clientCache.reset(),
@@ -731,20 +746,10 @@ export const squareApi: {
       const order = response.order;
       if (!order) return null;
 
-      // Convert nullable metadata values to plain string record
-      const metadata: Record<string, string> | undefined = order.metadata
-        ? Object.fromEntries(
-            Object.entries(order.metadata).filter(
-              (entry): entry is [string, string] =>
-                typeof entry[1] === "string",
-            ),
-          )
-        : undefined;
-
       return {
         createdAt: order.createdAt,
         id: order.id,
-        metadata,
+        metadata: stringMetadata(order.metadata),
         state: order.state,
         tenders: order.tenders?.map(mapTender),
         totalMoney: {
@@ -796,7 +801,7 @@ export const squareApi: {
     let locations: SquareLocation[] = [];
     try {
       const response = await client.locations.list();
-      locations = response.locations ?? [];
+      locations = response.locations === undefined ? [] : response.locations;
       result.accessToken = {
         mode: settings.square.sandbox ? "sandbox" : "production",
         valid: true,

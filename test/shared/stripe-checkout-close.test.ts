@@ -124,6 +124,7 @@ describe("Stripe hosted checkout closing", () => {
 
   for (const [session, result] of [
     [{ payment_status: "paid", status: "complete" }, "paid"],
+    [{ payment_status: "no_payment_required", status: "complete" }, "paid"],
     [{ status: "expired" }, "closed"],
   ] as const) {
     test(`returns ${result} without expiring a ${session.status} Stripe session`, () =>

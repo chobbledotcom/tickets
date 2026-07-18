@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import {
+  pruneAddressCache,
   pruneContacts,
   pruneLoginAttempts,
   pruneOrphanAttendees,
@@ -12,6 +14,7 @@ import {
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  ADDRESS_CACHE_MS,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
@@ -38,6 +41,28 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("db > table pruning", { db: true }, () => {
+  describe("pruneAddressCache", () => {
+    test("deletes only address rows older than retention", async () => {
+      await getDb().execute({
+        args: [
+          "old-address",
+          new Date(nowMs() - ADDRESS_CACHE_MS - 60_000).toISOString(),
+        ],
+        sql: "INSERT INTO address_cache (search_index, results, created) VALUES (?, 'encrypted', ?)",
+      });
+      await getDb().execute({
+        args: ["recent-address", new Date(nowMs() - 1_000).toISOString()],
+        sql: "INSERT INTO address_cache (search_index, results, created) VALUES (?, 'encrypted', ?)",
+      });
+
+      expect(await pruneAddressCache()).toBe(1);
+      const remaining = await getDb().execute(
+        "SELECT search_index FROM address_cache ORDER BY search_index",
+      );
+      expect(remaining.rows).toEqual([{ search_index: "recent-address" }]);
+    });
+  });
+
   describe("pruneSumupCheckouts", () => {
     test("deletes checkout metadata older than retention window", async () => {
       const old = new Date(

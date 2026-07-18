@@ -221,6 +221,7 @@ describe("payment-helpers", () => {
     test("packs the small fields into one `b` entry and drops them", () => {
       const packed = packMetadata({
         _origin: "x",
+        balance_attendee_id: "42",
         date: "2026-07-01",
         email: "a@b.com",
         items: "[]",
@@ -232,11 +233,13 @@ describe("payment-helpers", () => {
       expect("phone" in packed).toBe(false);
       expect("date" in packed).toBe(false);
       expect("site_token_index" in packed).toBe(false);
+      expect("balance_attendee_id" in packed).toBe(false);
       expect(packed.email).toBe("a@b.com");
       expect(packed.items).toBe("[]");
       expect(packed.name).toBe("Al");
       expect(packed._origin).toBe("x");
       expect(JSON.parse(packed.b!)).toEqual({
+        balance_attendee_id: "42",
         date: "2026-07-01",
         phone: "555",
         site_token_index: "hash",
@@ -253,6 +256,12 @@ describe("payment-helpers", () => {
       expect("b" in packed).toBe(false);
       expect("phone" in packed).toBe(false);
       expect(packed).toEqual({ email: "a@b.com", items: "[]", name: "Al" });
+    });
+
+    test("packs exactly one small field", () => {
+      expect(packMetadata({ phone: "555" })).toEqual({
+        b: '{"phone":"555"}',
+      });
     });
 
     test("round-trips packed fields back through extractSessionMetadata", () => {

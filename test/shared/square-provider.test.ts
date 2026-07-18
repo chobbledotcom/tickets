@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Spy, spy, stub } from "@std/testing/mock";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
+import { expectUnpaidSquareSession } from "#test/shared/square/session-assertions.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -125,13 +127,27 @@ const expectCheckoutUserError = async (
 };
 
 describe("square-provider", () => {
+  let debug: Spy;
+
   beforeEach(async () => {
     await createTestDb();
     setEffectiveDomainForTest("example.com");
+    setSuppressDebugLogs(false);
+    debug = spy(console, "debug");
   });
 
   afterEach(() => {
+    debug.restore();
+    setSuppressDebugLogs(null);
     resetDb();
+  });
+
+  test("declares its webhook contract", () => {
+    expect(squarePaymentProvider.checkoutWebhookEvents).toEqual({
+      completed: "payment.updated",
+      expired: null,
+    });
+    expect(squarePaymentProvider.requiresWebhookSignature).toBe(true);
   });
 
   describe("retrieveSession", () => {
@@ -145,6 +161,23 @@ describe("square-provider", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_no_meta");
           expect(result).toBeNull();
+          expect(debug.calls.at(-1)?.args).toEqual([
+            "[Square] Order order_no_meta missing required metadata fields",
+          ]);
+        },
+      );
+    });
+
+    test("logs and returns null when the order does not exist", async () => {
+      await withMocks(
+        () => stub(squareApi, "retrieveOrder", () => Promise.resolve(null)),
+        async () => {
+          expect(
+            await squarePaymentProvider.retrieveSession("order_missing"),
+          ).toBeNull();
+          expect(debug.calls.at(-1)?.args).toEqual([
+            "[Square] Order order_missing not found",
+          ]);
         },
       );
     });
@@ -227,12 +260,7 @@ describe("square-provider", () => {
             paymentId: "pay_3",
             status: "PENDING",
           }),
-        async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_open");
-          expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("unpaid");
-        },
+        () => expectUnpaidSquareSession("order_open", "pay_3"),
       );
     });
 
@@ -342,6 +370,16 @@ describe("square-provider", () => {
           amountMoney: money(1000),
           id: "pay_123",
           refundedMoney: money(1000),
+          status: "COMPLETED",
+        },
+      },
+      {
+        expected: true,
+        name: "returns true when a one-cent payment is fully refunded",
+        payment: {
+          amountMoney: money(1),
+          id: "pay_123",
+          refundedMoney: money(1),
           status: "COMPLETED",
         },
       },
@@ -513,6 +551,9 @@ describe("square-provider", () => {
         type: "payment.updated",
       });
       expect(result).toBe("skip");
+      expect(debug.calls.at(-1)?.args).toEqual([
+        "[Square] Skipping webhook for non-completed payment (status=APPROVED)",
+      ]);
     });
 
     test("rejects a payment event without its required identifiers", async () => {

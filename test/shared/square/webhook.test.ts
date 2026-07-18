@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
 import {
@@ -44,19 +45,45 @@ describeSquare(() => {
     test("returns error when webhook signature key not configured", async () => {
       await resetDb();
       await createTestDb();
-      await expectInvalid(
-        '{"test": true}',
-        "somesig",
-        "Webhook signature key not configured",
-      );
+      const error = spy(console, "error");
+      try {
+        await expectInvalid(
+          '{"test": true}',
+          "somesig",
+          "Webhook signature key not configured",
+        );
+        expect(error.calls.at(-1)?.args).toEqual([
+          '[Error] E_CONFIG_MISSING detail="Square webhook signature key"',
+        ]);
+      } finally {
+        error.restore();
+      }
     });
 
     test("returns error for invalid signature", async () => {
-      await expectInvalid(
-        '{"test": true}',
-        "invalidsignature",
-        "Signature verification failed",
+      const listing = {
+        data: { object: {} },
+        id: "expected-signature",
+        type: "payment.updated",
+      };
+      const signed = await constructTestWebhookEvent(
+        listing,
+        TEST_SECRET,
+        TEST_NOTIFICATION_URL,
       );
+      const error = spy(console, "error");
+      try {
+        await expectInvalid(
+          signed.payload,
+          "invalidsignature",
+          "Signature verification failed",
+        );
+        expect(error.calls.at(-1)?.args).toEqual([
+          `[Error] E_SQUARE_SIGNATURE detail="mismatch: notificationUrl=${TEST_NOTIFICATION_URL}, receivedLength=16, expectedLength=${signed.signature.length}, receivedPrefix=invalids..., expectedPrefix=${signed.signature.slice(0, 8)}..., bodyLength=${toBytes(signed.payload).length}"`,
+        ]);
+      } finally {
+        error.restore();
+      }
     });
 
     test("returns error for invalid JSON payload with valid signature", async () => {
@@ -101,11 +128,17 @@ describeSquare(() => {
         TEST_NOTIFICATION_URL,
       );
 
-      const result = await verify(payload, signature);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.listing.id).toBe("evt_square_123");
-        expect(result.listing.type).toBe("payment.updated");
+      const error = spy(console, "error");
+      try {
+        const result = await verify(payload, signature);
+        expect(result.valid).toBe(true);
+        expect(error.calls).toHaveLength(0);
+        if (result.valid) {
+          expect(result.listing.id).toBe("evt_square_123");
+          expect(result.listing.type).toBe("payment.updated");
+        }
+      } finally {
+        error.restore();
       }
     });
   });

@@ -9,6 +9,7 @@ import {
   stripeApi,
 } from "#shared/stripe.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withFetchMock } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import { describeStripe } from "./harness.ts";
@@ -61,6 +62,8 @@ const expectFailedResultWithNoDeletes = (
 };
 
 describeStripe("Stripe webhook setup", () => {
+  const errors = setupErrorSpy();
+
   describe("endpoint setup", () => {
     test("creates the new endpoint and does not delete any old ones", async () => {
       const webhookUrl = "https://example.com/payment/webhook";
@@ -194,6 +197,18 @@ describeStripe("Stripe webhook setup", () => {
       expect(calls.createAttempts).toBe(2);
     });
 
+    test("does not treat a non-webhook maximum error as an endpoint cap", async () => {
+      const calls = newWebhookApiCalls();
+      const result = await setupWithWebhookApi(
+        "https://example.com/payment/webhook",
+        calls,
+        "we_recorded",
+        { createThrowsMaximum: "without-webhook" },
+      );
+      expectFailedResultWithNoDeletes(result, calls);
+      expect(calls.createAttempts).toBe(1);
+    });
+
     test("re-throws when error is webhook but not limit or maximum", async () => {
       // A webhook error that doesn't mention "limit" or "maximum" is not a
       // cap error — it must re-throw to the outer catch and return an error.
@@ -300,6 +315,7 @@ describeStripe("Stripe webhook setup", () => {
         new Error("Network unavailable"),
         "https://example.com/webhook/error-test",
       );
+      expect(errors.contains("E_STRIPE_WEBHOOK_SETUP")).toBe(true);
     });
 
     test("returns a string error when a non-Error is thrown", async () => {

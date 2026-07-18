@@ -172,6 +172,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         modifierUsages: [],
       });
       expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.entries).toHaveLength(2);
+      expect(result.token).not.toBe("");
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
     });
@@ -451,10 +454,37 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
 
       expect(result.success).toBe(false);
       if (result.success) return;
-      expect(result.error).toBe(MODIFIER_SOLD_OUT_MESSAGE);
+      expect(result.error).toBe(
+        "An extra you selected sold out while you were checking out. Please try again.",
+      );
+      expect(MODIFIER_SOLD_OUT_MESSAGE).toBe(result.error);
       // Nothing persisted — no attendee, and no orphaned ledger legs.
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       expect((await allTransfers()).length).toBe(0);
+    });
+
+    test("consumes available modifier stock without posting money when payments are disabled", async () => {
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Available add-on",
+        stock: 1,
+      });
+      const { base } = await oneLineBooking();
+      const result = await createFreeReservation({
+        ...base,
+        ledgerOrder: null,
+        modifierUsages: [
+          {
+            amountApplied: 500,
+            modifierId: modifier.id,
+            quantity: 1,
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      expect(await allTransfers()).toEqual([]);
     });
   });
 
@@ -637,6 +667,17 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         parentId: parent.id,
         qty: 1,
       });
+    });
+
+    test("a selected listing with no children does not load holidays", async () => {
+      const listing = await createTestListing();
+      const info = await ticketListingFor(listing.id);
+      const ctx = stubCtx([info], new Map());
+      const { value, roundTrips } = await runAndCountRoundTrips(() =>
+        doFold(ctx, new FormParams({}), new Map([[listing.id, 1]])),
+      );
+      expect(value.ok).toBe(true);
+      expect(roundTrips).toBe(0);
     });
 
     test("same child under two parents produces two allocation entries", async () => {

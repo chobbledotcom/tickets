@@ -14,7 +14,7 @@ export type WebhookApiCalls = {
 export type WebhookApiOptions = {
   createFails?: boolean;
   createLimitError?: boolean;
-  createThrowsMaximum?: boolean;
+  createThrowsMaximum?: boolean | "without-webhook";
   createThrowsNonError?: boolean;
   createThrowsWebhookOnly?: boolean;
   deleteFails?: boolean;
@@ -23,6 +23,11 @@ export type WebhookApiOptions = {
   recordedInListing?: boolean;
   sameUrlStray?: boolean;
 };
+
+const maximumErrorMessage = (mode: true | "without-webhook"): string =>
+  mode === "without-webhook"
+    ? "Maximum number of endpoints reached"
+    : "Maximum number of webhook endpoints reached";
 
 export const webhookEndpointsApi = (
   webhookUrl: string,
@@ -99,7 +104,7 @@ export const webhookEndpointsApi = (
         Response.json(
           {
             error: {
-              message: "Maximum number of webhook endpoints reached",
+              message: maximumErrorMessage(createThrowsMaximum),
               type: "invalid_request_error",
             },
           },

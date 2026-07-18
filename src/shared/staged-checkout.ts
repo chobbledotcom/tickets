@@ -36,7 +36,7 @@ export type PaidCheckoutResult =
       sessionId: string;
     };
 
-const CHECKOUT_STAGE_RETENTION_MS = 48 * 60 * 60 * 1000;
+const CHECKOUT_STAGE_RETENTION_MS = 172_800_000;
 
 /** Close one hosted checkout, then purge its local stage only after closure. */
 export const closeAndPurgeCheckoutStage = async (

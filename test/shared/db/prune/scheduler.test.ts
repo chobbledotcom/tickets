@@ -9,7 +9,10 @@ import {
   PRUNE_INTERVAL_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
 } from "#shared/limits.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { nowMs } from "#shared/now.ts";
+import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
@@ -17,6 +20,7 @@ import {
   expectFreshPrunedTimestampAfterRun,
   insertFinalizedPayment,
   insertOrphanAttendee,
+  insertSumupCheckout,
   oldOrphanIso,
   paymentExists,
   setAllLastPruned,
@@ -113,9 +117,60 @@ describeWithEnv("db > prune scheduler", { db: true }, () => {
       ).toISOString();
       await insertFinalizedPayment("sess_skip", old);
 
+      using batch = stub(getDb(), "batch");
       await maybeRunPrunes();
 
       expect(await paymentExists("sess_skip")).toBe(true);
+      expect(batch.calls).toHaveLength(0);
+    });
+
+    test("prunes both hosted checkout stores in one scheduled task", async () => {
+      await clearAllLastPruned();
+      const created = new Date(nowMs() - 3 * 24 * 60 * 60 * 1000).toISOString();
+      await insertSumupCheckout("scheduled-old-sumup", created);
+      const attendeeId = await insertOrphanAttendee(created);
+      await insertCheckoutStage(attendeeId, "scheduled-old-stage", {
+        createdAt: created,
+      });
+      using close = stub(stripePaymentProvider, "closeCheckout", () =>
+        Promise.resolve("closed" as const),
+      );
+      setSuppressDebugLogs(false);
+      using debug = stub(console, "debug");
+
+      try {
+        await maybeRunPrunes();
+
+        expect(await attendeeExists(attendeeId)).toBe(false);
+        const oldSumUp = await getDb().execute(
+          "SELECT reference_index FROM sumup_checkouts WHERE reference_index = 'scheduled-old-sumup'",
+        );
+        expect(oldSumUp.rows).toEqual([]);
+        expect(close.calls).toHaveLength(1);
+        expect(debug.calls.map((call) => call.args[0])).toContain(
+          "[Prune] last_pruned_sumup: deleted 2 rows",
+        );
+      } finally {
+        setSuppressDebugLogs(null);
+      }
+    });
+
+    test("logs the setting key and deleted count for successful work", async () => {
+      await clearAllLastPruned();
+      const old = new Date(
+        nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertFinalizedPayment("sess_logged", old);
+      setSuppressDebugLogs(false);
+      using debug = stub(console, "debug");
+      try {
+        await maybeRunPrunes();
+        expect(debug.calls.map((call) => call.args[0])).toContain(
+          "[Prune] last_pruned_payments: deleted 1 rows",
+        );
+      } finally {
+        setSuppressDebugLogs(null);
+      }
     });
 
     test("runs tasks when last-run is older than the interval", async () => {

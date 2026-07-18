@@ -44,7 +44,7 @@ type ComputedRefund = {
 };
 
 const isRefundLeg = (kind: string | undefined): boolean =>
-  kind?.startsWith("refund_") ?? false;
+  kind?.startsWith("refund_") === true;
 
 /** A provider cash payment: `payment` sourced from the world (card/bank in),
  *  as opposed to an operator-recorded manual payment. */

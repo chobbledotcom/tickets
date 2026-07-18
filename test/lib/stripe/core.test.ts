@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type { StripeWebhookEvent } from "#shared/stripe.ts";
@@ -9,6 +10,7 @@ import {
   constructTestWebhookEvent,
   createCheckoutSession,
   getStripeClient,
+  isoFromUnixSeconds,
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
@@ -16,6 +18,7 @@ import {
 } from "#shared/stripe.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
@@ -28,6 +31,13 @@ import {
 import { describeStripe } from "./harness.ts";
 
 describeStripe("stripe", () => {
+  const errors = setupErrorSpy();
+
+  test("converts Stripe epoch seconds to milliseconds", () => {
+    expect(isoFromUnixSeconds(1_750_000_000)).toBe("2025-06-15T15:06:40.000Z");
+    expect(isoFromUnixSeconds("1750000000")).toBeUndefined();
+  });
+
   describe("getStripeClient", () => {
     test("returns null when stripe key not set", async () => {
       const client = await getStripeClient();
@@ -61,6 +71,14 @@ describeStripe("stripe", () => {
 
       const client2 = await getStripeClient();
       expect(client2).toBeNull();
+    });
+
+    test("creates a fresh client when the key is unchanged", async () => {
+      await settings.update.stripe.secretKey("sk_test_123");
+      const first = await getStripeClient();
+      resetStripeClient();
+      const second = await getStripeClient();
+      expect(second).not.toBe(first);
     });
   });
 
@@ -180,16 +198,128 @@ describeStripe("stripe", () => {
         run,
       );
 
+    const checkoutUrlLog = async (
+      id: string,
+      url: string | null,
+    ): Promise<string> => {
+      const client = await stripeClient();
+      setSuppressDebugLogs(false);
+      using debug = spy(console, "debug");
+      try {
+        await withCreateSpy(
+          client,
+          { id, object: "checkout.session", url },
+          async () => {
+            await createCheckoutSession(
+              checkoutIntent({ name: "Buyer" }),
+              "http://localhost:3000",
+            );
+          },
+        );
+        return debug.calls.map((call) => String(call.args[0])).join("\n");
+      } finally {
+        setSuppressDebugLogs(null);
+      }
+    };
+
     test("returns null when stripe key not set", async () => {
-      const result = await createCheckoutSession(
-        checkoutIntent({
-          email: "john@example.com",
-          items: [checkoutItem({ name: "Test", slug: "test-listing" })],
-          name: "John",
-        }),
-        "http://localhost",
+      setSuppressDebugLogs(false);
+      using debug = spy(console, "debug");
+      try {
+        const result = await createCheckoutSession(
+          checkoutIntent({
+            email: "john@example.com",
+            items: [checkoutItem({ name: "Test", slug: "test-listing" })],
+            name: "John",
+          }),
+          "http://localhost",
+        );
+        expect(result).toBeNull();
+        const output = debug.calls
+          .map((call) => String(call.args[0]))
+          .join("\n");
+        expect(output).toContain(
+          "No secret key configured, cannot create client",
+        );
+        expect(output).toContain("Multi-session creation failed");
+      } finally {
+        setSuppressDebugLogs(null);
+      }
+    });
+
+    test("logs an empty checkout URL without replacing it", async () => {
+      const output = await checkoutUrlLog("cs_empty_url", "");
+      expect(output).toContain("id=cs_empty_url url=");
+      expect(output).not.toContain("id=cs_empty_url url=none");
+    });
+
+    test("logs a missing checkout URL as none", async () => {
+      const output = await checkoutUrlLog("cs_no_url", null);
+      expect(output).toContain("id=cs_no_url url=none");
+    });
+
+    test("sends exact ticket descriptions, email, and lifecycle logs", async () => {
+      const client = await stripeClient();
+      setSuppressDebugLogs(false);
+      using debug = spy(console, "debug");
+      try {
+        await withCreateSpy(
+          client,
+          {
+            id: "cs_lines",
+            object: "checkout.session",
+            url: "https://checkout.stripe.com/lines",
+          },
+          async (createSpy) => {
+            await createCheckoutSession(
+              checkoutIntent({
+                email: "buyer@example.com",
+                items: [
+                  checkoutItem({ name: "One", quantity: 1 }),
+                  checkoutItem({ listingId: 2, name: "Two", quantity: 2 }),
+                ],
+                name: "Buyer",
+              }),
+              "http://localhost:3000",
+            );
+            const params = createSpy.calls[0]!.args[0] as CreatedSessionParams;
+            expect(params.customer_email).toBe("buyer@example.com");
+            expect(
+              params.line_items.map(
+                (item) => item.price_data.product_data.description,
+              ),
+            ).toEqual(["Ticket", "2 Tickets"]);
+          },
+        );
+        const output = debug.calls
+          .map((call) => String(call.args[0]))
+          .join("\n");
+        expect(output).toContain("Creating checkout session for 2 listing(s)");
+        expect(output).toContain("Calling Stripe API checkout.sessions.create");
+        expect(output).toContain("Multi-session created id=cs_lines");
+      } finally {
+        setSuppressDebugLogs(null);
+      }
+    });
+
+    test("omits customer_email when the email is empty", async () => {
+      const client = await stripeClient();
+      await withCreateSpy(
+        client,
+        {
+          id: "cs_no_email",
+          object: "checkout.session",
+          url: "https://checkout.stripe.com/no-email",
+        },
+        async (createSpy) => {
+          await createCheckoutSession(
+            checkoutIntent({ email: "", name: "Buyer" }),
+            "http://localhost:3000",
+          );
+          const params = createSpy.calls[0]!.args[0] as CreatedSessionParams;
+          expect("customer_email" in params).toBe(false);
+        },
       );
-      expect(result).toBeNull();
     });
 
     test("includes booking fee line item when fee is set", async () => {
@@ -349,6 +479,7 @@ describeStripe("stripe", () => {
       if (!result.valid) {
         expect(result.error).toBe("Webhook secret not configured");
       }
+      expect(errors.contains("webhook secret")).toBe(true);
     });
 
     test("returns error for invalid signature header format", async () => {
@@ -405,6 +536,30 @@ describeStripe("stripe", () => {
       if (!result.valid) {
         expect(result.error).toBe("Signature verification failed");
       }
+      expect(errors.contains("mismatch")).toBe(true);
+    });
+
+    test("uses the last decimal timestamp from a repeated header", async () => {
+      const payload = '{"id":"evt_repeated","type":"test"}';
+      const timestamp = Math.floor(Date.now() / 1000);
+      const valid = await signedHeader(TEST_SECRET, payload, timestamp);
+      const signature = valid.split("v1=")[1]!;
+      const result = await verifyWebhookSignature(
+        payload,
+        `t=1,t=${timestamp},v1=${signature}`,
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("parses webhook timestamps as decimal", async () => {
+      const result = await verifyWebhookSignature(
+        '{"id":"evt_hex","type":"test"}',
+        "t=0x10,v1=invalid",
+      );
+      expect(result).toEqual({
+        error: "Invalid signature header format",
+        valid: false,
+      });
     });
 
     test("returns error for invalid JSON payload", async () => {

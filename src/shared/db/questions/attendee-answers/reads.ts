@@ -197,10 +197,12 @@ export const loadAttendeeQuestionData = async (
 export const getAttendeeTextAnswers = async (
   attendeeId: number,
   privateKey: CryptoKey,
-): Promise<Map<number, string>> =>
-  (await getAttendeeTextAnswersBatch([attendeeId], privateKey)).get(
-    attendeeId,
-  ) ?? new Map();
+): Promise<Map<number, string>> => {
+  const answers = (
+    await getAttendeeTextAnswersBatch([attendeeId], privateKey)
+  ).get(attendeeId);
+  return answers === undefined ? new Map() : answers;
+};
 
 /** Row shape for an attendee's chosen answer joined onto its decrypted text. */
 type ChoiceAnswerRow = {

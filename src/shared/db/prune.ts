@@ -192,7 +192,6 @@ export const pruneOrphanAttendees = (): Promise<number> =>
 type PruneTask = {
   field: Parameters<typeof setSnapshotField>[0];
   key: string;
-  name: string;
   lastRaw: string;
   run: () => Promise<number>;
 };
@@ -202,63 +201,54 @@ const PRUNE_TASKS = (): PruneTask[] => [
     field: "last_pruned_payments",
     key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
     lastRaw: settings.lastPrunedPayments,
-    name: "processed_payments",
     run: prunePayments,
   },
   {
     field: "last_pruned_sumup",
     key: CONFIG_KEYS.LAST_PRUNED_SUMUP,
     lastRaw: settings.lastPrunedSumup,
-    name: "checkout_storage",
     run: pruneCheckoutStorage,
   },
   {
     field: "last_pruned_strings",
     key: CONFIG_KEYS.LAST_PRUNED_STRINGS,
     lastRaw: settings.lastPrunedStrings,
-    name: "strings",
     run: pruneUnusedStrings,
   },
   {
     field: "last_pruned_sessions",
     key: CONFIG_KEYS.LAST_PRUNED_SESSIONS,
     lastRaw: settings.lastPrunedSessions,
-    name: "sessions",
     run: pruneSessions,
   },
   {
     field: "last_pruned_logins",
     key: CONFIG_KEYS.LAST_PRUNED_LOGINS,
     lastRaw: settings.lastPrunedLogins,
-    name: "login_attempts",
     run: pruneLoginAttempts,
   },
   {
     field: "last_pruned_tokens",
     key: CONFIG_KEYS.LAST_PRUNED_TOKENS,
     lastRaw: settings.lastPrunedTokens,
-    name: "token_attempts",
     run: pruneTokenAttempts,
   },
   {
     field: "last_pruned_contacts",
     key: CONFIG_KEYS.LAST_PRUNED_CONTACTS,
     lastRaw: settings.lastPrunedContacts,
-    name: "contact_preferences",
     run: pruneContacts,
   },
   {
     field: "last_pruned_addresses",
     key: CONFIG_KEYS.LAST_PRUNED_ADDRESSES,
     lastRaw: settings.lastPrunedAddresses,
-    name: "address_cache",
     run: pruneAddressCache,
   },
   {
     field: "last_pruned_invites",
     key: CONFIG_KEYS.LAST_PRUNED_INVITES,
     lastRaw: settings.lastPrunedInvites,
-    name: "expired_invites",
     run: pruneExpiredInvites,
   },
   // Opt-in: scheduled only while the owner leaves automatic orphan purging on.
@@ -268,7 +258,6 @@ const PRUNE_TASKS = (): PruneTask[] => [
           field: "last_pruned_orphans" as const,
           key: CONFIG_KEYS.LAST_PRUNED_ORPHANS,
           lastRaw: settings.lastPrunedOrphans,
-          name: "orphan_attendees",
           run: pruneOrphanAttendees,
         },
       ]
@@ -284,10 +273,10 @@ const runTask = async (task: PruneTask): Promise<void> => {
   try {
     const deleted = await task.run();
     if (deleted > 0) {
-      logDebug("Prune", `${task.name}: deleted ${deleted} rows`);
+      logDebug("Prune", `${task.key}: deleted ${deleted} rows`);
     }
   } catch (e) {
-    logDebug("Prune", `${task.name} failed: ${String(e)}`);
+    logDebug("Prune", `${task.key} failed: ${String(e)}`);
   }
 };
 
@@ -300,7 +289,7 @@ export const maybeRunPrunes = async (): Promise<void> => {
   const due = PRUNE_TASKS().filter((t) =>
     taskIsDue(t.lastRaw, PRUNE_INTERVAL_MS, now),
   );
-  if (due.length === 0) return;
+  if (!due.length) return;
   const value = String(now);
   try {
     await writeRawBatch(due.map((task) => [task.key, value] as const));

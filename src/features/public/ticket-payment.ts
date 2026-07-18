@@ -106,6 +106,18 @@ import type {
 } from "./types.ts";
 /* jscpd:ignore-end */
 
+/** Every parent's children flattened to their listings, in parent order. */
+export const allChildListings = (
+  childrenByParentId: ChildrenByParentId,
+): ListingWithCount[] =>
+  [...childrenByParentId.values()].flat().map((child) => child.listing);
+
+/** Distinct child listing ids across every parent's children. */
+export const childListingIdsOf = (
+  childrenByParentId: ChildrenByParentId,
+): number[] =>
+  unique(allChildListings(childrenByParentId).map((listing) => listing.id));
+
 /** Get active payment provider or return an error response */
 export const withPaymentProvider = async (
   onMissing: () => Response,
@@ -158,10 +170,10 @@ export const runCheckoutFlow = (
                 `Checkout validation error for ${label}: ${error}`,
               );
             }
-            return onError(
-              error ?? "Failed to create payment session. Please try again.",
-              error ? 400 : 500,
-            );
+            const message = error
+              ? error
+              : "Failed to create payment session. Please try again.";
+            return onError(message, error ? 400 : 500);
           },
           soldOut: () =>
             onError("Sorry, some tickets are no longer available", 409),
@@ -176,12 +188,12 @@ export const checkAvailability = (
   listings: TicketListing[],
   quantities: Map<number, number>,
   date?: string | null,
-  dayCount = 1,
+  dayCount = Math.sign(Number.POSITIVE_INFINITY),
 ): Promise<boolean> =>
   attendeesApi.checkBatchAvailability(
     buildBookings(
       listingsWithQuantity(listings, quantities),
-      date ?? null,
+      date === undefined ? null : date,
       dayCount,
     ),
     date,
@@ -208,11 +220,11 @@ export const loadPagePackage = async (
 export const ctxStandInNames = (
   ctx: Pick<TicketCtx, "packages" | "childrenByParentId">,
 ): PackageStandIns =>
-  packageStandIns(ctx.packages, (memberId) =>
-    (ctx.childrenByParentId.get(memberId) ?? []).map(
-      (child) => child.listing.id,
-    ),
-  );
+  packageStandIns(ctx.packages, (memberId) => {
+    const children = ctx.childrenByParentId.get(memberId);
+    if (children === undefined) return [];
+    return childListingIdsOf(new Map([[memberId, children]]));
+  });
 
 export const handlePaymentFlow = (
   request: Request,
@@ -229,7 +241,7 @@ export const handlePaymentFlow = (
 const buildBookings = (
   selected: ListingQty[],
   date: string | null,
-  dayCount = 1,
+  dayCount = Math.sign(Number.POSITIVE_INFINITY),
 ): LineBooking[] =>
   selected.map(({ listing, qty }) => ({
     listingId: listing.id,
@@ -253,7 +265,9 @@ export const resolveDayCount = async (
   standIns?: ReadonlyMap<number, string>,
 ): Promise<{ dayCount: number } | { error: string }> => {
   const shownName = (listing: ListingWithCount): string =>
-    standIns?.get(listing.id) ?? listing.name;
+    standIns?.get(listing.id) === undefined
+      ? listing.name
+      : standIns.get(listing.id)!;
   const customisable = selected.filter(
     ({ listing }) => listing.customisable_days,
   );
@@ -325,7 +339,10 @@ export const foldSelectedChildren = async (
 ): Promise<FoldChildrenResult> => {
   // A caller that already built the ctx's tree (the API book path builds it
   // for the cap) passes it in rather than walking the graph twice per request.
-  const tree = prebuiltTree ?? buildBookingTree(ctxToBuildTreeInput(ctx));
+  const tree =
+    prebuiltTree === undefined
+      ? buildBookingTree(ctxToBuildTreeInput(ctx))
+      : prebuiltTree;
   const resolved = resolvedByNodeKey(
     ctx.listings,
     ctx.childrenByParentId,
@@ -333,8 +350,8 @@ export const foldSelectedChildren = async (
   );
   const hasFoldableParent = tree.nodes.some(
     (node) =>
-      node.children.length > 0 &&
-      (base.quantities.get(node.listingId) ?? 0) > 0,
+      Boolean(node.children.length) &&
+      Boolean(base.quantities.get(node.listingId)),
   );
   const holidays = hasFoldableParent ? await getActiveHolidays() : [];
   return foldBookingTree(tree, resolved, form, base, holidays);
@@ -379,7 +396,7 @@ export const MODIFIER_SOLD_OUT_MESSAGE =
  *  mapBooking yields no legs while the modifier stock is still consumed. */
 const EMPTY_PRICED_ORDER: PricedOrder = {
   extras: [],
-  fullSubtotal: 0,
+  fullSubtotal: Number(),
   lines: [],
   modifierApplications: [],
   total: 0,
@@ -390,9 +407,9 @@ export const createFreeReservation = async ({
   listings,
   contact,
   date,
-  dayCount = 1,
+  dayCount = Math.sign(Number.POSITIVE_INFINITY),
   paidByItem,
-  remainingBalance = 0,
+  remainingBalance = Number(),
   modifierUsages,
   ledgerOrder,
   allocations,
@@ -427,7 +444,8 @@ export const createFreeReservation = async ({
           await bookingBatchPlan(modifierUsages, {
             eventId: crypto.randomUUID(),
             occurredAt: nowIso(),
-            pricedOrder: ledgerOrder ?? EMPTY_PRICED_ORDER,
+            pricedOrder:
+              ledgerOrder === null ? EMPTY_PRICED_ORDER : ledgerOrder,
           }),
         )
       : await attendeesApi.createAttendeeAtomic(input);
@@ -441,7 +459,7 @@ export const createFreeReservation = async ({
     // message) for a package; a non-package order keeps its first listing's name.
     const errorName = items.some((item) => item.packageGroupId !== undefined)
       ? ""
-      : listingById.get(items[0]!.listingId)!.name;
+      : listingById.get(items.values().next().value!.listingId)!.name;
     return {
       error: formatAtomicError(result.reason, errorName),
       success: false,
@@ -519,7 +537,7 @@ export const withActiveListings = async (
   if (activeListings.length === 0) return notFoundResponse();
   const ids = activeListings.map((e) => e.listing.id);
   if (await anyNonStandaloneChild(ids)) return notFoundResponse();
-  if ((await getHiddenPackageMemberIds(ids)).size > 0) {
+  if ((await getHiddenPackageMemberIds(ids)).size) {
     return notFoundResponse();
   }
   return handler(activeListings);
@@ -581,7 +599,8 @@ const singleDailyParent = (
   if (listings.length !== 1) return null;
   const parent = listings[0]!;
   if (parent.listing.listing_type !== "daily") return null;
-  const children = childrenByParentId.get(parent.listing.id) ?? null;
+  const foundChildren = childrenByParentId.get(parent.listing.id);
+  const children = foundChildren === undefined ? null : foundChildren;
   if (!children) return null;
   return { children, fixedDays: fixedParentDays(parent.listing) };
 };
@@ -641,18 +660,6 @@ export const loadChildrenByParentId = async (
   }
   return result;
 };
-
-/** Every parent's children flattened to their listings, in parent order. */
-export const allChildListings = (
-  childrenByParentId: ChildrenByParentId,
-): ListingWithCount[] =>
-  [...childrenByParentId.values()].flat().map((child) => child.listing);
-
-/** Distinct child listing ids across every parent's children. */
-export const childListingIdsOf = (
-  childrenByParentId: ChildrenByParentId,
-): number[] =>
-  unique(allChildListings(childrenByParentId).map((listing) => listing.id));
 
 /** Day counts the parent can pass to daily children. */
 const parentDayCountsForChildren = (parent: ListingWithCount): number[] => {
@@ -722,6 +729,17 @@ export const loadPackageLimitGroupMaps = async (
   };
 };
 
+const packagesForPage = async (
+  group: Group | undefined,
+  pagePackages: PagePackage[] | undefined,
+  listingIds: number[],
+): Promise<PagePackage[]> => {
+  if (pagePackages !== undefined) return pagePackages;
+  return group?.is_package === true
+    ? [await loadPagePackage(group, listingIds)]
+    : [];
+};
+
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
@@ -764,30 +782,28 @@ export const getTicketContext = async (
   // bookable dates; the client compatibility script also needs each
   // daily child's serveable dates. Both are holiday-aware, so fetch
   // holidays once when the page has any parents; pages with none skip it entirely.
-  const holidays = childrenByParentId.size > 0 ? await getActiveHolidays() : [];
+  let holidays: Holiday[] = [];
+  if (childrenByParentId.size) holidays = await getActiveHolidays();
   // The page's bundles: a mixed cart passes its already-loaded packages in; a
   // single-group package page builds its one PagePackage from the group ("a
   // single item is an array of one"). Loaded once here so quote and submit
   // price/derive against the same maps with no extra query.
-  const packages =
-    pagePackages ??
-    (group?.is_package === true
-      ? [await loadPagePackage(group, listingIds)]
-      : []);
+  const packages = await packagesForPage(group, pagePackages, listingIds);
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
-  const dates = dailyParent
-    ? keepDatesSomeChildCanServe(sharedDates, dailyParent.children, {
-        fixedDays: dailyParent.fixedDays,
-        holidays,
-      })
-    : packages.length > 0
-      ? keepPackageDatesChildrenCanServe(
-          activeListings,
-          childrenByParentId,
-          sharedDates,
-          holidays,
-        )
-      : sharedDates;
+  let dates = sharedDates;
+  if (dailyParent) {
+    dates = keepDatesSomeChildCanServe(sharedDates, dailyParent.children, {
+      fixedDays: dailyParent.fixedDays,
+      holidays,
+    });
+  } else if (packages.length > 0) {
+    dates = keepPackageDatesChildrenCanServe(
+      activeListings,
+      childrenByParentId,
+      sharedDates,
+      holidays,
+    );
+  }
   const childDatesById = buildChildDatesById(
     activeListings,
     childrenByParentId,
@@ -795,8 +811,8 @@ export const getTicketContext = async (
   );
   // A group page's own terms win; a cart shows every selected package's terms.
   const terms = group
-    ? group.terms_and_conditions || globalTerms || ""
-    : combinedPackageTerms(packages, globalTerms || "");
+    ? group.terms_and_conditions || globalTerms || String()
+    : combinedPackageTerms(packages, globalTerms || String());
   const packageCapMaps =
     packages.length > 0
       ? await loadPackageLimitGroupMaps(activeListings, childrenByParentId)
@@ -836,7 +852,7 @@ export const keepParentDailyDatesChildrenCanServe = async (
     [parent.id],
   );
   const childRows = childrenByParent.get(parent.id);
-  if (!childRows || childRows.length === 0) return parentDates;
+  if (!childRows?.length) return parentDates;
   const children = await buildTicketListingsWithGroupCapacity(childRows);
   return keepDatesSomeChildCanServe(parentDates, children, {
     fixedDays: fixedParentDays(parent),

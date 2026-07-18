@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type { CreatePaymentLinkInput } from "#shared/square.ts";
@@ -27,8 +29,17 @@ describeSquare(() => {
 
     test("returns null when location ID not configured", async () => {
       await configureSquare();
-      // No location ID set
-      await expectNoLink(checkoutIntent());
+      setSuppressDebugLogs(false);
+      const debug = spy(console, "debug");
+      try {
+        await expectNoLink(checkoutIntent());
+        expect(debug.calls.at(-1)?.args).toEqual([
+          "[Square] No location ID configured",
+        ]);
+      } finally {
+        debug.restore();
+        setSuppressDebugLogs(null);
+      }
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -36,6 +47,8 @@ describeSquare(() => {
       await withSquareClient(
         linkResult("order_abc", "https://square.link/abc"),
         async ({ checkoutCreate }) => {
+          setSuppressDebugLogs(false);
+          const debug = spy(console, "debug");
           const result = await squareApi.createPaymentLink(
             checkoutIntent({
               email: "jane@example.com",
@@ -94,6 +107,14 @@ describeSquare(() => {
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
+          expect(debug.calls.map((call) => call.args[0])).toContain(
+            "[Square] Creating payment link for 1 listing(s)",
+          );
+          expect(debug.calls.map((call) => call.args[0])).toContain(
+            "[Square] Payment link created orderId=order_abc",
+          );
+          debug.restore();
+          setSuppressDebugLogs(null);
         },
       );
     });
@@ -163,11 +184,19 @@ describeSquare(() => {
             }),
         },
         async () => {
-          const result = await squareApi.createPaymentLink(
-            checkoutIntent(),
-            "http://localhost",
-          );
-          expect(result).toBeNull();
+          const error = spy(console, "error");
+          try {
+            const result = await squareApi.createPaymentLink(
+              checkoutIntent(),
+              "http://localhost",
+            );
+            expect(result).toBeNull();
+            expect(String(error.calls.at(-1)?.args[0])).toContain(
+              "Square Payment link response missing id, orderId, or url",
+            );
+          } finally {
+            error.restore();
+          }
         },
       );
     });
