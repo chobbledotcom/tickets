@@ -355,20 +355,20 @@ describe("cache-registry", () => {
   describe("resetAllCaches", () => {
     test("fires every table-registered invalidator and every reset hook", () => {
       let tableCalls = 0;
-      let hookCalls = 0;
+      const hookCauses: string[] = [];
       track(
         registerTableInvalidation(["listings"], () => {
           tableCalls++;
         }),
       );
       track(
-        registerCacheReset(() => {
-          hookCalls++;
+        registerCacheReset((cause = "manual") => {
+          hookCauses.push(cause);
         }),
       );
       resetAllCaches();
       expect(tableCalls).toBe(1);
-      expect(hookCalls).toBe(1);
+      expect(hookCauses).toEqual(["write"]);
     });
 
     test("fires an invalidator registered against several tables only once", () => {

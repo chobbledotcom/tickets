@@ -32,10 +32,9 @@ describe("db > primary reads", () => {
     await refill.fetch(fetch);
     refill.afterInvalidation(false);
     await refill.fetch(fetch);
-    refill.afterInvalidation(true);
     clock += 11;
     await refill.fetch(fetch);
 
-    expect(reads).toEqual([false, true, false, false]);
+    expect(reads).toEqual([false, true, true, false]);
   });
 });

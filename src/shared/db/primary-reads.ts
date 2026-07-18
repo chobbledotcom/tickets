@@ -27,7 +27,9 @@ export const createPrimaryCacheRefill = (
   let primaryUntil = 0;
   return {
     afterInvalidation: (readFromPrimary) => {
-      primaryUntil = readFromPrimary ? now() + catchUpMs : 0;
+      if (readFromPrimary) {
+        primaryUntil = Math.max(primaryUntil, now() + catchUpMs);
+      }
     },
     fetch: (load) =>
       now() < primaryUntil ? runWithPrimaryReads(load) : load(),

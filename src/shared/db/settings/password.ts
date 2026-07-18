@@ -17,7 +17,6 @@ import {
 import type { PasswordHash, WrappedKey } from "#shared/crypto/sealed.ts";
 import { execute } from "#shared/db/client.ts";
 import { deleteAllSessions } from "#shared/db/sessions.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
 
 export const updateUserPassword = async (
   userId: number,
@@ -52,7 +51,6 @@ export const updateUserPassword = async (
     "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2 WHERE id = ?",
     [encryptedNewHash, newWrappedDataKey, userId],
   );
-  invalidateUsersCache();
   await deleteAllSessions();
   return true;
 };
