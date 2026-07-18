@@ -1,0 +1,13 @@
+import { expect } from "@std/expect";
+import { describe, it } from "@std/testing/bdd";
+import { isCompactWidth } from "../../scripts/screenshots/checks.ts";
+
+describe("screenshot checks", () => {
+  it("accepts a money table that uses no more than three quarters of its section", () => {
+    expect(isCompactWidth(750, 1000)).toBe(true);
+  });
+
+  it("rejects a money table that fills its section", () => {
+    expect(isCompactWidth(1000, 1000)).toBe(false);
+  });
+});

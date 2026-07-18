@@ -3,6 +3,7 @@ import { chromium, type Page } from "playwright";
 import sharp from "sharp";
 import { browserLaunchOptions } from "./browser-options.ts";
 import { denoCommand, removeTree, runDeno } from "./process.ts";
+import { isCompactWidth } from "./screenshots/checks.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
@@ -30,6 +31,7 @@ interface Scene {
   element?: (context: SceneContext) => string;
   path: (context: SceneContext) => string;
   prepare?: (page: Page) => Promise<void>;
+  verify?: (page: Page) => Promise<void>;
 }
 
 const at =
@@ -49,7 +51,21 @@ const SCENES: Record<ScreenshotName, Scene> = {
   dashboard: { path: at("/admin/") },
   groups: { path: at("/admin/groups") },
   guide: { path: at("/admin/guide") },
-  listing: { path: ({ listingId }) => `/admin/listing/${listingId}` },
+  listing: {
+    path: ({ listingId }) => `/admin/listing/${listingId}`,
+    verify: async (page) => {
+      const table = await page
+        .locator(".listing-breakdown-table")
+        .boundingBox();
+      const section = await page.locator("#income-ledger").boundingBox();
+      if (!table || !section) {
+        throw new Error("Could not measure the listing money summary.");
+      }
+      if (!isCompactWidth(table.width, section.width)) {
+        throw new Error("The listing money summary fills the page width.");
+      }
+    },
+  },
   "listing-attendees": {
     path: ({ listingId }) => `/admin/listing/${listingId}/attendees`,
   },
@@ -260,6 +276,7 @@ const capture = async (
   });
   await scene.prepare?.(page);
   await page.waitForFunction('document.fonts.status === "loaded"');
+  await scene.verify?.(page);
   if (elementSelector) {
     const element = page.locator(elementSelector).first();
     await element.waitFor({ state: "attached" });
