@@ -33,7 +33,7 @@ import {
   createQuestion,
   createQuestionWithAnswers,
   expectQuestionTexts,
-} from "./helpers.ts";
+} from "../shared/db/questions/helpers.ts";
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("questions CRUD", () => {
