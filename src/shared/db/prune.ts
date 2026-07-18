@@ -24,16 +24,14 @@ import { now, nowMs } from "#shared/now.ts";
 import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 import type { User } from "#shared/types.ts";
 
-type PruneStatement = SqlStatement & { label: string };
+type PruneStatement = SqlStatement;
 
 const boundedDelete = (
   table: string,
   where: string,
   args: (number | string)[],
-  label = table,
 ): PruneStatement => ({
   args: [...args, MAINTENANCE_PRUNE_BATCH],
-  label,
   sql: `DELETE FROM ${table}
          WHERE rowid IN (
            SELECT rowid FROM ${table} WHERE ${where}
@@ -46,7 +44,6 @@ const isoCutoff = (retentionMs: number): string =>
 
 const paymentStatement = (): PruneStatement => ({
   args: [isoCutoff(PRUNE_PAYMENTS_RETENTION_MS), MAINTENANCE_PRUNE_BATCH],
-  label: "processed_payments",
   sql: `DELETE FROM processed_payments
          WHERE rowid IN (
            SELECT payment.rowid
@@ -118,12 +115,9 @@ const orphanStatements = (): PruneStatement[] => {
     MAINTENANCE_PRUNE_BATCH,
   ];
   return [
-    ...attendeeDependentDeleteStatements({ args, sql: ORPHAN_IDS }).map(
-      (statement) => ({ ...statement, label: "orphan_attendees" }),
-    ),
+    ...attendeeDependentDeleteStatements({ args, sql: ORPHAN_IDS }),
     {
       args,
-      label: "orphan_attendees",
       sql: `DELETE FROM attendees WHERE id IN (${ORPHAN_IDS})`,
     },
   ];
@@ -159,7 +153,6 @@ const inviteStatements = (ids: number[]): PruneStatement[] => {
     { field: "id", table: "users" },
   ].map(({ field, table }) => ({
     args: ids,
-    label: "expired_invites",
     sql: `DELETE FROM ${table} WHERE ${field} IN (${inIds})`,
   }));
 };

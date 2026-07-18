@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -11,6 +12,7 @@ import {
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -30,6 +32,29 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("db > table pruning", { db: true }, () => {
+  test("logs the exact total number of deleted rows", async () => {
+    setSuppressDebugLogs(false);
+    const debugStub = stub(console, "debug");
+    try {
+      const old = new Date(
+        nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertSumupCheckout("idx_first", old);
+      await insertSumupCheckout("idx_second", old);
+
+      await runDatabasePruning();
+
+      const pruneLogs = debugStub.calls
+        .map((call) => String(call.args[0]))
+        .filter((line) => line.includes("[Prune]"));
+      expect(pruneLogs).toHaveLength(1);
+      expect(pruneLogs[0]).toMatch(/\[Prune\] deleted 2 expired rows$/);
+    } finally {
+      debugStub.restore();
+      setSuppressDebugLogs(null);
+    }
+  });
+
   describe("pruneSumupCheckouts", () => {
     test("deletes checkout metadata older than retention window", async () => {
       const old = new Date(

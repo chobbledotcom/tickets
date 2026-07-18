@@ -26,6 +26,10 @@ import {
   validateAttachment,
   validateImage,
 } from "#shared/storage.ts";
+import {
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+} from "#shared/subrequest-budget.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -700,21 +704,28 @@ describeWithEnv(
               });
             },
             async () => {
-              const raw = new Uint8Array([1, 2, 3, 4]);
-              const filename = await uploadRaw(raw, "raw-upload.bin");
+              await runWithSubrequestBudget(async () => {
+                const raw = new Uint8Array([1, 2, 3, 4]);
+                const filename = await uploadRaw(raw, "raw-upload.bin");
 
-              expect(filename).toBe("raw-upload.bin");
-              expect(uploadRequests).toHaveLength(1);
-              const uploadRequest = uploadRequests[0];
-              if (uploadRequest === undefined) {
-                throw new Error("Expected upload request to be captured");
-              }
-              expect(uploadRequest.method).toBe("PUT");
-              expect(uploadRequest.url).toContain("/raw-upload.bin");
-              expect(uploadRequest.contentType).toBe(
-                "application/octet-stream",
-              );
-              expect(uploadRequest.body).toEqual(raw);
+                expect(filename).toBe("raw-upload.bin");
+                expect(uploadRequests).toHaveLength(1);
+                const uploadRequest = uploadRequests[0];
+                if (uploadRequest === undefined) {
+                  throw new Error("Expected upload request to be captured");
+                }
+                expect(uploadRequest.method).toBe("PUT");
+                expect(uploadRequest.url).toContain("/raw-upload.bin");
+                expect(uploadRequest.contentType).toBe(
+                  "application/octet-stream",
+                );
+                expect(uploadRequest.body).toEqual(raw);
+                expect(getSubrequestUsage()).toEqual({
+                  database: 0,
+                  external: 1,
+                  total: 1,
+                });
+              });
             },
           );
         });

@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+import {
+  LATEST_UPDATE,
+  MIGRATION_LOCK_KEY,
+} from "#shared/db/migrations/schema/version.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 
 describe("db > migrations > schema change guard", () => {
@@ -92,6 +96,17 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-18_drop_built_sites_last_pruned",
       ],
       schemaHash: "1bw13rp",
+    });
+  });
+
+  test("names the current update and migration lock exactly", () => {
+    expect({
+      latestUpdate: LATEST_UPDATE,
+      migrationLock: MIGRATION_LOCK_KEY,
+    }).toEqual({
+      latestUpdate:
+        "Add secure local scheduled maintenance and durable task claims.",
+      migrationLock: "migration_lock",
     });
   });
 });

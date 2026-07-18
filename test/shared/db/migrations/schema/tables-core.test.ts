@@ -1,6 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { coreTables } from "#shared/db/migrations/schema/tables-core.ts";
+import { jsonHash } from "#test-utils/hash.ts";
+
+test("keeps the complete core schema declaration exact", async () => {
+  expect(await jsonHash(coreTables)).toBe(
+    "ff790be7ea46e365150243155f1a9c55a0e489117f7d12023491081042c631b3",
+  );
+});
 
 test("defines fenced maintenance task state and its due-work index", () => {
   expect(coreTables).toContainEqual([

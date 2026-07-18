@@ -12,6 +12,14 @@ describeWithEnv(
   "db > migrations > drop built-site prune marker",
   { db: true },
   () => {
+    test("declares its id and description", () => {
+      const migration = dropLastPrunedMigration(context);
+      expect(migration.id).toBe("2026-07-18_drop_built_sites_last_pruned");
+      expect(migration.description).toBe(
+        "Remove the unused built-site prune marker.",
+      );
+    });
+
     test("uses the current schema to remove only last_pruned", async () => {
       await getDb().execute(
         "ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''",

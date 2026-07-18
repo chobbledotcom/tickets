@@ -1,11 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { fetchText, parseApiError } from "#shared/fetch.ts";
+import { fetchText, jsonHeaders, parseApiError } from "#shared/fetch.ts";
 import {
   getSubrequestUsage,
   runWithSubrequestBudget,
 } from "#shared/subrequest-budget.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+
+test("adds the JSON content type to authentication headers", () => {
+  expect(jsonHeaders({ Authorization: "Bearer token" })).toEqual({
+    Authorization: "Bearer token",
+    "Content-Type": "application/json",
+  });
+});
 
 describe("fetchText", () => {
   test("returns status, ok, text, and headers from a successful response", async () => {
