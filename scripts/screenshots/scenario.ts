@@ -2,6 +2,7 @@ import { toFileUrl } from "@std/path";
 import type { Page } from "playwright";
 
 export interface ScreenshotScenarioContext {
+  balancePathFor: (attendeeId: number) => Promise<string>;
   baseUrl: string;
   page: Page;
   submit: (formSelector: string) => Promise<void>;
@@ -13,6 +14,7 @@ export interface ScreenshotScenario {
   fullPage?: boolean;
   name: string;
   run: (context: ScreenshotScenarioContext) => Promise<void>;
+  setupUsername?: string;
 }
 
 const isScenario = (value: unknown): value is ScreenshotScenario => {
@@ -23,6 +25,8 @@ const isScenario = (value: unknown): value is ScreenshotScenario => {
     typeof candidate.name === "string" &&
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate.name) &&
     typeof candidate.run === "function" &&
+    (candidate.setupUsername === undefined ||
+      typeof candidate.setupUsername === "string") &&
     (candidate.elementSelector === undefined ||
       typeof candidate.elementSelector === "string") &&
     (candidate.fullPage === undefined ||
