@@ -2,8 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
 import {
   decrypt,
+  decryptBytes,
   decryptWithKey,
   encrypt,
+  encryptBytes,
   encryptWithKey,
   getEncryptionKeyBytes,
   parseEncryptedPayload,
@@ -126,6 +128,52 @@ describeWithEnv("encryption", { encryptionKey: true }, () => {
       // Tampered ciphertext rebuilt by hand — test fixture cast.
       const tampered = parts.join(":") as EnvKeyEncrypted;
       await expect(decrypt(tampered)).rejects.toThrow();
+    });
+  });
+
+  describe("encryptBytes and decryptBytes", () => {
+    it("round-trips binary data", async () => {
+      const original = new Uint8Array([
+        0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46,
+      ]);
+      const encrypted = await encryptBytes(original);
+      expect(encrypted.byteLength).toBeGreaterThan(original.byteLength);
+      expect(encrypted[0]).not.toBe(original[0]);
+      expect(await decryptBytes(encrypted)).toEqual(original);
+    });
+
+    it("uses a different IV for the same bytes", async () => {
+      const data = new Uint8Array([1, 2, 3, 4, 5]);
+      const first = await encryptBytes(data);
+      const second = await encryptBytes(data);
+      expect(first).not.toEqual(second);
+      expect(await decryptBytes(first)).toEqual(data);
+      expect(await decryptBytes(second)).toEqual(data);
+    });
+
+    it("round-trips data through the large Web Crypto path", async () => {
+      const original = Uint8Array.from(
+        { length: 70_000 },
+        (_, index) => (index * 31) & 0xff,
+      );
+      expect(await decryptBytes(await encryptBytes(original))).toEqual(
+        original,
+      );
+    });
+
+    it("rejects an invalid binary format", async () => {
+      await expect(
+        decryptBytes(new Uint8Array([0, 0, 0, 0, 1])),
+      ).rejects.toThrow("Invalid binary encryption format");
+    });
+
+    it("rejects an unsupported binary version", async () => {
+      const data = new Uint8Array(17);
+      data.set([0x45, 0x4e, 0x43, 0x42]);
+      data[4] = 0xff;
+      await expect(decryptBytes(data)).rejects.toThrow(
+        "Unsupported binary encryption version: 255",
+      );
     });
   });
 
