@@ -13,7 +13,10 @@ import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
-import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
+import {
+  attendeeOwedSubquery,
+  externalCashBalanceSubquery,
+} from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
@@ -123,6 +126,16 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
     [attendeeId],
   );
 
+const getAttendeeAmountPaid = async (attendeeId: number): Promise<number> => {
+  const row = (await queryOne<{ amount_paid: number }>(
+    `SELECT ${externalCashBalanceSubquery(
+      "attendee",
+      String(attendeeId),
+    )} AS amount_paid`,
+  ))!;
+  return Number(row.amount_paid);
+};
+
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
   row.listing_name === null || row.listing_unit_price === null
     ? null
@@ -137,16 +150,16 @@ const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
 export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
-  const [rows, state] = await Promise.all([
+  const [rows, state, depositPaid] = await Promise.all([
     getAttendeeOrderRows(attendeeId),
     getAttendeeBalanceState(attendeeId),
+    getAttendeeAmountPaid(attendeeId),
   ]);
 
   // The LEFT JOIN keeps dangling booking rows visible so we can preserve the
   // previous behavior of dropping lines whose listing has since been deleted.
   const lines = compact(await mapParallel(orderLineFromRow)(rows));
 
-  const depositPaid = sumOf((l: OrderLine) => l.pricePaid)(lines);
   const listedFullPrice = sumOf((l: OrderLine) => l.unitPrice * l.quantity)(
     lines,
   );

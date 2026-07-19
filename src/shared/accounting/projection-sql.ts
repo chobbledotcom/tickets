@@ -13,6 +13,7 @@
 import {
   ATTENDEE,
   REVENUE,
+  WORLD,
   WRITEOFF_TYPE,
 } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
@@ -112,6 +113,22 @@ export const accountBalanceSubquery = (
   const asDest = accountPredicate("dest", type, idExpr);
   const asSource = accountPredicate("source", type, idExpr);
   return `(SELECT ${signedSumCase(asDest, asSource)} FROM transfers WHERE ${asDest} OR ${asSource})`;
+};
+
+/** Net cash received from the outside world by one account. Payments into the
+ * account add; refunds and reversals back to the world subtract. Other ledger
+ * legs do not represent cash and are ignored. */
+export const externalCashBalanceSubquery = (
+  type: string,
+  idExpr: string,
+): string => {
+  const accountIn = accountPredicate("dest", type, idExpr);
+  const accountOut = accountPredicate("source", type, idExpr);
+  const worldOut = `source_type = '${WORLD.type}' AND source_id = '${WORLD.id}'`;
+  const worldIn = `dest_type = '${WORLD.type}' AND dest_id = '${WORLD.id}'`;
+  const received = `${accountIn} AND ${worldOut}`;
+  const returned = `${accountOut} AND ${worldIn}`;
+  return `(SELECT ${signedSumCase(received, returned)} FROM transfers WHERE ${received} OR ${returned})`;
 };
 
 /**
