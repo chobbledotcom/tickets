@@ -77,6 +77,9 @@ src/shared/builder.ts:204:36  ?? → ||   # dbProvider is a non-empty provider v
 src/shared/builder.ts:284:26  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/db/built-site-scheduler.ts:42:20  ?? → ||   # parsed sk is a non-empty canonical scheduled key when present, so only undefined reaches the null fallback
 src/shared/db/built-site-scheduler.ts:44:21  ?? → ||   # parsed sn is a non-empty canonical scheduled key when present, so only undefined reaches the null fallback
+src/shared/db/built-sites.ts:346:15  false → true   # hp defaults to non-empty "bunny" and every valid explicit provider is non-empty, so this field is always written either way
+src/shared/db/built-sites.ts:353:15  false → true   # dp has the same non-empty Bunny default and non-empty valid provider values
+src/shared/db/built-sites.ts:430:71  ?? → ||   # each falsy valid input has the same falsy default and is omitted; provider and scheduled-key values are non-empty
 src/shared/deno-deploy-api.ts:91:34  ?? → ||   # env_vars is a record object when present, and every object is truthy
 src/shared/bunny-cdn.ts:477:42  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
 src/shared/bunny-cdn.ts:538:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way

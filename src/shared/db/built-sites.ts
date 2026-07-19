@@ -205,7 +205,6 @@ const builtSitePlainColumns = [
     dbKey: "assignable",
     formDefault: false,
     fromRow: (value: number): boolean => Boolean(value),
-    inputKey: "assignable",
     schema: assignableCol,
     siteKey: "assignable",
     toInput: (value: boolean): number => (value ? 1 : 0),
@@ -213,7 +212,6 @@ const builtSitePlainColumns = [
   {
     dbKey: "assigned_attendee_id",
     fromRow: nullable<number>,
-    inputKey: "assignedAttendeeId",
     schema: nullCol,
     siteKey: "assignedAttendeeId",
     toInput: nullable<number>,
@@ -221,7 +219,6 @@ const builtSitePlainColumns = [
   {
     dbKey: "assigned_listing_id",
     fromRow: nullable<number>,
-    inputKey: "assignedListingId",
     schema: nullCol,
     siteKey: "assignedListingId",
     toInput: nullable<number>,
@@ -229,7 +226,6 @@ const builtSitePlainColumns = [
   {
     dbKey: "read_only_from",
     fromRow: passthrough<string>,
-    inputKey: "readOnlyFrom",
     schema: col.withDefault(() => ""),
     siteKey: "readOnlyFrom",
     toInput: passthrough<string>,
@@ -237,7 +233,6 @@ const builtSitePlainColumns = [
   {
     dbKey: "renewal_token_index",
     fromRow: nullable<string>,
-    inputKey: "renewalTokenIndex",
     schema: nullStrCol,
     siteKey: "renewalTokenIndex",
     toInput: nullable<string>,
@@ -245,7 +240,6 @@ const builtSitePlainColumns = [
   {
     dbKey: "site_data_revision",
     fromRow: passthrough<number>,
-    inputKey: "siteDataRevision",
     schema: col.withDefault(() => 0),
     siteKey: "siteDataRevision",
     toInput: passthrough<number>,
@@ -254,7 +248,6 @@ const builtSitePlainColumns = [
     dbKey: "updates",
     formDefault: DEFAULT_UPDATE_TIER,
     fromRow: passthrough<UpdateTier>,
-    inputKey: "updates",
     schema: col.withDefault<UpdateTier>(() => DEFAULT_UPDATE_TIER),
     siteKey: "updates",
     toInput: passthrough<UpdateTier>,
@@ -452,7 +445,7 @@ const blobToSiteFields = (blob: SiteDataBlob): BuiltSiteBlobFields =>
     ]),
   ) as BuiltSiteBlobFields;
 
-const mapPlainFields = <Key extends "dbKey" | "inputKey">(
+const mapPlainFields = <Key extends "dbKey" | "siteKey">(
   input: Partial<BuiltSitePlainFields>,
   key: Key,
 ): Partial<Record<BuiltSitePlainColumn[Key], InValue>> =>
@@ -468,7 +461,7 @@ const mapPlainFields = <Key extends "dbKey" | "inputKey">(
 const toRawInput = (
   input: Partial<BuiltSitePlainFields> & Partial<BuiltSiteBlobInput>,
 ): BuiltSiteInput => ({
-  ...(mapPlainFields(input, "inputKey") as Partial<BuiltSitePlainInput>),
+  ...(mapPlainFields(input, "siteKey") as Partial<BuiltSitePlainInput>),
   siteData: buildSiteDataBlobFromInput(input),
 });
 

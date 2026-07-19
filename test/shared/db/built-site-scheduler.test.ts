@@ -9,7 +9,6 @@ import {
 import {
   builtSitesCrudTable,
   insertBuiltSite,
-  parseSiteDataBlob,
 } from "#shared/db/built-sites.ts";
 import { queryOne } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -39,29 +38,6 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     expect((await builtSitesCrudTable.findById(row.id))?.scheduledTaskKey).toBe(
       TEST_SCHEDULED_KEY,
     );
-  });
-
-  test("validates every version of decrypted site data", () => {
-    expect(() => parseSiteDataBlob('{"v":99,"n":"x","u":"y"}')).toThrow();
-    expect(() =>
-      parseSiteDataBlob('{"v":2,"n":"x","u":"y","sk":"short"}'),
-    ).toThrow();
-    expect(() =>
-      parseSiteDataBlob(
-        JSON.stringify({ n: "x", sn: TEST_SCHEDULED_KEY, u: "y", v: 2 }),
-      ),
-    ).toThrow("Pending scheduled key requires an active key");
-    expect(() =>
-      parseSiteDataBlob(
-        JSON.stringify({
-          n: "x",
-          sk: TEST_SCHEDULED_KEY,
-          sn: TEST_SCHEDULED_KEY,
-          u: "y",
-          v: 2,
-        }),
-      ),
-    ).toThrow("Active and pending scheduled keys must be different");
   });
 
   test("fails loudly when the built site does not exist", async () => {

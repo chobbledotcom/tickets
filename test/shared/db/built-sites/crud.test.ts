@@ -1,0 +1,216 @@
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import {
+  assignBuiltSite,
+  type BuiltSite,
+  builtSitesCrudTable,
+  insertBuiltSite,
+  parseSiteDataBlob,
+  updateBuiltSiteRenewalState,
+} from "#shared/db/built-sites.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { builtSiteFormInput } from "./fixtures.ts";
+
+const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
+  assignable: false,
+  assignedAttendeeId: null,
+  assignedListingId: null,
+  created: "2026-01-01",
+  dbProvider: "bunny",
+  dbToken: "",
+  dbUrl: "",
+  hostingId: "",
+  hostingProvider: "bunny",
+  id: 1,
+  name: "Test",
+  readOnlyFrom: "",
+  renewalToken: null,
+  renewalTokenIndex: null,
+  scheduledTaskKey: null,
+  scheduledTaskKeyNext: null,
+  siteDataRevision: 0,
+  siteUrl: "test.bunny.run",
+  updates: "release",
+  ...overrides,
+});
+
+describeWithEnv("built-sites CRUD table", { db: true }, () => {
+  test("findAll returns all built sites", async () => {
+    await insertBuiltSite("Site A", "a.bunny.run");
+    await insertBuiltSite("Site B", "b.bunny.run");
+    expect(await builtSitesCrudTable.findAll()).toHaveLength(2);
+  });
+
+  test("fromDb returns the row unchanged", async () => {
+    const site = siteFixture();
+    expect(await builtSitesCrudTable.fromDb(site)).toEqual(site);
+  });
+
+  test("readColumn returns the stored value unchanged", async () => {
+    expect(await builtSitesCrudTable.readColumn("name", "Test")).toBe("Test");
+  });
+
+  test("uses the physical built-sites table name", () => {
+    expect(builtSitesCrudTable.name).toBe("built_sites");
+  });
+
+  test("inputKeyMap exposes form-facing fields", () => {
+    expect(builtSitesCrudTable.inputKeyMap).toEqual({
+      assignable: "assignable",
+      db_provider: "dbProvider",
+      db_token: "dbToken",
+      db_url: "dbUrl",
+      hosting_id: "hostingId",
+      hosting_provider: "hostingProvider",
+      name: "name",
+      site_url: "siteUrl",
+      updates: "updates",
+    });
+  });
+
+  test("rowToInput exposes form-input fields for reuse", () => {
+    const site = siteFixture({
+      assignable: true,
+      dbToken: "token",
+      dbUrl: "libsql://db",
+      hostingId: "script-123",
+      id: 42,
+      name: "Mirror",
+      siteUrl: "example.bunny.run",
+      updates: "beta",
+    });
+    expect(builtSitesCrudTable.rowToInput(site)).toEqual({
+      assignable: true,
+      dbProvider: "bunny",
+      dbToken: "token",
+      dbUrl: "libsql://db",
+      hostingId: "script-123",
+      hostingProvider: "bunny",
+      name: "Mirror",
+      siteUrl: "example.bunny.run",
+      updates: "beta",
+    });
+  });
+
+  test("toDbValues builds site data from input", async () => {
+    const values = await builtSitesCrudTable.toDbValues({
+      assignable: false,
+      dbToken: "tok123",
+      dbUrl: "libsql://test.turso.io",
+      hostingId: "777",
+      name: "Test",
+      siteUrl: "test.bunny.run",
+    });
+    expect(parseSiteDataBlob(values.site_data as string)).toMatchObject({
+      d: "libsql://test.turso.io",
+      n: "Test",
+      s: "777",
+      t: "tok123",
+      u: "test.bunny.run",
+    });
+  });
+
+  test("toDbValues supplies every empty-form default", async () => {
+    const values = await builtSitesCrudTable.toDbValues({});
+    expect(values.assignable).toBe(0);
+    expect(parseSiteDataBlob(values.site_data as string)).toMatchObject({
+      n: "",
+      u: "",
+    });
+  });
+
+  test("toDbValues stores true assignable as one", async () => {
+    const values = await builtSitesCrudTable.toDbValues(
+      builtSiteFormInput({ assignable: true }),
+    );
+    expect(values.assignable).toBe(1);
+  });
+
+  test("update preserves the existing name", async () => {
+    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    const updated = await builtSitesCrudTable.update(site.id, {
+      siteUrl: "new.bunny.run",
+    });
+    expect(updated?.name).toBe("Original");
+    expect(updated?.siteUrl).toBe("new.bunny.run");
+  });
+
+  test("update preserves the existing site URL", async () => {
+    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    const updated = await builtSitesCrudTable.update(site.id, {
+      name: "Updated",
+    });
+    expect(updated?.name).toBe("Updated");
+    expect(updated?.siteUrl).toBe("original.bunny.run");
+  });
+
+  test("update preserves credentials not included in the edit", async () => {
+    const site = await builtSitesCrudTable.insert(
+      builtSiteFormInput({
+        dbToken: "tok123",
+        dbUrl: "libsql://db.turso.io",
+        hostingId: "98765",
+      }),
+    );
+    const updated = await builtSitesCrudTable.update(site.id, {
+      name: "Updated",
+    });
+    expect(updated).toMatchObject({
+      dbToken: "tok123",
+      dbUrl: "libsql://db.turso.io",
+      hostingId: "98765",
+    });
+  });
+
+  test("update changes hosting id when provided", async () => {
+    const site = await builtSitesCrudTable.insert(
+      builtSiteFormInput({ hostingId: "111" }),
+    );
+    expect(
+      await builtSitesCrudTable.update(site.id, { hostingId: "222" }),
+    ).toMatchObject({ hostingId: "222" });
+  });
+
+  test("update returns null for a missing id", async () => {
+    expect(await builtSitesCrudTable.update(999, { name: "Test" })).toBeNull();
+  });
+
+  test("update preserves stored state and advances its revision", async () => {
+    const row = await insertBuiltSite(
+      "Stateful",
+      "stateful.example.test",
+      "",
+      "",
+      true,
+    );
+    await assignBuiltSite(row.id, 42, 7);
+    await updateBuiltSiteRenewalState(row.id, {
+      readOnlyFrom: "2027-01-01T00:00:00Z",
+      renewalToken: "renewal-token",
+      renewalTokenIndex: "renewal-index",
+    });
+    const updated = await builtSitesCrudTable.update(row.id, {
+      name: "Edited stateful",
+    });
+    expect(updated).toMatchObject({
+      assignedAttendeeId: 42,
+      assignedListingId: 7,
+      readOnlyFrom: "2027-01-01T00:00:00Z",
+      renewalTokenIndex: "renewal-index",
+      siteDataRevision: 1,
+    });
+  });
+
+  test("concurrent edits preserve both changes", async () => {
+    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    await Promise.all([
+      builtSitesCrudTable.update(site.id, { name: "Renamed" }),
+      builtSitesCrudTable.update(site.id, { siteUrl: "moved.bunny.run" }),
+    ]);
+    expect(await builtSitesCrudTable.findById(site.id)).toMatchObject({
+      name: "Renamed",
+      siteDataRevision: 2,
+      siteUrl: "moved.bunny.run",
+    });
+  });
+});
