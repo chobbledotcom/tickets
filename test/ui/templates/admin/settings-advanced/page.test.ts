@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
@@ -11,38 +10,15 @@ import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.ts
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import {
+  defaultSettingsState as defaultState,
+  TEST_SETTINGS_SESSION as TEST_SESSION,
+} from "../settings-state.ts";
 import { advancedDefaultState } from "./state.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
-const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
-});
-
-const defaultState = (): SettingsPageState => ({
-  bookingFee: "0",
-  businessEmail: "",
-  calendarFeedsEnabled: false,
-  calendarFeedsGroupBy: "attendees",
-  embedHosts: "",
-  enabledFeatures: DEFAULT_ENABLED_FEATURES,
-  headerImageUrl: "",
-  paymentProvider: "",
-  squareSandbox: false,
-  squareTokenConfigured: false,
-  squareWebhookConfigured: false,
-  storageEnabled: false,
-  stripeKeyConfigured: false,
-  stripeKeyMode: null,
-  sumupKeyConfigured: false,
-  sumupKeyMode: null,
-  superuser: { available: false, reason: "missing-env" },
-  termsAndConditions: "",
-  theme: "light",
-  underlineLinks: false,
-  webhookUrl: "https://example.com/payment/webhook",
 });
 
 type AvailableSuperuser = Extract<
