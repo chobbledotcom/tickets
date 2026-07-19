@@ -7,7 +7,7 @@ import { nowMs } from "#shared/now.ts";
 
 /** Is a built site provisioned for renewals? (has a renewal token index) */
 export const isProvisioned = (site: BuiltSite): boolean =>
-  site.renewalTokenIndex !== null;
+  site.renewalTokenIndex !== null && site.renewalTokenIndex !== "";
 
 /** Format a read_only_from ISO string for display in the admin UI */
 export const formatDeadlineLabel = (iso: string, now = nowMs()): string => {
