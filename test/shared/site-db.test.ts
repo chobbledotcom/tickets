@@ -33,6 +33,7 @@ describe("hasSiteDbCredentials", () => {
       false,
     );
     expect(hasSiteDbCredentials({ dbToken: "t", dbUrl: "" })).toBe(false);
+    expect(hasSiteDbCredentials({ dbToken: "", dbUrl: "" })).toBe(false);
   });
 });
 
