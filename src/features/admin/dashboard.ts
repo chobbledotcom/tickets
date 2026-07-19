@@ -30,10 +30,7 @@ import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import {
-  getAllListings,
-  getListingNamesByIds,
-} from "#shared/db/listings/records.ts";
+import { getAllListings, listingNames } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
@@ -222,7 +219,7 @@ const loadActivityLogRefs = async (
   const listingIds = unique(compact(entries.map((e) => e.listing_id)));
   const [attendees, listings] = await Promise.all([
     loadAttendeeLinkRefs(attendeeIds),
-    getListingNamesByIds(listingIds),
+    listingNames.byIds(listingIds),
   ]);
   return { attendees, listings };
 };

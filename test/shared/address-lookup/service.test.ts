@@ -57,8 +57,8 @@ describeWithEnv("address lookup service", { db: true }, () => {
     const outcome = await lookupAddresses("easypostcodes", "sw1a2aa");
 
     expect(outcome).toEqual({
-      addresses: [DOWNING_STREET_MATCH],
       ok: true,
+      value: [DOWNING_STREET_MATCH],
     });
     expect(sentKey).toBe("test-api-key");
     // The result was cached under the normalised search's blind index.
@@ -77,8 +77,8 @@ describeWithEnv("address lookup service", { db: true }, () => {
     const outcome = await lookupAddresses("easypostcodes", "  sw1a 2aa ");
 
     expect(outcome).toEqual({
-      addresses: [{ lat: "51.5", line: "Cached Address Line", lng: "-0.1" }],
       ok: true,
+      value: [{ lat: "51.5", line: "Cached Address Line", lng: "-0.1" }],
     });
     expect(fetchStub.calls.length).toBe(0);
   });
@@ -90,7 +90,7 @@ describeWithEnv("address lookup service", { db: true }, () => {
 
     const outcome = await lookupAddresses("easypostcodes", "zz999zz");
 
-    expect(outcome).toEqual({ addresses: [], ok: true });
+    expect(outcome).toEqual({ ok: true, value: [] });
     expect(fetchStub.calls.length).toBe(0);
   });
 

@@ -10,14 +10,10 @@
  */
 
 import { compact } from "#fp";
+import { type Result, requireSuccess } from "#shared/result.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
 import { ACCOUNT_KEY_SEPARATOR, sameAccount } from "./account.ts";
-import type {
-  AccountRef,
-  LedgerError,
-  Result,
-  TransferInput,
-} from "./types.ts";
+import type { AccountRef, LedgerError, TransferInput } from "./types.ts";
 
 const isEmptyAccount = (a: AccountRef): boolean => !a.type || !a.id;
 
@@ -46,7 +42,9 @@ const hasInvalidReversesId = (t: TransferInput): boolean =>
  * are non-empty. (Currency is not a ledger concern: a site has one currency,
  * fixed at setup, so every transfer shares it.)
  */
-export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
+export const validateTransfer = (
+  t: TransferInput,
+): Result<TransferInput, LedgerError[]> => {
   const errors: LedgerError[] = compact([
     t.amount <= 0 ? ({ code: "non_positive_amount" } as const) : null,
     Number.isInteger(t.amount)
@@ -69,7 +67,9 @@ export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
     t.reference ? null : ({ code: "empty_reference" } as const),
     t.eventGroup ? null : ({ code: "empty_event_group" } as const),
   ]);
-  return errors.length > 0 ? { errors, ok: false } : { ok: true, value: t };
+  return errors.length > 0
+    ? { error: errors, ok: false }
+    : { ok: true, value: t };
 };
 
 /**
@@ -82,9 +82,5 @@ export const assertValidTransfer = (
   t: TransferInput,
   context: string,
 ): void => {
-  const result = validateTransfer(t);
-  if (!result.ok) {
-    const codes = result.errors.map((e) => e.code).join(", ");
-    throw new Error(`${context}: ${codes}`);
-  }
+  requireSuccess(validateTransfer(t), context);
 };

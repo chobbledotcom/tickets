@@ -7,11 +7,13 @@ import {
 } from "#shared/db/listings/attendees.ts";
 import {
   getAllListingOptions,
-  getListingNamesByIds,
-  getListingsBySlugsBatch,
+  getListingsBySlugs,
   getListingWithCount,
   getStoredListingsWithCountsByIds,
   getStoredListingWithCount,
+  listingNames,
+  requireListingsWithCountsByIds,
+  requireListingWithCount,
 } from "#shared/db/listings/records.ts";
 import {
   enableQueryLog,
@@ -128,8 +130,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(result?.listing.income).toBe(1800);
     });
 
-    test("getListingsBySlugsBatch returns empty array for empty slugs", async () => {
-      const result = await getListingsBySlugsBatch([]);
+    test("getListingsBySlugs returns empty array for empty slugs", async () => {
+      const result = await getListingsBySlugs([]);
       expect(result).toEqual([]);
     });
 
@@ -137,7 +139,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(await getStoredListingsWithCountsByIds([])).toEqual([]);
     });
 
-    test("getListingsBySlugsBatch returns listings in slug order", async () => {
+    test("getListingsBySlugs returns listings in slug order", async () => {
       const listing1 = await createTestListing({
         maxAttendees: 10,
         name: "Batch A",
@@ -149,23 +151,20 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         thankYouUrl: "https://example.com",
       });
 
-      const results = await getListingsBySlugsBatch([
-        listing2.slug,
-        listing1.slug,
-      ]);
+      const results = await getListingsBySlugs([listing2.slug, listing1.slug]);
       expect(results.length).toBe(2);
       expect(results[0]?.id).toBe(listing2.id);
       expect(results[1]?.id).toBe(listing1.id);
     });
 
-    test("getListingsBySlugsBatch returns null for missing slugs", async () => {
+    test("getListingsBySlugs returns null for missing slugs", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
         name: "Exists",
         thankYouUrl: "https://example.com",
       });
 
-      const results = await getListingsBySlugsBatch([listing.slug, "missing"]);
+      const results = await getListingsBySlugs([listing.slug, "missing"]);
       expect(results.length).toBe(2);
       expect(results[0]).not.toBeNull();
       expect(results[1]).toBeNull();
@@ -199,21 +198,21 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(await getAllListingOptions()).toEqual([]);
     });
 
-    test("getListingNamesByIds returns decrypted names only for the given ids", async () => {
+    test("listingNames.byIds returns decrypted names only for the given ids", async () => {
       const alpha = await createTestListing({
         maxAttendees: 10,
         name: "Alpha",
       });
       const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
 
-      const names = await getListingNamesByIds([alpha.id]);
+      const names = await listingNames.byIds([alpha.id]);
 
       expect(names.get(alpha.id)).toBe("Alpha");
       expect(names.has(beta.id)).toBe(false);
     });
 
-    test("getListingNamesByIds returns an empty map for no ids", async () => {
-      const names = await getListingNamesByIds([]);
+    test("listingNames.byIds returns an empty map for no ids", async () => {
+      const names = await listingNames.byIds([]);
       expect(names.size).toBe(0);
     });
 
@@ -261,6 +260,18 @@ describeWithEnv(
 
     test("returns null for a missing listing", async () => {
       expect(await getStoredListingWithCount(99999)).toBeNull();
+    });
+
+    test("required listing lookup names a missing listing", async () => {
+      await expect(requireListingWithCount(99999)).rejects.toThrow(
+        "Listing not found: 99999",
+      );
+    });
+
+    test("required listing batch names the first missing listing", async () => {
+      await expect(
+        requireListingsWithCountsByIds([99998, 99999]),
+      ).rejects.toThrow("Listing not found: 99998");
     });
   },
 );

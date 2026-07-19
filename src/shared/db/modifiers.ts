@@ -18,15 +18,16 @@ import {
   queryAll,
   queryIdColumn,
   queryOne,
+  requireOne,
   resetAggregates,
   update,
 } from "#shared/db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,
-  defineIdTable,
   idAndEncryptedNameSchema,
 } from "#shared/db/common-schema.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import {
   columnMapByIds,
@@ -167,14 +168,14 @@ export type ModifierAggregateRecalculation =
 export const getModifierAggregateRecalculation = async (
   modifier: ModifierRow,
 ): Promise<ModifierAggregateRecalculation> => {
-  const row = (await queryOne<ModifierAggregateValues>(
+  const row = await requireOne<ModifierAggregateValues>(
     `SELECT
        COALESCE(SUM(quantity), 0) AS total_uses,
        COUNT(*) AS usage_count
      FROM modifier_usages
      WHERE modifier_id = ?`,
     [modifier.id],
-  ))!;
+  );
   return {
     total_uses: { current: modifier.total_uses, recalculated: row.total_uses },
     usage_count: {

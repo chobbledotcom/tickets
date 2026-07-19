@@ -278,6 +278,15 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       expect(html).not.toContain('href="/ticket/gg"');
     });
 
+    test("a page with a missing listing item still renders", async () => {
+      const page = await makePage("missing-listing-item");
+      await addPageItem(page.id, "listing", 999_999);
+
+      const html = await assertPublicHtml("/page/missing-listing-item");
+      expect(html).toContain("<h1>Page missing-listing-item</h1>");
+      expect(html).not.toContain('href="/ticket/');
+    });
+
     test("a package group with an incomplete bundle renders dead despite a bookable member", async () => {
       // A package is all-or-nothing: one inactive member makes the whole bundle
       // unbuyable, so its /ticket/<group> page 404s. The nav link must be dead

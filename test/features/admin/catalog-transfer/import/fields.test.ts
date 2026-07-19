@@ -50,8 +50,8 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    requireSuccess(result);
-    const imported = (await getListingWithCount(result.id))!;
+    const importedResult = requireSuccess(result);
+    const imported = (await getListingWithCount(importedResult.id))!;
     expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
     expect(imported.date).toBe("2026-06-02T09:00:00.000Z");
   });
@@ -72,7 +72,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListingWithCount(result.id))!.closes_at).toContain(
+    expect((await getListingWithCount(result.value.id))!.closes_at).toContain(
       "2026-06-01",
     );
   });
@@ -142,7 +142,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListingWithCount(result.id))!.closes_at).toBeNull();
+    expect((await getListingWithCount(result.value.id))!.closes_at).toBeNull();
   });
 
   test("rejects an over-cap duration", async () => {
@@ -185,8 +185,8 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await getListingWithCount(result.id))!.bookable_days).toContain(
-      "Monday",
-    );
+    expect(
+      (await getListingWithCount(result.value.id))!.bookable_days,
+    ).toContain("Monday");
   });
 });

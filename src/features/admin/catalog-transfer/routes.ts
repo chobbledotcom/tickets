@@ -130,19 +130,20 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
 
     const result = await importCatalog(parsed, session.adminLevel);
     if (!result.ok) return errorRedirect(IMPORT_PATH, result.error);
+    const imported = result.value;
 
-    if (result.kind === "listing") {
-      await logActivity(`Listing '${result.name}' imported`, result.id);
+    if (imported.kind === "listing") {
+      await logActivity(`Listing '${imported.name}' imported`, imported.id);
       return redirect(
         "/admin/listings",
-        t("catalog_transfer.imported_listing", { name: result.name }),
+        t("catalog_transfer.imported_listing", { name: imported.name }),
         true,
       );
     }
-    await logActivity(`Group '${result.name}' imported`);
+    await logActivity(`Group '${imported.name}' imported`);
     return redirect(
       "/admin/groups",
-      t("catalog_transfer.imported_group", { name: result.name }),
+      t("catalog_transfer.imported_group", { name: imported.name }),
       true,
     );
   });

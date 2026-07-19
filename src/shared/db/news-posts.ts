@@ -25,11 +25,11 @@ import {
 } from "#shared/db/client.ts";
 // jscpd:ignore-end
 import {
-  defineIdTable,
   encryptedSlugSchema,
   idAndCreatedSchema,
 } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import {
   clearImageUsesForItemStatement,

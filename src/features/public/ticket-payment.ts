@@ -38,7 +38,7 @@ import { orderBookings } from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
-import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
   ChildAllocation,
   LineBooking,
@@ -59,7 +59,7 @@ import {
   listingChildren,
   listingParents,
 } from "#shared/db/listing-parents.ts";
-import { getListingsBySlugsBatch } from "#shared/db/listings/records.ts";
+import { getListingsBySlugs } from "#shared/db/listings/records.ts";
 import {
   getOptionalAddOns,
   hasPromoCodeModifiers,
@@ -425,7 +425,7 @@ export const createFreeReservation = async ({
   // back. A plain booking with neither legs nor stock has no plan, so it writes as
   // a single capacity-checked batch (createAttendeeAtomic) — concurrent free
   // submissions never contend on the one connection.
-  const statusId = await getPublicStatusId();
+  const statusId = await requirePublicStatusId();
   const input = {
     ...contact,
     bookings: finalBookings,
@@ -525,7 +525,7 @@ export const withActiveListings = async (
   slugs: string[],
   handler: ResponseHandler<[listings: TicketListing[]]>,
 ): Promise<Response> => {
-  const listings = await getListingsBySlugsBatch(slugs);
+  const listings = await getListingsBySlugs(slugs);
   const active = compact(listings).filter((e) => e.active);
   const activeListings = await buildTicketListingsWithGroupCapacity(active);
   if (activeListings.length === 0) return notFoundResponse();

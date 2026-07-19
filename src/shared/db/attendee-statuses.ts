@@ -20,6 +20,7 @@ import {
 import type { NamedSortOrderInput } from "#shared/db/common-schema.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#shared/db/table.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
@@ -93,23 +94,26 @@ const findStatus = async (
 export const getAttendeeStatus = (id: number): Promise<AttendeeStatus | null> =>
   findStatus((s) => s.id === id);
 
-/** The first status whose given default flag is set (decrypted), or null. */
-const findFlaggedStatus =
+/** Get the status carrying a required default flag. */
+const getFlaggedStatus =
   (flag: "is_public_default" | "is_paid_default") =>
-  (): Promise<AttendeeStatus | null> =>
-    findStatus((s) => s[flag]);
+  async (): Promise<AttendeeStatus> =>
+    requireValue(
+      await findStatus((item) => item[flag]),
+      `No attendee status has the required ${flag} flag`,
+    );
 
-/** The status new public bookings start in, or null if none is flagged. */
-export const getPublicDefaultStatus = findFlaggedStatus("is_public_default");
+/** The status new public bookings start in. */
+export const requirePublicDefaultStatus: () => Promise<AttendeeStatus> =
+  getFlaggedStatus("is_public_default");
 
 /** The status an attendee moves to once a reservation balance is paid. */
-export const getPaidDefaultStatus = findFlaggedStatus("is_paid_default");
+export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
+  getFlaggedStatus("is_paid_default");
 
-/** The id of the public-default status, or null if none is configured. */
-export const getPublicStatusId = async (): Promise<number | null> => {
-  const status = await getPublicDefaultStatus();
-  return status === null ? null : status.id;
-};
+/** The id of the public-default status. */
+export const requirePublicStatusId = async (): Promise<number> =>
+  (await requirePublicDefaultStatus()).id;
 
 type DefaultRow = {
   is_paid_default: number;

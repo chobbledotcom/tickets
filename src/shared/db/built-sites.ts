@@ -474,11 +474,15 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   findAll: (): Promise<BuiltSite[]> => builtSites.getAll(),
 
   findById: async (id: InValue): Promise<BuiltSite | null> => {
-    // findById already decrypts via fromDb internally
     const row = await rawBuiltSitesTable.findById(id);
     if (!row) return null;
     return rowToBuiltSite(row);
   },
+
+  findByIds: async (ids: InValue[]): Promise<(BuiltSite | null)[]> =>
+    (await rawBuiltSitesTable.findByIds(ids)).map((row) =>
+      row === null ? null : rowToBuiltSite(row),
+    ),
 
   // findByIdPrimary is intentionally omitted: it is optional on Table (like
   // insertStatement/updateStatement) and only used on the transactional
@@ -499,6 +503,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     _col: K,
     value: BuiltSite[K],
   ): Promise<BuiltSite[K]> => Promise.resolve(value),
+
   // The CRUD adapter is a façade over the raw table — the built-site blob
   // is always reconstructed from BuiltSiteFormInput, so rowToInput just picks
   // the exposed camelCase fields off an already-decrypted BuiltSite.
@@ -565,7 +570,10 @@ export const claimNextBuiltSiteForPrune = async (): Promise<{
   id: number;
   siteUrl: string;
 } | null> => {
-  const row = await queryOne<{ id: number; site_data: EnvKeyEncrypted }>(
+  const row = await queryOne<{
+    id: number;
+    site_data: EnvKeyEncrypted;
+  }>(
     `UPDATE built_sites AS builtSite SET last_pruned = ?
      WHERE builtSite.id = (
        SELECT candidate.id FROM built_sites AS candidate

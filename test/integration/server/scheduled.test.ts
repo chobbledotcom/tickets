@@ -45,24 +45,28 @@ const lastPrunedOf = async (siteId: number): Promise<string> =>
     )
   )?.last_pruned ?? "";
 
-describeWithEnv("server (scheduled tasks): self-prune", { db: true }, () => {
-  test("pinging /scheduled prunes this site", async () => {
-    const orphanId = await insertOldOrphan(365);
+describeWithEnv(
+  "server (scheduled tasks): self-prune",
+  { db: true, env: { CAN_BUILD_SITES: undefined } },
+  () => {
+    test("pinging /scheduled prunes this site", async () => {
+      const orphanId = await insertOldOrphan(365);
 
-    const response = await scheduled("GET");
+      const response = await scheduled("GET");
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, poked: null });
-    // Per-request pruning (auto-purge on by default) reaped the year-old orphan.
-    expect(await attendeeExists(orphanId)).toBe(false);
-  });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, poked: null });
+      // Per-request pruning (auto-purge on by default) reaped the year-old orphan.
+      expect(await attendeeExists(orphanId)).toBe(false);
+    });
 
-  test("needs no auth — a bare POST is accepted", async () => {
-    const response = await scheduled("POST");
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, poked: null });
-  });
-});
+    test("needs no auth — a bare POST is accepted", async () => {
+      const response = await scheduled("POST");
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, poked: null });
+    });
+  },
+);
 
 describeWithEnv(
   "server (scheduled tasks): built forwarding",
@@ -113,9 +117,13 @@ describeWithEnv(
   },
 );
 
-describeWithEnv("server (scheduled tasks): not a builder", { db: true }, () => {
-  test("POST does not poke built sites when not a builder", async () => {
-    await insertBuiltSite("Client", "client.b-cdn.net");
-    await expectPostScheduledPokesNothing();
-  });
-});
+describeWithEnv(
+  "server (scheduled tasks): not a builder",
+  { db: true, env: { CAN_BUILD_SITES: undefined } },
+  () => {
+    test("POST does not poke built sites when not a builder", async () => {
+      await insertBuiltSite("Client", "client.b-cdn.net");
+      await expectPostScheduledPokesNothing();
+    });
+  },
+);

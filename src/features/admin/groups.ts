@@ -1,5 +1,6 @@
 /* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
+
 /**
  * Admin group management routes - accessible to owners and managers
  */
@@ -31,7 +32,7 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import {
@@ -42,7 +43,12 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
-import type { AdminSession, DayPrices, Group } from "#shared/types.ts";
+import type {
+  AdminSession,
+  DayPrices,
+  Group,
+  ListingWithCount,
+} from "#shared/types.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
 import { adminGroupNewPage } from "#templates/admin/groups/form.tsx";
@@ -350,13 +356,8 @@ export const groupFormPost = (
  * (see {@link isPackageableMember}). */
 const validateListingTypesForGroup = async (
   group: Group,
-  listingIds: number[],
+  listings: ListingWithCount[],
 ): Promise<string | null> => {
-  const listings = compact(
-    await Promise.all(
-      listingIds.map((listingId) => getListingWithCount(listingId)),
-    ),
-  );
   for (const listing of listings) {
     const typeError = await validateGroupListingType(
       group.id,
@@ -382,13 +383,15 @@ const handleAddListingsToGroup = groupFormPost(async (group, form) => {
     .map(Number)
     .filter((n) => n > 0);
   if (listingIds.length > 0) {
-    const typeError = await validateListingTypesForGroup(group, listingIds);
+    const listings = compact(await getListingsWithCountsByIds(listingIds));
+    const typeError = await validateListingTypesForGroup(group, listings);
     if (typeError) {
       return redirect(`/admin/groups/${group.id}`, typeError, false);
     }
-    await assignListingsToGroup(listingIds, group.id);
+    const existingListingIds = listings.map((listing) => listing.id);
+    await assignListingsToGroup(existingListingIds, group.id);
     await logActivity(
-      `${listingIds.length} listing(s) added to group '${group.name}'`,
+      `${existingListingIds.length} listing(s) added to group '${group.name}'`,
     );
   }
   return redirect(

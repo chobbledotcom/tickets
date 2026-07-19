@@ -11,7 +11,7 @@ import {
   buildCapacityCondition,
   type CapacityBucket,
 } from "#shared/db/capacity.ts";
-import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import { inPlaceholders, queryAll, requireOne } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
@@ -78,10 +78,10 @@ export const checkLinesCapacity = async (
     .map((condition, index) => `(${condition.sql}) AS ok${index}`)
     .join(", ");
   const args = conditions.flatMap((condition) => condition.args);
-  const row = (await queryOne<Record<string, number>>(
+  const row = await requireOne<Record<string, number>>(
     `SELECT ${columns}`,
     args,
-  ))!;
+  );
   return conditions.map((_, index) => row[`ok${index}`] === 1);
 };
 
@@ -185,6 +185,6 @@ export const checkBatchAvailabilityImpl = async (
     listingGroups.idsFor(membership, item.listingId),
   );
   const { sql, args } = buildBatchCapacitySql(listingDemand, groupDemand);
-  const row = (await queryOne<{ fits: number }>(sql, args))!;
+  const row = await requireOne<{ fits: number }>(sql, args);
   return row.fits === 1;
 };

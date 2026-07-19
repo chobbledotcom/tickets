@@ -13,7 +13,7 @@ import type {
   TicketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { requirePublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
 import {
   groupListingAnswerSets,
@@ -83,8 +83,8 @@ export const handlePaidPath = async (
 export const publicReservationAmount = async (): Promise<
   string | undefined
 > => {
-  const status = await getPublicDefaultStatus();
-  return status?.is_reservation && status.reservation_amount
+  const status = await requirePublicDefaultStatus();
+  return status.is_reservation && status.reservation_amount
     ? status.reservation_amount
     : undefined;
 };

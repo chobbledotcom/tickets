@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
-import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { requirePublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -9,12 +9,12 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
-import { bookFreeOrder } from "./_shared-setup.ts";
+import { bookFreeOrder } from "../../lib/server-reservation/_shared-setup.ts";
 import {
   createOptionalAddOn,
   latestAttendee,
   submitBuyerOrder,
-} from "./helpers.ts";
+} from "../../lib/server-reservation/helpers.ts";
 
 describeWithEnv(
   "server (booking without a payment provider)",
@@ -29,7 +29,7 @@ describeWithEnv(
       // The seeded public-default status is the plain non-reservation
       // "Confirmed", so the full balance is owed regardless of any configured
       // reservation amount — exactly as a zero-deposit reservation behaves.
-      const status = await getPublicDefaultStatus();
+      const status = await requirePublicDefaultStatus();
       const listing = await createTestListing({
         maxAttendees: 10,
         maxQuantity: 5,

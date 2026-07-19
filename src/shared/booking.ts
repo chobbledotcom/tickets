@@ -9,7 +9,7 @@
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
-import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import { nowIso } from "#shared/now.ts";
@@ -134,7 +134,7 @@ export const processBooking = async (
         },
       ],
       remainingBalance,
-      statusId: await getPublicStatusId(),
+      statusId: await requirePublicStatusId(),
     },
     // An owed booking must record its balance in the ledger at creation, since
     // the outstanding balance projects from it: post the booking's gross sale

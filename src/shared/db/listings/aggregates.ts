@@ -1,7 +1,7 @@
 /** Listing aggregate inspection, correction, and rebuilding. */
 
 import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
-import { execute, queryOne, resetAggregates } from "#shared/db/client.ts";
+import { execute, requireOne, resetAggregates } from "#shared/db/client.ts";
 import type {
   AggregateRecalculation,
   AggregateValues,
@@ -32,10 +32,10 @@ const LISTING_AGGREGATE_RECALC_SQL = `SELECT
 export const getListingAggregateRecalculation = async (
   listing: ListingWithCount,
 ): Promise<ListingAggregateRecalculation> => {
-  const row = (await queryOne<ListingAggregateValues>(
+  const row = await requireOne<ListingAggregateValues>(
     LISTING_AGGREGATE_RECALC_SQL,
     [listing.id],
-  ))!;
+  );
   return {
     booked_quantity: {
       current: listing.attendee_count,

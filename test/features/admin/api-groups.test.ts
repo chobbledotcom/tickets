@@ -187,7 +187,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       // a transaction on the primary, the API read it back with a plain "read"-mode
       // `findById`, which Turso can serve from a replica lagging the commit —
       // returning null and crashing on `row.id`. The read-back now uses the
-      // primary-pinned `findByIdPrimary`. Stub the replica read (`findById`) to
+      // primary-pinned `findByIdPrimary`. Stub the optional replica read to
       // miss the row — the create must still succeed.
       const findByIdStub = stub(groups.table, "findById", () =>
         Promise.resolve(null),

@@ -19,7 +19,7 @@ import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
-import { useLocalStoragePath } from "./_shared-site-update.ts";
+import { useLocalStoragePath } from "../../lib/_shared-site-update.ts";
 
 /** A built site database URL whose backups land in a site-specific folder. */
 const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";
@@ -247,13 +247,10 @@ describeWithEnv(
       await seedSiteBackup(SITE_DB_URL);
       using _fetch = stubReleaseFetch();
       const deployStub = stub(denoDeployApi, "deployCode", () =>
-        Promise.resolve({
-          hostname: "https://app.deno.dev",
-          ok: true as const,
-        }),
+        Promise.resolve({ ok: true as const, value: "https://app.deno.dev" }),
       );
       const getEnvVarNamesStub = stub(denoDeployApi, "getEnvVarNames", () =>
-        Promise.resolve({ names: [], ok: true as const }),
+        Promise.resolve({ ok: true as const, value: [] }),
       );
       try {
         const { response } = await adminFormPost(

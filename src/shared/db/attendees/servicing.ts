@@ -37,9 +37,10 @@ import {
   inPlaceholders,
   queryAll,
   queryOne,
+  requireOne,
   withTransaction,
 } from "#shared/db/client.ts";
-import { getListingNamesByIds } from "#shared/db/listings/records.ts";
+import { listingNames } from "#shared/db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -156,7 +157,7 @@ const formatServicingCapacityError = capacityErrorFormatter({
 /** The comma-joined names of the given listing ids, dropping any id whose
  *  listing has since been deleted (a name lookup miss) rather than throwing. */
 const joinedListingNames = async (ids: number[]): Promise<string> => {
-  const names = await getListingNamesByIds(ids);
+  const names = await listingNames.byIds(ids);
   return ids
     .map((id) => names.get(id))
     .filter((name): name is string => Boolean(name))
@@ -701,11 +702,11 @@ export const recordServiceCost = async (
         "SELECT ?, ?, id, ?, ?, ? FROM transfers WHERE reference = ?",
     });
   });
-  const row = await queryOne<{ id: number }>(
+  const row = await requireOne<{ id: number }>(
     "SELECT id FROM transfers WHERE reference = ?",
     [transfer.reference],
   );
-  return row!.id;
+  return row.id;
 };
 
 /** The narrow transfers columns a service-cost read needs: the row's id and
