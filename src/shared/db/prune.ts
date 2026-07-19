@@ -135,16 +135,19 @@ const expiredInviteIds = async (): Promise<number[]> => {
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
-      ORDER BY id LIMIT ?`,
-    [MAINTENANCE_PRUNE_BATCH],
+      ORDER BY id`,
   );
   const cutoff = now().getTime();
-  const expired: number[] = [];
-  for (const row of rows) {
-    const expiryMs = new Date(await decrypt(row.invite_expiry!)).getTime();
-    if (expiryMs < cutoff) expired.push(row.id);
-  }
-  return expired;
+  const inviteStates = await Promise.all(
+    rows.map(async (row) => ({
+      expired: new Date(await decrypt(row.invite_expiry!)).getTime() < cutoff,
+      id: row.id,
+    })),
+  );
+  return inviteStates
+    .filter(({ expired }) => expired)
+    .map(({ id }) => id)
+    .slice(0, MAINTENANCE_PRUNE_BATCH);
 };
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {

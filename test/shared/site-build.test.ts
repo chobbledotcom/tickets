@@ -7,7 +7,7 @@ import {
   type PreparedBuildSite,
 } from "#shared/builder.ts";
 import { builtSites } from "#shared/db/built-sites.ts";
-import { buildAssignableSite } from "#shared/site-build.ts";
+import { buildAssignableSite, buildRetainedSite } from "#shared/site-build.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
@@ -27,6 +27,30 @@ const PREPARED_SITE = {
 } satisfies PreparedBuildSite;
 
 describeWithEnv("site build", { db: true }, () => {
+  test("retains a local bundle before reporting success", async () => {
+    const buildStub = stub(builderApi, "buildSite", async (input, retain) => {
+      expect(input).toEqual({ code: "local bundle", siteName: "Local Site" });
+      await retain(PREPARED_SITE);
+      return BUILD_RESULT;
+    });
+    try {
+      expect(
+        await buildRetainedSite("Local Site", {
+          code: "local bundle",
+          siteName: "Local Site",
+        }),
+      ).toMatchObject({ result: BUILD_RESULT });
+      expect(await builtSites.getAll()).toMatchObject([
+        {
+          name: "Local Site",
+          scheduledTaskKey: TEST_SCHEDULED_KEY,
+        },
+      ]);
+    } finally {
+      buildStub.restore();
+    }
+  });
+
   test("retains the scheduled key before making the site assignable", async () => {
     let requestedName = "";
     let retainedAssignable: boolean | undefined;

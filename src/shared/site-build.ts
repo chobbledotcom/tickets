@@ -1,4 +1,8 @@
-import { builderApi } from "#shared/builder.ts";
+import {
+  type BuildSiteInput,
+  type BuildSiteResult,
+  builderApi,
+} from "#shared/builder.ts";
 import {
   type BuiltSite,
   builtSites,
@@ -10,28 +14,38 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 const nextSiteName = async (): Promise<string> =>
   String((await builtSites.getAll()).length + 1).padStart(5, "0");
 
+export const buildRetainedSite = async (
+  name: string,
+  input: BuildSiteInput,
+): Promise<{ result: BuildSiteResult; retainedId: number }> => {
+  const retainedId = { value: 0 };
+  const result = await builderApi.buildSite(input, async (site) => {
+    const row = await insertBuiltSite(
+      name,
+      site.defaultHostname,
+      site.dbUrl,
+      site.dbToken,
+      false,
+      site.hostingId,
+      undefined,
+      site.hostingProvider,
+      site.dbProvider,
+      site.scheduledTaskKey,
+    );
+    retainedId.value = row.id;
+  });
+  if (result.ok && retainedId.value === 0) {
+    throw new Error("Built site was not retained");
+  }
+  return { result, retainedId: retainedId.value };
+};
+
 /** Build and retain one site before making it available for assignment. */
 export const buildAssignableSite = async (): Promise<BuiltSite | null> => {
   const name = await nextSiteName();
-  const retainedId = { value: 0 };
-  const result = await builderApi.buildSite(
-    { siteName: name },
-    async (site) => {
-      const row = await insertBuiltSite(
-        name,
-        site.defaultHostname,
-        site.dbUrl,
-        site.dbToken,
-        false,
-        site.hostingId,
-        undefined,
-        site.hostingProvider,
-        site.dbProvider,
-        site.scheduledTaskKey,
-      );
-      retainedId.value = row.id;
-    },
-  );
+  const { result, retainedId } = await buildRetainedSite(name, {
+    siteName: name,
+  });
   if (!result.ok) {
     logError({
       code: ErrorCode.CDN_REQUEST,
@@ -39,6 +53,5 @@ export const buildAssignableSite = async (): Promise<BuiltSite | null> => {
     });
     return null;
   }
-  if (retainedId.value === 0) throw new Error("Built site was not retained");
-  return builtSitesCrudTable.update(retainedId.value, { assignable: true });
+  return builtSitesCrudTable.update(retainedId, { assignable: true });
 };
