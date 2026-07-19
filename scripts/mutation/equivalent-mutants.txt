@@ -75,6 +75,7 @@ src/shared/builder.ts:198:44  ?? → ||   # dbToken is string|undefined and the 
 src/shared/builder.ts:199:35  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:204:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:284:26  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/site-build.ts:32:23  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
 src/shared/db/built-site-scheduler.ts:42:20  ?? → ||   # parsed sk is a non-empty canonical scheduled key when present, so only undefined reaches the null fallback
 src/shared/db/built-site-scheduler.ts:44:21  ?? → ||   # parsed sn is a non-empty canonical scheduled key when present, so only undefined reaches the null fallback
 src/shared/db/built-sites.ts:346:15  false → true   # hp defaults to non-empty "bunny" and every valid explicit provider is non-empty, so this field is always written either way

@@ -6,6 +6,7 @@ import {
   builderApi,
   type PreparedBuildSite,
 } from "#shared/builder.ts";
+import { builtSites } from "#shared/db/built-sites.ts";
 import { buildAssignableSite } from "#shared/site-build.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -28,15 +29,18 @@ const PREPARED_SITE = {
 describeWithEnv("site build", { db: true }, () => {
   test("retains the scheduled key before making the site assignable", async () => {
     let requestedName = "";
+    let retainedAssignable: boolean | undefined;
     const buildStub = stub(builderApi, "buildSite", async (input, retain) => {
       requestedName = input.siteName;
       await retain(PREPARED_SITE);
+      retainedAssignable = (await builtSites.getAll())[0]!.assignable;
       return BUILD_RESULT;
     });
     try {
       const site = await buildAssignableSite();
 
       expect(requestedName).toBe("00001");
+      expect(retainedAssignable).toBe(false);
       expect(site).toMatchObject({
         assignable: true,
         name: "00001",
