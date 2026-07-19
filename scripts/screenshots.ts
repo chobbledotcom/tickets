@@ -164,16 +164,20 @@ const submit = async (page: Page, formSelector: string): Promise<void> => {
   ]);
 };
 
-const setupAdmin = async (page: Page, baseUrl: string): Promise<void> => {
+const setupAdmin = async (
+  page: Page,
+  baseUrl: string,
+  username = USERNAME,
+): Promise<void> => {
   await page.goto(`${baseUrl}/setup/`);
-  await page.locator('[name="admin_username"]').fill(USERNAME);
+  await page.locator('[name="admin_username"]').fill(username);
   await page.locator('[name="admin_password"]').fill(PASSWORD);
   await page.locator('[name="admin_password_confirm"]').fill(PASSWORD);
   await page.locator('[name="accept_agreement"]').check();
   await submit(page, 'form[action="/setup/"]');
 
   await page.goto(`${baseUrl}/`);
-  await page.locator('[name="username"]').fill(USERNAME);
+  await page.locator('[name="username"]').fill(username);
   await page.locator('[name="password"]').fill(PASSWORD);
   await submit(page, 'form[action="/admin/login"]');
 
@@ -345,7 +349,7 @@ const captureScenario = async (
   baseUrl: string,
   outputDir: string,
 ): Promise<void> => {
-  await setupAdmin(page, baseUrl);
+  await setupAdmin(page, baseUrl, scenario.setupUsername);
   await applyTheme(
     page,
     baseUrl,
@@ -357,6 +361,11 @@ const captureScenario = async (
     }`,
   );
   await scenario.run({
+    balancePathFor: async (attendeeId) => {
+      Deno.env.set("DB_ENCRYPTION_KEY", DB_KEY);
+      const { signBalanceToken } = await import("#shared/balance-link.ts");
+      return `/pay/${await signBalanceToken(attendeeId)}`;
+    },
     baseUrl,
     page,
     submit: (formSelector) => submit(page, formSelector),
