@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectCheckoutRedirect, expectFlash } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,10 +17,6 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     describe("can_pay_more", () => {
-      afterEach(() => {
-        resetStripeClient();
-      });
-
       /** A can_pay_more listing1 alongside a plain listing2, both purchasable
        * up to 5 — the two-listing setup shared by every ticket-level
        * can_pay_more POST test below. */

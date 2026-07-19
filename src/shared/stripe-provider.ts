@@ -21,12 +21,9 @@ import {
 } from "#shared/payments.ts";
 import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
 import {
-  createCheckoutSession,
   isoFromUnixSeconds,
-  retrieveCheckoutSession,
-  retrievePaymentIntent,
-  setupWebhookEndpoint,
-  refundPayment as stripeRefund,
+  type StripeApi,
+  stripeApi,
 } from "#shared/stripe.ts";
 
 /** Stripe's payment_status string, or "unpaid" when it isn't one we know. */
@@ -36,7 +33,7 @@ const toPaymentStatus = (status: string): PaymentStatus =>
 /** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createStripeCheckoutSession = makeCreateCheckoutSession(
   "Stripe",
-  createCheckoutSession,
+  (...args) => stripeApi.createCheckoutSession(...args),
   (session) => ({ id: session?.id, url: session?.url }),
 );
 
@@ -46,12 +43,12 @@ export const stripePaymentProvider: PaymentProvider = {
   createCheckoutSession: createStripeCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    const intent = await retrievePaymentIntent(paymentReference);
+    const intent = await stripeApi.retrievePaymentIntent(paymentReference);
     return intent?.latest_charge?.refunded === true;
   },
 
   async refundPayment(paymentReference: string): Promise<boolean> {
-    const result = await stripeRefund(paymentReference);
+    const result = await stripeApi.refundPayment(paymentReference);
     return result?.status === "succeeded";
   },
   requiresWebhookSignature: true,
@@ -97,7 +94,7 @@ export const stripePaymentProvider: PaymentProvider = {
   async retrieveSession(
     sessionId: string,
   ): Promise<ValidatedPaymentSession | null> {
-    const session = await retrieveCheckoutSession(sessionId);
+    const session = await stripeApi.retrieveCheckoutSession(sessionId);
     if (!session) return null;
 
     const { id, payment_status, payment_intent, metadata, amount_total } =
@@ -120,8 +117,8 @@ export const stripePaymentProvider: PaymentProvider = {
     });
   },
 
-  setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
-    return setupWebhookEndpoint(...args);
+  setupWebhookEndpoint(...args: Parameters<StripeApi["setupWebhookEndpoint"]>) {
+    return stripeApi.setupWebhookEndpoint(...args);
   },
   type: "stripe",
 

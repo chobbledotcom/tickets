@@ -1,12 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
@@ -55,10 +54,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("ticket purchase with payments enabled", () => {
     // These tests use the stripe-mock host and port chosen by the harness.
     // Stripe keys are now set via environment variables
-
-    afterEach(() => {
-      resetStripeClient();
-    });
 
     test("handles payment flow error when Stripe fails", async () => {
       // Set a fake Stripe key to enable payments, and make a paid listing

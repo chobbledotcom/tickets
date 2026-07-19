@@ -5,7 +5,6 @@ import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows } from "#shared/db/system-notes.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -111,7 +110,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // ...and never issues a second refund.
           expect(mockRefund.calls.length).toBe(1);
         },
-        resetStripeClient,
       );
     });
 
@@ -165,7 +163,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             async () => (await placeholders()).length,
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -219,7 +216,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             async () => (await getAttendeesRaw(listing.id)).length,
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -273,7 +269,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(mockRefund.calls.length).toBe(2);
         },
-        resetStripeClient,
       );
     });
   });

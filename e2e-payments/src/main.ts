@@ -13,7 +13,7 @@
  */
 
 import { readFileSync } from "node:fs";
-import { launchBrowser } from "./browser.ts";
+import { type BrowserSession, launchBrowser } from "./browser.ts";
 import { config, needsTunnel, providerSecrets, type Target } from "./config.ts";
 import {
   assertFreeThankYou,
@@ -28,8 +28,9 @@ import { fail, log, step, warn } from "./log.ts";
 import { notifyFailure } from "./notify.ts";
 import { runComplexOrderJourney } from "./order-flow.ts";
 import { providers } from "./providers/index.ts";
-import { buildStaticAssets, startAppServer } from "./server.ts";
-import { noTunnel, startTunnel } from "./tunnel.ts";
+import type { PaymentProvider } from "./providers/types.ts";
+import { type AppServer, buildStaticAssets, startAppServer } from "./server.ts";
+import { noTunnel, startTunnel, type Tunnel } from "./tunnel.ts";
 
 /**
  * Print the tail of the app server's log to stdout. On CI the server log is
@@ -49,9 +50,9 @@ const dumpServerLog = (logPath: string, lines = 20): void => {
     const IGNORE = /\[SQL\]|\[Request\]/i;
     const signal = all.filter((l) => RELEVANT.test(l) && !IGNORE.test(l));
     warn(`----- app server log: relevant lines (${logPath}) -----`);
-    console.error((signal.length ? signal : all.slice(-lines)).join("\n"));
+    warn((signal.length ? signal : all.slice(-lines)).join("\n"));
     warn(`----- app server log: last ${lines} lines -----`);
-    console.error(all.slice(-lines).join("\n"));
+    warn(all.slice(-lines).join("\n"));
     warn("----- end app server log -----");
   } catch (err) {
     warn(`could not read app server log ${logPath}: ${String(err)}`);
@@ -62,7 +63,7 @@ const parseTarget = (): Target => {
   const raw = (
     process.argv[2] ??
     process.env.E2E_PROVIDER ??
-      "free"
+    "free"
   ).toLowerCase();
   if (
     raw === "free" ||
@@ -77,6 +78,103 @@ const parseTarget = (): Target => {
   );
 };
 
+type ConfiguredPayment = {
+  provider: PaymentProvider;
+  secrets: Record<string, string>;
+};
+
+const runJourneys = async ({
+  country,
+  payment,
+  server,
+  session,
+  tunnel,
+}: {
+  country: string;
+  payment: ConfiguredPayment | null;
+  server: AppServer;
+  session: BrowserSession;
+  tunnel: Tunnel;
+}): Promise<void> => {
+  await runSetup(session, country);
+  await login(session);
+
+  if (payment) {
+    await payment.provider.configure(session, payment.secrets);
+  }
+
+  const ticketPath = await createListing(session, {
+    priceMinor: payment ? config.unitPrice : 0,
+  });
+  await submitBooking(session, ticketPath);
+
+  let payForComplexOrder: (() => Promise<void>) | undefined;
+  if (!payment) {
+    await assertFreeThankYou(session);
+  } else {
+    const hostedCheckoutContext = {
+      baseUrl: tunnel.publicBaseUrl,
+      secrets: payment.secrets,
+      serverLogPath: server.logPath,
+    };
+    const payOnHostedCheckout = async (message: string): Promise<void> => {
+      step(message);
+      await assertRedirectedToCheckout(session);
+      await payment.provider.payHostedCheckout(
+        session.page,
+        hostedCheckoutContext,
+      );
+    };
+    await payOnHostedCheckout(
+      `Paying on the ${payment.provider.name} hosted checkout`,
+    );
+    await assertPaidBookingConfirmed(session, ticketPath);
+    await payment.provider.afterPaidBooking?.(session, hostedCheckoutContext);
+    payForComplexOrder = () =>
+      payOnHostedCheckout(
+        `Paying the complex order on the ${payment.provider.name} hosted checkout`,
+      );
+  }
+
+  // The second journey on the same server: a COMPLEX order — a package, one
+  // member also on its own row, and a plain listing, all booked through the
+  // /order gallery in one checkout, then verified path-by-path in admin.
+  await runComplexOrderJourney(session, {
+    paid: payment !== null,
+    ...(payForComplexOrder ? { payHostedCheckout: payForComplexOrder } : {}),
+  });
+};
+
+const reportFailure = async (
+  error: unknown,
+  target: Target,
+  session: BrowserSession | null,
+  server: AppServer | null,
+): Promise<never> => {
+  const message = error instanceof Error ? error.message : String(error);
+  fail(`FAIL — ${target}: ${message}`);
+  if (session) await session.screenshot(`fail-${target}`);
+  if (server) dumpServerLog(server.logPath);
+  await notifyFailure(target);
+  throw error;
+};
+
+const stopRun = async (
+  session: BrowserSession | null,
+  tunnel: Tunnel | null,
+  payment: ConfiguredPayment | null,
+  server: AppServer | null,
+): Promise<void> => {
+  if (session) await session.stop();
+  if (tunnel) await tunnel.stop();
+  // Cleanup is best-effort because this runs after both passes and failures.
+  // A failed provider cleanup must not hide the original journey result.
+  if (payment?.provider.cleanup) {
+    await payment.provider.cleanup(payment.secrets).catch(() => {});
+  }
+  if (server) await server.stop();
+};
+
 const run = async (): Promise<void> => {
   const target = parseTarget();
   step(`Payment sandbox e2e — target: ${target}`);
@@ -87,8 +185,10 @@ const run = async (): Promise<void> => {
     log(`SKIP: no sandbox secrets configured for ${target}; nothing to run.`);
     return; // exit 0 — a missing-secret leg is a skip, not a failure
   }
+  const payment = provider && secrets ? { provider, secrets } : null;
 
-  const country = process.env.SETUP_COUNTRY?.trim() ||
+  const country =
+    process.env.SETUP_COUNTRY?.trim() ||
     provider?.setupCountry ||
     config.setupCountry;
 
@@ -109,71 +209,13 @@ const run = async (): Promise<void> => {
     session = await launchBrowser(tunnel.publicBaseUrl);
     log(`Driving the app at ${tunnel.publicBaseUrl}`);
 
-    await runSetup(session, country);
-    await login(session);
-
-    if (provider) await provider.configure(session, secrets!);
-
-    const ticketPath = await createListing(session, {
-      priceMinor: provider ? config.unitPrice : 0,
-    });
-    await submitBooking(session, ticketPath);
-
-    if (!provider) {
-      await assertFreeThankYou(session);
-    } else {
-      step(`Paying on the ${provider.name} hosted checkout`);
-      await assertRedirectedToCheckout(session);
-      await provider.payHostedCheckout(session.page, {
-        baseUrl: tunnel.publicBaseUrl,
-        secrets: secrets!,
-        serverLogPath: server.logPath,
-      });
-      await assertPaidBookingConfirmed(session, ticketPath);
-    }
-
-    // The second journey on the same server: a COMPLEX order — a package, one
-    // member also on its own row, and a plain listing, all booked through the
-    // /order gallery in one checkout, then verified path-by-path in admin.
-    const activeSession = session;
-    const activeTunnel = tunnel;
-    const activeServer = server;
-    await runComplexOrderJourney(activeSession, {
-      paid: provider !== null,
-      ...(provider
-        ? {
-          payHostedCheckout: async () => {
-            step(
-              `Paying the complex order on the ${provider.name} hosted checkout`,
-            );
-            await assertRedirectedToCheckout(activeSession);
-            await provider.payHostedCheckout(activeSession.page, {
-              baseUrl: activeTunnel.publicBaseUrl,
-              secrets: secrets!,
-              serverLogPath: activeServer.logPath,
-            });
-          },
-        }
-        : {}),
-    });
+    await runJourneys({ country, payment, server, session, tunnel });
 
     step(`PASS — ${target} end-to-end booking completed`);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    fail(`FAIL — ${target}: ${message}`);
-    if (session) await session.screenshot(`fail-${target}`);
-    if (server) dumpServerLog(server.logPath);
-    await notifyFailure(target);
-    throw err;
+    await reportFailure(err, target, session, server);
   } finally {
-    if (session) await session.stop();
-    if (tunnel) await tunnel.stop();
-    // Remove any ephemeral provider-side resources (e.g. Stripe webhook
-    // endpoints) regardless of pass/fail, before stopping the server.
-    if (provider?.cleanup && secrets) {
-      await provider.cleanup(secrets).catch(() => {});
-    }
-    if (server) await server.stop();
+    await stopRun(session, tunnel, payment, server);
   }
 };
 

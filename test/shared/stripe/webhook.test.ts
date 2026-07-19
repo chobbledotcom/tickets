@@ -2,11 +2,10 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import {
-  constructTestWebhookEvent,
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/stripe/webhook.ts";
-import { signedHeader } from "#test/lib/stripe/fixtures.ts";
+import { signedHeader, signedWebhook } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 
@@ -59,10 +58,7 @@ describeStripe("stripe", () => {
         type: "checkout.session.completed",
       };
 
-      const { payload, signature } = await constructTestWebhookEvent(
-        listing,
-        TEST_SECRET,
-      );
+      const { payload, signature } = await signedWebhook(listing, TEST_SECRET);
 
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);

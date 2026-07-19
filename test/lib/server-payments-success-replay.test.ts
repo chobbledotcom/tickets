@@ -1,10 +1,10 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse, followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -18,10 +18,6 @@ import { renderPaymentSuccess } from "./payment-success-helpers.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("shows thank_you_url for single-ticket success", async () => {
       await setupStripe();
 

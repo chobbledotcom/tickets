@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
 import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -17,8 +17,6 @@ describeWithEnv(
   "server (reservation deposit at checkout)",
   { db: true },
   () => {
-    afterEach(() => resetStripeClient());
-
     test("books a reserved attendee owing the balance after the deposit", async () => {
       await setupStripe();
       await settings.update.bookingFee("10");

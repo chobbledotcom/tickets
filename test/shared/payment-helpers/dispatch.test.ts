@@ -213,6 +213,21 @@ describe("payment-helpers", () => {
         ),
       ).rejects.toThrow("Phone invalid");
     });
+
+    test("propagates errors selected by the provider", async () => {
+      const protocolError = new TypeError("Malformed provider response");
+      const withClient = createWithClient(
+        () => Promise.resolve({ token: "abc" }),
+        { shouldPropagate: (error) => error === protocolError },
+      );
+
+      await expect(
+        withClient(
+          () => Promise.reject(protocolError),
+          ErrorCode.PAYMENT_CHECKOUT,
+        ),
+      ).rejects.toBe(protocolError);
+    });
   });
 
   describe("toCheckoutResult", () => {

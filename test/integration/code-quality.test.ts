@@ -169,8 +169,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/crypto/hashing.ts:setFastPbkdf2ForTest",
   // Set RSA key size directly to avoid env var races between parallel tests
   "shared/crypto/keys.ts:setRsaKeySizeForTest",
-  // Reset cached Stripe client between tests
-  "shared/stripe.ts:resetStripeClient",
   // Settings version bump: used in production by every settings write (same
   // file, which the export scan doesn't credit) and by tests to simulate
   // another isolate's write.
@@ -207,8 +205,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/limits.ts:PRUNE_CONTACTS_RETENTION_DAYS",
   "shared/limits.ts:ADDRESS_CACHE_DAYS",
   "shared/limits.ts:PRUNE_INTERVAL_HOURS",
-  // Test helper for creating signed webhook payloads
-  "shared/stripe/webhook.ts:constructTestWebhookEvent",
   // Reset cached Square client between tests
   "shared/square.ts:resetSquareClient",
   // Test helper for creating signed Square webhook payloads

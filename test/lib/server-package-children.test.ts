@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -296,7 +296,6 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
       expect(Number(childRow.parent_listing_id)).toBe(parent.id);
     } finally {
       mockRetrieve.restore();
-      resetStripeClient();
     }
   });
 
@@ -343,7 +342,6 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     } finally {
       mockRetrieve.restore();
       mockRefund.restore();
-      resetStripeClient();
     }
   });
 
@@ -413,7 +411,6 @@ describeWithEnv("packages with buyer-choice children", { db: true }, () => {
     } finally {
       mockRetrieve.restore();
       mockRefund.restore();
-      resetStripeClient();
     }
   });
 });

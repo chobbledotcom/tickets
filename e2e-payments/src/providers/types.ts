@@ -40,6 +40,15 @@ export interface HostedCheckoutContext {
 
 export interface PaymentProvider {
   /**
+   * Optional provider-specific checks after the first paid journey. This is
+   * where a sandbox can exercise live API paths beyond checkout without making
+   * every provider implement actions it does not support in this harness.
+   */
+  afterPaidBooking?: (
+    session: BrowserSession,
+    context: HostedCheckoutContext,
+  ) => Promise<void>;
+  /**
    * Optional teardown against the provider's own account (not the app), run in
    * `finally` after each run. Used to remove ephemeral resources the run
    * created in the sandbox — e.g. the per-tunnel Stripe webhook endpoint.

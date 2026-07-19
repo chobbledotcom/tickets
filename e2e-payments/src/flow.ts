@@ -7,16 +7,16 @@
 
 /* jscpd:ignore-start */
 import type { Locator } from "playwright";
-import { type BrowserSession, hrefOf } from "./browser.ts";
+import { type BrowserSession, hrefOf, requirePageText } from "./browser.ts";
 import { config } from "./config.ts";
 import { log, step } from "./log.ts";
 /* jscpd:ignore-end */
 
-const LISTING_NAME = "E2E Payment Concert";
+export const LISTING_NAME = "E2E Payment Concert";
 // Not example.com: some processors (Square) reject that reserved domain as an
 // invalid email before redirecting, failing the booking pre-checkout.
 const BOOKER_EMAIL = config.bookerEmail;
-const BOOKER_NAME = "E2E Booker";
+export const BOOKER_NAME = "E2E Booker";
 const LOGIN_FIELDS_SELECTOR = '[name="username"], [name="password"]';
 
 /** Run the first-run setup wizard for a fresh install. */
@@ -207,11 +207,12 @@ export const assertRedirectedToCheckout = async (
 export const assertFreeThankYou = async (
   session: BrowserSession,
 ): Promise<void> => {
-  const body = await session.bodyText();
-  if (!/thank you|your order|your ticket/i.test(body)) {
-    await session.screenshot("free-booking-no-thankyou");
-    throw new Error(`expected a thank-you page, got:\n${body.slice(0, 800)}`);
-  }
+  await requirePageText(
+    session,
+    /thank you|your order|your ticket/i,
+    "free-booking-no-thankyou",
+    "Expected a thank-you page, got:",
+  );
   log("  ✔ free booking reached the thank-you page");
 };
 

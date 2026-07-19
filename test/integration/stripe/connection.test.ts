@@ -1,30 +1,20 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import {
-  constructTestWebhookEvent,
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#shared/stripe/webhook.ts";
+import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
 import {
-  createCheckoutSession,
-  detectStripeKeyMode,
-  refundPayment,
-  testStripeConnection,
-} from "#shared/stripe.ts";
-import {
-  lineFor,
   noWebhooks,
   okBalance,
+  signedWebhook,
   stripeClient,
   withBalanceAndList,
 } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 
@@ -40,20 +30,9 @@ describeStripe("stripe", () => {
       body,
     );
 
-  // stripe-mock creates the session; email absence just drops customer_email.
-  const expectSessionCreated = async (intent: CheckoutIntent) => {
-    await settings.update.stripe.secretKey("sk_test_mock");
-    const session = await createCheckoutSession(
-      intent,
-      "http://localhost:3000",
-    );
-    expect(session).not.toBeNull();
-    expect(session?.id).toBeDefined();
-  };
-
   /** A failed connection whose API key check reports `error`. */
   const expectApiKeyError = (
-    result: Awaited<ReturnType<typeof testStripeConnection>>,
+    result: Awaited<ReturnType<typeof stripeApi.testStripeConnection>>,
     error: string,
   ) => {
     expect(result.ok).toBe(false);
@@ -64,7 +43,7 @@ describeStripe("stripe", () => {
   describe("testStripeConnection", () => {
     test("returns error when no API key configured", async () => {
       expectApiKeyError(
-        await testStripeConnection(),
+        await stripeApi.testStripeConnection(),
         "No Stripe secret key configured",
       );
     });
@@ -76,7 +55,7 @@ describeStripe("stripe", () => {
         new Error("Invalid API Key provided"),
         async () => {
           expectApiKeyError(
-            await testStripeConnection(),
+            await stripeApi.testStripeConnection(),
             "Invalid API Key provided",
           );
         },
@@ -90,7 +69,7 @@ describeStripe("stripe", () => {
         okBalance(false),
         noWebhooks,
         async () => {
-          const result = await testStripeConnection();
+          const result = await stripeApi.testStripeConnection();
           expect(result.ok).toBe(false);
           expect(result.apiKey.valid).toBe(true);
           expect(result.apiKey.mode).toBe("test");
@@ -106,7 +85,7 @@ describeStripe("stripe", () => {
         okBalance(true),
         noWebhooks,
         async () => {
-          const result = await testStripeConnection();
+          const result = await stripeApi.testStripeConnection();
           expect(result.apiKey.valid).toBe(true);
           expect(result.apiKey.mode).toBe("live");
         },
@@ -131,7 +110,7 @@ describeStripe("stripe", () => {
             ],
           }),
         async () => {
-          const result = await testStripeConnection();
+          const result = await stripeApi.testStripeConnection();
           expect(result.ok).toBe(true);
           expect(result.webhooks).toHaveLength(1);
         },
@@ -145,7 +124,7 @@ describeStripe("stripe", () => {
         okBalance(false),
         () => Promise.reject(new Error("Failed to list webhook endpoints")),
         async () => {
-          const result = await testStripeConnection();
+          const result = await stripeApi.testStripeConnection();
           expect(result.ok).toBe(false);
           expect(result.apiKey.valid).toBe(true);
           expect(result.webhookError).toContain(
@@ -182,7 +161,7 @@ describeStripe("stripe", () => {
             ],
           }),
         async () => {
-          const result = await testStripeConnection();
+          const result = await stripeApi.testStripeConnection();
           expect(result.ok).toBe(true);
           expect(result.apiKey.valid).toBe(true);
           expect(result.apiKey.mode).toBe("test");
@@ -200,7 +179,7 @@ describeStripe("stripe", () => {
     });
   });
 
-  describe("constructTestWebhookEvent", () => {
+  describe("webhook signing", () => {
     test("creates valid payload and signature pair", async () => {
       const secret = "whsec_test_construction";
       const listing: StripeWebhookEvent = {
@@ -214,10 +193,7 @@ describeStripe("stripe", () => {
         type: "payment_intent.succeeded",
       };
 
-      const { payload, signature } = await constructTestWebhookEvent(
-        listing,
-        secret,
-      );
+      const { payload, signature } = await signedWebhook(listing, secret);
 
       // Verify payload is valid JSON matching input
       const parsed = JSON.parse(payload);
@@ -314,127 +290,6 @@ describeStripe("stripe", () => {
       expect(detectStripeKeyMode("rk_test_abc")).toBeNull();
       expect(detectStripeKeyMode("")).toBeNull();
       expect(detectStripeKeyMode("random_string")).toBeNull();
-    });
-  });
-
-  describe("createCheckoutSession - phone metadata", () => {
-    test("includes phone in metadata when provided", async () => {
-      const listing = testListing({ unit_price: 1000 });
-      await expectSessionCreated(
-        checkoutIntent({
-          email: "john@example.com",
-          items: [lineFor(listing)],
-          name: "John Doe",
-          phone: "+44 7700 900000",
-        }),
-      );
-    });
-  });
-
-  describe("createCheckoutSession - no email", () => {
-    test("creates checkout session without customer_email when email is empty", async () => {
-      const listing = testListing({ unit_price: 1000 });
-      await expectSessionCreated(
-        checkoutIntent({
-          email: "",
-          items: [lineFor(listing)],
-          name: "No Email User",
-          phone: "+44 7700 900000",
-        }),
-      );
-    });
-  });
-
-  describe("createCheckoutSession", () => {
-    test("creates multi-checkout session with phone metadata", async () => {
-      await expectSessionCreated(
-        checkoutIntent({
-          email: "jane@example.com",
-          items: [
-            checkoutItem({ name: "Listing A", quantity: 2, slug: "listing-a" }),
-            checkoutItem({
-              listingId: 2,
-              name: "Listing B",
-              slug: "listing-b",
-              unitPrice: 2000,
-            }),
-          ],
-          name: "Jane Doe",
-          phone: "+44 7700 900001",
-        }),
-      );
-    });
-
-    test("returns null when stripe key not set", async () => {
-      const result = await createCheckoutSession(
-        checkoutIntent({
-          email: "jane@example.com",
-          items: [checkoutItem({ name: "Listing A", slug: "listing-a" })],
-          name: "Jane Doe",
-        }),
-        "http://localhost:3000",
-      );
-      expect(result).toBeNull();
-    });
-
-    test("creates multi-checkout session without customer_email when email is empty", async () => {
-      await expectSessionCreated(
-        checkoutIntent({
-          email: "",
-          items: [
-            checkoutItem({ name: "Listing A", slug: "listing-a" }),
-            checkoutItem({
-              listingId: 2,
-              name: "Listing B",
-              quantity: 2,
-              slug: "listing-b",
-              unitPrice: 2000,
-            }),
-          ],
-          name: "No Email Multi",
-          phone: "+44 7700 900002",
-        }),
-      );
-    });
-  });
-
-  describe("refundPayment - non-Error exception", () => {
-    test("handles non-Error thrown value in refund", async () => {
-      const client = await stripeClient();
-      // Throw a non-Error value to exercise the shared string conversion path.
-      await withMocks(
-        () =>
-          stub(client.refunds, "create", () =>
-            Promise.reject("network failure string"),
-          ),
-        async () => {
-          const result = await refundPayment("pi_test_123");
-          expect(result).toBeNull();
-        },
-      );
-    });
-  });
-
-  describe("testStripeConnection - non-Error exception", () => {
-    test("handles non-Error thrown value in balance check", async () => {
-      const client = await stripeClient();
-      await withFailingBalance(client, "string error", async () => {
-        expectApiKeyError(await testStripeConnection(), "string error");
-      });
-    });
-
-    test("handles non-Error thrown value in webhook list", async () => {
-      const client = await stripeClient();
-      await withBalanceAndList(
-        client,
-        okBalance(false),
-        () => Promise.reject("webhook string error"),
-        async () => {
-          const result = await testStripeConnection();
-          expect(result.ok).toBe(false);
-          expect(result.webhookError).toBe("webhook string error");
-        },
-      );
     });
   });
 });

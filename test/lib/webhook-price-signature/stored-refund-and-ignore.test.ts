@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
@@ -7,7 +7,6 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -32,10 +31,6 @@ describeWithEnv(
   "webhook signed price oracle — stored refunds & ignores",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     // Delivers the webhook, then delivers it again, asserting both return the
     // same `processed` result. A redelivery must replay the first outcome —
     // never finalize a refunded booking or re-refund on the second pass.

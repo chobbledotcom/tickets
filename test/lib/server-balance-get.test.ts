@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { routeBalance } from "#routes/public/balance.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -16,8 +15,6 @@ import {
 } from "./server-balance-helpers.ts";
 
 describeWithEnv("server (public balance page) > GET", { db: true }, () => {
-  afterEach(() => resetStripeClient());
-
   test("GET shows the recap and balance due for a reserved attendee", async () => {
     const html = await getPayPage(await createReserved(1500));
     expectRecap(html);

@@ -6,70 +6,30 @@ import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
 } from "#shared/payment-helpers.ts";
+import type { CheckoutIntent, SetupWebhookEndpoint } from "#shared/payments.ts";
 import type {
-  CheckoutIntent,
-  SetupWebhookEndpoint,
-  WebhookSetupResult,
-} from "#shared/payments.ts";
-import type { StripeClient } from "#shared/stripe/client.ts";
+  StripeCheckoutLineItemParams,
+  StripeCheckoutSessionCreateParams,
+} from "#shared/stripe/client.ts";
 import {
-  cleanupOldWebhookEndpointsImpl,
+  cleanupOldWebhookEndpoints,
   type StripeConnectionTestResult,
-  setupWebhookEndpointImpl,
-  testStripeConnectionImpl,
+  setupWebhookEndpoint,
+  testStripeConnection,
 } from "#shared/stripe/endpoints.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import type {
   StripeCheckoutSession,
-  StripePaymentIntent,
+  StripeExpandedPaymentIntent,
   StripeRefund,
 } from "#shared/stripe/schemas.ts";
 
 /* jscpd:ignore-end */
 
-type CheckoutResult = StripeCheckoutSession | null;
-
-export type StripeCheckoutFields = {
-  id: string;
-  payment_status: string;
-  payment_intent: string | null;
-  metadata: Record<string, string> | null;
-  amount_total: number | null;
-  created: number;
-};
-
-const narrowCheckoutSession = (
-  session: StripeCheckoutSession,
-): StripeCheckoutFields => ({
-  amount_total: session.amount_total,
-  created: session.created,
-  id: session.id,
-  metadata: session.metadata,
-  payment_intent: session.payment_intent,
-  payment_status: session.payment_status,
-});
-
 export const isoFromUnixSeconds = (seconds: unknown): string | undefined =>
   typeof seconds === "number"
     ? new Date(seconds * 1000).toISOString()
     : undefined;
-
-export type StripePaymentIntentFields = {
-  id: string;
-  latest_charge: { refunded: boolean } | null;
-};
-
-const narrowPaymentIntent = (
-  intent: StripePaymentIntent,
-): StripePaymentIntentFields => ({
-  id: intent.id,
-  latest_charge:
-    intent.latest_charge &&
-    typeof intent.latest_charge === "object" &&
-    "refunded" in intent.latest_charge
-      ? { refunded: intent.latest_charge.refunded }
-      : null,
-});
 
 export type StripeKeyMode = "test" | "live";
 
@@ -79,22 +39,13 @@ export const detectStripeKeyMode = (key: string): StripeKeyMode | null => {
   return null;
 };
 
-type StripeCheckoutLineItem = {
-  price_data: {
-    currency: string;
-    product_data: { description?: string; name: string };
-    unit_amount: number;
-  };
-  quantity: number;
-};
-
-const createCheckoutSessionImpl = async (
+const createCheckoutSession = async (
   intent: CheckoutIntent,
   baseUrl: string,
-): Promise<CheckoutResult> => {
+): Promise<StripeCheckoutSession | null> => {
   const currency = settings.currency.toLowerCase();
   const order = priceCheckout(intent);
-  const lineItems = buildProviderLineItems<StripeCheckoutLineItem>(
+  const lineItems = buildProviderLineItems<StripeCheckoutLineItemParams>(
     order,
     currency,
     {
@@ -120,7 +71,7 @@ const createCheckoutSessionImpl = async (
       }),
     },
   );
-  const params = {
+  const params: StripeCheckoutSessionCreateParams = {
     cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
     line_items: lineItems,
     mode: "payment",
@@ -136,71 +87,38 @@ const createCheckoutSessionImpl = async (
   return session;
 };
 
-export const stripeApi: {
-  cleanupOldWebhookEndpoints: typeof cleanupOldWebhookEndpointsImpl;
-  createCheckoutSession: typeof createCheckoutSessionImpl;
-  getStripeClient: () => Promise<StripeClient | null>;
+export interface StripeApi {
+  cleanupOldWebhookEndpoints: typeof cleanupOldWebhookEndpoints;
+  createCheckoutSession: typeof createCheckoutSession;
   refundPayment: (intentId: string) => Promise<StripeRefund | null>;
-  resetStripeClient: () => void;
-  retrieveCheckoutSession: (id: string) => Promise<StripeCheckoutFields | null>;
+  retrieveCheckoutSession: (
+    id: string,
+  ) => Promise<StripeCheckoutSession | null>;
   retrievePaymentIntent: (
     id: string,
-  ) => Promise<StripePaymentIntentFields | null>;
+  ) => Promise<StripeExpandedPaymentIntent | null>;
   setupWebhookEndpoint: SetupWebhookEndpoint;
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
-} = {
-  cleanupOldWebhookEndpoints: cleanupOldWebhookEndpointsImpl,
-  createCheckoutSession: createCheckoutSessionImpl,
-  getStripeClient: stripeClientRuntime.get,
+}
+
+export const stripeApi: StripeApi = {
+  cleanupOldWebhookEndpoints,
+  createCheckoutSession,
   refundPayment: (intentId) =>
     stripeClientRuntime.run(
       (client) => client.refunds.create({ payment_intent: intentId }),
       ErrorCode.STRIPE_REFUND,
     ),
-  resetStripeClient: stripeClientRuntime.reset,
-  retrieveCheckoutSession: async (id) => {
-    const session = await stripeClientRuntime.run(
+  retrieveCheckoutSession: (id) =>
+    stripeClientRuntime.run(
       (client) => client.checkout.sessions.retrieve(id),
       ErrorCode.STRIPE_SESSION,
-    );
-    return session ? narrowCheckoutSession(session) : null;
-  },
-  retrievePaymentIntent: async (id) => {
-    const intent = await stripeClientRuntime.run(
-      (client) =>
-        client.paymentIntents.retrieve(id, { expand: ["latest_charge"] }),
+    ),
+  retrievePaymentIntent: (id) =>
+    stripeClientRuntime.run(
+      (client) => client.paymentIntents.retrieveWithLatestCharge(id),
       ErrorCode.STRIPE_SESSION,
-    );
-    return intent ? narrowPaymentIntent(intent) : null;
-  },
-  setupWebhookEndpoint: setupWebhookEndpointImpl,
-  testStripeConnection: testStripeConnectionImpl,
+    ),
+  setupWebhookEndpoint,
+  testStripeConnection,
 };
-
-export const setupWebhookEndpoint = (
-  ...args: Parameters<typeof setupWebhookEndpointImpl>
-): Promise<WebhookSetupResult> => stripeApi.setupWebhookEndpoint(...args);
-
-export const cleanupOldWebhookEndpoints = (
-  ...args: Parameters<typeof cleanupOldWebhookEndpointsImpl>
-): Promise<void> => stripeApi.cleanupOldWebhookEndpoints(...args);
-
-export const getStripeClient = (): Promise<StripeClient | null> =>
-  stripeApi.getStripeClient();
-export const resetStripeClient = (): void => stripeApi.resetStripeClient();
-export const retrieveCheckoutSession = (
-  id: string,
-): Promise<StripeCheckoutFields | null> =>
-  stripeApi.retrieveCheckoutSession(id);
-export const retrievePaymentIntent = (
-  id: string,
-): Promise<StripePaymentIntentFields | null> =>
-  stripeApi.retrievePaymentIntent(id);
-export const refundPayment = (id: string): Promise<StripeRefund | null> =>
-  stripeApi.refundPayment(id);
-export const createCheckoutSession = (
-  intent: CheckoutIntent,
-  baseUrl: string,
-): Promise<CheckoutResult> => stripeApi.createCheckoutSession(intent, baseUrl);
-export const testStripeConnection = (): Promise<StripeConnectionTestResult> =>
-  stripeApi.testStripeConnection();

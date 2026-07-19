@@ -1,9 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
   expectCheckoutRedirect,
@@ -149,10 +148,6 @@ describeWithEnv(
     });
 
     describe("ticket paid flow", () => {
-      afterEach(() => {
-        resetStripeClient();
-      });
-
       test("redirects to checkout for ticket paid listings", async () => {
         await setupStripe();
 

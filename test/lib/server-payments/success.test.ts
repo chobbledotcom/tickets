@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -28,9 +27,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
     // Some tests here configure Stripe without installing mocks (so no
     // withMocks cleanup runs); reset the client after each so configuration
     // never leaks into the next test.
-    afterEach(() => {
-      resetStripeClient();
-    });
 
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/success"));
@@ -89,7 +85,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "Payment verification failed",
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -111,7 +106,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // Provider returns null for invalid metadata, so routes report "not found"
           await expectHtmlResponse(response, 400, "Payment session not found");
         },
-        resetStripeClient,
       );
     });
 
@@ -153,7 +147,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(mockRefund.calls.length).toBe(1);
           expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
         },
-        resetStripeClient,
       );
     });
 
@@ -198,7 +191,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectRefundedWithNote(placeholder.id, mockRefund);
           await expectSessionFailed("cs_test");
         },
-        resetStripeClient,
       );
     });
   });

@@ -3,17 +3,18 @@ import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { CredentialCheck } from "#shared/payment-helpers.ts";
 import type { SetupWebhookEndpoint } from "#shared/payments.ts";
-import { STRIPE_API_VERSION, type StripeClient } from "./client.ts";
+import type { StripeClient } from "./client.ts";
+import { STRIPE_API_VERSION } from "./request.ts";
 import { sanitizeStripeError, stripeClientRuntime } from "./runtime.ts";
 import type {
+  StripeCreatedWebhookEndpoint,
   StripeWebhookEndpoint,
-  StripeWebhookEndpointWrite,
 } from "./schemas.ts";
 
 const fetchWebhookEndpoints = async (
   client: StripeClient,
 ): Promise<StripeWebhookEndpoint[]> =>
-  (await client.webhookEndpoints.list({ limit: 100 })).data;
+  (await client.webhookEndpoints.list()).data;
 
 const listStaleEndpointIds = async (
   client: StripeClient,
@@ -35,7 +36,7 @@ const deleteWebhookEndpoints = async (
 const createCheckoutWebhook = (
   client: StripeClient,
   webhookUrl: string,
-): Promise<StripeWebhookEndpointWrite> =>
+): Promise<StripeCreatedWebhookEndpoint> =>
   client.webhookEndpoints.create({
     api_version: STRIPE_API_VERSION,
     enabled_events: ["checkout.session.completed"],
@@ -50,14 +51,14 @@ const isEndpointLimitError = (error: unknown): boolean => {
   );
 };
 
-export const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
+export const setupWebhookEndpoint: SetupWebhookEndpoint = async (
   secretKey,
   webhookUrl,
   existingEndpointId,
 ) => {
   try {
-    const client = stripeClientRuntime.create(secretKey);
-    let endpoint: StripeWebhookEndpointWrite;
+    const client = stripeClientRuntime.create(secretKey, 0);
+    let endpoint: StripeCreatedWebhookEndpoint;
     try {
       endpoint = await createCheckoutWebhook(client, webhookUrl);
     } catch (error) {
@@ -70,9 +71,6 @@ export const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
       if (staleIds.length === 0) throw error;
       await deleteWebhookEndpoints(client, staleIds);
       endpoint = await createCheckoutWebhook(client, webhookUrl);
-    }
-    if (!endpoint.secret) {
-      return { error: "Stripe did not return webhook secret", success: false };
     }
     return {
       endpointId: endpoint.id,
@@ -88,13 +86,13 @@ export const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   }
 };
 
-export const cleanupOldWebhookEndpointsImpl = async (
+export const cleanupOldWebhookEndpoints = async (
   secretKey: string,
   webhookUrl: string,
   keepEndpointId: string,
   alsoDeleteIds: readonly string[] = [],
 ): Promise<void> => {
-  const client = stripeClientRuntime.create(secretKey);
+  const client = stripeClientRuntime.create(secretKey, 0);
   const staleIds = await listStaleEndpointIds(
     client,
     webhookUrl,
@@ -121,7 +119,7 @@ export type StripeConnectionTestResult = {
   webhookError?: string;
 };
 
-export const testStripeConnectionImpl =
+export const testStripeConnection =
   async (): Promise<StripeConnectionTestResult> => {
     const result: StripeConnectionTestResult = {
       apiKey: { valid: false },

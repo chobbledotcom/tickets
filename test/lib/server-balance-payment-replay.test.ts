@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -18,7 +18,9 @@ const balanceSession = (
   attendeeId: number,
   listingId: number,
   amount: number,
-) => ({
+): NonNullable<
+  Awaited<ReturnType<typeof stripeApi.retrieveCheckoutSession>>
+> => ({
   amount_total: amount,
   created: 1_782_000_000,
   id: sessionId,
@@ -33,24 +35,17 @@ const balanceSession = (
   ),
   payment_intent: `pi_${sessionId}`,
   payment_status: "paid",
+  url: null,
 });
 
 describeWithEnv("server (balance payment replay)", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("replays a ledgered balance payment when the idempotency row is gone", async () => {
     await setupStripe();
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const sessionId = "cs_balance_replay_lost_row";
     const session = balanceSession(sessionId, attendeeId, listingId, 1500);
     using _mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve(
-        session as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >,
-      ),
+      Promise.resolve(session),
     );
     using mockRefund = stub(stripeApi, "refundPayment", () =>
       Promise.resolve({

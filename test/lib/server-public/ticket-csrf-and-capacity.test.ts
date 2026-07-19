@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import {
   bookOneEachViaTicketForm,
@@ -72,7 +71,6 @@ describeWithEnv(
 
         // Free registration path since provider is cleared and isPaymentsEnabled returns false
         expectReservedRedirectWithTokens(response);
-        resetStripeClient();
       });
     });
 
@@ -149,10 +147,6 @@ describeWithEnv(
     });
 
     describe("routes/public.ts (withPaymentProvider onMissing ticket)", () => {
-      afterEach(() => {
-        resetStripeClient();
-      });
-
       test("shows payment not configured error when provider returns null for ticket", async () => {
         await setupStripe();
 

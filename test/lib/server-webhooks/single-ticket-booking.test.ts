@@ -1,7 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
@@ -15,10 +14,6 @@ import {
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > single-ticket booking", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("processes valid single-ticket webhook and creates attendee", async () => {
     await setupStripe();
 

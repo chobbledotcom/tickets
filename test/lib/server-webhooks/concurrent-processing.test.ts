@@ -1,9 +1,9 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -24,10 +24,6 @@ import {
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("webhook returns 409 when session is being processed concurrently", async () => {
     await setupStripe();
 

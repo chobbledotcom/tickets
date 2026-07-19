@@ -10,7 +10,6 @@ import {
   DEFAULT_AUDIENCE_ID,
   dedupeEmails,
   isAudienceId,
-  isBulkEmailTarget,
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
   marketingFooterHtml,
   marketingFooterText,
@@ -68,27 +67,6 @@ describe("bulk-email audiences and targets", () => {
     expect(targetQuery({ kind: "attendee", token: "abc/def+ghi" })).toBe(
       "?attendee=abc%2Fdef%2Bghi",
     );
-  });
-
-  test("isBulkEmailTarget validates shape", () => {
-    expect(isBulkEmailTarget({ audience: "active", kind: "audience" })).toBe(
-      true,
-    );
-    expect(isBulkEmailTarget({ kind: "listing", listingId: 3 })).toBe(true);
-    expect(isBulkEmailTarget({ kind: "attendee", token: "tok123" })).toBe(true);
-    expect(isBulkEmailTarget({ audience: "bogus", kind: "audience" })).toBe(
-      false,
-    );
-    expect(isBulkEmailTarget({ kind: "audience" })).toBe(false);
-    expect(isBulkEmailTarget({ kind: "listing", listingId: 1.5 })).toBe(false);
-    expect(isBulkEmailTarget({ kind: "listing" })).toBe(false);
-    expect(isBulkEmailTarget({ kind: "attendee", token: "" })).toBe(false);
-    expect(isBulkEmailTarget({ kind: "attendee" })).toBe(false);
-    expect(isBulkEmailTarget({ kind: "other" })).toBe(false);
-    expect(isBulkEmailTarget({ kind: 123 })).toBe(false);
-    expect(isBulkEmailTarget({})).toBe(false);
-    expect(isBulkEmailTarget(null)).toBe(false);
-    expect(isBulkEmailTarget("nope")).toBe(false);
   });
 
   test("targetComposeControl drives the recipient control per kind", () => {

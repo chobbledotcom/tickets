@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { resetStripeClient } from "#shared/stripe.ts";
 import {
   expectCheckoutRedirect,
   expectHtmlResponse,
@@ -26,10 +25,6 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     describe("routes/public.ts (ticket paid flow)", () => {
-      afterEach(() => {
-        resetStripeClient();
-      });
-
       test("ticket paid flow redirects to Stripe checkout", async () => {
         await setupStripe();
 
@@ -155,10 +150,6 @@ describeWithEnv(
     });
 
     describe("routes/public.ts (ticket paid availability check fails)", () => {
-      afterEach(() => {
-        resetStripeClient();
-      });
-
       test("returns error when paid ticket availability check fails", async () => {
         await setupStripe();
 
@@ -196,10 +187,6 @@ describeWithEnv(
     });
 
     describe("iframe checkout popup (Stripe cannot run in iframes)", () => {
-      afterEach(() => {
-        resetStripeClient();
-      });
-
       test("returns popup page instead of redirect for single-ticket paid listing in iframe", async () => {
         await setupStripe();
         const listing = await createTestListing({

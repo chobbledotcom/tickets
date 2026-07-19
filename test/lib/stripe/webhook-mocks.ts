@@ -1,7 +1,4 @@
-import {
-  cleanupOldWebhookEndpoints,
-  setupWebhookEndpoint,
-} from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { installUrlHandler, withFetchMock } from "#test-utils/mocks.ts";
 
 export type WebhookApiCalls = {
@@ -158,7 +155,7 @@ export const setupWithWebhookApi = (
       originalFetch,
       webhookEndpointsApi(webhookUrl, calls, options),
     );
-    return await setupWebhookEndpoint(
+    return await stripeApi.setupWebhookEndpoint(
       "sk_test_mock",
       webhookUrl,
       existingEndpointId,
@@ -176,7 +173,7 @@ export const cleanupWithWebhookApi = (
       originalFetch,
       webhookEndpointsApi(webhookUrl, calls, options),
     );
-    return await cleanupOldWebhookEndpoints(
+    return await stripeApi.cleanupOldWebhookEndpoints(
       "sk_test_mock",
       webhookUrl,
       keepEndpointId,

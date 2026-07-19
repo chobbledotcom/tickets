@@ -68,23 +68,49 @@ type GuardedAsync = <T>(
   fn: () => Promise<T>,
   errorCode: ErrorCodeType,
   errorDetail?: (err: unknown) => string,
+  shouldPropagate?: (err: unknown) => boolean,
 ) => Promise<T | null>;
+
+interface AsyncErrorHandling {
+  errorDetail?: ((err: unknown) => string) | undefined;
+  shouldPropagate?: ((err: unknown) => boolean) | undefined;
+}
+
+const guardedWithValue =
+  <Value>(
+    getValue: () => Value | null | Promise<Value | null>,
+    {
+      errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
+      shouldPropagate = () => false,
+    }: AsyncErrorHandling = {},
+  ) =>
+  async <T>(
+    fn: (value: Value) => Promise<T>,
+    errorCode: ErrorCodeType,
+  ): Promise<T | null> => {
+    const value = await getValue();
+    if (value === null) return null;
+    try {
+      return await fn(value);
+    } catch (err) {
+      if (err instanceof PaymentUserError || shouldPropagate(err)) throw err;
+      logError({ code: errorCode, detail: errorDetail(err) });
+      return null;
+    }
+  };
 
 /** Safely execute async operation, returning null on error.
  * Re-throws PaymentUserError so user-facing messages propagate. */
-export const safeAsync: GuardedAsync = async (
+export const safeAsync: GuardedAsync = (
   fn,
   errorCode,
-  errorDetail = (err) => (err instanceof Error ? err.message : "unknown"),
-) => {
-  try {
-    return await fn();
-  } catch (err) {
-    if (err instanceof PaymentUserError) throw err;
-    logError({ code: errorCode, detail: errorDetail(err) });
-    return null;
-  }
-};
+  errorDetail,
+  shouldPropagate,
+) =>
+  guardedWithValue(() => true, { errorDetail, shouldPropagate })(
+    () => fn(),
+    errorCode,
+  );
 
 /**
  * Cache a provider API client keyed on its config.
@@ -145,18 +171,10 @@ export const buildProviderLineItems = <Item>(
  * Create a withClient helper that runs an operation with a lazily-resolved client.
  * Returns null if the client is not available or the operation fails.
  */
-export const createWithClient =
-  <Client>(
-    getClient: () => Client | null | Promise<Client | null>,
-    errorDetail?: (err: unknown) => string,
-  ) =>
-  async <T>(
-    op: (client: Client) => Promise<T>,
-    errorCode: ErrorCodeType,
-  ): Promise<T | null> => {
-    const client = await getClient();
-    return client ? safeAsync(() => op(client), errorCode, errorDetail) : null;
-  };
+export const createWithClient = <Client>(
+  getClient: () => Client | null | Promise<Client | null>,
+  errorHandling: AsyncErrorHandling = {},
+) => guardedWithValue(getClient, errorHandling);
 
 /** Convert registration line items to compact, edge-tagged booking items (v2).
  * Each package member line carries ITS OWN package edge (`k:"p"`, `r`=its group

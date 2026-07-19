@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
@@ -10,7 +10,7 @@ import {
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { prunePayments } from "#shared/db/prune.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -29,8 +29,6 @@ const stubRefund = (id: string) =>
   );
 
 describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
-  afterEach(() => resetStripeClient());
-
   test("an unsigned balance webhook is ignored, leaving the balance outstanding", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);

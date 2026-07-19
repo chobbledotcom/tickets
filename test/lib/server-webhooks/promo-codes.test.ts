@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -31,10 +30,6 @@ const createFixedPromoModifier = (
   });
 
 describeWithEnv("server webhooks > promo codes", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("logs a promo code usage when a code-triggered modifier is applied", async () => {
     await setupStripe();
     const listing = await createTestListing({

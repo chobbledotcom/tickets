@@ -30,7 +30,6 @@ import {
 } from "#shared/order-select.ts";
 import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -338,7 +337,6 @@ export const runOrderJourney = async (spec: {
     }
   } finally {
     checkoutStub?.restore();
-    if (spec.paid) resetStripeClient();
   }
 
   const expectedRows = spec.rows(catalog);

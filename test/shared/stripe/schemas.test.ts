@@ -4,20 +4,27 @@ import * as v from "valibot";
 import {
   parseStripeErrorBody,
   StripeCheckoutSessionSchema,
+  StripeCreatedWebhookEndpointSchema,
+  StripeDeletedWebhookEndpointSchema,
+  StripeExpandedPaymentIntentSchema,
 } from "#shared/stripe/schemas.ts";
+
+const checkout = () => ({
+  amount_total: 1200,
+  created: 123,
+  id: "cs_1",
+  metadata: { booking: "signed" },
+  payment_intent: "pi_1",
+  payment_status: "paid",
+  url: "https://checkout.stripe.com/c/pay/cs_1",
+});
 
 describe("Stripe schemas", () => {
   test("keeps only checkout fields used by the application", () => {
     expect(
       v.parse(StripeCheckoutSessionSchema, {
-        amount_total: 1200,
-        created: 123,
-        id: "cs_1",
+        ...checkout(),
         ignored: "large unused response",
-        metadata: { booking: "signed" },
-        payment_intent: "pi_1",
-        payment_status: "paid",
-        url: "https://checkout.stripe.com/c/pay/cs_1",
       }),
     ).toEqual({
       amount_total: 1200,
@@ -30,9 +37,44 @@ describe("Stripe schemas", () => {
     });
   });
 
-  test("rejects a response missing a required field", () => {
+  for (const field of Object.keys(checkout())) {
+    test(`rejects a checkout response missing ${field}`, () => {
+      const response: Record<string, unknown> = checkout();
+      delete response[field];
+      expect(() => v.parse(StripeCheckoutSessionSchema, response)).toThrow();
+    });
+  }
+
+  test("rejects an unknown checkout payment status", () => {
     expect(() =>
-      v.parse(StripeCheckoutSessionSchema, { id: "cs_1" }),
+      v.parse(StripeCheckoutSessionSchema, {
+        ...checkout(),
+        payment_status: "settled_some_new_way",
+      }),
+    ).toThrow();
+  });
+
+  test("requires the requested latest charge expansion", () => {
+    expect(() =>
+      v.parse(StripeExpandedPaymentIntentSchema, {
+        id: "pi_1",
+        latest_charge: "ch_unexpanded",
+      }),
+    ).toThrow();
+  });
+
+  test("requires a webhook secret from endpoint creation", () => {
+    expect(() =>
+      v.parse(StripeCreatedWebhookEndpointSchema, { id: "we_1" }),
+    ).toThrow();
+  });
+
+  test("requires Stripe to confirm endpoint deletion", () => {
+    expect(() =>
+      v.parse(StripeDeletedWebhookEndpointSchema, {
+        deleted: false,
+        id: "we_1",
+      }),
     ).toThrow();
   });
 

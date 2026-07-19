@@ -1,7 +1,13 @@
 import * as v from "valibot";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 const NullableStringSchema = v.nullable(v.string());
 const MetadataSchema = v.nullable(v.record(v.string(), v.string()));
+const StripePaymentStatusSchema = v.picklist([
+  "no_payment_required",
+  "paid",
+  "unpaid",
+]);
 
 export const StripeCheckoutSessionSchema = v.object({
   amount_total: v.nullable(v.number()),
@@ -9,7 +15,7 @@ export const StripeCheckoutSessionSchema = v.object({
   id: v.string(),
   metadata: MetadataSchema,
   payment_intent: NullableStringSchema,
-  payment_status: v.string(),
+  payment_status: StripePaymentStatusSchema,
   url: NullableStringSchema,
 });
 
@@ -17,22 +23,26 @@ export type StripeCheckoutSession = v.InferOutput<
   typeof StripeCheckoutSessionSchema
 >;
 
-export const StripePaymentIntentSchema = v.object({
+export const StripeExpandedPaymentIntentSchema = v.object({
   id: v.string(),
-  latest_charge: v.union([
-    v.null(),
-    v.string(),
-    v.object({ refunded: v.boolean() }),
-  ]),
+  latest_charge: v.nullable(v.object({ refunded: v.boolean() })),
 });
 
-export type StripePaymentIntent = v.InferOutput<
-  typeof StripePaymentIntentSchema
+export type StripeExpandedPaymentIntent = v.InferOutput<
+  typeof StripeExpandedPaymentIntentSchema
 >;
 
 export const StripeRefundSchema = v.object({
   id: v.string(),
-  status: v.nullable(v.string()),
+  status: v.nullable(
+    v.picklist([
+      "canceled",
+      "failed",
+      "pending",
+      "requires_action",
+      "succeeded",
+    ]),
+  ),
 });
 
 export type StripeRefund = v.InferOutput<typeof StripeRefundSchema>;
@@ -43,8 +53,7 @@ export type StripeBalance = v.InferOutput<typeof StripeBalanceSchema>;
 export const StripeWebhookEndpointSchema = v.object({
   enabled_events: v.array(v.string()),
   id: v.string(),
-  secret: v.optional(v.string()),
-  status: v.string(),
+  status: v.picklist(["disabled", "enabled"]),
   url: v.string(),
 });
 
@@ -52,22 +61,27 @@ export type StripeWebhookEndpoint = v.InferOutput<
   typeof StripeWebhookEndpointSchema
 >;
 
-export const StripeWebhookEndpointWriteSchema = v.pick(
-  StripeWebhookEndpointSchema,
-  ["id", "secret"],
-);
+export const StripeCreatedWebhookEndpointSchema = v.object({
+  id: v.string(),
+  secret: NonEmptyTextSchema,
+});
 
-export type StripeWebhookEndpointWrite = v.InferOutput<
-  typeof StripeWebhookEndpointWriteSchema
+export type StripeCreatedWebhookEndpoint = v.InferOutput<
+  typeof StripeCreatedWebhookEndpointSchema
+>;
+
+export const StripeDeletedWebhookEndpointSchema = v.object({
+  deleted: v.literal(true),
+  id: v.string(),
+});
+
+export type StripeDeletedWebhookEndpoint = v.InferOutput<
+  typeof StripeDeletedWebhookEndpointSchema
 >;
 
 export const StripeWebhookEndpointListSchema = v.object({
   data: v.array(StripeWebhookEndpointSchema),
 });
-
-export type StripeWebhookEndpointList = v.InferOutput<
-  typeof StripeWebhookEndpointListSchema
->;
 
 const StripeErrorBodySchema = v.object({
   error: v.object({

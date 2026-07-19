@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   assertPublicHtml,
@@ -161,8 +160,6 @@ describeWithEnv(
         expect(response.status).toBe(302);
         const location = response.headers.get("location");
         expect(location).not.toBeNull();
-
-        resetStripeClient();
       });
 
       test("daily listing excludes holiday dates", async () => {

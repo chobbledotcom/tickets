@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { cleanupOldWebhookEndpoints } from "#shared/stripe.ts";
+import { cleanupOldWebhookEndpoints } from "#shared/stripe/endpoints.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import {
   cleanupWithWebhookApi,

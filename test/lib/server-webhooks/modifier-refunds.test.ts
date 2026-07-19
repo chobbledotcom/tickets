@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleModifierMeta } from "#test-utils/factories.ts";
@@ -20,10 +19,6 @@ describeWithEnv(
   "server webhooks > modifier price-mismatch refunds",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("refunds a webhook whose total omits an applied modifier", async () => {
       await setupStripe();
       const { listing, modifier } = await createServiceChargeScenario();

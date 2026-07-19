@@ -1,8 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectCheckoutRedirect, expectFlash } from "#test-utils/assertions.ts";
 import { hasCheckedInput, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -19,10 +18,6 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     describe("can_pay_more", () => {
-      afterEach(() => {
-        resetStripeClient();
-      });
-
       /** GETs a listing's ticket page and returns the rendered HTML — the
        * shared fetch behind every can_pay_more price-input assertion below. */
       const getTicketHtml = async (

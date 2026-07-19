@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import {
   expectHtmlResponse,
   expectRedirect,
@@ -62,7 +61,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           await expectHtmlResponse(response, 400, "not recognized");
           expect(mockRefund.calls.length).toBe(0);
         },
-        resetStripeClient,
       );
     });
 
@@ -112,7 +110,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const record = await isSessionProcessed("cs_test_paid");
           expect(record?.ticket_tokens).toBe("");
         },
-        resetStripeClient,
       );
     });
 
@@ -178,7 +175,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             "https://example.com/thanks-parent",
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -216,7 +212,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(reloadHtml).toContain("/t/");
         },
-        resetStripeClient,
       );
     });
 
@@ -251,7 +246,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // Response is either a 302 redirect (with tokens) or 200 (direct render for replay)
           expect([200, 302]).toContain(response.status);
         },
-        resetStripeClient,
       );
     });
 
@@ -285,7 +279,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           expect(attendees.length).toBe(1);
           expect(attendees[0]?.quantity).toBe(3);
         },
-        resetStripeClient,
       );
     });
   });

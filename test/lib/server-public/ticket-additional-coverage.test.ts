@@ -6,7 +6,6 @@ import { handleRequest } from "#routes";
 import { hashPhone } from "#shared/db/contact-preferences.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import {
   expectAttendeeCounts,
   expectCheckoutRedirect,
@@ -293,7 +292,6 @@ describeWithEnv(
 
         // Should redirect to checkout since only listing2 has quantity (listing1 is sold out and skipped)
         expect(response.status).toBe(302);
-        resetStripeClient();
       });
 
       test("returns null for non-ticket paths", async () => {

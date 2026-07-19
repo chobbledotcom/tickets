@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getDb } from "#shared/db/client.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
   expectHtmlResponse,
@@ -49,7 +48,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           await expectHtmlResponse(response, 400, "Payment session not found");
         },
-        resetStripeClient,
       );
     });
 
@@ -72,7 +70,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           // Provider returns null for invalid metadata, so routes report "not found"
           await expectHtmlResponse(response, 400, "Payment session not found");
         },
-        resetStripeClient,
       );
     });
 
@@ -88,7 +85,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           await expectHtmlResponse(response, 404, "Listing not found");
         },
-        resetStripeClient,
       );
     });
 
@@ -110,7 +106,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             `/ticket/${listing.slug}`,
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -134,7 +129,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(html).not.toContain(`/ticket/${child.slug}`);
         },
-        resetStripeClient,
       );
     });
 
@@ -168,7 +162,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             `/ticket/${group.slug}`,
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -214,7 +207,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           expect(html).not.toContain(`/ticket/${group.slug}`);
         },
-        resetStripeClient,
       );
     });
 
@@ -239,7 +231,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             `/ticket/${member.slug}`,
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -273,7 +264,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             `/ticket/${listing.slug}`,
           );
         },
-        resetStripeClient,
       );
     });
 
@@ -289,7 +279,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           await expectHtmlResponse(response, 404, "Listing not found");
         },
-        resetStripeClient,
       );
     });
 
@@ -307,7 +296,6 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           );
           await expectHtmlResponse(response, 404, "Listing not found");
         },
-        resetStripeClient,
       );
     });
   });

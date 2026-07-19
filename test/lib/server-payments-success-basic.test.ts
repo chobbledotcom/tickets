@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import {
   expectHtmlResponse,
   expectRedirect,
@@ -39,10 +39,6 @@ const expectMembersBookedOnDate = async (
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("processes ticket payment success", async () => {
       await setupStripe();
 

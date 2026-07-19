@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
   getAttendeeAnswersBatch,
@@ -9,7 +9,6 @@ import {
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -60,10 +59,6 @@ describeWithEnv(
   "server webhooks > custom questions (multi-ticket)",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("multi-ticket webhook saves custom question answers", async () => {
       await setupStripe();
 

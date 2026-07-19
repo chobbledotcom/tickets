@@ -1,9 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
@@ -12,10 +11,6 @@ import { setupStripe } from "#test-utils/settings.ts";
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > signature validation", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("returns 400 when no provider configured", async () => {
     const response = await handleRequest(
       mockWebhookRequest(

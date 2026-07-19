@@ -23,6 +23,7 @@ import {
   stubNtfyFetch,
   testRequest,
   wait,
+  withMocks,
 } from "#test-utils/mocks.ts";
 import { createTrackedTestDbFile } from "#test-utils/temp-db-files.ts";
 import {
@@ -97,6 +98,22 @@ describe("test-utils — stubs, caches & request mocks", () => {
         },
       );
       expect(callCount).toBe(1);
+    });
+  });
+
+  describe("withMocks", () => {
+    test("restores the mock before running custom cleanup", async () => {
+      const calls: string[] = [];
+      await withMocks(
+        () => ({ restore: () => calls.push("restore") }),
+        () => {
+          calls.push("body");
+        },
+        () => {
+          calls.push("cleanup");
+        },
+      );
+      expect(calls).toEqual(["body", "restore", "cleanup"]);
     });
   });
 

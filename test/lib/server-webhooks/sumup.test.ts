@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -12,7 +12,6 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,10 +21,6 @@ import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > SumUp", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   /** Configure SumUp and stage a real checkout for the given listing:
    * production assembleCheckoutMetadata output, encrypted store, id mapping. */
   const stageSumupCheckout = async (listing: {

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bookingEventGroup } from "#shared/accounting/mappers.ts";
@@ -21,7 +21,6 @@ import {
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -81,8 +80,6 @@ const expectContactActivity = async (
 };
 
 describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
-  afterEach(() => resetStripeClient());
-
   test("recovers a committed result across webhook, redirect, and ledger replay", async () => {
     const listing = await setupWithListing();
     const sessionId = "cs_lost_committed_result";

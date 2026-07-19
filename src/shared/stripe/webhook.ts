@@ -2,10 +2,6 @@ import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
-import {
-  type SignedTestWebhook,
-  signedTestWebhook,
-} from "#shared/payment-helpers.ts";
 import type { WebhookEvent, WebhookVerifyResult } from "#shared/payments.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
@@ -124,13 +120,3 @@ export const verifyWebhookSignature = async (
   }
   return finishWebhookVerification(valid, payload, ErrorCode.STRIPE_SIGNATURE);
 };
-
-export const constructTestWebhookEvent = (
-  event: StripeWebhookEvent,
-  secret: string,
-): Promise<SignedTestWebhook> =>
-  signedTestWebhook(event, async (payload) => {
-    const timestamp = nowSeconds();
-    const signature = await hmacSha256Hex(`${timestamp}.${payload}`, secret);
-    return `t=${timestamp},v1=${signature}`;
-  });

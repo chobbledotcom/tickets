@@ -55,8 +55,8 @@ export const config = {
   cloudflaredBin: env("CLOUDFLARED_BIN") ?? "cloudflared",
 
   /** 32-byte base64 key. Defaults to the repo's well-known test key. */
-  dbEncryptionKey: env("DB_ENCRYPTION_KEY") ??
-    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+  dbEncryptionKey:
+    env("DB_ENCRYPTION_KEY") ?? "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
   /** Deno binary used to boot the app server. */
   denoBin: env("DENO_BIN") ?? "deno",
 
@@ -103,9 +103,9 @@ export const needsTunnel = (target: Target): boolean => {
   // browser return URL, which providers expect to be a public HTTPS URL — hence
   // the tunnel for them too. Note the tunnel does NOT mean any leg *asserts*
   // webhook delivery: confirmation is asserted via the return URL for every
-  // provider (Stripe additionally exercises webhook registration, but delivery
-  // is not asserted). Square's webhook needs a manually-signed subscription and
-  // is not tested here; SumUp needs no
+  // provider. Stripe also waits for a successful delivery to its registered
+  // endpoint. Square's webhook needs a manually-signed subscription and is not
+  // tested here; SumUp needs no
   // signature. See the providers' notes and the README.
   return target !== "free";
 };

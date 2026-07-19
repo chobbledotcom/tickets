@@ -1,9 +1,116 @@
 /* jscpd:ignore-start */
+import { readFileSync } from "node:fs";
+import { type BrowserSession, requirePageText } from "../browser.ts";
+import { config } from "../config.ts";
+import { BOOKER_NAME } from "../flow.ts";
 import { log, warn } from "../log.ts";
+import { sleep } from "../util.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
+
 /* jscpd:ignore-end */
+
+const saveStripeKey = async (
+  session: BrowserSession,
+  secretKey: string,
+): Promise<void> => {
+  await session.fill("stripe_secret_key", secretKey);
+  await session.clickButton("Update Stripe Key");
+};
+
+const testStripeConnection = async (session: BrowserSession): Promise<void> => {
+  const button = session.page.locator("#stripe-test-btn");
+  const result = session.page.locator("#stripe-test-result");
+  await button.click({ force: true, timeout: config.actionTimeoutMs });
+  await result.waitFor({ state: "visible", timeout: config.navTimeoutMs });
+
+  const text = await result.innerText();
+  const webhookUrl = `${session.baseUrl}/payment/webhook`;
+  const missing = [
+    "API Key: Valid (test mode)",
+    `${webhookUrl} (tickets)`,
+    "Events: checkout.session.completed",
+  ].filter((expected) => !text.includes(expected));
+  const webhookCount = text.split(webhookUrl).length - 1;
+  const passed = await result.evaluate((element) =>
+    element.classList.contains("success"),
+  );
+  if (passed && missing.length === 0 && webhookCount === 1) {
+    log("  Stripe connection, webhook listing, and endpoint rotation passed");
+    return;
+  }
+
+  await session.dumpPage("stripe-connection-test-failed");
+  throw new Error(
+    "Stripe connection test did not confirm one current webhook endpoint. " +
+      `Missing: ${missing.join(", ") || "none"}; ` +
+      `current endpoint count: ${webhookCount}. Result:\n${text}`,
+  );
+};
+
+const waitForStripeWebhook = async (logPath: string): Promise<void> => {
+  const deadline = Date.now() + config.paymentConfirmTimeoutMs;
+  const delivered = /\[Request\] POST \/payment\/webhook 2\d\d /u;
+  while (Date.now() < deadline) {
+    if (delivered.test(readFileSync(logPath, "utf8"))) {
+      log("  Stripe checkout webhook reached the app successfully");
+      return;
+    }
+    await sleep(1_000);
+  }
+  throw new Error(
+    `Stripe did not deliver a successful checkout webhook within ${config.paymentConfirmTimeoutMs}ms`,
+  );
+};
+
+const exerciseStripeRefund = async (session: BrowserSession): Promise<void> => {
+  const attendee = session.page.getByRole("link", {
+    exact: true,
+    name: BOOKER_NAME,
+  });
+  const attendeeHref = await attendee.getAttribute("href");
+  if (!attendeeHref) {
+    throw new Error(`Could not open paid attendee "${BOOKER_NAME}"`);
+  }
+  await session.goto(attendeeHref);
+
+  // This polls the real PaymentIntent with latest_charge expanded.
+  await session.clickButton("Refresh payment status");
+  await requirePageText(
+    session,
+    "Payment status is up to date",
+    "stripe-payment-status-failed",
+    'Expected the app page to contain "Payment status is up to date"',
+  );
+
+  await session.clickLink("Actions");
+  await session.clickLink("Refund");
+  await session.fill("confirm_identifier", BOOKER_NAME);
+  await session.clickButton("Refund Attendee");
+  await requirePageText(
+    session,
+    "Refund issued",
+    "stripe-refund-failed",
+    'Expected the app page to contain "Refund issued"',
+  );
+
+  await session.clickLink("Overview");
+  const paymentDetails = await session.page
+    .locator(".prose", { hasText: "Payment Details" })
+    .first()
+    .innerText();
+  if (
+    !paymentDetails.includes("Refund Status:") ||
+    !paymentDetails.includes("Refunded")
+  ) {
+    await session.dumpPage("stripe-refund-not-recorded");
+    throw new Error(
+      `Stripe refund was not recorded on the attendee. Payment details:\n${paymentDetails}`,
+    );
+  }
+  log("  Stripe PaymentIntent lookup and full refund passed");
+};
 
 /**
  * Stripe. Configuring the key registers a webhook endpoint against the site's
@@ -19,6 +126,10 @@ import type { PaymentProvider } from "./types.ts";
  * Docs: https://docs.stripe.com/testing
  */
 export const stripe: PaymentProvider = {
+  afterPaidBooking: async (session, context): Promise<void> => {
+    await waitForStripeWebhook(context.serverLogPath);
+    await exerciseStripeRefund(session);
+  },
   // Each run registers a webhook endpoint for its ephemeral *.trycloudflare.com
   // URL, and the throwaway DB forgets the id — so without cleanup they pile up
   // and Stripe eventually rejects new ones (accounts cap webhook endpoints).
@@ -57,8 +168,11 @@ export const stripe: PaymentProvider = {
   },
 
   configure: configureProvider("stripe", async (session, secrets) => {
-    await session.fill("stripe_secret_key", secrets.secretKey);
-    await session.clickButton("Update Stripe Key");
+    // The second save rotates the endpoint through the app's production cleanup
+    // path. The connection result then proves only the replacement remains.
+    await saveStripeKey(session, secrets.secretKey);
+    await saveStripeKey(session, secrets.secretKey);
+    await testStripeConnection(session);
   }),
   name: "stripe",
 

@@ -10,6 +10,8 @@
 # also sold on its own row + a plain listing, one checkout paying every path),
 # verified path-by-path on the admin side — the real-sandbox twin of the
 # stubbed test/e2e/order-journeys.test.ts suite (src/order-flow.ts).
+# The Stripe leg also tests the connection, rotates its webhook endpoint, waits
+# for a signed webhook, checks the PaymentIntent, and issues a real test refund.
 #
 # It is deliberately NOT a PR gate: it needs network to third-party sandboxes
 # and is inherently slower/flakier than mocked tests. It runs nightly and on

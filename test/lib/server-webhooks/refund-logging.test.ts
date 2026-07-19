@@ -1,9 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -34,10 +33,6 @@ const findRefundActivityEntry = async (listingId: number) => {
 };
 
 describeWithEnv("server webhooks > refund logging", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("tryRefund logs success message when refund succeeds", async () => {
     await setupStripe();
 

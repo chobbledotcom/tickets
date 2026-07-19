@@ -1,8 +1,8 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -14,10 +14,6 @@ import {
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("webhook ignores session with no _origin marker", async () => {
     await setupStripe();
 

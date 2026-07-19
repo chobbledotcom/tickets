@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { execute } from "#shared/db/client.ts";
 import { groups, setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -27,10 +26,6 @@ describeWithEnv(
   "webhook signed price oracle — mismatch & package overrides",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("a mismatch whose refund reports failure but already settled is acknowledged", async () => {
       const listing = await setupWithListing();
       // The refund call returns null (e.g. the provider rejected a second full

@@ -8,12 +8,7 @@ import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.t
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
-import {
-  cleanupOldWebhookEndpoints,
-  detectStripeKeyMode,
-  setupWebhookEndpoint,
-  testStripeConnection,
-} from "#shared/stripe.ts";
+import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
 
 export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   formId: "settings-stripe",
@@ -23,7 +18,7 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   saveSecret: async (value) => {
     const webhookUrl = getPaymentWebhookUrl();
     const previousEndpointId = settings.stripe.webhookEndpointId;
-    const result = await setupWebhookEndpoint(
+    const result = await stripeApi.setupWebhookEndpoint(
       value,
       webhookUrl,
       previousEndpointId,
@@ -39,7 +34,7 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     // Cleanup can now fail without leaving saved credentials that name a
     // deleted endpoint or leaving Stripe unselected. The error still propagates
     // so stale state is visible.
-    await cleanupOldWebhookEndpoints(
+    await stripeApi.cleanupOldWebhookEndpoints(
       value,
       webhookUrl,
       result.endpointId,
@@ -50,7 +45,7 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   secretField: "stripe_secret_key",
   secretRequiredError: t("error.stripe_key_required"),
   successMessage: t("success.stripe_updated"),
-  testFn: testStripeConnection,
+  testFn: () => stripeApi.testStripeConnection(),
   unchangedMessage: t("success.stripe_unchanged"),
   validate: (_fields, secret) => {
     if (isDemoMode()) return t("error.stripe_demo_mode");

@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -19,8 +18,6 @@ import {
 } from "./server-balance-helpers.ts";
 
 describeWithEnv("server (public balance page) > POST", { db: true }, () => {
-  afterEach(() => resetStripeClient());
-
   test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
     const reservation = await attendeeStatuses.table.insert({

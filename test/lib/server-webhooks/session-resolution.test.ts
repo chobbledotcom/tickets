@@ -1,7 +1,6 @@
 // jscpd:ignore-start
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
@@ -17,10 +16,6 @@ import {
 // jscpd:ignore-end
 
 describeWithEnv("server webhooks > session resolution", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("webhook with checkout listing type but no extractable session acknowledges without processing", async () => {
     await setupStripe();
 

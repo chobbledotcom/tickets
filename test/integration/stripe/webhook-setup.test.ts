@@ -1,59 +1,40 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { STRIPE_API_VERSION } from "#shared/stripe/client.ts";
-import {
-  getStripeClient,
-  resetStripeClient,
-  setupWebhookEndpoint,
-  stripeApi,
-} from "#shared/stripe.ts";
+import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import {
   newWebhookApiCalls,
   setupWithWebhookApi,
-  webhookEndpointsApi,
 } from "#test/lib/stripe/webhook-mocks.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withFetchMock } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
-
-const withStripeClient = async (
-  env: Record<string, string | undefined>,
-  check: (client: Awaited<ReturnType<typeof getStripeClient>>) => void,
-): Promise<void> => {
-  try {
-    using _env = withEnv(env);
-    resetStripeClient();
-    await settings.update.stripe.secretKey("sk_test_123");
-    check(await getStripeClient());
-  } finally {
-    resetStripeClient();
-  }
-};
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 const setupWhileFetchThrows = (thrown: unknown, url: string) =>
   withFetchMock(async () => {
     globalThis.fetch = () => {
       throw thrown;
     };
-    return await setupWebhookEndpoint("sk_test_mock", url);
+    return await stripeApi.setupWebhookEndpoint("sk_test_mock", url);
   });
 
-const expectFetchThrowGivesStringError = async (
+const expectFetchFailure = async (
   thrown: unknown,
   url: string,
 ): Promise<void> => {
   const result = await setupWhileFetchThrows(thrown, url);
-  expect(result.success).toBe(false);
-  if (!result.success) {
-    expect(typeof result.error).toBe("string");
-    expect(result.error!.length > 0).toBe(true);
-  }
+  expect(result).toEqual({
+    error:
+      "An error occurred with our connection to Stripe. Request was retried 0 times.",
+    success: false,
+  });
 };
 
 const expectFailedResultWithNoDeletes = (
-  result: Awaited<ReturnType<typeof setupWebhookEndpoint>>,
+  result: Awaited<ReturnType<typeof stripeApi.setupWebhookEndpoint>>,
   calls: { deleted: string[] },
 ): void => {
   expect(result).toEqual({ error: expect.any(String), success: false });
@@ -260,7 +241,7 @@ describeStripe("Stripe webhook setup", () => {
       ]);
     });
 
-    test("reports a missing signing secret", async () => {
+    test("rejects a creation response without a signing secret", async () => {
       const webhookUrl = "https://example.com/payment/webhook";
       const result = await setupWithWebhookApi(
         webhookUrl,
@@ -270,7 +251,7 @@ describeStripe("Stripe webhook setup", () => {
       );
 
       expect(result).toEqual({
-        error: "Stripe did not return webhook secret",
+        error: "Invalid response received from the Stripe API",
         success: false,
       });
     });
@@ -285,7 +266,10 @@ describeStripe("Stripe webhook setup", () => {
         });
       try {
         expect(
-          await setupWebhookEndpoint("sk_test", "https://example.com/webhook"),
+          await stripeApi.setupWebhookEndpoint(
+            "sk_test",
+            "https://example.com/webhook",
+          ),
         ).toEqual({
           endpointId: "we_mocked",
           secret: "whsec_mocked",
@@ -302,7 +286,10 @@ describeStripe("Stripe webhook setup", () => {
         Promise.resolve({ error: "API rate limited", success: false });
       try {
         expect(
-          await setupWebhookEndpoint("sk_test", "https://example.com/webhook"),
+          await stripeApi.setupWebhookEndpoint(
+            "sk_test",
+            "https://example.com/webhook",
+          ),
         ).toEqual({ error: "API rate limited", success: false });
       } finally {
         stripeApi.setupWebhookEndpoint = originalSetup;
@@ -310,91 +297,45 @@ describeStripe("Stripe webhook setup", () => {
     });
 
     test("returns an error when Stripe requests fail", async () => {
-      await expectFetchThrowGivesStringError(
+      await expectFetchFailure(
         new Error("Network unavailable"),
         "https://example.com/webhook/error-test",
       );
     });
 
-    test("returns a string error when a non-Error is thrown", async () => {
-      await expectFetchThrowGivesStringError(
+    test("normalizes a non-Error connection failure", async () => {
+      await expectFetchFailure(
         "string_error",
         "https://example.com/webhook/non-error-throw",
       );
     });
-  });
 
-  describe("client configuration", () => {
-    test("creates a client without mock-server configuration", async () => {
-      await withStripeClient(
-        { STRIPE_MOCK_HOST: undefined, STRIPE_MOCK_PORT: undefined },
-        (client) => expect(client).not.toBeNull(),
-      );
-    });
+    test("does not spend request retries on endpoint setup", async () => {
+      using _env = withEnv({
+        STRIPE_MOCK_HOST: undefined,
+        STRIPE_MOCK_PORT: undefined,
+      });
+      let calls = 0;
+      const result = await withFetchMock(async () => {
+        globalThis.fetch = () => {
+          calls++;
+          return Promise.resolve(
+            Response.json(
+              { error: { message: "Temporary failure", type: "api_error" } },
+              { status: 500 },
+            ),
+          );
+        };
+        return await withVirtualBackoff(() =>
+          stripeApi.setupWebhookEndpoint(
+            "sk_test_mock",
+            "https://example.com/payment/webhook",
+          ),
+        );
+      });
 
-    test("uses the default mock-server port", async () => {
-      await withStripeClient(
-        { STRIPE_MOCK_HOST: "localhost", STRIPE_MOCK_PORT: undefined },
-        (client) => expect(client).not.toBeNull(),
-      );
-    });
-  });
-
-  describe("mock helper", () => {
-    test("returns null for non-webhook URLs", async () => {
-      const calls = newWebhookApiCalls();
-      const api = webhookEndpointsApi(
-        "https://example.com/payment/webhook",
-        calls,
-      );
-      expect(await api("https://example.com/other", {})).toBeNull();
-    });
-
-    test("handles GET without init (defaults to GET method)", async () => {
-      const calls = newWebhookApiCalls();
-      const api = webhookEndpointsApi(
-        "https://example.com/payment/webhook",
-        calls,
-      );
-      const response = await api("https://api.stripe.com/v1/webhook_endpoints");
-      const body = await response!.json();
-      expect(body.data).toHaveLength(2);
-    });
-
-    test("records the created body on a successful POST", async () => {
-      const calls = newWebhookApiCalls();
-      const api = webhookEndpointsApi(
-        "https://example.com/payment/webhook",
-        calls,
-      );
-      const response = await api(
-        "https://api.stripe.com/v1/webhook_endpoints",
-        {
-          body: "enabled_events[0]=checkout.session.completed&url=https://example.com/payment/webhook",
-          method: "POST",
-        },
-      );
-      const body = await response!.json();
-      expect(body.id).toBe("we_new");
-      expect(calls.createdBody).not.toBeNull();
-      expect(calls.createdBody!.get("url")).toBe(
-        "https://example.com/payment/webhook",
-      );
-    });
-
-    test("handles POST without init body (defaults to empty string)", async () => {
-      const calls = newWebhookApiCalls();
-      const api = webhookEndpointsApi(
-        "https://example.com/payment/webhook",
-        calls,
-      );
-      const response = await api(
-        "https://api.stripe.com/v1/webhook_endpoints",
-        { method: "POST" },
-      );
-      const body = await response!.json();
-      expect(body.id).toBe("we_new");
-      expect(calls.createdBody).not.toBeNull();
+      expect(result.success).toBe(false);
+      expect(calls).toBe(1);
     });
   });
 });

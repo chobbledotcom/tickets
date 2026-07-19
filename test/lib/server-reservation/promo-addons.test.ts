@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -25,8 +25,6 @@ describeWithEnv(
   "server (reservation deposit at checkout)",
   { db: true },
   () => {
-    afterEach(() => resetStripeClient());
-
     test("full-payment promo discount stores the discounted price paid", async () => {
       const listing = await setupReservationListing({ bookingFee: "0" });
       const promo = await createSave10Promo();

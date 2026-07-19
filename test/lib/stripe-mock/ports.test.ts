@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stripeMock } from "#shared/stripe/mock.ts";
 import {
-  DEFAULT_STRIPE_MOCK_PORT,
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
   stripeMockEnv,
@@ -23,7 +23,7 @@ import {
 
 describe("stripe-mock ports and environment", () => {
   test("uses the default port when the env var is absent", () => {
-    expect(stripeMockPortFromEnv(testEnv({}))).toBe(DEFAULT_STRIPE_MOCK_PORT);
+    expect(stripeMockPortFromEnv(testEnv({}))).toBe(stripeMock.defaultPort);
   });
 
   test("uses the explicit port from the env var", () => {

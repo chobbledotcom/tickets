@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import Stripe from "stripe";
-import {
-  createStripeClient,
-  STRIPE_API_VERSION,
-} from "#shared/stripe/client.ts";
+import { createStripeClient } from "#shared/stripe/client.ts";
+import { STRIPE_API_VERSION } from "#shared/stripe/request.ts";
+import { stripeResponseFor } from "#test/lib/stripe/responses.ts";
 
 type RecordedRequest = {
   authorization: string | null;
@@ -13,54 +12,6 @@ type RecordedRequest = {
   method: string;
   path: string;
   version: string | null;
-};
-
-const checkout = {
-  amount_total: 1000,
-  created: 123,
-  id: "cs_1",
-  metadata: {},
-  payment_intent: "pi_1",
-  payment_status: "paid",
-  url: "https://checkout.stripe.com/c/pay/cs_1",
-};
-
-const responseFor = (request: Request): Response => {
-  const path = new URL(request.url).pathname;
-  if (path === "/v1/balance") return Response.json({ livemode: false });
-  if (path === "/v1/refunds") {
-    return Response.json({ id: "re_1", status: "succeeded" });
-  }
-  if (path.startsWith("/v1/payment_intents/")) {
-    return Response.json({
-      id: "pi_1",
-      latest_charge: { refunded: false },
-    });
-  }
-  if (
-    path === "/v1/checkout/sessions" ||
-    path.startsWith("/v1/checkout/sessions/")
-  ) {
-    return Response.json(checkout);
-  }
-  if (path === "/v1/webhook_endpoints" && request.method === "GET") {
-    return Response.json({
-      data: [
-        {
-          enabled_events: ["checkout.session.completed"],
-          id: "we_1",
-          status: "enabled",
-          url: "https://example.com/payment/webhook",
-        },
-      ],
-    });
-  }
-  if (path.startsWith("/v1/webhook_endpoints")) {
-    return Response.json({ id: "we_1", secret: "whsec_1" });
-  }
-  throw new Error(
-    `Unexpected Stripe parity request: ${request.method} ${path}`,
-  );
 };
 
 test("the small client matches stripe-node requests for every used operation", async () => {
@@ -81,7 +32,7 @@ test("the small client matches stripe-node requests for every used operation", a
         path: new URL(request.url).pathname + new URL(request.url).search,
         version: request.headers.get("stripe-version"),
       });
-      return responseFor(request);
+      return stripeResponseFor(new URL(request.url).pathname, request.method);
     },
   );
   const port = await listening.promise;
@@ -97,6 +48,7 @@ test("the small client matches stripe-node requests for every used operation", a
     maxNetworkRetries: 0,
   });
   const checkoutParams = {
+    cancel_url: "https://example.com/cancel",
     line_items: [
       {
         price_data: {
@@ -109,13 +61,18 @@ test("the small client matches stripe-node requests for every used operation", a
     ],
     metadata: { order: "signed[2026]" },
     mode: "payment" as const,
+    payment_method_types: ["card"] as ["card"],
     success_url: "https://example.com/success",
   };
   const webhookParams = {
-    api_version: STRIPE_API_VERSION,
-    enabled_events: ["checkout.session.completed" as const],
+    api_version: STRIPE_API_VERSION as NonNullable<
+      Stripe.WebhookEndpointCreateParams["api_version"]
+    >,
+    enabled_events: ["checkout.session.completed"] as [
+      "checkout.session.completed",
+    ],
     url: "https://example.com/payment/webhook",
-  } satisfies Stripe.WebhookEndpointCreateParams;
+  };
   const operations = [
     [
       () => official.checkout.sessions.create(checkoutParams),
@@ -128,8 +85,7 @@ test("the small client matches stripe-node requests for every used operation", a
     [
       () =>
         official.paymentIntents.retrieve("pi_1", { expand: ["latest_charge"] }),
-      () =>
-        small.paymentIntents.retrieve("pi_1", { expand: ["latest_charge"] }),
+      () => small.paymentIntents.retrieveWithLatestCharge("pi_1"),
     ],
     [
       () => official.refunds.create({ payment_intent: "pi_1" }),
@@ -138,7 +94,7 @@ test("the small client matches stripe-node requests for every used operation", a
     [() => official.balance.retrieve(), () => small.balance.retrieve()],
     [
       () => official.webhookEndpoints.list({ limit: 100 }),
-      () => small.webhookEndpoints.list({ limit: 100 }),
+      () => small.webhookEndpoints.list(),
     ],
     [
       () => official.webhookEndpoints.create(webhookParams),
@@ -165,4 +121,10 @@ test("the small client matches stripe-node requests for every used operation", a
   for (const [officialRequest, smallRequest] of pairs) {
     expect(smallRequest).toEqual(officialRequest);
   }
+});
+
+test("the parity server rejects an operation without a fixture", () => {
+  expect(() => stripeResponseFor("/v1/unknown", "GET")).toThrow(
+    "Unexpected Stripe test request: GET /v1/unknown",
+  );
 });

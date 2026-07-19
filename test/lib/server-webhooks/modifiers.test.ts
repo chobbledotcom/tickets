@@ -1,12 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import {
   modifierGroups,
   modifierListings,
   modifiersTable,
 } from "#shared/db/modifiers.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -70,10 +69,6 @@ const scopeTestItems = (listing1Id: number, listing2Id: number): string =>
   ]);
 
 describeWithEnv("server webhooks > modifiers", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("accepts a webhook whose total includes an applied modifier", async () => {
     await setupStripe();
     const { listing, modifier } = await createServiceChargeScenario();

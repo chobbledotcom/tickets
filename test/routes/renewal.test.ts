@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
 import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { stubCheckout } from "#test-utils/checkout.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
@@ -37,10 +36,6 @@ const setupRenewalSite = async () => {
 };
 
 describeWithEnv("routes > renewal", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   /** Create a single qualifying renewal tier listing + provisioned renewal
    *  site, then GET `/renew/?t=…`. Collapses the repeated fixture (hidden,
    *  monthly, purchase-only, £5 listing) + `setupRenewalSite` + `mockRequest`

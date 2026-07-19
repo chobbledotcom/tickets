@@ -1,17 +1,18 @@
-import { lazyRef, mapNotNullish } from "#fp";
+import { mapNotNullish } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import {
   cachedClientFactory,
   createWithClient,
 } from "#shared/payment-helpers.ts";
+import { createStripeClient, type StripeClient } from "./client.ts";
+import { stripeMock } from "./mock.ts";
 import {
-  createStripeClient,
   STRIPE_MAX_NETWORK_RETRIES,
   STRIPE_TIMEOUT_MS,
-  type StripeClient,
   type StripeClientConfig,
-} from "./client.ts";
+  StripeProtocolError,
+} from "./request.ts";
 
 const formatErrorField =
   (label: string, type: "number" | "string") =>
@@ -40,10 +41,15 @@ const PRODUCTION_CONFIG = {
   timeout: STRIPE_TIMEOUT_MS,
 } satisfies StripeClientConfig;
 
+interface StripeRuntimeConfig {
+  clientConfig: StripeClientConfig;
+  secretKey: string;
+}
+
 const mockConfig = (): StripeClientConfig | undefined => {
   const host = getEnv("STRIPE_MOCK_HOST");
   if (!host) return;
-  const port = Number.parseInt(getEnv("STRIPE_MOCK_PORT") || "12111", 10);
+  const port = stripeMock.port(getEnv("STRIPE_MOCK_PORT"));
   return {
     ...PRODUCTION_CONFIG,
     apiBase: `http://${host}:${port}`,
@@ -51,32 +57,43 @@ const mockConfig = (): StripeClientConfig | undefined => {
   };
 };
 
-const [getMockConfig, setMockConfig] = lazyRef<StripeClientConfig | undefined>(
-  mockConfig,
-);
+const requestConfig = (maxNetworkRetries?: number): StripeClientConfig => {
+  const configured = mockConfig() ?? PRODUCTION_CONFIG;
+  return maxNetworkRetries === undefined
+    ? configured
+    : { ...configured, maxNetworkRetries };
+};
 
-const create = (secretKey: string): StripeClient => {
-  const config = getMockConfig();
-  return createStripeClient(
+const create = (secretKey: string, maxNetworkRetries?: number): StripeClient =>
+  createStripeClient(secretKey, requestConfig(maxNetworkRetries));
+
+const runtimeConfig = (): StripeRuntimeConfig | null => {
+  const secretKey = settings.stripe.secretKey;
+  if (!secretKey) return null;
+  return {
+    clientConfig: requestConfig(),
     secretKey,
-    config === undefined ? PRODUCTION_CONFIG : config,
-  );
+  };
 };
 
 const cache = cachedClientFactory({
-  create,
-  getConfig: () => settings.stripe.secretKey || null,
-  isSameConfig: (a: string, b: string) => a === b,
+  create: (config: StripeRuntimeConfig) =>
+    createStripeClient(config.secretKey, config.clientConfig),
+  getConfig: runtimeConfig,
+  isSameConfig: (a: StripeRuntimeConfig, b: StripeRuntimeConfig) =>
+    a.secretKey === b.secretKey &&
+    a.clientConfig.apiBase === b.clientConfig.apiBase &&
+    a.clientConfig.maxNetworkRetries === b.clientConfig.maxNetworkRetries &&
+    a.clientConfig.timeout === b.clientConfig.timeout,
   missingMessage: "No secret key configured, cannot create client",
   provider: "Stripe",
 });
 
 const get = (): Promise<StripeClient | null> => cache.getClient();
-const run = createWithClient(get, sanitizeStripeError);
-const reset = (): void => {
-  cache.reset();
-  setMockConfig(null);
-};
+const run = createWithClient(get, {
+  errorDetail: sanitizeStripeError,
+  shouldPropagate: (error) => error instanceof StripeProtocolError,
+});
 
 /** Shared Stripe client lifecycle for payment and endpoint operations. */
-export const stripeClientRuntime = { create, get, reset, run };
+export const stripeClientRuntime = { create, get, run };

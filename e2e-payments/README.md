@@ -10,7 +10,8 @@ This harness is the complement: it boots the **real** app server
 Chromium** through a complete paid booking, entering a sandbox test card on the
 provider's own hosted checkout page and confirming the booking is recorded as
 paid. It catches the one class of bug mocks cannot: our API calls, checkout
-redirect, return URL, and webhook drifting from what the providers actually do.
+redirect, return URL, refund, and webhook drifting from what the providers
+actually do.
 
 It is intentionally **not** a PR gate (see `.github/workflows/payment-sandbox-e2e.yml`
 — nightly + manual). It needs third-party network access and is slower and
@@ -35,18 +36,25 @@ For a target (`stripe` | `square` | `sumup` | `free`):
      (customer success page, the captured amount in the listing's Overview
      income ledger, **and** the booker on the listing's Attendees tab).
 
+The Stripe leg also saves the key twice to rotate the webhook endpoint through
+the app's own cleanup path, runs the connection test, waits for Stripe's signed
+webhook, refreshes the paid booking from its PaymentIntent, and issues a full
+refund through the admin UI. Together these journeys exercise every Stripe HTTP
+operation the app uses against Stripe's real test API: balance retrieval,
+Checkout Session creation and retrieval, expanded PaymentIntent retrieval,
+refund creation, and webhook endpoint creation, listing, and deletion.
+
 ### What is (and isn't) exercised per provider
 
 Confirmation is asserted via the **browser return URL** for every provider (the
 success handler validates the session with the provider's API and records the
 booking as paid — the harness then asserts the captured amount shows in the
-listing's income ledger, not merely that an attendee row exists). No provider
-leg *asserts* webhook delivery; webhook involvement differs only in what setup
-each requires:
+listing's income ledger, not merely that an attendee row exists). Webhook
+involvement differs by provider:
 
 | Provider | Confirmation asserted | Webhook involvement |
 | --- | --- | --- |
-| Stripe | Return URL + captured amount | Endpoint **registration** is exercised (required to save the key); delivery is **not** asserted — the return handler records the payment, and a webhook may arrive before teardown but nothing waits on it. |
+| Stripe | Return URL + captured amount + real refund | Endpoint registration, rotation/deletion, connection status, and successful signed delivery are asserted. |
 | SumUp | Return URL + captured amount | Needs no signature; a delivered webhook would be processed, but delivery is not asserted. |
 | Square | Return URL + captured amount | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. |
 

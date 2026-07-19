@@ -6,13 +6,9 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   STRIPE_MAX_NETWORK_RETRIES,
   STRIPE_TIMEOUT_MS,
-} from "#shared/stripe/client.ts";
+} from "#shared/stripe/request.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
-import {
-  getStripeClient,
-  resetStripeClient,
-  retrieveCheckoutSession,
-} from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { stripeClient } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -37,7 +33,6 @@ describeStripe("Stripe client configuration", () => {
       STRIPE_MOCK_HOST: "mock.local",
       STRIPE_MOCK_PORT: port,
     });
-    resetStripeClient();
     let requestedUrl = "";
     await withFetchMock(async () => {
       globalThis.fetch = (input) => {
@@ -46,7 +41,6 @@ describeStripe("Stripe client configuration", () => {
       };
       await stripeClientRuntime.create("sk_test_mock").balance.retrieve();
     });
-    resetStripeClient();
     return requestedUrl;
   };
 
@@ -61,12 +55,11 @@ describeStripe("Stripe client configuration", () => {
     );
   });
 
-  test("reloads mock configuration when reset", async () => {
+  test("reads changed mock configuration for each client", async () => {
     using _env = withEnv({
       STRIPE_MOCK_HOST: "mock.local",
       STRIPE_MOCK_PORT: "12111",
     });
-    resetStripeClient();
     const urls: string[] = [];
 
     await withFetchMock(async () => {
@@ -76,7 +69,6 @@ describeStripe("Stripe client configuration", () => {
       };
       await stripeClientRuntime.create("sk_test_mock").balance.retrieve();
       Deno.env.set("STRIPE_MOCK_PORT", "13131");
-      resetStripeClient();
       await stripeClientRuntime.create("sk_test_mock").balance.retrieve();
     });
 
@@ -84,24 +76,43 @@ describeStripe("Stripe client configuration", () => {
       "http://mock.local:12111/v1/balance",
       "http://mock.local:13131/v1/balance",
     ]);
-    resetStripeClient();
   });
 
-  test("reset drops the cached client", async () => {
-    await settings.update.stripe.secretKey("sk_test_123");
-    const first = await getStripeClient();
-    resetStripeClient();
-    const second = await getStripeClient();
-
-    expect(first).not.toBeNull();
-    expect(second).not.toBeNull();
-    expect(second).not.toBe(first);
+  test("replaces the cached client when the secret key changes", async () => {
+    const authorizations: (string | null)[] = [];
+    await withFetchMock(async () => {
+      globalThis.fetch = (_input, init) => {
+        authorizations.push(new Headers(init?.headers).get("authorization"));
+        return balanceResponse();
+      };
+      await settings.update.stripe.secretKey("sk_test_first");
+      const first = await stripeClientRuntime.get();
+      await first!.balance.retrieve();
+      await settings.update.stripe.secretKey("sk_test_second");
+      const second = await stripeClientRuntime.get();
+      await second!.balance.retrieve();
+      expect(second).not.toBe(first);
+    });
+    expect(authorizations).toEqual([
+      "Bearer sk_test_first",
+      "Bearer sk_test_second",
+    ]);
   });
 
-  test("parses the mock port as decimal", async () => {
-    expect(await requestBalanceAt("0x10")).toBe(
-      "http://mock.local:0/v1/balance",
+  test("rejects a malformed mock port", async () => {
+    await expect(requestBalanceAt("0x10")).rejects.toThrow(
+      "STRIPE_MOCK_PORT must be a number from 1 to 65535",
     );
+  });
+
+  test("propagates malformed Stripe responses", async () => {
+    await settings.update.stripe.secretKey("sk_test_123");
+    await withFetchMock(async () => {
+      globalThis.fetch = () => Promise.resolve(Response.json({ id: "cs_bad" }));
+      await expect(
+        stripeApi.retrieveCheckoutSession("cs_bad"),
+      ).rejects.toThrow();
+    });
   });
 
   test("does not retry mock-server failures", async () => {
@@ -109,7 +120,6 @@ describeStripe("Stripe client configuration", () => {
       STRIPE_MOCK_HOST: "mock.local",
       STRIPE_MOCK_PORT: "12111",
     });
-    resetStripeClient();
     let attempts = 0;
 
     await withFetchMock(async () => {
@@ -128,14 +138,13 @@ describeStripe("Stripe client configuration", () => {
     });
 
     expect(attempts).toBe(1);
-    resetStripeClient();
   });
 
   test("logs why no client can be created", async () => {
     setSuppressDebugLogs(false);
     const debugSpy = spy(console, "debug");
     try {
-      expect(await getStripeClient()).toBeNull();
+      expect(await stripeClientRuntime.get()).toBeNull();
       expect(debugSpy.calls[0]?.args[0]).toContain(
         "No secret key configured, cannot create client",
       );
@@ -163,7 +172,9 @@ describeStripe("Stripe client configuration", () => {
           Promise.reject(stripeError),
         ),
       async () => {
-        expect(await retrieveCheckoutSession("cs_test_123")).toBeNull();
+        expect(
+          await stripeApi.retrieveCheckoutSession("cs_test_123"),
+        ).toBeNull();
       },
     );
 

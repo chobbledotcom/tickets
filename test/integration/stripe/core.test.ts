@@ -1,26 +1,17 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
-import type { SessionMetadata } from "#shared/payments.ts";
 import {
-  constructTestWebhookEvent,
-  type StripeWebhookEvent,
-  verifyWebhookSignature,
-} from "#shared/stripe/webhook.ts";
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#shared/payment-helpers.ts";
+import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
+import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import {
-  createCheckoutSession,
-  getStripeClient,
-  refundPayment,
-  resetStripeClient,
-  retrieveCheckoutSession,
-  retrievePaymentIntent,
-} from "#shared/stripe.ts";
-import {
-  type CreatedSessionParams,
   lineFor,
-  signedHeader,
+  stripeCheckoutSession,
   stripeClient,
 } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
@@ -28,48 +19,46 @@ import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { activateStripe } from "#test-utils/settings.ts";
 
 describeStripe("stripe", () => {
-  describe("getStripeClient", () => {
+  describe("client", () => {
     test("returns null when stripe key not set", async () => {
-      const client = await getStripeClient();
+      const client = await stripeClientRuntime.get();
       expect(client).toBeNull();
     });
 
     test("returns client when stripe key is set in database", async () => {
       await settings.update.stripe.secretKey("sk_test_123");
-      const client = await getStripeClient();
+      const client = await stripeClientRuntime.get();
       expect(client).not.toBeNull();
     });
 
     test("returns same client on subsequent calls", async () => {
       await settings.update.stripe.secretKey("sk_test_123");
-      const client1 = await getStripeClient();
-      const client2 = await getStripeClient();
+      const client1 = await stripeClientRuntime.get();
+      const client2 = await stripeClientRuntime.get();
       expect(client1).toBe(client2);
     });
   });
 
-  describe("resetStripeClient", () => {
-    test("resets client to null after key removed from db", async () => {
+  describe("client configuration", () => {
+    test("returns null after the key is removed", async () => {
       await settings.update.stripe.secretKey("sk_test_123");
-      const client1 = await getStripeClient();
+      const client1 = await stripeClientRuntime.get();
       expect(client1).not.toBeNull();
 
-      resetStripeClient();
       // Reset DB to clear the stripe key
       resetDb();
       await createTestDb();
 
-      const client2 = await getStripeClient();
+      const client2 = await stripeClientRuntime.get();
       expect(client2).toBeNull();
     });
   });
 
   describe("retrieveCheckoutSession", () => {
     test("returns null when stripe key not set", async () => {
-      const result = await retrieveCheckoutSession("cs_test_123");
+      const result = await stripeApi.retrieveCheckoutSession("cs_test_123");
       expect(result).toBeNull();
     });
 
@@ -82,7 +71,7 @@ describeStripe("stripe", () => {
             Promise.reject(new Error("Network error")),
           ),
         async (retrieveSpy) => {
-          const result = await retrieveCheckoutSession("cs_test_123");
+          const result = await stripeApi.retrieveCheckoutSession("cs_test_123");
           expect(result).toBeNull();
           expect(retrieveSpy.calls[0]!.args).toEqual(["cs_test_123"]);
         },
@@ -95,22 +84,19 @@ describeStripe("stripe", () => {
       const client = await stripeClient();
       await withMocks(
         () =>
-          stub(client.paymentIntents, "retrieve", () =>
+          stub(client.paymentIntents, "retrieveWithLatestCharge", () =>
             Promise.resolve({
               id: "pi_refunded",
-              latest_charge: { id: "ch_refunded", refunded: true },
-            } as never),
+              latest_charge: { refunded: true },
+            }),
           ),
         async (retrieveSpy) => {
-          const result = await retrievePaymentIntent("pi_refunded");
+          const result = await stripeApi.retrievePaymentIntent("pi_refunded");
           expect(result).toEqual({
             id: "pi_refunded",
             latest_charge: { refunded: true },
           });
-          expect(retrieveSpy.calls[0]?.args).toEqual([
-            "pi_refunded",
-            { expand: ["latest_charge"] },
-          ]);
+          expect(retrieveSpy.calls[0]?.args).toEqual(["pi_refunded"]);
         },
       );
     });
@@ -124,7 +110,7 @@ describeStripe("stripe", () => {
       Deno.env.set("STRIPE_MOCK_PORT", "12111");
 
       // This will create a client with mock config, but won't make any API calls
-      const client = await getStripeClient();
+      const client = await stripeClientRuntime.get();
       expect(client).not.toBeNull();
     });
 
@@ -133,7 +119,7 @@ describeStripe("stripe", () => {
       Deno.env.set("STRIPE_MOCK_HOST", "localhost");
       Deno.env.delete("STRIPE_MOCK_PORT");
 
-      const client = await getStripeClient();
+      const client = await stripeClientRuntime.get();
       expect(client).not.toBeNull();
     });
   });
@@ -146,7 +132,7 @@ describeStripe("stripe", () => {
 
       // First create a session using intent-based flow
       const listing = testListing({ unit_price: 1000 });
-      const createdSession = await createCheckoutSession(
+      const createdSession = await stripeApi.createCheckoutSession(
         checkoutIntent({
           email: "john@example.com",
           items: [lineFor(listing)],
@@ -157,7 +143,7 @@ describeStripe("stripe", () => {
       expect(createdSession).not.toBeNull();
 
       // Then retrieve it
-      const retrievedSession = await retrieveCheckoutSession(
+      const retrievedSession = await stripeApi.retrieveCheckoutSession(
         createdSession?.id || "",
       );
       expect(retrievedSession).not.toBeNull();
@@ -168,7 +154,7 @@ describeStripe("stripe", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       const listing = testListing({ max_quantity: 5, unit_price: 1000 });
-      const session = await createCheckoutSession(
+      const session = await stripeApi.createCheckoutSession(
         checkoutIntent({
           email: "john@example.com",
           items: [lineFor(listing, 2)],
@@ -177,20 +163,18 @@ describeStripe("stripe", () => {
         "http://localhost:3000",
       );
 
-      // stripe-mock creates session successfully but may not return our custom metadata
-      expect(session).not.toBeNull();
-      expect(session?.id).toBeDefined();
-      expect(session?.url).toBeDefined();
+      expect(session?.id).toMatch(/^cs_test_/u);
+      expect(session?.url).toMatch(/^https:\/\/checkout\.stripe\.com\//u);
     });
 
     test("refunds payment with stripe-mock", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       // stripe-mock accepts any payment_intent ID
-      const refund = await refundPayment("pi_test_123");
+      const refund = await stripeApi.refundPayment("pi_test_123");
 
-      expect(refund).not.toBeNull();
-      expect(refund?.id).toBeDefined();
+      expect(refund?.id).toMatch(/^re_/u);
+      expect(refund?.status).toBe("succeeded");
     });
   });
 
@@ -198,19 +182,27 @@ describeStripe("stripe", () => {
     /** Stub `sessions.create` to resolve `session`, handing the spy to `run`. */
     const withCreateSpy = (
       client: Awaited<ReturnType<typeof stripeClient>>,
-      session: unknown,
-      run: (spy: ReturnType<typeof stub>) => Promise<void>,
-    ) =>
+      session: ReturnType<typeof stripeCheckoutSession>,
+      run: (
+        getParams: () => StripeCheckoutSessionCreateParams,
+      ) => Promise<void>,
+    ): Promise<void> =>
       withMocks(
         () =>
           stub(client.checkout.sessions, "create", () =>
-            Promise.resolve(session as never),
-          ) as unknown as ReturnType<typeof stub>,
-        run,
+            Promise.resolve(session),
+          ),
+        async (createSpy) => {
+          await run(() => {
+            const params = createSpy.calls[0]?.args[0];
+            if (!params) throw new Error("Stripe checkout was not created");
+            return params;
+          });
+        },
       );
 
     test("returns null when stripe key not set", async () => {
-      const result = await createCheckoutSession(
+      const result = await stripeApi.createCheckoutSession(
         checkoutIntent({
           email: "john@example.com",
           items: [checkoutItem({ name: "Test", slug: "test-listing" })],
@@ -228,14 +220,13 @@ describeStripe("stripe", () => {
 
       await withCreateSpy(
         client,
-        {
+        stripeCheckoutSession({
           id: "cs_fee",
-          object: "checkout.session",
           url: "https://checkout.stripe.com/fee",
-        },
-        async (createSpy) => {
+        }),
+        async (getParams) => {
           const listing = testListing({ unit_price: 1000 });
-          await createCheckoutSession(
+          await stripeApi.createCheckoutSession(
             checkoutIntent({
               email: "jane@example.com",
               items: [lineFor(listing)],
@@ -244,8 +235,7 @@ describeStripe("stripe", () => {
             "http://localhost:3000",
           );
 
-          const params = createSpy.calls[0]!
-            .args[0] as unknown as CreatedSessionParams;
+          const params = getParams();
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",
           );
@@ -256,10 +246,10 @@ describeStripe("stripe", () => {
           expect(ticketItem?.price_data.product_data.description).toBe(
             "Ticket",
           );
-          expect(feeItem).toBeDefined();
-          // 5% of 1000 = 50
-          expect(feeItem!.price_data.unit_amount).toBe(50);
-          expect(feeItem!.quantity).toBe(1);
+          expect(feeItem).toMatchObject({
+            price_data: { unit_amount: 50 },
+            quantity: 1,
+          });
         },
       );
     });
@@ -271,14 +261,13 @@ describeStripe("stripe", () => {
 
       await withCreateSpy(
         client,
-        {
+        stripeCheckoutSession({
           id: "cs_dep",
-          object: "checkout.session",
           url: "https://checkout.stripe.com/dep",
-        },
-        async (createSpy) => {
+        }),
+        async (getParams) => {
           const listing = testListing({ unit_price: 1000 });
-          await createCheckoutSession(
+          await stripeApi.createCheckoutSession(
             checkoutIntent({
               email: "jane@example.com",
               items: [lineFor(listing, 2)],
@@ -289,29 +278,32 @@ describeStripe("stripe", () => {
             "http://localhost:3000",
           );
 
-          const params = createSpy.calls[0]!
-            .args[0] as unknown as CreatedSessionParams;
+          const params = getParams();
           const ticketItem = params.line_items.find((li) =>
             li.price_data.product_data.name.startsWith("Ticket:"),
           );
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",
           );
+          if (!ticketItem || !feeItem) {
+            throw new Error("Stripe checkout line items were not created");
+          }
           // Ticket line is charged the per-unit deposit (10% of £10.00 = £1.00).
-          expect(ticketItem!.price_data.unit_amount).toBe(100);
-          expect(ticketItem!.quantity).toBe(2);
-          expect(ticketItem!.price_data.product_data.description).toBe(
+          expect(ticketItem.price_data.unit_amount).toBe(100);
+          expect(ticketItem.quantity).toBe(2);
+          expect(ticketItem.price_data.product_data.description).toBe(
             "2 Tickets",
           );
           // Fee is still 5% of the full £20.00 order, not of the deposit.
-          expect(feeItem!.price_data.unit_amount).toBe(100);
+          expect(feeItem.price_data.unit_amount).toBe(100);
           // Metadata records the FULL line price + the snapshot so the webhook
           // can re-derive the deposit and compute the outstanding balance. The
           // snapshot is packed into `b` on the wire; decode it the way the
           // webhook does rather than reading the raw entry.
-          const metadata = extractSessionMetadata(
-            params.metadata as unknown as SessionMetadata,
-          );
+          if (!hasRequiredSessionMetadata(params.metadata)) {
+            throw new Error("Stripe checkout metadata was incomplete");
+          }
+          const metadata = extractSessionMetadata(params.metadata);
           expect(JSON.parse(metadata.items)).toEqual([
             { e: listing.id, p: 2000, q: 2 },
           ]);
@@ -325,13 +317,12 @@ describeStripe("stripe", () => {
 
       await withCreateSpy(
         client,
-        {
+        stripeCheckoutSession({
           id: "cs_no_email",
-          object: "checkout.session",
           url: "https://checkout.stripe.com/no-email",
-        },
-        async (createSpy) => {
-          await createCheckoutSession(
+        }),
+        async (getParams) => {
+          await stripeApi.createCheckoutSession(
             checkoutIntent({
               email: "",
               items: [checkoutItem({ name: "No email", slug: "no-email" })],
@@ -340,8 +331,7 @@ describeStripe("stripe", () => {
             "http://localhost:3000",
           );
 
-          const params = createSpy.calls[0]!
-            .args[0] as unknown as CreatedSessionParams;
+          const params = getParams();
           expect(params).not.toHaveProperty("customer_email");
         },
       );
@@ -350,7 +340,7 @@ describeStripe("stripe", () => {
 
   describe("refundPayment", () => {
     test("returns null when stripe key not set", async () => {
-      const result = await refundPayment("pi_test_123");
+      const result = await stripeApi.refundPayment("pi_test_123");
       expect(result).toBeNull();
     });
 
@@ -362,154 +352,11 @@ describeStripe("stripe", () => {
             Promise.reject(new Error("Network error")),
           ),
         async (refundSpy) => {
-          const result = await refundPayment("pi_test_123");
+          const result = await stripeApi.refundPayment("pi_test_123");
           expect(result).toBeNull();
           expect(refundSpy.calls.length).toBeGreaterThan(0);
         },
       );
-    });
-  });
-
-  describe("verifyWebhookSignature", () => {
-    const TEST_SECRET = "whsec_test_secret_key_for_webhook_verification";
-
-    beforeEach(async () => {
-      // Set webhook secret in database (encrypted)
-      await activateStripe(TEST_SECRET);
-    });
-
-    test("returns error when webhook secret not configured", async () => {
-      // Reset DB to have no webhook secret configured
-      await resetDb();
-      await createTestDb();
-      const result = await verifyWebhookSignature(
-        '{"test": true}',
-        "t=1234,v1=abc",
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Webhook secret not configured");
-      }
-    });
-
-    test("returns error for invalid signature header format", async () => {
-      const result = await verifyWebhookSignature(
-        '{"test": true}',
-        "invalid-header",
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid signature header format");
-      }
-    });
-
-    test("returns error for missing timestamp in header", async () => {
-      const result = await verifyWebhookSignature(
-        '{"test": true}',
-        "v1=abc123",
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid signature header format");
-      }
-    });
-
-    test("returns error for missing signature in header", async () => {
-      const result = await verifyWebhookSignature('{"test": true}', "t=1234");
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid signature header format");
-      }
-    });
-
-    test("returns error for timestamp outside tolerance window", async () => {
-      // Sign with an old timestamp (more than 5 minutes ago)
-      const oldTimestamp = Math.floor(Date.now() / 1000) - 400; // 400 seconds ago
-      const payload = '{"test": true}';
-      const result = await verifyWebhookSignature(
-        payload,
-        await signedHeader(TEST_SECRET, payload, oldTimestamp),
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Timestamp outside tolerance window");
-      }
-    });
-
-    test("returns error for invalid signature", async () => {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const result = await verifyWebhookSignature(
-        '{"test": true}',
-        `t=${timestamp},v1=invalid_signature_that_wont_match`,
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Signature verification failed");
-      }
-    });
-
-    test("returns error for invalid JSON payload", async () => {
-      const payload = "not valid json {{{";
-      const result = await verifyWebhookSignature(
-        payload,
-        await signedHeader(TEST_SECRET, payload),
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid JSON payload");
-      }
-    });
-
-    test("verifies valid signature successfully", async () => {
-      const listing: StripeWebhookEvent = {
-        data: {
-          object: {
-            id: "cs_test_123",
-            metadata: {
-              email: "john@example.com",
-              items: '[{"e":1,"q":1,"p":0}]',
-              name: "John Doe",
-            },
-            payment_status: "paid",
-          },
-        },
-        id: "evt_test_123",
-        type: "checkout.session.completed",
-      };
-
-      const { payload, signature } = await constructTestWebhookEvent(
-        listing,
-        TEST_SECRET,
-      );
-
-      const result = await verifyWebhookSignature(payload, signature);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.listing.id).toBe("evt_test_123");
-        expect(result.listing.type).toBe("checkout.session.completed");
-      }
-    });
-
-    test("accepts custom tolerance window", async () => {
-      // Sign with a timestamp 100 seconds ago
-      const oldTimestamp = Math.floor(Date.now() / 1000) - 100;
-      const payload = '{"id": "evt_123", "type": "test"}';
-      const header = await signedHeader(TEST_SECRET, payload, oldTimestamp);
-
-      // Should fail with a tight tolerance but pass with a generous one
-      const resultWithSmallTolerance = await verifyWebhookSignature(
-        payload,
-        header,
-        50, // 50 second tolerance - should fail
-      );
-      expect(resultWithSmallTolerance.valid).toBe(false);
-
-      const resultWithLargeTolerance = await verifyWebhookSignature(
-        payload,
-        header,
-        200, // 200 second tolerance - should pass
-      );
-      expect(resultWithLargeTolerance.valid).toBe(true);
     });
   });
 });

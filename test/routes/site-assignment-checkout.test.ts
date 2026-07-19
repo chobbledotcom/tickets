@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -16,10 +15,6 @@ describeWithEnv(
     env: { CAN_BUILD_SITES: "true" },
   },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     describe("POST /ticket/:slug", () => {
       test("blocks checkout when a site-assignment listing has no renewal tier", async () => {
         await setupStripe();

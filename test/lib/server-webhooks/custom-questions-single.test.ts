@@ -1,6 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
@@ -8,7 +8,6 @@ import {
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -26,10 +25,6 @@ describeWithEnv(
   "server webhooks > custom questions (single-ticket)",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     // Fetches a listing's attendees and returns the sole one's id, confirming
     // exactly one booking was made before a test reads its saved answers.
     const soleAttendeeId = async (listingId: number): Promise<number> => {

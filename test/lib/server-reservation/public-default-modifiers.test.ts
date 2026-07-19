@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
@@ -24,8 +23,6 @@ describeWithEnv(
   "server (reservation deposit at checkout)",
   { db: true },
   () => {
-    afterEach(() => resetStripeClient());
-
     test("a reservation public-default carries the deposit amount into checkout", async () => {
       await setupStripe();
       await setPublicReservation("10%");

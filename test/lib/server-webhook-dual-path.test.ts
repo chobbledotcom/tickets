@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { queryAll } from "#shared/db/client.ts";
 import { setGroupPackageMembers } from "#shared/db/groups.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import type { Group, Listing } from "#shared/types.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -148,10 +148,6 @@ const expectSavedAndRefunded = () =>
   );
 
 describeWithEnv("server (webhooks) — dual-path refunds", { db: true }, () => {
-  afterEach(() => {
-    resetStripeClient();
-  });
-
   test("stores one placeholder per path and refunds when capacity fails", async () => {
     await setupStripe();
     // One spot only: the two-path order (2 units) can never be honoured.
