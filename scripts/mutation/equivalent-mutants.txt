@@ -129,6 +129,9 @@ src/shared/db/table.ts:715:6  === → ==   # wrapNullable constrains T to exclud
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/login-attempts.ts:46:39  ?? → ||
 src/shared/db/users.ts:260:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
+src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
+src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
