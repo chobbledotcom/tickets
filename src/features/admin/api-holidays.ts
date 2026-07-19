@@ -47,12 +47,12 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   toUpdateInput: (body, existing) => {
     const nameParsed = parseUpdateName(body, existing.name);
     if (!nameParsed.ok) return nameParsed;
-    const str = (key: string, fallback: string) =>
+    const trimmedFieldOrFallback = (key: string, fallback: string) =>
       body[key] != null ? String(body[key]).trim() : fallback;
     return okResult({
-      endDate: str("end_date", existing.end_date),
+      endDate: trimmedFieldOrFallback("end_date", existing.end_date),
       name: nameParsed.value,
-      startDate: str("start_date", existing.start_date),
+      startDate: trimmedFieldOrFallback("start_date", existing.start_date),
     });
   },
   validate: validateDateRange,

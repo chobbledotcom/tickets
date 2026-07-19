@@ -86,7 +86,10 @@ const fetchAppEnvVars = async (
   );
   if (!res.ok) return parseApiError(res, "Get app");
   const data: GetAppResponse = JSON.parse(res.text);
-  return okResult(data.env_vars ?? {});
+  if (data.env_vars === undefined) {
+    return errorResult("Get app response is missing env_vars");
+  }
+  return okResult(data.env_vars);
 };
 
 /**

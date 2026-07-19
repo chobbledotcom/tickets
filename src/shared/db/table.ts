@@ -400,6 +400,9 @@ export const defineTable = <Row, Input = Row>(
   const allColumns = Object.keys(schema) as (keyof Row & string)[];
   const physicalColumns = allColumns.filter((col) => !schema[col].projected);
   const physicalColumnsSql = physicalColumns.join(", ");
+  const qualifiedPhysicalColumnsSql = physicalColumns
+    .map((column) => `record.${column}`)
+    .join(", ");
   const inputColumns = physicalColumns.filter((col) => !schema[col].generated);
   const inputKeyMap = buildInputKeyMap(inputColumns);
 
@@ -572,7 +575,7 @@ export const defineTable = <Row, Input = Row>(
     id: InValue,
   ): Promise<Row | null> => {
     const row = await query(
-      `SELECT ${physicalColumnsSql} FROM ${name} WHERE ${primaryKey} = ?`,
+      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} = ?`,
       [id],
     );
     return row ? fromDb(row) : null;
@@ -581,15 +584,14 @@ export const defineTable = <Row, Input = Row>(
   const findByIds = async (ids: InValue[]): Promise<(Row | null)[]> => {
     if (ids.length === 0) return [];
     const rows = await queryAll<Row>(
-      `SELECT ${physicalColumnsSql} FROM ${name} WHERE ${primaryKey} IN (${ids.map(() => "?").join(", ")})`,
+      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} IN (${ids.map(() => "?").join(", ")})`,
       ids,
     );
     const readRows = await mapParallel(fromDb)(rows);
-    return ids.map(
-      (id) =>
-        readRows.find((row) => row[primaryKey] === (id as Row[keyof Row])) ??
-        null,
+    const rowsById = new Map(
+      readRows.map((row) => [row[primaryKey], row] as const),
     );
+    return ids.map((id) => rowsById.get(id as Row[keyof Row & string]) ?? null);
   };
 
   const findById = async (id: InValue): Promise<Row | null> =>

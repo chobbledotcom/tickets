@@ -268,9 +268,7 @@ const createDirectAdminSession = async (): Promise<{
   // The ceremony (settings.setup.complete) created this owner with this exact
   // username, password, and a wrapped data key moments ago in this same
   // process, so the lookup, password check, and key unwrap cannot miss.
-  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user)
-    throw new Error(`Test owner ${TEST_ADMIN_USERNAME} does not exist`);
+  const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
   const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
   const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
   const dataKey = await unwrapKey(user.wrapped_data_key!, kek);

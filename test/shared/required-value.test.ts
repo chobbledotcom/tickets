@@ -12,4 +12,16 @@ describe("requireValue", () => {
       "Expected value is missing",
     );
   });
+
+  test("treats undefined as missing", () => {
+    expect(() => requireValue(undefined, "Undefined value is missing")).toThrow(
+      "Undefined value is missing",
+    );
+  });
+
+  test("preserves falsy present values", () => {
+    expect(
+      [0, false, ""].map((value) => requireValue(value, "missing")),
+    ).toEqual([0, false, ""]);
+  });
 });

@@ -6,10 +6,6 @@ export interface DatabaseCredentials {
   dbUrl: string;
 }
 
-export const databaseCredentialsResult = (
-  value: DatabaseCredentials,
-): Result<DatabaseCredentials> => okResult(value);
-
 export const databaseCredentialsFromResponse = (
   dbId: string,
   dbUrl: string,
@@ -20,7 +16,7 @@ export const databaseCredentialsFromResponse = (
   if (typeof token !== "string") {
     throw new Error(`Database response is missing ${tokenKey}`);
   }
-  return databaseCredentialsResult({ dbId, dbToken: token, dbUrl });
+  return okResult({ dbId, dbToken: token, dbUrl });
 };
 
 /** Create a site on a hosting provider: deploy `code` under `name` with the

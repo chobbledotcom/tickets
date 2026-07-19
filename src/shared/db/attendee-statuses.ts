@@ -104,10 +104,12 @@ const getFlaggedStatus =
     );
 
 /** The status new public bookings start in. */
-export const requirePublicDefaultStatus = getFlaggedStatus("is_public_default");
+export const requirePublicDefaultStatus: () => Promise<AttendeeStatus> =
+  getFlaggedStatus("is_public_default");
 
 /** The status an attendee moves to once a reservation balance is paid. */
-export const requirePaidDefaultStatus = getFlaggedStatus("is_paid_default");
+export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
+  getFlaggedStatus("is_paid_default");
 
 /** The id of the public-default status. */
 export const requirePublicStatusId = async (): Promise<number> =>

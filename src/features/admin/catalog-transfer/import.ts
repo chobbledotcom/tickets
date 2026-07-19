@@ -467,8 +467,8 @@ const importGroup = async (
   if ("error" in memberResolve) return fail(memberResolve.error);
 
   const listings = await requireListingsWithCountsByIds(memberResolve.ids);
-  // Members are few, so resolve each id against the loaded set directly (order
-  // preserved, missing dropped) rather than building an intermediate index.
+  // Members are few, so resolve each required id against the loaded set
+  // directly, preserving order without building an intermediate index.
   const memberListings = mapNotNullish((id: number) =>
     listings.find((l) => l.id === id),
   )(memberResolve.ids);

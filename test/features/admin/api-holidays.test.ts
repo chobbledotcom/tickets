@@ -267,7 +267,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
       // Holiday should still exist
       const row = await holidays.table.findById(holiday.id);
-      expect(row).toBeDefined();
+      expect(row).not.toBeNull();
     });
 
     test("returns 404 for non-existent holiday", async () => {
@@ -328,7 +328,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
       expect(res.status).toBe(403);
       // The manager's delete was blocked, so the holiday still exists.
-      expect(await holidays.table.findById(holiday.id)).toBeDefined();
+      expect(await holidays.table.findById(holiday.id)).not.toBeNull();
     });
   });
 });

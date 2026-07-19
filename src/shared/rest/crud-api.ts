@@ -19,6 +19,7 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { reduce } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
@@ -54,6 +55,18 @@ const requireString = (
     ? body[key].trim()
     : null;
 
+/** Parse every item with one shared first-error traversal. */
+const parseEach =
+  <Input, Output>(parseItem: (item: Input) => Result<Output>) =>
+  (items: readonly Input[]): Result<Output[]> =>
+    reduce((result: Result<Output[]>, item: Input): Result<Output[]> => {
+      if (!result.ok) return result;
+      const parsed = parseItem(item);
+      if (!parsed.ok) return parsed;
+      result.value.push(parsed.value);
+      return result;
+    }, okResult<Output[]>([]))([...items]);
+
 /**
  * Read several required non-empty string fields from a JSON body in one call.
  * Returns the trimmed values keyed by field name, or a ready `{ ok: false }`
@@ -66,13 +79,15 @@ export const requireStrings = <K extends string>(
   body: Record<string, unknown>,
   keys: readonly K[],
 ): Result<Record<K, string>> => {
-  const values = {} as Record<K, string>;
-  for (const key of keys) {
+  const parsed = parseEach((key: K): Result<readonly [K, string]> => {
     const value = requireString(body, key);
-    if (!value) return errorResult(`${key} is required`);
-    values[key] = value;
-  }
-  return okResult(values);
+    return value
+      ? okResult([key, value] as const)
+      : errorResult(`${key} is required`);
+  })(keys);
+  return parsed.ok
+    ? okResult(Object.fromEntries(parsed.value) as Record<K, string>)
+    : parsed;
 };
 
 /**
@@ -116,13 +131,7 @@ export const parseOptionalArray = <T>(
     if (!Array.isArray(value)) {
       return errorResult(`${label} must be an array`);
     }
-    const items: T[] = [];
-    for (const item of value) {
-      const parsed = parseItem(item);
-      if (!parsed.ok) return parsed;
-      items.push(parsed.value);
-    }
-    return okResult(items);
+    return parseEach(parseItem)(value);
   });
 
 /** Result of parsing + validating: either the input or a pre-built error response */
