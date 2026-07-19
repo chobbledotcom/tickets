@@ -1,3 +1,16 @@
+import { type CleanupTask, failAfterCleanups } from "../cleanup.ts";
+
+export const startWithFailureCleanup = async <T>(
+  start: () => Promise<T>,
+  cleanup: CleanupTask,
+): Promise<T> => {
+  try {
+    return await start();
+  } catch (error) {
+    return await failAfterCleanups(error, [cleanup]);
+  }
+};
+
 export const waitForHealthy = async (
   request: () => Promise<Response>,
   wait: () => Promise<void>,

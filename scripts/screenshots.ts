@@ -18,7 +18,10 @@ import {
   loadScreenshotScenario,
   type ScreenshotScenario,
 } from "./screenshots/scenario.ts";
-import { waitForHealthy } from "./screenshots/server.ts";
+import {
+  startWithFailureCleanup,
+  waitForHealthy,
+} from "./screenshots/server.ts";
 import {
   findAvailablePort,
   startStripeMock,
@@ -117,10 +120,9 @@ const SCENES: Record<ScreenshotName, Scene> = {
   users: { path: at("/admin/users") },
 };
 
-const startServer = async (): Promise<AppServer> => {
-  const build = await runDeno(["task", "build:static"], ROOT);
-  if (!build.success) throw new Error("Could not build static assets.");
-  const stripeMock = await startStripeMock();
+const startAppServer = async (
+  stripeMock: Awaited<ReturnType<typeof startStripeMock>>,
+): Promise<AppServer> => {
   const tempDir = await Deno.makeTempDir({ prefix: "tickets-screenshots-" });
   const port = findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -171,8 +173,17 @@ const startServer = async (): Promise<AppServer> => {
   child.kill("SIGKILL");
   await child.status;
   await removeTree(tempDir);
-  await stripeMock.stop();
   throw new Error("The screenshot app did not start within 60 seconds.");
+};
+
+const startServer = async (): Promise<AppServer> => {
+  const build = await runDeno(["task", "build:static"], ROOT);
+  if (!build.success) throw new Error("Could not build static assets.");
+  const stripeMock = await startStripeMock();
+  return await startWithFailureCleanup(
+    () => startAppServer(stripeMock),
+    stripeMock.stop,
+  );
 };
 
 const submit = async (page: Page, formSelector: string): Promise<void> => {

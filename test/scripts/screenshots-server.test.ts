@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { waitForHealthy } from "../../scripts/screenshots/server.ts";
+import {
+  startWithFailureCleanup,
+  waitForHealthy,
+} from "../../scripts/screenshots/server.ts";
 
 const expectOneRetry = async (
   request: () => Promise<Response>,
@@ -19,6 +22,35 @@ const expectOneRetry = async (
 };
 
 describe("screenshot server", () => {
+  it("stops an acquired resource when startup fails", async () => {
+    const startupError = new Error("startup failed");
+    let stops = 0;
+
+    await expect(
+      startWithFailureCleanup(
+        () => Promise.reject(startupError),
+        () => {
+          stops += 1;
+        },
+      ),
+    ).rejects.toBe(startupError);
+    expect(stops).toBe(1);
+  });
+
+  it("leaves an acquired resource running after successful startup", async () => {
+    let stops = 0;
+
+    expect(
+      await startWithFailureCleanup(
+        () => Promise.resolve("running"),
+        () => {
+          stops += 1;
+        },
+      ),
+    ).toBe("running");
+    expect(stops).toBe(0);
+  });
+
   it("waits before retrying a non-OK response", async () => {
     const responses = [
       new Response("Starting", { status: 503 }),
