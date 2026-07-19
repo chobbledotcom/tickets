@@ -2,35 +2,20 @@ import * as v from "valibot";
 import { parseOrNull } from "./parse.ts";
 import { NonEmptyTextSchema } from "./string.ts";
 
-export interface BoundedInteger {
-  /** Clamp valid integers to the range. Malformed numbers still throw. */
-  clamp: (value: number) => number;
-  /** Require a valid integer inside the range. */
-  reject: (value: number) => number;
-}
-
 /** A safe whole number no lower than `minimum`. */
 export const integerAtLeast = (
   minimum: number,
 ): v.GenericSchema<number, number> =>
   v.pipe(v.number(), v.safeInteger(), v.minValue(minimum));
 
-/** Define explicit reject and clamp policies for one safe-integer range. */
-export const boundedInteger = (
+/** Clamp safe whole numbers to a range. Malformed numbers still throw. */
+export const clampInteger = (
   minimum: number,
   maximum: number,
-): BoundedInteger => {
+): ((value: number) => number) => {
   const integerSchema = integerAtLeast(Number.MIN_SAFE_INTEGER);
-  const rangeSchema = v.pipe(
-    integerSchema,
-    v.minValue(minimum),
-    v.maxValue(maximum),
-  );
-  return {
-    clamp: (value) =>
-      Math.max(minimum, Math.min(maximum, v.parse(integerSchema, value))),
-    reject: (value) => v.parse(rangeSchema, value),
-  };
+  return (value) =>
+    Math.max(minimum, Math.min(maximum, v.parse(integerSchema, value)));
 };
 
 /**

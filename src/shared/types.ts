@@ -18,7 +18,7 @@ import type {
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
 import { guardFor } from "#shared/validation/guard.ts";
-import { boundedInteger, integerAtLeast } from "#shared/validation/number.ts";
+import { clampInteger, integerAtLeast } from "#shared/validation/number.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
@@ -182,17 +182,15 @@ export const hasTicketQuantity = (row: { quantity: number }): boolean =>
 export const MAX_DURATION_DAYS = 90;
 
 /**
- * Booking durations use one safe-integer range with two named policies. Clamp
- * is for valid whole numbers outside the supported range. Reject is for
- * boundaries where an out-of-range value must fail instead. Neither policy
- * accepts fractions, non-finite numbers, or unsafe integers.
+ * Booking durations clamp valid whole numbers to one safe-integer range.
+ * Fractions, non-finite numbers, and unsafe integers are rejected.
  */
-const durationDays = boundedInteger(1, MAX_DURATION_DAYS);
+const clampBookingDuration = clampInteger(1, MAX_DURATION_DAYS);
 
 /** Clamp a valid whole-day count to the supported booking range. */
 export const clampDurationDays = (value: number): number => {
   try {
-    return durationDays.clamp(value);
+    return clampBookingDuration(value);
   } catch (error) {
     throw new Error(`Invalid booking duration: ${String(value)}`, {
       cause: error,

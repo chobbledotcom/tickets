@@ -1,44 +1,32 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  boundedInteger,
+  clampInteger,
   parseNonNegativeInt,
   parsePositiveInt,
   parsePositiveIntId,
 } from "#shared/validation/number.ts";
 
-describe("boundedInteger", () => {
-  const days = boundedInteger(1, 90);
+describe("clampInteger", () => {
+  const clampDays = clampInteger(1, 90);
 
-  test("reject policy accepts safe integers within the range", () => {
-    expect(days.reject(1)).toBe(1);
-    expect(days.reject(45)).toBe(45);
-    expect(days.reject(90)).toBe(90);
+  test("clamps valid integers outside the range", () => {
+    expect(clampDays(-2)).toBe(1);
+    expect(clampDays(500)).toBe(90);
   });
 
-  test("reject policy rejects integers outside the range", () => {
-    expect(() => days.reject(0)).toThrow();
-    expect(() => days.reject(91)).toThrow();
+  test("leaves valid integers within the range unchanged", () => {
+    expect(clampDays(37)).toBe(37);
   });
 
-  test("clamp policy clamps valid integers outside the range", () => {
-    expect(days.clamp(-2)).toBe(1);
-    expect(days.clamp(500)).toBe(90);
-  });
-
-  test("clamp policy leaves valid integers within the range unchanged", () => {
-    expect(days.clamp(37)).toBe(37);
-  });
-
-  test("both policies reject malformed numbers", () => {
+  test("rejects malformed numbers", () => {
     for (const value of [
       1.5,
       Number.NaN,
       Number.POSITIVE_INFINITY,
       Number.MAX_SAFE_INTEGER + 1,
     ]) {
-      expect(() => days.reject(value)).toThrow();
-      expect(() => days.clamp(value)).toThrow();
+      expect(() => clampDays(value)).toThrow();
     }
   });
 });
