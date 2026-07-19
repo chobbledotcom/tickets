@@ -241,7 +241,20 @@ src/shared/db/attendees/capacity/groups.ts:166:55  ?? → ||   # membership.get(
 src/shared/db/attendees/capacity/groups.ts:178:39  ?? → ||   # membership.get(): number[]|undefined — an array is always truthy
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:168:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:539:16  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:598:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
+
+# Built-site form writes cannot change assignment/renewal state, so omitted raw
+# inputs preserve the same defaults/current values. Blob strings are either
+# truthy or have the same falsy fallback.
+src/shared/db/built-sites.ts:163:57  ?? → ||   # assigned IDs are positive generated IDs or null; renewal indexes are non-empty HMAC strings or null
+src/shared/db/built-sites.ts:178:15  assignedAttendeeId → ""   # not in BuiltSiteFormInput; inserts default null and form updates preserve the existing raw value
+src/shared/db/built-sites.ts:186:15  assignedListingId → ""   # not in BuiltSiteFormInput; inserts default null and form updates preserve the existing raw value
+src/shared/db/built-sites.ts:194:15  readOnlyFrom → ""   # not in BuiltSiteFormInput; inserts default "" and form updates preserve the existing raw value
+src/shared/db/built-sites.ts:202:15  renewalTokenIndex → ""   # not in BuiltSiteFormInput; inserts default null and form updates preserve the existing raw value
+src/shared/db/built-sites.ts:377:71  ?? → ||   # blob input strings use "" as their fallback, providers are non-empty, and renewalToken uses null
+src/shared/db/built-sites.ts:391:54  ?? → ||   # validated optional strings use "" as their fallback, providers are non-empty, and renewalToken is null or non-empty
 
 # Settings registry: readOnly is optional but can only be true when present, so
 # `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`

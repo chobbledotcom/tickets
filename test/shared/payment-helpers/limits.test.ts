@@ -218,6 +218,12 @@ describe("payment-helpers", () => {
   });
 
   describe("metadata packing codec", () => {
+    test("packs one balance attendee id", () => {
+      expect(packMetadata({ balance_attendee_id: "42" })).toEqual({
+        b: '{"balance_attendee_id":"42"}',
+      });
+    });
+
     test("packs the small fields into one `b` entry and drops them", () => {
       const packed = packMetadata({
         _origin: "x",
@@ -306,5 +312,9 @@ describe("payment-helpers", () => {
       expect(extracted.phone).toBe("");
       expect(extracted.date).toBe("2026-07-01");
     });
+  });
+
+  test("an absent option field fits a zero-length limit", () => {
+    expect(enforceMetadataLimits({}, 0)).toEqual({});
   });
 });

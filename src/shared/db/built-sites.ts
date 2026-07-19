@@ -75,7 +75,7 @@ const SiteDataBlobSchema = v.strictObject({
   s: OptionalStringSchema,
   t: OptionalStringSchema,
   u: v.string(),
-  v: v.literal(SITE_DATA_BLOB_VERSION),
+  v: v.optional(v.literal(SITE_DATA_BLOB_VERSION), SITE_DATA_BLOB_VERSION),
 });
 export type SiteDataBlob = v.InferOutput<typeof SiteDataBlobSchema>;
 const siteDataJson = defineStoredJson(SiteDataBlobSchema);

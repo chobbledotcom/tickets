@@ -310,5 +310,15 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         ).rejects.toThrow("Invalid stored JSON in listings.day_prices row 7");
       }
     });
+
+    test("rejects colliding canonical and leading-zero day keys", async () => {
+      await expect(
+        rawListingsTable.readColumn(
+          "day_prices",
+          '{"01":100,"1":200}' as unknown as DayPrices,
+          7,
+        ),
+      ).rejects.toThrow("Invalid stored JSON in listings.day_prices row 7");
+    });
   });
 });

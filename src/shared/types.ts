@@ -200,9 +200,6 @@ export const clampDurationDays = (value: number): number => {
   }
 };
 
-/** Reject any value that is not a whole day count in the supported range. */
-export const rejectDurationDays = durationDays.reject;
-
 /**
  * Per-day-count ticket prices for "customisable days" listings, in minor
  * units, keyed by the number of days booked. e.g. `{ 1: 1000, 2: 1800 }`
@@ -213,7 +210,7 @@ export type DayPrices = Record<number, number>;
 
 const DayPriceKeySchema = v.pipe(
   v.string(),
-  v.regex(/^\d+$/),
+  v.regex(/^[1-9]\d*$/),
   v.check((value) => {
     const days = Number(value);
     return days >= 1 && days <= MAX_DURATION_DAYS;

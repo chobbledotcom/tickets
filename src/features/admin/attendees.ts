@@ -205,9 +205,9 @@ const buildCreateAttendeeInput = (
   const { name, email, phone, address, special_instructions, quantity, date } =
     values;
   const isDaily = listing.listing_type === "daily";
-  // Customisable daily bookings span the admin's chosen day count (a required,
-  // options-constrained field; any odd value is clamped downstream by
-  // clampDurationDays); other daily bookings use the fixed duration.
+  // Customisable daily bookings span the admin's chosen day count. The shared
+  // boundary clamps whole numbers outside its range and rejects malformed
+  // numbers. Other daily bookings use the fixed duration.
   const durationDays = listing.customisable_days
     ? Number(values.day_count)
     : listing.duration_days;

@@ -80,6 +80,10 @@ describe("parseNonNegativeInt", () => {
       expect(parseNonNegativeInt(value)).toBeNull();
     }
   });
+
+  test("rejects integers above JavaScript's safe range", () => {
+    expect(parseNonNegativeInt(String(Number.MAX_SAFE_INTEGER + 1))).toBeNull();
+  });
 });
 
 describe("parsePositiveInt", () => {
