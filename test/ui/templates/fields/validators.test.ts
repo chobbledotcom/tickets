@@ -29,6 +29,9 @@ describe("fields validators", () => {
     test("accepts a well-formed address", () => {
       accepts(validateEmail, "person@example.com");
     });
+    test("accepts uppercase address parts", () => {
+      accepts(validateEmail, "Person@Example.COM");
+    });
     for (const bad of ["", "notanemail", "missing@domain", "@example.com"]) {
       test(`rejects ${JSON.stringify(bad)}`, () => rejects(validateEmail, bad));
     }
