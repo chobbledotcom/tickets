@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-run=git
+#!/usr/bin/env -S deno run --allow-env=PATH --allow-run=git
 /**
  * Count the changed lines of a branch's diff, split by area (src / test / other)
  * and by whether the line is real code or just an import / comment / blank.
@@ -6,7 +6,7 @@
  * only runs `git diff` and prints.
  *
  * Usage:
- *   deno run --allow-run=git scripts/diff-code-lines.ts [baseRef]
+ *   deno run --allow-env=PATH --allow-run=git scripts/diff-code-lines.ts [baseRef]
  *
  * `baseRef` defaults to `origin/main`; the diff is `baseRef...HEAD` (the
  * branch's own changes since it forked, ignoring later commits on the base).
@@ -17,8 +17,11 @@ import { runCommand } from "./precommit/git.ts";
 
 const runGitDiff = async (base: string): Promise<string> => {
   // --unified=0: only changed lines, no surrounding context to misclassify.
+  const path = Deno.env.get("PATH");
+  if (path === undefined) throw new Error("PATH is required to run Git");
   const result = await runCommand(["git", ...gitDiffArgs(base)], {
     clearEnv: true,
+    env: { PATH: path },
   });
   if (!result.success) {
     throw new Error(`git diff failed: ${result.stderr}`);

@@ -20,7 +20,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { lazyRef, ttlCache, unique } from "#fp";
+import { lazyRef, mapNotNullish, ttlCache, unique } from "#fp";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 import { nowMs } from "#shared/now.ts";
@@ -116,9 +116,15 @@ export const createKeyedCache = <T>(
     fetchRows: ((keys: Key[]) => Promise<T[]>) | undefined,
     keyOfRow: (row: T) => Key,
   ): Promise<(T | null)[]> => {
-    const loaded = new Map<Key, T>();
+    const uniqueKeys = unique(keys);
+    const loaded = new Map(
+      mapNotNullish((key: Key): [Key, T] | null => {
+        const row = cache.get(key);
+        return row === undefined ? null : [key, row];
+      })(uniqueKeys),
+    );
     if (fetchRows) {
-      const missing = unique(keys).filter((key) => !cache.get(key));
+      const missing = uniqueKeys.filter((key) => !loaded.has(key));
       if (missing.length > 0) {
         const gen = generation;
         const rows = await primaryRefill.fetch(() => fetchRows(missing));
@@ -129,7 +135,7 @@ export const createKeyedCache = <T>(
     } else {
       await getAll();
     }
-    return keys.map((key) => cache.get(key) ?? loaded.get(key) ?? null);
+    return keys.map((key) => loaded.get(key) ?? cache.get(key) ?? null);
   };
 
   const getByIds = (ids: number[]): Promise<(T | null)[]> =>

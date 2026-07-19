@@ -9,7 +9,7 @@ export interface CommandResult {
 
 export type RunCommand = (
   cmd: string[],
-  options?: { clearEnv?: boolean; cwd?: string },
+  options?: { clearEnv?: boolean; cwd?: string; env?: Record<string, string> },
 ) => Promise<CommandResult>;
 
 /** Split a command into [executable, args], rejecting an empty command. */

@@ -102,6 +102,25 @@ describe("db > keyed-cache", () => {
     expect(calls.byIds).toEqual([[2, 99, 1]]);
   });
 
+  test("getByIds keeps a cache hit that expires while misses load", async () => {
+    const { base } = makeFetchers([row(1), row(2)]);
+    const cache = createKeyedCache({
+      ...base,
+      fetchByIds: async (ids) => {
+        if (ids.includes(2)) clock += 2;
+        return base.fetchByIds!(ids);
+      },
+      now,
+      ttlMs: 1000,
+    });
+    await cache.getById(1);
+    clock = 1999;
+
+    expect(
+      (await cache.getByIds([1, 2])).map((item) => item?.id ?? null),
+    ).toEqual([1, 2]);
+  });
+
   test("getByKey fetches by key, then serves from cache, without loading all", async () => {
     const { cache, calls } = build([row(1), row(2)]);
     expect((await cache.getByKey("k2"))?.id).toBe(2);
