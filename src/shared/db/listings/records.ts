@@ -21,6 +21,7 @@ import { envNameSource, rowsByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type {
   DayPrices,
   ItemImageProjection,
@@ -202,9 +203,12 @@ export const getAllListingOptions = (): Promise<ListingOption[]> =>
 export const listingNames = envNameSource("listings", "listing");
 
 /** Read required listings in input order through the shared cache path. */
-export const requireListingsWithCountsByIds = (
+export const requireListingsWithCountsByIds = async (
   ids: number[],
-): Promise<ListingWithCount[]> => listingsCache.requireByIds(ids);
+): Promise<ListingWithCount[]> =>
+  (await listingsCache.getByIds(ids)).map((listing, index) =>
+    requireValue(listing, `Listing not found: ${ids[index]}`),
+  );
 
 /** Read listings in input order, retaining nulls for expected missing rows. */
 export const getListingsWithCountsByIds = (
@@ -214,11 +218,8 @@ export const getListingsWithCountsByIds = (
 /** Read one required listing through the shared many-listing path. */
 export const requireListingWithCount = async (
   id: number,
-): Promise<ListingWithCount> => {
-  const listing = await listingsCache.getById(id);
-  if (listing === null) throw new Error(`Listing not found: ${id}`);
-  return listing;
-};
+): Promise<ListingWithCount> =>
+  (await requireListingsWithCountsByIds([id]))[0]!;
 
 /** Read one listing when absence is expected. */
 export const getListingWithCount = (

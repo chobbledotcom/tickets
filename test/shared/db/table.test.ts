@@ -198,22 +198,6 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(await table.findByIds([])).toEqual([]);
   });
 
-  test("defineTable required singular lookups return existing rows", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
-    const listing = await createTestListing({ name: "Required" });
-    const table = buildListingsTestTable<{ name: string }>(col, defineTable);
-    expect((await table.requireById(listing.id)).id).toBe(listing.id);
-    expect((await table.requireByIdPrimary!(listing.id)).id).toBe(listing.id);
-  });
-
-  test("defineTable names missing required ids", async () => {
-    const { col, defineTable } = await import("#shared/db/table.ts");
-    const table = buildListingsTestTable<{ name: string }>(col, defineTable);
-    await expect(table.requireByIds([999_998, 999_999])).rejects.toThrow(
-      "Required listings rows for id do not exist: 999998, 999999",
-    );
-  });
-
   test("defineTable.update with no changes returns existing row", async () => {
     const { col, defineTable } = await import("#shared/db/table.ts");
 

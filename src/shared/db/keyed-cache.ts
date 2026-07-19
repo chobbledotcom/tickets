@@ -24,7 +24,6 @@ import { lazyRef, ttlCache, unique } from "#fp";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 import { nowMs } from "#shared/now.ts";
-import { requireFound } from "#shared/required-lookups.ts";
 
 /* jscpd:ignore-end */
 
@@ -36,10 +35,6 @@ export type KeyedCache<T> = {
   getByKey: (key: string) => Promise<T | null>;
   getByKeys: (keys: string[]) => Promise<(T | null)[]>;
   invalidate: (cause?: CacheInvalidation) => void;
-  requireById: (id: number) => Promise<T>;
-  requireByIds: (ids: number[]) => Promise<T[]>;
-  requireByKey: (key: string) => Promise<T>;
-  requireByKeys: (keys: string[]) => Promise<T[]>;
   size: () => number;
 };
 
@@ -71,7 +66,6 @@ export type KeyedCacheConfig<T> = {
 
 export const createKeyedCache = <T>(
   config: KeyedCacheConfig<T>,
-  name = "cached",
 ): KeyedCache<T> => {
   const { idOf, keyOf, fetchAll, fetchByIds, fetchByKeys, ttlMs } = config;
   const now = config.now ?? nowMs;
@@ -144,12 +138,6 @@ export const createKeyedCache = <T>(
   const getById = async (id: number): Promise<T | null> =>
     (await getByIds([id]))[0] ?? null;
 
-  const requireByIds = async (ids: number[]): Promise<T[]> =>
-    requireFound(ids, await getByIds(ids), `${name} rows for ids`);
-
-  const requireById = async (id: number): Promise<T> =>
-    (await requireByIds([id]))[0]!;
-
   // Resolve a batch of secondary keys, fetching only the misses in one query,
   // so a caller never loads more rows than it asked for. Small tables omit
   // fetchByKeys and instead resolve against the whole-set load.
@@ -158,12 +146,6 @@ export const createKeyedCache = <T>(
 
   const getByKey = async (key: string): Promise<T | null> =>
     (await getByKeys([key]))[0] ?? null;
-
-  const requireByKeys = async (keys: string[]): Promise<T[]> =>
-    requireFound(keys, await getByKeys(keys), `${name} rows for keys`);
-
-  const requireByKey = async (key: string): Promise<T> =>
-    (await requireByKeys([key]))[0]!;
 
   return {
     getAll,
@@ -178,10 +160,6 @@ export const createKeyedCache = <T>(
       byKey.clear();
       setFull(null);
     },
-    requireById,
-    requireByIds,
-    requireByKey,
-    requireByKeys,
     size: () => byId.size(),
   };
 };

@@ -102,26 +102,6 @@ describe("db > keyed-cache", () => {
     expect(calls.byIds).toEqual([[2, 99, 1]]);
   });
 
-  test("requireById throws with the missing id", async () => {
-    const { cache } = build([row(1)]);
-    await expect(cache.requireById(99)).rejects.toThrow(
-      "Required cached rows for ids do not exist: 99",
-    );
-  });
-
-  test("required singular lookups return existing rows through their batch path", async () => {
-    const { cache } = build([row(1)]);
-    expect((await cache.requireById(1)).id).toBe(1);
-    expect((await cache.requireByKey("k1")).id).toBe(1);
-  });
-
-  test("requireByKeys names missing keys", async () => {
-    const { cache } = build([row(1)]);
-    await expect(cache.requireByKeys(["k1", "missing"])).rejects.toThrow(
-      "Required cached rows for keys do not exist: missing",
-    );
-  });
-
   test("getByKey fetches by key, then serves from cache, without loading all", async () => {
     const { cache, calls } = build([row(1), row(2)]);
     expect((await cache.getByKey("k2"))?.id).toBe(2);

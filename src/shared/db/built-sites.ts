@@ -504,11 +504,6 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     value: BuiltSite[K],
   ): Promise<BuiltSite[K]> => Promise.resolve(value),
 
-  requireById: async (id: InValue): Promise<BuiltSite> =>
-    rowToBuiltSite(await rawBuiltSitesTable.requireById(id)),
-
-  requireByIds: async (ids: InValue[]): Promise<BuiltSite[]> =>
-    (await rawBuiltSitesTable.requireByIds(ids)).map(rowToBuiltSite),
   // The CRUD adapter is a façade over the raw table — the built-site blob
   // is always reconstructed from BuiltSiteFormInput, so rowToInput just picks
   // the exposed camelCase fields off an already-decrypted BuiltSite.

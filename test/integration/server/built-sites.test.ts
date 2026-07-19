@@ -524,7 +524,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       expect(found).not.toBeNull();
     });
 
-    test("table lookups preserve missing rows and require existing rows", async () => {
+    test("table lookups preserve missing rows", async () => {
       const site = await createTestBuiltSite({ name: "Lookup Site" });
       const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
       expect(
@@ -532,10 +532,6 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
           (row) => row?.id ?? null,
         ),
       ).toEqual([site.id, null]);
-      expect((await builtSitesCrudTable.requireById(site.id)).id).toBe(site.id);
-      expect((await builtSitesCrudTable.requireByIds([site.id]))[0]?.id).toBe(
-        site.id,
-      );
     });
 
     test("name confirmation is case-insensitive", async () => {

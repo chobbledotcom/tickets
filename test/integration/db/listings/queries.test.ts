@@ -12,6 +12,7 @@ import {
   getStoredListingsWithCountsByIds,
   getStoredListingWithCount,
   listingNames,
+  requireListingsWithCountsByIds,
   requireListingWithCount,
 } from "#shared/db/listings/records.ts";
 import {
@@ -265,6 +266,12 @@ describeWithEnv(
       await expect(requireListingWithCount(99999)).rejects.toThrow(
         "Listing not found: 99999",
       );
+    });
+
+    test("required listing batch names the first missing listing", async () => {
+      await expect(
+        requireListingsWithCountsByIds([99998, 99999]),
+      ).rejects.toThrow("Listing not found: 99998");
     });
   },
 );

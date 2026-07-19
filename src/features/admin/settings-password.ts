@@ -9,8 +9,9 @@ import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
-import { requireUserById, verifyUserPassword } from "#shared/db/users.ts";
+import { getUserById, verifyUserPassword } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { ok } from "#shared/response.ts";
 import { getChangePasswordForm } from "#templates/fields/admin.ts";
 
@@ -62,7 +63,10 @@ export const handleAdminSettingsPost = settingsRoute(
     }
 
     // Load current user (guaranteed to exist since session was just validated)
-    const user = await requireUserById(session.userId);
+    const user = requireValue(
+      await getUserById(session.userId),
+      `User ${session.userId} does not exist`,
+    );
 
     const passwordHash = await verifyUserPassword(
       user,

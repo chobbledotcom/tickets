@@ -42,7 +42,7 @@ export const cachedEntityTable = <Row, Input, Cached = Row>(
   config: KeyedCacheConfig<Cached>,
   dependsOn: readonly DependsOnEntry[] = [],
 ): { cache: KeyedCache<Cached>; table: Table<Row, Input> } => {
-  const cache = createKeyedCache(config, name);
+  const cache = createKeyedCache(config);
   registerCache(() => ({ entries: cache.size(), name }));
   registerDependencies(table.name, dependsOn, cache.invalidate);
   return { cache, table };

@@ -20,6 +20,7 @@ import {
 import type { NamedSortOrderInput } from "#shared/db/common-schema.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#shared/db/table.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
@@ -96,13 +97,11 @@ export const getAttendeeStatus = (id: number): Promise<AttendeeStatus | null> =>
 /** Get the status carrying a required default flag. */
 const getFlaggedStatus =
   (flag: "is_public_default" | "is_paid_default") =>
-  async (): Promise<AttendeeStatus> => {
-    const status = await findStatus((item) => item[flag]);
-    if (status === null) {
-      throw new Error(`No attendee status has the required ${flag} flag`);
-    }
-    return status;
-  };
+  async (): Promise<AttendeeStatus> =>
+    requireValue(
+      await findStatus((item) => item[flag]),
+      `No attendee status has the required ${flag} flag`,
+    );
 
 /** The status new public bookings start in. */
 export const requirePublicDefaultStatus = getFlaggedStatus("is_public_default");

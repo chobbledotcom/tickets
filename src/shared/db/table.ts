@@ -21,14 +21,12 @@ import {
   queryAll,
   queryOne,
   queryOnePrimary,
-  requireOnePrimary,
   resultRows,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import { requireFound } from "#shared/required-lookups.ts";
 
 /**
  * Column definition for a table
@@ -144,15 +142,6 @@ export interface Table<Row, Input> {
   primaryKey: keyof Row & string;
 
   readColumn: ReadColumn<Row>;
-
-  /** Find a required row by primary key. */
-  requireById: (id: InValue) => Promise<Row>;
-
-  /** Find a required row on the primary. */
-  requireByIdPrimary?: (id: InValue) => Promise<Row>;
-
-  /** Find required rows by primary key in input order. */
-  requireByIds: (ids: InValue[]) => Promise<Row[]>;
 
   /**
    * Build an Input object from an existing Row by copying the input-eligible
@@ -603,20 +592,11 @@ export const defineTable = <Row, Input = Row>(
     );
   };
 
-  const requireByIds = async (ids: InValue[]): Promise<Row[]> =>
-    requireFound(ids, await findByIds(ids), `${name} rows for ${primaryKey}`);
-
   const findById = async (id: InValue): Promise<Row | null> =>
     (await findByIds([id]))[0] ?? null;
 
-  const requireById = async (id: InValue): Promise<Row> =>
-    (await requireByIds([id]))[0]!;
-
   const findByIdPrimary = (id: InValue): Promise<Row | null> =>
     findByIdVia(queryOnePrimary, id);
-
-  const requireByIdPrimary = (id: InValue): Promise<Row> =>
-    findByIdVia(requireOnePrimary, id) as Promise<Row>;
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
@@ -664,9 +644,6 @@ export const defineTable = <Row, Input = Row>(
     name,
     primaryKey,
     readColumn,
-    requireById,
-    requireByIdPrimary,
-    requireByIds,
     rowToInput,
     schema,
     toDbValues,
