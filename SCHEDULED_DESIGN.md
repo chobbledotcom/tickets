@@ -18,7 +18,7 @@ This PR includes:
 - one durable, atomic task-claim mechanism
 - one declarative local maintenance registry
 - migration of current pruning and activity-log backfill to that registry
-- owner access to the site's key and host-operated provisioning and rotation
+- owner access to the site's key and host-operated provisioning
 - generic time and subrequest budgets
 
 This PR excludes:
@@ -27,7 +27,7 @@ This PR excludes:
 - payment-provider calls or provider-specific task costs
 - checkout reconciliation or refund recovery
 - durable booking-completion effects
-- a child-to-builder secret-rotation control plane
+- scheduler-key rotation or Uptime Kuma integration
 - implementation of the external monitoring service
 
 The later payment PR only registers new tasks with the shared registry.
@@ -81,11 +81,9 @@ The special path never buffers or reads a request body. Local process-start boot
 validation may still prevent a broken development server from listening; it is
 not request-triggered work.
 
-Accept `SCHEDULED_TASK_KEY` and, during rotation, optional
-`SCHEDULED_TASK_KEY_NEXT`. Each configured value must be the canonical unpadded
-base64url encoding of exactly 32 bytes. Unset primary disables the endpoint;
-blank, malformed, duplicate, or incorrectly sized values fail boot validation.
-Either valid slot authenticates during rotation.
+`SCHEDULED_TASK_KEY` must be the canonical unpadded base64url encoding of exactly
+32 bytes. Unset disables the endpoint; blank, malformed, or incorrectly sized
+values fail boot validation.
 
 ## One maintenance registry
 
@@ -219,40 +217,30 @@ the same value. Split create, configure, and publish orchestration as needed so
 the builder durably stores the generated key before the child becomes live. A
 failed final builder write must not publish a child whose only key copy is lost.
 
-Store key material only in:
+Store the key only in:
 
-- the child site's native `SCHEDULED_TASK_KEY` and temporary
-  `SCHEDULED_TASK_KEY_NEXT` secrets
+- the child site's native `SCHEDULED_TASK_KEY` secret
 - the builder's validated, versioned encrypted site-data blob
 
-Use two separate displays. The child owner page reads its local native active key
-on an authenticated owner-only, no-store page so that owner can configure a
-monitor. The builder owner page reads encrypted active and pending values and
-owns host provisioning and rotation. Never put either key in a URL, flash
-cookie, activity message, response log, or system note.
+Use two separate displays. The child owner page reads its local native key on an
+authenticated owner-only, no-store page so that owner can configure a monitor.
+The builder owner page reads the encrypted value and owns host provisioning.
+Never put the key in a URL, flash cookie, activity message, response log, or
+system note.
 
-The builder or hosting operator rotates native secrets. Do not add a
-child-to-builder control plane. Rotation uses two accepted slots and explicit,
-fenced phases:
+Provide an explicit owner action to provision an existing site. Provider
+secret-list APIs expose names, not values, so the encrypted parent copy is
+required for builder display and retry. Treat a host secret name with no parent
+value as an explicit replace/import conflict, never as proof of the unknown
+value.
 
-1. Atomically generate or reuse one pending key in encrypted site data.
-2. Push that exact value as `SCHEDULED_TASK_KEY_NEXT`.
-3. Verify the pending bearer against the live child and require an empty 204.
-4. Let the operator move the external monitor to the pending key.
-5. On explicit promotion, replace the primary native key with pending and clear
-   the next slot, then promote the same parent value.
-6. Reuse pending after every failure; never generate on each retry.
-
-Provide explicit owner actions to provision an existing site and rotate a
-configured site. Provider secret-list APIs expose names, not values, so the
-encrypted parent copy is required for builder display and retry. Compare-and-set
-or a transaction prevents concurrent rotations from creating or promoting
-different values. Treat a host secret name with no parent value as an explicit
-replace/import conflict, never as proof of the unknown value.
+Do not build coordinated rotation here. The upcoming Uptime Kuma integration
+will replace the monitor and site key together in one owner action. Until then,
+a hosting operator can manually replace a compromised key and update the
+monitor; a short maintenance-monitor outage during that emergency is acceptable.
 
 Standalone sites set the native secret through their hosting operator. Their
-owner page reads the configured value for monitor setup but cannot rotate the
-hosting environment itself.
+owner page reads the configured value for monitor setup.
 
 ## Abuse controls
 
@@ -269,13 +257,13 @@ Authentication alone is not enough. Use all of these controls:
 
 A stolen valid key can still create edge invocations and cheap claim attempts.
 The durable interval gate prevents repeated valid pings from becoming repeated
-task work. Host rotation contains the app credential. Configure provider-specific
-edge rate limiting separately where the host supports it; Deno and Bunny do not
-share one application control for this.
+task work. Configure provider-specific edge rate limiting separately where the
+host supports it; Deno and Bunny do not share one application control for this.
 
 ## Rollout
 
-1. Deploy the builder/main code that can generate, store, show, and rotate keys.
+1. Deploy the builder/main code that can generate, store, show, and provision
+   keys.
 2. Provision unique keys on existing children while their old code harmlessly
    ignores the extra secret.
 3. Register each monitor target in a paused state.
@@ -296,14 +284,12 @@ registry, so a missed provisioning step does not stop all maintenance.
 - Read-only mode permits a valid scheduled POST.
 - The special boundary never reads a body and request data cannot select work.
 - The normal app router cannot serve `/scheduled` directly.
-- Boot validation requires canonical 32-byte base64url primary and next keys.
+- Boot validation requires one canonical 32-byte base64url key.
 - Two new built sites receive different keys before publish.
 - The key is absent from logs, URLs, flashes, notes, and plaintext site columns.
-- Only an owner can view the current key or request host-operated rotation.
+- Only an owner can view the current key or request host provisioning.
 - A failed builder database write cannot publish a child and lose its only key.
-- Failed push or verification retains one pending key and retries the same value.
-- Active and next keys both authenticate during rotation; concurrent rotations
-  cannot fork or promote different pending values.
+- Failed provisioning retains one encrypted key and retries the same value.
 - A missing task row claims once; an immediate second claim loses.
 - Concurrent isolate claims produce exactly one winner.
 - A fresh task lease cannot be stolen; an expired lease can be reclaimed.
