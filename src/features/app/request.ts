@@ -56,6 +56,7 @@ import {
 } from "#shared/logger.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
+import { requestScopedHandler } from "../request-scopes.ts";
 import { defineAppRoute, routeMainApp } from "./routes.ts";
 import {
   bufferRequestIfNeeded,
@@ -224,8 +225,8 @@ const handleRoutingError = (
   return temporaryErrorResponse();
 };
 
-/** Run the request pipeline inside the request-scoped contexts from index.ts. */
-export const processRequest = async (
+/** Run the application request pipeline. */
+const processRequest = async (
   request: Request,
   server: ServerContext | undefined,
 ): Promise<Response> => {
@@ -286,3 +287,6 @@ export const processRequest = async (
   await runOrganicMaintenanceAfterResponse(method, path, response);
   return response;
 };
+
+/** Handle one request inside every request-scoped store. */
+export const handleRequest = requestScopedHandler(processRequest);

@@ -228,7 +228,6 @@ export const testBuiltSite = (
   renewalToken: null,
   renewalTokenIndex: null,
   scheduledTaskKey: null,
-  scheduledTaskKeyNext: null,
   siteDataRevision: 0,
   siteUrl: "https://test.b-cdn.net",
   updates: "release",

@@ -9,10 +9,7 @@ import {
 } from "#templates/admin/built-sites/panels.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
-import {
-  TEST_SCHEDULED_KEY,
-  TEST_SCHEDULED_NEXT_KEY,
-} from "#test-utils/scheduled.ts";
+import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 describe("built site maintenance panel", () => {
   beforeAll(async () => {
@@ -33,13 +30,12 @@ describe("built site maintenance panel", () => {
     expect(html).not.toContain("stage-scheduler");
   });
 
-  test("offers rotation when the site has an active key", () => {
+  test("shows the active key without replacement actions", () => {
     const html = String(
       MaintenancePanel({
         site: testBuiltSite({
           id: 42,
           scheduledTaskKey: TEST_SCHEDULED_KEY,
-          scheduledTaskKeyNext: null,
         }),
       }),
     );
@@ -48,30 +44,9 @@ describe("built site maintenance panel", () => {
     expect(html).toContain(
       `<strong>Active key</strong> <code>${TEST_SCHEDULED_KEY}</code>`,
     );
-    expect(html).toContain("/admin/built-sites/42/stage-scheduler");
-    expect(html).toContain("Create and verify next key");
+    expect(html).not.toContain("provision-scheduler");
+    expect(html).not.toContain("stage-scheduler");
     expect(html).not.toContain("promote-scheduler");
-  });
-
-  test("offers verification and promotion for a pending key", () => {
-    const html = String(
-      MaintenancePanel({
-        site: testBuiltSite({
-          id: 42,
-          scheduledTaskKey: TEST_SCHEDULED_KEY,
-          scheduledTaskKeyNext: TEST_SCHEDULED_NEXT_KEY,
-        }),
-      }),
-    );
-
-    expect(html).toContain(`<code>${TEST_SCHEDULED_NEXT_KEY}</code>`);
-    expect(html).toContain(
-      `<strong>Next key</strong> <code>${TEST_SCHEDULED_NEXT_KEY}</code>`,
-    );
-    expect(html).toContain("/admin/built-sites/42/stage-scheduler");
-    expect(html).toContain("Verify next key again");
-    expect(html).toContain("/admin/built-sites/42/promote-scheduler");
-    expect(html).toContain("Promote next key");
   });
 });
 

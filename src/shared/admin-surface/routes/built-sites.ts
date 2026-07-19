@@ -60,18 +60,6 @@ export const routes = [
     "/admin/built-sites/:id/provision-scheduler",
   ),
   route(
-    "postBuiltSitesByIdStageScheduler",
-    "builtSites",
-    "POST",
-    "/admin/built-sites/:id/stage-scheduler",
-  ),
-  route(
-    "postBuiltSitesByIdPromoteScheduler",
-    "builtSites",
-    "POST",
-    "/admin/built-sites/:id/promote-scheduler",
-  ),
-  route(
     "postBuiltSitesByIdReSyncDeadline",
     "builtSites",
     "POST",

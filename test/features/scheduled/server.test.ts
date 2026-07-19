@@ -13,7 +13,6 @@ import {
   expectScheduledResponse,
   scheduledAuthorization,
   TEST_SCHEDULED_KEY,
-  TEST_SCHEDULED_NEXT_KEY,
 } from "#test-utils/scheduled.ts";
 import { resetSentry } from "#test-utils/sentry.ts";
 
@@ -31,7 +30,6 @@ describeWithEnv(
     db: true,
     env: {
       SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
-      SCHEDULED_TASK_KEY_NEXT: TEST_SCHEDULED_NEXT_KEY,
     },
   },
   () => {
@@ -39,13 +37,6 @@ describeWithEnv(
 
     test("runs authenticated local maintenance through the production handler", async () => {
       await expectScheduledResponse(await scheduled(), 204);
-    });
-
-    test("accepts the next key during rotation", async () => {
-      await expectScheduledResponse(
-        await scheduled(TEST_SCHEDULED_NEXT_KEY),
-        204,
-      );
     });
 
     test("returns 503 until site setup is complete", async () => {

@@ -98,38 +98,27 @@ const fetchAppEnvVars = async (
  * (Re-sending existing secrets risks clearing them: the GET response masks
  * secret values, so a round-trip GET→merge→PATCH would PATCH with empty values.)
  */
-const envVar = ([key, value]: [string, string | null]) => ({
+const envVar = ([key, value]: [string, string]) => ({
   contexts: ["production"],
   key,
   secret: true,
   value,
 });
 
-const patchEnvVars = async (
-  appId: string,
-  values: [string, string | null][],
-  label: string,
-) => {
+const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
   const patchRes = await fetchText(
     `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
     {
-      body: JSON.stringify({ env_vars: values.map(envVar) }),
+      body: JSON.stringify({ env_vars: secrets.map(envVar) }),
       headers: denoApiHeaders(),
       method: "PATCH",
     },
   );
 
-  return patchRes.ok ? { ok: true as const } : parseApiError(patchRes, label);
+  return patchRes.ok
+    ? { ok: true as const }
+    : parseApiError(patchRes, "Set app env vars");
 };
-
-const setEnvVarsImpl = (appId: string, secrets: [string, string][]) =>
-  patchEnvVars(appId, secrets, "Set app env vars");
-
-const promoteEnvVarsImpl = async (
-  appId: string,
-  primary: [string, string],
-  removeName: string,
-) => patchEnvVars(appId, [primary, [removeName, null]], "Promote app env vars");
 
 /**
  * Deploy code to a Deno Deploy app (production deployment).
@@ -181,7 +170,6 @@ export const denoDeployApi = {
   createApp: createAppImpl,
   deployCode: deployCodeImpl,
   getEnvVarNames: getEnvVarNamesImpl,
-  promoteEnvVars: promoteEnvVarsImpl,
   setEnvVars: setEnvVarsImpl,
 };
 
@@ -206,8 +194,6 @@ export const denoHostingProvider: HostingProviderApi = {
   configEnvVar: "DENO_DEPLOY_TOKEN",
   getSecretNames: (hostingId) => denoDeployApi.getEnvVarNames(hostingId),
   prepareSite: prepareDenoSiteImpl,
-  promoteSecrets: (hostingId, primary, removeName) =>
-    denoDeployApi.promoteEnvVars(hostingId, primary, removeName),
   publishSite: async (hostingId, code) => {
     const result = await denoDeployApi.deployCode(hostingId, code);
     return result.ok ? { ok: true } : result;

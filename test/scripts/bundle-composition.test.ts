@@ -126,7 +126,7 @@ describe("bundle composition model", () => {
       ["../src/shared/db/client.ts", "Shared database code"],
       ["../src/ui/templates/layout.tsx", "Shared UI templates"],
       ["../src/shared/currency.ts", "Shared domain and runtime"],
-      ["../src/features/index.ts", "Other features and routing"],
+      ["../src/features/app/request.ts", "Other features and routing"],
       ["../src/edge.ts", "Entry and root modules"],
     ] as const;
     expect(examples.map(([source]) => applicationArea(source))).toEqual(

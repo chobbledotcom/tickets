@@ -27,7 +27,6 @@ const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
   renewalToken: null,
   renewalTokenIndex: null,
   scheduledTaskKey: null,
-  scheduledTaskKeyNext: null,
   siteDataRevision: 0,
   siteUrl: "test.bunny.run",
   updates: "release",

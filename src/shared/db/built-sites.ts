@@ -80,8 +80,6 @@ export interface SiteDataBlob {
   s?: string;
   /** Active scheduled-maintenance key. */
   sk?: string;
-  /** Pending scheduled-maintenance key during rotation. */
-  sn?: string;
   /** Database token (optional, absent in older blobs) */
   t?: string;
   /** Site URL (default hostname) */
@@ -108,7 +106,6 @@ const SiteDataBlobSchema = v.variant("v", [
   v.object({
     ...siteDataFields,
     sk: scheduledKeySchema,
-    sn: scheduledKeySchema,
     v: v.literal(SITE_DATA_BLOB_VERSION),
   }),
 ]);
@@ -160,7 +157,6 @@ export interface BuiltSite {
   renewalToken: string | null;
   renewalTokenIndex: string | null;
   scheduledTaskKey: string | null;
-  scheduledTaskKeyNext: string | null;
   siteDataRevision: number;
   /** Site URL (default hostname for this site). */
   siteUrl: string;
@@ -296,7 +292,6 @@ type BuiltSiteBlobFields = Pick<
   | "hostingProvider"
   | "dbProvider"
   | "scheduledTaskKey"
-  | "scheduledTaskKeyNext"
 >;
 
 type BuiltSiteBlobInput = Omit<BuiltSiteBlobFields, "renewalToken"> & {
@@ -364,12 +359,6 @@ const builtSiteBlobColumns = [
     defaultValue: null,
     required: false,
     siteKey: "scheduledTaskKey",
-  },
-  {
-    blobKey: "sn",
-    defaultValue: null,
-    required: false,
-    siteKey: "scheduledTaskKeyNext",
   },
 ] as const;
 
@@ -473,16 +462,8 @@ const toDbColumnValues = (
 });
 
 /** Parse a decrypted site data blob */
-export const parseSiteDataBlob = (json: string): SiteDataBlob => {
-  const blob = v.parse(SiteDataBlobSchema, JSON.parse(json)) as SiteDataBlob;
-  if (blob.sn && !blob.sk) {
-    throw new Error("Pending scheduled key requires an active key");
-  }
-  if (blob.sk && blob.sk === blob.sn) {
-    throw new Error("Active and pending scheduled keys must be different");
-  }
-  return blob;
-};
+export const parseSiteDataBlob = (json: string): SiteDataBlob =>
+  v.parse(SiteDataBlobSchema, JSON.parse(json)) as SiteDataBlob;
 
 /** Convert a raw DB row (after decryption) to a BuiltSite */
 const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {

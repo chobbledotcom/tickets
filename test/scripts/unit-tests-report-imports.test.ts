@@ -170,7 +170,7 @@ describe("resolveTestImports", () => {
 
 describe("findMisplacedTests", () => {
   const sources = ["src/shared/email.ts", "src/shared/db/client.ts"];
-  const appEntry = "src/features/index.ts";
+  const appEntry = "src/features/app/request.ts";
 
   test("flags a single-source test that lives off its source's mirror", () => {
     const result = findMisplacedTests(

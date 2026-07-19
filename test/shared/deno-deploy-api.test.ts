@@ -7,7 +7,6 @@ import {
 } from "#shared/deno-deploy-api.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
-import { TEST_SCHEDULED_NEXT_KEY } from "#test-utils/scheduled.ts";
 
 const DENO_ENV = {
   DENO_DEPLOY_ORG_ID: "test-org-id",
@@ -290,51 +289,6 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       expect(result.error).toContain("Get app failed (404)");
       expect(result.error).toContain("app not found");
     }
-  });
-
-  test("scheduler promotion replaces primary and clears next in one patch", async () => {
-    using fetchStub = stubFetch(new Response("{}"));
-
-    const result = await denoHostingProvider.promoteSecrets(
-      "app_1",
-      ["SCHEDULED_TASK_KEY", TEST_SCHEDULED_NEXT_KEY],
-      "SCHEDULED_TASK_KEY_NEXT",
-    );
-
-    expect(result.ok).toBe(true);
-    const init = fetchStub.calls[0]!.args[1] as RequestInit;
-    expect(init.method).toBe("PATCH");
-    expect(JSON.parse(init.body as string)).toEqual({
-      env_vars: [
-        {
-          contexts: ["production"],
-          key: "SCHEDULED_TASK_KEY",
-          secret: true,
-          value: TEST_SCHEDULED_NEXT_KEY,
-        },
-        {
-          contexts: ["production"],
-          key: "SCHEDULED_TASK_KEY_NEXT",
-          secret: true,
-          value: null,
-        },
-      ],
-    });
-  });
-
-  test("scheduler promotion labels provider failures", async () => {
-    using _fetch = stubFetch(new Response("failed", { status: 500 }));
-
-    expect(
-      await denoHostingProvider.promoteSecrets(
-        "app_1",
-        ["SCHEDULED_TASK_KEY", TEST_SCHEDULED_NEXT_KEY],
-        "SCHEDULED_TASK_KEY_NEXT",
-      ),
-    ).toEqual({
-      error: "Promote app env vars failed (500): failed",
-      ok: false,
-    });
   });
 
   test("hosting provider names its required credential", () => {

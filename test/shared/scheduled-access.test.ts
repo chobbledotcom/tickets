@@ -7,7 +7,6 @@ import {
 import {
   scheduledAuthorization,
   TEST_SCHEDULED_KEY,
-  TEST_SCHEDULED_NEXT_KEY,
 } from "#test-utils/scheduled.ts";
 
 const request = (
@@ -23,11 +22,7 @@ const request = (
 describe("scheduled access", () => {
   test("leaves every other path to the normal app", () => {
     expect(
-      checkScheduledAccess(
-        request("GET", undefined, "/health"),
-        undefined,
-        undefined,
-      ),
+      checkScheduledAccess(request("GET", undefined, "/health"), undefined),
     ).toEqual({ kind: "not_scheduled" });
   });
 
@@ -37,7 +32,6 @@ describe("scheduled access", () => {
         checkScheduledAccess(
           request(method, scheduledAuthorization().authorization),
           TEST_SCHEDULED_KEY,
-          TEST_SCHEDULED_NEXT_KEY,
         ),
       ).toEqual({ kind: "rejected", status: 404 });
     }
@@ -48,7 +42,6 @@ describe("scheduled access", () => {
       checkScheduledAccess(
         request("POST", scheduledAuthorization().authorization),
         undefined,
-        TEST_SCHEDULED_NEXT_KEY,
       ),
     ).toEqual({ kind: "rejected", status: 404 });
   });
@@ -65,32 +58,18 @@ describe("scheduled access", () => {
         checkScheduledAccess(
           request("POST", authorization),
           TEST_SCHEDULED_KEY,
-          TEST_SCHEDULED_NEXT_KEY,
         ),
       ).toEqual({ kind: "rejected", status: 401 });
     }
   });
 
-  test("accepts either configured slot", () => {
-    for (const key of [TEST_SCHEDULED_KEY, TEST_SCHEDULED_NEXT_KEY]) {
-      expect(
-        checkScheduledAccess(
-          request("POST", scheduledAuthorization(key).authorization),
-          TEST_SCHEDULED_KEY,
-          TEST_SCHEDULED_NEXT_KEY,
-        ),
-      ).toEqual({ kind: "authorized" });
-    }
-  });
-
-  test("does not invent a next key when that slot is unset", () => {
+  test("accepts only the configured key", () => {
     expect(
       checkScheduledAccess(
-        request("POST", "Bearer mutated"),
+        request("POST", scheduledAuthorization().authorization),
         TEST_SCHEDULED_KEY,
-        undefined,
       ),
-    ).toEqual({ kind: "rejected", status: 401 });
+    ).toEqual({ kind: "authorized" });
   });
 
   test("returns an empty no-store response for every outcome", async () => {

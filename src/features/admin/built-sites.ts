@@ -1,4 +1,5 @@
 import { mapValues } from "@std/collections";
+import { t } from "#i18n";
 import { handlersFor } from "#routes/admin/handlers.ts";
 /**
  * Admin built site management routes - owner only
@@ -35,6 +36,7 @@ import {
   rotateRenewalToken,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
+import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { addMissingSiteSecrets } from "#shared/site-secrets.ts";
 import { deployAndReport } from "#shared/site-update.ts";
 import {
@@ -55,11 +57,6 @@ import {
   builtSiteTabSuccess,
 } from "./built-site-action.ts";
 import { builtSitePage } from "./built-site-page.tsx";
-import {
-  handlePromoteSiteSchedulerRotation,
-  handleProvisionSiteScheduler,
-  handleStageSiteSchedulerRotation,
-} from "./built-site-scheduler-actions.ts";
 
 /** Extract built site input from validated form values.
  *
@@ -114,6 +111,13 @@ const crud = createOwnerCrudHandlers({
 const renewalPushResult = builtSiteTabResult(
   "renewal",
   (error) => `Deadline could not be pushed to the site: ${error}`,
+);
+
+const handleProvisionSiteScheduler = builtSiteAction(async (_site, _form, id) =>
+  builtSiteTabResult("maintenance")(t("built_sites.maintenance_provisioned"))(
+    id,
+    await provisionSiteScheduler(id),
+  ),
 );
 
 const editPushOk = (
@@ -361,12 +365,10 @@ export const adminHandlers = gateOnBuilder(
     postBuiltSitesByIdDelete: crud.deletePost,
     postBuiltSitesByIdEdit: crud.editPost,
     postBuiltSitesByIdOverrideDeadline: handleOverrideDeadline,
-    postBuiltSitesByIdPromoteScheduler: handlePromoteSiteSchedulerRotation,
     postBuiltSitesByIdProvisionRenewal: handleProvisionRenewal,
     postBuiltSitesByIdProvisionScheduler: handleProvisionSiteScheduler,
     postBuiltSitesByIdReSyncDeadline: handleReSyncDeadline,
     postBuiltSitesByIdRotateRenewalToken: handleRotateToken,
-    postBuiltSitesByIdStageScheduler: handleStageSiteSchedulerRotation,
     postBuiltSitesByIdUpdate: handleUpdateSite,
   }),
 );

@@ -499,15 +499,6 @@ const setEdgeScriptSecretImpl = async (
     `Set secret ${name}`,
   );
 
-const deleteEdgeScriptSecretImpl = async (
-  scriptId: number,
-  secretId: number,
-): Promise<BunnyApiResult> =>
-  okOrError(
-    await scriptAction(scriptId, `secrets/${secretId}`, "DELETE", "{}"),
-    "Delete secret",
-  );
-
 /** A secret as reported by the Bunny API (name + metadata only — never the value). */
 export interface EdgeScriptSecret {
   Id: number;
@@ -618,25 +609,6 @@ export const bunnyHostingProvider: HostingProviderApi = {
     }
     return { defaultHostname, hostingId: String(scriptId), ok: true as const };
   },
-  async promoteSecrets(hostingId, primary, removeName) {
-    const scriptId = Number(hostingId);
-    const listed = await bunnyCdnApi.listEdgeScriptSecrets(scriptId);
-    if (!listed.ok) return listed;
-    const remove = listed.secrets.find((secret) => secret.Name === removeName);
-    if (!remove) return { error: `Missing secret ${removeName}`, ok: false };
-    const set = await bunnyCdnApi.setEdgeScriptSecret(
-      scriptId,
-      primary[0],
-      primary[1],
-    );
-    if (!set.ok) return set;
-    const deleted = await bunnyCdnApi.deleteEdgeScriptSecret(
-      scriptId,
-      remove.Id,
-    );
-    if (!deleted.ok) return deleted;
-    return bunnyCdnApi.publishEdgeScript(scriptId);
-  },
   publishSite: (hostingId) => bunnyCdnApi.publishEdgeScript(Number(hostingId)),
   async setSecrets(hostingId, secrets) {
     const scriptId = Number(hostingId);
@@ -656,7 +628,6 @@ export const bunnyCdnApi = {
   createEdgeScript: createEdgeScriptImpl,
   delay,
   deleteDnsRecord: deleteDnsRecordImpl,
-  deleteEdgeScriptSecret: deleteEdgeScriptSecretImpl,
   deployScriptCode: deployScriptCodeImpl,
   findPullZoneId: findPullZoneIdImpl,
   getCdnHostname: getCdnHostnameImpl,

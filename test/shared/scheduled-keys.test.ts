@@ -5,14 +5,10 @@ import {
   isScheduledTaskKey,
   SCHEDULED_KEY_BYTES,
   SCHEDULED_TASK_KEY_ENV,
-  SCHEDULED_TASK_KEY_NEXT_ENV,
-  validateScheduledTaskKeys,
+  validateScheduledTaskKey,
 } from "#shared/scheduled-keys.ts";
 import { withEnv } from "#test-utils/env.ts";
-import {
-  TEST_SCHEDULED_KEY,
-  TEST_SCHEDULED_NEXT_KEY,
-} from "#test-utils/scheduled.ts";
+import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 describe("scheduled task keys", () => {
   test("generates distinct canonical 256-bit keys", () => {
@@ -39,43 +35,15 @@ describe("scheduled task keys", () => {
     }
   });
 
-  test("accepts canonical active and next slots", () => {
-    using _env = withEnv({
-      SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
-      SCHEDULED_TASK_KEY_NEXT: TEST_SCHEDULED_NEXT_KEY,
-    });
-    expect(() => validateScheduledTaskKeys()).not.toThrow();
+  test("accepts one canonical configured key", () => {
+    using _env = withEnv({ SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY });
+    expect(() => validateScheduledTaskKey()).not.toThrow();
   });
 
-  test("rejects a malformed configured slot", () => {
-    for (const name of [SCHEDULED_TASK_KEY_ENV, SCHEDULED_TASK_KEY_NEXT_ENV]) {
-      using _env = withEnv({
-        SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
-        [name]: "invalid",
-      });
-      expect(() => validateScheduledTaskKeys()).toThrow(
-        `${name} must be canonical unpadded base64url for exactly 32 bytes`,
-      );
-    }
-  });
-
-  test("rejects a next slot without an active slot", () => {
-    using _env = withEnv({
-      SCHEDULED_TASK_KEY: undefined,
-      SCHEDULED_TASK_KEY_NEXT: TEST_SCHEDULED_NEXT_KEY,
-    });
-    expect(() => validateScheduledTaskKeys()).toThrow(
-      "SCHEDULED_TASK_KEY_NEXT requires SCHEDULED_TASK_KEY",
-    );
-  });
-
-  test("rejects duplicate active and next slots", () => {
-    using _env = withEnv({
-      SCHEDULED_TASK_KEY: TEST_SCHEDULED_KEY,
-      SCHEDULED_TASK_KEY_NEXT: TEST_SCHEDULED_KEY,
-    });
-    expect(() => validateScheduledTaskKeys()).toThrow(
-      "Scheduled task keys must be different",
+  test("rejects a malformed configured key", () => {
+    using _env = withEnv({ SCHEDULED_TASK_KEY: "invalid" });
+    expect(() => validateScheduledTaskKey()).toThrow(
+      `${SCHEDULED_TASK_KEY_ENV} must be canonical unpadded base64url for exactly 32 bytes`,
     );
   });
 });

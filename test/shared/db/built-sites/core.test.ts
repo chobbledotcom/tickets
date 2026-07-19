@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { ensureBuiltSiteSchedulerNextKey } from "#shared/db/built-site-scheduler.ts";
 import {
   builtSites,
   builtSitesCrudTable,
@@ -107,30 +106,6 @@ describe("built-site providers", () => {
     );
     expect(parsed.dp).toBe("turso");
     expect(parsed.hp).toBe("deno");
-  });
-});
-
-describe("site data validation", () => {
-  test("rejects a pending scheduled key without an active key", () => {
-    expect(() =>
-      parseSiteDataBlob(
-        JSON.stringify({ n: "x", sn: TEST_SCHEDULED_KEY, u: "y", v: 2 }),
-      ),
-    ).toThrow("Pending scheduled key requires an active key");
-  });
-
-  test("rejects matching active and pending scheduled keys", () => {
-    expect(() =>
-      parseSiteDataBlob(
-        JSON.stringify({
-          n: "x",
-          sk: TEST_SCHEDULED_KEY,
-          sn: TEST_SCHEDULED_KEY,
-          u: "y",
-          v: 2,
-        }),
-      ),
-    ).toThrow("Active and pending scheduled keys must be different");
   });
 });
 
@@ -262,7 +237,7 @@ describeWithEnv("built-site storage", { db: true }, () => {
     ).toHaveLength(1);
   });
 
-  test("scheduler keys round-trip through encrypted site data", async () => {
+  test("the scheduler key round-trips through encrypted site data", async () => {
     const row = await insertBuiltSite(
       "Scheduled Site",
       "scheduled.example.test",
@@ -275,10 +250,8 @@ describeWithEnv("built-site storage", { db: true }, () => {
       "bunny",
       TEST_SCHEDULED_KEY,
     );
-    const staged = await ensureBuiltSiteSchedulerNextKey(row.id);
     const site = await builtSitesCrudTable.findById(row.id);
     expect(site?.scheduledTaskKey).toBe(TEST_SCHEDULED_KEY);
-    expect(site?.scheduledTaskKeyNext).toBe(staged.pending);
   });
 
   test("legacy empty renewal tokens remain empty strings", async () => {

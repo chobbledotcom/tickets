@@ -45,7 +45,6 @@ describeWithEnv("site build", { db: true }, () => {
         assignable: true,
         name: "00001",
         scheduledTaskKey: TEST_SCHEDULED_KEY,
-        scheduledTaskKeyNext: null,
       });
     } finally {
       buildStub.restore();

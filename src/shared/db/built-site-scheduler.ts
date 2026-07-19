@@ -16,19 +16,11 @@ type StoredScheduler = {
   site_data_revision: number;
 };
 
-export type BuiltSiteScheduler = {
+type SchedulerRecord = {
   active: string | null;
-  pending: string | null;
+  blob: SiteDataBlob;
   revision: number;
 };
-
-type SchedulerRecord = BuiltSiteScheduler & { blob: SiteDataBlob };
-
-const schedulerState = (
-  active: string | null,
-  pending: string | null,
-  revision: number,
-): BuiltSiteScheduler => ({ active, pending, revision });
 
 const loadScheduler = async (siteId: number): Promise<SchedulerRecord> => {
   const row = await queryOne<StoredScheduler>(
@@ -41,42 +33,23 @@ const loadScheduler = async (siteId: number): Promise<SchedulerRecord> => {
   return {
     active: blob.sk ?? null,
     blob,
-    pending: blob.sn ?? null,
     revision: row.site_data_revision,
   };
 };
 
-export const readBuiltSiteScheduler = async (
-  siteId: number,
-): Promise<BuiltSiteScheduler> => {
-  const { active, pending, revision } = await loadScheduler(siteId);
-  return schedulerState(active, pending, revision);
-};
-
-const schedulerBlob = (
-  blob: SiteDataBlob,
-  active: string,
-  pending: string | null,
-): SiteDataBlob => ({
-  ...(() => {
-    const next = { ...blob };
-    delete next.sk;
-    delete next.sn;
-    return next;
-  })(),
-  sk: active,
-  ...(pending ? { sn: pending } : {}),
+const schedulerBlob = (blob: SiteDataBlob, key: string): SiteDataBlob => ({
+  ...blob,
+  sk: key,
   v: 2,
 });
 
 const writeScheduler = async (
   siteId: number,
   current: SchedulerRecord,
-  active: string,
-  pending: string | null,
+  key: string,
 ): Promise<boolean> => {
   const encrypted = await encrypt(
-    JSON.stringify(schedulerBlob(current.blob, active, pending)),
+    JSON.stringify(schedulerBlob(current.blob, key)),
   );
   const result = await execute(
     `UPDATE built_sites
@@ -87,86 +60,19 @@ const writeScheduler = async (
   return result.rowsAffected === 1;
 };
 
-type SchedulerDecision =
-  | { done: BuiltSiteScheduler }
-  | { active: string; pending: string | null };
-
-const updateScheduler = async (
+/** Create one active key for a built site, or return its existing key. */
+export const ensureBuiltSiteSchedulerKey = async (
   siteId: number,
-  failure: string,
-  decide: (current: SchedulerRecord) => SchedulerDecision,
-): Promise<BuiltSiteScheduler> =>
-  retryWrite(failure, async () => {
-    const current = await loadScheduler(siteId);
-    const decision = decide(current);
-    if ("done" in decision) return { value: decision.done };
-    if (
-      await writeScheduler(siteId, current, decision.active, decision.pending)
-    ) {
-      return {
-        value: schedulerState(
-          decision.active,
-          decision.pending,
-          current.revision + 1,
-        ),
-      };
-    }
-    return null;
-  });
-
-const ensureSchedulerValue = async (
-  siteId: number,
-  slot: "active" | "pending",
-): Promise<BuiltSiteScheduler> => {
+): Promise<string> => {
   const candidate = generateScheduledTaskKey();
-  return updateScheduler(
-    siteId,
-    `Could not update scheduled key for site ${siteId}`,
-    (current) => {
-      if (current[slot]) {
-        return {
-          done: schedulerState(
-            current.active,
-            current.pending,
-            current.revision,
-          ),
-        };
-      }
-      if (slot === "active") {
-        return { active: candidate, pending: current.pending };
-      }
-      if (!current.active) {
-        throw new Error("Cannot rotate a site with no active scheduled key");
-      }
-      return { active: current.active, pending: candidate };
+  return retryWrite(
+    `Could not set scheduled key for site ${siteId}`,
+    async () => {
+      const current = await loadScheduler(siteId);
+      if (current.active) return { value: current.active };
+      return (await writeScheduler(siteId, current, candidate))
+        ? { value: candidate }
+        : null;
     },
   );
 };
-
-export const ensureBuiltSiteSchedulerKey = (
-  siteId: number,
-): Promise<BuiltSiteScheduler> => ensureSchedulerValue(siteId, "active");
-
-export const ensureBuiltSiteSchedulerNextKey = (
-  siteId: number,
-): Promise<BuiltSiteScheduler> => ensureSchedulerValue(siteId, "pending");
-
-export const promoteBuiltSiteSchedulerKey = async (
-  siteId: number,
-  expectedPending: string,
-): Promise<BuiltSiteScheduler> =>
-  updateScheduler(
-    siteId,
-    `Could not promote scheduled key for site ${siteId}`,
-    (current) => {
-      if (current.active === expectedPending && current.pending === null) {
-        return {
-          done: schedulerState(current.active, null, current.revision),
-        };
-      }
-      if (current.pending !== expectedPending) {
-        throw new Error("Scheduled key changed while promoting site");
-      }
-      return { active: expectedPending, pending: null };
-    },
-  );

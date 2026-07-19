@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ensureBuiltSiteSchedulerNextKey } from "#shared/db/built-site-scheduler.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertScheduledTestSite,
@@ -48,9 +47,8 @@ describeWithEnv(
       expect(html).toContain("Delete this site");
     });
 
-    test("shows the active and pending child keys", async () => {
+    test("shows the child key without rotation controls", async () => {
       const site = await insertScheduledTestSite();
-      const { pending } = await ensureBuiltSiteSchedulerNextKey(site.id);
 
       const response = await adminGet(
         `/admin/built-sites/${site.id}/maintenance`,
@@ -60,7 +58,8 @@ describeWithEnv(
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toBe("private, no-store");
       expect(html).toContain(TEST_SCHEDULED_KEY);
-      expect(html).toContain(pending!);
+      expect(html).not.toContain("stage-scheduler");
+      expect(html).not.toContain("promote-scheduler");
     });
 
     test("offers setup when a child has no retained key", async () => {
@@ -71,16 +70,6 @@ describeWithEnv(
       );
 
       expect(await response.text()).toContain("provision-scheduler");
-    });
-
-    test("offers rotation when a child has only an active key", async () => {
-      const site = await insertScheduledTestSite();
-
-      const response = await adminGet(
-        `/admin/built-sites/${site.id}/maintenance`,
-      );
-
-      expect(await response.text()).toContain("stage-scheduler");
     });
   },
 );

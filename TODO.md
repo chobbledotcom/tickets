@@ -368,7 +368,7 @@ look.
 
 ## Request performance: consolidate AsyncLocalStorage scopes
 
-`src/features/index.ts` enters eleven nested request scopes for locale, client
+`src/features/app/request.ts` enters eleven nested request scopes for locale, client
 IP, request ID, request cache, query logging, flash, session memoization, iframe
 mode, CSRF, saved form data, and settings auditing. Replace them with one typed
 `RequestContext` in one `AsyncLocalStorage`; retain domain methods where they add

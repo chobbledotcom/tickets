@@ -423,33 +423,6 @@ describeWithEnv(
 );
 
 describeWithEnv(
-  "deleteEdgeScriptSecret",
-  { env: { BUNNY_API_KEY: "test-bunny-key" } },
-  () => {
-    test("deletes one secret by id", async () => {
-      using fetchStub = stubFetch(new Response(null, { status: 204 }));
-
-      expect(await bunnyCdnApi.deleteEdgeScriptSecret(42, 8)).toEqual({
-        ok: true,
-      });
-      const [url, init] = fetchStub.calls[0]!.args as [string, RequestInit];
-      expect(url).toBe("https://api.bunny.net/compute/script/42/secrets/8");
-      expect(init.method).toBe("DELETE");
-      expect(init.body).toBe("{}");
-    });
-
-    test("labels a secret delete failure", async () => {
-      using _fetch = stubFetch(new Response("failed", { status: 500 }));
-
-      expect(await bunnyCdnApi.deleteEdgeScriptSecret(42, 8)).toEqual({
-        error: "Delete secret failed (500): failed",
-        ok: false,
-      });
-    });
-  },
-);
-
-describeWithEnv(
   "updatePullZone",
   { env: { BUNNY_API_KEY: "test-bunny-key" } },
   () => {

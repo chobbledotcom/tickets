@@ -4,7 +4,6 @@ import { stub } from "@std/testing/mock";
 import { bunnyCdnApi, bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { restoreStubsAfterEach } from "#test-utils/mocks.ts";
-import { TEST_SCHEDULED_NEXT_KEY } from "#test-utils/scheduled.ts";
 
 describeWithEnv(
   "Bunny hosting provider",
@@ -52,49 +51,6 @@ describeWithEnv(
       expect(secrets).toEqual([
         [42, "DB_URL", "libsql://child"],
         [42, "BUNNY_SCRIPT_ID", "42"],
-      ]);
-    });
-
-    test("promotion uses the supplied primary pair before deleting next", async () => {
-      const calls: unknown[][] = [];
-      stubs.push(
-        stub(bunnyCdnApi, "listEdgeScriptSecrets", () =>
-          Promise.resolve({
-            ok: true,
-            secrets: [
-              {
-                Id: 8,
-                LastModified: "2026-01-01",
-                Name: "SCHEDULED_TASK_KEY_NEXT",
-              },
-            ],
-          }),
-        ),
-        stub(bunnyCdnApi, "setEdgeScriptSecret", (...args) => {
-          calls.push(["set", ...args]);
-          return Promise.resolve({ ok: true });
-        }),
-        stub(bunnyCdnApi, "deleteEdgeScriptSecret", (...args) => {
-          calls.push(["delete", ...args]);
-          return Promise.resolve({ ok: true });
-        }),
-        stub(bunnyCdnApi, "publishEdgeScript", (...args) => {
-          calls.push(["publish", ...args]);
-          return Promise.resolve({ ok: true });
-        }),
-      );
-
-      expect(
-        await bunnyHostingProvider.promoteSecrets(
-          "42",
-          ["SCHEDULED_TASK_KEY", TEST_SCHEDULED_NEXT_KEY],
-          "SCHEDULED_TASK_KEY_NEXT",
-        ),
-      ).toEqual({ ok: true });
-      expect(calls).toEqual([
-        ["set", 42, "SCHEDULED_TASK_KEY", TEST_SCHEDULED_NEXT_KEY],
-        ["delete", 42, 8],
-        ["publish", 42],
       ]);
     });
 

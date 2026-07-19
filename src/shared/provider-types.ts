@@ -10,11 +10,6 @@ export interface HostingProviderApi {
   configEnvVar: string;
   getSecretNames(hostingId: string): Promise<ApiResult<{ names: string[] }>>;
   prepareSite: PrepareSiteFn;
-  promoteSecrets(
-    hostingId: string,
-    primary: [string, string],
-    removeName: string,
-  ): Promise<ApiResult<Record<never, never>>>;
   publishSite(
     hostingId: string,
     code: string,

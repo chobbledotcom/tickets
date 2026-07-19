@@ -27,18 +27,14 @@ can read the local key on **Settings > Advanced**.
 
 The built-site manager creates a different key for every child. It stores the
 key in the child's native secret and in the builder's encrypted site data. Use
-the child's **Scheduled maintenance** tab to set up an older child or change its
-key.
+the child's **Scheduled maintenance** tab to set up an older child.
 
 ## Change A Child Key
 
-1. Create and verify the next key on the child's **Scheduled maintenance** tab.
-2. Move the external monitor to the displayed next key.
-3. Confirm the monitor gets an empty `204` from the live child.
-4. Promote the next key on the builder page.
-
-Retries reuse the same pending key. Promotion replaces the active native secret
-and removes `SCHEDULED_TASK_KEY_NEXT`.
+Coordinated one-click key rotation is intentionally deferred to the upcoming
+Uptime Kuma integration, which will update the child and its monitor together.
+Until then, a host operator can manually replace a compromised key on the child
+and in the monitor.
 
 ## CDN Rules
 
