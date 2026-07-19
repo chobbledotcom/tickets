@@ -119,9 +119,10 @@ describe("order widget storage and lifecycle", {
     });
     mountOpenListing(h, true);
 
-    expect(logHas(h, "sessionStorage unavailable; cart is memory-only")).toBe(
-      true,
-    );
+    expect(h.logs).toContainEqual([
+      "[chobble-order]",
+      "sessionStorage unavailable; cart is memory-only",
+    ]);
     clickAnchor(h, "open");
     expect(setCalls).toEqual([]);
     expect(cartButton(h).querySelector(".count")!.textContent).toBe("1");
@@ -139,6 +140,19 @@ describe("order widget storage and lifecycle", {
     clickAnchor(h, "open");
     expect(setCalls).toEqual([]);
     expect(cartButton(h).querySelector(".count")!.textContent).toBe("1");
+  });
+
+  test("removes corrupt storage before saving the empty cart", () => {
+    const calls: string[] = [];
+    h.setGlobal("sessionStorage", {
+      getItem: () => "{not json",
+      removeItem: () => calls.push("remove"),
+      setItem: () => calls.push("set"),
+    });
+
+    mountOpenListing(h);
+
+    expect(calls).toEqual(["remove", "set"]);
   });
 
   test("stops retrying writes once a save fails", () => {
@@ -162,7 +176,11 @@ describe("order widget storage and lifecycle", {
     h.run(catalog);
 
     expect(h.document.querySelectorAll("[data-chobble-order]")).toHaveLength(1);
-    expect(logHas(h, "already initialised for")).toBe(true);
+    expect(h.logs).toContainEqual([
+      "[chobble-order]",
+      "already initialised for",
+      ORIGIN,
+    ]);
   });
 
   test("runs init immediately when the document is already parsed", () => {
@@ -218,6 +236,15 @@ describe("order widget storage and lifecycle", {
       .setAttribute("data-add-listing", `${ORIGIN}/ticket/unknown`);
 
     expect(clickAnchor(h, "unknown")).toBe(false);
+    expect(cartButton(h).hidden).toBe(true);
+  });
+
+  test("opens a package directly and prevents the host link navigation", () => {
+    setBody(h, addLink("bundle"));
+    h.run(makeCatalog([], false, [{ name: "Bundle", slug: "bundle" }]));
+
+    expect(clickAnchor(h, "bundle")).toBe(true);
+    expect(h.navigations).toEqual([`${ORIGIN}/ticket/bundle`]);
     expect(cartButton(h).hidden).toBe(true);
   });
 

@@ -12,13 +12,13 @@ import {
   createDailyTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
-import { weekdayOf } from "../booking-model-fixtures.ts";
-import { firstBookableDate } from "./helpers.ts";
+import { weekdayOf } from "../../../../../lib/booking-model-fixtures.ts";
+import { firstBookableDate } from "../../../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 
 describeWithEnv(
-  "server > parents gate > render: child compat data",
+  "public reservations > child block > compatibility data",
   { db: true, triggers: true },
   () => {
     test("a daily child required by two parents carries each parent's own data-child-dates", async () => {
@@ -219,6 +219,36 @@ describeWithEnv(
       );
       expect(standardControl).not.toContain("data-child-spans");
       expect(standardControl.slice(0, 120)).not.toContain("data-child-dates");
+    });
+
+    test("a customisable daily child keeps date and span attributes adjacent", async () => {
+      const { parent, children } = await makeParent({
+        children: [
+          {
+            customisableDays: true,
+            daily: true,
+            dayPrices: { 1: 1000, 2: 1800 },
+            durationDays: 2,
+          },
+          {},
+        ],
+        parent: {
+          customisableDays: true,
+          daily: true,
+          dayPrices: { 1: 1000, 2: 1800 },
+          durationDays: 2,
+        },
+      });
+      const child = children[0]!;
+
+      const html = await bookingPageHtml(parent.slug);
+      const control = html.slice(
+        html.indexOf(`name="child_qty_${parent.id}_${child.id}"`),
+      );
+      const openingTag = control.slice(0, control.indexOf(">"));
+      expect(openingTag).toMatch(
+        /data-child-dates="[^"]+" data-child-spans="1,2"$/,
+      );
     });
   },
 );

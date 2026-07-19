@@ -186,7 +186,7 @@ const renderSoleChildOption = (input: ChildOptionInput): string => {
 
 /**
  * Render the per-parent child block: a `child_qty_<parentId>_<childId>` select per
- * child, a "Choose <Q> add-on(s) in total" note plus a live "X of Q chosen" hint,
+ * child, guidance to match the parent quantity plus a live "X of Q chosen" hint,
  * each bookable pay-more child's price input, and the children's questions (deduped,
  * non-required). A SOLE bookable child renders as informational (auto-select
  * preserved, see {@link renderSoleChildOption}). Empty string when the parent has
@@ -232,19 +232,17 @@ export const renderChildBlock = (
         ? renderSoleChildOption(optionInput(child))
         : renderChildOption(
             optionInput(child),
-            childCanBeBooked(child)
-              ? Math.min(
-                  total,
-                  childTicketLimit(
-                    parentInfo,
-                    child,
-                    groupCapacityInfo(
-                      ctx.groupRemainingByGroupId,
-                      ctx.groupIdsByListingId,
-                    ),
-                  ),
-                )
-              : 0,
+            Math.min(
+              total,
+              childTicketLimit(
+                parentInfo,
+                child,
+                groupCapacityInfo(
+                  ctx.groupRemainingByGroupId,
+                  ctx.groupIdsByListingId,
+                ),
+              ),
+            ),
           ),
     )
     .join("");
@@ -265,14 +263,12 @@ export const renderChildBlock = (
         .join("");
     })
     .join("");
-  // The "choose N in total" note + live hint guide the per-unit selection. At no-JS
-  // render the parent quantity isn't chosen yet, so the note seeds with the parent's
-  // effective max; JS recomputes it live against the parent select. Suppressed for a
-  // sole auto-selected child — nothing for the buyer to choose.
+  // The guidance stays true before the buyer chooses a parent quantity; the live
+  // hint supplies the exact target. A sole child needs no choice or guidance.
   const note = sole
     ? ""
     : `<p class="child-total-note" data-child-total="${parentId}">` +
-      `${escapeHtml(t("public.ticket.choose_total", { count: total }))} ` +
+      `${escapeHtml(t("public.ticket.choose_total"))} ` +
       `<span class="child-total-hint" data-child-hint="${parentId}"></span></p>`;
   const legend = sole
     ? ""

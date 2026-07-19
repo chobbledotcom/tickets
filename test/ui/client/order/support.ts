@@ -3,6 +3,7 @@ import { Window } from "happy-dom";
 import { orderWidgetBody } from "#routes/assets.ts";
 import {
   buildCatalog,
+  type CatalogPackage,
   type CatalogSourceListing,
   serializeCatalog,
 } from "#shared/external-order.ts";
@@ -20,6 +21,7 @@ const runnableBody = orderWidgetBody().replace(
 export const makeCatalog = (
   listings: CatalogSourceListing[],
   debug: boolean,
+  packages: CatalogPackage[] = [],
 ): ReturnType<typeof buildCatalog> =>
   buildCatalog({
     currency: "GBP",
@@ -28,6 +30,7 @@ export const makeCatalog = (
     generatedAt: "2026-06-30T00:00:00Z",
     listings,
     origin: ORIGIN,
+    packages,
   });
 
 interface AnimateCall {
