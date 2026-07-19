@@ -43,10 +43,10 @@ src/shared/config.ts:177:33  ?? → ||    # getEnv(): string|undefined, only fal
 src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
 src/shared/app-forms.ts:71:18  ?? → ||    # config.auth is an AuthPolicy object when present, so it is always truthy
-src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
-src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
-src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
-src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/site-assignment.ts:161:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
+src/shared/site-assignment.ts:332:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
+src/shared/site-assignment.ts:354:34  ?? → ||    # getEmailConfig(): EmailConfig|null
+src/shared/site-assignment.ts:378:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
 src/shared/ledger/project.ts:20:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/listing-parents-rules.ts:124:4  ?? → ||    # find()?.error(): an i18n message is never "", so only undefined reaches the fallback either way
 src/shared/ledger/project.ts:38:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
