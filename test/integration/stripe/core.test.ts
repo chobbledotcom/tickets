@@ -15,6 +15,7 @@ import {
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
+  retrievePaymentIntent,
 } from "#shared/stripe.ts";
 import {
   type CreatedSessionParams,
@@ -84,6 +85,32 @@ describeStripe("stripe", () => {
           const result = await retrieveCheckoutSession("cs_test_123");
           expect(result).toBeNull();
           expect(retrieveSpy.calls[0]!.args).toEqual(["cs_test_123"]);
+        },
+      );
+    });
+  });
+
+  describe("retrievePaymentIntent", () => {
+    test("expands and narrows the latest charge", async () => {
+      const client = await stripeClient();
+      await withMocks(
+        () =>
+          stub(client.paymentIntents, "retrieve", () =>
+            Promise.resolve({
+              id: "pi_refunded",
+              latest_charge: { id: "ch_refunded", refunded: true },
+            } as never),
+          ),
+        async (retrieveSpy) => {
+          const result = await retrievePaymentIntent("pi_refunded");
+          expect(result).toEqual({
+            id: "pi_refunded",
+            latest_charge: { refunded: true },
+          });
+          expect(retrieveSpy.calls[0]?.args).toEqual([
+            "pi_refunded",
+            { expand: ["latest_charge"] },
+          ]);
         },
       );
     });
@@ -222,6 +249,13 @@ describeStripe("stripe", () => {
           const feeItem = params.line_items.find(
             (li) => li.price_data.product_data.name === "Booking fee",
           );
+          const ticketItem = params.line_items.find((li) =>
+            li.price_data.product_data.name.startsWith("Ticket:"),
+          );
+          expect(params.customer_email).toBe("jane@example.com");
+          expect(ticketItem?.price_data.product_data.description).toBe(
+            "Ticket",
+          );
           expect(feeItem).toBeDefined();
           // 5% of 1000 = 50
           expect(feeItem!.price_data.unit_amount).toBe(50);
@@ -266,6 +300,9 @@ describeStripe("stripe", () => {
           // Ticket line is charged the per-unit deposit (10% of £10.00 = £1.00).
           expect(ticketItem!.price_data.unit_amount).toBe(100);
           expect(ticketItem!.quantity).toBe(2);
+          expect(ticketItem!.price_data.product_data.description).toBe(
+            "2 Tickets",
+          );
           // Fee is still 5% of the full £20.00 order, not of the deposit.
           expect(feeItem!.price_data.unit_amount).toBe(100);
           // Metadata records the FULL line price + the snapshot so the webhook
@@ -279,6 +316,33 @@ describeStripe("stripe", () => {
             { e: listing.id, p: 2000, q: 2 },
           ]);
           expect(metadata.reservation_amount).toBe("10%");
+        },
+      );
+    });
+
+    test("omits customer email when the checkout has no email", async () => {
+      const client = await stripeClient();
+
+      await withCreateSpy(
+        client,
+        {
+          id: "cs_no_email",
+          object: "checkout.session",
+          url: "https://checkout.stripe.com/no-email",
+        },
+        async (createSpy) => {
+          await createCheckoutSession(
+            checkoutIntent({
+              email: "",
+              items: [checkoutItem({ name: "No email", slug: "no-email" })],
+              name: "No Email User",
+            }),
+            "http://localhost:3000",
+          );
+
+          const params = createSpy.calls[0]!
+            .args[0] as unknown as CreatedSessionParams;
+          expect(params).not.toHaveProperty("customer_email");
         },
       );
     });

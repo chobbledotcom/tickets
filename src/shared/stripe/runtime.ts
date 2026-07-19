@@ -52,8 +52,13 @@ const [getMockConfig, setMockConfig] = lazyRef<StripeClientConfig | undefined>(
   mockConfig,
 );
 
-const create = (secretKey: string): StripeClient =>
-  createStripeClient(secretKey, getMockConfig() ?? PRODUCTION_CONFIG);
+const create = (secretKey: string): StripeClient => {
+  const config = getMockConfig();
+  return createStripeClient(
+    secretKey,
+    config === undefined ? PRODUCTION_CONFIG : config,
+  );
+};
 
 const cache = cachedClientFactory({
   create,

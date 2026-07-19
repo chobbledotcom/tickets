@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
-import { ErrorCode, logDebug } from "#shared/logger.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import {
   assembleCheckoutMetadata,
   buildProviderLineItems,
@@ -92,10 +92,6 @@ const createCheckoutSessionImpl = async (
   intent: CheckoutIntent,
   baseUrl: string,
 ): Promise<CheckoutResult> => {
-  logDebug(
-    "Stripe",
-    `Creating checkout session for ${intent.items.length} listing(s)`,
-  );
   const currency = settings.currency.toLowerCase();
   const order = priceCheckout(intent);
   const lineItems = buildProviderLineItems<StripeCheckoutLineItem>(
@@ -136,12 +132,6 @@ const createCheckoutSessionImpl = async (
   const session = await stripeClientRuntime.run(
     (client) => client.checkout.sessions.create(params),
     ErrorCode.STRIPE_CHECKOUT,
-  );
-  logDebug(
-    "Stripe",
-    session
-      ? `Multi-session created id=${session.id} url=${session.url ?? "none"}`
-      : "Multi-session creation failed",
   );
   return session;
 };

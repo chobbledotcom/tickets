@@ -11,6 +11,22 @@ import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 
 describeStripe("stripe", () => {
+  test("logs when the webhook secret is missing", async () => {
+    const errorSpy = spy(console, "error");
+    try {
+      const result = await verifyWebhookSignature("{}", "t=1,v1=abc");
+      expect(result).toEqual({
+        error: "Webhook secret not configured",
+        valid: false,
+      });
+      expect(errorSpy.calls[0]?.args[0]).toContain(
+        'E_CONFIG_MISSING detail="webhook secret"',
+      );
+    } finally {
+      errorSpy.restore();
+    }
+  });
+
   describe("verifyWebhookSignature - timestamp parsing", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
 
@@ -59,6 +75,23 @@ describeStripe("stripe", () => {
       if (!result.valid) {
         expect(result.error).toBe("Invalid signature header format");
       }
+    });
+
+    test("parses timestamps as decimal numbers", async () => {
+      await activateStripe(TEST_SECRET, "we_test_decimal");
+      const result = await verifyWebhookSignature("{}", "t=0x10,v1=abc");
+      expect(result).toEqual({
+        error: "Invalid signature header format",
+        valid: false,
+      });
+    });
+
+    test("uses the last timestamp in the header", async () => {
+      await activateStripe(TEST_SECRET, "we_test_last_timestamp");
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload);
+      const result = await verifyWebhookSignature(payload, `t=1,${signed}`);
+      expect(result.valid).toBe(true);
     });
 
     test("secureCompare handles strings of different lengths", async () => {
@@ -127,7 +160,11 @@ describeStripe("stripe", () => {
       const header = await signedHeader(TEST_SECRET, payload, oldTimestamp);
 
       try {
-        await verifyWebhookSignature(payload, header);
+        const result = await verifyWebhookSignature(payload, header);
+        expect(result).toEqual({
+          error: "Timestamp outside tolerance window",
+          valid: false,
+        });
         const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain("timestamp out of tolerance delta=");
         expect(callArg).toContain("tolerance=300s");
@@ -145,6 +182,26 @@ describeStripe("stripe", () => {
         await verifyWebhookSignature(payload, header);
         const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid JSON:');
+      } finally {
+        errorSpy.restore();
+      }
+    });
+
+    test("logs a signature mismatch", async () => {
+      const errorSpy = spy(console, "error");
+      const timestamp = Math.floor(Date.now() / 1000);
+      try {
+        const result = await verifyWebhookSignature(
+          "{}",
+          `t=${timestamp},v1=wrong`,
+        );
+        expect(result).toEqual({
+          error: "Signature verification failed",
+          valid: false,
+        });
+        expect(errorSpy.calls[0]?.args[0]).toContain(
+          'E_STRIPE_SIGNATURE detail="mismatch"',
+        );
       } finally {
         errorSpy.restore();
       }

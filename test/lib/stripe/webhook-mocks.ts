@@ -15,6 +15,7 @@ export type WebhookApiOptions = {
   createFails?: boolean;
   createLimitError?: boolean;
   createThrowsMaximum?: boolean;
+  createThrowsMaximumWithoutWebhook?: boolean;
   createThrowsNonError?: boolean;
   createThrowsWebhookOnly?: boolean;
   deleteFails?: boolean;
@@ -24,6 +25,28 @@ export type WebhookApiOptions = {
   sameUrlStray?: boolean;
 };
 
+const stripeErrorResponse = (message: string, status = 400): Response =>
+  Response.json(
+    { error: { message, type: "invalid_request_error" } },
+    { status },
+  );
+
+const firstCreateError = (options: WebhookApiOptions): Response | null => {
+  if (options.createThrowsMaximum) {
+    return stripeErrorResponse("Maximum number of webhook endpoints reached");
+  }
+  if (options.createThrowsMaximumWithoutWebhook) {
+    return stripeErrorResponse("Maximum number of resources reached");
+  }
+  if (options.createLimitError) {
+    return stripeErrorResponse("You have reached the webhook endpoint limit");
+  }
+  if (options.createThrowsWebhookOnly) {
+    return stripeErrorResponse("Invalid webhook URL format");
+  }
+  return null;
+};
+
 export const webhookEndpointsApi = (
   webhookUrl: string,
   calls: WebhookApiCalls,
@@ -31,10 +54,7 @@ export const webhookEndpointsApi = (
 ): ((url: string, init?: RequestInit) => Promise<Response> | null) => {
   const {
     createFails = false,
-    createLimitError = false,
-    createThrowsMaximum = false,
     createThrowsNonError = false,
-    createThrowsWebhookOnly = false,
     deleteFails = false,
     listFails = false,
     omitSecret = false,
@@ -84,52 +104,18 @@ export const webhookEndpointsApi = (
     url: webhookUrl,
   };
 
-  const limitErrorResponse = Response.json(
-    {
-      error: {
-        message: "You have reached the webhook endpoint limit",
-        type: "invalid_request_error",
-      },
-    },
-    { status: 400 },
-  );
   const createErrorResponse = Response.json(
     { error: { message: "Create failed", type: "api_error" } },
     { status: 500 },
   );
-  const webhookOnlyErrorResponse = Response.json(
-    {
-      error: {
-        message: "Invalid webhook URL format",
-        type: "invalid_request_error",
-      },
-    },
-    { status: 400 },
-  );
-
   const handleCreatePost = (init?: RequestInit): Promise<Response> => {
     calls.createAttempts++;
     if (createThrowsNonError && calls.createAttempts === 1) {
       throw "not an error";
     }
-    if (createThrowsMaximum && calls.createAttempts === 1) {
-      return Promise.resolve(
-        Response.json(
-          {
-            error: {
-              message: "Maximum number of webhook endpoints reached",
-              type: "invalid_request_error",
-            },
-          },
-          { status: 400 },
-        ),
-      );
-    }
-    if (createLimitError && calls.createAttempts === 1) {
-      return Promise.resolve(limitErrorResponse);
-    }
-    if (createThrowsWebhookOnly && calls.createAttempts === 1) {
-      return Promise.resolve(webhookOnlyErrorResponse);
+    const firstError = firstCreateError(options);
+    if (calls.createAttempts === 1 && firstError) {
+      return Promise.resolve(firstError);
     }
     if (createFails) return Promise.resolve(createErrorResponse);
     calls.createdBody = new URLSearchParams(String(init?.body ?? ""));

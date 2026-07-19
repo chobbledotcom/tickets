@@ -22,6 +22,14 @@ import { withMocks } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 
 describeStripe("stripe-provider", () => {
+  test("identifies its Stripe webhook contract", () => {
+    expect(stripePaymentProvider.checkoutCompletedEventType).toBe(
+      "checkout.session.completed",
+    );
+    expect(stripePaymentProvider.requiresWebhookSignature).toBe(true);
+    expect(stripePaymentProvider.type).toBe("stripe");
+  });
+
   /** Stub `checkout.sessions.retrieve` with `impl`, then run `body`. */
   const whileRetrieving = (
     client: Awaited<ReturnType<typeof stripeClient>>,
@@ -199,7 +207,7 @@ describeStripe("stripe-provider", () => {
               items: '[{"e":10,"q":3,"p":0}]',
               name: "Amount User",
             },
-            payment_intent: "pi_amount_123",
+            payment_intent: null,
             payment_status: "paid",
           }),
         async () => {
@@ -207,7 +215,7 @@ describeStripe("stripe-provider", () => {
             await stripePaymentProvider.retrieveSession("cs_with_amount");
           expect(result).not.toBeNull();
           expect(result?.amountTotal).toBe(4500);
-          expect(result?.paymentReference).toBe("pi_amount_123");
+          expect(result?.paymentReference).toBe("");
         },
       );
     });
@@ -458,7 +466,10 @@ describeStripe("stripe-provider", () => {
         async (retrieveSpy) => {
           const result = await retrievePaymentIntent("pi_test_123");
           expect(result).toBeNull();
-          expect(retrieveSpy.calls.length).toBeGreaterThan(0);
+          expect(retrieveSpy.calls[0]?.args).toEqual([
+            "pi_test_123",
+            { expand: ["latest_charge"] },
+          ]);
         },
       );
     });

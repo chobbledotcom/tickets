@@ -21,8 +21,8 @@ const parseSignatureHeader = (header: string): SignatureParseResult => {
   const signatures: string[] = [];
   for (const part of parts) {
     const [key, value] = part.split("=");
-    if (key === "t") {
-      timestamp = Number.parseInt(value ?? "0", 10);
+    if (key === "t" && value) {
+      timestamp = Number.parseInt(value, 10);
     } else if (key === "v1" && value) {
       signatures.push(value);
     }

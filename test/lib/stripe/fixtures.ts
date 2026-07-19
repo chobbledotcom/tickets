@@ -36,8 +36,12 @@ export const lineFor = (listing: Listing, quantity = 1): CheckoutItem =>
  * the pieces the tests inspect (line items and metadata).
  */
 export type CreatedSessionParams = {
+  customer_email?: string;
   line_items: {
-    price_data: { product_data: { name: string }; unit_amount: number };
+    price_data: {
+      product_data: { description?: string; name: string };
+      unit_amount: number;
+    };
     quantity: number;
   }[];
   metadata: Record<string, string>;

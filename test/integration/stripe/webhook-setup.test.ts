@@ -194,6 +194,21 @@ describeStripe("Stripe webhook setup", () => {
       expect(calls.createAttempts).toBe(2);
     });
 
+    test("does not delete endpoints for a non-webhook maximum error", async () => {
+      const webhookUrl = "https://example.com/payment/webhook";
+      const calls = newWebhookApiCalls();
+
+      const result = await setupWithWebhookApi(
+        webhookUrl,
+        calls,
+        "we_recorded",
+        { createThrowsMaximumWithoutWebhook: true },
+      );
+
+      expectFailedResultWithNoDeletes(result, calls);
+      expect(calls.createAttempts).toBe(1);
+    });
+
     test("re-throws when error is webhook but not limit or maximum", async () => {
       // A webhook error that doesn't mention "limit" or "maximum" is not a
       // cap error — it must re-throw to the outer catch and return an error.

@@ -47,7 +47,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     const intent = await retrievePaymentIntent(paymentReference);
-    return intent?.latest_charge?.refunded ?? false;
+    return intent?.latest_charge?.refunded === true;
   },
 
   async refundPayment(paymentReference: string): Promise<boolean> {
@@ -114,7 +114,8 @@ export const stripePaymentProvider: PaymentProvider = {
       createdAt: isoFromUnixSeconds(session.created),
       id,
       metadata,
-      paymentReference: payment_intent ?? "",
+      paymentReference:
+        typeof payment_intent === "string" ? payment_intent : "",
       paymentStatus: toPaymentStatus(payment_status),
     });
   },

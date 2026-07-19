@@ -58,7 +58,7 @@ describeStripe("stripe", () => {
   ) => {
     expect(result.ok).toBe(false);
     expect(result.apiKey.valid).toBe(false);
-    expect(result.apiKey.error).toContain(error);
+    expect(result.apiKey.error).toBe(error);
   };
 
   describe("testStripeConnection", () => {
@@ -109,6 +109,31 @@ describeStripe("stripe", () => {
           const result = await testStripeConnection();
           expect(result.apiKey.valid).toBe(true);
           expect(result.apiKey.mode).toBe("live");
+        },
+      );
+    });
+
+    test("reports success with one webhook", async () => {
+      const client = await stripeClient();
+      await withBalanceAndList(
+        client,
+        okBalance(false),
+        () =>
+          Promise.resolve({
+            data: [
+              {
+                enabled_events: ["checkout.session.completed"],
+                id: "we_only",
+                object: "webhook_endpoint",
+                status: "enabled",
+                url: "https://example.com/payment/webhook",
+              },
+            ],
+          }),
+        async () => {
+          const result = await testStripeConnection();
+          expect(result.ok).toBe(true);
+          expect(result.webhooks).toHaveLength(1);
         },
       );
     });

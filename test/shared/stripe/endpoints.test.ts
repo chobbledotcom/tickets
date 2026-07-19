@@ -85,6 +85,7 @@ describeStripe("Stripe webhook cleanup", () => {
         if (!url.includes("/v1/webhook_endpoints")) return null;
         const method = init?.method ?? "GET";
         if (method === "GET") {
+          expect(new URL(url).searchParams.get("limit")).toBe("100");
           return Promise.resolve(
             Response.json({
               data: [
