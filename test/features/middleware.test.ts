@@ -10,6 +10,7 @@ import {
   isJsonApiPath,
   isValidContentType,
   isWebhookPath,
+  lowerContentType,
 } from "#routes/middleware.ts";
 import {
   resetEffectiveDomain,
@@ -121,6 +122,10 @@ describe("isEmbeddablePath", () => {
 });
 
 describe("isValidContentType", () => {
+  test("normalizes a missing content type to an empty string", () => {
+    expect(lowerContentType(requestWithType("POST"))).toBe("");
+  });
+
   test("non-POST requests need no content type", () => {
     expect(isValidContentType(requestWithType("PATCH"), "/admin/login")).toBe(
       true,
