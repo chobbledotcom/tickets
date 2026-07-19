@@ -56,7 +56,7 @@ export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
         ...(rejected
           ? {
               error: rejected.error,
-              values: Object.fromEntries(rejected.form.entries()),
+              values: rejected.form.toRenderValues(),
             }
           : {}),
       });

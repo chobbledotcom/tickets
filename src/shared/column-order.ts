@@ -10,9 +10,8 @@
  *   {{price | currency}}              →  "£25.00"
  */
 
-import * as v from "valibot";
+import { once } from "#fp";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
-import type { Result } from "#shared/result.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,180 +47,13 @@ export type ColumnGenerators<TRow, TOpts = unknown> = Record<
   ColumnDef<TRow, TOpts>
 >;
 
-export type ColumnLayout<TColumn extends string> = {
-  readonly columnKeys: readonly TColumn[];
-  readonly filters: ReadonlyMap<TColumn, string>;
-};
-
 // ---------------------------------------------------------------------------
 // Liquid engine — single instance for rendering filtered values
 // ---------------------------------------------------------------------------
 
 // `currency` is custom; `date` is a LiquidJS built-in (strftime on Date objects).
 // ISO string → Date conversion happens in renderFilteredValue before calling Liquid.
-const engine = createBaseLiquidEngine();
-
-// ---------------------------------------------------------------------------
-// Template parsing — regex-based extraction + validation
-// ---------------------------------------------------------------------------
-
-/** Regex to extract Liquid output tags: {{ expression }} */
-const LIQUID_TAG_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
-
-/**
- * Extract the column key and optional filter expression from a Liquid tag body.
- * "name"                 → { key: "name", filter: undefined }
- * "date | date: \"%B\""  → { key: "date", filter: "date | date: \"%B\"" }
- */
-const parseTagBody = (
-  body: string,
-): { key: string; filter: string | undefined } => {
-  const pipeIdx = body.indexOf("|");
-  if (pipeIdx === -1) return { filter: undefined, key: body.trim() };
-  return { filter: body.trim(), key: body.slice(0, pipeIdx).trim() };
-};
-
-/**
- * Parse a column-order template and extract the ordered list of column keys
- * plus any per-column Liquid filter expressions.
- *
- * Validation is done by parsing extracted keys through the column schema.
- * No Liquid engine is needed for validation.
- */
-type ParsedLayout<T extends string> = Result<{
-  columns: T[];
-  filters: Map<T, string>;
-}>;
-
-type ColumnSchema = v.GenericSchema<string> & {
-  readonly options: readonly string[];
-};
-
-const parseColumnTemplate = <TSchema extends ColumnSchema>(
-  template: string,
-  schema: TSchema,
-): ParsedLayout<v.InferOutput<TSchema>> => {
-  const columns: v.InferOutput<TSchema>[] = [];
-  const filters = new Map<v.InferOutput<TSchema>, string>();
-  const seen = new Set<string>();
-
-  for (const match of template.matchAll(LIQUID_TAG_RE)) {
-    const { key, filter } = parseTagBody(match[1]!);
-    const parsed = v.safeParse(schema, key);
-    if (!parsed.success) {
-      return {
-        error: `Unknown column "${key}". Available columns: ${schema.options.join(", ")}`,
-        ok: false,
-      };
-    }
-    const option = parsed.output;
-    if (!seen.has(option)) {
-      seen.add(option);
-      columns.push(option);
-      if (filter) filters.set(option, filter);
-    }
-  }
-
-  if (columns.length === 0) {
-    return { error: "Template must include at least one column", ok: false };
-  }
-
-  return { ok: true, value: { columns, filters } };
-};
-
-/**
- * Build a default template from an ordered list of column keys.
- * Produces e.g. "{{name}}, {{description}}, {{actions}}"
- */
-export const buildDefaultTemplate = (keys: readonly string[]): string =>
-  keys.map((k) => `{{${k}}}`).join(", ");
-
-/**
- * Parse a template and return column keys and filters.
- * Shared by all listing/attendee table renderers.
- */
-const defineColumnLayout = <
-  const TDefault extends readonly [string, ...string[]],
-  const TExtra extends readonly string[],
->(
-  defaultOrder: TDefault,
-  extra: TExtra,
-) => {
-  const [first, ...rest] = defaultOrder;
-  const schema = v.picklist([first, ...rest, ...extra]);
-  const defaultLayout: ColumnLayout<TDefault[number] | TExtra[number]> = {
-    columnKeys: defaultOrder,
-    filters: new Map(),
-  };
-  return {
-    defaultLayout,
-    defaultOrder,
-    defaultTemplate: buildDefaultTemplate(defaultOrder),
-    options: schema.options as readonly (TDefault[number] | TExtra[number])[],
-    parse(template: string): ColumnLayout<TDefault[number] | TExtra[number]> {
-      if (!template) return defaultLayout;
-      const result = parseColumnTemplate(template, schema);
-      if (!result.ok) throw new Error(result.error);
-      return {
-        columnKeys: result.value.columns,
-        filters: result.value.filters,
-      };
-    },
-    schema,
-    validate(template: string): string | null {
-      if (!template) return null;
-      const result = parseColumnTemplate(template, schema);
-      return result.ok ? null : result.error;
-    },
-  };
-};
-
-export const COLUMN_LAYOUTS = {
-  attendee: defineColumnLayout(
-    [
-      "status",
-      "date",
-      "name",
-      "listings",
-      "email",
-      "phone",
-      "address",
-      "special_instructions",
-      "answers",
-      "qty",
-      "ticket",
-      "registered",
-    ],
-    [],
-  ),
-  listing: defineColumnLayout(
-    [
-      "name",
-      "description",
-      "status",
-      "attendees",
-      "tickets",
-      "revenue",
-      "cost",
-      "profit",
-      "created",
-    ],
-    ["date", "location", "price", "renewal"],
-  ),
-};
-
-export type ColumnLayoutKind = keyof typeof COLUMN_LAYOUTS;
-export type ListingColumn =
-  (typeof COLUMN_LAYOUTS)["listing"]["options"][number];
-export type AttendeeColumn =
-  (typeof COLUMN_LAYOUTS)["attendee"]["options"][number];
-
-export type ListingColumnLayout = ReturnType<
-  (typeof COLUMN_LAYOUTS)["listing"]["parse"]
->;
-export type AttendeeColumnLayout = ReturnType<
-  (typeof COLUMN_LAYOUTS)["attendee"]["parse"]
->;
+const getEngine = once(createBaseLiquidEngine);
 
 /** Matches only when `date` is the first filter applied to the raw value */
 const FIRST_FILTER_IS_DATE_RE = /^[^|]*\|\s*date\b/;
@@ -251,7 +83,7 @@ export const renderFilteredValue = (
     const d = new Date(rawValue);
     if (!Number.isNaN(d.getTime())) contextValue = d;
   }
-  const result = engine.parseAndRenderSync(`{{ ${expression} }}`, {
+  const result = getEngine().parseAndRenderSync(`{{ ${expression} }}`, {
     [key]: contextValue,
   });
   return result.trim();

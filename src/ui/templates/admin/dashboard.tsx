@@ -8,7 +8,7 @@ import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
 import {
   COLUMN_LAYOUTS,
   type ListingColumnLayout,
-} from "#shared/column-order.ts";
+} from "#shared/column-layout.ts";
 import {
   EDITOR_LISTING_LAYOUT,
   EDITOR_LISTING_TABLE_COLUMNS,

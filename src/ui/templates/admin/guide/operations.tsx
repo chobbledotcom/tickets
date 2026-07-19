@@ -2,7 +2,7 @@
  * Admin guide — Operations sections.
  */
 
-import { COLUMN_LAYOUTS } from "#shared/column-order.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";

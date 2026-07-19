@@ -14,12 +14,11 @@
 
 import { joinStrings, map, pipe, sort } from "#fp";
 import { t } from "#i18n";
-import {
-  type AttendeeColumn,
-  type AttendeeColumnLayout,
-  getHeaderText,
-  renderCells,
-} from "#shared/column-order.ts";
+import type {
+  AttendeeColumn,
+  AttendeeColumnLayout,
+} from "#shared/column-layout.ts";
+import { getHeaderText, renderCells } from "#shared/column-order.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";

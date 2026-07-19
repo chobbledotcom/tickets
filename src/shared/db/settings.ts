@@ -38,7 +38,7 @@ import {
   type AttendeeColumnLayout,
   COLUMN_LAYOUTS,
   type ListingColumnLayout,
-} from "#shared/column-order.ts";
+} from "#shared/column-layout.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
   boolUpdate,

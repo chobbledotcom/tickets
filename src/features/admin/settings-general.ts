@@ -15,7 +15,7 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { COLUMN_LAYOUTS } from "#shared/column-order.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";

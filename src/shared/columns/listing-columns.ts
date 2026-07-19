@@ -6,11 +6,8 @@
  * cell rendering, and guide documentation.
  */
 
-import type {
-  ColumnDef,
-  ColumnLayout,
-  ListingColumn,
-} from "#shared/column-order.ts";
+import type { ColumnLayout, ListingColumn } from "#shared/column-layout.ts";
+import type { ColumnDef } from "#shared/column-order.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";

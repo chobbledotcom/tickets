@@ -113,3 +113,13 @@ describe("FormParams.getRepeatedPicklist", () => {
     });
   });
 });
+
+describe("FormParams.toRenderValues", () => {
+  test("joins repeated controls without changing single values", () => {
+    const form = new FormParams("days=Monday&name=Alice&days=Wednesday");
+    expect(form.toRenderValues()).toEqual({
+      days: "Monday,Wednesday",
+      name: "Alice",
+    });
+  });
+});

@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { AttendeeColumn } from "#shared/column-order.ts";
-import { COLUMN_LAYOUTS } from "#shared/column-order.ts";
+import { type AttendeeColumn, COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import {
   ATTENDEE_TABLE_COLUMNS,
   formatAddressInline,

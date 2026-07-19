@@ -48,4 +48,12 @@ export class FormParams extends URLSearchParams {
     const selected = new Set(supplied);
     return { ok: true, value: allowed.filter((value) => selected.has(value)) };
   }
+
+  /** Values for re-rendering a rejected form. Repeated controls use the comma
+   * format consumed by checkbox-group fields instead of losing all but one. */
+  toRenderValues(): Record<string, string> {
+    return Object.fromEntries(
+      [...new Set(this.keys())].map((key) => [key, this.getAll(key).join(",")]),
+    );
+  }
 }

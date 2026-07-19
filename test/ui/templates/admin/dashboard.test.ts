@@ -4,7 +4,7 @@ import {
   NO_QUANTITY_PREFIX,
   QTY_PREFIX,
 } from "#routes/admin/attendee-form-model.ts";
-import { COLUMN_LAYOUTS } from "#shared/column-order.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb } from "#shared/db/client.ts";
 import {

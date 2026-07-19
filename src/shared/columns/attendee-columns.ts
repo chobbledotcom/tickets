@@ -7,7 +7,8 @@
 
 import { t } from "#i18n";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
-import type { AttendeeColumn, ColumnDef } from "#shared/column-order.ts";
+import type { AttendeeColumn } from "#shared/column-layout.ts";
+import type { ColumnDef } from "#shared/column-order.ts";
 import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
 import { nonBlankLines } from "#shared/lines.ts";

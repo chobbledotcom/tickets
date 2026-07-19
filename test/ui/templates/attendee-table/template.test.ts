@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { COLUMN_LAYOUTS } from "#shared/column-order.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { testAttendee } from "#test-utils/factories.ts";
 import { attendeeTableSuite, makeOpts, makeRow } from "./shared.ts";
