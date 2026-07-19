@@ -62,12 +62,12 @@ import { seenBefore } from "#shared/seen-before.ts";
 import {
   type AdminLevel,
   availableDayCounts,
+  clampDurationDays,
   type DayPricedListing,
   type Group,
   type Listing,
   type ListingType,
   type ListingWithCount,
-  normalizeDurationDays,
   parseDayPrices,
 } from "#shared/types.ts";
 import { childAddOnError } from "../listings-parents.ts";
@@ -229,7 +229,7 @@ const listingDataToInput = (
 const listingToEdge = (listing: Listing): EdgeListing => ({
   customisable_days: listing.customisable_days,
   day_prices: listing.day_prices,
-  duration_days: normalizeDurationDays(listing.duration_days),
+  duration_days: clampDurationDays(listing.duration_days),
   id: listing.id,
   listing_type: listing.listing_type,
   months_per_unit: listing.months_per_unit,

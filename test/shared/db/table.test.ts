@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -85,6 +86,44 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(await def.read?.(1 as unknown as boolean)).toBe(true);
     expect(await def.write?.(false)).toBe(0);
     expect(await def.write?.(true)).toBe(1);
+  });
+
+  test("col.json validates physical column reads and writes with row context", async () => {
+    const { col } = await import("#shared/db/table.ts");
+    const def = col.json(v.array(v.string()), {
+      context: "records.items",
+      default: () => [],
+    });
+    expect(def.default?.()).toEqual([]);
+    expect(await def.read?.('["one"]' as unknown as string[], 4)).toEqual([
+      "one",
+    ]);
+    expect(await def.write?.(["two"])).toBe('["two"]');
+    expect(() => def.read?.("[1]" as unknown as string[], 4)).toThrow(
+      "Invalid stored JSON in records.items row 4",
+    );
+    expect(() => def.read?.("{}" as unknown as string[])).toThrow(
+      /^Invalid stored JSON in records\.items:/,
+    );
+    const required = col.json(v.array(v.string()), {
+      context: "records.required_items",
+    });
+    expect(required.default).toBeUndefined();
+    expect(await required.write?.(["required"])).toBe('["required"]');
+  });
+
+  test("col.json gives a missing projection its declared value", async () => {
+    const { col } = await import("#shared/db/table.ts");
+    const def = col.json(v.array(v.string()), {
+      context: "records.items",
+      projected: true,
+      whenMissing: () => [],
+    });
+    expect(def.projected).toBe(true);
+    expect(await def.read?.(undefined as unknown as string[], 4)).toEqual([]);
+    expect(await def.read?.('["one"]' as unknown as string[], 4)).toEqual([
+      "one",
+    ]);
   });
 
   test("col.transform creates column with custom transforms", async () => {

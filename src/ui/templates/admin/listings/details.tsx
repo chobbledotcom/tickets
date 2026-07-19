@@ -6,9 +6,9 @@ import { formatDatetimeLabel } from "#shared/dates.ts";
 import type { ListingAggregateRecalculation } from "#shared/db/listings/aggregates.ts";
 import {
   availableDayCounts,
+  clampDurationDays,
   dayPriceFor,
   type ListingWithCount,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import {
   CopyableInputRow,
@@ -41,7 +41,7 @@ const CustomisableDaysRow = ({ listing }: ListingRowProps): JSX.Element => {
       <th>{t("listings_table.customisable_days")}</th>
       <td>
         {t("listings_table.visitors_choose_days", {
-          max_days: normalizeDurationDays(listing.duration_days),
+          max_days: clampDurationDays(listing.duration_days),
         })}{" "}
         {counts.length > 0 ? (
           <span>

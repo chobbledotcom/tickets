@@ -30,9 +30,9 @@ import { requirePublicSite } from "#shared/public-site.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import {
+  clampDurationDays,
   type GroupWithMembers,
   type ListingWithCount,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import {
@@ -81,7 +81,7 @@ export const handleHome: ResponseHandler = () =>
  * fixed daily listing books its whole duration. Mirrors
  * {@link getBookableStartDates}'s span. */
 const cardSpanDays = (listing: ListingWithCount): number =>
-  listing.customisable_days ? 1 : normalizeDurationDays(listing.duration_days);
+  listing.customisable_days ? 1 : clampDurationDays(listing.duration_days);
 
 /** The daily listings NOT bookable on `date`: outside their bookable calendar,
  * or without capacity for their span starting that day. One remaining query

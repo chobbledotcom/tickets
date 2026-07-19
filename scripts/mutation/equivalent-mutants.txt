@@ -71,7 +71,7 @@ src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error messag
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
-src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/admin-features.ts:121:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
 src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
 src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts:76:49  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
@@ -102,13 +102,13 @@ src/fp.ts:449:49  ?? → ||   # items?.length is undefined or a non-negative int
 # undefined, paired null checks already reject both nullish values, optional
 # conditions/dependencies are objects or arrays, and non-generated primary keys
 # are overwritten from the input-column fold in either initial-row branch.
-src/shared/db/table.ts:282:17  === → ==   # queryOne returns StoredRow|null, never undefined
-src/shared/db/table.ts:349:25  !== → !=   # paired checks reject both null and undefined before applying a write transform
-src/shared/db/table.ts:501:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
-src/shared/db/table.ts:541:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:667:59  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:694:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:715:6  === → ==   # wrapNullable constrains T to exclude undefined, so v is T|null
+src/shared/db/table.ts:283:17  === → ==   # queryOne returns StoredRow|null, never undefined
+src/shared/db/table.ts:350:25  !== → !=   # paired checks reject both null and undefined before applying a write transform
+src/shared/db/table.ts:502:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
+src/shared/db/table.ts:542:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:667:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:700:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:721:6  === → ==   # wrapNullable constrains T to exclude undefined, so v is T|null
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.

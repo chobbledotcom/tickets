@@ -47,6 +47,15 @@ describeWithEnv("address cache", { db: true }, () => {
     expect(await getCachedAddresses(index)).toEqual([]);
   });
 
+  test("rejects invalid address shapes before storing them", async () => {
+    const index = await computeAddressSearchIndex("easypostcodes", "BAD");
+    await expect(
+      storeCachedAddresses(index, [
+        { lat: "1", line: "Missing longitude" },
+      ] as unknown as Parameters<typeof storeCachedAddresses>[1]),
+    ).rejects.toThrow("Invalid value for stored JSON in address_cache.results");
+  });
+
   test("misses for a search that was never cached", async () => {
     const index = await computeAddressSearchIndex("easypostcodes", "M1 1AE");
     expect(await getCachedAddresses(index)).toBeNull();

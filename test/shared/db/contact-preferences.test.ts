@@ -248,6 +248,23 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     });
   });
 
+  test("rejects wrong field types in an encrypted stats blob", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("invalid-stats@example.com");
+    const encrypted = await encryptWithOwnerKey(
+      JSON.stringify({ c: "2" }),
+      settings.publicKey,
+    );
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, ?)",
+      [hash, encrypted],
+    );
+
+    await expect(getContactRecord(hash, pk)).rejects.toThrow(
+      "Invalid stored JSON in contact_preferences.stats_blob",
+    );
+  });
+
   test("getContactCountFields reads plaintext counts past a corrupt blob", async () => {
     const hash = await hashEmail("corrupt@example.com");
     await execute(

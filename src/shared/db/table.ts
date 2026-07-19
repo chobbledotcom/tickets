@@ -27,6 +27,7 @@ import {
 } from "#shared/db/client.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { requestCache } from "#shared/request-cache.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /**
  * Column definition for a table
@@ -719,6 +720,41 @@ const wrapNullable =
   (v) =>
     v === null ? Promise.resolve(null) : Promise.resolve(fn(v));
 
+const storedJsonTransforms = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  context: string,
+): {
+  read: (value: unknown, rowId?: unknown) => v.InferOutput<TSchema>;
+  write: (value: v.InferOutput<TSchema>) => string;
+} => {
+  const json = defineStoredJson(schema);
+  return {
+    read: (value, rowId) =>
+      json.read(
+        value,
+        `${context}${rowId === undefined ? "" : ` row ${String(rowId)}`}`,
+      ),
+    write: (value) => json.write(value, context),
+  };
+};
+
+interface StoredJsonContext {
+  context: string;
+}
+
+interface StoredJsonColumnConfig<T> extends StoredJsonContext {
+  default?: () => T;
+}
+
+interface ProjectedJsonColumnConfig<T> extends StoredJsonContext {
+  projected: true;
+  whenMissing: () => T;
+}
+
+type JsonColumnConfig<T> =
+  | StoredJsonColumnConfig<T>
+  | ProjectedJsonColumnConfig<T>;
+
 /**
  * Helper to create column definitions
  */
@@ -735,7 +771,7 @@ export const col = {
   converted: <App>(config: {
     default?: () => App;
     write: (v: App) => InValue;
-    read: (raw: InValue) => App;
+    read: (raw: InValue, rowId?: unknown) => App;
   }): ColumnDef<App> => ({
     default: config.default,
     read: config.read as (v: App) => App,
@@ -777,6 +813,25 @@ export const col = {
   }),
   /** Auto-generated column (like id) */
   generated: <T>(): ColumnDef<T> => ({ generated: true }),
+
+  /** JSON column validated against one schema on every read and write. */
+  json: <TSchema extends v.GenericSchema>(
+    schema: TSchema,
+    config: JsonColumnConfig<v.InferOutput<TSchema>>,
+  ): ColumnDef<v.InferOutput<TSchema>> => {
+    const transforms = storedJsonTransforms(schema, config.context);
+    if ("projected" in config) {
+      return col.projected<v.InferOutput<TSchema>>((value, rowId) =>
+        value === undefined
+          ? config.whenMissing()
+          : transforms.read(value, rowId),
+      );
+    }
+    return col.converted<v.InferOutput<TSchema>>({
+      ...(config.default ? { default: config.default } : {}),
+      ...transforms,
+    });
+  },
 
   /** A read-only column that is NOT a physical column on the table: it is
    * projected into the row by the caller's SELECT (a subquery `AS <col>`), read

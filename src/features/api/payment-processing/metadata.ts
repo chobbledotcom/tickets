@@ -48,6 +48,9 @@ const parseListingTextAnswerIds = jsonMetaField<
   Record<string, TextAnswerRef[]> | undefined
 >(undefined);
 
+const textOrEmpty = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
 /**
  * Parse booking items from metadata JSON. Returns null when the JSON is
  * unparseable, not an array, or empty.
@@ -108,21 +111,21 @@ export const extractIntent = (
   const siteTokenIndex = metadata.site_token_index || undefined;
   const thankYouUrl = metadata.thank_you_url || undefined;
   return {
-    address: metadata.address,
+    address: textOrEmpty(metadata.address),
     allocations,
     balanceAttendeeId,
     date: metadata.date || null,
     dayCount,
-    email: metadata.email,
+    email: textOrEmpty(metadata.email),
     items,
     listingAnswerIds,
     listingTextAnswerIds,
     modifiers: parseModifierRefs(metadata.modifiers),
-    name: metadata.name,
-    phone: metadata.phone,
+    name: textOrEmpty(metadata.name),
+    phone: textOrEmpty(metadata.phone),
     reservationAmount,
     siteTokenIndex,
-    special_instructions: metadata.special_instructions,
+    special_instructions: textOrEmpty(metadata.special_instructions),
     thankYouUrl,
   };
 };

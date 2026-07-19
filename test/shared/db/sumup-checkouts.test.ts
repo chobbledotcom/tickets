@@ -57,6 +57,16 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       expect(result).toBeNull();
     });
 
+    test("rejects non-string metadata before storing it", async () => {
+      await expect(
+        storeSumupCheckout(REFERENCE, {
+          quantity: 2,
+        } as unknown as Record<string, string>),
+      ).rejects.toThrow(
+        "Invalid value for stored JSON in sumup_checkouts.metadata",
+      );
+    });
+
     test("keeps rows isolated per reference", async () => {
       const otherReference = crypto.randomUUID();
       const otherMetadata = { ...METADATA, name: "Bob Other" };
