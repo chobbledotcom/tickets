@@ -17,22 +17,31 @@ type SignatureParseResult =
 
 const parseSignatureHeader = (header: string): SignatureParseResult => {
   const parts = header.split(",");
-  let timestamp = 0;
+  let timestampText: string | undefined;
   const signatures: string[] = [];
   for (const part of parts) {
     const [key, value] = part.split("=");
-    if (key === "t" && value) {
-      timestamp = Number.parseInt(value, 10);
+    if (key === "t") {
+      timestampText = value;
     } else if (key === "v1" && value) {
       signatures.push(value);
     }
   }
-  if (timestamp === 0 && signatures.length === 0) {
+  if (timestampText === undefined && signatures.length === 0) {
     return { ok: false, reason: "missing timestamp and signature" };
   }
-  if (timestamp === 0) return { ok: false, reason: "missing timestamp" };
+  if (timestampText === undefined) {
+    return { ok: false, reason: "missing timestamp" };
+  }
   if (signatures.length === 0) {
     return { ok: false, reason: "missing signature" };
+  }
+  if (!/^\d+$/u.test(timestampText)) {
+    return { ok: false, reason: "invalid timestamp" };
+  }
+  const timestamp = Number(timestampText);
+  if (!Number.isSafeInteger(timestamp) || timestamp === 0) {
+    return { ok: false, reason: "invalid timestamp" };
   }
   return { ok: true, signatures, timestamp };
 };

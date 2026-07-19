@@ -1,4 +1,4 @@
-import { lazyRef } from "#fp";
+import { lazyRef, mapNotNullish } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import {
@@ -13,22 +13,25 @@ import {
   type StripeClientConfig,
 } from "./client.ts";
 
+const formatErrorField =
+  (label: string, type: "number" | "string") =>
+  (value: unknown): string | null =>
+    typeof value === type ? `${label}=${String(value)}` : null;
+
+const STRIPE_ERROR_FIELDS = [
+  { format: formatErrorField("status", "number"), key: "statusCode" },
+  { format: formatErrorField("code", "string"), key: "code" },
+  { format: formatErrorField("type", "string"), key: "type" },
+  { format: formatErrorField("request", "string"), key: "requestId" },
+] as const;
+type StripeErrorField = (typeof STRIPE_ERROR_FIELDS)[number];
+
 /** Extract privacy-safe fields without logging Stripe's raw error message. */
 export const sanitizeStripeError = (error: unknown): string => {
   if (!(error instanceof Error)) return "unknown";
-  const parts: string[] = [];
-  if ("statusCode" in error && typeof error.statusCode === "number") {
-    parts.push(`status=${error.statusCode}`);
-  }
-  if ("code" in error && typeof error.code === "string") {
-    parts.push(`code=${error.code}`);
-  }
-  if ("type" in error && typeof error.type === "string") {
-    parts.push(`type=${error.type}`);
-  }
-  if ("requestId" in error && typeof error.requestId === "string") {
-    parts.push(`request=${error.requestId}`);
-  }
+  const parts = mapNotNullish((field: StripeErrorField) =>
+    field.format(Reflect.get(error, field.key)),
+  )(STRIPE_ERROR_FIELDS);
   return parts.length > 0 ? parts.join(" ") : error.name;
 };
 
