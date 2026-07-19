@@ -120,6 +120,22 @@ describeWithEnv(
         );
       });
 
+      test("the quantity input uses CSP-safe styling", async () => {
+        const listing = await createTestListing({ maxAttendees: 50 });
+        const attendee = await createTestAttendee(
+          listing.id,
+          listing.slug,
+          "Styled",
+          "styled@example.com",
+        );
+
+        const html = await (
+          await adminGet(`/admin/attendees/${attendee.id}/edit`)
+        ).text();
+        expect(html).toContain('class="line-qty"');
+        expect(html).not.toContain('style="width:5em"');
+      });
+
       test("marking a checked-in line no-quantity clears its check-in", async () => {
         const listing = await createTestListing({ maxAttendees: 50 });
         const attendee = await createTestAttendee(
