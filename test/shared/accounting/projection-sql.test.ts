@@ -7,14 +7,16 @@ import {
   WRITEOFF_TYPE,
 } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
+import { MANUAL_ATTENDEE_CHARGE } from "#shared/accounting/manual-entries.ts";
 import {
   accountBalanceSubquery,
   accountPredicate,
   attendeeOwedSubquery,
-  bookingTotalSubquery,
   creditsLessWriteoffDebits,
   externalCashBalanceSubquery,
   LEG_COLUMNS,
+  orderTotalSubquery,
+  reservationSubtotalSubquery,
   saleLegPredicate,
   signedSumCase,
 } from "#shared/accounting/projection-sql.ts";
@@ -126,17 +128,31 @@ describe("externalCashBalanceSubquery", () => {
   });
 });
 
-describe("bookingTotalSubquery", () => {
-  test("adds booking charges and subtracts discounts without counting refunds", () => {
+describe("order amount subqueries", () => {
+  const expectedTotal = (kinds: readonly string[]): string => {
     const billed = `source_type = '${ATTENDEE}' AND source_id = CAST(a.id AS TEXT)`;
     const discounted = `dest_type = '${ATTENDEE}' AND dest_id = CAST(a.id AS TEXT)`;
-    const kinds = [KIND.sale, KIND.modifier, KIND.fee]
-      .map((kind) => `'${kind}'`)
-      .join(", ");
-
-    expect(bookingTotalSubquery(ATTENDEE, "a.id")).toBe(
+    const kindList = kinds.map((kind) => `'${kind}'`).join(", ");
+    return (
       `(SELECT ${signedSumCase(billed, discounted)} FROM transfers` +
-        ` WHERE kind IN (${kinds}) AND (${billed} OR ${discounted}))`,
+      ` WHERE kind IN (${kindList}) AND (${billed} OR ${discounted}))`
+    );
+  };
+
+  test("keeps fees and manual charges out of the reservation subtotal", () => {
+    expect(reservationSubtotalSubquery(ATTENDEE, "a.id")).toBe(
+      expectedTotal([KIND.sale, KIND.modifier]),
+    );
+  });
+
+  test("includes fees and manual charges in the full order total", () => {
+    expect(orderTotalSubquery(ATTENDEE, "a.id")).toBe(
+      expectedTotal([
+        KIND.sale,
+        KIND.modifier,
+        KIND.fee,
+        MANUAL_ATTENDEE_CHARGE,
+      ]),
     );
   });
 });

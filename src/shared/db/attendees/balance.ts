@@ -15,8 +15,9 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
   attendeeOwedSubquery,
-  bookingTotalSubquery,
   externalCashBalanceSubquery,
+  orderTotalSubquery,
+  reservationSubtotalSubquery,
 } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
@@ -26,10 +27,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import {
-  pricePaidFromLedger,
-  remainingBalanceFromLedger,
-} from "#shared/db/attendees/select.ts";
+import { remainingBalanceFromLedger } from "#shared/db/attendees/select.ts";
 import {
   executeBatchWithResults,
   queryBatch,
@@ -81,13 +79,13 @@ export type OrderLine = {
   listingId: number;
   name: string;
   quantity: number;
-  pricePaid: number;
 };
 
 /** A PII-free recap of an attendee's order. */
 export type OrderSummary = {
   lines: OrderLine[];
   fullPrice: number;
+  reservationSubtotal: number;
   totalQuantity: number;
   depositPaid: number;
 };
@@ -100,7 +98,6 @@ export type OrderSummary = {
 type OrderRow = {
   listing_id: number;
   quantity: number;
-  price_paid: number;
   listing_name: EnvKeyEncrypted | null;
 };
 
@@ -112,12 +109,6 @@ const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
     // lower-id ghost.
     `SELECT listingAttendee.listing_id,
             listingAttendee.quantity,
-            ${pricePaidFromLedger(
-              "listingAttendee.attendee_id",
-              "listingAttendee.listing_id",
-              "listingAttendee.ledger_event_group",
-              "listingAttendee.id",
-            )},
             listing.name AS listing_name
        FROM listing_attendees AS listingAttendee
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
@@ -127,7 +118,8 @@ const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
 
 const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
   const sql = `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid,
-               ${bookingTotalSubquery("attendee", "?")} AS full_price`;
+               ${orderTotalSubquery("attendee", "?")} AS full_price,
+               ${reservationSubtotalSubquery("attendee", "?")} AS reservation_subtotal`;
   return {
     args: Array.from(sql.matchAll(/\?/g), () => String(attendeeId)),
     sql,
@@ -140,7 +132,6 @@ const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
     : {
         listingId: row.listing_id,
         name: await decrypt(row.listing_name),
-        pricePaid: row.price_paid,
         quantity: row.quantity,
       };
 
@@ -153,9 +144,11 @@ export const getAttendeeOrderSummary = async (
   ]);
   const rows = resultRows<OrderRow>(orderResult!);
   // The scalar SELECT has no FROM clause, so SQLite always returns one row.
-  const paidRow = resultRows<{ amount_paid: number; full_price: number }>(
-    paidResult!,
-  )[0]!;
+  const paidRow = resultRows<{
+    amount_paid: number;
+    full_price: number;
+    reservation_subtotal: number;
+  }>(paidResult!)[0]!;
   const depositPaid = Number(paidRow.amount_paid);
 
   // The LEFT JOIN keeps dangling booking rows visible so we can preserve the
@@ -166,6 +159,7 @@ export const getAttendeeOrderSummary = async (
     depositPaid,
     fullPrice: Number(paidRow.full_price),
     lines,
+    reservationSubtotal: Number(paidRow.reservation_subtotal),
     totalQuantity: sumOf((l: OrderLine) => l.quantity)(lines),
   };
 };

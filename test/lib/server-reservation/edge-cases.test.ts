@@ -161,6 +161,9 @@ describeWithEnv(
       // the whole £10 is owed. (price_paid no longer tracks cash — concern 5.)
       expect(attendee.pricePaid).toBe(1000);
       expect(attendee.remainingBalance).toBe(1000);
+      const summary = await getAttendeeOrderSummary(attendee.id);
+      expect(summary.fullPrice).toBe(1100);
+      expect(summary.reservationSubtotal).toBe(1000);
     });
 
     test("zero-deposit reservations without a fee skip the provider but keep the full balance", async () => {

@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
+import {
+  MANUAL_ATTENDEE_CHARGE,
+  postManualLedgerEntry,
+} from "#shared/accounting/manual-entries.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import {
   attendeeStatuses,
@@ -265,6 +270,23 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const summary = await getAttendeeOrderSummary(attendeeId);
     expect(summary.depositPaid).toBe(0);
     expect(summary.fullPrice).toBe(100);
+  });
+
+  test("order summary includes a later manual attendee charge", async () => {
+    const { attendeeId } = await createReservedAttendee(0);
+    await postManualLedgerEntry({
+      account: attendeeAccount(attendeeId),
+      amount: 1500,
+      occurredAt: "2026-06-22T00:00:00.000Z",
+      postedBy: "owner",
+      type: MANUAL_ATTENDEE_CHARGE,
+    });
+
+    const summary = await getAttendeeOrderSummary(attendeeId);
+
+    expect(summary.fullPrice).toBe(1600);
+    expect(summary.depositPaid).toBe(100);
+    expect(summary.reservationSubtotal).toBe(100);
   });
 
   test("order summary skips bookings whose listing no longer exists", async () => {

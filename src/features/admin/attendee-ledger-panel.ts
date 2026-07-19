@@ -39,7 +39,7 @@ export const loadAttendeeLedgerPanel = async (
   const deposit = status?.is_reservation
     ? computeReservationDeposit(
         status.reservation_amount,
-        summary.fullPrice,
+        summary.reservationSubtotal,
         summary.totalQuantity,
       )
     : 0;
