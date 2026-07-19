@@ -756,7 +756,7 @@ src/shared/db/attendees/update.ts:188:43  ?? → ||   # Map<string,number>.get d
 src/shared/db/attendees/update.ts:189:39  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 
 # DB client (client.ts) — extractUpdateColumns assignment guard.
-src/shared/db/client.ts:65:17  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
+src/shared/db/client.ts:71:17  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
 
 # DB client (client.ts) — write-verb classification. The WriteVerb produced by
 # invalidateForSql is consumed ONLY by invalidateCachesForWrite, whose single
@@ -764,18 +764,17 @@ src/shared/db/client.ts:65:17  0 → 1   # eqIdx===0 means the fragment starts w
 # `verb === "update"` check happens before these sites take effect. Any two
 # non-"update" verb values are therefore indistinguishable by every possible
 # test, so mutants that only reclassify/rename a non-update verb are equivalent.
-src/shared/db/client.ts:120:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
-src/shared/db/client.ts:120:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
+src/shared/db/client.ts:128:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
+src/shared/db/client.ts:128:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
 
 # DB client (client.ts) — nullish-coalescing fallbacks whose left side can never
 # be a falsy non-null value, so `??` and `||` pick the same branch on every input.
-src/shared/db/client.ts:106:73  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
-src/shared/db/client.ts:348:57  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
-src/shared/db/client.ts:718:26  ?? → ||   # `existingId` is null on create or a real row id on update (callers verify the row exists first); SQLite rowids start at 1, so the only falsy value (0) never reaches the line
+src/shared/db/client.ts:114:73  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
+src/shared/db/client.ts:356:57  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
 
 # DB client (client.ts) — sentinel symbol descriptions.
-src/shared/db/client.ts:728:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
-src/shared/db/client.ts:151:31  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
+src/shared/db/client.ts:736:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
+src/shared/db/client.ts:159:31  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
 
 # Payment references (payment-references.ts) — `getRefundPaymentReferences`
 # consolidates rows for the same reference into a single entry by folding

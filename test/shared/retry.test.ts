@@ -106,8 +106,9 @@ describe("retryWithBackoff", () => {
   });
 
   test("reports the zero-based attempt index to onError on every failure", async () => {
+    using time = new FakeTime();
     const seen: number[] = [];
-    await expect(
+    const outcome = expect(
       retryWithBackoff(
         () => Promise.reject(new Error("always")),
         [1, 1, 1],
@@ -116,6 +117,11 @@ describe("retryWithBackoff", () => {
         },
       ),
     ).rejects.toThrow("always");
+    // Drive each backoff off the fake clock instead of real timers.
+    await time.tickAsync(1);
+    await time.tickAsync(1);
+    await time.tickAsync(1);
+    await outcome;
     // One call per failed attempt, including the final one that gives up.
     expect(seen).toEqual([0, 1, 2, 3]);
   });

@@ -2,13 +2,18 @@ import { LibsqlError, type ResultSet, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { getDb, withTransaction } from "#shared/db/client.ts";
+import {
+  getDb,
+  withTransaction,
+  writeRowInTransaction,
+} from "#shared/db/client.ts";
 import {
   runWithQueryLogContext,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
 
 /**
  * Interactive-transaction internals: the per-transaction statement budget (the
@@ -60,38 +65,28 @@ describeWithEnv("db > client transaction", { db: true }, () => {
 
   test("a failure rolls the transaction back and rethrows the original error", async () => {
     const rollback = spy(() => Promise.resolve());
-    const fakeTx = {
+    using _txStub = stubTransaction({
       commit: () => Promise.resolve(),
       execute: () => Promise.resolve(emptyResultSet()),
       rollback,
-    } as unknown as Transaction;
-    const txStub = stub(getDb(), "transaction", () => Promise.resolve(fakeTx));
-    try {
-      await expect(
-        withTransaction(async (tx) => {
-          await tx.execute("INSERT INTO t (x) VALUES (1)");
-          throw new Error("work failed");
-        }),
-      ).rejects.toThrow("work failed");
-    } finally {
-      txStub.restore();
-    }
+    } as unknown as Transaction);
+    await expect(
+      withTransaction(async (tx) => {
+        await tx.execute("INSERT INTO t (x) VALUES (1)");
+        throw new Error("work failed");
+      }),
+    ).rejects.toThrow("work failed");
     expect(rollback.calls.length).toBe(1);
   });
 
   test("a rollback failure after a commit failure still surfaces the commit error", async () => {
-    const fakeTx = {
+    using _txStub = stubTransaction({
       commit: () => Promise.reject(new Error("commit failed")),
       rollback: () => Promise.reject(new Error("rollback failed too")),
-    } as unknown as Transaction;
-    const txStub = stub(getDb(), "transaction", () => Promise.resolve(fakeTx));
-    try {
-      await expect(withTransaction(() => Promise.resolve())).rejects.toThrow(
-        "commit failed",
-      );
-    } finally {
-      txStub.restore();
-    }
+    } as unknown as Transaction);
+    await expect(withTransaction(() => Promise.resolve())).rejects.toThrow(
+      "commit failed",
+    );
   });
 
   test("a failed transaction does not poison the queue behind it", async () => {
@@ -106,19 +101,14 @@ describeWithEnv("db > client transaction", { db: true }, () => {
 
   test("a committed transaction does not roll back", async () => {
     const rollback = spy(() => Promise.resolve());
-    const fakeTx = {
+    using _txStub = stubTransaction({
       batch: () => Promise.resolve([] as ResultSet[]),
       commit: () => Promise.resolve(),
       rollback,
-    } as unknown as Transaction;
-    const txStub = stub(getDb(), "transaction", () => Promise.resolve(fakeTx));
-    try {
-      await withTransaction(async (tx) => {
-        await tx.batch(["SELECT 1"]);
-      });
-    } finally {
-      txStub.restore();
-    }
+    } as unknown as Transaction);
+    await withTransaction(async (tx) => {
+      await tx.batch(["SELECT 1"]);
+    });
     expect(rollback.calls.length).toBe(0);
   });
 
@@ -126,27 +116,21 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     // A 5xx at begin or commit may have landed server-side, so a transaction
     // never retries upstream gateway errors — the failure surfaces as itself
     // rather than replaying the writes.
-    const begin = spy(() =>
-      Promise.resolve({
-        commit: () =>
-          Promise.reject(
-            new LibsqlError("Server returned HTTP status 504", "SERVER_ERROR"),
-          ),
-        execute: () => Promise.resolve(emptyResultSet()),
-        rollback: () => Promise.resolve(),
-      } as unknown as Transaction),
-    );
-    const txStub = stub(getDb(), "transaction", begin);
-    try {
-      await expect(
-        withTransaction(async (tx) => {
-          await tx.execute("INSERT INTO t (x) VALUES (1)");
-        }),
-      ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
-    } finally {
-      txStub.restore();
-    }
-    expect(begin.calls.length).toBe(1);
+    using txStub = stubTransaction({
+      commit: () =>
+        Promise.reject(
+          new LibsqlError("Server returned HTTP status 504", "SERVER_ERROR"),
+        ),
+      execute: () => Promise.resolve(emptyResultSet()),
+      rollback: () => Promise.resolve(),
+    } as unknown as Transaction);
+    await expect(
+      withTransaction(async (tx) => {
+        await tx.execute("INSERT INTO t (x) VALUES (1)");
+      }),
+    ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
+    // One begin, no retry — a replayed transaction would double-apply the write.
+    expect(txStub.calls.length).toBe(1);
   });
 
   test("a second transaction waits for the first to settle before it begins", async () => {
@@ -155,39 +139,57 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     const gate = new Promise<void>((resolve) => {
       openGate = resolve;
     });
-    const fakeTx = {
-      commit: () => Promise.resolve(),
-      rollback: () => Promise.resolve(),
-    } as unknown as Transaction;
-    const txStub = stub(getDb(), "transaction", () => {
+    using _txStub = stub(getDb(), "transaction", () => {
       events.push("begin");
-      return Promise.resolve(fakeTx);
+      return Promise.resolve({
+        commit: () => Promise.resolve(),
+        rollback: () => Promise.resolve(),
+      } as unknown as Transaction);
     });
-    try {
-      const first = withTransaction(async () => {
-        events.push("first work");
-        await gate;
-        events.push("first settled");
-      });
-      const second = withTransaction(async () => {
-        events.push("second work");
-      });
-      // Flush microtasks: with the queue intact the second transaction is
-      // parked on the first's tail and cannot have begun; without the wait it
-      // begins immediately, overlapping the open first transaction.
-      for (let i = 0; i < 5; i++) await Promise.resolve();
-      expect(events).toEqual(["begin", "first work"]);
-      openGate();
-      await Promise.all([first, second]);
-      expect(events).toEqual([
-        "begin",
-        "first work",
-        "first settled",
-        "begin",
-        "second work",
-      ]);
-    } finally {
-      txStub.restore();
-    }
+    const first = withTransaction(async () => {
+      events.push("first work");
+      await gate;
+      events.push("first settled");
+    });
+    const second = withTransaction(async () => {
+      events.push("second work");
+    });
+    // Flush microtasks: with the queue intact the second transaction is
+    // parked on the first's tail and cannot have begun; without the wait it
+    // begins immediately, overlapping the open first transaction.
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(events).toEqual(["begin", "first work"]);
+    openGate();
+    await Promise.all([first, second]);
+    expect(events).toEqual([
+      "begin",
+      "first work",
+      "first settled",
+      "begin",
+      "second work",
+    ]);
+  });
+
+  test("writeRowInTransaction honours an explicit existing id of 0", async () => {
+    // `existingId ?? lastInsertRowid` must be nullish- (not falsy-) coalescing:
+    // only a null existingId means "this was an INSERT, use its new rowid". An
+    // explicit 0 must reach persist as 0, not be swapped for lastInsertRowid.
+    const persistedIds: number[] = [];
+    using _txStub = stubTransaction({
+      commit: () => Promise.resolve(),
+      execute: () =>
+        Promise.resolve({ lastInsertRowid: 42n } as unknown as ResultSet),
+      rollback: () => Promise.resolve(),
+    } as unknown as Transaction);
+    const id = await writeRowInTransaction(
+      "UPDATE rows SET x = 1",
+      0,
+      (_tx, rowId) => {
+        persistedIds.push(rowId);
+        return Promise.resolve();
+      },
+    );
+    expect(id).toBe(0);
+    expect(persistedIds).toEqual([0]);
   });
 });

@@ -125,13 +125,16 @@ describe("db > client transient upstream retry", () => {
 
   for (const [label, sql] of [
     ["a write statement", "INSERT INTO t (x) VALUES (1)"],
+    ["a CTE-led INSERT", "WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x"],
     ["a CTE-led UPDATE", "WITH x AS (SELECT 1) UPDATE t SET a = ?"],
+    ["a CTE-led DELETE", "WITH x AS (SELECT 1) DELETE FROM t USING x"],
   ] as const) {
     test(`a fleeting upstream 504 on ${label} is not retried`, async () => {
       // A 5xx on a write may have committed before the gateway timed out;
       // replaying it could double-apply, so writes never retry upstream errors
-      // even when a read of the same shape would. A WITH-prefixed UPDATE is a
-      // write too — the CTE prefix must not trip the read-only retry gate.
+      // even when a read of the same shape would. Every CTE-led write — INSERT,
+      // UPDATE, or DELETE — is a write: the CTE prefix must not trip the
+      // read-only retry gate.
       let attempts = 0;
       setDb(
         clientWith(() => {

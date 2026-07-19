@@ -7,7 +7,6 @@ import {
   queryOne,
   setDb,
   withTransaction,
-  writeRowInTransaction,
 } from "#shared/db/client.ts";
 import {
   enableQueryLog,
@@ -226,32 +225,6 @@ describe("withTransaction lock contention", () => {
         error = caught;
       }
       expect(error).toBeInstanceOf(DatabaseBusyError);
-    } finally {
-      setDb(null);
-    }
-  });
-
-  test("writeRowInTransaction honours an explicit existing id verbatim, even 0", async () => {
-    // `existingId ?? lastInsertRowid` must be nullish- (not falsy-) coalescing:
-    // only a null existingId means "this was an INSERT, use its new rowid".
-    const tx = {
-      commit: () => Promise.resolve(),
-      execute: () => Promise.resolve({ lastInsertRowid: 42n }),
-      rollback: () => Promise.resolve(),
-    } as unknown as Transaction;
-    setDb(clientWith(() => Promise.resolve(tx)));
-    try {
-      const persistedIds: number[] = [];
-      const id = await writeRowInTransaction(
-        "UPDATE rows SET x = 1",
-        0,
-        (_tx, rowId) => {
-          persistedIds.push(rowId);
-          return Promise.resolve();
-        },
-      );
-      expect(id).toBe(0);
-      expect(persistedIds).toEqual([0]);
     } finally {
       setDb(null);
     }

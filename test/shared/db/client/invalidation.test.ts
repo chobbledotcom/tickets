@@ -1,3 +1,4 @@
+import type { ResultSet, Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import {
@@ -12,6 +13,8 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
 
 /**
  * Verb- and column-driven cache invalidation: after every write, the db client
@@ -121,21 +124,50 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     ).toBe(true);
   });
 
-  test("a single statement inside withTransaction invalidates after commit", async () => {
+  test("a single statement inside withTransaction invalidates only after commit", async () => {
+    // Suspend commit: the write must NOT invalidate while the transaction is
+    // still open, only once commit resolves.
+    let resolveCommit!: () => void;
+    const commitPromise = new Promise<void>((resolve) => {
+      resolveCommit = resolve;
+    });
+    using _txStub = stubTransaction({
+      commit: () => commitPromise,
+      execute: () => Promise.resolve(emptyResultSet()),
+      rollback: () => Promise.resolve(),
+    } as unknown as Transaction);
     const counter = countFirings();
-    await withTransaction(async (tx) => {
+    const done = withTransaction(async (tx) => {
       await tx.execute({ args: ["inv_tx", "seed"], sql: SETTINGS_INSERT });
     });
+    // Flush microtasks so the write has run; invalidation must still be held.
+    await Promise.resolve();
+    expect(counter.fired).toBe(0);
+    resolveCommit();
+    await done;
     expect(counter.fired).toBe(1);
   });
 
-  test("a batch inside withTransaction invalidates after commit", async () => {
+  test("a batch inside withTransaction invalidates only after commit", async () => {
+    let resolveCommit!: () => void;
+    const commitPromise = new Promise<void>((resolve) => {
+      resolveCommit = resolve;
+    });
+    using _txStub = stubTransaction({
+      batch: () => Promise.resolve([emptyResultSet()] as ResultSet[]),
+      commit: () => commitPromise,
+      rollback: () => Promise.resolve(),
+    } as unknown as Transaction);
     const counter = countFirings();
-    await withTransaction(async (tx) => {
+    const done = withTransaction(async (tx) => {
       await tx.batch([
         { args: ["inv_tx_batch", "seed"], sql: SETTINGS_INSERT },
       ]);
     });
+    await Promise.resolve();
+    expect(counter.fired).toBe(0);
+    resolveCommit();
+    await done;
     expect(counter.fired).toBe(1);
   });
 });

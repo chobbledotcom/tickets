@@ -42,8 +42,14 @@ import { retryWithBackoff } from "#shared/retry.ts";
 const WRITE_TABLE_RE =
   /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
 
-/** A CTE-led UPDATE's mutating statement, without its leading read expression. */
-const CTE_UPDATE_RE = /^\s*WITH\b[\s\S]*?\)\s*(UPDATE[\s\S]*)$/i;
+/** A CTE-led statement's mutating (or read) tail, without its leading
+ *  `WITH ... AS (...)` read expression — so a `WITH x AS (...) INSERT INTO ...`
+ *  or `WITH ... DELETE FROM ...` is classified by its real verb, not misread
+ *  as a bare SELECT and (for writes) silently skipped by the write gates.
+ *  Every CTE statement closes with `) <verb> ...`, so the alternation captures
+ *  the tail regardless of which write verb (or SELECT) follows. */
+const CTE_PREFIX_RE =
+  /^\s*WITH\b[\s\S]*?\)\s*((?:INSERT|UPDATE|DELETE|REPLACE|SELECT)[\s\S]*)$/i;
 
 /**
  * Parse the column names assigned by an UPDATE SET clause.
@@ -97,13 +103,15 @@ export const extractUpdateColumns = (
  * fails the write is treated as unconditional — safe over stale.
  */
 /**
- * The mutating statement at the heart of a (possibly CTE-led) SQL string: a
- * `WITH ... UPDATE` is stripped to its `UPDATE ...` tail so the write regexes
- * below can anchor on the real verb. Shared by {@link isWriteSql} (the read/write
- * split the upstream retry hinges on) and {@link invalidateForSql} (table/verb
- * classification) so the two never drift on what counts as a write.
+ * The statement at the heart of a (possibly CTE-led) SQL string: a
+ * `WITH ... AS (...) <verb> ...` is stripped to its `<verb> ...` tail so the
+ * write regexes can anchor on the real verb — a CTE-led INSERT/UPDATE/DELETE/
+ * REPLACE is a write, a CTE-led SELECT stays a read. Shared by
+ * {@link isWriteSql} (the read/write split the upstream retry hinges on) and
+ * {@link invalidateForSql} (table/verb classification) so the two never drift
+ * on what counts as a write.
  */
-const writeSqlOf = (sql: string): string => CTE_UPDATE_RE.exec(sql)?.[1] ?? sql;
+const writeSqlOf = (sql: string): string => CTE_PREFIX_RE.exec(sql)?.[1] ?? sql;
 
 /** The SQL text of a libsql statement, which may be a bare string or a
  *  `{ sql, args }` object. Shared by the batch/transaction scopes and the
@@ -260,9 +268,9 @@ const isTransientUpstreamError = (error: unknown): boolean =>
 
 /**
  * Whether a statement mutates the database — the CTE prefix stripped first so
- * a `WITH ... UPDATE` is detected as a write, not misread as a SELECT. Shares
- * the strip with {@link invalidateForSql} so the read/write split the upstream
- * retry hinges on stays in lockstep with cache invalidation.
+ * a `WITH ... INSERT/UPDATE/DELETE/REPLACE` is detected as a write, not misread
+ * as a read. Shares the strip with {@link invalidateForSql} so the read/write
+ * split the upstream retry hinges on stays in lockstep with cache invalidation.
  */
 const isWriteSql = (sql: string): boolean =>
   WRITE_TABLE_RE.test(writeSqlOf(sql));
