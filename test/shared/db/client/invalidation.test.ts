@@ -4,7 +4,13 @@ import {
   registerTableInvalidation,
   type Unregister,
 } from "#shared/cache-registry.ts";
-import { execute, executeBatch } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatch,
+  executeBatchWithoutCacheInvalidation,
+  rowExists,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /**
@@ -86,6 +92,50 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     await execute("DELETE FROM settings WHERE key = ?", ["inv_delete"]);
     // A row leaving the table always shifts aggregates, so column gates only
     // narrow UPDATEs — never DELETEs.
+    expect(counter.fired).toBe(1);
+  });
+
+  test("a CTE-led UPDATE invalidates by its own SET columns", async () => {
+    await seedRow("inv_cte");
+    const counter = countFirings(["value"]);
+    await execute(
+      "WITH ignored AS (SELECT 1) UPDATE settings SET value = ? WHERE key = ?",
+      ["new", "inv_cte"],
+    );
+    // The CTE prefix must be stripped before verb/column classification —
+    // classifying the whole statement finds no write verb and never fires.
+    expect(counter.fired).toBe(1);
+  });
+
+  test("executeBatchWithoutCacheInvalidation writes without firing invalidators", async () => {
+    const counter = countFirings();
+    await executeBatchWithoutCacheInvalidation([
+      { args: ["inv_marker", "seed"], sql: SETTINGS_INSERT },
+    ]);
+    expect(counter.fired).toBe(0);
+    // The write still lands — only the invalidation is skipped.
+    expect(
+      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
+        "inv_marker",
+      ]),
+    ).toBe(true);
+  });
+
+  test("a single statement inside withTransaction invalidates after commit", async () => {
+    const counter = countFirings();
+    await withTransaction(async (tx) => {
+      await tx.execute({ args: ["inv_tx", "seed"], sql: SETTINGS_INSERT });
+    });
+    expect(counter.fired).toBe(1);
+  });
+
+  test("a batch inside withTransaction invalidates after commit", async () => {
+    const counter = countFirings();
+    await withTransaction(async (tx) => {
+      await tx.batch([
+        { args: ["inv_tx_batch", "seed"], sql: SETTINGS_INSERT },
+      ]);
+    });
     expect(counter.fired).toBe(1);
   });
 });

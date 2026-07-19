@@ -104,4 +104,19 @@ describe("retryWithBackoff", () => {
       ),
     ).rejects.toThrow("friendly");
   });
+
+  test("reports the zero-based attempt index to onError on every failure", async () => {
+    const seen: number[] = [];
+    await expect(
+      retryWithBackoff(
+        () => Promise.reject(new Error("always")),
+        [1, 1, 1],
+        (_error, { attempt }) => {
+          seen.push(attempt);
+        },
+      ),
+    ).rejects.toThrow("always");
+    // One call per failed attempt, including the final one that gives up.
+    expect(seen).toEqual([0, 1, 2, 3]);
+  });
 });

@@ -8,6 +8,7 @@ import {
   queryBatchPrimary,
   withTransaction,
 } from "#shared/db/client.ts";
+import { runWithPrimaryReads } from "#shared/db/primary-reads.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -16,6 +17,7 @@ import {
 } from "#shared/db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 /**
  * Batch execution: the transaction mode routes a batch to a replica ("read")
@@ -98,6 +100,15 @@ describeWithEnv("db > client batch", { db: true }, () => {
     // "write" mode is the read-your-writes guarantee: Turso always serves it
     // from the primary, so a just-committed row is visible.
     expect(await captureBatchModes(queryBatchPrimary)).toEqual(["write"]);
+  });
+
+  test("a :memory: database reads through in read mode even for primary reads", async () => {
+    // A local in-memory database has no replica to lag, so pinning its reads
+    // to "write" mode would only take a needless lock.
+    using _env = withEnv({ DB_URL: ":memory:" });
+    expect(
+      await runWithPrimaryReads(() => captureBatchModes(queryBatch)),
+    ).toEqual(["read"]);
   });
 
   test("batch query-log entries record the shared window's start and elapsed", async () => {

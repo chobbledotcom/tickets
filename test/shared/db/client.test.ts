@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
+  andConditions,
   deleteByFieldStatement,
   execute,
   executeUpdate,
@@ -13,6 +14,7 @@ import {
   insert,
   queryAll,
   queryBatch,
+  queryOne,
   rawSql,
   resetAggregates,
   rowExists,
@@ -385,5 +387,27 @@ describeWithEnv("db > client", { db: true }, () => {
         "missing_key",
       ]),
     ).toBe(false);
+  });
+
+  test("queryOne returns the single matching row", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('query_one', 'found')",
+    );
+    const row = await queryOne<{ value: string }>(
+      "SELECT value FROM settings WHERE key = ?",
+      ["query_one"],
+    );
+    // Exactly one row must surface as that row (not null, not the next one).
+    expect(row?.value).toBe("found");
+  });
+
+  test("andConditions joins clauses with AND, preserving argument order", () => {
+    const combined = andConditions([
+      { args: [1], sql: "a = ?" },
+      { args: [2, 3], sql: "b IN (?, ?)" },
+      { args: [], sql: "c IS NULL" },
+    ]);
+    expect(combined.sql).toBe("(a = ?) AND (b IN (?, ?)) AND (c IS NULL)");
+    expect(combined.args).toEqual([1, 2, 3]);
   });
 });
