@@ -123,9 +123,17 @@ describe("PII blob encoding", () => {
     expect("lo" in unpinned).toBe(false);
   });
 
-  test("parsePiiBlob defaults a missing version but preserves an explicit one", () => {
-    expect(parsePiiBlob('{"n":"x"}').v).toBe(PII_BLOB_VERSION);
-    expect(parsePiiBlob('{"n":"x","v":2}').v).toBe(2);
+  test("parsePiiBlob defaults a missing version", () => {
+    const blob = JSON.parse(buildPiiBlob(samplePii));
+    delete blob.v;
+    expect(parsePiiBlob(JSON.stringify(blob)).v).toBe(PII_BLOB_VERSION);
+  });
+
+  test("parsePiiBlob rejects an unknown version", () => {
+    const blob = { ...JSON.parse(buildPiiBlob(samplePii)), v: 2 };
+    expect(() => parsePiiBlob(JSON.stringify(blob))).toThrow(
+      "Invalid stored JSON in attendees.pii_blob",
+    );
   });
 });
 

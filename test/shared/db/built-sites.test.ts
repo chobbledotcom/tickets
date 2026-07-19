@@ -175,6 +175,17 @@ describeWithEnv("built-sites", { db: true }, () => {
     expect(parsed.s).toBeUndefined();
   });
 
+  test("parseSiteDataBlob rejects malformed JSON and invalid fields", () => {
+    expect(() => parseSiteDataBlob("{")).toThrow(
+      "Invalid stored JSON in built_sites.site_data",
+    );
+    expect(() =>
+      parseSiteDataBlob(
+        JSON.stringify({ hp: "unknown", n: "Site", u: "site.test", v: 1 }),
+      ),
+    ).toThrow("Invalid stored JSON in built_sites.site_data");
+  });
+
   test("insertBuiltSite creates a row with encrypted site_data", async () => {
     const row = await insertBuiltSite("Alpha Site", "alpha.b-cdn.net");
     expect(row.id).toBe(1);

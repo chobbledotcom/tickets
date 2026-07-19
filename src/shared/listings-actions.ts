@@ -50,11 +50,11 @@ import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage.ts";
 import {
   availableDayCounts,
+  clampDurationDays,
   type DayPricedListing,
   type Group,
   type Listing,
   type ListingWithCount,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 
@@ -209,7 +209,7 @@ export const dayPriceFieldsFromInput = (
 ): DayPricedListing => ({
   customisable_days: input.customisableDays ?? false,
   day_prices: input.dayPrices ?? {},
-  duration_days: normalizeDurationDays(input.durationDays ?? 1),
+  duration_days: clampDurationDays(input.durationDays ?? 1),
 });
 
 /** Project a (possibly partial) listing form input onto the edge-compatibility

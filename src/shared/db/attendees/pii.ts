@@ -7,6 +7,7 @@
  */
 
 /* jscpd:ignore-start */
+import * as v from "valibot";
 import { map } from "#fp";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
@@ -24,33 +25,48 @@ import type {
 import { settings } from "#shared/db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 import type { ContactInfo, PiiBlob } from "#shared/types.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 /* jscpd:ignore-end */
 
 /** Current PII blob schema version */
 export const PII_BLOB_VERSION = 1;
 
+const PiiBlobSchema: v.GenericSchema<unknown, PiiBlob> = v.strictObject({
+  a: v.string(),
+  e: v.string(),
+  la: v.optional(v.string()),
+  lo: v.optional(v.string()),
+  n: v.string(),
+  p: v.string(),
+  pi: v.string(),
+  s: v.string(),
+  t: v.string(),
+  v: v.optional(v.literal(PII_BLOB_VERSION), PII_BLOB_VERSION),
+});
+const piiBlobJson = defineStoredJson(PiiBlobSchema);
+
 /** Build a PII blob JSON from contact fields. An unpinned latitude/longitude
  * ("") is left out of the JSON so blobs without a pin stay as small as before. */
 export const buildPiiBlob = (info: AttendeePii): string =>
-  JSON.stringify({
-    a: info.address,
-    e: info.email,
-    la: info.lat || undefined,
-    lo: info.lng || undefined,
-    n: info.name,
-    p: info.phone,
-    pi: info.payment_id,
-    s: info.special_instructions,
-    t: info.ticket_token,
-    v: PII_BLOB_VERSION,
-  } satisfies PiiBlob);
+  piiBlobJson.write(
+    {
+      a: info.address,
+      e: info.email,
+      la: info.lat || undefined,
+      lo: info.lng || undefined,
+      n: info.name,
+      p: info.phone,
+      pi: info.payment_id,
+      s: info.special_instructions,
+      t: info.ticket_token,
+      v: PII_BLOB_VERSION,
+    },
+    "attendees.pii_blob",
+  );
 
 /** Parse a PII blob JSON back into contact fields (defaults v to 1 for pre-versioned blobs) */
-export const parsePiiBlob = (json: string): PiiBlob => {
-  const blob = JSON.parse(json) as PiiBlob;
-  blob.v ??= PII_BLOB_VERSION;
-  return blob;
-};
+export const parsePiiBlob = (json: string): PiiBlob =>
+  piiBlobJson.read(json, "attendees.pii_blob");
 
 /** Encrypt a PII blob JSON string with the public key */
 export const encryptPiiBlob = (

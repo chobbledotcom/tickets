@@ -35,7 +35,7 @@ import { anyModifierSoldOut } from "#shared/db/modifier-usage.ts";
 import {
   type Attendee,
   type ContactInfo,
-  normalizeDurationDays,
+  clampDurationDays,
 } from "#shared/types.ts";
 
 /* jscpd:ignore-end */
@@ -74,7 +74,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   created: input.created,
   date: input.date,
   end_date: input.date
-    ? addDays(input.date, normalizeDurationDays(input.durationDays ?? 1))
+    ? addDays(input.date, clampDurationDays(input.durationDays ?? 1))
     : null,
   kind: input.kind,
   lat: "",

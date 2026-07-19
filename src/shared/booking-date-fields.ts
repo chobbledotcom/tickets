@@ -12,7 +12,7 @@
 
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { normalizeDurationDays } from "#shared/types.ts";
+import { clampDurationDays } from "#shared/types.ts";
 
 /** The listing facts the row builder reads to derive a booking's date and
  *  duration. Narrower than the full listing so the helper stays pure over the
@@ -30,7 +30,7 @@ export type BookingDateSource = Pick<
  *  - A non-customisable `daily` listing spans its fixed `duration_days`.
  *  - A `standard` listing spans one dateless day (no range column).
  *
- * `dayCount` defaults to `1`, and {@link normalizeDurationDays} clamps
+ * `dayCount` defaults to `1`, and {@link clampDurationDays} clamps
  * non-finite input back to `1`, so a genuinely optional `dayCount` (a legacy
  * signed session without `day_count`, modelled as `undefined` on
  * `BookingIntent`) flows through that default unchanged — missing day count
@@ -45,8 +45,8 @@ export const bookingDateFields = (
 ): { date: string | null; durationDays: number } => ({
   date: capacityDateFor(listing.listing_type, date),
   durationDays: listing.customisable_days
-    ? normalizeDurationDays(dayCount)
+    ? clampDurationDays(dayCount)
     : listing.listing_type === "daily"
-      ? normalizeDurationDays(listing.duration_days)
+      ? clampDurationDays(listing.duration_days)
       : 1,
 });

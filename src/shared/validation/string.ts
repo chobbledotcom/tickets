@@ -9,11 +9,12 @@ import { guardFor } from "#shared/validation/guard.ts";
  * only production paths into the brand are the helpers below, which validate at
  * the boundary and let downstream code avoid repeated empty-string checks.
  */
+export const NonEmptyTextSchema = v.pipe(v.string(), v.nonEmpty());
 export const NonEmptyStringSchema = v.pipe(
-  v.string(),
-  v.nonEmpty(),
+  NonEmptyTextSchema,
   v.brand("NonEmptyString"),
 );
+export const OptionalStringSchema = v.optional(v.string());
 
 export type NonEmptyString = v.InferOutput<typeof NonEmptyStringSchema>;
 type NonEmptyLiteral<T extends string> = T extends "" ? never : T;

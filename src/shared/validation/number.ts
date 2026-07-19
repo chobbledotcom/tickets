@@ -1,5 +1,35 @@
 import * as v from "valibot";
 import { parseOrNull } from "./parse.ts";
+import { NonEmptyTextSchema } from "./string.ts";
+
+export interface BoundedInteger {
+  /** Clamp valid integers to the range. Malformed numbers still throw. */
+  clamp: (value: number) => number;
+  /** Require a valid integer inside the range. */
+  reject: (value: number) => number;
+}
+
+/** A safe whole number no lower than `minimum`. */
+export const integerAtLeast = (minimum: number) =>
+  v.pipe(v.number(), v.safeInteger(), v.minValue(minimum));
+
+/** Define explicit reject and clamp policies for one safe-integer range. */
+export const boundedInteger = (
+  minimum: number,
+  maximum: number,
+): BoundedInteger => {
+  const integerSchema = integerAtLeast(Number.MIN_SAFE_INTEGER);
+  const rangeSchema = v.pipe(
+    integerSchema,
+    v.minValue(minimum),
+    v.maxValue(maximum),
+  );
+  return {
+    clamp: (value) =>
+      Math.max(minimum, Math.min(maximum, v.parse(integerSchema, value))),
+    reject: (value) => v.parse(rangeSchema, value),
+  };
+};
 
 /**
  * Plain decimal integer strings. The schemas accept digits only, so no signs,
@@ -14,19 +44,13 @@ import { parseOrNull } from "./parse.ts";
  * Mirrors the schema + parse-helper shape of validation/email.ts and
  * validation/date.ts as the rest of the app's validation migrates to valibot.
  */
-const createIntSchema = (minimum: number) =>
-  v.pipe(
-    v.string(),
-    v.nonEmpty(),
-    v.digits(),
-    v.transform(Number),
-    v.minValue(minimum),
-  );
-
-type IntSchema = ReturnType<typeof createIntSchema>;
-
-const NonNegativeIntSchema = createIntSchema(0);
-const PositiveIntSchema = createIntSchema(1);
+const NonNegativeIntSchema = v.pipe(
+  NonEmptyTextSchema,
+  v.digits(),
+  v.transform(Number),
+);
+const PositiveIntSchema = v.pipe(NonNegativeIntSchema, v.minValue(1));
+type IntSchema = v.GenericSchema<string, number>;
 
 const parseIntWithSchema = (schema: IntSchema, value: string): number | null =>
   parseOrNull(schema, value.trim());

@@ -16,7 +16,7 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { type ListingType, normalizeDurationDays } from "#shared/types.ts";
+import { clampDurationDays, type ListingType } from "#shared/types.ts";
 
 /**
  * Set a line's check-in flag, refusing a no-quantity (quantity 0) line — it
@@ -98,7 +98,7 @@ export const recomputeListingBookingRanges = async (
   listingId: number,
   durationDays: number,
 ): Promise<void> => {
-  const duration = normalizeDurationDays(durationDays);
+  const duration = clampDurationDays(durationDays);
   await execute(
     `UPDATE listing_attendees
            SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'

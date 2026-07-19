@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
@@ -169,6 +170,16 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       // resolves to a generic terminal failure (non-empty message, 500 status).
       expect(result?.status).toBe(500);
       expect((result?.error.length ?? 0) > 0).toBe(true);
+    });
+
+    test("parseSessionFailure degrades invalid JSON fields to a terminal failure", async () => {
+      const result = await parseSessionFailure(
+        await encrypt('{"error":42,"refunded":"yes"}'),
+      );
+      expect(result).toEqual({
+        error: "This payment could not be completed. Please contact support.",
+        status: 500,
+      });
     });
 
     test("re-throws non-unique-constraint errors", async () => {

@@ -20,10 +20,10 @@ import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   type ContactInfo,
+  clampDurationDays,
   type EmailTemplateFormat,
   type EmailTemplateType,
   isPaidListing,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -94,7 +94,7 @@ const toTemplateEntry = (entry: EmailEntry): TemplateEntry => {
   const dateRangeLabel = bookedRangeLabel(
     attendee.date,
     attendee.end_date,
-    normalizeDurationDays(listing.duration_days),
+    clampDurationDays(listing.duration_days),
   );
   return {
     attendee: {

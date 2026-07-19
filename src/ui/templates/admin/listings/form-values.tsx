@@ -19,8 +19,8 @@ import type { ListingTemplate } from "#shared/listing-templates.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import {
   type AdminSession,
+  clampDurationDays,
   type ListingWithCount,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { getListingForm } from "#templates/fields/listing.ts";
@@ -30,7 +30,7 @@ const formatDatetimeLocal = (iso: string | null): string | null =>
   iso ? utcToLocalInput(iso, settings.timezone) : null;
 
 export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
-  const max = listing ? normalizeDurationDays(listing.duration_days) : 1;
+  const max = listing ? clampDurationDays(listing.duration_days) : 1;
   const prices = listing?.day_prices ?? {};
   const rows = Array.from({ length: max }, (_, i) => i + 1)
     .map((n) => {

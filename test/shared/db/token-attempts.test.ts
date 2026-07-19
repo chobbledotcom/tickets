@@ -10,7 +10,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   clearTokenAttempts,
   isTokenRateLimited,
@@ -123,6 +123,19 @@ describeWithEnv("db > token-attempts", { db: true }, () => {
       const locked = await recordTokenFailure(ip, []);
       expect(locked).toBe(false);
       expect(await isTokenRateLimited(ip)).toBe(false);
+    });
+
+    test("rejects invalid stored token arrays", async () => {
+      const ip = "10.0.0.12";
+      const hashedIp = await hmacHash(ip);
+      await execute(
+        "INSERT INTO token_attempts (ip, recent_tokens, window_start, last_attempt) VALUES (?, ?, ?, ?)",
+        [hashedIp, '["valid",2]', Date.now(), Date.now()],
+      );
+
+      await expect(recordTokenFailure(ip, ["new"])).rejects.toThrow(
+        `Invalid stored JSON in token_attempts.recent_tokens for ${hashedIp}`,
+      );
     });
 
     test("locks when a single request supplies MAX_TOKEN_404S distinct tokens", async () => {

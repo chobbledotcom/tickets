@@ -28,6 +28,9 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import { guardFor } from "#shared/validation/guard.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import { OptionalStringSchema } from "#shared/validation/string.ts";
 /* jscpd:ignore-end */
 
 export const ContactChannelSchema = v.picklist(["email", "sms"]);
@@ -145,12 +148,14 @@ export type ContactRecordLoader = (
   privateKey: CryptoKey,
 ) => Promise<ContactRecord>;
 
-type StatsBlob = {
-  c?: number;
-  t?: string;
-  s?: string;
-  n?: string;
-};
+const StatsBlobSchema = v.strictObject({
+  c: v.optional(integerAtLeast(0)),
+  n: OptionalStringSchema,
+  s: OptionalStringSchema,
+  t: OptionalStringSchema,
+});
+type StatsBlob = v.InferOutput<typeof StatsBlobSchema>;
+const statsJson = defineStoredJson(StatsBlobSchema);
 
 const EMPTY_STATS: ContactStats = {
   adminNotes: "",
@@ -164,9 +169,10 @@ const parseStats = async (
   privateKey: CryptoKey,
 ): Promise<ContactStats> => {
   if (!blob) return EMPTY_STATS;
-  const { c, n, s, t } = JSON.parse(
+  const { c, n, s, t } = statsJson.read(
     await decryptWithOwnerKey(blob, privateKey),
-  ) as StatsBlob;
+    "contact_preferences.stats_blob",
+  );
   return {
     adminNotes: n ?? "",
     contactCount: c ?? 0,
@@ -300,7 +306,7 @@ const saveStats = async (
   args: [
     hash,
     await encryptWithOwnerKey(
-      JSON.stringify(statsToBlob(stats)),
+      statsJson.write(statsToBlob(stats), "contact_preferences.stats_blob"),
       settings.publicKey,
     ),
     lastActivity,
@@ -351,7 +357,7 @@ export const saveContactRecord = async (
   record: ContactRecord,
 ): Promise<void> => {
   const blob = await encryptWithOwnerKey(
-    JSON.stringify(statsToBlob(record)),
+    statsJson.write(statsToBlob(record), "contact_preferences.stats_blob"),
     settings.publicKey,
   );
   await execute(

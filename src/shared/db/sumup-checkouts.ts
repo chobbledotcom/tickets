@@ -29,6 +29,7 @@
  * (30 min) and webhook retry window (2 h) have passed.
  */
 
+import * as v from "valibot";
 import { decryptWithKey, encryptWithKey } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
@@ -39,6 +40,7 @@ import {
 import type { KeyEncrypted, WrappedKey } from "#shared/crypto/sealed.ts";
 import { execute, executeUpdate, insert, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 type SumupCheckoutRow = {
   wrapped_key: WrappedKey;
@@ -52,6 +54,8 @@ export type SumupCheckoutEntry = {
   sumupId: string;
 };
 
+const metadataJson = defineStoredJson(v.record(v.string(), v.string()));
+
 /** Persist booking metadata for a checkout, encrypted under its reference. */
 export const storeSumupCheckout = async (
   reference: string,
@@ -61,7 +65,10 @@ export const storeSumupCheckout = async (
   const [referenceIndex, wrappedKey, ciphertext] = await Promise.all([
     hmacHash(reference),
     wrapKeyWithToken(dataKey, reference),
-    encryptWithKey(JSON.stringify(metadata), dataKey),
+    encryptWithKey(
+      metadataJson.write(metadata, "sumup_checkouts.metadata"),
+      dataKey,
+    ),
   ]);
   const { sql, args } = insert("sumup_checkouts", {
     created_at: nowIso(),
@@ -111,7 +118,10 @@ export const getSumupCheckout = async (
   const dataKey = await unwrapKeyWithToken(row.wrapped_key, reference);
   const json = await decryptWithKey(row.metadata, dataKey);
   return {
-    metadata: JSON.parse(json) as Record<string, string>,
+    metadata: metadataJson.read(
+      json,
+      `sumup_checkouts.metadata for ${reference}`,
+    ),
     sumupId: row.sumup_id,
   };
 };
