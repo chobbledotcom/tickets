@@ -100,6 +100,12 @@ describe("ChildrenSchema", () => {
     ).toEqual([{ parent: "pkg", quantity: 1, slug: "g" }]);
     expect(accepts(ChildrenSchema, [{ quantity: 1, slug: "g" }])).toBe(true);
   });
+
+  test("rejects an empty optional parent when it is present", () => {
+    expect(
+      accepts(ChildrenSchema, [{ parent: "", quantity: 1, slug: "g" }]),
+    ).toBe(false);
+  });
 });
 
 describe("PackageChildrenSchema", () => {
