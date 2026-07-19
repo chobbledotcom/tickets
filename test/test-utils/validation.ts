@@ -19,7 +19,9 @@ export const expectValid = (
 };
 
 export const expectInvalid =
-  (expectedError: string) =>
+  (
+    expectedError: string,
+  ): ((fields: readonly Field[], data: TestFormValues) => void) =>
   (fields: readonly Field[], data: TestFormValues): void => {
     const result = validateFormData(fields, data);
     expect(result.valid).toBe(false);

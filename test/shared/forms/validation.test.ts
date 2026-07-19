@@ -251,6 +251,15 @@ describe("validateForm", () => {
     ).toEqual({ error: "Choose listed days only.", valid: false });
   });
 
+  test("keeps a custom validation error for a bad checkbox value", () => {
+    const fields = dayCheckboxFields();
+    fields[0]!.validate = () => "Choose a valid day.";
+    expect(validateForm(new FormParams("days=Funday"), fields)).toEqual({
+      error: "Choose a valid day.",
+      valid: false,
+    });
+  });
+
   test("returns empty string for empty checkbox-group", () => {
     const fields: Field[] = [
       field({

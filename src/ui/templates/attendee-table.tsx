@@ -73,7 +73,7 @@ export type AttendeeTableOptions = {
   presorted?: boolean;
   /** Question data for the Answers column */
   questionData?: TableQuestionData | undefined;
-  /** Liquid template controlling column order (e.g. "{{name}}, {{email}}, {{qty}}") */
+  /** Pre-parsed layout controlling column order and filters */
   columnLayout?: AttendeeColumnLayout;
 };
 
