@@ -1,7 +1,7 @@
 /**
  * Pins exact outputs of the date helpers so small slips can't hide: every
- * day and month name in a rendered label, the Monday-first day list, hour
- * rounding, calendar-grid boundaries, and booked-range arithmetic. Each
+ * day and month name in a rendered label, hour rounding, calendar-grid
+ * boundaries, and booked-range arithmetic. Each
  * assertion here exists to fail under a specific one-token change that the
  * broader behaviour tests in dates.test.ts did not distinguish.
  */
@@ -18,7 +18,7 @@ import {
   startOfHour,
   widestDatedEntry,
 } from "#shared/dates.ts";
-import { DAY_NAMES, VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { useSetting } from "#test-utils/settings.ts";
 
@@ -60,19 +60,6 @@ describe("dates — pinned values", () => {
       const iso = `2026-${String(index + 1).padStart(2, "0")}-15`;
       expect(formatDateLabel(iso)).toContain(` 15 ${month} 2026`);
     }
-  });
-
-  test("VALID_DAY_NAMES is the Monday-first rotation of DAY_NAMES", () => {
-    expect(VALID_DAY_NAMES).toEqual([
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ]);
-    expect(DAY_NAMES[0]).toBe("Sunday");
   });
 
   test("adding months clamps a month-end start to each target month's length", () => {

@@ -1,3 +1,4 @@
+import { reduce } from "#fp";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   type Field,
@@ -98,14 +99,15 @@ export const defineForm = <
   ) => string | null;
 }): FormDefinition<TFields, TContext> => {
   const fields = config.fields;
-  for (const field of fields) {
+  const fieldMap = reduce((map: Map<string, Field>, field: Field) => {
     if (field.type === "select") {
       requireChoiceOptions(field.label, field.options);
     } else if (field.type === "checkbox-group") {
       requireCheckboxOptions(field.label, field.options);
     }
-  }
-  const fieldMap = new Map(fields.map((field) => [field.name, field] as const));
+    map.set(field.name, field);
+    return map;
+  }, new Map<string, Field>())([...fields]);
   const sectionIds = [
     ...new Set(
       fields.flatMap((field) =>

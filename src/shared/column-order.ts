@@ -93,23 +93,28 @@ type ParsedLayout<T extends string> = Result<{
   filters: Map<T, string>;
 }>;
 
-const parseColumnTemplate = <T extends string>(
+type ColumnSchema = v.GenericSchema<string> & {
+  readonly options: readonly string[];
+};
+
+const parseColumnTemplate = <TSchema extends ColumnSchema>(
   template: string,
-  options: readonly T[],
-): ParsedLayout<T> => {
-  const columns: T[] = [];
-  const filters = new Map<T, string>();
+  schema: TSchema,
+): ParsedLayout<v.InferOutput<TSchema>> => {
+  const columns: v.InferOutput<TSchema>[] = [];
+  const filters = new Map<v.InferOutput<TSchema>, string>();
   const seen = new Set<string>();
 
   for (const match of template.matchAll(LIQUID_TAG_RE)) {
     const { key, filter } = parseTagBody(match[1]!);
-    const option = options.find((value) => value === key);
-    if (option === undefined) {
+    const parsed = v.safeParse(schema, key);
+    if (!parsed.success) {
       return {
-        error: `Unknown column "${key}". Available columns: ${options.join(", ")}`,
+        error: `Unknown column "${key}". Available columns: ${schema.options.join(", ")}`,
         ok: false,
       };
     }
+    const option = parsed.output;
     if (!seen.has(option)) {
       seen.add(option);
       columns.push(option);
@@ -124,10 +129,6 @@ const parseColumnTemplate = <T extends string>(
   return { ok: true, value: { columns, filters } };
 };
 
-/**
- * Validate a column-order template without extracting columns.
- * Returns null if valid, or an error message string if invalid.
- */
 /**
  * Build a default template from an ordered list of column keys.
  * Produces e.g. "{{name}}, {{description}}, {{actions}}"
@@ -148,10 +149,6 @@ const defineColumnLayout = <
 ) => {
   const [first, ...rest] = defaultOrder;
   const schema = v.picklist([first, ...rest, ...extra]);
-  const options: readonly (TDefault[number] | TExtra[number])[] = [
-    ...defaultOrder,
-    ...extra,
-  ];
   const defaultLayout: ColumnLayout<TDefault[number] | TExtra[number]> = {
     columnKeys: defaultOrder,
     filters: new Map(),
@@ -160,10 +157,10 @@ const defineColumnLayout = <
     defaultLayout,
     defaultOrder,
     defaultTemplate: buildDefaultTemplate(defaultOrder),
-    options,
+    options: schema.options as readonly (TDefault[number] | TExtra[number])[],
     parse(template: string): ColumnLayout<TDefault[number] | TExtra[number]> {
       if (!template) return defaultLayout;
-      const result = parseColumnTemplate(template, options);
+      const result = parseColumnTemplate(template, schema);
       if (!result.ok) throw new Error(result.error);
       return {
         columnKeys: result.value.columns,
@@ -173,7 +170,7 @@ const defineColumnLayout = <
     schema,
     validate(template: string): string | null {
       if (!template) return null;
-      const result = parseColumnTemplate(template, options);
+      const result = parseColumnTemplate(template, schema);
       return result.ok ? null : result.error;
     },
   };

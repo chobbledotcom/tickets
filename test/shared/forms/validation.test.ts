@@ -15,7 +15,7 @@ const requiredName: Field[] = [
 
 const dayCheckboxFields = (invalidMessage?: string): Field[] => [
   field({
-    ...(invalidMessage ? { invalidMessage } : {}),
+    ...(invalidMessage === undefined ? {} : { invalidMessage }),
     label: "Days",
     name: "days",
     options: [
@@ -249,6 +249,12 @@ describe("validateForm", () => {
         dayCheckboxFields("Choose listed days only."),
       ),
     ).toEqual({ error: "Choose listed days only.", valid: false });
+  });
+
+  test("keeps an explicitly empty invalid checkbox message", () => {
+    expect(
+      validateForm(new FormParams("days=Funday"), dayCheckboxFields("")),
+    ).toEqual({ error: "", valid: false });
   });
 
   test("keeps a custom validation error for a bad checkbox value", () => {
