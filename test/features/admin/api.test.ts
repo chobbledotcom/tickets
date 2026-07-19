@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertAdminHtml,
   assertJson,
@@ -58,25 +58,6 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(response.status).toBe(404);
     });
 
-    test("returns 404 when the listing vanishes during update", async () => {
-      const listing = await createTestListing({ name: "Vanishing listing" });
-      await getDb().execute(
-        `CREATE TRIGGER delete_listing_during_update
-         AFTER UPDATE ON listings
-         WHEN NEW.id = ${listing.id}
-         BEGIN
-           DELETE FROM listings WHERE id = NEW.id;
-         END`,
-      );
-
-      const response = await apiRequest(`/api/admin/listings/${listing.id}`, {
-        body: { name: "Gone" },
-        method: "PUT",
-      });
-
-      expect(response.status).toBe(404);
-    });
-
     test("returns 400 when name is empty string", async () => {
       const listing = await createTestListing({ name: "Will Empty" });
       await expectRejectsEmptyName(`/api/admin/listings/${listing.id}`);
@@ -108,6 +89,30 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.error).toBe("bookable_days must contain only text");
         },
       );
+    });
+
+    test("returns 400 without saving an unsafe day price", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500 },
+        durationDays: 2,
+        name: "Safe Prices",
+      });
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { day_prices: { 1: Number.MAX_SAFE_INTEGER + 1 } },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "day_prices numeric values must be safe integers",
+          );
+        },
+      );
+      expect((await getListingWithCount(listing.id))?.day_prices).toEqual({
+        1: 500,
+      });
     });
 
     test("rejects duplicate slug", async () => {

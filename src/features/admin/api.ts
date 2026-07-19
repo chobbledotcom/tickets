@@ -175,6 +175,21 @@ const API_BODY_FIELD_RULES: ApiBodyFieldRule[] = [
     error: "duration_days must be a safe integer",
     schema: v.pipe(v.number(), v.safeInteger()),
   },
+  {
+    apiKey: "day_prices",
+    error: "day_prices numeric values must be safe integers",
+    schema: v.pipe(
+      v.unknown(),
+      v.check(
+        (raw) =>
+          typeof raw !== "object" ||
+          raw === null ||
+          Object.values(raw).every(
+            (price) => typeof price !== "number" || Number.isSafeInteger(price),
+          ),
+      ),
+    ),
+  },
 ];
 
 /** Reject malformed mapped values before they can reach domain or storage code. */
