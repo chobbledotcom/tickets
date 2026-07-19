@@ -93,6 +93,10 @@ describe("limits", () => {
   });
 
   describe("assertPaymentsRetentionSafe", () => {
+    test("uses the providers' three-day webhook retry window", () => {
+      expect(WEBHOOK_RETRY_WINDOW_DAYS).toBe(3);
+    });
+
     test("returns the value when it meets the webhook-retry floor", () => {
       expect(assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS)).toBe(
         WEBHOOK_RETRY_WINDOW_DAYS,
@@ -106,7 +110,13 @@ describe("limits", () => {
       // the paid session and risking a duplicate refund — so it must fail loudly.
       expect(() =>
         assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS - 1),
-      ).toThrow("webhook-retry window");
+      ).toThrow(
+        "PRUNE_PAYMENTS_RETENTION_DAYS=2 is below the 3-day provider " +
+          "webhook-retry window. A shorter retention can prune a payment's " +
+          "idempotency row while the provider is still retrying its webhook, " +
+          "which would re-process the session and risk a duplicate refund. " +
+          "Set it to at least 3 (the default is 90).",
+      );
     });
 
     test("the live retention constant satisfies its own floor", () => {
