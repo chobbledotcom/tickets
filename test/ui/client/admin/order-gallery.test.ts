@@ -44,14 +44,6 @@ const stash = createGlobalStash();
 // test on a virtual clock so settle() skips past it instantly instead of each
 // test genuinely sleeping 300ms.
 const clock: { time: FakeTime | null } = { time: null };
-beforeEach(() => {
-  clock.time = new FakeTime();
-});
-afterEach(() => {
-  clock.time?.restore();
-  clock.time = null;
-  stash.restore();
-});
 
 /** Install the DOM and a scripted availability endpoint, then boot the
  * script. `responses` are consumed one per request; when empty the endpoint
@@ -122,6 +114,15 @@ const settle = async (): Promise<void> => {
 };
 
 describe("initOrderGallery", () => {
+  beforeEach(() => {
+    clock.time = new FakeTime();
+  });
+  afterEach(() => {
+    clock.time?.restore();
+    clock.time = null;
+    stash.restore();
+  });
+
   test("does nothing on a page without the gallery form", () => {
     const window = new Window({ url: "https://tickets.test/" });
     window.document.body.innerHTML = "<p>No gallery here</p>";
