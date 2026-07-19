@@ -19,7 +19,7 @@ import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
-import { useLocalStoragePath } from "./_shared-site-update.ts";
+import { useLocalStoragePath } from "#test-utils/site-update.ts";
 
 /** A built site database URL whose backups land in a site-specific folder. */
 const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";
@@ -37,7 +37,7 @@ const expectNoHostingIdError = async (siteId: number): Promise<void> => {
   );
   await expectFlashRedirect(
     `/admin/built-sites/${siteId}/update`,
-    expect.stringContaining("no hosting ID"),
+    "This site has no hosting ID, so it can't be updated.",
     false,
   )(response);
 };
