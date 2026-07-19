@@ -13,9 +13,11 @@
 import {
   ATTENDEE,
   REVENUE,
+  WORLD,
   WRITEOFF_TYPE,
 } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
+import { MANUAL_ATTENDEE_CHARGE } from "#shared/accounting/manual-entries.ts";
 
 /** Account type/id columns for one leg side of a `transfers` row — the single
  *  home for these names, so every projection (the interpolated subqueries here
@@ -113,6 +115,50 @@ export const accountBalanceSubquery = (
   const asSource = accountPredicate("source", type, idExpr);
   return `(SELECT ${signedSumCase(asDest, asSource)} FROM transfers WHERE ${asDest} OR ${asSource})`;
 };
+
+/** Net cash received from the outside world by one account. Payments into the
+ * account add; refunds and reversals back to the world subtract. Other ledger
+ * legs do not represent cash and are ignored. */
+export const externalCashBalanceSubquery = (
+  type: string,
+  idExpr: string,
+): string => {
+  const accountIn = accountPredicate("dest", type, idExpr);
+  const accountOut = accountPredicate("source", type, idExpr);
+  const worldOut = `source_type = '${WORLD.type}' AND source_id = '${WORLD.id}'`;
+  const worldIn = `dest_type = '${WORLD.type}' AND dest_id = '${WORLD.id}'`;
+  const received = `${accountIn} AND ${worldOut}`;
+  const returned = `${accountOut} AND ${worldIn}`;
+  return `(SELECT ${signedSumCase(received, returned)} FROM transfers WHERE ${received} OR ${returned})`;
+};
+
+const billedTotalSubquery = (
+  type: string,
+  idExpr: string,
+  kinds: readonly string[],
+): string => {
+  const billed = accountPredicate("source", type, idExpr);
+  const discounted = accountPredicate("dest", type, idExpr);
+  const kindList = kinds.map((kind) => `'${kind}'`).join(", ");
+  return `(SELECT ${signedSumCase(billed, discounted)} FROM transfers WHERE kind IN (${kindList}) AND (${billed} OR ${discounted}))`;
+};
+
+/** Ticket sales and surcharges minus discounts, before booking fees. This is
+ * the base used to calculate a reservation deposit. */
+export const reservationSubtotalSubquery = (
+  type: string,
+  idExpr: string,
+): string => billedTotalSubquery(type, idExpr, [KIND.sale, KIND.modifier]);
+
+/** Total amount billed to one attendee. Booking fees and later manual charges
+ * add to the saved ticket subtotal; payments, refunds and write-offs do not. */
+export const orderTotalSubquery = (type: string, idExpr: string): string =>
+  billedTotalSubquery(type, idExpr, [
+    KIND.sale,
+    KIND.modifier,
+    KIND.fee,
+    MANUAL_ATTENDEE_CHARGE,
+  ]);
 
 /**
  * The bare subquery for what an attendee still owes: the negation of their net

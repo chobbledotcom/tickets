@@ -1,5 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import {
+  MANUAL_ATTENDEE_CHARGE,
+  postManualLedgerEntry,
+} from "#shared/accounting/manual-entries.ts";
+import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import {
   attendeeStatuses,
   getPaidDefaultStatus,
@@ -20,6 +27,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   createNonReservationAttendee,
@@ -35,8 +43,9 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const paid = await getPaidDefaultStatus();
+    const settlement = settle();
 
-    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
+    const result = await settleAttendeeBalance(attendeeId, 1500, settlement);
     expect(result).toEqual({ amount: 1500, listingId, settled: true });
 
     const state = await getAttendeeBalanceState(attendeeId);
@@ -46,6 +55,18 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const log = await getAttendeeActivityLog(attendeeId);
     expect(log).toHaveLength(1);
     expect(log[0]!.message).toContain("Reservation balance paid");
+
+    const { rows } = await getDb().execute({
+      args: [KIND.payment, String(attendeeId), 1500],
+      sql: "SELECT event_group, reference FROM transfers WHERE kind = ? AND dest_id = ? AND amount = ?",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.event_group).toBe(
+      await eventGroup(["balance", settlement.id]),
+    );
+    expect(rows[0]!.reference).toBe(
+      await legReference(["balance", settlement.id, KIND.payment]),
+    );
   });
 
   test("clears a non-reservation balance without replacing its status", async () => {
@@ -111,6 +132,17 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       reason: "nothing_owed",
       settled: false,
     });
+  });
+
+  test("settles a one-penny balance", async () => {
+    const { attendeeId } = await createReservedAttendee(1);
+    expect(await settleAttendeeBalance(attendeeId, 1, settle())).toMatchObject({
+      amount: 1,
+      settled: true,
+    });
+    expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
+      0,
+    );
   });
 
   test("reports not_found for a missing attendee", async () => {
@@ -193,6 +225,15 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(summary.depositPaid).toBe(0);
   });
 
+  test("order summary combines cash paid with the outstanding balance", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+
+    const summary = await getAttendeeOrderSummary(attendeeId);
+
+    expect(summary.depositPaid).toBe(100);
+    expect(summary.fullPrice).toBe(1600);
+  });
+
   test("order summary uses recorded payments when attendee state is missing", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,
@@ -214,8 +255,38 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(summary.lines).toHaveLength(1);
     expect(summary.depositPaid).toBe(300);
     expect(summary.fullPrice).toBe(300);
-    expect(summary.listedFullPrice).toBe(2000);
     expect(summary.totalQuantity).toBe(2);
+  });
+
+  test("order summary preserves the original order price after a full refund", async () => {
+    const { attendeeId, listingId } = await createReservedAttendee(0);
+    const result = await recordAttendeeRefund(attendeeId, [
+      {
+        sessionIds: [`sale-${listingId}-${attendeeId}`],
+      },
+    ]);
+
+    expect(result).toEqual({ posted: true });
+    const summary = await getAttendeeOrderSummary(attendeeId);
+    expect(summary.depositPaid).toBe(0);
+    expect(summary.fullPrice).toBe(100);
+  });
+
+  test("order summary includes a later manual attendee charge", async () => {
+    const { attendeeId } = await createReservedAttendee(0);
+    await postManualLedgerEntry({
+      account: attendeeAccount(attendeeId),
+      amount: 1500,
+      occurredAt: "2026-06-22T00:00:00.000Z",
+      postedBy: "owner",
+      type: MANUAL_ATTENDEE_CHARGE,
+    });
+
+    const summary = await getAttendeeOrderSummary(attendeeId);
+
+    expect(summary.fullPrice).toBe(1600);
+    expect(summary.depositPaid).toBe(100);
+    expect(summary.reservationSubtotal).toBe(100);
   });
 
   test("order summary skips bookings whose listing no longer exists", async () => {

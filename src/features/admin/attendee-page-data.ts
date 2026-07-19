@@ -505,7 +505,6 @@ export const buildTemplateData = async (
     attendee?.remaining_balance ?? 0,
     summary?.fullPrice ?? 0,
     summary?.depositPaid ?? 0,
-    summary?.listedFullPrice ?? 0,
   );
   const warnings = await computeWarnings(parsed, attendee?.id);
   const logistics = await buildAttendeeLogisticsData(parsed.lines, attendee);

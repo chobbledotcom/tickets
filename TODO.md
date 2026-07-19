@@ -20,6 +20,86 @@ everything still outstanding is captured below.
 
 ---
 
+## Marketing screenshot visual cleanup
+
+*Origin: visual audit of the mobile Retina screenshots generated from
+`../tickets-site/scripts/screenshots/` on 2026-07-18.*
+
+The screenshots use real application pages with scenario-specific custom CSS.
+Keep fixes in those scenarios unless the same problem also appears in the normal
+application UI. Regenerate each affected PNG and inspect the final image at its
+actual size before marking an item complete.
+
+**High priority:**
+
+- **Fix the logistics card overflow and buttons.** In
+  `scripts/screenshots/logistics.js`, the white booking card extends past the
+  right edge of its blue day panel in `logistics-deliveries.png`. Both orange
+  “Mark done” buttons are too narrow: the text touches the pill edges and looks
+  vertically cramped. Keep the card inside its parent with border-box sizing,
+  then give the buttons enough inline and block padding for the full label.
+- **Give the daily-calendar states distinct, readable colours.** In
+  `scripts/screenshots/daily-events.js`, the selected 3 August date uses white
+  text on pale yellow in `daily-events-calendar.png`, which has poor contrast.
+  The selected date and the other highlighted date also look almost identical.
+  Use dark text and visibly different selected/today treatments while keeping
+  both states clear without relying on colour alone.
+- **Remove accidental focus outlines from checkout captures.** Several images
+  end with whichever control was filled last still focused, producing an
+  unrelated black or white outline: `charity-family-fun-day-checkout.png`,
+  `promo-codes-and-add-ons-checkout.png`, `equipment-hire-booking.png`,
+  `the-tempest-group-checkout.png`, and
+  `garden-party-package-checkout.png`. Add one shared scenario helper that blurs
+  the active control before capture, then use it for all filled checkout
+  scenarios. Keep deliberate focus only in a screenshot that is specifically
+  demonstrating keyboard focus.
+- **Stack the Garden Party email field on mobile.** In
+  `scripts/screenshots/packages.js`, “Your Email” and its input are squeezed
+  onto one row in `garden-party-package-checkout.png`, unlike the name field
+  above it. Make contact-field labels and controls consistently full-width so
+  the input does not crowd the label.
+
+**Polish:**
+
+- **Shorten the bulk-email preview.** In `scripts/screenshots/bulk-email.js`,
+  `bulk-email-preview.png` is about twice as tall as it needs to be because the
+  warning copy, line height, and section gaps are oversized. Reduce the
+  scenario font size/line height and vertical spacing without hiding or
+  rewriting the real warning. Keep the recipients, subject, warning, and full
+  message preview visible.
+- **Tighten the balance summary.** In
+  `scripts/screenshots/deposits-and-balance-payments.js`, the three totals in
+  `deposits-and-balance-payments.png` have large vertical gaps and the payment
+  action sits in an oversized empty panel. Reduce those gaps and panel padding
+  while preserving a clear order: full price, already paid, balance due, then
+  payment action.
+- **Tighten oversized checkout headings.** The headings in
+  `charity-family-fun-day-checkout.png` and `equipment-hire-booking.png` wrap
+  with more line spacing than the forms use. Adjust only the scenario heading
+  line-height and bottom margin so each title remains prominent but does not
+  dominate the image.
+- **Use the theme colour for custom-question controls.** In
+  `scripts/screenshots/custom-questions.js`, the selected radio in
+  `custom-questions-checkout.png` uses the browser’s bright blue default, which
+  clashes with the brown bakery theme. Set `accent-color` to the scenario’s
+  accessible brown accent and confirm the selected state remains obvious.
+- **Reduce the listing-form crop height if it stays readable.** In
+  `scripts/screenshots/listing-management.js`,
+  `summer-sessions-listing-form.png` is nearly 2,000 pixels tall despite
+  already being limited to the Basics fieldset. Tighten field hints, editor
+  height, and section spacing rather than removing the date or venue. Keep all
+  text comfortably readable at the rendered `split-image` size.
+
+**Final visual check:**
+
+- Regenerate every scenario-owned screenshot after the fixes and inspect for
+  clipped text, overflowing boxes, accidental focus rings, low contrast,
+  overlapping labels, inconsistent padding, and empty space at all four crop
+  edges. Also render the affected `split-image` pages at desktop and mobile
+  widths so a good source PNG is not undermined by its website placement.
+
+---
+
 ## Split the database migration runtime
 
 *Origin: CodeRabbit review on PR #1845 (`src/shared/db/migrations.ts`).*
