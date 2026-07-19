@@ -1,4 +1,5 @@
 /* jscpd:ignore-start */
+
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -35,10 +36,13 @@ export const parseEditableAggregateForm = <TValues, TInput>(
 
 export const selectedRecalculationFields = <T extends string>(
   form: FormParams,
-  allowed: readonly T[],
+  allowed: readonly [T, ...T[]],
 ): T[] => {
-  const selected = new Set(form.getAll(RECALCULATE_FIELD_NAME));
-  return allowed.filter((field) => selected.has(field));
+  const selection = form.getRepeatedPicklist(RECALCULATE_FIELD_NAME, allowed);
+  if (!selection.ok) {
+    throw new Error(`Invalid recalculation field: ${selection.error}`);
+  }
+  return selection.value;
 };
 
 /**
@@ -51,7 +55,7 @@ export const selectedRecalculationFields = <T extends string>(
  */
 export const runRecalculatePost = async <T extends string>(config: {
   form: FormParams;
-  fields: readonly T[];
+  fields: readonly [T, ...T[]];
   /** Re-render the recalculate page with the "choose a field" error. */
   renderChoose: ResponseHandler;
   reset: (selected: T[]) => Promise<unknown>;
@@ -108,7 +112,7 @@ export const createRecalculateHandlers = <T, F extends string, ID>(config: {
     error?: string,
     success?: string,
   ) => Promise<Response>;
-  fields: readonly F[];
+  fields: readonly [F, ...F[]];
   entityId: (entity: T) => number;
   reset: (entityId: number, selected: F[]) => Promise<unknown>;
   log: (entity: T) => Promise<unknown>;

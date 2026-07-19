@@ -80,22 +80,23 @@ const parseUrlField = (
 /** Parse the bookable-days default: only set when its enable box is ticked, with
  * at least one valid day (in canonical order). */
 const parseDaysField = (form: FormParams): FieldParse => {
-  if (form.getString("default_bookable_days_enabled") !== "1") return {};
-  const submittedDays = form.getAll("default_bookable_days");
-  const invalidDay = submittedDays.find(
-    (submittedDay) =>
-      !VALID_DAY_NAMES.some((validDay) => validDay === submittedDay),
+  if (!form.getFlag("default_bookable_days_enabled")) return {};
+  const selection = form.getRepeatedPicklist(
+    "default_bookable_days",
+    VALID_DAY_NAMES,
   );
-  if (invalidDay !== undefined)
+  if (!selection.ok) {
     return {
       error: t("fields.validation.invalid_day", {
-        day: invalidDay,
+        day: selection.error,
         valid: VALID_DAY_NAMES.join(", "),
       }),
     };
-  const days = VALID_DAY_NAMES.filter((day) => submittedDays.includes(day));
-  if (days.length === 0) return { error: t("listing_defaults.days_required") };
-  return { value: days };
+  }
+  if (selection.value.length === 0) {
+    return { error: t("listing_defaults.days_required") };
+  }
+  return { value: selection.value };
 };
 
 /** Per-kind parser. The `Record` is keyed by {@link ListingDefaultKind}, so a

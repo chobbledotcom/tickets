@@ -14,15 +14,12 @@
 
 import { joinStrings, map, pipe, sort } from "#fp";
 import { t } from "#i18n";
-import {
-  getHeaderText,
-  renderCells,
-  resolveColumnLayout,
-} from "#shared/column-order.ts";
-import {
-  ATTENDEE_DEFAULT_ORDER,
-  ATTENDEE_TABLE_COLUMNS,
-} from "#shared/columns/attendee-columns.ts";
+import type {
+  AttendeeColumn,
+  AttendeeColumnLayout,
+} from "#shared/column-layout.ts";
+import { getHeaderText, renderCells } from "#shared/column-order.ts";
+import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
 import type { QuestionWithAnswers } from "#shared/db/question-types.ts";
 import type { AttendeeQuestionData } from "#shared/db/questions/attendee-answers/reads.ts";
@@ -75,8 +72,8 @@ export type AttendeeTableOptions = {
   presorted?: boolean;
   /** Question data for the Answers column */
   questionData?: TableQuestionData | undefined;
-  /** Liquid template controlling column order (e.g. "{{name}}, {{email}}, {{qty}}") */
-  columnTemplate?: string;
+  /** Pre-parsed layout controlling column order and filters */
+  columnLayout?: AttendeeColumnLayout;
 };
 
 // ---------------------------------------------------------------------------
@@ -87,7 +84,7 @@ export type AttendeeTableOptions = {
 const computeVisibilityMap = (
   rows: AttendeeTableRow[],
   opts: AttendeeTableOptions,
-): Record<string, boolean> => {
+): Record<AttendeeColumn, boolean> => {
   const showCheckin = opts.showCheckin !== false;
   return {
     address: rows.some((r) => !!r.attendee.address),
@@ -111,15 +108,13 @@ const computeVisibilityMap = (
 
 /** Get the ordered list of visible column keys and their filter expressions */
 const getColumnLayout = (
-  visMap: Record<string, boolean>,
-  columnTemplate?: string,
-): { visibleColumns: string[]; filters: Map<string, string> } => {
-  const template = columnTemplate || settings.attendeeColumnOrder;
-  const { columnKeys, filters } = resolveColumnLayout(
-    template,
-    Object.keys(ATTENDEE_TABLE_COLUMNS),
-    ATTENDEE_DEFAULT_ORDER,
-  );
+  visMap: Record<AttendeeColumn, boolean>,
+  columnLayout?: AttendeeColumnLayout,
+): {
+  visibleColumns: AttendeeColumn[];
+  filters: ReadonlyMap<AttendeeColumn, string>;
+} => {
+  const { columnKeys, filters } = columnLayout ?? settings.attendeeColumnLayout;
   return {
     filters,
     visibleColumns: columnKeys.filter((k) => visMap[k]),
@@ -259,9 +254,9 @@ const createStatusRenderer =
 /** Render a single attendee row using ordered column defs */
 const AttendeeRow = (
   row: AttendeeTableRow,
-  visibleColumns: string[],
+  visibleColumns: AttendeeColumn[],
   colOpts: AttendeeColumnOpts,
-  filters: Map<string, string>,
+  filters: ReadonlyMap<AttendeeColumn, string>,
 ): string =>
   `<tr${
     isServicing(row.attendee.kind)
@@ -286,7 +281,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const visMap = computeVisibilityMap(orderedRows, opts);
   const { visibleColumns, filters } = getColumnLayout(
     visMap,
-    opts.columnTemplate,
+    opts.columnLayout,
   );
   const colCount = visibleColumns.length;
 
@@ -319,8 +314,8 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
         }</td></tr>`;
 
   const headers = pipe(
-    map((key: string) => {
-      const col = ATTENDEE_TABLE_COLUMNS[key]!;
+    map((key: AttendeeColumn) => {
+      const col = ATTENDEE_TABLE_COLUMNS[key];
       const cls = col.headerClassName;
       return `<th${cls ? ` class="${cls}"` : ""}>${getHeaderText(col)}</th>`;
     }),

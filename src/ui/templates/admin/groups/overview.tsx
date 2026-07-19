@@ -1,11 +1,6 @@
 import { sumOf } from "#fp";
 import { t } from "#i18n";
 import type { ListingMoneyTotals } from "#shared/accounting/listing-money-totals.ts";
-import { resolveColumnLayout } from "#shared/column-order.ts";
-import {
-  LISTING_DEFAULT_ORDER,
-  LISTING_TABLE_COLUMNS,
-} from "#shared/columns/listing-columns.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -183,11 +178,7 @@ export const GroupOverviewPanel = ({
   shareable: boolean;
   questionData?: TableQuestionData;
 }): JSX.Element => {
-  const { columnKeys, filters } = resolveColumnLayout(
-    settings.listingColumnOrder,
-    Object.keys(LISTING_TABLE_COLUMNS),
-    LISTING_DEFAULT_ORDER,
-  );
+  const { columnKeys, filters } = settings.listingColumnLayout;
   const listingRows = renderListingRows({
     columnKeys,
     emptyText: t("groups.detail.no_listings"),

@@ -177,7 +177,7 @@ export const adminSitePageNewPage = (
     t("site.pages.new_title"),
     LIST,
     session,
-    sitePageForm.renderFields(),
+    sitePageForm.render(),
     error,
     <SubmitButton icon="plus">{t("site.pages.create_submit")}</SubmitButton>,
   );
@@ -220,7 +220,7 @@ const ItemPicker = ({
 export const sitePageEditPanel = (page: SitePage): JSX.Element =>
   contentEditPanel(
     `${LIST}/${page.id}/edit`,
-    sitePageEditForm.renderFields(contentFieldValues(page)),
+    sitePageEditForm.render(contentFieldValues(page)),
   );
 
 /** The Items tab's panel: the page's current contents (reorderable, each

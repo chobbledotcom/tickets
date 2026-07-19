@@ -222,7 +222,7 @@ const renderCreateListingError = async (
       // re-renders their selection rather than dropping every group.
       selectedGroupIds: parseGroupIds(form),
       templateId,
-      values: Object.fromEntries(form.entries()),
+      values: form.toRenderValues(),
     },
     400,
   );

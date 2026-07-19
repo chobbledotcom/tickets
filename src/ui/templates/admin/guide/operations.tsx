@@ -2,15 +2,9 @@
  * Admin guide — Operations sections.
  */
 
-import { buildDefaultTemplate } from "#shared/column-order.ts";
-import {
-  ATTENDEE_DEFAULT_ORDER,
-  ATTENDEE_TABLE_COLUMNS,
-} from "#shared/columns/attendee-columns.ts";
-import {
-  LISTING_DEFAULT_ORDER,
-  LISTING_TABLE_COLUMNS,
-} from "#shared/columns/listing-columns.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
+import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
+import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   columnReferenceTable,
@@ -20,9 +14,9 @@ import {
 } from "#templates/admin/guide/components.tsx";
 
 /** The "Default order: `<code>`" line a table-columns FAQ answer opens with. */
-const defaultOrderParagraph = (order: readonly string[]): JSX.Element => (
+const defaultOrderParagraph = (template: string): JSX.Element => (
   <p>
-    Default order: <code>{buildDefaultTemplate(order)}</code>
+    Default order: <code>{template}</code>
   </p>
 );
 
@@ -139,14 +133,14 @@ export const operationsSections = (): GuideSection[] => [
       custom(
         "listing_table_columns",
         <>
-          {defaultOrderParagraph(LISTING_DEFAULT_ORDER)}
+          {defaultOrderParagraph(COLUMN_LAYOUTS.listing.defaultTemplate)}
           <Raw html={columnReferenceTable(LISTING_TABLE_COLUMNS)} />
         </>,
       ),
       custom(
         "attendee_table_columns",
         <>
-          {defaultOrderParagraph(ATTENDEE_DEFAULT_ORDER)}
+          {defaultOrderParagraph(COLUMN_LAYOUTS.attendee.defaultTemplate)}
           <p>
             Columns referencing absent data (e.g. <code>{"{{email}}"}</code>{" "}
             when no attendees have an email) are hidden automatically even when

@@ -4,12 +4,8 @@
  *  admin create/update/delete test helper below. */
 async function doAuthenticatedRequest<T>(
   path: string,
-  formData: Record<string, string>,
-  buildRequest: (
-    path: string,
-    data: Record<string, string>,
-    cookie: string,
-  ) => Request,
+  formData: TestFormValues,
+  buildRequest: (path: string, data: TestFormValues, cookie: string) => Request,
   onSuccess: () => Promise<T>,
   errorContext: string,
 ): Promise<T> {
@@ -31,7 +27,7 @@ async function doAuthenticatedRequest<T>(
 
 export const doAuthenticatedFormRequest = async <T>(
   path: string,
-  formData: Record<string, string>,
+  formData: TestFormValues,
   onSuccess: () => Promise<T>,
   errorContext: string,
 ): Promise<T> => {
@@ -47,7 +43,7 @@ export const doAuthenticatedFormRequest = async <T>(
 
 export const doAuthenticatedMultipartFormRequest = async <T>(
   path: string,
-  formData: Record<string, string>,
+  formData: TestFormValues,
   onSuccess: () => Promise<T>,
   errorContext: string,
 ): Promise<T> => {
@@ -60,3 +56,5 @@ export const doAuthenticatedMultipartFormRequest = async <T>(
     errorContext,
   );
 };
+
+import type { TestFormValues } from "#test-utils/form-values.ts";
