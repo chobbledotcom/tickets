@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import Stripe from "stripe";
 import { settings } from "#shared/db/settings.ts";
+import { STRIPE_API_VERSION } from "#shared/stripe/client.ts";
 import {
   getStripeClient,
   resetStripeClient,
@@ -239,7 +239,7 @@ describeStripe("Stripe webhook setup", () => {
       await setupWithWebhookApi(webhookUrl, calls);
 
       expect([...calls.createdBody!.entries()]).toEqual([
-        ["api_version", Stripe.API_VERSION],
+        ["api_version", STRIPE_API_VERSION],
         ["enabled_events[0]", "checkout.session.completed"],
         ["url", webhookUrl],
       ]);

@@ -1,11 +1,10 @@
 /**
  * Stripe integration module for ticket payments
- * Uses lazy loading to avoid importing the Stripe SDK at startup
+ * Uses the narrow edge-native Stripe REST client.
  */
 
 /* jscpd:ignore-start */
-import type Stripe from "stripe";
-import { lazyRef, once } from "#fp";
+import { lazyRef } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
@@ -29,18 +28,27 @@ import type {
   WebhookSetupResult,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
+import {
+  createStripeClient as createRestClient,
+  STRIPE_API_VERSION,
+  STRIPE_MAX_NETWORK_RETRIES,
+  STRIPE_TIMEOUT_MS,
+  type StripeClient,
+  type StripeClientConfig,
+} from "#shared/stripe/client.ts";
+import type {
+  StripeCheckoutSession,
+  StripePaymentIntent,
+  StripeRefund,
+  StripeWebhookEndpoint,
+  StripeWebhookEndpointWrite,
+} from "#shared/stripe/schemas.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /* jscpd:ignore-end */
 
-/** Lazy-load Stripe SDK only when needed */
-const loadStripe = once(async () => {
-  const { default: Stripe } = await import("stripe");
-  return Stripe;
-});
-
 /** Nullable checkout session result */
-type CheckoutResult = Stripe.Checkout.Session | null;
+type CheckoutResult = StripeCheckoutSession | null;
 
 /**
  * Narrowed checkout session — only the fields our provider needs.
@@ -57,14 +65,13 @@ export type StripeCheckoutFields = {
 };
 
 const narrowCheckoutSession = (
-  session: Stripe.Checkout.Session,
+  session: StripeCheckoutSession,
 ): StripeCheckoutFields => ({
   amount_total: session.amount_total,
   created: session.created,
   id: session.id,
   metadata: session.metadata,
-  payment_intent:
-    typeof session.payment_intent === "string" ? session.payment_intent : null,
+  payment_intent: session.payment_intent,
   payment_status: session.payment_status,
 });
 
@@ -88,7 +95,7 @@ export type StripePaymentIntentFields = {
 };
 
 const narrowPaymentIntent = (
-  intent: Stripe.PaymentIntent,
+  intent: StripePaymentIntent,
 ): StripePaymentIntentFields => ({
   id: intent.id,
   latest_charge:
@@ -143,40 +150,33 @@ export const sanitizeErrorDetail = (err: unknown): string => {
   return parts.length > 0 ? parts.join(" ") : err.name;
 };
 
-type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
-
 const STRIPE_CLIENT_CONFIG = {
-  maxNetworkRetries: 2,
-  timeout: 20_000,
-} satisfies StripeConfig;
+  maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
+  timeout: STRIPE_TIMEOUT_MS,
+} satisfies StripeClientConfig;
 
 /**
  * Get Stripe client configuration for mock server (if configured)
  */
-const getMockConfigImpl = (): StripeConfig | undefined => {
+const getMockConfigImpl = (): StripeClientConfig | undefined => {
   const mockHost = getEnv("STRIPE_MOCK_HOST");
   if (!mockHost) return;
 
   const mockPort = Number.parseInt(getEnv("STRIPE_MOCK_PORT") || "12111", 10);
   return {
     ...STRIPE_CLIENT_CONFIG,
-    host: mockHost,
+    apiBase: `http://${mockHost}:${mockPort}`,
     maxNetworkRetries: 0,
-    port: mockPort,
-    protocol: "http",
   };
 };
 
-const [getMockConfig, setMockConfig] = lazyRef<StripeConfig | undefined>(
+const [getMockConfig, setMockConfig] = lazyRef<StripeClientConfig | undefined>(
   getMockConfigImpl,
 );
 
-const createStripeClient = async (secretKey: string): Promise<Stripe> => {
+const createStripeClient = (secretKey: string): StripeClient => {
   const mockConfig = getMockConfig();
-  const StripeClass = await loadStripe();
-  return mockConfig
-    ? new StripeClass(secretKey, mockConfig)
-    : new StripeClass(secretKey, STRIPE_CLIENT_CONFIG);
+  return createRestClient(secretKey, mockConfig ?? STRIPE_CLIENT_CONFIG);
 };
 
 const clientCache = cachedClientFactory({
@@ -188,28 +188,34 @@ const clientCache = cachedClientFactory({
 });
 
 /** Internal getStripeClient implementation */
-const getClientImpl = (): Promise<Stripe | null> => clientCache.getClient();
+const getClientImpl = (): Promise<StripeClient | null> =>
+  clientCache.getClient();
 
 /** Run operation with stripe client, return null if not available */
 const withClient = createWithClient(getClientImpl, sanitizeErrorDetail);
 
-type StripeCheckoutLineItem = NonNullable<
-  Stripe.Checkout.SessionCreateParams["line_items"]
->[number];
+type StripeCheckoutLineItem = {
+  price_data: {
+    currency: string;
+    product_data: { description?: string; name: string };
+    unit_amount: number;
+  };
+  quantity: number;
+};
 
 /**
  * Fetch the site's webhook endpoint records from Stripe (one page, max 100).
  */
 const fetchWebhookEndpoints = async (
-  client: Stripe,
-): Promise<Stripe.WebhookEndpoint[]> => {
+  client: StripeClient,
+): Promise<StripeWebhookEndpoint[]> => {
   const endpoints = await client.webhookEndpoints.list({ limit: 100 });
   return endpoints.data;
 };
 
 /** List the IDs of webhook endpoints pointing at the given URL. */
 const listSameUrlEndpointIds = async (
-  client: Stripe,
+  client: StripeClient,
   webhookUrl: string,
 ): Promise<string[]> => {
   const endpoints = await fetchWebhookEndpoints(client);
@@ -218,7 +224,7 @@ const listSameUrlEndpointIds = async (
 
 /** List same-URL endpoints other than the one the database currently names. */
 const listStaleEndpointIds = async (
-  client: Stripe,
+  client: StripeClient,
   webhookUrl: string,
   keepEndpointId: string | null | undefined,
 ): Promise<string[]> =>
@@ -228,7 +234,7 @@ const listStaleEndpointIds = async (
 
 /** Delete the given endpoint IDs. */
 const deleteWebhookEndpoints = async (
-  client: Stripe,
+  client: StripeClient,
   ids: string[],
 ): Promise<void> => {
   for (const id of ids) {
@@ -238,11 +244,11 @@ const deleteWebhookEndpoints = async (
 
 /** Create the checkout-completion webhook endpoint at the given URL. */
 const createCheckoutWebhook = async (
-  client: Stripe,
+  client: StripeClient,
   webhookUrl: string,
-): Promise<Stripe.WebhookEndpoint> =>
+): Promise<StripeWebhookEndpointWrite> =>
   client.webhookEndpoints.create({
-    api_version: (await loadStripe()).API_VERSION,
+    api_version: STRIPE_API_VERSION,
     enabled_events: ["checkout.session.completed"],
     url: webhookUrl,
   });
@@ -281,7 +287,7 @@ const setupWebhookEndpointImpl: SetupWebhookEndpoint = async (
   try {
     const client = await createStripeClient(secretKey);
 
-    let endpoint: Stripe.WebhookEndpoint;
+    let endpoint: StripeWebhookEndpointWrite;
     try {
       endpoint = await createCheckoutWebhook(client, webhookUrl);
     } catch (err) {
@@ -347,17 +353,17 @@ export const stripeApi: {
     keepEndpointId: string,
     alsoDeleteIds?: readonly string[],
   ) => Promise<void>;
-  getStripeClient: () => Promise<Stripe | null>;
+  getStripeClient: () => Promise<StripeClient | null>;
   resetStripeClient: () => void;
   retrieveCheckoutSession: (id: string) => Promise<StripeCheckoutFields | null>;
   retrievePaymentIntent: (
     id: string,
   ) => Promise<StripePaymentIntentFields | null>;
-  refundPayment: (intentId: string) => Promise<Stripe.Refund | null>;
+  refundPayment: (intentId: string) => Promise<StripeRefund | null>;
   createCheckoutSession: (
     intent: CheckoutIntent,
     baseUrl: string,
-  ) => Promise<Stripe.Checkout.Session | null>;
+  ) => Promise<StripeCheckoutSession | null>;
   setupWebhookEndpoint: SetupWebhookEndpoint;
   testStripeConnection: () => Promise<StripeConnectionTestResult>;
 } = {
@@ -409,7 +415,7 @@ export const stripeApi: {
       },
     );
 
-    const params: Stripe.Checkout.SessionCreateParams = {
+    const params = {
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       line_items: lineItems,
       mode: "payment",
@@ -436,7 +442,7 @@ export const stripeApi: {
   getStripeClient: getClientImpl,
 
   /** Refund a payment */
-  refundPayment: (intentId: string): Promise<Stripe.Refund | null> =>
+  refundPayment: (intentId: string): Promise<StripeRefund | null> =>
     withClient(
       (s) => s.refunds.create({ payment_intent: intentId }),
       ErrorCode.STRIPE_REFUND,

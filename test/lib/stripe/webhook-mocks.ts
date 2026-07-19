@@ -44,15 +44,33 @@ export const webhookEndpointsApi = (
   const listed = {
     data: [
       ...(sameUrlStray
-        ? [{ id: "we_stray", object: "webhook_endpoint", url: webhookUrl }]
+        ? [
+            {
+              enabled_events: ["checkout.session.completed"],
+              id: "we_stray",
+              object: "webhook_endpoint",
+              status: "enabled",
+              url: webhookUrl,
+            },
+          ]
         : []),
       {
+        enabled_events: ["checkout.session.completed"],
         id: "we_other",
         object: "webhook_endpoint",
+        status: "enabled",
         url: "https://other.example/webhook",
       },
       ...(recordedInListing
-        ? [{ id: "we_recorded", object: "webhook_endpoint", url: webhookUrl }]
+        ? [
+            {
+              enabled_events: ["checkout.session.completed"],
+              id: "we_recorded",
+              object: "webhook_endpoint",
+              status: "enabled",
+              url: webhookUrl,
+            },
+          ]
         : []),
     ],
     has_more: false,
@@ -137,7 +155,7 @@ export const webhookEndpointsApi = (
       const id = new URL(url).pathname.split("/").pop()!;
       calls.deleted.push(id);
       calls.liveEndpointIds.delete(id);
-      return Promise.resolve(Response.json({ deleted: true }));
+      return Promise.resolve(Response.json({ deleted: true, id }));
     }
     return handleCreatePost(init);
   };

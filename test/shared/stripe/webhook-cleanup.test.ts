@@ -88,8 +88,18 @@ describeStripe("Stripe webhook cleanup", () => {
           return Promise.resolve(
             Response.json({
               data: [
-                { id: "we_stray", url: webhookUrl },
-                { id: "we_old_recorded", url: oldUrl },
+                {
+                  enabled_events: ["checkout.session.completed"],
+                  id: "we_stray",
+                  status: "enabled",
+                  url: webhookUrl,
+                },
+                {
+                  enabled_events: ["checkout.session.completed"],
+                  id: "we_old_recorded",
+                  status: "enabled",
+                  url: oldUrl,
+                },
               ],
               has_more: false,
               object: "list",
@@ -97,8 +107,9 @@ describeStripe("Stripe webhook cleanup", () => {
           );
         }
         if (method === "DELETE") {
-          calls.deleted.push(new URL(url).pathname.split("/").pop()!);
-          return Promise.resolve(Response.json({ deleted: true }));
+          const id = new URL(url).pathname.split("/").pop()!;
+          calls.deleted.push(id);
+          return Promise.resolve(Response.json({ deleted: true, id }));
         }
         return null;
       };
