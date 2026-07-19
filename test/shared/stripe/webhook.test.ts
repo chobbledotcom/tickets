@@ -29,9 +29,10 @@ describeStripe("stripe", () => {
 
   describe("verifyWebhookSignature - timestamp parsing", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
-    const expectInvalidTimestamp = async (
+    const expectInvalidHeader = async (
       payload: string,
       signature: string,
+      reason: string,
     ): Promise<void> => {
       const errorSpy = spy(console, "error");
       try {
@@ -39,8 +40,9 @@ describeStripe("stripe", () => {
           error: "Invalid signature header format",
           valid: false,
         });
-        expect(errorSpy.calls[0]?.args[0]).toContain(
-          'detail="invalid header: invalid timestamp"',
+        expect(errorSpy.calls).toHaveLength(1);
+        expect(errorSpy.calls[0]!.args[0]).toContain(
+          `detail="invalid header: ${reason}"`,
         );
       } finally {
         errorSpy.restore();
@@ -103,17 +105,43 @@ describeStripe("stripe", () => {
       await activateStripe(TEST_SECRET, "we_test_timestamp_suffix");
       const payload = "{}";
       const signed = await signedHeader(TEST_SECRET, payload);
-      await expectInvalidTimestamp(payload, signed.replace(",", "junk,"));
+      await expectInvalidHeader(
+        payload,
+        signed.replace(",", "junk,"),
+        "invalid timestamp",
+      );
+    });
+
+    test("rejects a signed timestamp with an extra delimiter", async () => {
+      await activateStripe(TEST_SECRET, "we_test_timestamp_delimiter");
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload);
+      await expectInvalidHeader(
+        payload,
+        signed.replace(",", "=junk,"),
+        "invalid timestamp",
+      );
+    });
+
+    test("rejects a signature with an extra delimiter", async () => {
+      await activateStripe(TEST_SECRET, "we_test_signature_delimiter");
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload);
+      await expectInvalidHeader(payload, `${signed}=junk`, "invalid signature");
     });
 
     test("rejects a timestamp outside the safe integer range", async () => {
       await activateStripe(TEST_SECRET, "we_test_unsafe_timestamp");
-      await expectInvalidTimestamp("{}", "t=9007199254740992,v1=abc");
+      await expectInvalidHeader(
+        "{}",
+        "t=9007199254740992,v1=abc",
+        "invalid timestamp",
+      );
     });
 
     test("rejects a zero timestamp", async () => {
       await activateStripe(TEST_SECRET, "we_test_zero_timestamp");
-      await expectInvalidTimestamp("{}", "t=0,v1=abc");
+      await expectInvalidHeader("{}", "t=0,v1=abc", "invalid timestamp");
     });
 
     test("uses the last timestamp in the header", async () => {
