@@ -28,6 +28,7 @@ describe("built site maintenance panel", () => {
     expect(html).toContain("Set up scheduled maintenance");
     expect(html).toContain('<div class="prose">');
     expect(html).not.toContain("stage-scheduler");
+    expect(html).not.toContain("Site key");
   });
 
   test("shows the site key with a resend action", () => {
