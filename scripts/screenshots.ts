@@ -19,7 +19,11 @@ import {
   type ScreenshotScenario,
 } from "./screenshots/scenario.ts";
 import { waitForHealthy } from "./screenshots/server.ts";
-import { findAvailablePort } from "./stripe-mock.ts";
+import {
+  findAvailablePort,
+  startStripeMock,
+  stripeMockEnv,
+} from "./stripe-mock.ts";
 
 const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
 const DB_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
@@ -116,6 +120,7 @@ const SCENES: Record<ScreenshotName, Scene> = {
 const startServer = async (): Promise<AppServer> => {
   const build = await runDeno(["task", "build:static"], ROOT);
   if (!build.success) throw new Error("Could not build static assets.");
+  const stripeMock = await startStripeMock();
   const tempDir = await Deno.makeTempDir({ prefix: "tickets-screenshots-" });
   const port = findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -124,6 +129,7 @@ const startServer = async (): Promise<AppServer> => {
     cwd: ROOT,
     env: {
       ...Deno.env.toObject(),
+      ...stripeMockEnv(stripeMock.port),
       DB_ENCRYPTION_KEY: DB_KEY,
       DB_URL: dbUrl,
       PORT: String(port),
@@ -157,6 +163,7 @@ const startServer = async (): Promise<AppServer> => {
           await child.status;
         } finally {
           await removeTree(tempDir);
+          await stripeMock.stop();
         }
       },
     };
@@ -164,6 +171,7 @@ const startServer = async (): Promise<AppServer> => {
   child.kill("SIGKILL");
   await child.status;
   await removeTree(tempDir);
+  await stripeMock.stop();
   throw new Error("The screenshot app did not start within 60 seconds.");
 };
 
