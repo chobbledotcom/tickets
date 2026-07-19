@@ -228,16 +228,16 @@ describeWithEnv(
   "server > parents end-to-end booking journey",
   { db: true, triggers: true },
   () => {
-    test("the booking page renders both per-unit child selectors and the choose-N total guidance", async () => {
+    test("the booking page renders child selectors with quantity guidance", async () => {
       const { parent, childA, childB } = await setupParentWithTwoChildren();
       const html = await bookingPageHtml(parent.slug);
 
       // Per-unit selectors are namespaced per parent+child (invariant I1/I2).
       expect(html).toContain(`name="child_qty_${parent.id}_${childA.id}"`);
       expect(html).toContain(`name="child_qty_${parent.id}_${childB.id}"`);
-      // The parent (maxQuantity 3) drives the per-parent total ceiling, so the
-      // "choose N in total" note seeds with 3 add-ons; both children's names show.
-      expect(html).toContain("3 add-ons in total");
+      // The live hint supplies the exact target after the buyer chooses a parent
+      // quantity, so the initial note stays true before that choice.
+      expect(html).toContain("Choose add-ons to match your ticket quantity");
       expect(html).toContain("Choose an option for Daily base unit");
       expect(html).toContain("Add-on Alpha");
       expect(html).toContain("Add-on Beta");

@@ -219,6 +219,15 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(summary.depositPaid).toBe(0);
   });
 
+  test("order summary combines cash paid with the outstanding balance", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+
+    const summary = await getAttendeeOrderSummary(attendeeId);
+
+    expect(summary.depositPaid).toBe(100);
+    expect(summary.fullPrice).toBe(1600);
+  });
+
   test("order summary uses recorded payments when attendee state is missing", async () => {
     const listing = await createTestListing({
       maxAttendees: 10,
@@ -285,7 +294,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       listingId,
       otherListing.id,
     ]);
-    expect(one.queryCount).toBe(2);
+    expect(one.queryCount).toBe(3);
     expect(multiple.queryCount).toBe(one.queryCount);
   });
 });

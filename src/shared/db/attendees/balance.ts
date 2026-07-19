@@ -31,8 +31,10 @@ import {
 } from "#shared/db/attendees/select.ts";
 import {
   executeBatchWithResults,
-  queryAll,
+  queryBatch,
   queryOne,
+  resultRows,
+  type SqlStatement,
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 /* jscpd:ignore-end */
@@ -104,8 +106,9 @@ type OrderRow = {
   listing_unit_price: number | null;
 };
 
-const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
-  queryAll<OrderRow>(
+const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
+  args: [attendeeId],
+  sql:
     // quantity > 0: a no-quantity sentinel line is not an order line — exclude it
     // so the pay page shows (and checks out against) a real product, never a
     // lower-id ghost.
@@ -123,18 +126,12 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
       WHERE listingAttendee.attendee_id = ? AND listingAttendee.quantity > 0
       ORDER BY listingAttendee.id`,
-    [attendeeId],
-  );
+});
 
-const getAttendeeAmountPaid = async (attendeeId: number): Promise<number> => {
-  const row = (await queryOne<{ amount_paid: number }>(
-    `SELECT ${externalCashBalanceSubquery(
-      "attendee",
-      String(attendeeId),
-    )} AS amount_paid`,
-  ))!;
-  return Number(row.amount_paid);
-};
+const attendeeAmountPaidStatement = (attendeeId: number): SqlStatement => ({
+  args: Array(4).fill(String(attendeeId)),
+  sql: `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid`,
+});
 
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
   row.listing_name === null || row.listing_unit_price === null
@@ -150,11 +147,29 @@ const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
 export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
-  const [rows, state, depositPaid] = await Promise.all([
-    getAttendeeOrderRows(attendeeId),
-    getAttendeeBalanceState(attendeeId),
-    getAttendeeAmountPaid(attendeeId),
+  const [orderResult, stateResult, paidResult] = await queryBatch([
+    attendeeOrderRowsStatement(attendeeId),
+    {
+      args: [attendeeId, ATTENDEE_KIND],
+      sql: `SELECT status_id, ${remainingBalanceFromLedger(
+        "attendees.id",
+      )} FROM attendees WHERE id = ? AND kind = ?`,
+    },
+    attendeeAmountPaidStatement(attendeeId),
   ]);
+  const rows = resultRows<OrderRow>(orderResult!);
+  const stateRow = resultRows<{
+    remaining_balance: number;
+    status_id: number | null;
+  }>(stateResult!)[0];
+  const paidRow = resultRows<{ amount_paid: number }>(paidResult!)[0]!;
+  const state = stateRow
+    ? {
+        remainingBalance: Number(stateRow.remaining_balance),
+        statusId: stateRow.status_id,
+      }
+    : null;
+  const depositPaid = Number(paidRow.amount_paid);
 
   // The LEFT JOIN keeps dangling booking rows visible so we can preserve the
   // previous behavior of dropping lines whose listing has since been deleted.
