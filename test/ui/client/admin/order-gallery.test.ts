@@ -45,6 +45,11 @@ const stash = createGlobalStash();
 // test genuinely sleeping 300ms.
 const clock: { time: FakeTime | null } = { time: null };
 
+const getClock = (): FakeTime => {
+  if (clock.time === null) throw new Error("Fake clock was not installed");
+  return clock.time;
+};
+
 /** Install the DOM and a scripted availability endpoint, then boot the
  * script. `responses` are consumed one per request; when empty the endpoint
  * answers "everything fine, no states". */
@@ -109,8 +114,8 @@ const harness = (html = GALLERY_HTML) => {
  *  response microtasks (tickAsync flushes them BEFORE advancing, so the
  *  fired callback's await chain needs one more round). */
 const settle = async (): Promise<void> => {
-  await clock.time!.tickAsync(300);
-  await clock.time!.runMicrotasks();
+  await getClock().tickAsync(300);
+  await getClock().runMicrotasks();
 };
 
 describe("initOrderGallery", () => {
@@ -118,7 +123,8 @@ describe("initOrderGallery", () => {
     clock.time = new FakeTime();
   });
   afterEach(() => {
-    clock.time?.restore();
+    // beforeEach always installs the clock; teardown must fail if that changes.
+    getClock().restore();
     clock.time = null;
     stash.restore();
   });
