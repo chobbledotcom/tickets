@@ -24,31 +24,55 @@ const expectOneRetry = async (
 describe("screenshot server", () => {
   it("stops an acquired resource when startup fails", async () => {
     const startupError = new Error("startup failed");
-    let stops = 0;
+    const stops: string[] = [];
 
     await expect(
-      startWithFailureCleanup(
-        () => Promise.reject(startupError),
-        () => {
-          stops += 1;
-        },
-      ),
+      startWithFailureCleanup(({ add }) => {
+        add(() => {
+          stops.push("first");
+        });
+        add(() => {
+          stops.push("second");
+        });
+        return Promise.reject(startupError);
+      }),
     ).rejects.toBe(startupError);
+    expect(stops).toEqual(["second", "first"]);
+  });
+
+  it("hands cleanup ownership to a successful startup", async () => {
+    let stops = 0;
+
+    const stop = await startWithFailureCleanup(({ add, run }) => {
+      add(() => {
+        stops += 1;
+      });
+      return Promise.resolve(run);
+    });
+    expect(stops).toBe(0);
+    await stop();
     expect(stops).toBe(1);
   });
 
-  it("leaves an acquired resource running after successful startup", async () => {
-    let stops = 0;
+  it("runs every cleanup when one fails", async () => {
+    const cleanupError = new Error("cleanup failed");
+    let finalCleanupRan = false;
 
-    expect(
-      await startWithFailureCleanup(
-        () => Promise.resolve("running"),
-        () => {
-          stops += 1;
-        },
+    await expect(
+      startWithFailureCleanup(({ add }) => {
+        add(() => {
+          finalCleanupRan = true;
+        });
+        add(() => Promise.reject(cleanupError));
+        return Promise.reject(new Error("startup failed"));
+      }),
+    ).rejects.toEqual(
+      new AggregateError(
+        [new Error("startup failed"), cleanupError],
+        "Multiple errors occurred",
       ),
-    ).toBe("running");
-    expect(stops).toBe(0);
+    );
+    expect(finalCleanupRan).toBe(true);
   });
 
   it("waits before retrying a non-OK response", async () => {

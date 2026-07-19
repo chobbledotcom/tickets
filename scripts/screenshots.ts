@@ -3,7 +3,7 @@ import { chromium, type Page } from "playwright";
 import sharp from "sharp";
 import { browserLaunchOptions } from "./browser-options.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
-import { denoCommand, removeTree, runDeno } from "./process.ts";
+import { denoCommand, removeTree, runDeno, stopProcess } from "./process.ts";
 import {
   isCompactWidth,
   isolateElementCss,
@@ -19,6 +19,7 @@ import {
   type ScreenshotScenario,
 } from "./screenshots/scenario.ts";
 import {
+  type StartupCleanup,
   startWithFailureCleanup,
   waitForHealthy,
 } from "./screenshots/server.ts";
@@ -35,6 +36,7 @@ const PASSWORD = "screenshots-password";
 const STRIPE_KEY = "sk_test_mock";
 const TIMEOUT_MS = 60_000;
 const RETRY_MS = 200;
+const STOP_TIMEOUT_MS = 2_000;
 const MOBILE_VIEWPORT = { height: 844, width: 390 };
 
 interface AppServer {
@@ -120,10 +122,14 @@ const SCENES: Record<ScreenshotName, Scene> = {
   users: { path: at("/admin/users") },
 };
 
-const startAppServer = async (
-  stripeMock: Awaited<ReturnType<typeof startStripeMock>>,
-): Promise<AppServer> => {
+const startAppServer = async ({
+  add,
+  run,
+}: StartupCleanup): Promise<AppServer> => {
+  const stripeMock = await startStripeMock();
+  add(stripeMock.stop);
   const tempDir = await Deno.makeTempDir({ prefix: "tickets-screenshots-" });
+  add(() => removeTree(tempDir));
   const port = findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const dbUrl = `file:${join(tempDir, "screenshots.db")}`;
@@ -139,6 +145,7 @@ const startAppServer = async (
     stderr: "inherit",
     stdout: "null",
   }).spawn();
+  add(() => stopProcess(child, STOP_TIMEOUT_MS));
 
   const deadline = Date.now() + TIMEOUT_MS;
   const healthy = await waitForHealthy(
@@ -159,31 +166,16 @@ const startAppServer = async (
           webhookSecret: "whsec_screenshots",
         });
       },
-      stop: async () => {
-        try {
-          child.kill("SIGTERM");
-          await child.status;
-        } finally {
-          await removeTree(tempDir);
-          await stripeMock.stop();
-        }
-      },
+      stop: run,
     };
   }
-  child.kill("SIGKILL");
-  await child.status;
-  await removeTree(tempDir);
   throw new Error("The screenshot app did not start within 60 seconds.");
 };
 
 const startServer = async (): Promise<AppServer> => {
   const build = await runDeno(["task", "build:static"], ROOT);
   if (!build.success) throw new Error("Could not build static assets.");
-  const stripeMock = await startStripeMock();
-  return await startWithFailureCleanup(
-    () => startAppServer(stripeMock),
-    stripeMock.stop,
-  );
+  return await startWithFailureCleanup(startAppServer);
 };
 
 const submit = async (page: Page, formSelector: string): Promise<void> => {

@@ -1,13 +1,26 @@
-import { type CleanupTask, failAfterCleanups } from "../cleanup.ts";
+import {
+  type CleanupTask,
+  failAfterCleanups,
+  runCleanups,
+} from "../cleanup.ts";
+
+export interface StartupCleanup {
+  add: (cleanup: CleanupTask) => void;
+  run: () => Promise<void>;
+}
 
 export const startWithFailureCleanup = async <T>(
-  start: () => Promise<T>,
-  cleanup: CleanupTask,
+  start: (cleanup: StartupCleanup) => Promise<T>,
 ): Promise<T> => {
+  const cleanups: CleanupTask[] = [];
+  const cleanup: StartupCleanup = {
+    add: (task) => cleanups.unshift(task),
+    run: () => runCleanups(cleanups),
+  };
   try {
-    return await start();
+    return await start(cleanup);
   } catch (error) {
-    return await failAfterCleanups(error, [cleanup]);
+    return await failAfterCleanups(error, cleanups);
   }
 };
 
