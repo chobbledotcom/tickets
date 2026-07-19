@@ -15,7 +15,7 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { COLUMN_LAYOUTS, type ColumnLayoutKind } from "#shared/column-order.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-order.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -192,8 +192,6 @@ export const handleBookingFeePost = settingsHandler({
  * Build a column-order settings handler for the listing or attendee table.
  * Handles POST /admin/settings/{listing,attendee}-column-order - owner only
  */
-type ConfigurableColumnLayoutKind = Exclude<ColumnLayoutKind, "editor-listing">;
-
 const COLUMN_ORDER_SETTINGS = {
   attendee: {
     label: "Attendee column order",
@@ -203,10 +201,9 @@ const COLUMN_ORDER_SETTINGS = {
     label: "Listing column order",
     update: settings.update.listingColumnOrder,
   },
-} satisfies Record<
-  ConfigurableColumnLayoutKind,
-  { label: string; update: (value: string) => Promise<void> }
->;
+};
+
+type ConfigurableColumnLayoutKind = keyof typeof COLUMN_ORDER_SETTINGS;
 
 const columnOrderHandler = (kind: ConfigurableColumnLayoutKind) => {
   const config = COLUMN_ORDER_SETTINGS[kind];

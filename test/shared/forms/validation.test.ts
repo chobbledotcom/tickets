@@ -85,6 +85,13 @@ describe("validateForm", () => {
     if (result.valid) expect(result.values.note).toBe("");
   });
 
+  test("returns null for an empty optional select", () => {
+    expect(validateForm(new FormParams(), colorSelectFields())).toEqual({
+      valid: true,
+      values: { color: null },
+    });
+  });
+
   test("runs custom validate function and surfaces its error", () => {
     const fields: Field[] = [
       field({

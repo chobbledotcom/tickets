@@ -25,9 +25,6 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "name",
         "status",
       ]);
-      expect(settings.listingColumnLayout.template).toBe(
-        "{{name}}, {{status}}",
-      );
     });
 
     test("rejects invalid column name", async () => {

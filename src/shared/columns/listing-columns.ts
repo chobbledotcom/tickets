@@ -8,7 +8,7 @@
 
 import type {
   ColumnDef,
-  EditorListingColumn,
+  ColumnLayout,
   ListingColumn,
 } from "#shared/column-order.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -149,15 +149,26 @@ export const LISTING_TABLE_COLUMNS = {
  * (revenue/cost/profit) are omitted entirely — not just unordered — so a saved
  * column template can never surface them, and the name links to the edit form
  * rather than the forbidden detail page. */
+export const EDITOR_LISTING_COLUMN_KEYS = [
+  "name",
+  "description",
+  "status",
+  "attendees",
+  "tickets",
+  "created",
+] as const;
+type EditorListingColumn = (typeof EDITOR_LISTING_COLUMN_KEYS)[number];
+
 export const EDITOR_LISTING_TABLE_COLUMNS = {
   attendees,
   created,
-  date,
   description,
-  location,
   name: editorName,
-  price,
-  renewal,
   status,
   tickets,
 } satisfies Record<EditorListingColumn, ListingCol>;
+
+export const EDITOR_LISTING_LAYOUT: ColumnLayout<EditorListingColumn> = {
+  columnKeys: EDITOR_LISTING_COLUMN_KEYS,
+  filters: new Map(),
+};

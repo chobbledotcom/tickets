@@ -8,7 +8,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { buildDefaultTemplate, COLUMN_LAYOUTS } from "#shared/column-order.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-order.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -17,12 +17,8 @@ import { textSettingsSection } from "#templates/components/settings-field-sectio
 
 /* jscpd:ignore-end */
 
-const listingDefault = buildDefaultTemplate(
-  COLUMN_LAYOUTS.listing.defaultOrder,
-);
-const attendeeDefault = buildDefaultTemplate(
-  COLUMN_LAYOUTS.attendee.defaultOrder,
-);
+const listingDefault = COLUMN_LAYOUTS.listing.defaultTemplate;
+const attendeeDefault = COLUMN_LAYOUTS.attendee.defaultTemplate;
 
 /** Render available column tags as helper text */
 const AvailableTags = ({

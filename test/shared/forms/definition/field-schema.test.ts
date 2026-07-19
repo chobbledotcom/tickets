@@ -245,7 +245,7 @@ describe("form field schema", () => {
     });
     const renderUnknownField = () => {
       // @ts-expect-error Field names come from the field declarations.
-      form.field("missing").render();
+      form.renderField("missing");
     };
 
     expect(renderUnknownField).toThrow("Unknown field: missing");
@@ -257,6 +257,6 @@ describe("form field schema", () => {
       id: "blank-field",
     });
 
-    expect(form.field("name").render()).not.toContain("value=");
+    expect(form.renderField("name")).not.toContain("value=");
   });
 });

@@ -81,3 +81,35 @@ describe("FormParams.getNumberArray", () => {
     expect(form.getNumberArray("ids")).toEqual([]);
   });
 });
+
+describe("FormParams.getRepeatedPicklist", () => {
+  const allowed = ["Monday", "Tuesday", "Wednesday"] as const;
+  const read = (query: string) =>
+    new FormParams(query).getRepeatedPicklist("days", allowed);
+
+  test("returns no selections when the field is absent", () => {
+    expect(read("")).toEqual({ ok: true, value: [] });
+  });
+
+  test("returns the first invalid supplied token", () => {
+    expect(read("days=Monday&days=Funday&days=Someday")).toEqual({
+      error: "Funday",
+      ok: false,
+    });
+  });
+
+  test("returns unique values in declared order", () => {
+    expect(read("days=Wednesday&days=Monday&days=Wednesday")).toEqual({
+      ok: true,
+      value: ["Monday", "Wednesday"],
+    });
+  });
+
+  test("rejects empty and padded tokens", () => {
+    expect(read("days=")).toEqual({ error: "", ok: false });
+    expect(read("days=%20Monday%20")).toEqual({
+      error: " Monday ",
+      ok: false,
+    });
+  });
+});

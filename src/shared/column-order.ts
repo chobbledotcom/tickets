@@ -12,7 +12,7 @@
 
 import * as v from "valibot";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
-import { requireSuccess } from "#shared/result.ts";
+import type { Result } from "#shared/result.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,69 +48,9 @@ export type ColumnGenerators<TRow, TOpts = unknown> = Record<
   ColumnDef<TRow, TOpts>
 >;
 
-export const ListingColumnSchema = v.picklist([
-  "attendees",
-  "cost",
-  "created",
-  "date",
-  "description",
-  "location",
-  "name",
-  "price",
-  "profit",
-  "renewal",
-  "revenue",
-  "status",
-  "tickets",
-]);
-export type ListingColumn = v.InferOutput<typeof ListingColumnSchema>;
-
-export const EditorListingColumnSchema = v.picklist([
-  "attendees",
-  "created",
-  "date",
-  "description",
-  "location",
-  "name",
-  "price",
-  "renewal",
-  "status",
-  "tickets",
-]);
-export type EditorListingColumn = v.InferOutput<
-  typeof EditorListingColumnSchema
->;
-
-export const AttendeeColumnSchema = v.picklist([
-  "address",
-  "answers",
-  "date",
-  "email",
-  "listings",
-  "name",
-  "phone",
-  "qty",
-  "registered",
-  "special_instructions",
-  "status",
-  "ticket",
-]);
-export type AttendeeColumn = v.InferOutput<typeof AttendeeColumnSchema>;
-
-export const ColumnLayoutKindSchema = v.picklist([
-  "listing",
-  "editor-listing",
-  "attendee",
-]);
-export type ColumnLayoutKind = v.InferOutput<typeof ColumnLayoutKindSchema>;
-
-const validatedColumnLayout = Symbol("validatedColumnLayout");
-
 export type ColumnLayout<TColumn extends string> = {
-  readonly [validatedColumnLayout]: true;
   readonly columnKeys: readonly TColumn[];
   readonly filters: ReadonlyMap<TColumn, string>;
-  readonly template: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -148,40 +88,32 @@ const parseTagBody = (
  * Validation is done by parsing extracted keys through the column schema.
  * No Liquid engine is needed for validation.
  */
-const parseColumnTemplate = <
-  const TOptions extends readonly [string, ...string[]],
->(
+type ParsedLayout<T extends string> = Result<{
+  columns: T[];
+  filters: Map<T, string>;
+}>;
+
+const parseColumnTemplate = <T extends string>(
   template: string,
-  schema: v.PicklistSchema<TOptions, undefined>,
-):
-  | {
-      ok: true;
-      columns: TOptions[number][];
-      filters: Map<TOptions[number], string>;
-    }
-  | {
-      ok: false;
-      error: string;
-    } => {
-  const columns: TOptions[number][] = [];
-  const filters = new Map<TOptions[number], string>();
+  options: readonly T[],
+): ParsedLayout<T> => {
+  const columns: T[] = [];
+  const filters = new Map<T, string>();
   const seen = new Set<string>();
 
   for (const match of template.matchAll(LIQUID_TAG_RE)) {
     const { key, filter } = parseTagBody(match[1]!);
-    const parsed = v.safeParse(schema, key);
-    if (!parsed.success) {
+    const option = options.find((value) => value === key);
+    if (option === undefined) {
       return {
-        error: `Unknown column "${key}". Available columns: ${schema.options.join(
-          ", ",
-        )}`,
+        error: `Unknown column "${key}". Available columns: ${options.join(", ")}`,
         ok: false,
       };
     }
-    if (!seen.has(parsed.output)) {
-      seen.add(parsed.output);
-      columns.push(parsed.output);
-      if (filter) filters.set(parsed.output, filter);
+    if (!seen.has(option)) {
+      seen.add(option);
+      columns.push(option);
+      if (filter) filters.set(option, filter);
     }
   }
 
@@ -189,7 +121,7 @@ const parseColumnTemplate = <
     return { error: "Template must include at least one column", ok: false };
   }
 
-  return { columns, filters, ok: true };
+  return { ok: true, value: { columns, filters } };
 };
 
 /**
@@ -208,73 +140,84 @@ export const buildDefaultTemplate = (keys: readonly string[]): string =>
  * Shared by all listing/attendee table renderers.
  */
 const defineColumnLayout = <
-  const TOptions extends readonly [string, ...string[]],
+  const TDefault extends readonly [string, ...string[]],
+  const TExtra extends readonly string[],
 >(
-  schema: v.PicklistSchema<TOptions, undefined>,
-  defaultOrder: readonly TOptions[number][],
-) => ({
-  defaultOrder,
-  parse(template: string): ColumnLayout<TOptions[number]> {
-    if (!template) {
+  defaultOrder: TDefault,
+  extra: TExtra,
+) => {
+  const [first, ...rest] = defaultOrder;
+  const schema = v.picklist([first, ...rest, ...extra]);
+  const options: readonly (TDefault[number] | TExtra[number])[] = [
+    ...defaultOrder,
+    ...extra,
+  ];
+  const defaultLayout: ColumnLayout<TDefault[number] | TExtra[number]> = {
+    columnKeys: defaultOrder,
+    filters: new Map(),
+  };
+  return {
+    defaultLayout,
+    defaultOrder,
+    defaultTemplate: buildDefaultTemplate(defaultOrder),
+    options,
+    parse(template: string): ColumnLayout<TDefault[number] | TExtra[number]> {
+      if (!template) return defaultLayout;
+      const result = parseColumnTemplate(template, options);
+      if (!result.ok) throw new Error(result.error);
       return {
-        [validatedColumnLayout]: true,
-        columnKeys: defaultOrder,
-        filters: new Map(),
-        template,
+        columnKeys: result.value.columns,
+        filters: result.value.filters,
       };
-    }
-    const result = parseColumnTemplate(template, schema);
-    requireSuccess(result);
-    return {
-      [validatedColumnLayout]: true,
-      columnKeys: result.columns,
-      filters: result.filters,
-      template,
-    };
-  },
-  schema,
-  validate(template: string): string | null {
-    if (!template) return null;
-    const result = parseColumnTemplate(template, schema);
-    return result.ok ? null : result.error;
-  },
-});
+    },
+    schema,
+    validate(template: string): string | null {
+      if (!template) return null;
+      const result = parseColumnTemplate(template, options);
+      return result.ok ? null : result.error;
+    },
+  };
+};
 
 export const COLUMN_LAYOUTS = {
-  attendee: defineColumnLayout(AttendeeColumnSchema, [
-    "status",
-    "date",
-    "name",
-    "listings",
-    "email",
-    "phone",
-    "address",
-    "special_instructions",
-    "answers",
-    "qty",
-    "ticket",
-    "registered",
-  ]),
-  "editor-listing": defineColumnLayout(EditorListingColumnSchema, [
-    "name",
-    "description",
-    "status",
-    "attendees",
-    "tickets",
-    "created",
-  ]),
-  listing: defineColumnLayout(ListingColumnSchema, [
-    "name",
-    "description",
-    "status",
-    "attendees",
-    "tickets",
-    "revenue",
-    "cost",
-    "profit",
-    "created",
-  ]),
-} satisfies Record<ColumnLayoutKind, ReturnType<typeof defineColumnLayout>>;
+  attendee: defineColumnLayout(
+    [
+      "status",
+      "date",
+      "name",
+      "listings",
+      "email",
+      "phone",
+      "address",
+      "special_instructions",
+      "answers",
+      "qty",
+      "ticket",
+      "registered",
+    ],
+    [],
+  ),
+  listing: defineColumnLayout(
+    [
+      "name",
+      "description",
+      "status",
+      "attendees",
+      "tickets",
+      "revenue",
+      "cost",
+      "profit",
+      "created",
+    ],
+    ["date", "location", "price", "renewal"],
+  ),
+};
+
+export type ColumnLayoutKind = keyof typeof COLUMN_LAYOUTS;
+export type ListingColumn =
+  (typeof COLUMN_LAYOUTS)["listing"]["options"][number];
+export type AttendeeColumn =
+  (typeof COLUMN_LAYOUTS)["attendee"]["options"][number];
 
 export type ListingColumnLayout = ReturnType<
   (typeof COLUMN_LAYOUTS)["listing"]["parse"]

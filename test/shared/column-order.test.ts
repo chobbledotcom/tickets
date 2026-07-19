@@ -9,6 +9,7 @@ import {
   renderFilteredValue,
 } from "#shared/column-order.ts";
 import {
+  EDITOR_LISTING_LAYOUT,
   EDITOR_LISTING_TABLE_COLUMNS,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
@@ -20,11 +21,11 @@ setupTestEncryptionKey();
 
 describe("column layout validation", () => {
   test("derives every listing schema from the matching column definitions", () => {
-    expect(COLUMN_LAYOUTS.listing.schema.options).toEqual(
-      Object.keys(LISTING_TABLE_COLUMNS),
+    expect([...COLUMN_LAYOUTS.listing.schema.options].sort()).toEqual(
+      Object.keys(LISTING_TABLE_COLUMNS).sort(),
     );
-    expect(COLUMN_LAYOUTS["editor-listing"].schema.options).toEqual(
-      Object.keys(EDITOR_LISTING_TABLE_COLUMNS),
+    expect([...EDITOR_LISTING_LAYOUT.columnKeys].sort()).toEqual(
+      Object.keys(EDITOR_LISTING_TABLE_COLUMNS).sort(),
     );
   });
 
@@ -74,6 +75,23 @@ describe("column layout validation", () => {
       COLUMN_LAYOUTS.listing.validate("{{name}}, {{price | currency}}"),
     ).toBeNull();
   });
+});
+
+test("keeps the attendee default column order", () => {
+  expect(COLUMN_LAYOUTS.attendee.defaultOrder).toEqual([
+    "status",
+    "date",
+    "name",
+    "listings",
+    "email",
+    "phone",
+    "address",
+    "special_instructions",
+    "answers",
+    "qty",
+    "ticket",
+    "registered",
+  ]);
 });
 
 describe("column layout parsing", () => {

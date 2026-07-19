@@ -7,7 +7,6 @@
  * their next read (defaults resolve live — see `resolveListingDefaults`).
  */
 
-import * as v from "valibot";
 import { t } from "#i18n";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { ownerPage } from "#routes/auth.ts";
@@ -17,7 +16,6 @@ import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { readRepeatedPicklist } from "#shared/forms/repeated-picklist.ts";
 import {
   LISTING_DEFAULT_FIELDS,
   type ListingDefaultField,
@@ -82,25 +80,23 @@ const parseUrlField = (
 /** Parse the bookable-days default: only set when its enable box is ticked, with
  * at least one valid day (in canonical order). */
 const parseDaysField = (form: FormParams): FieldParse => {
-  const selection = readRepeatedPicklist(
-    v.picklist(VALID_DAY_NAMES),
-    form,
+  if (!form.getFlag("default_bookable_days_enabled")) return {};
+  const selection = form.getRepeatedPicklist(
     "default_bookable_days",
-    form.getFlag("default_bookable_days_enabled"),
+    VALID_DAY_NAMES,
   );
-  if (selection.state === "disabled") return {};
-  if (selection.state === "invalid") {
+  if (!selection.ok) {
     return {
       error: t("fields.validation.invalid_day", {
-        day: selection.value,
+        day: selection.error,
         valid: VALID_DAY_NAMES.join(", "),
       }),
     };
   }
-  if (selection.state === "absent") {
+  if (selection.value.length === 0) {
     return { error: t("listing_defaults.days_required") };
   }
-  return { value: selection.values };
+  return { value: selection.value };
 };
 
 /** Per-kind parser. The `Record` is keyed by {@link ListingDefaultKind}, so a

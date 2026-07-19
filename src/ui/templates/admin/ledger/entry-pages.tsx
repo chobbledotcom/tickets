@@ -103,7 +103,7 @@ export const adminLedgerEntryAddPage = ({
       action={`/admin/ledger/${account.type}/${account.id}/add`}
       afterFields={<LedgerEntryCancel returnUrl={returnUrl} />}
       buttonText={t("admin.ledger.add.submit")}
-      fieldsHtml={defineLedgerEntryAddForm(options).renderFields(values)}
+      fieldsHtml={defineLedgerEntryAddForm(options).render(values)}
       icon="plus"
       returnUrl={returnUrl}
     >
@@ -135,7 +135,7 @@ export const adminLedgerEntryEditPage = ({
       <LedgerEntryForm
         action={`/admin/ledger/entries/${transfer.id}/edit`}
         buttonText={t("common.save_changes")}
-        fieldsHtml={ledgerEntryForm.renderFields(values)}
+        fieldsHtml={ledgerEntryForm.render(values)}
         icon="save"
         returnUrl={returnUrl}
       />

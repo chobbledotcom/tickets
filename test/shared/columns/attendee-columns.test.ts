@@ -104,23 +104,6 @@ describe("ATTENDEE_TABLE_COLUMNS metadata", () => {
 });
 
 describe("the attendee default column order", () => {
-  test("matches the expected default order exactly", () => {
-    expect(COLUMN_LAYOUTS.attendee.defaultOrder).toEqual([
-      "status",
-      "date",
-      "name",
-      "listings",
-      "email",
-      "phone",
-      "address",
-      "special_instructions",
-      "answers",
-      "qty",
-      "ticket",
-      "registered",
-    ]);
-  });
-
   test("is a permutation of ATTENDEE_TABLE_COLUMNS' keys", () => {
     expect([...COLUMN_LAYOUTS.attendee.defaultOrder].sort()).toEqual(
       Object.keys(ATTENDEE_TABLE_COLUMNS).sort(),

@@ -1,18 +1,11 @@
-import * as v from "valibot";
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ChoiceField, Field } from "#shared/forms/field.ts";
-import { readRepeatedPicklist } from "#shared/forms/repeated-picklist.ts";
 import {
   DATETIME_PARTIAL_ERROR,
   readSubmittedFieldValue,
 } from "#shared/forms/submitted-value.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-
-export type FieldValueNormalizer = (
-  field: Field,
-  value: string | number | null,
-) => string | number | null;
 
 export type ValidationResult<T = FieldValues> =
   | { valid: true; values: T }
@@ -28,23 +21,18 @@ const parseFieldValue = (
 ): string | number | null =>
   field.parse
     ? field.parse(trimmed)
-    : field.type === "number"
-      ? trimmed
-        ? Number(trimmed)
-        : null
-      : trimmed;
-
-const choiceSchema = (
-  field: ChoiceField<"select" | "checkbox-group">,
-): v.PicklistSchema<readonly [string, ...string[]], undefined> => {
-  const [first, ...rest] = field.options;
-  return v.picklist([first.value, ...rest.map((option) => option.value)]);
-};
+    : field.type === "select" && !trimmed
+      ? null
+      : field.type === "number"
+        ? trimmed
+          ? Number(trimmed)
+          : null
+        : trimmed;
 
 const hasInvalidChoice = (
   field: ChoiceField<"select">,
   value: string,
-): boolean => !v.safeParse(choiceSchema(field), value).success;
+): boolean => !field.options.some((option) => option.value === value);
 
 const requiredFieldError = (field: Field): FieldValidationResult => ({
   error: field.requiredMessage ?? `${field.label} is required`,
@@ -66,25 +54,20 @@ const collectFieldValue = (
   form: FormParams,
   field: Field,
 ): string | FieldValidationResult => {
+  if (field.type === "checkbox-group") {
+    const selection = form.getRepeatedPicklist(
+      field.name,
+      field.options.map((option) => option.value),
+    );
+    if (!selection.ok) {
+      const error = field.validate?.(selection.error);
+      return error ? { error, valid: false } : invalidFieldError(field);
+    }
+    return selection.value.join(",");
+  }
   const raw = readSubmittedFieldValue(form, field);
   if (raw === null) return { error: DATETIME_PARTIAL_ERROR, valid: false };
   return raw;
-};
-
-const validateCheckboxField = (
-  form: FormParams,
-  field: ChoiceField<"checkbox-group">,
-): FieldValidationResult => {
-  const selection = readRepeatedPicklist(choiceSchema(field), form, field.name);
-  if (selection.state === "invalid") {
-    const error = field.validate?.(selection.value);
-    return error ? { error, valid: false } : invalidFieldError(field);
-  }
-  const value =
-    selection.state === "selected" ? selection.values.join(",") : "";
-  if (field.required && !value) return requiredFieldError(field);
-  const error = value ? field.validate?.(value) : undefined;
-  return error ? { error, valid: false } : { valid: true, value };
 };
 
 const validateFieldText = (field: Field, value: string): string | null => {
@@ -111,10 +94,6 @@ const validateSingleField = (
 ): FieldValidationResult => {
   if (field.type === "file") return { valid: true, value: null };
 
-  if (field.type === "checkbox-group") {
-    return validateCheckboxField(form, field);
-  }
-
   const collected = collectFieldValue(form, field);
   if (typeof collected !== "string") return collected;
 
@@ -135,13 +114,12 @@ const validateSingleField = (
 export const validateForm = <T = FieldValues>(
   form: FormParams,
   fields: readonly Field[],
-  normalizeValue: FieldValueNormalizer = (_field, value) => value,
 ): ValidationResult<T> => {
   const values: FieldValues = {};
   for (const field of fields) {
     const result = validateSingleField(form, field);
     if (!result.valid) return result;
-    values[field.name] = normalizeValue(field, result.value);
+    values[field.name] = result.value;
   }
   return { valid: true, values: values as T };
 };

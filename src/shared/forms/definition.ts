@@ -6,7 +6,6 @@ import {
 } from "#shared/forms/field.ts";
 import { renderField, renderFields } from "#shared/forms/rendering.tsx";
 import {
-  type FieldValueNormalizer,
   type ValidationResult,
   validateForm,
 } from "#shared/forms/validation.ts";
@@ -55,28 +54,12 @@ export type FormValues<TForm> =
     ? FormValuesFor<TFields>
     : never;
 
-type FormFieldRenderHelper = {
-  render: (value?: string) => string;
-};
-
 type FormSectionId<TFields extends FormFieldDefinitions> =
   TFields[number] extends infer TField
     ? TField extends { section: infer TSection extends string }
       ? TSection
       : never
     : never;
-
-const requiredDefinition = <T>(
-  definitions: ReadonlyMap<string, T>,
-  kind: "field" | "section",
-  id: string,
-): T => {
-  const definition = definitions.get(id);
-  if (definition === undefined) {
-    throw new Error(`Unknown ${kind}: ${id}`);
-  }
-  return definition;
-};
 
 export interface FormSchema<TValues> {
   fields: readonly Field[];
@@ -90,8 +73,7 @@ export type FormDefinition<
   id: string;
   fields: TFields;
   render: (values?: FormRenderValuesFor<TFields>) => string;
-  renderFields: (values?: FormRenderValuesFor<TFields>) => string;
-  field: (name: TFields[number]["name"]) => FormFieldRenderHelper;
+  renderField: (name: TFields[number]["name"], value?: string) => string;
   section: (
     id: FormSectionId<TFields>,
     values?: FormRenderValuesFor<TFields>,
@@ -102,11 +84,6 @@ export type FormDefinition<
     context?: TContext,
   ) => ValidationResult<FormValuesFor<TFields>>;
 };
-
-const normalizeSelectValue: FieldValueNormalizer = (
-  field: Field,
-  value: string | number | null,
-) => (field.type === "select" && value === "" ? null : value);
 
 /** Define a typed form schema that can render and validate from one source. */
 export const defineForm = <
@@ -120,14 +97,14 @@ export const defineForm = <
     context: TContext,
   ) => string | null;
 }): FormDefinition<TFields, TContext> => {
-  const fields = config.fields.map((field) => {
+  const fields = config.fields;
+  for (const field of fields) {
     if (field.type === "select") {
       requireChoiceOptions(field.label, field.options);
     } else if (field.type === "checkbox-group") {
       requireCheckboxOptions(field.label, field.options);
     }
-    return field;
-  });
+  }
   const fieldMap = new Map(fields.map((field) => [field.name, field] as const));
   const sectionIds = [
     ...new Set(
@@ -136,22 +113,18 @@ export const defineForm = <
       ),
     ),
   ] as FormSectionId<TFields>[];
-  const sectionMap = new Map(
-    sectionIds.map((id) => [
-      id,
-      fields.filter((field) => field.section === id),
-    ]),
-  );
+
+  const fieldByName = (name: TFields[number]["name"]): Field => {
+    const field = fieldMap.get(name);
+    if (!field) throw new Error(`Unknown field: ${name}`);
+    return field;
+  };
 
   const validate = (
     form: FormParams,
     context?: TContext,
   ): ValidationResult<FormValuesFor<TFields>> => {
-    const base = validateForm<FormValuesFor<TFields>>(
-      form,
-      fields,
-      normalizeSelectValue,
-    );
+    const base = validateForm<FormValuesFor<TFields>>(form, fields);
     if (!base.valid) return base;
     const values = base.values;
 
@@ -168,21 +141,19 @@ export const defineForm = <
   const section = (
     id: FormSectionId<TFields>,
     values: FormRenderValuesFor<TFields> = {},
-  ): string =>
-    renderFields(
-      requiredDefinition(sectionMap, "section", id),
+  ): string => {
+    if (!sectionIds.includes(id)) throw new Error(`Unknown section: ${id}`);
+    return renderFields(
+      fields.filter((field) => field.section === id),
       values as FieldValues,
     );
+  };
 
   return {
-    field: (name) => ({
-      render: (value = "") =>
-        renderField(requiredDefinition(fieldMap, "field", name), value),
-    }),
     fields: config.fields,
     id: config.id,
     render,
-    renderFields: render,
+    renderField: (name, value = "") => renderField(fieldByName(name), value),
     section,
     sections: sectionIds,
     validate,

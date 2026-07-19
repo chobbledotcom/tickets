@@ -73,7 +73,7 @@ export const adminNewsNewPage = (
     active: ACTIVE,
     children: (
       <>
-        <Raw html={newsPostForm.renderFields()} />
+        <Raw html={newsPostForm.render()} />
         <SubmitButton icon="plus">{t("news.create_submit")}</SubmitButton>
       </>
     ),
@@ -88,7 +88,7 @@ export const adminNewsNewPage = (
 export const newsEditPanel = (post: NewsPost): JSX.Element =>
   contentEditPanel(
     `${LIST}/${post.id}/edit`,
-    newsPostEditForm.renderFields(newsPostToValues(post)),
+    newsPostEditForm.render(newsPostToValues(post)),
   );
 
 export const adminNewsDeletePage = (

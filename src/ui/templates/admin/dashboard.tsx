@@ -10,6 +10,7 @@ import {
   type ListingColumnLayout,
 } from "#shared/column-order.ts";
 import {
+  EDITOR_LISTING_LAYOUT,
   EDITOR_LISTING_TABLE_COLUMNS,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
@@ -232,7 +233,7 @@ export const adminDashboardPage = (
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   const { columnKeys, filters } =
-    listingColumnLayout ?? COLUMN_LAYOUTS.listing.parse("");
+    listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout;
 
   // Type filter narrows the listing table only; the stats, multi-booking, and
   // newest-attendee sections below stay based on the full set. Offer the bar
@@ -321,8 +322,8 @@ export const adminListingsPage = (
     ? EDITOR_LISTING_TABLE_COLUMNS
     : LISTING_TABLE_COLUMNS;
   const { columnKeys, filters } = isEditor
-    ? COLUMN_LAYOUTS["editor-listing"].parse("")
-    : (listingColumnLayout ?? COLUMN_LAYOUTS.listing.parse(""));
+    ? EDITOR_LISTING_LAYOUT
+    : (listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout);
   const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,
