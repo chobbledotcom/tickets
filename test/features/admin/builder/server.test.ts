@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { builderForm } from "#routes/admin/builder.ts";
 import { builderApi } from "#shared/builder.ts";
 import { builtSites } from "#shared/db/built-sites.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
@@ -52,11 +53,13 @@ const expectSiteCreated = async (response: Response) => {
 /** Stub `buildSite` to capture its input and return a success result. */
 const stubBuildAndCapture = () => {
   const capture: {
+    currentTask: string | null;
     input: Parameters<typeof builderApi.buildSite>[0] | null;
     restore?: () => void;
-  } = { input: null };
+  } = { currentTask: null, input: null };
   return {
     buildStub: stub(builderApi, "buildSite", async (input, retain) => {
+      capture.currentTask = settings.currentTask;
       capture.input = input;
       const result = {
         dbProvider: "bunny" as const,
@@ -76,6 +79,54 @@ const stubBuildAndCapture = () => {
     ),
   };
 };
+
+test("builder form defines every field and option exactly", () => {
+  expect(builderForm.id).toBe("builder");
+  expect(JSON.parse(JSON.stringify(builderForm.fields))).toEqual([
+    {
+      label: "Site Name",
+      maxlength: 64,
+      minlength: 1,
+      name: "site_name",
+      placeholder: "My Listing Site",
+      required: true,
+      type: "text",
+    },
+    {
+      label: "Hosting Provider",
+      name: "hosting_provider",
+      options: [
+        { label: "Bunny Edge Scripting", value: "bunny" },
+        { label: "Deno Deploy", value: "deno" },
+      ],
+      type: "select",
+    },
+    {
+      label: "Database Provider",
+      name: "db_provider",
+      options: [
+        { label: "Bunny DB (auto-provision)", value: "bunny" },
+        { label: "Turso (auto-provision)", value: "turso" },
+        { label: "Manual (enter URL below)", value: "manual" },
+      ],
+      type: "select",
+    },
+    {
+      hint: "Leave blank to auto-provision a database",
+      label: "Database URL",
+      name: "db_url",
+      placeholder: "libsql://your-db.turso.io",
+      type: "url",
+    },
+    {
+      hint: "Leave blank to auto-provision a database",
+      label: "Database Token",
+      name: "db_token",
+      placeholder: "Token for the database",
+      type: "password",
+    },
+  ]);
+});
 
 describeWithEnv(
   "server (admin builder)",
@@ -357,14 +408,28 @@ describeWithEnv(
           dbTestStub: stubDbOk(),
         }),
         async () => {
-          const { response } = await withExpectedError(() =>
-            adminFormPost("/admin/builder", {
-              db_token: "token",
-              db_url: "libsql://test.io",
-              site_name: "Unretained",
-            }),
-          );
-          expect(response.status).toBe(503);
+          const errorStub = stub(console, "error", () => {});
+          try {
+            const { response } = await withExpectedError(() =>
+              adminFormPost("/admin/builder", {
+                db_token: "token",
+                db_url: "libsql://test.io",
+                site_name: "Unretained",
+              }),
+            );
+            expect(response.status).toBe(503);
+            expect(
+              errorStub.calls.some((call) =>
+                call.args.some((arg) =>
+                  String(arg).includes(
+                    "Built site was published before it was retained",
+                  ),
+                ),
+              ),
+            ).toBe(true);
+          } finally {
+            errorStub.restore();
+          }
         },
       );
     });
@@ -439,6 +504,8 @@ describeWithEnv(
           });
           expectRedirect(response, "/admin/builder");
           expect(capture.input?.hostingProvider).toBe("deno");
+          expect(capture.currentTask).toBe("builder");
+          expect(settings.currentTask).toBe("");
         },
       );
     });
