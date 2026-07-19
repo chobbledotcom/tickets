@@ -10,7 +10,9 @@ export interface BoundedInteger {
 }
 
 /** A safe whole number no lower than `minimum`. */
-export const integerAtLeast = (minimum: number) =>
+export const integerAtLeast = (
+  minimum: number,
+): v.GenericSchema<number, number> =>
   v.pipe(v.number(), v.safeInteger(), v.minValue(minimum));
 
 /** Define explicit reject and clamp policies for one safe-integer range. */
@@ -48,6 +50,7 @@ const NonNegativeIntSchema = v.pipe(
   NonEmptyTextSchema,
   v.digits(),
   v.transform(Number),
+  v.safeInteger(),
 );
 const PositiveIntSchema = v.pipe(NonNegativeIntSchema, v.minValue(1));
 type IntSchema = v.GenericSchema<string, number>;
