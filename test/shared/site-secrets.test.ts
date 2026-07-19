@@ -1,14 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { collectHostSecrets } from "#shared/builder.ts";
 import { bunnyCdnApi, type EdgeScriptSecret } from "#shared/bunny-cdn.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
   addMissingSiteSecrets,
   expectedSiteSecrets,
-  hostInfraSecretNames,
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -49,71 +47,6 @@ const stubDenoSecrets = (setResult: DenoSetResult = { ok: true as const }) => ({
   ),
   setStub: stub(denoDeployApi, "setEnvVars", () => Promise.resolve(setResult)),
 });
-
-describeWithEnv("hostInfraSecretNames", {}, () => {
-  test("keeps only host-level infrastructure credential names", () => {
-    expect(
-      hostInfraSecretNames([
-        "NTFY_URL",
-        "BUNNY_API_KEY",
-        "DB_URL",
-        "STORAGE_ZONE_KEY",
-        "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-      ]),
-    ).toEqual([
-      "BUNNY_API_KEY",
-      "STORAGE_ZONE_KEY",
-      "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
-    ]);
-  });
-
-  test("returns an empty list when only low-privilege names are present", () => {
-    expect(
-      hostInfraSecretNames(["NTFY_URL", "DB_URL", "BUNNY_SCRIPT_ID"]),
-    ).toEqual([]);
-  });
-});
-
-describeWithEnv(
-  "collectHostSecrets",
-  { env: { NTFY_URL: "https://ntfy.example.com/t" } },
-  () => {
-    test("includes host env vars that are set and skips those that are not", () => {
-      const pairs = collectHostSecrets();
-      expect(pairs).toContainEqual(["NTFY_URL", "https://ntfy.example.com/t"]);
-      // STORAGE_ZONE_KEY is not set in this env, so it must be absent.
-      expect(pairs.map(([name]) => name)).not.toContain("STORAGE_ZONE_KEY");
-    });
-  },
-);
-
-describeWithEnv(
-  "collectHostSecrets (Deno provider)",
-  {
-    env: {
-      BUNNY_API_KEY: "host-key",
-      BUNNY_DNS_SUBDOMAIN_SUFFIX: ".tickets",
-      BUNNY_DNS_ZONE_ID: "zone-1",
-      NTFY_URL: "https://ntfy.example.com/t",
-    },
-  },
-  () => {
-    test("excludes Bunny-only secrets for a Deno hosting provider", () => {
-      const names = collectHostSecrets("deno").map(([name]) => name);
-      expect(names).toContain("NTFY_URL");
-      expect(names).not.toContain("BUNNY_API_KEY");
-      expect(names).not.toContain("BUNNY_DNS_ZONE_ID");
-      expect(names).not.toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
-    });
-
-    test("includes Bunny-only secrets for a Bunny hosting provider", () => {
-      const names = collectHostSecrets("bunny").map(([name]) => name);
-      expect(names).toContain("BUNNY_API_KEY");
-      expect(names).toContain("BUNNY_DNS_ZONE_ID");
-      expect(names).toContain("BUNNY_DNS_SUBDOMAIN_SUFFIX");
-    });
-  },
-);
 
 describeWithEnv(
   "expectedSiteSecrets (Deno site, Bunny env vars set)",
