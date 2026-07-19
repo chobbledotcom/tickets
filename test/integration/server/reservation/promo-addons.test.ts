@@ -10,7 +10,7 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
-import { bookPaidReservation } from "./_shared-setup.ts";
+import { bookPaidReservation } from "../../../lib/server-reservation/_shared-setup.ts";
 import {
   createOptionalAddOn,
   createProgrammeCharge,
@@ -19,7 +19,7 @@ import {
   modifierRefs,
   setupReservationListing,
   stubPaidSession,
-} from "./helpers.ts";
+} from "../../../lib/server-reservation/helpers.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

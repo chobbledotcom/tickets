@@ -12,7 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { twoListingsAttendees } from "../attendee-read-helpers.ts";
+import { twoListingsAttendees } from "../../../lib/attendee-read-helpers.ts";
 
 // jscpd:ignore-end
 

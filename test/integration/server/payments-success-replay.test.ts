@@ -12,7 +12,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { renderPaymentSuccess } from "./payment-success-helpers.ts";
+import { renderPaymentSuccess } from "../../lib/payment-success-helpers.ts";
 
 // jscpd:ignore-end
 

@@ -16,7 +16,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { postExpectingNoCheckout } from "./_shared-checkout.ts";
+import { postExpectingNoCheckout } from "../../routes/_shared-checkout.ts";
 
 const setupRenewalSite = async () => {
   await insertBuiltSite(

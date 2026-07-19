@@ -11,7 +11,7 @@ import {
   expectKeptAsQuantityZeroAndRefunded,
   expectWebhookKeptAndRefunded,
 } from "#test-utils/webhooks.ts";
-import { createServiceChargeScenario } from "./service-charge-scenario.ts";
+import { createServiceChargeScenario } from "../../../lib/server-webhooks/service-charge-scenario.ts";
 
 // jscpd:ignore-end
 

@@ -20,7 +20,7 @@ import {
   setupPackage,
   setupWithListing,
   webhookRequest,
-} from "./helpers.ts";
+} from "../../../lib/webhook-price-signature/helpers.ts";
 
 describeWithEnv(
   "webhook signed price oracle — mismatch & package overrides",

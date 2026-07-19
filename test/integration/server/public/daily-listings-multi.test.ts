@@ -15,7 +15,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { createDailyListing } from "./daily-listing.ts";
+import { createDailyListing } from "../../../lib/server-public/daily-listing.ts";
 
 // jscpd:ignore-end
 

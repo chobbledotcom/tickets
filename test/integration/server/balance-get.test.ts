@@ -12,7 +12,7 @@ import {
   expectRecap,
   getPayPage,
   settle,
-} from "./server-balance-helpers.ts";
+} from "../../lib/server-balance-helpers.ts";
 
 describeWithEnv("server (public balance page) > GET", { db: true }, () => {
   test("GET shows the recap and balance due for a reserved attendee", async () => {

@@ -26,7 +26,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { expectBothReservedAtTwoAndOne } from "./_shared-multi.ts";
+import { expectBothReservedAtTwoAndOne } from "../../../lib/server-public/_shared-multi.ts";
 
 // jscpd:ignore-end
 

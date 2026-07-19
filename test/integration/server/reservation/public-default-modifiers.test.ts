@@ -17,7 +17,7 @@ import {
   setupSoldOutModifierRace,
   submitBuyerOrder,
   totalContactActivity,
-} from "./helpers.ts";
+} from "../../../lib/server-reservation/helpers.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

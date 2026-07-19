@@ -9,7 +9,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 import { testCookie } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { payMoreListing } from "./can-pay-more-listing.ts";
+import { payMoreListing } from "../../../lib/server-public/can-pay-more-listing.ts";
 
 // jscpd:ignore-end
 

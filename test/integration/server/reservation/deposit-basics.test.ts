@@ -10,8 +10,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { bookPaidReservation } from "./_shared-setup.ts";
-import { setPublicReservation, stubPaidSession } from "./helpers.ts";
+import { bookPaidReservation } from "../../../lib/server-reservation/_shared-setup.ts";
+import {
+  setPublicReservation,
+  stubPaidSession,
+} from "../../../lib/server-reservation/helpers.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

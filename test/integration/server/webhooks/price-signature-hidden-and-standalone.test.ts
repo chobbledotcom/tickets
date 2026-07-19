@@ -14,7 +14,7 @@ import {
   runWebhook,
   setupPackage,
   signedMeta,
-} from "./helpers.ts";
+} from "../../../lib/webhook-price-signature/helpers.ts";
 
 describeWithEnv(
   "webhook signed price oracle — hidden & standalone members",

@@ -35,7 +35,7 @@ import {
   setupWithListing,
   signedMeta,
   webhookRequest,
-} from "./helpers.ts";
+} from "../../../lib/webhook-price-signature/helpers.ts";
 
 const contactCountsByHash = async (hash: string) =>
   queryOne<{ public_booking_count: number; visits: number }>(

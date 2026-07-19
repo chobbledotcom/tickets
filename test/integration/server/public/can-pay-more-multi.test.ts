@@ -8,7 +8,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { payMoreListing } from "./can-pay-more-listing.ts";
+import { payMoreListing } from "../../../lib/server-public/can-pay-more-listing.ts";
 
 // jscpd:ignore-end
 

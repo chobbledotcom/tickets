@@ -14,7 +14,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { twoListingsAttendees } from "./attendee-read-helpers.ts";
+import { twoListingsAttendees } from "../../lib/attendee-read-helpers.ts";
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package

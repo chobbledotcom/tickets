@@ -15,7 +15,7 @@ import {
   createReserved,
   insertBareAttendee,
   postPay,
-} from "./server-balance-helpers.ts";
+} from "../../lib/server-balance-helpers.ts";
 
 describeWithEnv("server (public balance page) > POST", { db: true }, () => {
   test("POST refuses a reservation with no real booking line", async () => {
