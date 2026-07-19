@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   enableFooterDebug,
   runWithQueryLogContext,
@@ -13,16 +12,8 @@ import {
   renderAdminFooter,
 } from "#templates/admin/footer.tsx";
 import { expectHtmlEscaped } from "#test-utils/assertions.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("admin footer templates", () => {
-  beforeAll(async () => {
-    // The footer's logout form embeds the current CSRF token, which is HMAC
-    // signed with the encryption key.
-    setupTestEncryptionKey();
-    await signCsrfToken();
-  });
-
   describe("debugDetailsHtml", () => {
     const renderDebug = (
       options: Partial<DebugFooterData> & { renderTimeMs: number },

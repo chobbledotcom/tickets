@@ -84,6 +84,7 @@ const mergeWithPins = async (setup: {
     },
   );
   expect(response.status).toBe(302);
+  // A successful merge keeps the target and redirects to its attendee page.
   return (await getAttendeeOrNull(target.id, await getTestPrivateKey()))!;
 };
 

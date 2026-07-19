@@ -8,7 +8,7 @@ import {
   cartButton,
   clickAnchor,
   clickIn,
-  hostEl,
+  hostElOrNull,
   listing,
   logHas,
   MODULE_MARKER,
@@ -89,7 +89,7 @@ describe("order widget storage and lifecycle", {
     );
     h.run(makeCatalog([listing({ id: 1, slug: "open" })], false));
 
-    expect(hostEl(h)).not.toBeNull();
+    expect(hostElOrNull(h)).not.toBeNull();
     expect(shadow(h).querySelector(".cart-button")).not.toBeNull();
     expect(cartButton(h).hidden).toBe(true);
   });
@@ -170,7 +170,7 @@ describe("order widget storage and lifecycle", {
     setBody(h, addLink("open"));
     h.run(makeCatalog([listing({ id: 1, slug: "open" })], false));
 
-    expect(hostEl(h)).not.toBeNull();
+    expect(hostElOrNull(h)).not.toBeNull();
   });
 
   test("defers init to DOMContentLoaded while the document is loading", () => {
@@ -178,9 +178,9 @@ describe("order widget storage and lifecycle", {
     setBody(h, addLink("open"));
     h.run(makeCatalog([listing({ id: 1, slug: "open" })], false));
 
-    expect(hostEl(h)).toBeNull();
+    expect(hostElOrNull(h)).toBeNull();
     h.document.dispatchEvent(new h.window.Event("DOMContentLoaded"));
-    expect(hostEl(h)).not.toBeNull();
+    expect(hostElOrNull(h)).not.toBeNull();
   });
 
   test("enhances direct and nested links added after load", async () => {

@@ -145,7 +145,24 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         sql: "UPDATE listings SET bookable_days = ? WHERE id = ?",
       });
       await expect(getListingWithCount(listing.id)).rejects.toThrow(
-        "Stored bookable_days must be a JSON array",
+        "Stored bookable_days must be a JSON string array",
+      );
+    });
+
+    test("rejects mixed element types stored in the database", async () => {
+      const listing = await listingsTable.insert({
+        maxAttendees: 100,
+        maxPrice: 10000,
+        name: "test-bd-types",
+        slug: "test-bd-2",
+        slugIndex: await computeSlugIndex("test-bd-2"),
+      });
+      await getDb().execute({
+        args: ['["Monday",1]', listing.id],
+        sql: "UPDATE listings SET bookable_days = ? WHERE id = ?",
+      });
+      await expect(getListingWithCount(listing.id)).rejects.toThrow(
+        "Stored bookable_days must be a JSON string array",
       );
     });
   });

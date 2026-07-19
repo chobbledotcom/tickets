@@ -28,7 +28,7 @@ import {
   cartButton,
   clickAnchor,
   clickIn,
-  hostEl,
+  hostElOrNull,
   listing,
   logHas,
   makeCatalog,
@@ -69,7 +69,7 @@ describe("order widget", {
     );
     h.run(makeCatalog([listing({ id: 1, slug: "open" })], true));
 
-    expect(hostEl(h)).not.toBeNull();
+    expect(hostElOrNull(h)).not.toBeNull();
     const anchors = h.document.querySelectorAll("a");
     expect(anchors[0]!.getAttribute("data-chobble-enhanced")).toBe("1");
     expect(anchors[1]!.getAttribute("data-chobble-enhanced")).toBeNull();

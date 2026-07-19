@@ -144,8 +144,11 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
       default: () => [...DEFAULT_BOOKABLE_DAYS],
       read: (value) => {
         const parsed: unknown = JSON.parse(value as string);
-        if (!Array.isArray(parsed)) {
-          throw new Error("Stored bookable_days must be a JSON array");
+        if (
+          !Array.isArray(parsed) ||
+          !parsed.every((day): day is string => typeof day === "string")
+        ) {
+          throw new Error("Stored bookable_days must be a JSON string array");
         }
         return parsed;
       },

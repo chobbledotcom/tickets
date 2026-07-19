@@ -1,16 +1,33 @@
 import { expect } from "@std/expect";
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
+import { it as bddTest, describe } from "@std/testing/bdd";
+import { runWithCsrfContext, signCsrfToken } from "#shared/csrf.ts";
 import { ErrorCode, formatErrorMessage } from "#shared/logger.ts";
 import {
   type ActivityLogRefs,
   adminGlobalActivityLogPage,
   adminListingActivityLogPage,
 } from "#templates/admin/activityLog.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import {
+  clearTestEncryptionKey,
+  setupTestEncryptionKey,
+} from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
+
+const test = (name: string, body: () => void | Promise<void>): void => {
+  bddTest(name, async () => {
+    setupTestEncryptionKey();
+    try {
+      await runWithCsrfContext(async () => {
+        await signCsrfToken();
+        await body();
+      });
+    } finally {
+      clearTestEncryptionKey();
+    }
+  });
+};
 
 /** Empty reference lookups — the global log always takes refs, even when no
  * entry links to an attendee or listing. */
@@ -44,11 +61,6 @@ const logEntry = (
 });
 
 describe("activity log templates", () => {
-  beforeAll(async () => {
-    setupTestEncryptionKey();
-    await signCsrfToken();
-  });
-
   describe("adminListingActivityLogPage", () => {
     test("renders activity log entries", () => {
       const listing = testListingWithCount();

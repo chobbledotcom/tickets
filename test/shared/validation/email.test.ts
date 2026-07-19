@@ -10,6 +10,11 @@ import {
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
+const reloadBusinessEmail = async (): Promise<void> => {
+  settings.invalidateCache();
+  await settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]);
+};
+
 describeWithEnv("business-email", { db: true }, () => {
   describe("settings.businessEmail", () => {
     test("returns empty string when no business email is set", () => {
@@ -18,11 +23,13 @@ describeWithEnv("business-email", { db: true }, () => {
 
     test("returns business email after it is set", async () => {
       await updateBusinessEmail("test@example.com");
+      await reloadBusinessEmail();
       expect(settings.businessEmail).toBe("test@example.com");
     });
 
     test("returns normalized email", async () => {
       await updateBusinessEmail("Test@Example.Com");
+      await reloadBusinessEmail();
       expect(settings.businessEmail).toBe("test@example.com");
     });
   });
@@ -30,29 +37,34 @@ describeWithEnv("business-email", { db: true }, () => {
   describe("updateBusinessEmail", () => {
     test("stores valid email in database", async () => {
       await updateBusinessEmail("contact@example.com");
+      await reloadBusinessEmail();
       expect(settings.businessEmail).toBe("contact@example.com");
     });
 
     test("normalizes email before storing", async () => {
       await updateBusinessEmail("  Contact@Example.Com  ");
+      await reloadBusinessEmail();
       expect(settings.businessEmail).toBe("contact@example.com");
     });
 
     test("updates existing email", async () => {
       await updateBusinessEmail("old@example.com");
       await updateBusinessEmail("new@example.com");
+      await reloadBusinessEmail();
       expect(settings.businessEmail).toBe("new@example.com");
     });
 
     test("clears email when given empty string", async () => {
       await updateBusinessEmail("test@example.com");
       await updateBusinessEmail("");
+      await reloadBusinessEmail();
       expect(settings.businessEmail).toBe("");
     });
 
     test("clears email when given whitespace only", async () => {
       await updateBusinessEmail("test@example.com");
       await updateBusinessEmail("   ");
+      await reloadBusinessEmail();
       expect(settings.businessEmail).toBe("");
     });
 

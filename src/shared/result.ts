@@ -14,9 +14,9 @@ export const errorResult = <E = string>(error: E): { error: E; ok: false } => ({
 });
 
 /** Throw a failed boundary result and narrow successful results for the caller. */
-export function requireSuccess<T extends { ok: boolean }>(
-  result: T,
-): asserts result is T & { ok: true };
+export function requireSuccess<
+  T extends { ok: true } | { error: string; ok: false },
+>(result: T): asserts result is Extract<T, { ok: true }>;
 export function requireSuccess(
   result: { ok: true } | { error: string; ok: false },
 ): void {

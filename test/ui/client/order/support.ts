@@ -35,7 +35,22 @@ interface AnimateCall {
   options: unknown;
 }
 
-export const harness = () => {
+export interface Harness {
+  animateCalls: AnimateCall[];
+  cleanup(): Promise<void>;
+  document: Window["document"];
+  flush(): Promise<void>;
+  focusCalls: number[];
+  logs: unknown[][];
+  navigations: string[];
+  restore(): void;
+  run(catalog: ReturnType<typeof makeCatalog>): void;
+  setGlobal: ReturnType<typeof createGlobalStash>["set"];
+  setReadyState(value: string): void;
+  window: Window;
+}
+
+export const harness = (): Harness => {
   const window = new Window({ url: `${ORIGIN}/` });
   const document = window.document;
   const logs: unknown[][] = [];
@@ -102,8 +117,6 @@ export const harness = () => {
   };
 };
 
-export type Harness = ReturnType<typeof harness>;
-
 /** Install the shared per-test lifecycle and expose its active harness. The
  * proxy is read only from test callbacks, after `beforeEach` has created it. */
 export const useOrderHarness = (): Harness => {
@@ -148,11 +161,11 @@ export interface QueryNode extends Queryable {
   type: string;
 }
 
-export const hostEl = (h: Harness) =>
-  h.document.querySelector("[data-chobble-order]");
+export const hostElOrNull = (h: Harness): Queryable | null =>
+  h.document.querySelector("[data-chobble-order]") as Queryable | null;
 
 export const shadow = (h: Harness): Queryable =>
-  (hostEl(h) as unknown as { shadowRoot: Queryable }).shadowRoot;
+  (hostElOrNull(h) as unknown as { shadowRoot: Queryable }).shadowRoot;
 
 export const cartButton = (h: Harness): QueryNode =>
   shadow(h).querySelector(".cart-button") as QueryNode;

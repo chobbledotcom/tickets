@@ -28,9 +28,13 @@ attendeeTableSuite(() => {
     });
 
     test("includes the current CSRF token", () => {
-      expect(AttendeeTable(makeOpts())).toContain(
-        `value="${getCurrentCsrfToken()}"`,
-      );
+      expect(
+        hasInputWithValue(
+          AttendeeTable(makeOpts()),
+          "csrf_token",
+          getCurrentCsrfToken(),
+        ),
+      ).toBe(true);
     });
 
     test("acts on the row's own listing", () => {

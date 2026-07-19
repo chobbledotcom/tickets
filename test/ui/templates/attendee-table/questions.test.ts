@@ -78,5 +78,6 @@ attendeeTableSuite(() => {
     const html = AttendeeTable(makeOpts({ questionData, rows: [] }));
     expect(html).toContain("<th>Answers</th>");
     expect(html).toContain("No attendees yet");
+    expect(html).toContain('colspan="6"');
   });
 });

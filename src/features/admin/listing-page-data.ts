@@ -310,4 +310,5 @@ export const loadListingActivityPreview = ({
 export const loadListingActivity = async ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
+  // LoadedListing is created only after the same listing row has been found.
   (await getListingWithActivityLogOrNull(listing.id))!.entries;

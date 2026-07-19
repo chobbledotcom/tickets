@@ -361,13 +361,12 @@ describe("group admin panels", () => {
       expect(html).toContain("Add listings to this group");
     });
 
-    test("does not link to the JSON export (that now lives on the Actions tab)", () => {
+    test("leaves the JSON export on the Actions tab", () => {
       const group = testGroup({ id: 7, name: "Exportable" });
       const html = String(
         GroupEditPanel({ group, listings: [], members: new Map() }),
       );
-      // The Actions tab is now editor-visible too, so the export link lives
-      // only there — the Edit panel no longer duplicates it.
+      // The Actions panel owns the export link; the Edit panel omits it.
       expect(html).not.toContain(`/admin/groups/${group.id}/export.json`);
     });
   });
