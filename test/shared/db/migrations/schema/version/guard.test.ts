@@ -2,8 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
+  DB_SCHEMA_HASH_KEY,
+  LATEST_DB_UPDATE_KEY,
   LATEST_UPDATE,
   MIGRATION_LOCK_KEY,
+  SCHEMA_MIGRATIONS_TABLE,
 } from "#shared/db/migrations/schema/version.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
 
@@ -99,14 +102,20 @@ describe("db > migrations > schema change guard", () => {
     });
   });
 
-  test("names the current update and migration lock exactly", () => {
+  test("names the current update and schema metadata exactly", () => {
     expect({
+      dbSchemaHash: DB_SCHEMA_HASH_KEY,
+      latestDbUpdate: LATEST_DB_UPDATE_KEY,
       latestUpdate: LATEST_UPDATE,
       migrationLock: MIGRATION_LOCK_KEY,
+      schemaMigrations: SCHEMA_MIGRATIONS_TABLE,
     }).toEqual({
+      dbSchemaHash: "db_schema_hash",
+      latestDbUpdate: "latest_db_update",
       latestUpdate:
         "Add secure local scheduled maintenance and durable task claims.",
       migrationLock: "migration_lock",
+      schemaMigrations: "schema_migrations",
     });
   });
 });
