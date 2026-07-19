@@ -7,11 +7,11 @@ import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { advancedDefaultState } from "./state.ts";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
@@ -425,48 +425,6 @@ describe("adminSettingsPage > SuperuserForm placement", () => {
 });
 
 describe("adminAdvancedSettingsPage", () => {
-  const advancedDefaultState: AdvancedSettingsPageState = {
-    addressLookupApiKeyConfigured: false,
-    addressLookupProvider: "none",
-    adminTemplates: { html: "", subject: "", text: "" },
-    appleWalletConfigured: false,
-    appleWalletPassTypeId: "",
-    appleWalletTeamId: "",
-    attendeeColumnOrder: "",
-    bunnyCdnEnabled: false,
-    bunnyDnsEnabled: false,
-    bunnyDnsSubdomainSuffix: "",
-    bunnySubdomain: "",
-    businessEmail: "",
-    cdnHostname: "",
-    confirmationTemplates: { html: "", subject: "", text: "" },
-    customCss: "",
-    customDomain: "",
-    customDomainLastValidated: "",
-    emailApiKeyConfigured: false,
-    emailFromAddress: "",
-    emailProvider: "",
-    externalOrderEnabled: false,
-    googleWalletConfigured: false,
-    googleWalletIssuerId: "",
-    googleWalletServiceAccountEmail: "",
-    hostAppleWalletLabel: "",
-    hostEmailLabel: "",
-    hostGoogleWalletLabel: "",
-    listingColumnOrder: "",
-    paymentProvider: "",
-    scheduledTaskKey: "",
-    showPublicApi: false,
-    smsGatewayBaseUrl: "",
-    smsGatewayPassphraseConfigured: false,
-    smsGatewayPasswordConfigured: false,
-    smsGatewayUsername: "",
-    smsGatewayWebhookConfigured: false,
-    subdomainPreview: "",
-    subdomainPreviewFullDomain: "",
-    theme: "light",
-  };
-
   test("renders the SMS gateway card with current values", () => {
     const html = adminAdvancedSettingsPage(TEST_SESSION, {
       ...advancedDefaultState,
