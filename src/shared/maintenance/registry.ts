@@ -18,9 +18,10 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 2,
     maxExternalCalls: 0,
     name: "database_pruning",
-    run: async () => {
+    run: async ({ requestFollowUp }) => {
       const { runDatabasePruning } = await import("#shared/db/prune.ts");
-      await runDatabasePruning();
+      const result = await runDatabasePruning();
+      if (result.fullBatch) requestFollowUp();
     },
     settingsKeys: [
       CONFIG_KEYS.AUTO_PURGE_ORPHANS,

@@ -6,6 +6,11 @@ import {
   runWithRequestScopes,
 } from "#routes/request-scopes.ts";
 import { getRequestClientIp } from "#shared/client-context.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
+import {
+  BUNNY_SUBREQUEST_LIMIT,
+  countExternalSubrequest,
+} from "#shared/subrequest-budget.ts";
 
 describe("request scopes", () => {
   test("binds request values while building the response", async () => {
@@ -42,5 +47,37 @@ describe("request scopes", () => {
       requestMatches: true,
       serverMatches: true,
     });
+  });
+
+  test("keeps queued work inside the request subrequest budget", async () => {
+    let blocked = "";
+    // Pending work accepts promises in production. This lazy thenable makes its
+    // work begin only when the request scope drains the queue.
+    const queuedWork = {
+      // biome-ignore lint/suspicious/noThenProperty: the regression requires work that starts during promise assimilation
+      then: (resolve: () => void): void => {
+        try {
+          for (let call = 0; call <= BUNNY_SUBREQUEST_LIMIT; call += 1) {
+            countExternalSubrequest("queued test work");
+          }
+        } catch (error) {
+          blocked = String(error);
+        }
+        resolve();
+      },
+    } as unknown as Promise<unknown>;
+
+    await runWithRequestScopes(
+      new Request("https://example.com/queued"),
+      undefined,
+      () => {
+        addPendingWork(queuedWork);
+        return Promise.resolve(new Response());
+      },
+    );
+
+    expect(blocked).toContain(
+      `Subrequest allowance exceeded: 0 database + ${BUNNY_SUBREQUEST_LIMIT + 1} external calls`,
+    );
   });
 });

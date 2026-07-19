@@ -170,18 +170,21 @@ export const MaintenancePanel = ({
 }): JSX.Element => (
   <div class="prose">
     <p>{t("built_sites.maintenance_intro")}</p>
-    {site.scheduledTaskKey ? (
+    {site.scheduledTaskKey && (
       <p>
-        <strong>{t("built_sites.maintenance_active_key")}</strong>{" "}
+        <strong>{t("built_sites.maintenance_site_key")}</strong>{" "}
         <code>{site.scheduledTaskKey}</code>
       </p>
-    ) : (
-      <SiteActionForm action="provision-scheduler" siteId={site.id}>
-        <SubmitButton icon="hammer">
-          {t("built_sites.maintenance_provision")}
-        </SubmitButton>
-      </SiteActionForm>
     )}
+    <SiteActionForm action="provision-scheduler" siteId={site.id}>
+      <SubmitButton icon="hammer">
+        {t(
+          site.scheduledTaskKey
+            ? "built_sites.maintenance_resend"
+            : "built_sites.maintenance_provision",
+        )}
+      </SubmitButton>
+    </SiteActionForm>
   </div>
 );
 

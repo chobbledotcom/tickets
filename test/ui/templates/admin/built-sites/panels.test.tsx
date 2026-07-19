@@ -30,7 +30,7 @@ describe("built site maintenance panel", () => {
     expect(html).not.toContain("stage-scheduler");
   });
 
-  test("shows the active key without replacement actions", () => {
+  test("shows the site key with a resend action", () => {
     const html = String(
       MaintenancePanel({
         site: testBuiltSite({
@@ -42,9 +42,10 @@ describe("built site maintenance panel", () => {
 
     expect(html).toContain(`<code>${TEST_SCHEDULED_KEY}</code>`);
     expect(html).toContain(
-      `<strong>Active key</strong> <code>${TEST_SCHEDULED_KEY}</code>`,
+      `<strong>Site key</strong> <code>${TEST_SCHEDULED_KEY}</code>`,
     );
-    expect(html).not.toContain("provision-scheduler");
+    expect(html).toContain("/admin/built-sites/42/provision-scheduler");
+    expect(html).toContain("Send key to site again");
     expect(html).not.toContain("stage-scheduler");
     expect(html).not.toContain("promote-scheduler");
   });

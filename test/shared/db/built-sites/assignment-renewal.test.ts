@@ -156,4 +156,17 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
       (await builtSitesCrudTable.findById(row.id))?.renewalTokenIndex,
     ).toBe("");
   });
+
+  test("an empty renewal token clears the stored token", async () => {
+    const row = await insertBuiltSite("Empty Token", "empty-token.b-cdn.net");
+    await updateBuiltSiteRenewalState(row.id, {
+      renewalToken: "stored-token",
+    });
+
+    await updateBuiltSiteRenewalState(row.id, { renewalToken: "" });
+
+    expect(
+      (await builtSitesCrudTable.findById(row.id))?.renewalToken,
+    ).toBeNull();
+  });
 });

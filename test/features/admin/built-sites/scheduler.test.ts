@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
+import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -28,27 +31,43 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/provision-scheduler`,
       );
 
-      expectFlash(response, "Scheduled maintenance key set up.");
-      expect(
-        (await builtSitesCrudTable.findById(site.id))?.scheduledTaskKey?.length,
-      ).toBe(43);
+      expectFlash(response, "Scheduled maintenance key sent to the site.");
+      const key = (await builtSitesCrudTable.findById(site.id))
+        ?.scheduledTaskKey;
+      expect(isScheduledTaskKey(key ?? "")).toBe(true);
     });
 
-    test("keeps the generated key for retry after a provider failure", async () => {
+    test("retries a failed provider write with the retained key", async () => {
       const site = await insertScheduledTestSite(null);
-      stubBunnySchedulerSecrets(stubs, [], {
-        error: "provider failed",
-        ok: false,
-      });
+      const pushed: string[] = [];
+      stubs.push(
+        stub(bunnyHostingProvider, "getSecretNames", () =>
+          Promise.resolve({ names: [], ok: true }),
+        ),
+        stub(bunnyHostingProvider, "setSecrets", (_hostingId, secrets) => {
+          pushed.push(secrets[0]![1]);
+          return Promise.resolve(
+            pushed.length === 1
+              ? { error: "provider failed", ok: false as const }
+              : { ok: true as const },
+          );
+        }),
+      );
+      using _fetch = stubFetch(new Response(null, { status: 204 }));
 
-      const { response } = await adminFormPost(
+      const { response: failed } = await adminFormPost(
+        `/admin/built-sites/${site.id}/provision-scheduler`,
+      );
+      expectFlash(failed, "provider failed", false);
+      const retained = (await builtSitesCrudTable.findById(site.id))
+        ?.scheduledTaskKey;
+
+      const { response: retried } = await adminFormPost(
         `/admin/built-sites/${site.id}/provision-scheduler`,
       );
 
-      expectFlash(response, "provider failed", false);
-      expect(
-        (await builtSitesCrudTable.findById(site.id))?.scheduledTaskKey?.length,
-      ).toBe(43);
+      expectFlash(retried, "Scheduled maintenance key sent to the site.");
+      expect(pushed).toEqual([retained, retained]);
     });
   },
 );

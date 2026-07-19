@@ -43,7 +43,7 @@ describe("scheduled task keys", () => {
   test("rejects a malformed configured key", () => {
     using _env = withEnv({ SCHEDULED_TASK_KEY: "invalid" });
     expect(() => validateScheduledTaskKey()).toThrow(
-      `${SCHEDULED_TASK_KEY_ENV} must be canonical unpadded base64url for exactly 32 bytes`,
+      `${SCHEDULED_TASK_KEY_ENV} must be canonical unpadded base64url for exactly ${SCHEDULED_KEY_BYTES} bytes`,
     );
   });
 });

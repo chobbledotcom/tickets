@@ -196,7 +196,7 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       assignedListingId: 7,
       readOnlyFrom: "2027-01-01T00:00:00Z",
       renewalTokenIndex: "renewal-index",
-      siteDataRevision: 1,
+      siteDataRevision: 2,
     });
   });
 

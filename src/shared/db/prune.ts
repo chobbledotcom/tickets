@@ -26,6 +26,10 @@ import type { User } from "#shared/types.ts";
 
 type PruneStatement = SqlStatement;
 
+export interface DatabasePruningResult {
+  fullBatch: boolean;
+}
+
 const boundedDelete = (
   table: string,
   where: string,
@@ -157,17 +161,28 @@ const inviteStatements = (ids: number[]): PruneStatement[] => {
   }));
 };
 
-export const runDatabasePruning = async (): Promise<void> => {
+const lastResultIndexes = (batches: PruneStatement[][]): number[] =>
+  batches.reduce((indexes, batch) => {
+    const previous = indexes[indexes.length - 1] ?? -1;
+    indexes.push(previous + batch.length);
+    return indexes;
+  }, [] as number[]);
+
+export const runDatabasePruning = async (): Promise<DatabasePruningResult> => {
   const inviteIds = await expiredInviteIds();
-  const statements = [
-    ...pruneStatements(),
-    ...orphanStatements(),
-    ...inviteStatements(inviteIds),
-  ];
-  const results = await executeBatchWithResults(statements);
+  const batches = [
+    ...pruneStatements().map((statement) => [statement]),
+    orphanStatements(),
+    inviteStatements(inviteIds),
+  ].filter((batch) => batch.length > 0);
+  const results = await executeBatchWithResults(batches.flat());
+  const fullBatch = lastResultIndexes(batches).some(
+    (index) => results[index]!.rowsAffected === MAINTENANCE_PRUNE_BATCH,
+  );
   const deleted = results.reduce(
     (total, result) => total + result.rowsAffected,
     0,
   );
   if (deleted > 0) logDebug("Prune", `deleted ${deleted} expired rows`);
+  return { fullBatch };
 };

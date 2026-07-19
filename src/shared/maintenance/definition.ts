@@ -15,6 +15,7 @@ export type MaintenanceTaskBudget = {
 export type MaintenanceTaskContext = {
   budget: MaintenanceTaskBudget;
   deadline: number;
+  requestFollowUp: () => void;
 };
 
 export interface MaintenanceTaskDeclaration {

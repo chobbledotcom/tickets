@@ -11,6 +11,7 @@ import {
   syncMaintenanceTaskRows,
 } from "./claims.ts";
 import {
+  MAINTENANCE_MIN_INTERVAL_MS,
   MAINTENANCE_RELEASE_HEADROOM_MS,
   MAINTENANCE_REQUEST_CALL_LIMIT,
   MAINTENANCE_REQUEST_DEADLINE_MS,
@@ -63,6 +64,7 @@ const runClaimedTask = async (
     requestDeadline - MAINTENANCE_RELEASE_HEADROOM_MS,
   );
   let failure: unknown | null = null;
+  let needsFollowUp = false;
   try {
     await withSubrequestAllowance(
       {
@@ -74,6 +76,9 @@ const runClaimedTask = async (
         task.run({
           budget: { remaining: getSubrequestRemaining },
           deadline,
+          requestFollowUp: () => {
+            needsFollowUp = true;
+          },
         }),
     );
   } catch (error) {
@@ -81,7 +86,11 @@ const runClaimedTask = async (
   }
   await finishMaintenanceTask(claim, {
     intervalMs:
-      failure === null ? task.intervalMs : task.failureRetryIntervalMs,
+      failure === null
+        ? needsFollowUp
+          ? MAINTENANCE_MIN_INTERVAL_MS
+          : task.intervalMs
+        : task.failureRetryIntervalMs,
   });
   return failure;
 };

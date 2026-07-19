@@ -2,11 +2,20 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hasLegacyActivityLog } from "#shared/db/activity-log-backfill.ts";
 import { settings } from "#shared/db/settings.ts";
+import {
+  MAINTENANCE_PRUNE_BATCH,
+  PRUNE_UNUSED_STRINGS_RETENTION_MS,
+} from "#shared/limits.ts";
 import type { MaintenanceTaskDeclaration } from "#shared/maintenance/definition.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
+import { nowMs } from "#shared/now.ts";
 import { insertLegacyActivity } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { insertLoginAttempt, loginAttemptExists } from "../db/prune/helpers.ts";
+import {
+  insertLoginAttempt,
+  insertStrings,
+  loginAttemptExists,
+} from "../db/prune/helpers.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   const task = MAINTENANCE_TASKS.find((candidate) => candidate.name === name);
@@ -14,12 +23,16 @@ const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   return task;
 };
 
-const runTask = (task: MaintenanceTaskDeclaration): void | Promise<void> =>
+const runTask = (
+  task: MaintenanceTaskDeclaration,
+  requestFollowUp: () => void = () => {},
+): void | Promise<void> =>
   task.run({
     budget: {
       remaining: () => ({ database: 2, external: 0, total: 2 }),
     },
     deadline: Date.now() + 10_000,
+    requestFollowUp,
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
@@ -57,9 +70,24 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     const ipHash = await insertLoginAttempt("192.0.2.10", 1, 0);
     expect(await loginAttemptExists(ipHash)).toBe(true);
 
-    await runTask(taskNamed("database_pruning"));
+    expect(await runTask(taskNamed("database_pruning"))).toBeUndefined();
 
     expect(await loginAttemptExists(ipHash)).toBe(false);
+  });
+
+  test("the pruning task requests a follow-up for a full batch", async () => {
+    const old = new Date(
+      nowMs() - PRUNE_UNUSED_STRINGS_RETENTION_MS - 60_000,
+    ).toISOString();
+    await insertStrings("registry-backlog", old, MAINTENANCE_PRUNE_BATCH + 1);
+
+    let followUps = 0;
+
+    await runTask(taskNamed("database_pruning"), () => {
+      followUps += 1;
+    });
+
+    expect(followUps).toBe(1);
   });
 
   test("the activity task enables and drains legacy rows", async () => {

@@ -5,6 +5,7 @@ import { runDatabasePruning } from "#shared/db/prune.ts";
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
@@ -22,6 +23,7 @@ import {
   insertLoginAttempt,
   insertOrphanAttendee,
   insertString,
+  insertStrings,
   insertSumupCheckout,
   insertTokenAttempt,
   loginAttemptExists,
@@ -32,6 +34,24 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("db > table pruning", { db: true }, () => {
+  test("reports a drained pruning run", async () => {
+    expect(await runDatabasePruning()).toEqual({ fullBatch: false });
+  });
+
+  test("reports a full bounded batch when stale rows remain", async () => {
+    const old = new Date(
+      nowMs() - PRUNE_UNUSED_STRINGS_RETENTION_MS - 60_000,
+    ).toISOString();
+    await insertStrings("prune-backlog", old, MAINTENANCE_PRUNE_BATCH + 1);
+
+    const result = await runDatabasePruning();
+
+    expect(result).toEqual({ fullBatch: true });
+    expect(await stringExists(`prune-backlog-${MAINTENANCE_PRUNE_BATCH}`)).toBe(
+      true,
+    );
+  });
+
   test("logs the exact total number of deleted rows", async () => {
     setSuppressDebugLogs(false);
     const debugStub = stub(console, "debug");

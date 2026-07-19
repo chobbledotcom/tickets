@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#shared/db/client.ts";
 import {
   defineMaintenanceTasks,
+  MAINTENANCE_MIN_INTERVAL_MS,
   type MaintenanceTaskDeclaration,
 } from "#shared/maintenance/definition.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
@@ -123,6 +124,24 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     await runWithSubrequestBudget(() => maintenance.run(tasks));
 
     expect(calls.length).toBe(1);
+  });
+
+  test("a successful task can request an early follow-up", async () => {
+    const tasks = defineMaintenanceTasks([
+      declaration("follow_up", ({ requestFollowUp }) => requestFollowUp(), {
+        intervalMs: 300_000,
+      }),
+    ]);
+    const before = Date.now();
+
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+
+    expect(await nextRunAt("follow_up")).toBeGreaterThanOrEqual(
+      before + MAINTENANCE_MIN_INTERVAL_MS,
+    );
+    expect(await nextRunAt("follow_up")).toBeLessThan(
+      before + MAINTENANCE_MIN_INTERVAL_MS + 1_000,
+    );
   });
 
   test("scheduled-only work is excluded from organic runs", async () => {

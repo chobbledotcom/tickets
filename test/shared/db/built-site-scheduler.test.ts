@@ -4,8 +4,10 @@ import { ensureBuiltSiteSchedulerKey } from "#shared/db/built-site-scheduler.ts"
 import {
   builtSitesCrudTable,
   insertBuiltSite,
+  updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { queryOne } from "#shared/db/client.ts";
+import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
@@ -50,7 +52,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     ]);
 
     expect(first).toBe(second);
-    expect(first.length).toBe(43);
+    expect(isScheduledTaskKey(first)).toBe(true);
     expect(
       (await builtSitesCrudTable.findById(site.id))?.scheduledTaskKey,
     ).toBe(first);
@@ -66,6 +68,25 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
 
     const updated = await builtSitesCrudTable.findById(site.id);
     expect(updated?.name).toBe("Edited child");
-    expect(updated?.scheduledTaskKey?.length).toBe(43);
+    expect(isScheduledTaskKey(updated?.scheduledTaskKey ?? "")).toBe(true);
+  });
+
+  test("keeps renewal state and concurrent key provisioning", async () => {
+    const site = await insertBuiltSite("Child", "child.example.test");
+
+    await Promise.all([
+      ensureBuiltSiteSchedulerKey(site.id),
+      updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2026-08-01T00:00:00.000Z",
+        renewalToken: "renewal-token",
+        renewalTokenIndex: "renewal-index",
+      }),
+    ]);
+
+    const updated = await builtSitesCrudTable.findById(site.id);
+    expect(updated?.readOnlyFrom).toBe("2026-08-01T00:00:00.000Z");
+    expect(updated?.renewalToken).toBe("renewal-token");
+    expect(updated?.renewalTokenIndex).toBe("renewal-index");
+    expect(isScheduledTaskKey(updated?.scheduledTaskKey ?? "")).toBe(true);
   });
 });

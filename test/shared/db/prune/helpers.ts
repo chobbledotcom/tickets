@@ -2,7 +2,7 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb, insert } from "#shared/db/client.ts";
+import { executeBatch, getDb, insert } from "#shared/db/client.ts";
 import { nowMs } from "#shared/now.ts";
 
 export const insertFinalizedPayment = async (
@@ -108,6 +108,22 @@ export const insertString = async (
     }),
   );
 };
+
+export const insertStrings = (
+  prefix: string,
+  created: string,
+  count: number,
+): Promise<void> =>
+  executeBatch(
+    Array.from({ length: count }, (_, index) =>
+      insert("strings", {
+        created,
+        encrypted_text: "ciphertext",
+        text_index: `${prefix}-${index}`,
+        used_count: 0,
+      }),
+    ),
+  );
 
 export const stringExists = async (textIndex: string): Promise<boolean> => {
   const { rows } = await getDb().execute({

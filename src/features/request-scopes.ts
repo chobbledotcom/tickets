@@ -23,8 +23,8 @@ export const runWithRequestScopes = (
   const scopes: ((next: () => Promise<Response>) => Promise<Response>)[] = [
     (next) => runWithLocale(locale, next),
     (next) => runWithClientIp(getClientIp(request, server), next),
-    runWithRequestId,
     runWithSubrequestBudget,
+    runWithRequestId,
     runWithRequestCache,
     runWithQueryLogContext,
     runWithFlashContext,

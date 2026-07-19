@@ -501,6 +501,43 @@ const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
   return sites;
 };
 
+type BuiltSiteUpdate = Partial<BuiltSitePlainFields> &
+  Partial<BuiltSiteBlobInput>;
+
+const findBuiltSiteById = async (id: InValue): Promise<BuiltSite | null> => {
+  const row = await rawBuiltSitesTable.findById(id);
+  return row ? rowToBuiltSite(row) : null;
+};
+
+/** Update a whole built-site record without overwriting a concurrent blob write. */
+export const updateBuiltSite = (
+  id: InValue,
+  changesFor: (existing: BuiltSite) => BuiltSiteUpdate | null,
+): Promise<BuiltSite | null> => {
+  const updateStatement = rawBuiltSitesTable.updateStatement!;
+  return retryWrite(`Could not update built site ${String(id)}`, async () => {
+    const existing = await findBuiltSiteById(id);
+    if (!existing) return { value: null };
+    const changes = changesFor(existing);
+    if (!changes) return { value: existing };
+    const nextRevision = existing.siteDataRevision + 1;
+    const statement = await updateStatement(
+      id,
+      toRawInput({
+        ...existing,
+        ...changes,
+        siteDataRevision: nextRevision,
+      }),
+      { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
+    );
+    const stored = await queryOne<BuiltSiteRow>(statement.sql, statement.args);
+    if (stored) {
+      return { value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)) };
+    }
+    return null;
+  });
+};
+
 /**
  * CRUD-compatible table adapter that presents BuiltSite (with individual fields)
  * while storing data as an encrypted blob underneath.
@@ -511,12 +548,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
 
   findAll: (): Promise<BuiltSite[]> => builtSites.getAll(),
 
-  findById: async (id: InValue): Promise<BuiltSite | null> => {
-    // findById already decrypts via fromDb internally
-    const row = await rawBuiltSitesTable.findById(id);
-    if (!row) return null;
-    return rowToBuiltSite(row);
-  },
+  findById: findBuiltSiteById,
 
   // findByIdPrimary is intentionally omitted: it is optional on Table (like
   // insertStatement/updateStatement) and only used on the transactional
@@ -564,33 +596,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   update: async (
     id: InValue,
     input: Partial<BuiltSiteFormInput>,
-  ): Promise<BuiltSite | null> => {
-    const updateStatement = rawBuiltSitesTable.updateStatement!;
-    return retryWrite(`Could not update built site ${String(id)}`, async () => {
-      const existing = await builtSitesCrudTable.findById(id);
-      if (!existing) return { value: null };
-      const nextRevision = existing.siteDataRevision + 1;
-      const statement = await updateStatement(
-        id,
-        toRawInput({
-          ...existing,
-          ...input,
-          siteDataRevision: nextRevision,
-        }),
-        { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
-      );
-      const stored = await queryOne<BuiltSiteRow>(
-        statement.sql,
-        statement.args,
-      );
-      if (stored) {
-        return {
-          value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)),
-        };
-      }
-      return null;
-    });
-  },
+  ): Promise<BuiltSite | null> => updateBuiltSite(id, () => input),
 };
 
 /** Normalize a site's bunny URL to its absolute origin — scheme + host only,
@@ -699,19 +705,12 @@ export const updateBuiltSiteRenewalState = (
     renewalToken?: string;
   },
 ): Promise<BuiltSite | null> =>
-  withBuiltSiteForUpdate(siteId, async (existing) => {
-    const token = updates.renewalToken ?? existing.renewalToken ?? undefined;
-    const row = (await builtSites.table.update(siteId, {
-      siteData: buildSiteDataBlobFromInput({
-        ...existing,
-        renewalToken: token,
-      }),
-      ...(updates.renewalTokenIndex !== undefined
-        ? { renewalTokenIndex: updates.renewalTokenIndex }
-        : {}),
-      ...(updates.readOnlyFrom !== undefined
-        ? { readOnlyFrom: updates.readOnlyFrom }
-        : {}),
-    })) as BuiltSiteRow;
-    return rowToBuiltSite(row);
-  });
+  updateBuiltSite(siteId, (existing) => ({
+    renewalToken: updates.renewalToken ?? existing.renewalToken,
+    ...(updates.renewalTokenIndex !== undefined
+      ? { renewalTokenIndex: updates.renewalTokenIndex }
+      : {}),
+    ...(updates.readOnlyFrom !== undefined
+      ? { readOnlyFrom: updates.readOnlyFrom }
+      : {}),
+  }));
