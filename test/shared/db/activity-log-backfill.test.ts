@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import {
@@ -10,6 +11,7 @@ import {
 import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
 import { nowIso } from "#shared/now.ts";
@@ -19,6 +21,22 @@ import {
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withTestSession } from "#test-utils/session.ts";
+
+const captureBackfillLogs = async (
+  operation: () => Promise<void>,
+): Promise<string[]> => {
+  setSuppressDebugLogs(false);
+  const debugStub = stub(console, "debug");
+  try {
+    await operation();
+    return debugStub.calls
+      .map((call) => String(call.args[0]))
+      .filter((line) => line.includes("[Backfill]"));
+  } finally {
+    debugStub.restore();
+    setSuppressDebugLogs(null);
+  }
+};
 
 describeWithEnv("db > activity log backfill", { db: true }, () => {
   test("re-encrypts legacy rows to the owner key, preserving the plaintext", async () => {
@@ -79,6 +97,23 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
   test("returns 0 when no legacy rows remain", async () => {
     await logActivity("owner-key only");
     expect(await backfillActivityLogBatch(settings.publicKey)).toBe(0);
+  });
+
+  test("logs the exact number of converted rows", async () => {
+    const logs = await captureBackfillLogs(async () => {
+      await insertLegacyActivity("legacy");
+      await runActivityLogBackfill(settings.publicKey);
+    });
+
+    expect(logs).toEqual(["[Backfill] activity_log: re-encrypted 1 rows"]);
+  });
+
+  test("does not log when no rows need conversion", async () => {
+    const logs = await captureBackfillLogs(() =>
+      runActivityLogBackfill(settings.publicKey),
+    );
+
+    expect(logs).toEqual([]);
   });
 
   test("reports whether legacy work remains", async () => {
