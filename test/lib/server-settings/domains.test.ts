@@ -17,7 +17,6 @@ import {
   mockRequestWithHost,
   withMockBunnyCdnApi,
 } from "#test-utils/mocks.ts";
-import { secureAdminCookie, secureAdminGet } from "#test-utils/secure-admin.ts";
 import {
   adminFormPost,
   adminGet,
@@ -148,13 +147,18 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
         setBunnyEnv();
         // Get session token before setting the validated custom domain,
         // then re-format the cookie for the secure domain cookie name.
-        const cookie = await secureAdminCookie();
+        const cookie = await testCookie();
+        const token = cookie.split("=").slice(1).join("=");
         await settings.update.customDomain("tickets.example.com");
         await settings.update.customDomainLastValidated();
-        const response = await secureAdminGet(
-          "/admin/settings-advanced",
-          "tickets.example.com",
-          cookie,
+        const response = await handleRequest(
+          mockRequestWithHost(
+            "/admin/settings-advanced",
+            "tickets.example.com",
+            {
+              headers: { cookie: `__Host-session=${token}` },
+            },
+          ),
         );
         const html = await response.text();
         expect(html).toContain("Last validated:");

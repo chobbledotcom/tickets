@@ -85,10 +85,27 @@ describe("sentry", () => {
       expect(await initSentry()).toBe(true);
     });
 
+    test("starts the manual SDK client", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      const initSpy = spy(Sentry.DenoClient.prototype, "init");
+      try {
+        expect(await initSentry()).toBe(true);
+        expect(initSpy.calls.length).toBe(1);
+      } finally {
+        initSpy.restore();
+      }
+    });
+
     test("is idempotent once initialized", async () => {
       using _env = withEnv({ SENTRY_URL: DSN });
       expect(await initSentry()).toBe(true);
       expect(await initSentry()).toBe(true);
+    });
+
+    test("never samples traces — the SDK exists to capture errors only", async () => {
+      using _env = withEnv({ SENTRY_URL: DSN });
+      await initSentry();
+      expect(Sentry.getClient()?.getOptions().tracesSampleRate).toBe(0);
     });
 
     test("loads no default integrations", async () => {

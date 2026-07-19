@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  downloadImage,
   downloadRaw,
   listFiles,
   listFilesWithMeta,
@@ -21,6 +22,45 @@ describeWithEnv("local storage", STORAGE_TEST_ENV, () => {
         filename,
       );
       expect((await Deno.stat(`${dir}/${filename}`)).isFile).toBe(true);
+    });
+  });
+
+  test("large encrypted attachments round-trip through storage", async () => {
+    await withLocalStorageEnabled(async (dir) => {
+      const data = Uint8Array.from(
+        { length: 70_000 },
+        (_, index) => (index * 31) & 0xff,
+      );
+      const filename = "large-attachment.bin";
+      await uploadAttachment(data, filename);
+
+      expect(await Deno.readFile(`${dir}/${filename}`)).not.toEqual(data);
+      expect(await downloadImage(filename)).toEqual(data);
+    });
+  });
+
+  test("encrypted downloads reject a malformed file", async () => {
+    await withLocalStorageEnabled(async () => {
+      const filename = "malformed-attachment.bin";
+      await uploadRaw(new Uint8Array([0, 0, 0, 0, 1]), filename);
+
+      await expect(downloadImage(filename)).rejects.toThrow(
+        "Invalid binary encryption format",
+      );
+    });
+  });
+
+  test("encrypted downloads reject an unsupported version", async () => {
+    await withLocalStorageEnabled(async () => {
+      const filename = "future-attachment.bin";
+      const data = new Uint8Array(17);
+      data.set([0x45, 0x4e, 0x43, 0x42]);
+      data[4] = 0xff;
+      await uploadRaw(data, filename);
+
+      await expect(downloadImage(filename)).rejects.toThrow(
+        "Unsupported binary encryption version: 255",
+      );
     });
   });
 

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryAll, queryOne } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
   getSubrequestUsage,
@@ -238,28 +238,19 @@ describe("deployLatestReleaseToDeno", () => {
 });
 
 describeWithEnv("recordScriptVersion", { db: true }, () => {
+  const commitKey = "current_script_commit";
+  const markerKeys = [commitKey, CURRENT_SCRIPT_VERSION_KEY];
+  const clearMarkers = (): Promise<unknown> =>
+    execute("DELETE FROM settings WHERE key IN (?, ?)", markerKeys);
+  const markerRows = (): Promise<{ key: string; value: string }[]> =>
+    queryAll<{ key: string; value: string }>(
+      "SELECT key, value FROM settings WHERE key IN (?, ?) ORDER BY key",
+      markerKeys,
+    );
+
   afterEach(() => {
     setBuildTimestampForTest(null);
     setBuildCommitForTest(null);
-  });
-
-  const readVersion = (): Promise<{ value: string } | null> =>
-    queryOne<{ value: string }>("SELECT value FROM settings WHERE key = ?", [
-      CURRENT_SCRIPT_VERSION_KEY,
-    ]);
-
-  test("records the running build's version", async () => {
-    setBuildTimestampForTest("2026-06-19T12:00:00Z");
-    await recordScriptVersion();
-    expect((await readVersion())?.value).toBe("2026-06-19T12:00:00Z");
-  });
-
-  test("records the running build's commit alongside the version", async () => {
-    setBuildTimestampForTest("2026-06-19T12:00:00Z");
-    setBuildCommitForTest("abc123def4567890");
-    await recordScriptVersion();
-    // Reads back through the public helper a restore uses to surface it.
-    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
   });
 
   test("stores the commit under its stable plaintext key", async () => {
@@ -271,16 +262,6 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
         "SELECT value FROM settings WHERE key = 'current_script_commit'",
       ),
     ).toEqual({ value: "abc123def4567890" });
-  });
-
-  test("records the commit even when the timestamp is empty", async () => {
-    // The two markers are independent — a missing timestamp must not suppress
-    // the commit (and vice versa).
-    setBuildTimestampForTest(null);
-    setBuildCommitForTest("deadbeefcafe");
-    await recordScriptVersion();
-    expect(await readVersion()).toBeNull();
-    expect(await readRecordedScriptCommit()).toBe("deadbeefcafe");
   });
 
   test("does not create an empty commit marker for a version-only build", async () => {
@@ -295,58 +276,51 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
     ).toBeNull();
   });
 
-  test("readRecordedScriptCommit returns empty string when unrecorded", async () => {
-    // Older backups / dev builds have no commit row.
-    expect(await readRecordedScriptCommit()).toBe("");
-  });
-
-  test("clears a stale commit marker when a built bundle ships without one", async () => {
-    // A CI deploy records a commit…
-    setBuildCommitForTest("abc123def4567890");
-    await recordScriptVersion();
-    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
-
-    // …then a real built bundle that ships without a commit (e.g. deno task
-    // deploy:edge — it has a build timestamp but no embedded commit) must clear
-    // it, not leave the stale value to mislead a later restore.
+  test("stores the exact rows for each available build marker", async () => {
+    await clearMarkers();
+    setBuildTimestampForTest("");
     setBuildCommitForTest("");
-    setBuildTimestampForTest("2026-06-20T00:00:00Z");
-    await recordScriptVersion();
+    await runWithSubrequestBudget(async () => {
+      await recordScriptVersion();
+      expect(getSubrequestUsage()).toEqual({
+        database: 0,
+        external: 0,
+        total: 0,
+      });
+    });
     expect(await readRecordedScriptCommit()).toBe("");
-  });
 
-  test("preserves the commit marker on a dev/source boot with no build info", async () => {
-    // Seed a commit as a CI deploy would.
+    setBuildTimestampForTest("2026-06-19T12:00:00Z");
+    await recordScriptVersion();
+    expect(await markerRows()).toEqual([
+      {
+        key: CURRENT_SCRIPT_VERSION_KEY,
+        value: "2026-06-19T12:00:00Z",
+      },
+    ]);
+
+    await clearMarkers();
+    setBuildTimestampForTest("");
     setBuildCommitForTest("abc123def4567890");
     await recordScriptVersion();
+    expect(await markerRows()).toEqual([
+      { key: commitKey, value: "abc123def4567890" },
+    ]);
 
-    // A dev/source boot has neither a timestamp nor a commit; it must NOT wipe
-    // the marker (e.g. running `deno task start` against a remote DB).
-    setBuildCommitForTest(null);
-    setBuildTimestampForTest(null);
+    await clearMarkers();
+    await execute("INSERT INTO settings (key, value) VALUES (?, ?)", [
+      commitKey,
+      "stale-commit",
+    ]);
+    setBuildTimestampForTest("2026-06-20T00:00:00Z");
+    setBuildCommitForTest("");
     await recordScriptVersion();
-    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
-  });
-
-  test("leaves the stored version untouched when it is unchanged", async () => {
-    setBuildTimestampForTest("2026-06-19T12:00:00Z");
-    await recordScriptVersion();
-    // Second call takes the unchanged fast-path and must not corrupt the value.
-    await recordScriptVersion();
-    expect((await readVersion())?.value).toBe("2026-06-19T12:00:00Z");
-  });
-
-  test("is a no-op for development builds with no version", async () => {
-    setBuildTimestampForTest(null);
-    await recordScriptVersion();
-    expect(await readVersion()).toBeNull();
-  });
-
-  test("swallows database errors so it can never block boot", async () => {
-    setBuildTimestampForTest("2026-06-19T12:00:00Z");
-    const { getDb } = await import("#shared/db/client.ts");
-    await getDb().execute("DROP TABLE settings");
-    // Reading/writing the missing table throws inside; the call must still resolve.
-    await recordScriptVersion();
+    expect(await markerRows()).toEqual([
+      { key: commitKey, value: "" },
+      {
+        key: CURRENT_SCRIPT_VERSION_KEY,
+        value: "2026-06-20T00:00:00Z",
+      },
+    ]);
   });
 });

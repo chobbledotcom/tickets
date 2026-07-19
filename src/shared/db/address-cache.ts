@@ -14,8 +14,8 @@ import type { AddressMatch } from "#shared/address-lookup/types.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
-import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
+import { execute, queryOne, type SqlStatement } from "#shared/db/client.ts";
+import { ADDRESS_CACHE_MS, MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 /* jscpd:ignore-end */
 
@@ -31,6 +31,15 @@ export const computeAddressSearchIndex = (
 /** The oldest `created` a cache row may have and still be served. */
 const freshCutoffIso = (): string =>
   new Date(nowMs() - ADDRESS_CACHE_MS).toISOString();
+
+export const addressCachePruneStatement = (): SqlStatement => ({
+  args: [freshCutoffIso(), MAINTENANCE_PRUNE_BATCH],
+  sql: `DELETE FROM address_cache
+         WHERE rowid IN (
+           SELECT rowid FROM address_cache WHERE created < ?
+           ORDER BY rowid LIMIT ?
+         )`,
+});
 
 /** Read a fresh cached result. Null on miss (absent or expired). Rows cached
  * before matches carried coordinates hold bare line strings; those read as a

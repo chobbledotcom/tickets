@@ -22,7 +22,7 @@ import {
   withMocks,
 } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
-import { useLocalStoragePath } from "#test-utils/site-update.ts";
+import { useLocalStoragePath } from "./_shared-site-update.ts";
 
 /** GitHub release API response with no assets */
 const MOCK_RELEASE_NO_ASSET = {

@@ -132,8 +132,8 @@ src/shared/db/users.ts:260:62  ?? → ||   # queryAll()[0] is a truthy UserAuthF
 src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
 src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
 src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
-src/shared/update.ts:130:45  ?? → ||   # the stored marker is a string or undefined and the fallback is empty, so both operators return the same string
-src/shared/update.ts:155:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
+src/shared/update.ts:131:45  ?? → ||   # the stored marker is a string or undefined and the fallback is empty, so both operators return the same string
+src/shared/update.ts:156:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.

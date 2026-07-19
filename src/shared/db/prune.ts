@@ -1,6 +1,7 @@
 /** Fixed-size database pruning used by the maintenance task and owner actions. */
 
 import { decrypt } from "#shared/crypto/encryption.ts";
+import { addressCachePruneStatement } from "#shared/db/address-cache.ts";
 import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
 import {
   executeBatchWithResults,
@@ -9,7 +10,6 @@ import {
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  ADDRESS_CACHE_MS,
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
@@ -84,7 +84,7 @@ const pruneStatements = (): PruneStatement[] => [
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoCutoff(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),
-  boundedDelete("address_cache", "created < ?", [isoCutoff(ADDRESS_CACHE_MS)]),
+  addressCachePruneStatement(),
   boundedDelete("sessions", "expires < ?", [
     nowMs() - PRUNE_SESSIONS_RETENTION_MS,
   ]),

@@ -19,7 +19,7 @@ import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
-import { useLocalStoragePath } from "#test-utils/site-update.ts";
+import { useLocalStoragePath } from "../../../lib/_shared-site-update.ts";
 
 /** A built site database URL whose backups land in a site-specific folder. */
 const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";
