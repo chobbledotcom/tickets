@@ -7,7 +7,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { updateAttendeePII } from "#shared/db/attendees/update.ts";
 import type { Attendee } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -84,7 +84,8 @@ const mergeWithPins = async (setup: {
     },
   );
   expect(response.status).toBe(302);
-  return (await getAttendee(target.id, await getTestPrivateKey()))!;
+  // A successful merge keeps the target and redirects to its attendee page.
+  return (await getAttendeeOrNull(target.id, await getTestPrivateKey()))!;
 };
 
 describeWithEnv("attendee merge — pinned location", { db: true }, () => {

@@ -16,6 +16,7 @@ import {
 } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
+import { requireSuccess } from "#shared/result.ts";
 
 /** GitHub repo URL — update here if the repo moves */
 export const GITHUB_REPO = "chobbledotcom/tickets";
@@ -244,9 +245,7 @@ export const deployRelease = async (
 ): Promise<void> => {
   const code = await downloadReleaseAsset(assetUrl);
   const result = await deployScriptCode(code, scriptId);
-  if (!result.ok) {
-    throw new Error(result.error);
-  }
+  requireSuccess(result);
 };
 
 /** Fetch, download, and deploy the latest release via `deploy`, throwing on any failure. */
@@ -257,7 +256,7 @@ const deployLatest = async (
 ): Promise<ReleaseInfo> => {
   const { code, release } = await fetchAndDownloadRelease();
   const result = await deploy(code);
-  if (!result.ok) throw new Error(result.error);
+  requireSuccess(result);
   return release;
 };
 

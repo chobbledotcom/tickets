@@ -13,7 +13,7 @@ import {
 } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
 import { listingGroups } from "#shared/db/groups.ts";
-import { useListingById } from "./listing.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { dateToStartEnd, expandDailyRange } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
@@ -91,15 +91,16 @@ export const checkListingAvailability = async (
   quantity = 1,
   date?: string | null,
   durationDays = 1,
-): Promise<boolean> =>
-  useListingById(listingId, false, async (listing) => {
-    const checkDate = capacityDateFor(listing.listing_type, date);
-    return (
-      await checkLinesCapacity([
-        { date: checkDate, durationDays, listingId, quantity },
-      ])
-    )[0]!;
-  });
+): Promise<boolean> => {
+  const listing = await getListingWithCount(listingId);
+  if (!listing) throw new Error(`Listing not found: ${listingId}`);
+  const checkDate = capacityDateFor(listing.listing_type, date);
+  return (
+    await checkLinesCapacity([
+      { date: checkDate, durationDays, listingId, quantity },
+    ])
+  )[0]!;
+};
 
 type DemandBucket = CapacityBucket;
 
@@ -172,7 +173,10 @@ export const checkBatchAvailabilityImpl = async (
     listingIds,
   );
   const listingsById = mapById(identity<ListingCapacityRow>)(listingRows);
-  if (items.some((item) => !listingsById.has(item.listingId))) return false;
+  const missingListingId = listingIds.find((id) => !listingsById.has(id));
+  if (missingListingId !== undefined) {
+    throw new Error(`Listing not found: ${missingListingId}`);
+  }
 
   const membership = await listingGroups.getIdsByKeys(listingIds);
   const context: BatchAvailabilityContext = { date, items, listingsById };

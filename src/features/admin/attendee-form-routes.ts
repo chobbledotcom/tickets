@@ -262,18 +262,22 @@ const handleSubmitInner = async (
 
   // Apply atomic create or edit. On a recoverable failure (capacity, no lines)
   // re-render the submitted form in place so entered data is never lost.
-  const outcome =
-    mode === "create"
-      ? await applyCreate(parsed, logisticsPlan)
-      : await applyEdit(
-          attendeeId!,
-          parsed,
-          attendee!,
-          questions,
-          parseQuestionAnswers({ optional: true })(form, questions),
-          logisticsPlan,
-          existingByKey,
-        );
+  let outcome: SaveOutcome;
+  if (mode === "create") {
+    outcome = await applyCreate(parsed, logisticsPlan);
+  } else {
+    const answers = parseQuestionAnswers({ optional: true })(form, questions);
+    if (!answers.ok) return showErrors({ formError: answers.error });
+    outcome = await applyEdit(
+      attendeeId!,
+      parsed,
+      attendee!,
+      questions,
+      answers,
+      logisticsPlan,
+      existingByKey,
+    );
+  }
   if (outcome.ok) return outcome.response;
   return showErrors({ saveError: outcome.saveError });
 };

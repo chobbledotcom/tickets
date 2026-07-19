@@ -57,7 +57,7 @@ export const readQuestionAnswer = (
  * - `{ optional: false }` (public booking) — every question must be answered
  *   with a valid option; the first missing/invalid one returns `ok: false`.
  * - `{ optional: true }` (admin edit) — unanswered or invalid questions are
- *   skipped, so the result is always `ok: true` with the valid answers found.
+ *   skipped. Supplied free text is still validated and can return `ok: false`.
  */
 type MutableParsedQuestionAnswers = {
   answerIds: number[];
@@ -83,10 +83,10 @@ const parseFreeTextAnswer: AnswerParser = (
   const text = (form.get(`question_${question.id}`) ?? "").trim();
   // Cap free-text length so an unauthenticated booking cannot submit an
   // arbitrarily large value (expensive to encrypt, large blob to retain). The
-  // public input mirrors this with a maxlength; optional (admin) parsing skips
-  // an over-long value rather than erroring, keeping its always-ok contract.
+  // public input mirrors this with a maxlength. Optional means a blank answer
+  // may be omitted; it never makes supplied invalid text acceptable.
   if (text.length > MAX_TEXTAREA_LENGTH) {
-    return optional ? null : `Answer is too long: ${question.text}`;
+    return `Answer is too long: ${question.text}`;
   }
   if (text) {
     parsed.textAnswers.push({ questionId: question.id, text });
@@ -117,20 +117,14 @@ const parseQuestionAnswer: AnswerParser = (form, question, parsed, optional) =>
     ? parseFreeTextAnswer(form, question, parsed, optional)
     : parseChoiceAnswer(form, question, parsed, optional);
 
-export function parseQuestionAnswers(opts: {
-  optional: true;
-}): (
-  form: URLSearchParams,
-  questions: QuestionWithAnswers[],
-) => { ok: true; answerIds: number[]; textAnswers: TextAnswer[] };
-export function parseQuestionAnswers(opts: {
-  optional: false;
-}): (
+type QuestionAnswersParser = (
   form: URLSearchParams,
   questions: QuestionWithAnswers[],
 ) => ParsedQuestionAnswers;
-export function parseQuestionAnswers(opts: { optional: boolean }) {
-  return (
+
+export const parseQuestionAnswers =
+  (opts: { optional: boolean }): QuestionAnswersParser =>
+  (
     form: URLSearchParams,
     questions: QuestionWithAnswers[],
   ): ParsedQuestionAnswers => {
@@ -144,4 +138,3 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
     }
     return { ok: true, ...parsed };
   };
-}

@@ -17,7 +17,7 @@ import { htmlResponse } from "#routes/response.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { findByIdThen } from "#shared/find-by-id.ts";
@@ -66,7 +66,7 @@ export const withAttendee = withEntityLoader(loadAttendeeForListing);
 const getDecryptedAttendee = async (
   attendeeId: number,
 ): Promise<Attendee | null> =>
-  getAttendee(attendeeId, await requireRequestPrivateKey());
+  getAttendeeOrNull(attendeeId, await requireRequestPrivateKey());
 
 /** Curried loader: decrypt the attendee (null → 404), then complete the
  * load with whatever else the caller needs alongside it. */

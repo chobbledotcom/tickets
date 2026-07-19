@@ -156,11 +156,13 @@ export const defineForm = <
   const section = (
     id: FormSectionId<TFields>,
     values: FormRenderValuesFor<TFields> = {},
-  ): string =>
-    renderFields(
+  ): string => {
+    if (!sectionIds.includes(id)) throw new Error(`Unknown section: ${id}`);
+    return renderFields(
       fields.filter((field) => field.section === id),
       values as FieldValues,
     );
+  };
 
   return {
     field: (name) => ({

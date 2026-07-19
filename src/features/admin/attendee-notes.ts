@@ -23,7 +23,7 @@ import { createEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import {
   createOwnerNote,
   deleteAttendeeNote,
@@ -51,7 +51,7 @@ const returnTarget = (attendeeId: number, returnUrl: string): string =>
 const loadAttendeeOr404 = async (
   attendeeId: number,
 ): Promise<Attendee | Response> => {
-  const attendee = await getAttendee(
+  const attendee = await getAttendeeOrNull(
     attendeeId,
     await requireRequestPrivateKey(),
   );

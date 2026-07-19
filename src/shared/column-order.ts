@@ -11,6 +11,7 @@
  */
 
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
+import { requireSuccess } from "#shared/result.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -139,7 +140,7 @@ export const buildDefaultTemplate = (keys: readonly string[]): string =>
   keys.map((k) => `{{${k}}}`).join(", ");
 
 /**
- * Parse a template and return column keys + filters, with fallback to defaults.
+ * Parse a template and return column keys and filters.
  * Shared by all listing/attendee table renderers.
  */
 export const resolveColumnLayout = (
@@ -151,9 +152,8 @@ export const resolveColumnLayout = (
     return { columnKeys: [...defaultOrder], filters: new Map() };
   }
   const result = parseColumnTemplate(template, validKeys);
-  return result.ok
-    ? { columnKeys: result.columns, filters: result.filters }
-    : { columnKeys: [...defaultOrder], filters: new Map() };
+  requireSuccess(result);
+  return { columnKeys: result.columns, filters: result.filters };
 };
 
 /** Matches only when `date` is the first filter applied to the raw value */

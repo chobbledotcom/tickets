@@ -13,7 +13,7 @@ import {
   getPublicStatusId,
 } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -417,7 +417,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       gross: 2000,
       listingId: listing.id,
     });
-    const stored = await getAttendee(
+    const stored = await getAttendeeOrNull(
       result.attendees[0]!.id,
       await getTestPrivateKey(),
     );
