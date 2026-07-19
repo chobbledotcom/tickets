@@ -13,6 +13,7 @@ import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
+  setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
 import {
@@ -92,17 +93,22 @@ describe("withTransaction", () => {
     // A chatty interactive transaction (many sequential round-trips holding the
     // write lock) is the "Transaction timed-out" shape; the guard fails it loudly
     // in dev/test so it gets restructured into a batch.
-    await withFileDb(async () => {
-      await expect(
-        runWithQueryLogContext(async () => {
-          await withTransaction(async (tx) => {
-            for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
-              await tx.execute("INSERT INTO t VALUES (1)");
-            }
-          });
-        }),
-      ).rejects.toThrow(/Interactive transaction too chatty/);
-    });
+    setN1GuardNotifyOnly(false);
+    try {
+      await withFileDb(async () => {
+        await expect(
+          runWithQueryLogContext(async () => {
+            await withTransaction(async (tx) => {
+              for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
+                await tx.execute("INSERT INTO t VALUES (1)");
+              }
+            });
+          }),
+        ).rejects.toThrow(/Interactive transaction too chatty/);
+      });
+    } finally {
+      setN1GuardNotifyOnly(null);
+    }
   });
 
   test("fires cache invalidation for each written statement after the commit", async () => {
