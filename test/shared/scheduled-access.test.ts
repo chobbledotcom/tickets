@@ -72,6 +72,15 @@ describe("scheduled access", () => {
     ).toEqual({ kind: "authorized" });
   });
 
+  test("accepts the configured key with a trailing path slash", () => {
+    expect(
+      checkScheduledAccess(
+        request("POST", scheduledAuthorization().authorization, "/scheduled/"),
+        TEST_SCHEDULED_KEY,
+      ),
+    ).toEqual({ kind: "authorized" });
+  });
+
   test("returns an empty no-store response for every outcome", async () => {
     for (const status of [204, 401, 404, 503] as const) {
       const response = scheduledResponse(status);

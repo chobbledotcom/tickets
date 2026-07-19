@@ -5,7 +5,7 @@ import { jsonHash } from "#test-utils/hash.ts";
 
 test("keeps the complete core schema declaration exact", async () => {
   expect(await jsonHash(coreTables)).toBe(
-    "ff790be7ea46e365150243155f1a9c55a0e489117f7d12023491081042c631b3",
+    "3d4047b1e4c102fc2e01a0d25ac5fe7a5c28707d5130f86dd2e2b3b59ddb51b0",
   );
 });
 
@@ -15,6 +15,7 @@ test("defines fenced maintenance task state and its due-work index", () => {
     {
       columns: [
         ["name", "TEXT PRIMARY KEY"],
+        ["checkpoint", "TEXT"],
         ["next_run_at", "INTEGER NOT NULL"],
         ["lease_token", "TEXT"],
         ["lease_expires_at", "INTEGER"],

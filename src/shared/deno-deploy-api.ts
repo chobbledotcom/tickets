@@ -33,12 +33,6 @@ interface GetAppResponse {
   slug: string;
 }
 
-interface DeploymentResponse {
-  domains?: string[];
-  hostnames?: string[];
-  id: string;
-}
-
 /** Headers for all Deno Deploy API requests. */
 const denoApiHeaders = (): Record<string, string> => ({
   Authorization: `Bearer ${getDenoDeployToken()}`,
@@ -124,12 +118,12 @@ const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
  * Deploy code to a Deno Deploy app (production deployment).
  * Returns the primary hostname for the deployment.
  */
-const deployCodeImpl = async (
-  appId: string,
-  code: string,
-): Promise<ApiResult<{ hostname: string }>> => {
+const deployCodeImpl: HostingProviderApi["publishSite"] = async (
+  appId,
+  code,
+) => {
   const res = await fetchText(
-    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}/deployments`,
+    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}/deploy`,
     {
       body: JSON.stringify({
         assets: {
@@ -143,14 +137,7 @@ const deployCodeImpl = async (
     },
   );
 
-  if (!res.ok) return parseApiError(res, "Deploy code");
-
-  const data: DeploymentResponse = JSON.parse(res.text);
-  const hostname = data.domains?.[0] ?? data.hostnames?.[0];
-  if (!hostname) {
-    return { error: "Deploy code failed: no hostname in response", ok: false };
-  }
-  return { hostname: `https://${hostname}`, ok: true };
+  return res.ok ? { ok: true } : parseApiError(res, "Deploy code");
 };
 
 /**

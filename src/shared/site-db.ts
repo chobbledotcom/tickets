@@ -13,7 +13,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import type { Result } from "#shared/result.ts";
 
 /** Credentials needed to open a read-only connection to a site's database. */

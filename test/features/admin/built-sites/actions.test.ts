@@ -6,6 +6,7 @@ import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import {
   builtSites,
   updateBuiltSiteRenewalState,
@@ -24,9 +25,7 @@ import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
 const NOW_MS = 1_700_000_000_000;
 
-const findSite = async (
-  siteId: number,
-): Promise<import("#shared/db/built-sites.ts").BuiltSite> =>
+const findSite = async (siteId: number): Promise<BuiltSite> =>
   (await builtSites.getAll()).find((s) => s.id === siteId)!;
 
 type SecretStub = any;

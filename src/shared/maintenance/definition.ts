@@ -14,8 +14,10 @@ export type MaintenanceTaskBudget = {
 
 export type MaintenanceTaskContext = {
   budget: MaintenanceTaskBudget;
+  checkpoint: string | null;
   deadline: number;
   requestFollowUp: () => void;
+  setCheckpoint: (checkpoint: string | null) => void;
 };
 
 export interface MaintenanceTaskDeclaration {

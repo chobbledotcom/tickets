@@ -8,6 +8,7 @@ import {
 import {
   claimNextMaintenanceTask,
   finishMaintenanceTask,
+  type MaintenanceClaim,
   syncMaintenanceTaskRows,
 } from "./claims.ts";
 import {
@@ -30,12 +31,15 @@ export type RunMaintenanceOptions = {
 const taskCalls = (task: MaintenanceTaskDeclaration): number =>
   task.maxDatabaseCalls + task.maxExternalCalls;
 
+// Claim, finish, and the final no-work claim remain outside the task allowance.
+const TASK_RUNNER_CALL_RESERVE = 3;
+
 const taskFits = (
   task: MaintenanceTaskDeclaration,
   remaining: { database: number; external: number; total: number },
 ): boolean =>
   task.maxExternalCalls <= remaining.external &&
-  taskCalls(task) <= remaining.total - 3;
+  taskCalls(task) <= remaining.total - TASK_RUNNER_CALL_RESERVE;
 
 const enabledTasks = async (
   tasks: readonly MaintenanceTaskDeclaration[],
@@ -56,7 +60,7 @@ const enabledTasks = async (
 
 const runClaimedTask = async (
   task: MaintenanceTaskDeclaration,
-  claim: { leaseToken: string; name: string },
+  claim: MaintenanceClaim,
   requestDeadline: number,
 ): Promise<unknown | null> => {
   const deadline = Math.min(
@@ -65,6 +69,7 @@ const runClaimedTask = async (
   );
   let failure: unknown | null = null;
   let needsFollowUp = false;
+  let checkpoint = claim.checkpoint;
   try {
     await withSubrequestAllowance(
       {
@@ -75,9 +80,13 @@ const runClaimedTask = async (
       () =>
         task.run({
           budget: { remaining: getSubrequestRemaining },
+          checkpoint: claim.checkpoint,
           deadline,
           requestFollowUp: () => {
             needsFollowUp = true;
+          },
+          setCheckpoint: (nextCheckpoint) => {
+            checkpoint = nextCheckpoint;
           },
         }),
     );
@@ -85,6 +94,7 @@ const runClaimedTask = async (
     failure = error;
   }
   await finishMaintenanceTask(claim, {
+    checkpoint: failure === null ? checkpoint : claim.checkpoint,
     intervalMs:
       failure === null
         ? needsFollowUp

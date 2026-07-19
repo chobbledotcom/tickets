@@ -1,14 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { parseSiteDataBlob } from "#shared/db/built-sites/blob.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import {
   assignBuiltSite,
-  type BuiltSite,
   builtSitesCrudTable,
   insertBuiltSite,
-  parseSiteDataBlob,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
+import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
 import { builtSiteFormInput } from "./fixtures.ts";
 
 const siteFixture = (overrides: Partial<BuiltSite> = {}): BuiltSite => ({
@@ -174,6 +176,35 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
     expect(await builtSitesCrudTable.update(999, { name: "Test" })).toBeNull();
   });
 
+  test("reads from the primary before updating a newly written site", async () => {
+    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    const primaryReads: boolean[] = [];
+    const restore = wrapDbClient({
+      batch: (statements, mode) => {
+        if (
+          statements.some((statement) =>
+            statementSql(statement).includes("FROM built_sites"),
+          )
+        ) {
+          primaryReads.push(mode === "write");
+        }
+      },
+      execute: (statement) => {
+        if (statementSql(statement).includes("FROM built_sites")) {
+          primaryReads.push(mustReadFromPrimary());
+        }
+        return null;
+      },
+    });
+    try {
+      await builtSitesCrudTable.update(site.id, { assignable: true });
+    } finally {
+      restore();
+    }
+
+    expect(primaryReads).toEqual([true]);
+  });
+
   test("update preserves stored state and advances its revision", async () => {
     const row = await insertBuiltSite(
       "Stateful",
@@ -196,7 +227,7 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       assignedListingId: 7,
       readOnlyFrom: "2027-01-01T00:00:00Z",
       renewalTokenIndex: "renewal-index",
-      siteDataRevision: 2,
+      siteDataRevision: 3,
     });
   });
 

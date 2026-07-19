@@ -22,11 +22,11 @@ import {
   isTursoEnabled,
 } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { providerOrBunny } from "#shared/db/built-sites/types.ts";
 import {
   builtSites,
   builtSitesCrudTable,
   insertBuiltSite,
-  providerOrBunny,
 } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";

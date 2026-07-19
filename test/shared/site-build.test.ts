@@ -6,9 +6,11 @@ import {
   builderApi,
   type PreparedBuildSite,
 } from "#shared/builder.ts";
+import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
 import { builtSites } from "#shared/db/built-sites.ts";
 import { buildAssignableSite, buildRetainedSite } from "#shared/site-build.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 const BUILD_RESULT = {
@@ -27,6 +29,23 @@ const PREPARED_SITE = {
 } satisfies PreparedBuildSite;
 
 describeWithEnv("site build", { db: true }, () => {
+  test("checks builder storage before provider provisioning", async () => {
+    const buildStub = stub(builderApi, "buildSite", () =>
+      Promise.resolve({ error: "provider should not start", ok: false }),
+    );
+    setEncryptionKeyForTest(null);
+    using _env = withEnv({ DB_ENCRYPTION_KEY: undefined });
+    try {
+      await expect(
+        buildRetainedSite("Unchecked Site", { siteName: "Unchecked Site" }),
+      ).rejects.toThrow("DB_ENCRYPTION_KEY environment variable is required");
+      expect(buildStub.calls).toHaveLength(0);
+    } finally {
+      setupTestEncryptionKey();
+      buildStub.restore();
+    }
+  });
+
   test("retains a local bundle before reporting success", async () => {
     const buildStub = stub(builderApi, "buildSite", async (input, retain) => {
       expect(input).toEqual({ code: "local bundle", siteName: "Local Site" });

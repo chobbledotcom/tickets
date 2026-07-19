@@ -2,7 +2,7 @@
  * Shared helpers for the renewal feature used by admin templates and routes.
  */
 
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Is a built site provisioned for renewals? (has a renewal token index) */

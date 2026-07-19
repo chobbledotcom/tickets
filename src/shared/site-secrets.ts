@@ -21,7 +21,7 @@ import {
   resolveHostingProvider,
   siteHostingAccess,
 } from "#shared/builder.ts";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { tryStep } from "#shared/try-step.ts";
 
 /**

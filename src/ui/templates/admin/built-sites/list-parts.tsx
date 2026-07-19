@@ -1,5 +1,5 @@
 import { t } from "#i18n";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { formatDeadlineLabel } from "#shared/renewal-helpers.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { RenewalTierSummary } from "#templates/admin/built-sites/renewal-summary.tsx";

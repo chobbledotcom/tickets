@@ -372,7 +372,9 @@ export const uploadRaw = async (
     },
   });
   countExternalSubrequest("storage upload");
-  await sdk.file.upload(sz, `/${filename}`, stream as never);
+  await sdk.file.upload(sz, `/${filename}`, stream as never, {
+    contentType: "application/octet-stream",
+  });
   return filename;
 };
 

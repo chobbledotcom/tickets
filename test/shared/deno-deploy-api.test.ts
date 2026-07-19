@@ -159,7 +159,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
 
   // ── deployCode ─────────────────────────────────────────────────────────────
 
-  test("deployCode POSTs assets and config to /deployments endpoint", async () => {
+  test("deployCode POSTs assets and config to the revision endpoint", async () => {
     const captured: CapturedRequest = { body: undefined, url: undefined };
     using _fetch = stubFetch(
       captureRequest({ domains: ["my-app.deno.dev"], id: "dep_123" }, captured),
@@ -168,11 +168,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       "app_dc",
       "console.log('hello')",
     );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.hostname).toBe("https://my-app.deno.dev");
-    }
-    expect(captured.url).toContain("/apps/app_dc/deployments");
+    expect(result).toEqual({ ok: true });
+    expect(captured.url).toBe("https://api.deno.com/v2/apps/app_dc/deploy");
     expect(captured.method).toBe("POST");
     expect(captured.body).toEqual({
       assets: {
@@ -185,45 +182,6 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       config: { runtime: { entrypoint: "main.ts", type: "dynamic" } },
       production: true,
     });
-  });
-
-  test("deployCode falls back to hostnames when domains is empty", async () => {
-    using _fetch = stubFetch(
-      new Response(
-        JSON.stringify({ hostnames: ["fallback.deno.dev"], id: "dep_fb" }),
-      ),
-    );
-    const result = await denoDeployApi.deployCode("app_fb", "code");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.hostname).toBe("https://fallback.deno.dev");
-    }
-  });
-
-  test("deployCode rejects an empty primary domain", async () => {
-    using _fetch = stubFetch(
-      new Response(
-        JSON.stringify({
-          domains: [""],
-          hostnames: ["fallback.deno.dev"],
-          id: "dep_empty",
-        }),
-      ),
-    );
-
-    expect(await denoDeployApi.deployCode("app_empty", "code")).toEqual({
-      error: "Deploy code failed: no hostname in response",
-      ok: false,
-    });
-  });
-
-  test("deployCode returns error when response has no hostname", async () => {
-    using _fetch = stubFetch(new Response(JSON.stringify({ id: "dep_nh" })));
-    const result = await denoDeployApi.deployCode("app_nh", "code");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toContain("no hostname");
-    }
   });
 
   test("deployCode returns error when API responds with failure", async () => {

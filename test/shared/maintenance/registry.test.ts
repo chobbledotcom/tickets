@@ -31,8 +31,10 @@ const runTask = (
     budget: {
       remaining: () => ({ database: 2, external: 0, total: 2 }),
     },
+    checkpoint: null,
     deadline: Date.now() + 10_000,
     requestFollowUp,
+    setCheckpoint: () => {},
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {

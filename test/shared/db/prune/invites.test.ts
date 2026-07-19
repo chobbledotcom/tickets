@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { executeBatch, getDb, setDb } from "#shared/db/client.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { createInvitedUser, getAllUsers } from "#shared/db/users.ts";
 import { MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
+import { proxyMembers } from "#shared/proxy-members.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   addUserOwnedAccessRecords,
@@ -35,6 +36,14 @@ const cloneInvites = (
   );
 
 describeWithEnv("db > expired invite pruning", { db: true }, () => {
+  test("rejects an invalid saved scan position", async () => {
+    for (const checkpoint of ["not-an-id", "0"]) {
+      await expect(runDatabasePruning(checkpoint)).rejects.toThrow(
+        `Invalid invite pruning checkpoint: ${checkpoint}`,
+      );
+    }
+  });
+
   test("removes every expired invite and its owned access records", async () => {
     const first = await createInvite(
       "expired-first",
@@ -97,9 +106,52 @@ describeWithEnv("db > expired invite pruning", { db: true }, () => {
       "2000-01-01T00:00:00.000Z",
     );
 
-    await runDatabasePruning();
+    const first = await runDatabasePruning();
 
+    expect(first.fullBatch).toBe(true);
+    expect(first.checkpoint).not.toBeNull();
+    expect(await getUserOwnedRowSources(expired.id)).toEqual(["users"]);
+    await runDatabasePruning(first.checkpoint);
     expect(await getUserOwnedRowSources(expired.id)).toEqual([]);
     expect(await getUserOwnedRowSources(current.id)).toEqual(["users"]);
+  });
+
+  test("keeps an invite accepted after expiry scanning", async () => {
+    const invite = await createInvite(
+      "accepted-during-prune",
+      "2000-01-01T00:00:00.000Z",
+    );
+    await addUserOwnedAccessRecords(invite.id, "accepted-during-prune");
+    const real = getDb();
+    let accepted = false;
+    setDb(
+      proxyMembers(real, {
+        batch: async (...args: Parameters<typeof real.batch>) => {
+          if (!accepted) {
+            accepted = true;
+            await real.execute({
+              args: ["password-hash", "wrapped-key", invite.id],
+              sql: `UPDATE users
+                       SET password_hash = ?, wrapped_data_key = ?
+                     WHERE id = ?`,
+            });
+          }
+          return real.batch(...args);
+        },
+      }),
+    );
+    try {
+      await runDatabasePruning();
+    } finally {
+      setDb(real);
+    }
+
+    expect(accepted).toBe(true);
+    expect(await getUserOwnedRowSources(invite.id)).toEqual([
+      "api_keys",
+      "sessions",
+      "user_logistics_agents",
+      "users",
+    ]);
   });
 });

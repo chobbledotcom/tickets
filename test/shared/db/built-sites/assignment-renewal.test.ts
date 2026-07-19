@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { ensureBuiltSiteSchedulerKey } from "#shared/db/built-site-scheduler.ts";
+import { parseSiteDataBlob } from "#shared/db/built-sites/blob.ts";
 import {
   assignBuiltSite,
   builtSites,
@@ -7,7 +9,6 @@ import {
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
-  parseSiteDataBlob,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -50,6 +51,28 @@ describeWithEnv("assignable built sites", { db: true }, () => {
 
   test("assignBuiltSite returns null for a missing site", async () => {
     expect(await assignBuiltSite(999, 1, 1)).toBeNull();
+  });
+
+  test("keeps an assignment made during scheduler-key provisioning", async () => {
+    const site = await insertBuiltSite(
+      "Concurrent assignment",
+      "concurrent.example.test",
+      "",
+      "",
+      true,
+    );
+
+    await Promise.all([
+      ensureBuiltSiteSchedulerKey(site.id),
+      assignBuiltSite(site.id, 42, 7),
+    ]);
+
+    expect(await builtSitesCrudTable.findById(site.id)).toMatchObject({
+      assignable: false,
+      assignedAttendeeId: 42,
+      assignedListingId: 7,
+      siteDataRevision: 2,
+    });
   });
 
   test("unassigned sites have null assignment ids", async () => {

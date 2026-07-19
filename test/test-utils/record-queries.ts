@@ -19,7 +19,7 @@ export type DbCallHooks = {
   /** Take over the statement by returning a promise, or null to forward. */
   execute: (statement: InStatement | string) => Promise<ResultSet> | null;
   /** Observe a batch's statements before they forward. */
-  batch: (statements: InStatement[]) => void;
+  batch: (statements: InStatement[], mode?: "write" | "read") => void;
 };
 
 /** Swap the db client for a proxy that observes or intercepts statements
@@ -30,7 +30,7 @@ export const wrapDbClient = (hooks: DbCallHooks): (() => void) => {
   setDb(
     proxyMembers(real, {
       batch: (statements: InStatement[], mode?: "write" | "read") => {
-        hooks.batch(statements);
+        hooks.batch(statements, mode);
         return real.batch(statements, mode);
       },
       execute: wrapExecute(

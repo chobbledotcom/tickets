@@ -48,6 +48,13 @@ const nextRunAt = async (name: string): Promise<number> => {
   return row.next_run_at;
 };
 
+const taskTiming = (name: string) =>
+  queryOne<{ last_finished_at: number; next_run_at: number }>(
+    `SELECT last_finished_at, next_run_at
+       FROM maintenance_tasks WHERE name = ?`,
+    [name],
+  );
+
 describeWithEnv("maintenance runner", { db: true }, () => {
   test("isolates a failed task and reports it after another task runs", async () => {
     const ran: string[] = [];
@@ -132,16 +139,33 @@ describeWithEnv("maintenance runner", { db: true }, () => {
         intervalMs: 300_000,
       }),
     ]);
-    const before = Date.now();
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+
+    const timing = await taskTiming("follow_up");
+    expect(timing?.next_run_at).toBe(
+      (timing?.last_finished_at ?? 0) + MAINTENANCE_MIN_INTERVAL_MS,
+    );
+  });
+
+  test("passes and saves a successful task checkpoint", async () => {
+    await execute(
+      `INSERT INTO maintenance_tasks (name, checkpoint, next_run_at)
+       VALUES ('checkpoint_task', 'page-1', 0)`,
+    );
+    const tasks = defineMaintenanceTasks([
+      declaration("checkpoint_task", ({ checkpoint, setCheckpoint }) => {
+        expect(checkpoint).toBe("page-1");
+        setCheckpoint("page-2");
+      }),
+    ]);
 
     await runWithSubrequestBudget(() => maintenance.run(tasks));
 
-    expect(await nextRunAt("follow_up")).toBeGreaterThanOrEqual(
-      before + MAINTENANCE_MIN_INTERVAL_MS,
-    );
-    expect(await nextRunAt("follow_up")).toBeLessThan(
-      before + MAINTENANCE_MIN_INTERVAL_MS + 1_000,
-    );
+    expect(
+      await queryOne<{ checkpoint: string }>(
+        "SELECT checkpoint FROM maintenance_tasks WHERE name = 'checkpoint_task'",
+      ),
+    ).toEqual({ checkpoint: "page-2" });
   });
 
   test("scheduled-only work is excluded from organic runs", async () => {

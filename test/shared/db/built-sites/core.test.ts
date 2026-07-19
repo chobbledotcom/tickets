@@ -1,17 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
+import { parseSiteDataBlob } from "#shared/db/built-sites/blob.ts";
 import {
   builtSites,
   builtSitesCrudTable,
-  DEFAULT_UPDATE_TIER,
   insertBuiltSite,
-  isUpdateTier,
-  parseSiteDataBlob,
-  providerOrBunny,
-  siteAcceptsDeployTier,
   siteBaseUrl,
-  UPDATE_TIERS,
 } from "#shared/db/built-sites.ts";
 import { execute } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -45,67 +40,6 @@ describe("siteBaseUrl", () => {
 
   test("normalizes an uppercase scheme to a lowercase origin", () => {
     expect(siteBaseUrl("HTTPS://example.com")).toBe("https://example.com");
-  });
-});
-
-describe("update tiers", () => {
-  test("UPDATE_TIERS is ordered most- to least-eager", () => {
-    expect(UPDATE_TIERS).toEqual(["alpha", "beta", "release"]);
-  });
-
-  test("DEFAULT_UPDATE_TIER is the most conservative channel", () => {
-    expect(DEFAULT_UPDATE_TIER).toBe("release");
-  });
-
-  test("isUpdateTier accepts known channels and rejects anything else", () => {
-    for (const tier of UPDATE_TIERS) expect(isUpdateTier(tier)).toBe(true);
-    for (const bad of ["", "ALPHA", "stable", "rel", "release "]) {
-      expect(isUpdateTier(bad)).toBe(false);
-    }
-  });
-
-  test("a release deploy reaches every channel", () => {
-    for (const siteTier of UPDATE_TIERS) {
-      expect(siteAcceptsDeployTier(siteTier, "release")).toBe(true);
-    }
-  });
-
-  test("a beta deploy reaches beta + alpha sites but not release-only", () => {
-    expect(siteAcceptsDeployTier("alpha", "beta")).toBe(true);
-    expect(siteAcceptsDeployTier("beta", "beta")).toBe(true);
-    expect(siteAcceptsDeployTier("release", "beta")).toBe(false);
-  });
-
-  test("an alpha deploy reaches only alpha sites", () => {
-    expect(siteAcceptsDeployTier("alpha", "alpha")).toBe(true);
-    expect(siteAcceptsDeployTier("beta", "alpha")).toBe(false);
-    expect(siteAcceptsDeployTier("release", "alpha")).toBe(false);
-  });
-});
-
-describe("built-site providers", () => {
-  test("keeps a selected non-Bunny provider", () => {
-    expect(providerOrBunny("deno", "deno")).toBe("deno");
-    expect(providerOrBunny("turso", "turso")).toBe("turso");
-  });
-
-  test("uses Bunny when the named provider is not selected", () => {
-    expect(providerOrBunny(null, "deno")).toBe("bunny");
-    expect(providerOrBunny("bunny", "turso")).toBe("bunny");
-  });
-
-  test("parses every non-Bunny provider", () => {
-    const parsed = parseSiteDataBlob(
-      JSON.stringify({
-        dp: "turso",
-        hp: "deno",
-        n: "Provider site",
-        u: "provider.example.test",
-        v: 2,
-      }),
-    );
-    expect(parsed.dp).toBe("turso");
-    expect(parsed.hp).toBe("deno");
   });
 });
 
@@ -252,6 +186,24 @@ describeWithEnv("built-site storage", { db: true }, () => {
     );
     const site = await builtSitesCrudTable.findById(row.id);
     expect(site?.scheduledTaskKey).toBe(TEST_SCHEDULED_KEY);
+  });
+
+  test("rejects an invalid scheduler key before inserting the site", async () => {
+    await expect(
+      insertBuiltSite(
+        "Invalid scheduled key",
+        "invalid-key.example.test",
+        "",
+        "",
+        false,
+        "",
+        undefined,
+        "bunny",
+        "bunny",
+        "not-a-scheduled-key",
+      ),
+    ).rejects.toThrow();
+    expect(await builtSites.getAll()).toEqual([]);
   });
 
   test("legacy empty renewal tokens remain empty strings", async () => {

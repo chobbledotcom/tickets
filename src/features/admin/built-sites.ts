@@ -16,13 +16,13 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import { siteHostingAccess } from "#shared/builder.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup-storage.ts";
-import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
-  builtSites,
-  builtSitesCrudTable,
+  type BuiltSite,
+  type BuiltSiteFormInput,
   isUpdateTier,
   providerOrBunny,
-} from "#shared/db/built-sites.ts";
+} from "#shared/db/built-sites/types.ts";
+import { builtSites, builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormValues } from "#shared/forms/definition.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";

@@ -27,6 +27,7 @@ import type { User } from "#shared/types.ts";
 type PruneStatement = SqlStatement;
 
 export interface DatabasePruningResult {
+  checkpoint: string | null;
   fullBatch: boolean;
 }
 
@@ -129,30 +130,64 @@ const orphanStatements = (): PruneStatement[] => {
 
 type InviteCandidate = Pick<User, "id" | "invite_expiry">;
 
-const expiredInviteIds = async (): Promise<number[]> => {
+type InvitePage = {
+  checkpoint: string | null;
+  expiredIds: number[];
+  hasMore: boolean;
+};
+
+const checkpointId = (checkpoint: string | null): number | null => {
+  if (checkpoint === null) return null;
+  const id = Number(checkpoint);
+  if (!Number.isSafeInteger(id) || id < 1) {
+    throw new Error(`Invalid invite pruning checkpoint: ${checkpoint}`);
+  }
+  return id;
+};
+
+const expiredInvitePage = async (
+  checkpoint: string | null,
+): Promise<InvitePage> => {
   const rows = await queryAll<InviteCandidate>(
     `SELECT id, invite_expiry FROM users
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
-      ORDER BY id`,
+        AND (? IS NULL OR id > ?)
+      ORDER BY id
+      LIMIT ?`,
+    [
+      checkpointId(checkpoint),
+      checkpointId(checkpoint),
+      MAINTENANCE_PRUNE_BATCH + 1,
+    ],
   );
+  const candidates = rows.slice(0, MAINTENANCE_PRUNE_BATCH);
   const cutoff = now().getTime();
   const inviteStates = await Promise.all(
-    rows.map(async (row) => ({
+    candidates.map(async (row) => ({
       expired: new Date(await decrypt(row.invite_expiry!)).getTime() < cutoff,
       id: row.id,
     })),
   );
-  return inviteStates
-    .filter(({ expired }) => expired)
-    .map(({ id }) => id)
-    .slice(0, MAINTENANCE_PRUNE_BATCH);
+  const hasMore = rows.length > MAINTENANCE_PRUNE_BATCH;
+  return {
+    checkpoint: hasMore ? String(candidates[candidates.length - 1]!.id) : null,
+    expiredIds: inviteStates
+      .filter(({ expired }) => expired)
+      .map(({ id }) => id),
+    hasMore,
+  };
 };
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {
   if (ids.length === 0) return [];
   const inIds = ids.map(() => "?").join(", ");
+  const unactivatedIds = `SELECT id FROM users
+    WHERE id IN (${inIds})
+      AND wrapped_data_key IS NULL
+      AND password_hash = ''
+      AND invite_expiry IS NOT NULL`;
   return [
     { field: "user_id", table: "api_keys" },
     { field: "user_id", table: "sessions" },
@@ -160,7 +195,7 @@ const inviteStatements = (ids: number[]): PruneStatement[] => {
     { field: "id", table: "users" },
   ].map(({ field, table }) => ({
     args: ids,
-    sql: `DELETE FROM ${table} WHERE ${field} IN (${inIds})`,
+    sql: `DELETE FROM ${table} WHERE ${field} IN (${unactivatedIds})`,
   }));
 };
 
@@ -171,21 +206,25 @@ const lastResultIndexes = (batches: PruneStatement[][]): number[] =>
     return indexes;
   }, [] as number[]);
 
-export const runDatabasePruning = async (): Promise<DatabasePruningResult> => {
-  const inviteIds = await expiredInviteIds();
+export const runDatabasePruning = async (
+  checkpoint: string | null = null,
+): Promise<DatabasePruningResult> => {
+  const invitePage = await expiredInvitePage(checkpoint);
   const batches = [
     ...pruneStatements().map((statement) => [statement]),
     orphanStatements(),
-    inviteStatements(inviteIds),
+    inviteStatements(invitePage.expiredIds),
   ].filter((batch) => batch.length > 0);
   const results = await executeBatchWithResults(batches.flat());
-  const fullBatch = lastResultIndexes(batches).some(
-    (index) => results[index]!.rowsAffected === MAINTENANCE_PRUNE_BATCH,
-  );
+  const fullBatch =
+    invitePage.hasMore ||
+    lastResultIndexes(batches).some(
+      (index) => results[index]!.rowsAffected === MAINTENANCE_PRUNE_BATCH,
+    );
   const deleted = results.reduce(
     (total, result) => total + result.rowsAffected,
     0,
   );
   if (deleted > 0) logDebug("Prune", `deleted ${deleted} expired rows`);
-  return { fullBatch };
+  return { checkpoint: invitePage.checkpoint, fullBatch };
 };

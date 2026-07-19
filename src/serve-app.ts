@@ -14,6 +14,7 @@ import { once } from "#fp";
 import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
+import { seedEffectiveDomainHost } from "#shared/config.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import {
@@ -83,6 +84,8 @@ export const serveHandler = async (request: Request): Promise<Response> => {
   if (scheduledAccess.kind === "rejected") {
     return scheduledResponse(scheduledAccess.status);
   }
+  const url = new URL(request.url);
+  if (scheduledAccess.kind === "authorized") seedEffectiveDomainHost(url);
   try {
     await initialize();
     if (scheduledAccess.kind === "authorized") {
@@ -91,7 +94,6 @@ export const serveHandler = async (request: Request): Promise<Response> => {
     }
     return await handleRequest(request);
   } catch (error) {
-    const url = new URL(request.url);
     logError({
       code: ErrorCode.CDN_REQUEST,
       detail: `unhandled ${formatRequestError(

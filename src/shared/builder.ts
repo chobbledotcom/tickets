@@ -22,7 +22,10 @@ import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
-import type { DbProvider, HostingProvider } from "#shared/db/built-sites.ts";
+import type {
+  DbProvider,
+  HostingProvider,
+} from "#shared/db/built-sites/types.ts";
 import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { errorMessage } from "#shared/error-message.ts";

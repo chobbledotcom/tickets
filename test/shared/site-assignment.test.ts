@@ -4,8 +4,8 @@ import { type Stub, stub } from "@std/testing/mock";
 import { type BuildSiteInput, builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import {
-  type BuiltSite,
   builtSites,
   getAssignableBuiltSites,
   insertBuiltSite,

@@ -11,6 +11,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getEffectiveDomain } from "#shared/config.ts";
 import {
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
@@ -92,12 +93,13 @@ describeWithEnv("serve-app", { db: true }, () => {
       });
       await withExpectedError(async () => {
         const response = await serveHandler(
-          new Request("http://localhost/scheduled", {
+          new Request("https://scheduled-site.example/scheduled", {
             headers: scheduledAuthorization(),
             method: "POST",
           }),
         );
         await expectScheduledResponse(response, 503);
+        expect(getEffectiveDomain()).toBe("scheduled-site.example");
       });
     });
 

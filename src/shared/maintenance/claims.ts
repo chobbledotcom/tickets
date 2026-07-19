@@ -5,6 +5,7 @@ const DATABASE_NOW_MS =
   "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
 
 export type MaintenanceClaim = {
+  checkpoint: string | null;
   leaseToken: string;
   name: string;
 };
@@ -25,7 +26,8 @@ export const syncMaintenanceTaskRows = async (
           {
             args: [...disabledNames],
             sql: `DELETE FROM maintenance_tasks
-               WHERE name IN (${inPlaceholders(disabledNames)})`,
+               WHERE name IN (${inPlaceholders(disabledNames)})
+                 AND lease_token IS NULL`,
           },
         ];
   const statements = [...inserts, ...removals];
@@ -38,7 +40,7 @@ export const claimNextMaintenanceTask = async (
 ): Promise<MaintenanceClaim | null> => {
   if (allowedNames.length === 0) return null;
   const leaseToken = generateSecureToken();
-  const row = await queryOne<{ name: string }>(
+  const row = await queryOne<{ checkpoint: string | null; name: string }>(
     `UPDATE maintenance_tasks AS task
         SET lease_token = ?,
             lease_expires_at = ${DATABASE_NOW_MS} + ?,
@@ -55,25 +57,28 @@ export const claimNextMaintenanceTask = async (
          ORDER BY candidate.next_run_at ASC, candidate.name ASC
          LIMIT 1
       )
-      RETURNING name`,
+       RETURNING name, checkpoint`,
     [leaseToken, leaseMs, ...allowedNames],
   );
-  return row ? { leaseToken, name: row.name } : null;
+  return row
+    ? { checkpoint: row.checkpoint, leaseToken, name: row.name }
+    : null;
 };
 
 export const finishMaintenanceTask = async (
   claim: MaintenanceClaim,
-  result: { intervalMs: number },
+  result: { checkpoint: string | null; intervalMs: number },
 ): Promise<void> => {
   const row = await queryOne<{ name: string }>(
     `UPDATE maintenance_tasks
         SET next_run_at = ${DATABASE_NOW_MS} + ?,
+            checkpoint = ?,
             lease_token = NULL,
             lease_expires_at = NULL,
             last_finished_at = ${DATABASE_NOW_MS}
       WHERE name = ? AND lease_token = ?
       RETURNING name`,
-    [result.intervalMs, claim.name, claim.leaseToken],
+    [result.intervalMs, result.checkpoint, claim.name, claim.leaseToken],
   );
   if (!row) throw new Error(`Lost maintenance lease for ${claim.name}`);
 };

@@ -35,7 +35,10 @@ import {
 
 describeWithEnv("db > table pruning", { db: true }, () => {
   test("reports a drained pruning run", async () => {
-    expect(await runDatabasePruning()).toEqual({ fullBatch: false });
+    expect(await runDatabasePruning()).toEqual({
+      checkpoint: null,
+      fullBatch: false,
+    });
   });
 
   test("reports a full bounded batch when stale rows remain", async () => {
@@ -46,7 +49,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
 
     const result = await runDatabasePruning();
 
-    expect(result).toEqual({ fullBatch: true });
+    expect(result).toEqual({ checkpoint: null, fullBatch: true });
     expect(await stringExists(`prune-backlog-${MAINTENANCE_PRUNE_BATCH}`)).toBe(
       true,
     );

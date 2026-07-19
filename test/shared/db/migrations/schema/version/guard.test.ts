@@ -97,8 +97,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-16_drop_checkout_stage_revisions",
         "2026-07-18_maintenance_tasks",
         "2026-07-18_drop_built_sites_last_pruned",
+        "2026-07-19_maintenance_checkpoint",
       ],
-      schemaHash: "1bw13rp",
+      schemaHash: "dhpq62",
     });
   });
 

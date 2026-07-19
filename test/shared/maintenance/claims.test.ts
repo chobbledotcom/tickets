@@ -16,9 +16,10 @@ const taskRow = (name = TASK) =>
     last_finished_at: number | null;
     last_started_at: number | null;
     lease_token: string | null;
+    checkpoint: string | null;
     next_run_at: number;
   }>(
-    `SELECT next_run_at, lease_token, last_started_at, last_finished_at
+    `SELECT checkpoint, next_run_at, lease_token, last_started_at, last_finished_at
        FROM maintenance_tasks WHERE name = ?`,
     [name],
   );
@@ -73,7 +74,7 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     const { first, second } = await replaceExpiredClaim();
 
     await expect(
-      finishMaintenanceTask(first!, { intervalMs: 60_000 }),
+      finishMaintenanceTask(first!, { checkpoint: null, intervalMs: 60_000 }),
     ).rejects.toThrow("Lost maintenance lease for claim_test");
     expect((await taskRow())?.lease_token).toBe(second?.leaseToken);
   });
@@ -85,14 +86,14 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
       [TASK],
     );
     const claim = await claimNextMaintenanceTask([TASK], 60_000);
-    const beforeFinish = Date.now();
-
     await finishMaintenanceTask(claim!, {
+      checkpoint: "next-page",
       intervalMs: 60_000,
     });
 
     const row = await taskRow();
-    expect(row?.next_run_at).toBeGreaterThanOrEqual(beforeFinish + 59_000);
+    expect(row?.next_run_at).toBe((row?.last_finished_at ?? 0) + 60_000);
+    expect(row?.checkpoint).toBe("next-page");
     expect(row?.last_finished_at).not.toBeNull();
     expect(row?.lease_token).toBeNull();
   });
@@ -100,14 +101,13 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
   test("failure uses the bounded retry interval", async () => {
     await syncMaintenanceTaskRows([TASK], []);
     const claim = await claimNextMaintenanceTask([TASK], 60_000);
-    const beforeFinish = Date.now();
-
     await finishMaintenanceTask(claim!, {
+      checkpoint: null,
       intervalMs: 120_000,
     });
 
     const row = await taskRow();
-    expect(row?.next_run_at).toBeGreaterThanOrEqual(beforeFinish + 119_000);
+    expect(row?.next_run_at).toBe((row?.last_finished_at ?? 0) + 120_000);
     expect(row?.last_finished_at).not.toBeNull();
   });
 
@@ -128,5 +128,20 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     await syncMaintenanceTaskRows([TASK, OTHER_TASK], []);
     await syncMaintenanceTaskRows([TASK], [OTHER_TASK]);
     expect(await taskRow(OTHER_TASK)).toBeNull();
+  });
+
+  test("keeps a disabled row until its active lease finishes", async () => {
+    await syncMaintenanceTaskRows([TASK], []);
+    const claim = await claimNextMaintenanceTask([TASK], 60_000);
+
+    await syncMaintenanceTaskRows([], [TASK]);
+
+    expect((await taskRow())?.lease_token).toBe(claim?.leaseToken);
+    await finishMaintenanceTask(claim!, {
+      checkpoint: claim!.checkpoint,
+      intervalMs: 60_000,
+    });
+    await syncMaintenanceTaskRows([], [TASK]);
+    expect(await taskRow()).toBeNull();
   });
 });

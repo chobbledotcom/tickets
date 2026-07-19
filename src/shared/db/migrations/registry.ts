@@ -367,6 +367,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-18_drop_built_sites_last_pruned",
     () => import("./2026-07-18_drop_built_sites_last_pruned.ts"),
   ),
+  // Let bounded maintenance scans continue without rescanning earlier rows.
+  entry(
+    "2026-07-19_maintenance_checkpoint",
+    () => import("./2026-07-19_maintenance_checkpoint.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

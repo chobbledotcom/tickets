@@ -1,5 +1,6 @@
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import { getEnv } from "#shared/env.ts";
+import { normalizePath } from "#shared/path.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
 
 export const SCHEDULED_PATH = "/scheduled";
@@ -19,7 +20,7 @@ export const checkScheduledAccess = (
   request: Pick<Request, "method" | "url" | "headers">,
   key: string | undefined,
 ): ScheduledAccess => {
-  if (new URL(request.url).pathname !== SCHEDULED_PATH) {
+  if (normalizePath(new URL(request.url).pathname) !== SCHEDULED_PATH) {
     return { kind: "not_scheduled" };
   }
   if (request.method !== "POST" || key === undefined) {

@@ -1,14 +1,16 @@
+import { validateBootChecks } from "#shared/boot-checks.ts";
 import {
   type BuildSiteInput,
   type BuildSiteResult,
   builderApi,
 } from "#shared/builder.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import {
-  type BuiltSite,
   builtSites,
   builtSitesCrudTable,
   insertBuiltSite,
 } from "#shared/db/built-sites.ts";
+import { initDb } from "#shared/db/migrations.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 
 const nextSiteName = async (): Promise<string> =>
@@ -18,6 +20,8 @@ export const buildRetainedSite = async (
   name: string,
   input: BuildSiteInput,
 ): Promise<{ result: BuildSiteResult; retainedId: number }> => {
+  validateBootChecks();
+  await initDb();
   const retainedId = { value: 0 };
   const result = await builderApi.buildSite(input, async (site) => {
     const row = await insertBuiltSite(

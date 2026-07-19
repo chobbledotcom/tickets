@@ -11,9 +11,9 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { addMonthsIso, parseDateMs } from "#shared/dates.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import {
   assignBuiltSite,
-  type BuiltSite,
   getAssignableBuiltSites,
   siteBaseUrl,
   updateBuiltSiteRenewalState,

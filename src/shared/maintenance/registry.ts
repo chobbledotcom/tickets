@@ -18,9 +18,10 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 2,
     maxExternalCalls: 0,
     name: "database_pruning",
-    run: async ({ requestFollowUp }) => {
+    run: async ({ checkpoint, requestFollowUp, setCheckpoint }) => {
       const { runDatabasePruning } = await import("#shared/db/prune.ts");
-      const result = await runDatabasePruning();
+      const result = await runDatabasePruning(checkpoint);
+      setCheckpoint(result.checkpoint);
       if (result.fullBatch) requestFollowUp();
     },
     settingsKeys: [
