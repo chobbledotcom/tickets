@@ -2,12 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import type { StripeWebhookEvent } from "#shared/stripe.ts";
+import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import {
   constructTestWebhookEvent,
+  type StripeWebhookEvent,
+} from "#shared/stripe/webhook.ts";
+import {
   resetStripeClient,
   retrievePaymentIntent,
-  sanitizeErrorDetail,
   stripeApi,
 } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -286,7 +288,7 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("verifyWebhookSignature delegation", () => {
-    test("delegates to stripe.ts verifyWebhookSignature", async () => {
+    test("delegates to Stripe webhook verification", async () => {
       const TEST_SECRET = "whsec_provider_verify_test";
       await activateStripe(TEST_SECRET, "we_provider_test");
 
@@ -412,10 +414,10 @@ describeStripe("stripe-provider", () => {
     });
   });
 
-  describe("sanitizeErrorDetail edge cases", () => {
+  describe("sanitizeStripeError edge cases", () => {
     test("returns err.name when no statusCode/code/type and name is set", () => {
       const err = new TypeError("something went wrong");
-      const detail = sanitizeErrorDetail(err);
+      const detail = sanitizeStripeError(err);
       expect(detail).toBe("TypeError");
     });
   });

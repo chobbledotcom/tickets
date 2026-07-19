@@ -4,7 +4,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { type StripeConnectionTestResult, stripeApi } from "#shared/stripe.ts";
+import type { StripeConnectionTestResult } from "#shared/stripe/endpoints.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,

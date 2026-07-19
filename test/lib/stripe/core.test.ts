@@ -4,15 +4,17 @@ import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
-import type { StripeWebhookEvent } from "#shared/stripe.ts";
 import {
   constructTestWebhookEvent,
+  type StripeWebhookEvent,
+  verifyWebhookSignature,
+} from "#shared/stripe/webhook.ts";
+import {
   createCheckoutSession,
   getStripeClient,
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
-  verifyWebhookSignature,
 } from "#shared/stripe.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";

@@ -3,15 +3,17 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import type { StripeWebhookEvent } from "#shared/stripe.ts";
+import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import {
   constructTestWebhookEvent,
+  type StripeWebhookEvent,
+  verifyWebhookSignature,
+} from "#shared/stripe/webhook.ts";
+import {
   createCheckoutSession,
   detectStripeKeyMode,
   refundPayment,
-  sanitizeErrorDetail,
   testStripeConnection,
-  verifyWebhookSignature,
 } from "#shared/stripe.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { testListing } from "#test-utils/factories.ts";
@@ -207,20 +209,20 @@ describeStripe("stripe", () => {
     });
   });
 
-  describe("sanitizeErrorDetail", () => {
+  describe("sanitizeStripeError", () => {
     test("returns 'unknown' for non-Error values", () => {
-      expect(sanitizeErrorDetail("string error")).toBe("unknown");
-      expect(sanitizeErrorDetail(null)).toBe("unknown");
-      expect(sanitizeErrorDetail(42)).toBe("unknown");
-      expect(sanitizeErrorDetail(undefined)).toBe("unknown");
+      expect(sanitizeStripeError("string error")).toBe("unknown");
+      expect(sanitizeStripeError(null)).toBe("unknown");
+      expect(sanitizeStripeError(42)).toBe("unknown");
+      expect(sanitizeStripeError(undefined)).toBe("unknown");
     });
 
     test("returns error name for plain Error without Stripe fields", () => {
-      expect(sanitizeErrorDetail(new Error("sensitive message"))).toBe("Error");
+      expect(sanitizeStripeError(new Error("sensitive message"))).toBe("Error");
     });
 
     test("returns error name for typed errors without Stripe fields", () => {
-      expect(sanitizeErrorDetail(new TypeError("bad type"))).toBe("TypeError");
+      expect(sanitizeStripeError(new TypeError("bad type"))).toBe("TypeError");
     });
 
     test("extracts safe Stripe error fields", () => {
@@ -231,7 +233,7 @@ describeStripe("stripe", () => {
         statusCode: 401,
         type: "StripeAuthenticationError",
       });
-      expect(sanitizeErrorDetail(err)).toBe(
+      expect(sanitizeStripeError(err)).toBe(
         "status=401 code=api_key_invalid type=StripeAuthenticationError request=req_123",
       );
     });
@@ -239,7 +241,7 @@ describeStripe("stripe", () => {
     test("extracts partial Stripe fields", () => {
       const err = new Error("Resource not found");
       Object.assign(err, { statusCode: 404 });
-      expect(sanitizeErrorDetail(err)).toBe("status=404");
+      expect(sanitizeStripeError(err)).toBe("status=404");
     });
 
     test("extracts code and type without statusCode", () => {
@@ -248,7 +250,7 @@ describeStripe("stripe", () => {
         code: "ECONNREFUSED",
         type: "StripeConnectionError",
       });
-      expect(sanitizeErrorDetail(err)).toBe(
+      expect(sanitizeStripeError(err)).toBe(
         "code=ECONNREFUSED type=StripeConnectionError",
       );
     });
@@ -260,7 +262,7 @@ describeStripe("stripe", () => {
         statusCode: 401,
         type: "StripeAuthenticationError",
       });
-      const detail = sanitizeErrorDetail(err);
+      const detail = sanitizeStripeError(err);
       expect(detail).not.toContain(sensitiveMessage);
       expect(detail).not.toContain("sk_live");
     });
@@ -269,7 +271,7 @@ describeStripe("stripe", () => {
       // Error with no statusCode/code/type but has a name
       const err = new Error("something");
       // Plain Error: err.name is "Error", parts is empty, so returns err.name || "Error"
-      expect(sanitizeErrorDetail(err)).toBe("Error");
+      expect(sanitizeStripeError(err)).toBe("Error");
     });
   });
 

@@ -19,6 +19,7 @@ import {
   type WebhookEvent,
   type WebhookVerifyResult,
 } from "#shared/payments.ts";
+import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
 import {
   createCheckoutSession,
   isoFromUnixSeconds,
@@ -26,7 +27,6 @@ import {
   retrievePaymentIntent,
   setupWebhookEndpoint,
   refundPayment as stripeRefund,
-  verifyWebhookSignature,
 } from "#shared/stripe.ts";
 
 /** Stripe's payment_status string, or "unpaid" when it isn't one we know. */

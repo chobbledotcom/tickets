@@ -208,7 +208,7 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/limits.ts:ADDRESS_CACHE_DAYS",
   "shared/limits.ts:PRUNE_INTERVAL_HOURS",
   // Test helper for creating signed webhook payloads
-  "shared/stripe.ts:constructTestWebhookEvent",
+  "shared/stripe/webhook.ts:constructTestWebhookEvent",
   // Reset cached Square client between tests
   "shared/square.ts:resetSquareClient",
   // Test helper for creating signed Square webhook payloads

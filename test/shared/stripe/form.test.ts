@@ -27,4 +27,8 @@ describe("encodeStripeForm", () => {
       encodeStripeForm({ absent: undefined, empty: null, live: false }),
     ).toBe("empty=&live=false");
   });
+
+  test("matches stripe-node bracket encoding inside values", () => {
+    expect(encodeStripeForm({ note: "Ref[2026]" })).toBe("note=Ref[2026]");
+  });
 });

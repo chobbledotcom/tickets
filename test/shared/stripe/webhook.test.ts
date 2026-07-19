@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import type { StripeWebhookEvent } from "#shared/stripe.ts";
 import {
   constructTestWebhookEvent,
+  type StripeWebhookEvent,
   verifyWebhookSignature,
-} from "#shared/stripe.ts";
+} from "#shared/stripe/webhook.ts";
 import { signedHeader } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { activateStripe } from "#test-utils/settings.ts";

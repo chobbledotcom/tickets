@@ -107,7 +107,7 @@ test("the small client matches stripe-node requests for every used operation", a
         quantity: 1,
       },
     ],
-    metadata: { order: "signed" },
+    metadata: { order: "signed[2026]" },
     mode: "payment" as const,
     success_url: "https://example.com/success",
   };
