@@ -33,7 +33,7 @@
   "public.ticket.no_dates_available": "No dates are currently available for booking.",
   "public.ticket.number_of_tickets": "Number of Tickets",
   "public.ticket.choose_option": "Choose an option for {name}",
-  "public.ticket.choose_total": "Choose {count, plural, one {# add-on} other {# add-ons}} in total",
+  "public.ticket.choose_total": "Choose add-ons to match your ticket quantity.",
   "public.ticket.child_from_price": "(from {price})",
   "public.ticket.child_required": "Please choose an option for {name}.",
   "public.ticket.child_too_few": "Choose {count, plural, one {# more add-on} other {# more add-ons}} for {name}.",

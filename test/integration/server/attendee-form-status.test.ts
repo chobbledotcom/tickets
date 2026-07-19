@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import {
   attendeeStatuses,
   requirePaidDefaultStatus,
@@ -23,7 +24,7 @@ import {
   createTestAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { postListingSale } from "#test-utils/ledger.ts";
+import { postListingSale, postWriteoffAdjustment } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -123,10 +124,17 @@ describeWithEnv(
       });
 
       test("edit page warns when a reservation has lost its balance", async () => {
-        // £1 deposit paid on the £10 order, but the balance was cleared to £0.
         const reservation = await newReservation();
-        const id = await seedAttendee(reservation.id, 0);
+        const id = await seedAttendee(reservation.id, 900);
+        // £1 was paid on the £10 order, then a manual write-off cleared the £9
+        // balance without adding cash.
+        await postWriteoffAdjustment(attendeeAccount(id), 900, [
+          "clear-reservation",
+          id,
+        ]);
+
         const html = await getEdit(id);
+
         expect(html).toContain("still unpaid");
       });
 
@@ -136,6 +144,17 @@ describeWithEnv(
         const html = await getEdit(id);
         expect(html).toContain("consider moving it to a paid status");
         expect(html).toContain('class="info"');
+      });
+
+      test("edit page treats a fully-paid discounted reservation as paid", async () => {
+        const reservation = await newReservation();
+        // The saved £9 order is fully paid even though the listing now costs £10.
+        const id = await seedAttendee(reservation.id, 0, 900);
+
+        const html = await getEdit(id);
+
+        expect(html).toContain("consider moving it to a paid status");
+        expect(html).not.toContain("still unpaid");
       });
 
       test("edit page stays quiet for a reservation that still owes a balance", async () => {

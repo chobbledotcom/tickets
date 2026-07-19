@@ -422,14 +422,19 @@ const buildStyles = (): HTMLStyleElement => {
   style.textContent = `
     .cart-button { position: fixed; right: 1rem; bottom: 1rem; padding: .75rem 1rem;
       border: 0; border-radius: 999px; background: #1a1a1a; color: #fff; cursor: pointer; }
-    dialog { border: 0; border-radius: .5rem; padding: 1.25rem; max-width: 28rem; }
-    .row { display: flex; gap: .5rem; align-items: center; justify-content: space-between;
-      padding: .25rem 0; }
-    .stepper button { margin: 0 .15rem; }
+    dialog { border: 0; border-radius: .5rem; box-sizing: border-box; padding: 1.25rem;
+      width: min(calc(100vw - 2rem), 28rem); }
+    .row { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+      gap: .35rem .75rem; align-items: center; padding: .4rem 0; }
+    .name { overflow-wrap: anywhere; }
+    .stepper { grid-column: 1 / -1; display: flex; align-items: center; gap: .35rem; }
+    .stepper button { min-height: 2rem; min-width: 2rem; margin: 0; padding: .3rem .5rem; }
+    .stepper button:last-child { margin-left: auto; }
     .subtotal { font-weight: 700; }
     .caveat { font-size: .85em; opacity: .8; }
     .continue { display: block; width: 100%; margin-top: .75rem; padding: .6rem;
       border: 0; border-radius: .35rem; background: #1a1a1a; color: #fff; cursor: pointer; }
+    .close { display: block; width: 100%; margin-top: .5rem; padding: .5rem; }
   `;
   return style;
 };

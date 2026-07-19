@@ -36,7 +36,7 @@ describeWithEnv(
   () => {
     afterEach(() => resetStripeClient());
 
-    test("reservation balance page projects the gross sale (deposit accuracy deferred to concern 5)", async () => {
+    test("reservation balance page shows cash paid and the discounted full price", async () => {
       const listing = await setupReservationListing({
         bookingFee: "0",
         reservationAmount: "10%",
@@ -66,22 +66,17 @@ describeWithEnv(
         expect(await modifierUsageCount(promo.id)).toBe(1);
         expect(await modifierUsageAmount(promo.id)).toBe(100);
 
-        // Concern 4 projects price_paid from the per-row ledger SALE leg, which
-        // is the gross list price (1000), not the 90 reservation deposit. So the
-        // order summary's "already paid" (depositPaid) and "full order price"
-        // overstate to the gross sale; only the balance due (remaining_balance,
-        // £8.10) stays accurate. No live site takes reservations, so this is
-        // accepted — concern 5 restores the deposit/owed model for the page.
         const summary = await getAttendeeOrderSummary(attendee.id);
-        expect(summary.depositPaid).toBe(1000); // gross sale leg, not the 90 deposit
-        expect(summary.fullPrice).toBe(1810); // gross sale + remaining balance
+        expect(summary.depositPaid).toBe(90);
+        expect(summary.fullPrice).toBe(900);
 
         const token = await signBalanceToken(attendee.id);
         const html = await (
           await handleRequest(mockRequest(`/pay/${token}`))
         ).text();
-        expect(html).toContain("Full order price");
-        expect(html).toContain("£8.10"); // balance due — still correct
+        expect(html).toContain("Full order price:</strong> £9");
+        expect(html).toContain("Already paid:</strong> £0.90");
+        expect(html).toContain("Balance due:</strong> £8.10");
       } finally {
         session.restore();
       }
@@ -170,6 +165,9 @@ describeWithEnv(
       // the whole £10 is owed. (price_paid no longer tracks cash — concern 5.)
       expect(attendee.pricePaid).toBe(1000);
       expect(attendee.remainingBalance).toBe(1000);
+      const summary = await getAttendeeOrderSummary(attendee.id);
+      expect(summary.fullPrice).toBe(1100);
+      expect(summary.reservationSubtotal).toBe(1000);
     });
 
     test("zero-deposit reservations without a fee skip the provider but keep the full balance", async () => {

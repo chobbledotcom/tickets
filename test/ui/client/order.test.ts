@@ -70,6 +70,11 @@ describe("order widget", {
     h.run(makeCatalog([listing({ id: 1, slug: "open" })], true));
 
     expect(hostElOrNull(h)).not.toBeNull();
+    expect(
+      h.document
+        .querySelector("[data-chobble-order]")!
+        .getAttribute("data-chobble-order"),
+    ).toBe("");
     const anchors = h.document.querySelectorAll("a");
     expect(anchors[0]!.getAttribute("data-chobble-enhanced")).toBe("1");
     expect(anchors[1]!.getAttribute("data-chobble-enhanced")).toBeNull();
@@ -134,11 +139,27 @@ describe("order widget", {
     expect(prevented).toBe(true);
     expect(cartButton(h).hidden).toBe(false);
     expect(cartButton(h).querySelector(".count")!.textContent).toBe("1");
+    expect(cartButton(h).textContent).toBe("Tickets 1");
     expect(cartButton(h).getAttribute("aria-label")).toBe(
       "View ticket cart, 1 item",
     );
     expect(h.animateCalls).toHaveLength(1);
-    expect(logHas(h, "add")).toBe(true);
+    expect(h.animateCalls[0]).toEqual({
+      keyframes: [
+        { transform: "scale(1)" },
+        { transform: "scale(1.15)" },
+        { transform: "scale(1)" },
+      ],
+      options: { duration: 200 },
+    });
+    expect(h.logs).toContainEqual([
+      "[chobble-order]",
+      "add",
+      "open",
+      "x1",
+      "cart now",
+      [{ quantity: 1, slug: "open" }],
+    ]);
   });
 
   test("renders accessible cart chrome with typed buttons", () => {
@@ -151,13 +172,25 @@ describe("order widget", {
 
     expect(textOf(dialog, "h2")).toBe("Your tickets");
     expect(textOf(dialog, ".row .name")).toBe("Open Day");
+    expect(textOf(dialog, ".continue")).toBe("Continue");
+    expect(textOf(dialog, ".close")).toBe("Close");
 
     expect(buttonType(dialog, ".continue")).toBe("button");
     expect(buttonType(dialog, ".close")).toBe("button");
     const steppers = stepperButtons(dialog);
     expect(steppers.map((b) => b.type)).toEqual(["button", "button", "button"]);
+    expect(steppers.map((b) => b.textContent)).toEqual(["−", "+", "Remove"]);
     expect(steppers[0]!.getAttribute("aria-label")).toBe("Decrease quantity");
     expect(steppers[1]!.getAttribute("aria-label")).toBe("Increase quantity");
+  });
+
+  test("gives mobile cart rows and actions their own space", () => {
+    mountOpenListing(h, true);
+    const styles = shadow(h).querySelector("style")!.textContent;
+
+    expect(styles).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(styles).toContain(".stepper { grid-column: 1 / -1");
+    expect(styles).toContain(".close { display: block; width: 100%");
   });
 
   test("data-add-quantity adds the requested count, pluralising the label", () => {
@@ -169,6 +202,14 @@ describe("order widget", {
     expect(cartButton(h).getAttribute("aria-label")).toBe(
       "View ticket cart, 3 items",
     );
+  });
+
+  test("data-add-quantity accepts exactly one", () => {
+    setBody(h, addLink("open", "1"));
+    h.run(makeCatalog([listing({ id: 1, slug: "open" })], false));
+    clickAnchor(h, "open");
+
+    expect(storedCart(h)).toEqual([{ quantity: 1, slug: "open" }]);
   });
 
   test("an invalid data-add-quantity falls back to one", () => {
@@ -221,6 +262,8 @@ describe("order widget", {
     // Nothing was dropped, so no notice is rendered at construction. (Checked
     // before opening: a re-render would clear a stale notice and hide the bug.)
     expect(shadow(h).querySelector(".notice")).toBeNull();
+    expect(cartButton(h).hidden).toBe(false);
+    expect(cartButton(h).querySelector(".count")!.textContent).toBe("3");
     const dialog = openCart(h);
 
     // formatMoney strips trailing zeros for whole amounts (stripIfInteger).
@@ -305,6 +348,14 @@ describe("order widget", {
 
     expect(h.navigations).toEqual([`${ORIGIN}/ticket/a+b?q_11=1&q_22=2`]);
     expect(logHas(h, "continue ->")).toBe(true);
+  });
+
+  test("Continue navigates for a one-listing cart", () => {
+    mountOpenListing(h);
+    clickAnchor(h, "open");
+    clickIn(openCart(h), ".continue");
+
+    expect(h.navigations).toEqual([`${ORIGIN}/ticket/open?q_1=1`]);
   });
 
   test("Continue with an empty cart does not navigate", () => {
