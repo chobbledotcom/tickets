@@ -127,6 +127,7 @@ src/shared/db/table.ts:715:6  === → ==   # wrapNullable constrains T to exclud
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/login-attempts.ts:46:39  ?? → ||
+src/shared/db/users.ts:260:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
