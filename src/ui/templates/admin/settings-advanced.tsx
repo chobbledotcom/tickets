@@ -57,13 +57,13 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
   listingColumnOrder: string;
   attendeeColumnOrder: string;
-  paymentProvider: string;
+  paymentProvider: string | null;
   smsGatewayUsername: string;
   smsGatewayBaseUrl: string;
   smsGatewayPasswordConfigured: boolean;
   smsGatewayPassphraseConfigured: boolean;
   smsGatewayWebhookConfigured: boolean;
-  scheduledTaskKey: string;
+  scheduledTaskKey: string | undefined;
 };
 
 export const adminAdvancedSettingsPage = (

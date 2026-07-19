@@ -45,7 +45,7 @@ const getSettingsPageState = async () => {
     embedHosts: settings.embedHosts,
     enabledFeatures: enabledFeaturesWithUsage(settings.features, featureUsage),
     headerImageUrl: settings.headerImageUrl,
-    paymentProvider: settings.paymentProvider ?? "",
+    paymentProvider: settings.paymentProvider,
     squareSandbox: settings.square.sandbox,
     squareTokenConfigured: settings.square.hasToken,
     squareWebhookConfigured: settings.square.webhookSignatureKey !== "",
@@ -70,8 +70,8 @@ const renderSettingsPage = async (session: AuthSession) => {
 
 /** Gather state for the advanced settings page */
 const getAdvancedSettingsPageState = async (
-  subdomainPreview = "",
-  subdomainPreviewFullDomain = "",
+  subdomainPreview: string,
+  subdomainPreviewFullDomain: string,
 ) => {
   const bunnyCdnConfigured = isBunnyCdnEnabled();
   const bunnyDnsEnabled = isBunnyDnsEnabled();
@@ -88,17 +88,14 @@ const getAdvancedSettingsPageState = async (
     attendeeColumnOrder: settings.attendeeColumnOrder,
     bunnyCdnEnabled: bunnyCdnConfigured,
     bunnyDnsEnabled,
-    bunnyDnsSubdomainSuffix: bunnyDnsEnabled
-      ? getBunnyDnsSubdomainSuffix()
-      : "",
+    bunnyDnsSubdomainSuffix: getBunnyDnsSubdomainSuffix(),
     bunnySubdomain: settings.bunnySubdomain,
     businessEmail: settings.businessEmail,
     cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     confirmationTemplates,
     customCss: settings.customCss,
-    customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",
-    customDomainLastValidated:
-      (bunnyCdnConfigured ? settings.customDomainLastValidated : null) ?? "",
+    customDomain: settings.customDomain,
+    customDomainLastValidated: settings.customDomainLastValidated,
     emailApiKeyConfigured: settings.email.hasApiKey,
     emailFromAddress: settings.email.fromAddress,
     emailProvider: settings.email.provider,
@@ -123,8 +120,8 @@ const getAdvancedSettingsPageState = async (
       return `Host env (${hostConfig.issuerId})`;
     })(),
     listingColumnOrder: settings.listingColumnOrder,
-    paymentProvider: settings.paymentProvider ?? "",
-    scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV) ?? "",
+    paymentProvider: settings.paymentProvider,
+    scheduledTaskKey: getEnv(SCHEDULED_TASK_KEY_ENV),
     showPublicApi: settings.showPublicApi,
     smsGatewayBaseUrl: settings.smsGatewayBaseUrl,
     smsGatewayPassphraseConfigured: settings.smsGateway.hasPassphrase,
@@ -140,8 +137,8 @@ const getAdvancedSettingsPageState = async (
 /** Render the advanced settings page with current state */
 const renderAdvancedSettingsPage = async (
   session: AuthSession,
-  subdomainPreview = "",
-  subdomainPreviewFullDomain = "",
+  subdomainPreview: string,
+  subdomainPreviewFullDomain: string,
 ) => {
   const state = await getAdvancedSettingsPageState(
     subdomainPreview,
@@ -163,7 +160,7 @@ export const handleAdminSettingsAdvancedGet: TypedRouteHandler<"GET /admin/setti
   ownerPage(async (session) => {
     const flash = getFlash();
     const [subdomainPreview = "", subdomainPreviewFullDomain = ""] =
-      flash.result?.split("\n") ?? [];
+      flash.result ? flash.result.split("\n") : [];
     return await renderAdvancedSettingsPage(
       session,
       subdomainPreview,

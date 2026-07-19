@@ -27,7 +27,7 @@ import { ThemeForm } from "#templates/admin/settings/theme.tsx";
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   stripeKeyMode: string | null;
-  paymentProvider: string;
+  paymentProvider: string | null;
   squareTokenConfigured: boolean;
   squareSandbox: boolean;
   squareWebhookConfigured: boolean;
