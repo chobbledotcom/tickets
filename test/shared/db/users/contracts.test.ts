@@ -4,10 +4,7 @@ import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import { generateDataKey, wrapKeyWithToken } from "#shared/crypto/keys.ts";
-import { execute, getDb, insert, queryAll } from "#shared/db/client.ts";
-import { logisticsAgents } from "#shared/db/logistics-agents.ts";
-import { createSession } from "#shared/db/sessions.ts";
-import { userAgents } from "#shared/db/user-agents.ts";
+import { execute } from "#shared/db/client.ts";
 import {
   acceptInvite,
   activateKeylessUser,
@@ -29,15 +26,10 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
-
-const getUserOwnedRows = (userId: number): Promise<Array<{ source: string }>> =>
-  queryAll<{ source: string }>(
-    `SELECT 'api_keys' AS source FROM api_keys WHERE user_id = ?
-     UNION ALL SELECT 'sessions' FROM sessions WHERE user_id = ?
-     UNION ALL SELECT 'user_logistics_agents' FROM user_logistics_agents WHERE user_id = ?
-     UNION ALL SELECT 'users' FROM users WHERE id = ?`,
-    [userId, userId, userId, userId],
-  );
+import {
+  addUserOwnedAccessRecords,
+  getUserOwnedRowSources,
+} from "#test-utils/user-owned-records.ts";
 
 describeWithEnv("db > users contracts", { db: true }, () => {
   test("returns every display field in user id order", async () => {
@@ -198,31 +190,16 @@ describeWithEnv("db > users contracts", { db: true }, () => {
       "delete-invite",
       "2099-01-01T00:00:00.000Z",
     );
-    const agent = await logisticsAgents.table.insert({ name: "Delete van" });
-    await userAgents.setIds(user.id, [agent.id]);
-    await createSession(
-      "delete-session",
-      "delete-csrf",
-      Date.now() + 60_000,
-      null,
-      user.id,
-    );
-    await getDb().execute(
-      insert("api_keys", {
-        created: "2026-07-19T00:00:00.000Z",
-        key_index: "delete-key-index",
-        last_used: "",
-        name: await encrypt("Delete key"),
-        user_id: user.id,
-        wrapped_data_key: "delete-wrapped-key",
-      }),
-    );
-    expect(
-      (await getUserOwnedRows(user.id)).map(({ source }) => source),
-    ).toEqual(["api_keys", "sessions", "user_logistics_agents", "users"]);
+    await addUserOwnedAccessRecords(user.id, "delete");
+    expect(await getUserOwnedRowSources(user.id)).toEqual([
+      "api_keys",
+      "sessions",
+      "user_logistics_agents",
+      "users",
+    ]);
 
     await deleteUser(user.id);
 
-    expect(await getUserOwnedRows(user.id)).toEqual([]);
+    expect(await getUserOwnedRowSources(user.id)).toEqual([]);
   });
 });

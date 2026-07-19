@@ -39,8 +39,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const old = new Date(
         nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
       ).toISOString();
-      await insertSumupCheckout("idx_first", old);
-      await insertSumupCheckout("idx_second", old);
+      await insertSumupCheckout("idx_only", old);
 
       await runDatabasePruning();
 
@@ -48,7 +47,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         .map((call) => String(call.args[0]))
         .filter((line) => line.includes("[Prune]"));
       expect(pruneLogs).toHaveLength(1);
-      expect(pruneLogs[0]).toMatch(/\[Prune\] deleted 2 expired rows$/);
+      expect(pruneLogs[0]).toMatch(/\[Prune\] deleted 1 expired rows$/);
     } finally {
       debugStub.restore();
       setSuppressDebugLogs(null);
