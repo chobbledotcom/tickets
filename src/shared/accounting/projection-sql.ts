@@ -131,6 +131,18 @@ export const externalCashBalanceSubquery = (
   return `(SELECT ${signedSumCase(received, returned)} FROM transfers WHERE ${received} OR ${returned})`;
 };
 
+/** Original amount billed to one attendee by immutable booking legs. Ticket
+ * sales, surcharges and fees add; discounts subtract. Payments, refunds,
+ * write-offs and later corrections do not change the saved order total. */
+export const bookingTotalSubquery = (type: string, idExpr: string): string => {
+  const billed = accountPredicate("source", type, idExpr);
+  const discounted = accountPredicate("dest", type, idExpr);
+  const kinds = [KIND.sale, KIND.modifier, KIND.fee]
+    .map((kind) => `'${kind}'`)
+    .join(", ");
+  return `(SELECT ${signedSumCase(billed, discounted)} FROM transfers WHERE kind IN (${kinds}) AND (${billed} OR ${discounted}))`;
+};
+
 /**
  * The bare subquery for what an attendee still owes: the negation of their net
  * account balance (outstanding = −balance). The single place the "owed equals

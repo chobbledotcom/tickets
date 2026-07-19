@@ -22,6 +22,7 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   createNonReservationAttendee,
@@ -249,8 +250,21 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(summary.lines).toHaveLength(1);
     expect(summary.depositPaid).toBe(300);
     expect(summary.fullPrice).toBe(300);
-    expect(summary.listedFullPrice).toBe(2000);
     expect(summary.totalQuantity).toBe(2);
+  });
+
+  test("order summary preserves the original order price after a full refund", async () => {
+    const { attendeeId, listingId } = await createReservedAttendee(0);
+    const result = await recordAttendeeRefund(attendeeId, [
+      {
+        sessionIds: [`sale-${listingId}-${attendeeId}`],
+      },
+    ]);
+
+    expect(result).toEqual({ posted: true });
+    const summary = await getAttendeeOrderSummary(attendeeId);
+    expect(summary.depositPaid).toBe(0);
+    expect(summary.fullPrice).toBe(100);
   });
 
   test("order summary skips bookings whose listing no longer exists", async () => {
@@ -294,7 +308,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       listingId,
       otherListing.id,
     ]);
-    expect(one.queryCount).toBe(3);
+    expect(one.queryCount).toBe(2);
     expect(multiple.queryCount).toBe(one.queryCount);
   });
 });

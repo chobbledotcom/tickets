@@ -26,7 +26,8 @@ const isScenario = (value: unknown): value is ScreenshotScenario => {
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate.name) &&
     typeof candidate.run === "function" &&
     (candidate.setupUsername === undefined ||
-      typeof candidate.setupUsername === "string") &&
+      (typeof candidate.setupUsername === "string" &&
+        candidate.setupUsername.trim().length > 0)) &&
     (candidate.elementSelector === undefined ||
       typeof candidate.elementSelector === "string") &&
     (candidate.fullPage === undefined ||

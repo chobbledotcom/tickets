@@ -11,6 +11,7 @@ import {
   accountBalanceSubquery,
   accountPredicate,
   attendeeOwedSubquery,
+  bookingTotalSubquery,
   creditsLessWriteoffDebits,
   externalCashBalanceSubquery,
   LEG_COLUMNS,
@@ -121,6 +122,21 @@ describe("externalCashBalanceSubquery", () => {
     expect(externalCashBalanceSubquery(ATTENDEE, "a.id")).toBe(
       `(SELECT ${signedSumCase(received, returned)} FROM transfers` +
         ` WHERE ${received} OR ${returned})`,
+    );
+  });
+});
+
+describe("bookingTotalSubquery", () => {
+  test("adds booking charges and subtracts discounts without counting refunds", () => {
+    const billed = `source_type = '${ATTENDEE}' AND source_id = CAST(a.id AS TEXT)`;
+    const discounted = `dest_type = '${ATTENDEE}' AND dest_id = CAST(a.id AS TEXT)`;
+    const kinds = [KIND.sale, KIND.modifier, KIND.fee]
+      .map((kind) => `'${kind}'`)
+      .join(", ");
+
+    expect(bookingTotalSubquery(ATTENDEE, "a.id")).toBe(
+      `(SELECT ${signedSumCase(billed, discounted)} FROM transfers` +
+        ` WHERE kind IN (${kinds}) AND (${billed} OR ${discounted}))`,
     );
   });
 });

@@ -15,6 +15,7 @@ import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import {
   attendeeOwedSubquery,
+  bookingTotalSubquery,
   externalCashBalanceSubquery,
 } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
@@ -80,7 +81,6 @@ export type OrderLine = {
   listingId: number;
   name: string;
   quantity: number;
-  unitPrice: number;
   pricePaid: number;
 };
 
@@ -88,14 +88,13 @@ export type OrderLine = {
 export type OrderSummary = {
   lines: OrderLine[];
   fullPrice: number;
-  listedFullPrice: number;
   totalQuantity: number;
   depositPaid: number;
 };
 
 /**
  * Build a PII-free recap of an attendee's booked products: line names, the
- * full order price (current listing prices), the quantity and what's been paid
+ * original order price, the quantity and what's been paid
  * so far. Used by the admin balance panel and the public balance page.
  */
 type OrderRow = {
@@ -103,7 +102,6 @@ type OrderRow = {
   quantity: number;
   price_paid: number;
   listing_name: EnvKeyEncrypted | null;
-  listing_unit_price: number | null;
 };
 
 const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
@@ -120,69 +118,51 @@ const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
               "listingAttendee.ledger_event_group",
               "listingAttendee.id",
             )},
-            listing.name AS listing_name,
-            listing.unit_price AS listing_unit_price
+            listing.name AS listing_name
        FROM listing_attendees AS listingAttendee
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
       WHERE listingAttendee.attendee_id = ? AND listingAttendee.quantity > 0
       ORDER BY listingAttendee.id`,
 });
 
-const attendeeAmountPaidStatement = (attendeeId: number): SqlStatement => ({
-  args: Array(4).fill(String(attendeeId)),
-  sql: `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid`,
+const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => ({
+  args: Array(8).fill(String(attendeeId)),
+  sql: `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid,
+               ${bookingTotalSubquery("attendee", "?")} AS full_price`,
 });
 
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
-  row.listing_name === null || row.listing_unit_price === null
+  row.listing_name === null
     ? null
     : {
         listingId: row.listing_id,
         name: await decrypt(row.listing_name),
         pricePaid: row.price_paid,
         quantity: row.quantity,
-        unitPrice: row.listing_unit_price,
       };
 
 export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
-  const [orderResult, stateResult, paidResult] = await queryBatch([
+  const [orderResult, paidResult] = await queryBatch([
     attendeeOrderRowsStatement(attendeeId),
-    {
-      args: [attendeeId, ATTENDEE_KIND],
-      sql: `SELECT status_id, ${remainingBalanceFromLedger(
-        "attendees.id",
-      )} FROM attendees WHERE id = ? AND kind = ?`,
-    },
-    attendeeAmountPaidStatement(attendeeId),
+    attendeeOrderMoneyStatement(attendeeId),
   ]);
   const rows = resultRows<OrderRow>(orderResult!);
-  const stateRow = resultRows<{
-    remaining_balance: number;
-    status_id: number | null;
-  }>(stateResult!)[0];
-  const paidRow = resultRows<{ amount_paid: number }>(paidResult!)[0]!;
-  const state = stateRow
-    ? {
-        remainingBalance: Number(stateRow.remaining_balance),
-        statusId: stateRow.status_id,
-      }
-    : null;
+  // The scalar SELECT has no FROM clause, so SQLite always returns one row.
+  const paidRow = resultRows<{ amount_paid: number; full_price: number }>(
+    paidResult!,
+  )[0]!;
   const depositPaid = Number(paidRow.amount_paid);
 
   // The LEFT JOIN keeps dangling booking rows visible so we can preserve the
   // previous behavior of dropping lines whose listing has since been deleted.
   const lines = compact(await mapParallel(orderLineFromRow)(rows));
 
-  const listedFullPrice = sumOf((l: OrderLine) => l.unitPrice * l.quantity)(
-    lines,
-  );
   return {
     depositPaid,
-    fullPrice: depositPaid + (state?.remainingBalance ?? 0),
+    fullPrice: Number(paidRow.full_price),
     lines,
-    listedFullPrice,
     totalQuantity: sumOf((l: OrderLine) => l.quantity)(lines),
   };
 };
