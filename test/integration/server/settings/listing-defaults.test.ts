@@ -116,6 +116,9 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         default_webhook_url: "https://example.com/hook",
       });
       expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toMatch(
+        /^\/admin\/listing-defaults\?flash=/,
+      );
       expectFlash(response, expect.stringContaining("Listing defaults saved"));
       expect(settings.listingDefaults).toEqual({
         hidden: true,

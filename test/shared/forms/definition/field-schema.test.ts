@@ -1,11 +1,28 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { renderField } from "#shared/forms/rendering.tsx";
+import { ensureMessageGroups } from "#shared/i18n.ts";
+
+const singleActionSelect = (id: string, invalidMessage?: string) =>
+  defineForm({
+    fields: [
+      {
+        ...(invalidMessage === undefined ? {} : { invalidMessage }),
+        label: "Action",
+        name: "action",
+        options: [{ label: "Pay", value: "pay" }],
+        type: "select",
+      },
+    ] as const,
+    id,
+  });
 
 describe("form field schema", () => {
+  beforeAll(() => ensureMessageGroups(["validation"]));
+
   test("renders select option hints from the field schema", () => {
     const form = defineForm({
       fields: [
@@ -50,17 +67,7 @@ describe("form field schema", () => {
   });
 
   test("uses the shared invalid message when a choice has no custom message", () => {
-    const form = defineForm({
-      fields: [
-        {
-          label: "Action",
-          name: "action",
-          options: [{ label: "Pay", value: "pay" }],
-          type: "select",
-        },
-      ] as const,
-      id: "default-choice-message",
-    });
+    const form = singleActionSelect("default-choice-message");
 
     expect(form.validate(new FormParams({ action: "refund" }))).toEqual({
       error: "Action is invalid.",
@@ -90,6 +97,15 @@ describe("form field schema", () => {
       const action: "pay" | "charge" | null = result.values.action;
       expect(action).toBe("pay");
     }
+  });
+
+  test("normalizes an empty select value to null", () => {
+    const form = singleActionSelect("empty-select-value");
+
+    expect(form.validate(new FormParams())).toEqual({
+      valid: true,
+      values: { action: null },
+    });
   });
 
   test("requires options when declaring a select field", () => {
@@ -129,7 +145,7 @@ describe("form field schema", () => {
     expect(defineEmptySelect).toThrow("Action must define at least one option");
   });
 
-  test("accepts spaces in comma-separated checkbox choices", () => {
+  test("rejects checkbox choices submitted as one comma-separated token", () => {
     const form = defineForm({
       fields: [
         {
@@ -148,8 +164,8 @@ describe("form field schema", () => {
     expect(
       form.validate(new FormParams({ days: "Monday, Wednesday" })),
     ).toEqual({
-      valid: true,
-      values: { days: "Monday, Wednesday" },
+      error: "Days is invalid.",
+      valid: false,
     });
   });
 
@@ -199,6 +215,7 @@ describe("form field schema", () => {
     const form = defineForm({
       fields: [
         { label: "Name", name: "name", section: "main", type: "text" },
+        { label: "Summary", name: "summary", type: "text" },
         {
           label: "Private",
           name: "private",
@@ -216,6 +233,7 @@ describe("form field schema", () => {
 
     expect(form.sections).toEqual(["main", "advanced"]);
     expect(form.section("main")).toContain('name="name"');
+    expect(form.section("main")).not.toContain('name="summary"');
     expect(form.section("advanced")).not.toContain('name="private"');
     expect(rejectUnknownSection).toThrow("Unknown section: missing");
   });

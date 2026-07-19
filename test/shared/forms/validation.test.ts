@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { validateForm } from "#shared/forms/validation.ts";
+import { ensureMessageGroups } from "#shared/i18n.ts";
 
 const field = (
   overrides: Partial<Field> & { name: string; label: string },
@@ -12,7 +13,32 @@ const requiredName: Field[] = [
   field({ label: "Name", name: "name", required: true }),
 ];
 
+const dayCheckboxFields = (invalidMessage?: string): Field[] => [
+  field({
+    ...(invalidMessage ? { invalidMessage } : {}),
+    label: "Days",
+    name: "days",
+    options: [
+      { label: "Monday", value: "Monday" },
+      { label: "Wednesday", value: "Wednesday" },
+    ],
+    type: "checkbox-group",
+  }),
+];
+
+const colorSelectFields = (invalidMessage?: string): Field[] => [
+  field({
+    ...(invalidMessage === undefined ? {} : { invalidMessage }),
+    label: "Color",
+    name: "color",
+    options: [{ label: "Red", value: "red" }],
+    type: "select",
+  }),
+];
+
 describe("validateForm", () => {
+  beforeAll(() => ensureMessageGroups(["validation"]));
+
   test("rejects empty required field", () => {
     const result = validateForm(new FormParams({ name: "" }), requiredName);
     expect(result.valid).toBe(false);
@@ -114,24 +140,108 @@ describe("validateForm", () => {
     expect(validateForm(new FormParams({ code: "" }), fields).valid).toBe(true);
   });
 
-  test("collects checkbox-group values from multiple form entries", () => {
+  test("uses a field parser instead of the built-in value", () => {
     const fields: Field[] = [
-      field({
-        label: "Days",
-        name: "days",
-        options: [
-          { label: "Monday", value: "Monday" },
-          { label: "Wednesday", value: "Wednesday" },
-        ],
-        type: "checkbox-group",
-      }),
+      field({ label: "Code", name: "code", parse: () => "parsed" }),
     ];
+    expect(validateForm(new FormParams({ code: "raw" }), fields)).toEqual({
+      valid: true,
+      values: { code: "parsed" },
+    });
+  });
+
+  test("keeps an explicitly empty required message", () => {
+    expect(
+      validateForm(new FormParams(), [
+        field({
+          label: "Name",
+          name: "name",
+          required: true,
+          requiredMessage: "",
+        }),
+      ]),
+    ).toEqual({ error: "", valid: false });
+  });
+
+  test("keeps an explicitly empty invalid message", () => {
+    expect(
+      validateForm(new FormParams({ color: "blue" }), colorSelectFields("")),
+    ).toEqual({ error: "", valid: false });
+  });
+
+  test("accepts a declared select value", () => {
+    expect(
+      validateForm(new FormParams({ color: "red" }), colorSelectFields()),
+    ).toEqual({
+      valid: true,
+      values: { color: "red" },
+    });
+  });
+
+  test("rejects an undeclared select value with the default message", () => {
+    expect(
+      validateForm(new FormParams({ color: "blue" }), colorSelectFields()),
+    ).toEqual({ error: "Color is invalid.", valid: false });
+  });
+
+  test("rejects parsers that return unusable values", () => {
+    for (const [name, parse] of [
+      ["missing", () => null],
+      ["infinite", () => Number.POSITIVE_INFINITY],
+    ] as const) {
+      expect(
+        validateForm(new FormParams({ [name]: "value" }), [
+          field({ label: name, name, parse }),
+        ]),
+      ).toEqual({ error: `${name} is invalid.`, valid: false });
+    }
+  });
+
+  test("uses a default when the submitted value is empty", () => {
+    const fields: Field[] = [
+      field({ defaultValue: "fallback", label: "Code", name: "code" }),
+    ];
+    expect(validateForm(new FormParams(), fields)).toEqual({
+      valid: true,
+      values: { code: "fallback" },
+    });
+  });
+
+  test("keeps a submitted value instead of its default", () => {
+    const fields: Field[] = [
+      field({ defaultValue: "fallback", label: "Code", name: "code" }),
+    ];
+    expect(validateForm(new FormParams({ code: "given" }), fields)).toEqual({
+      valid: true,
+      values: { code: "given" },
+    });
+  });
+
+  test("collects checkbox-group values from multiple form entries", () => {
     const form = new FormParams();
     form.append("days", "Monday");
     form.append("days", "Wednesday");
-    const result = validateForm(form, fields);
+    const result = validateForm(form, dayCheckboxFields());
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.days).toBe("Monday,Wednesday");
+  });
+
+  test("normalizes checkbox-group values to option order", () => {
+    const form = new FormParams("days=Wednesday&days=Monday&days=Wednesday");
+
+    expect(validateForm(form, dayCheckboxFields())).toEqual({
+      valid: true,
+      values: { days: "Monday,Wednesday" },
+    });
+  });
+
+  test("rejects a bad checkbox value mixed into valid selections", () => {
+    expect(
+      validateForm(
+        new FormParams("days=Monday&days=Funday&days=Wednesday"),
+        dayCheckboxFields("Choose listed days only."),
+      ),
+    ).toEqual({ error: "Choose listed days only.", valid: false });
   });
 
   test("returns empty string for empty checkbox-group", () => {
@@ -146,6 +256,32 @@ describe("validateForm", () => {
     const result = validateForm(new FormParams(), fields);
     expect(result.valid).toBe(true);
     if (result.valid) expect(result.values.days).toBe("");
+  });
+
+  test("rejects an empty required checkbox group", () => {
+    const fields = dayCheckboxFields();
+    fields[0]!.required = true;
+    expect(validateForm(new FormParams(), fields)).toEqual({
+      error: "Days is required",
+      valid: false,
+    });
+  });
+
+  test("runs checkbox-group validation on selected values", () => {
+    const fields = dayCheckboxFields();
+    fields[0]!.validate = () => "Days cannot be combined.";
+    expect(
+      validateForm(new FormParams("days=Monday&days=Wednesday"), fields),
+    ).toEqual({ error: "Days cannot be combined.", valid: false });
+  });
+
+  test("does not run checkbox-group validation without a selection", () => {
+    const fields = dayCheckboxFields();
+    fields[0]!.validate = () => "Unexpected validation.";
+    expect(validateForm(new FormParams(), fields)).toEqual({
+      valid: true,
+      values: { days: "" },
+    });
   });
 
   test("skips file fields and returns null", () => {

@@ -34,6 +34,11 @@ import {
   type EnabledFeatures,
   parseEnabledFeatures,
 } from "#shared/admin-features.ts";
+import {
+  type AttendeeColumnLayout,
+  COLUMN_LAYOUTS,
+  type ListingColumnLayout,
+} from "#shared/column-order.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import {
   boolUpdate,
@@ -150,6 +155,9 @@ const settingsBase = {
   },
   // --- Apple Wallet ---
   appleWallet: appleWallet.createReadSettings(snap as (k: string) => string),
+  get attendeeColumnLayout(): AttendeeColumnLayout {
+    return COLUMN_LAYOUTS.attendee.parse(snap("attendee_column_order"));
+  },
   get autoPurgeOrphans(): boolean {
     return snap("auto_purge_orphans");
   },
@@ -231,6 +239,9 @@ const settingsBase = {
   // --- Google Wallet ---
   googleWallet: googleWallet.createReadSettings(snap as (k: string) => string),
   invalidateCache,
+  get listingColumnLayout(): ListingColumnLayout {
+    return COLUMN_LAYOUTS.listing.parse(snap("listing_column_order"));
+  },
   get listingDefaults(): ListingDefaults {
     return parseListingDefaults(snap(CONFIG_KEYS.LISTING_DEFAULTS));
   },

@@ -7,6 +7,7 @@
  * their next read (defaults resolve live — see `resolveListingDefaults`).
  */
 
+import * as v from "valibot";
 import { t } from "#i18n";
 import { settingsHandler } from "#routes/admin/settings-helpers.ts";
 import { ownerPage } from "#routes/auth.ts";
@@ -16,6 +17,7 @@ import { invalidateListingsCache } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { readRepeatedPicklist } from "#shared/forms/repeated-picklist.ts";
 import {
   LISTING_DEFAULT_FIELDS,
   type ListingDefaultField,
@@ -80,22 +82,25 @@ const parseUrlField = (
 /** Parse the bookable-days default: only set when its enable box is ticked, with
  * at least one valid day (in canonical order). */
 const parseDaysField = (form: FormParams): FieldParse => {
-  if (form.getString("default_bookable_days_enabled") !== "1") return {};
-  const submittedDays = form.getAll("default_bookable_days");
-  const invalidDay = submittedDays.find(
-    (submittedDay) =>
-      !VALID_DAY_NAMES.some((validDay) => validDay === submittedDay),
+  const selection = readRepeatedPicklist(
+    v.picklist(VALID_DAY_NAMES),
+    form,
+    "default_bookable_days",
+    form.getFlag("default_bookable_days_enabled"),
   );
-  if (invalidDay !== undefined)
+  if (selection.state === "disabled") return {};
+  if (selection.state === "invalid") {
     return {
       error: t("fields.validation.invalid_day", {
-        day: invalidDay,
+        day: selection.value,
         valid: VALID_DAY_NAMES.join(", "),
       }),
     };
-  const days = VALID_DAY_NAMES.filter((day) => submittedDays.includes(day));
-  if (days.length === 0) return { error: t("listing_defaults.days_required") };
-  return { value: days };
+  }
+  if (selection.state === "absent") {
+    return { error: t("listing_defaults.days_required") };
+  }
+  return { value: selection.values };
 };
 
 /** Per-kind parser. The `Record` is keyed by {@link ListingDefaultKind}, so a

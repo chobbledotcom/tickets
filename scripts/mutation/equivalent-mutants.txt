@@ -28,6 +28,13 @@
 # <file>` — exit 0 means lint did not kill it.
 
 src/ui/templates/components/data-table.tsx:85:43  0 → -1   # For the only changed case, an empty array, both branches render the same empty tbody; non-empty arrays make both comparisons false
+src/shared/forms/validation.ts:63:8  === → ==   # value is string|number|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/forms/validation.ts:70:10  === → ==   # readSubmittedFieldValue returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/shared/forms/validation.ts:122:46  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
+src/shared/forms/validation.ts:126:16  !== → !=   # validateFieldText returns string|null and cannot return undefined, so strict and loose inequality agree when comparing it with null
+src/features/admin/settings-listing-defaults.ts:55:15  === → ==   # parseNonNegativeInt returns number|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/shared/column-order.ts:107:38  validatedColumnLayout → ""   # Symbol descriptions are diagnostic text only and do not affect symbol identity or any observable layout behavior
+src/shared/column-order.ts:107:38  validatedColumnLayout → "validatedColumnLayout mutated"   # Symbol descriptions are diagnostic text only and do not affect symbol identity or any observable layout behavior
 
 src/features/admin/entity-pages.ts:275:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/site-content-page.ts:87:38  ?? → ||   # extraTabs is an array when present, and arrays are always truthy

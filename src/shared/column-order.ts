@@ -10,6 +10,7 @@
  *   {{price | currency}}              →  "£25.00"
  */
 
+import * as v from "valibot";
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
 import { requireSuccess } from "#shared/result.ts";
 
@@ -47,6 +48,71 @@ export type ColumnGenerators<TRow, TOpts = unknown> = Record<
   ColumnDef<TRow, TOpts>
 >;
 
+export const ListingColumnSchema = v.picklist([
+  "attendees",
+  "cost",
+  "created",
+  "date",
+  "description",
+  "location",
+  "name",
+  "price",
+  "profit",
+  "renewal",
+  "revenue",
+  "status",
+  "tickets",
+]);
+export type ListingColumn = v.InferOutput<typeof ListingColumnSchema>;
+
+export const EditorListingColumnSchema = v.picklist([
+  "attendees",
+  "created",
+  "date",
+  "description",
+  "location",
+  "name",
+  "price",
+  "renewal",
+  "status",
+  "tickets",
+]);
+export type EditorListingColumn = v.InferOutput<
+  typeof EditorListingColumnSchema
+>;
+
+export const AttendeeColumnSchema = v.picklist([
+  "address",
+  "answers",
+  "date",
+  "email",
+  "listings",
+  "name",
+  "phone",
+  "qty",
+  "registered",
+  "special_instructions",
+  "status",
+  "ticket",
+]);
+export type AttendeeColumn = v.InferOutput<typeof AttendeeColumnSchema>;
+
+export const ColumnLayoutKindSchema = v.picklist([
+  "listing",
+  "editor-listing",
+  "attendee",
+]);
+export type ColumnLayoutKind = v.InferOutput<typeof ColumnLayoutKindSchema>;
+
+const validatedColumnLayout = Symbol("validatedColumnLayout");
+
+export type ColumnLayout<TColumn extends string> = {
+  readonly [validatedColumnLayout]: true;
+  readonly columnKeys: readonly TColumn[];
+  readonly filters: ReadonlyMap<TColumn, string>;
+  readonly template: string;
+};
+
 // ---------------------------------------------------------------------------
 // Liquid engine — single instance for rendering filtered values
 // ---------------------------------------------------------------------------
@@ -79,37 +145,43 @@ const parseTagBody = (
  * Parse a column-order template and extract the ordered list of column keys
  * plus any per-column Liquid filter expressions.
  *
- * Validation is done by checking extracted keys against the valid set.
- * No Liquid engine is needed for validation — just regex + Set.has().
+ * Validation is done by parsing extracted keys through the column schema.
+ * No Liquid engine is needed for validation.
  */
-const parseColumnTemplate = (
+const parseColumnTemplate = <
+  const TOptions extends readonly [string, ...string[]],
+>(
   template: string,
-  validKeys: readonly string[],
+  schema: v.PicklistSchema<TOptions, undefined>,
 ):
-  | { ok: true; columns: string[]; filters: Map<string, string> }
+  | {
+      ok: true;
+      columns: TOptions[number][];
+      filters: Map<TOptions[number], string>;
+    }
   | {
       ok: false;
       error: string;
     } => {
-  const validKeySet = new Set(validKeys);
-  const columns: string[] = [];
-  const filters = new Map<string, string>();
+  const columns: TOptions[number][] = [];
+  const filters = new Map<TOptions[number], string>();
   const seen = new Set<string>();
 
   for (const match of template.matchAll(LIQUID_TAG_RE)) {
     const { key, filter } = parseTagBody(match[1]!);
-    if (!validKeySet.has(key)) {
+    const parsed = v.safeParse(schema, key);
+    if (!parsed.success) {
       return {
-        error: `Unknown column "${key}". Available columns: ${validKeys.join(
+        error: `Unknown column "${key}". Available columns: ${schema.options.join(
           ", ",
         )}`,
         ok: false,
       };
     }
-    if (!seen.has(key)) {
-      seen.add(key);
-      columns.push(key);
-      if (filter) filters.set(key, filter);
+    if (!seen.has(parsed.output)) {
+      seen.add(parsed.output);
+      columns.push(parsed.output);
+      if (filter) filters.set(parsed.output, filter);
     }
   }
 
@@ -124,14 +196,6 @@ const parseColumnTemplate = (
  * Validate a column-order template without extracting columns.
  * Returns null if valid, or an error message string if invalid.
  */
-export const validateColumnTemplate = (
-  template: string,
-  validKeys: readonly string[],
-): string | null => {
-  const result = parseColumnTemplate(template, validKeys);
-  return result.ok ? null : result.error;
-};
-
 /**
  * Build a default template from an ordered list of column keys.
  * Produces e.g. "{{name}}, {{description}}, {{actions}}"
@@ -143,18 +207,81 @@ export const buildDefaultTemplate = (keys: readonly string[]): string =>
  * Parse a template and return column keys and filters.
  * Shared by all listing/attendee table renderers.
  */
-export const resolveColumnLayout = (
-  template: string,
-  validKeys: readonly string[],
-  defaultOrder: readonly string[],
-): { columnKeys: string[]; filters: Map<string, string> } => {
-  if (!template) {
-    return { columnKeys: [...defaultOrder], filters: new Map() };
-  }
-  const result = parseColumnTemplate(template, validKeys);
-  requireSuccess(result);
-  return { columnKeys: result.columns, filters: result.filters };
-};
+const defineColumnLayout = <
+  const TOptions extends readonly [string, ...string[]],
+>(
+  schema: v.PicklistSchema<TOptions, undefined>,
+  defaultOrder: readonly TOptions[number][],
+) => ({
+  defaultOrder,
+  parse(template: string): ColumnLayout<TOptions[number]> {
+    if (!template) {
+      return {
+        [validatedColumnLayout]: true,
+        columnKeys: defaultOrder,
+        filters: new Map(),
+        template,
+      };
+    }
+    const result = parseColumnTemplate(template, schema);
+    requireSuccess(result);
+    return {
+      [validatedColumnLayout]: true,
+      columnKeys: result.columns,
+      filters: result.filters,
+      template,
+    };
+  },
+  schema,
+  validate(template: string): string | null {
+    if (!template) return null;
+    const result = parseColumnTemplate(template, schema);
+    return result.ok ? null : result.error;
+  },
+});
+
+export const COLUMN_LAYOUTS = {
+  attendee: defineColumnLayout(AttendeeColumnSchema, [
+    "status",
+    "date",
+    "name",
+    "listings",
+    "email",
+    "phone",
+    "address",
+    "special_instructions",
+    "answers",
+    "qty",
+    "ticket",
+    "registered",
+  ]),
+  "editor-listing": defineColumnLayout(EditorListingColumnSchema, [
+    "name",
+    "description",
+    "status",
+    "attendees",
+    "tickets",
+    "created",
+  ]),
+  listing: defineColumnLayout(ListingColumnSchema, [
+    "name",
+    "description",
+    "status",
+    "attendees",
+    "tickets",
+    "revenue",
+    "cost",
+    "profit",
+    "created",
+  ]),
+} satisfies Record<ColumnLayoutKind, ReturnType<typeof defineColumnLayout>>;
+
+export type ListingColumnLayout = ReturnType<
+  (typeof COLUMN_LAYOUTS)["listing"]["parse"]
+>;
+export type AttendeeColumnLayout = ReturnType<
+  (typeof COLUMN_LAYOUTS)["attendee"]["parse"]
+>;
 
 /** Matches only when `date` is the first filter applied to the raw value */
 const FIRST_FILTER_IS_DATE_RE = /^[^|]*\|\s*date\b/;
@@ -196,15 +323,16 @@ export const renderFilteredValue = (
  */
 export const renderCells = <TRow, TOpts>(
   row: TRow,
-  columnKeys: string[],
+  columnKeys: readonly string[],
   generators: ColumnGenerators<TRow, TOpts>,
   opts: TOpts,
-  filters: Map<string, string>,
+  filters: ReadonlyMap<string, string>,
   escapeHtml: (s: string) => string,
 ): string => {
   const cells: string[] = [];
   for (const key of columnKeys) {
-    const col = generators[key]!;
+    const col = generators[key];
+    if (col === undefined) throw new Error(`Unknown column: ${key}`);
     const filterExpr = filters.get(key);
     const useFilter = filterExpr && col.rawValue;
     const content = useFilter

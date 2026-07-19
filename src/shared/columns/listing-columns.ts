@@ -6,7 +6,11 @@
  * cell rendering, and guide documentation.
  */
 
-import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
+import type {
+  ColumnDef,
+  EditorListingColumn,
+  ListingColumn,
+} from "#shared/column-order.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -125,7 +129,7 @@ const renewal: ListingCol = {
 // ---------------------------------------------------------------------------
 
 /** All available listing table columns */
-export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
+export const LISTING_TABLE_COLUMNS = {
   attendees,
   cost,
   created,
@@ -139,45 +143,21 @@ export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
   revenue,
   status,
   tickets,
-};
-
-/** Default column order for the listing table */
-export const LISTING_DEFAULT_ORDER = [
-  "name",
-  "description",
-  "status",
-  "attendees",
-  "tickets",
-  "revenue",
-  "cost",
-  "profit",
-  "created",
-] as const;
+} satisfies Record<ListingColumn, ListingCol>;
 
 /** Listing columns shown to editors: the ledger-derived money columns
  * (revenue/cost/profit) are omitted entirely — not just unordered — so a saved
  * column template can never surface them, and the name links to the edit form
  * rather than the forbidden detail page. */
-export const EDITOR_LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> =
-  {
-    attendees,
-    created,
-    date,
-    description,
-    location,
-    name: editorName,
-    price,
-    renewal,
-    status,
-    tickets,
-  };
-
-/** Default column order for the editor listing table (no money columns). */
-export const EDITOR_LISTING_DEFAULT_ORDER = [
-  "name",
-  "description",
-  "status",
-  "attendees",
-  "tickets",
-  "created",
-] as const;
+export const EDITOR_LISTING_TABLE_COLUMNS = {
+  attendees,
+  created,
+  date,
+  description,
+  location,
+  name: editorName,
+  price,
+  renewal,
+  status,
+  tickets,
+} satisfies Record<EditorListingColumn, ListingCol>;

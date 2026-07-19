@@ -149,7 +149,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           newestAttendees,
           successMessage,
           stats,
-          settings.listingColumnOrder,
+          settings.listingColumnLayout,
           activeType,
           holidays,
           unbookableIds,
@@ -170,7 +170,7 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
     return adminListingsPage(
       listings,
       session,
-      settings.listingColumnOrder,
+      settings.listingColumnLayout,
       await loadListingAttributeFilterContext(request, listings),
     );
   });

@@ -10,6 +10,7 @@ import { runWithStorageConfig } from "#shared/storage.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { PDF_BYTES } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
 import {
   installUrlHandler,
@@ -25,18 +26,18 @@ import { expectImageErrorRedirect } from "./helpers.ts";
 const editFormData = async (
   listingId: number,
   csrfToken: string,
-): Promise<Record<string, string>> => {
+): Promise<TestFormValues> => {
   const listing = await getListingWithCount(listingId);
   if (!listing) throw new Error(`Listing not found: ${listingId}`);
   return {
-    bookable_days: listing.bookable_days.join(","),
+    bookable_days: listing.bookable_days,
     closes_at_date: "",
     closes_at_time: "",
     csrf_token: csrfToken,
     date_date: "",
     date_time: "",
     description: listing.description,
-    fields: listing.fields || "email",
+    fields: (listing.fields || "email").split(","),
     listing_type: listing.listing_type,
     location: listing.location,
     max_attendees: String(listing.max_attendees),

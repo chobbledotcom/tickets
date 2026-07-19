@@ -8,23 +8,21 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { buildDefaultTemplate } from "#shared/column-order.ts";
-import {
-  ATTENDEE_DEFAULT_ORDER,
-  ATTENDEE_TABLE_COLUMNS,
-} from "#shared/columns/attendee-columns.ts";
-import {
-  LISTING_DEFAULT_ORDER,
-  LISTING_TABLE_COLUMNS,
-} from "#shared/columns/listing-columns.ts";
+import { buildDefaultTemplate, COLUMN_LAYOUTS } from "#shared/column-order.ts";
+import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
+import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { textSettingsSection } from "#templates/components/settings-field-section.tsx";
 
 /* jscpd:ignore-end */
 
-const listingDefault = buildDefaultTemplate(LISTING_DEFAULT_ORDER);
-const attendeeDefault = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
+const listingDefault = buildDefaultTemplate(
+  COLUMN_LAYOUTS.listing.defaultOrder,
+);
+const attendeeDefault = buildDefaultTemplate(
+  COLUMN_LAYOUTS.attendee.defaultOrder,
+);
 
 /** Render available column tags as helper text */
 const AvailableTags = ({

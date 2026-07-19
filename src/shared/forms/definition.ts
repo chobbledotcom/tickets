@@ -66,6 +66,18 @@ type FormSectionId<TFields extends FormFieldDefinitions> =
       : never
     : never;
 
+const requiredDefinition = <T>(
+  definitions: ReadonlyMap<string, T>,
+  kind: "field" | "section",
+  id: string,
+): T => {
+  const definition = definitions.get(id);
+  if (definition === undefined) {
+    throw new Error(`Unknown ${kind}: ${id}`);
+  }
+  return definition;
+};
+
 export interface FormSchema<TValues> {
   fields: readonly Field[];
   validate: (form: FormParams) => ValidationResult<TValues>;
@@ -124,12 +136,12 @@ export const defineForm = <
       ),
     ),
   ] as FormSectionId<TFields>[];
-
-  const fieldByName = (name: TFields[number]["name"]): Field => {
-    const field = fieldMap.get(name);
-    if (!field) throw new Error(`Unknown field: ${name}`);
-    return field;
-  };
+  const sectionMap = new Map(
+    sectionIds.map((id) => [
+      id,
+      fields.filter((field) => field.section === id),
+    ]),
+  );
 
   const validate = (
     form: FormParams,
@@ -156,17 +168,16 @@ export const defineForm = <
   const section = (
     id: FormSectionId<TFields>,
     values: FormRenderValuesFor<TFields> = {},
-  ): string => {
-    if (!sectionIds.includes(id)) throw new Error(`Unknown section: ${id}`);
-    return renderFields(
-      fields.filter((field) => field.section === id),
+  ): string =>
+    renderFields(
+      requiredDefinition(sectionMap, "section", id),
       values as FieldValues,
     );
-  };
 
   return {
     field: (name) => ({
-      render: (value = "") => renderField(fieldByName(name), value),
+      render: (value = "") =>
+        renderField(requiredDefinition(fieldMap, "field", name), value),
     }),
     fields: config.fields,
     id: config.id,

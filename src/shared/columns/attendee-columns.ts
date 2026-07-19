@@ -7,7 +7,7 @@
 
 import { t } from "#i18n";
 import { attendeeAdminPath } from "#shared/attendee-links.ts";
-import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
+import type { AttendeeColumn, ColumnDef } from "#shared/column-order.ts";
 import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
 import { isServicing } from "#shared/db/attendees/kind.ts";
 import { nonBlankLines } from "#shared/lines.ts";
@@ -218,10 +218,7 @@ const formatInstructionsInline = (instructions: string): string => {
 // ---------------------------------------------------------------------------
 
 /** All available attendee table columns */
-export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
-  AttendeeTableRow,
-  AttendeeColumnOpts
-> = {
+export const ATTENDEE_TABLE_COLUMNS = {
   address,
   answers,
   date,
@@ -234,20 +231,4 @@ export const ATTENDEE_TABLE_COLUMNS: ColumnGenerators<
   special_instructions,
   status,
   ticket,
-};
-
-/** Default column order for the attendee table */
-export const ATTENDEE_DEFAULT_ORDER = [
-  "status",
-  "date",
-  "name",
-  "listings",
-  "email",
-  "phone",
-  "address",
-  "special_instructions",
-  "answers",
-  "qty",
-  "ticket",
-  "registered",
-] as const;
+} satisfies Record<AttendeeColumn, AttendeeCol>;

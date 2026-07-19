@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { t } from "#i18n";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ChoiceField, Field } from "#shared/forms/field.ts";
+import { readRepeatedPicklist } from "#shared/forms/repeated-picklist.ts";
 import {
   DATETIME_PARTIAL_ERROR,
   readSubmittedFieldValue,
@@ -41,19 +42,20 @@ const choiceSchema = (
 };
 
 const hasInvalidChoice = (
-  field: ChoiceField<"select" | "checkbox-group">,
+  field: ChoiceField<"select">,
   value: string,
-): boolean => {
-  const values =
-    field.type === "checkbox-group"
-      ? value.split(",").map((choice) => choice.trim())
-      : [value];
-  const schema = choiceSchema(field);
-  return values.some((choice) => !v.safeParse(schema, choice).success);
-};
+): boolean => !v.safeParse(choiceSchema(field), value).success;
 
 const requiredFieldError = (field: Field): FieldValidationResult => ({
   error: field.requiredMessage ?? `${field.label} is required`,
+  valid: false,
+});
+
+const invalidFieldMessage = (field: Field): string =>
+  field.invalidMessage ?? t("error.field_invalid", { label: field.label });
+
+const invalidFieldError = (field: Field): FieldValidationResult => ({
+  error: invalidFieldMessage(field),
   valid: false,
 });
 
@@ -69,19 +71,29 @@ const collectFieldValue = (
   return raw;
 };
 
+const validateCheckboxField = (
+  form: FormParams,
+  field: ChoiceField<"checkbox-group">,
+): FieldValidationResult => {
+  const selection = readRepeatedPicklist(choiceSchema(field), form, field.name);
+  if (selection.state === "invalid") {
+    const error = field.validate?.(selection.value);
+    return error ? { error, valid: false } : invalidFieldError(field);
+  }
+  const value =
+    selection.state === "selected" ? selection.values.join(",") : "";
+  if (field.required && !value) return requiredFieldError(field);
+  const error = value ? field.validate?.(value) : undefined;
+  return error ? { error, valid: false } : { valid: true, value };
+};
+
 const validateFieldText = (field: Field, value: string): string | null => {
   if (field.validate && value) {
     const error = field.validate(value);
     if (error) return error;
   }
-  if (
-    value &&
-    (field.type === "select" || field.type === "checkbox-group") &&
-    hasInvalidChoice(field, value)
-  ) {
-    return (
-      field.invalidMessage ?? t("error.field_invalid", { label: field.label })
-    );
+  if (value && field.type === "select" && hasInvalidChoice(field, value)) {
+    return invalidFieldMessage(field);
   }
   if (
     "maxlength" in field &&
@@ -99,6 +111,10 @@ const validateSingleField = (
 ): FieldValidationResult => {
   if (field.type === "file") return { valid: true, value: null };
 
+  if (field.type === "checkbox-group") {
+    return validateCheckboxField(form, field);
+  }
+
   const collected = collectFieldValue(form, field);
   if (typeof collected !== "string") return collected;
 
@@ -107,16 +123,11 @@ const validateSingleField = (
   if (field.required && !trimmed) return requiredFieldError(field);
 
   const textError = validateFieldText(field, trimmed);
-  if (textError) return { error: textError, valid: false };
+  if (textError !== null) return { error: textError, valid: false };
 
   const value = parseFieldValue(field, trimmed);
   if (trimmed && isUnusableParsedValue(value)) {
-    return {
-      error:
-        field.invalidMessage ??
-        t("error.field_invalid", { label: field.label }),
-      valid: false,
-    };
+    return invalidFieldError(field);
   }
   return { valid: true, value };
 };
