@@ -82,6 +82,8 @@ describeWithEnv(
 
       const state = await loadBuiltSiteUpdateState(site);
 
+      expect(state.latestVersion).toBe(LATEST_TAG);
+      expect(state.latestVersionName).toBe("2099-01-01 - Big Update");
       expect(state.siteVersionLabel).toContain("2026");
       expect(state.updateAvailable).toBe(true);
       expect(state.upToDate).toBe(false);
