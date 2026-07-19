@@ -92,7 +92,7 @@ describe("column layout parsing", () => {
   });
 
   test("throws for an invalid template", () => {
-    expect(() => COLUMN_LAYOUTS.listing.parse("{{bogus}}")).toThrow(
+    expect(() => COLUMN_LAYOUTS.listing.parse("{{bogus}}, {{name}}")).toThrow(
       'Unknown column "bogus"',
     );
   });

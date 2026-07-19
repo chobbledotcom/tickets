@@ -2,6 +2,7 @@
  * Liquid rendering engine used later to format cell values. */
 
 import * as v from "valibot";
+import { reduce } from "#fp";
 import type { Result } from "#shared/result.ts";
 
 export type ColumnLayout<TColumn extends string> = {
@@ -19,24 +20,29 @@ const parseTagBody = (
   return { filter: body.trim(), key: body.slice(0, pipeIdx).trim() };
 };
 
-type ParsedLayout<T extends string> = Result<{
+interface LayoutParts<T extends string> {
   columns: T[];
   filters: Map<T, string>;
-}>;
+  seen: Set<T>;
+}
+
+type CollectedLayout<T extends string> = Result<LayoutParts<T>>;
+
+type ParsedLayout<T extends string> = Result<
+  Pick<LayoutParts<T>, "columns" | "filters">
+>;
 
 type ColumnSchema = v.GenericSchema<string> & {
   readonly options: readonly string[];
 };
 
-const parseColumnTemplate = <TSchema extends ColumnSchema>(
-  template: string,
-  schema: TSchema,
-): ParsedLayout<v.InferOutput<TSchema>> => {
-  const columns: v.InferOutput<TSchema>[] = [];
-  const filters = new Map<v.InferOutput<TSchema>, string>();
-  const seen = new Set<string>();
-
-  for (const match of template.matchAll(LIQUID_TAG_RE)) {
+const collectColumnTag =
+  <TSchema extends ColumnSchema>(schema: TSchema) =>
+  (
+    result: CollectedLayout<v.InferOutput<TSchema>>,
+    match: RegExpMatchArray,
+  ): CollectedLayout<v.InferOutput<TSchema>> => {
+    if (!result.ok) return result;
     const { key, filter } = parseTagBody(match[1]!);
     const parsed = v.safeParse(schema, key);
     if (!parsed.success) {
@@ -46,12 +52,31 @@ const parseColumnTemplate = <TSchema extends ColumnSchema>(
       };
     }
     const option = parsed.output;
+    const { columns, filters, seen } = result.value;
     if (!seen.has(option)) {
       seen.add(option);
       columns.push(option);
       if (filter) filters.set(option, filter);
     }
-  }
+    return result;
+  };
+
+const parseColumnTemplate = <TSchema extends ColumnSchema>(
+  template: string,
+  schema: TSchema,
+): ParsedLayout<v.InferOutput<TSchema>> => {
+  const collected = reduce(collectColumnTag(schema), {
+    ok: true,
+    value: {
+      columns: [],
+      filters: new Map(),
+      seen: new Set(),
+    },
+  } satisfies CollectedLayout<v.InferOutput<TSchema>>)([
+    ...template.matchAll(LIQUID_TAG_RE),
+  ]);
+  if (!collected.ok) return collected;
+  const { columns, filters } = collected.value;
 
   if (columns.length === 0) {
     return { error: "Template must include at least one column", ok: false };
