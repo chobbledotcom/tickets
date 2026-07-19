@@ -69,7 +69,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       commit: () => Promise.resolve(),
       execute: () => Promise.resolve(emptyResultSet()),
       rollback,
-    } as unknown as Transaction);
+    });
     await expect(
       withTransaction(async (tx) => {
         await tx.execute("INSERT INTO t (x) VALUES (1)");
@@ -83,7 +83,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     using _txStub = stubTransaction({
       commit: () => Promise.reject(new Error("commit failed")),
       rollback: () => Promise.reject(new Error("rollback failed too")),
-    } as unknown as Transaction);
+    });
     await expect(withTransaction(() => Promise.resolve())).rejects.toThrow(
       "commit failed",
     );
@@ -105,7 +105,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       batch: () => Promise.resolve([] as ResultSet[]),
       commit: () => Promise.resolve(),
       rollback,
-    } as unknown as Transaction);
+    });
     await withTransaction(async (tx) => {
       await tx.batch(["SELECT 1"]);
     });
@@ -123,7 +123,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
         ),
       execute: () => Promise.resolve(emptyResultSet()),
       rollback: () => Promise.resolve(),
-    } as unknown as Transaction);
+    });
     await expect(
       withTransaction(async (tx) => {
         await tx.execute("INSERT INTO t (x) VALUES (1)");
@@ -180,7 +180,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       execute: () =>
         Promise.resolve({ lastInsertRowid: 42n } as unknown as ResultSet),
       rollback: () => Promise.resolve(),
-    } as unknown as Transaction);
+    });
     const id = await writeRowInTransaction(
       "UPDATE rows SET x = 1",
       0,

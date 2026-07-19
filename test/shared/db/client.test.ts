@@ -410,4 +410,13 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(combined.sql).toBe("(a = ?) AND (b IN (?, ?)) AND (c IS NULL)");
     expect(combined.args).toEqual([1, 2, 3]);
   });
+
+  test("rawSql brands its value with the raw-sql sentinel symbol", () => {
+    // The sentinel's description is the observable contract that names the
+    // raw-expression marker; insert()/update() branch on the symbol's
+    // identity, and rawSql() exposes it on the returned object.
+    const symbols = Object.getOwnPropertySymbols(rawSql("last_insert_rowid()"));
+    expect(symbols).toHaveLength(1);
+    expect(symbols[0]!.description).toBe("raw-sql");
+  });
 });

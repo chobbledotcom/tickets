@@ -1,4 +1,4 @@
-import type { ResultSet, Transaction } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import {
@@ -124,49 +124,69 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     ).toBe(true);
   });
 
-  test("a single statement inside withTransaction invalidates only after commit", async () => {
-    // Suspend commit: the write must NOT invalidate while the transaction is
-    // still open, only once commit resolves.
+  /**
+   * A commit that suspends until the test resolves it, plus a promise that
+   * resolves the moment `commit` is called — so the test can prove invalidation
+   * is held between the write landing and commit resolving. Shared by the two
+   * commit-gated invalidation tests below.
+   */
+  const pendingCommit = () => {
     let resolveCommit!: () => void;
+    let signalCommitStarted!: () => void;
     const commitPromise = new Promise<void>((resolve) => {
       resolveCommit = resolve;
     });
+    const commitStarted = new Promise<void>((resolve) => {
+      signalCommitStarted = resolve;
+    });
+    return {
+      commit: () => {
+        signalCommitStarted();
+        return commitPromise;
+      },
+      commitStarted,
+      resolveCommit,
+    };
+  };
+
+  test("a single statement inside withTransaction invalidates only after commit", async () => {
+    // Suspend commit and wait until it is actually invoked: invalidation must
+    // not fire while the transaction is still open, only once commit resolves.
+    const pending = pendingCommit();
     using _txStub = stubTransaction({
-      commit: () => commitPromise,
+      commit: pending.commit,
       execute: () => Promise.resolve(emptyResultSet()),
       rollback: () => Promise.resolve(),
-    } as unknown as Transaction);
+    });
     const counter = countFirings();
     const done = withTransaction(async (tx) => {
       await tx.execute({ args: ["inv_tx", "seed"], sql: SETTINGS_INSERT });
     });
-    // Flush microtasks so the write has run; invalidation must still be held.
-    await Promise.resolve();
+    // Wait until commit has been called — by then the write has run and any
+    // premature invalidation would have fired.
+    await pending.commitStarted;
     expect(counter.fired).toBe(0);
-    resolveCommit();
+    pending.resolveCommit();
     await done;
     expect(counter.fired).toBe(1);
   });
 
   test("a batch inside withTransaction invalidates only after commit", async () => {
-    let resolveCommit!: () => void;
-    const commitPromise = new Promise<void>((resolve) => {
-      resolveCommit = resolve;
-    });
+    const pending = pendingCommit();
     using _txStub = stubTransaction({
       batch: () => Promise.resolve([emptyResultSet()] as ResultSet[]),
-      commit: () => commitPromise,
+      commit: pending.commit,
       rollback: () => Promise.resolve(),
-    } as unknown as Transaction);
+    });
     const counter = countFirings();
     const done = withTransaction(async (tx) => {
       await tx.batch([
         { args: ["inv_tx_batch", "seed"], sql: SETTINGS_INSERT },
       ]);
     });
-    await Promise.resolve();
+    await pending.commitStarted;
     expect(counter.fired).toBe(0);
-    resolveCommit();
+    pending.resolveCommit();
     await done;
     expect(counter.fired).toBe(1);
   });

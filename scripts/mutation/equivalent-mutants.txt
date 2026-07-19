@@ -773,7 +773,6 @@ src/shared/db/client.ts:114:73  ?? → ||   # writeSqlOf's CTE capture is anchor
 src/shared/db/client.ts:356:57  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
 
 # DB client (client.ts) — sentinel symbol descriptions.
-src/shared/db/client.ts:736:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
 src/shared/db/client.ts:159:31  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
 
 # Payment references (payment-references.ts) — `getRefundPaymentReferences`
