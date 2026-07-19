@@ -70,6 +70,8 @@ src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: In
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/shared/db/attendees/balance.ts:168:54  ?? → ||   # remainingBalance is a number when present; its only falsy value is 0, and both operators return the same 0 fallback
+src/shared/db/attendees/balance.ts:231:22  ?? → ||   # attendee status ids are positive integers when present, so the value is always truthy or nullish
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
 src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value

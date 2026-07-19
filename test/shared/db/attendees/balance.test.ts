@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import {
   attendeeStatuses,
   getPaidDefaultStatus,
@@ -35,8 +37,9 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const paid = await getPaidDefaultStatus();
+    const settlement = settle();
 
-    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
+    const result = await settleAttendeeBalance(attendeeId, 1500, settlement);
     expect(result).toEqual({ amount: 1500, listingId, settled: true });
 
     const state = await getAttendeeBalanceState(attendeeId);
@@ -46,6 +49,18 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const log = await getAttendeeActivityLog(attendeeId);
     expect(log).toHaveLength(1);
     expect(log[0]!.message).toContain("Reservation balance paid");
+
+    const { rows } = await getDb().execute({
+      args: [KIND.payment, String(attendeeId), 1500],
+      sql: "SELECT event_group, reference FROM transfers WHERE kind = ? AND dest_id = ? AND amount = ?",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.event_group).toBe(
+      await eventGroup(["balance", settlement.id]),
+    );
+    expect(rows[0]!.reference).toBe(
+      await legReference(["balance", settlement.id, KIND.payment]),
+    );
   });
 
   test("clears a non-reservation balance without replacing its status", async () => {
@@ -111,6 +126,17 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       reason: "nothing_owed",
       settled: false,
     });
+  });
+
+  test("settles a one-penny balance", async () => {
+    const { attendeeId } = await createReservedAttendee(1);
+    expect(await settleAttendeeBalance(attendeeId, 1, settle())).toMatchObject({
+      amount: 1,
+      settled: true,
+    });
+    expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
+      0,
+    );
   });
 
   test("reports not_found for a missing attendee", async () => {

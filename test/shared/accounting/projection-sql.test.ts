@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   ATTENDEE,
   REVENUE,
+  WORLD,
   WRITEOFF_TYPE,
 } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
@@ -11,6 +12,7 @@ import {
   accountPredicate,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
+  externalCashBalanceSubquery,
   LEG_COLUMNS,
   saleLegPredicate,
   signedSumCase,
@@ -104,6 +106,21 @@ describe("accountBalanceSubquery", () => {
       `(SELECT COALESCE(SUM(CASE WHEN ${asDest} THEN amount` +
         ` WHEN ${asSource} THEN -amount ELSE 0 END), 0)` +
         ` FROM transfers WHERE ${asDest} OR ${asSource})`,
+    );
+  });
+});
+
+describe("externalCashBalanceSubquery", () => {
+  test("adds cash received and subtracts cash returned", () => {
+    const received =
+      `dest_type = '${ATTENDEE}' AND dest_id = CAST(a.id AS TEXT)` +
+      ` AND source_type = '${WORLD.type}' AND source_id = '${WORLD.id}'`;
+    const returned =
+      `source_type = '${ATTENDEE}' AND source_id = CAST(a.id AS TEXT)` +
+      ` AND dest_type = '${WORLD.type}' AND dest_id = '${WORLD.id}'`;
+    expect(externalCashBalanceSubquery(ATTENDEE, "a.id")).toBe(
+      `(SELECT ${signedSumCase(received, returned)} FROM transfers` +
+        ` WHERE ${received} OR ${returned})`,
     );
   });
 });
