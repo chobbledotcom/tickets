@@ -2,8 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
+import { initSentry } from "#shared/sentry.ts";
 import { serveHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   expectScheduledResponse,
@@ -11,6 +15,7 @@ import {
   TEST_SCHEDULED_KEY,
   TEST_SCHEDULED_NEXT_KEY,
 } from "#test-utils/scheduled.ts";
+import { resetSentry } from "#test-utils/sentry.ts";
 
 const scheduled = (key = TEST_SCHEDULED_KEY): Promise<Response> =>
   serveHandler(
@@ -30,6 +35,8 @@ describeWithEnv(
     },
   },
   () => {
+    const errors = setupErrorSpy();
+
     test("runs authenticated local maintenance through the production handler", async () => {
       await expectScheduledResponse(await scheduled(), 204);
     });
@@ -42,11 +49,29 @@ describeWithEnv(
     });
 
     test("returns 503 until site setup is complete", async () => {
-      await settings.setRaw("setup_complete", "false");
-      settings.setup.clearCache();
-      settings.invalidateCache();
+      using _env = withEnv({
+        SENTRY_URL: "https://scheduled@bugs.example.test/2",
+      });
+      using fetchStub = stubFetch(new Response("{}", { status: 200 }));
+      await initSentry();
+      try {
+        await settings.setRaw("setup_complete", "false");
+        settings.setup.clearCache();
+        settings.invalidateCache();
 
-      await expectScheduledResponse(await scheduled(), 503);
+        await expectScheduledResponse(await scheduled(), 503);
+        expect(errors.contains("scheduled maintenance failed")).toBe(true);
+        const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
+        const body =
+          typeof options.body === "string"
+            ? options.body
+            : new TextDecoder().decode(options.body as Uint8Array);
+        expect(body).toContain(
+          "Scheduled maintenance requires completed setup",
+        );
+      } finally {
+        resetSentry();
+      }
     });
 
     test("does not read an authenticated request body", async () => {
