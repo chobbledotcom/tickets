@@ -7,7 +7,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
-  requireOnePrimary,
+  queryOnePrimary,
 } from "#shared/db/client.ts";
 import { cachedEntityTable } from "#shared/db/common-schema.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
@@ -226,15 +226,15 @@ export const getListingWithCount = (
   id: number,
 ): Promise<ListingWithCount | null> => listingsCache.getById(id);
 
-/** Read a just-written listing from the primary. */
-export const requireListingWithCountPrimary = async (
+/** Read a just-written listing from the primary, or null if it was deleted. */
+export const getListingWithCountPrimary = async (
   id: number,
-): Promise<ListingWithCount> => {
-  const row = await requireOnePrimary<ListingProjectionRow>(
+): Promise<ListingWithCount | null> => {
+  const row = await queryOnePrimary<ListingProjectionRow>(
     `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
     [id],
   );
-  return decryptListingWithCount(row);
+  return row === null ? null : decryptListingWithCount(row);
 };
 
 /** Read one listing by its plaintext slug when absence is expected. */

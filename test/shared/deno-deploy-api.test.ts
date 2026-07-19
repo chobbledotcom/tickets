@@ -236,14 +236,14 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     }
   });
 
-  test("getEnvVarNames rejects a response with no env_vars field", async () => {
+  test("getEnvVarNames returns empty when env_vars is omitted", async () => {
     using _fetch = stubFetch(
       new Response(JSON.stringify({ id: "app_no_ev", slug: "no-ev" })),
     );
     const result = await denoDeployApi.getEnvVarNames("app_no_ev");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toBe("Get app response is missing env_vars");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual([]);
     }
   });
 
