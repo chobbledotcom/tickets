@@ -5,6 +5,7 @@ import {
   invalidateListingsCache,
   listingsTable,
 } from "#shared/db/listings/records.ts";
+import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -30,6 +31,11 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       invalidateListingsCache();
       const deleted = await getListingWithCount(listing.id);
       expect(deleted).toBeNull();
+      expect(
+        await wasActivityLogged(
+          "Listing 'Delete Me' deleted (0 attendee(s) removed)",
+        ),
+      ).toBe(true);
     });
 
     test("rejects with wrong confirm_identifier", async () => {
@@ -42,7 +48,9 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toContain("Listing name does not match");
+          expect(body.error).toBe(
+            "Listing name does not match. Please provide the exact listing name in confirm_identifier.",
+          );
         },
       );
     });
@@ -70,12 +78,16 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const response = await apiRequest("/api/admin/listings/99999", {
-        body: { confirm_identifier: "Ghost" },
-        method: "DELETE",
-      });
-
-      expect(response.status).toBe(404);
+      await assertJson(
+        apiRequest("/api/admin/listings/99999", {
+          body: { confirm_identifier: "Ghost" },
+          method: "DELETE",
+        }),
+        404,
+        (body) => {
+          expect(body.error).toBe("Listing not found");
+        },
+      );
     });
   });
 

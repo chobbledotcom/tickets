@@ -264,6 +264,15 @@ src/shared/db/built-sites.ts:202:15  renewalTokenIndex → ""   # not in BuiltSi
 src/shared/db/built-sites.ts:377:71  ?? → ||   # blob input strings use "" as their fallback, providers are non-empty, and renewalToken uses null
 src/shared/db/built-sites.ts:391:54  ?? → ||   # validated optional strings use "" as their fallback, providers are non-empty, and renewalToken is null or non-empty
 
+# Admin listing API fallbacks receive only objects, arrays, positive ids, or
+# nullish values, so no valid request can distinguish these operators.
+src/features/admin/api.ts:342:66  ?? → ||   # stored listing lookup returns a ListingWithCount object or null; listing objects are truthy
+src/features/admin/api.ts:373:25  ?? → ||   # parsed group ids are an array or undefined; every array, including [], is truthy
+src/features/admin/api.ts:492:30  1 → 0   # the mutation changes sentinel -1 to -0; positive listing ids match neither value
+src/features/admin/api.ts:534:19  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
+src/features/admin/api.ts:547:43  ?? → ||   # an existing listing id is positive and truthy, otherwise optional access yields undefined
+src/features/admin/api.ts:549:38  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
+
 # Settings registry: readOnly is optional but can only be true when present, so
 # `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
 # make the same if-condition decision for every valid accessor.
