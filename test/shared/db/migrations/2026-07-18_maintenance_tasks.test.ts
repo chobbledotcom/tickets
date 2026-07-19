@@ -57,7 +57,7 @@ describeWithEnv(
               key,
               key === "activity_log_backfill_done"
                 ? "false"
-                : String((index + 1) * 1000),
+                : String(index + 1),
             ],
             sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
           })),
@@ -75,9 +75,9 @@ describeWithEnv(
         "database_pruning",
       ]);
       expect(Number(tasks.rows[0]?.next_run_at)).toBe(
-        12_000 + ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
+        12 + ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
       );
-      expect(Number(tasks.rows[1]?.next_run_at)).toBe(1000 + PRUNE_INTERVAL_MS);
+      expect(Number(tasks.rows[1]?.next_run_at)).toBe(1 + PRUNE_INTERVAL_MS);
       const markers = await getDb().execute({
         args: [...LEGACY_MARKERS],
         sql: `SELECT key FROM settings WHERE key IN (${LEGACY_MARKERS.map(() => "?").join(", ")})`,
