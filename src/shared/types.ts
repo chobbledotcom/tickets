@@ -264,7 +264,7 @@ export const parseDayPrices = (raw: unknown): DayPrices => {
     return Number.isInteger(days) &&
       days >= 1 &&
       days <= MAX_DURATION_DAYS &&
-      Number.isInteger(price) &&
+      Number.isSafeInteger(price) &&
       price >= 0
       ? { days, price }
       : null;

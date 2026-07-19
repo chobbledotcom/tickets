@@ -47,7 +47,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         bookable_days: ["Monday"],
         closes_at: "2026-06-14T23:59:00Z",
         date: "2026-06-15T10:00:00Z",
-        day_prices: { 0: 900, 1: 1200 },
+        day_prices: { 0: 900, 1: 0, 2: 1200 },
         duration_days: 3,
         max_attendees: 10,
         max_price: 5000,
@@ -60,7 +60,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.input.bookableAlone).toBe(true);
         expect(result.input.bookableDays).toEqual(["Monday"]);
         expect(result.input.date).toBe("2026-06-15T10:00:00Z");
-        expect(result.input.dayPrices).toEqual({ 1: 1200 });
+        expect(result.input.dayPrices).toEqual({ 1: 0, 2: 1200 });
         expect(result.input.durationDays).toBe(3);
         expect(result.input.maxPrice).toBe(5000);
         expect(result.input.slug).toBeTruthy();
@@ -96,6 +96,20 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error).toContain("positive integer ids");
+      }
+    });
+
+    test("rejects unsafe day prices", async () => {
+      const result = await bodyToCreateInput({
+        day_prices: { 1: Number.MAX_SAFE_INTEGER + 1 },
+        max_attendees: 10,
+        name: "Unsafe Price",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBe(
+          "day_prices numeric values must be safe integers",
+        );
       }
     });
 

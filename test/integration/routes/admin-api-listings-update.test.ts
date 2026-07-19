@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertAdminHtml,
   assertJson,
@@ -88,6 +89,30 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.error).toBe("bookable_days must contain only text");
         },
       );
+    });
+
+    test("returns 400 without saving an unsafe day price", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500 },
+        durationDays: 2,
+        name: "Safe Prices",
+      });
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { day_prices: { 1: Number.MAX_SAFE_INTEGER + 1 } },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "day_prices numeric values must be safe integers",
+          );
+        },
+      );
+      expect((await getListingWithCount(listing.id))?.day_prices).toEqual({
+        1: 500,
+      });
     });
 
     test("rejects duplicate slug", async () => {
