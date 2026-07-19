@@ -66,7 +66,7 @@ export const runWithStorageConfig = <T>(
  * option applies. A directly-exported named function (not an `export {}` list,
  * which the test-hook scanner does not detect, nor a module-level alias) so it is
  * visible to and registered in `ALLOWED_TEST_HOOKS`
- * (test/lib/code-quality.test.ts), alongside `runWithStorageConfig`.
+ * (test/integration/code-quality.test.ts), alongside `runWithStorageConfig`.
  */
 export function setStorageConfigForTest(config: StorageConfig | null): void {
   storageConfigRef(config);

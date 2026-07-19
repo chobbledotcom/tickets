@@ -15,18 +15,18 @@ import {
   refundPayment,
   testStripeConnection,
 } from "#shared/stripe.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { testListing } from "#test-utils/factories.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { activateStripe } from "#test-utils/settings.ts";
 import {
   lineFor,
   noWebhooks,
   okBalance,
   stripeClient,
   withBalanceAndList,
-} from "./fixtures.ts";
-import { describeStripe } from "./harness.ts";
+} from "#test/lib/stripe/fixtures.ts";
+import { describeStripe } from "#test/lib/stripe/harness.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { testListing } from "#test-utils/factories.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 
 describeStripe("stripe", () => {
   /** Stub `balance.retrieve` to fail with `error`, then run `body`. */

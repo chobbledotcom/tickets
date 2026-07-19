@@ -6,10 +6,10 @@ import {
   STRIPE_TIMEOUT_MS,
 } from "#shared/stripe/client.ts";
 import { retrieveCheckoutSession } from "#shared/stripe.ts";
+import { stripeClient } from "#test/lib/stripe/fixtures.ts";
+import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { stripeClient } from "./fixtures.ts";
-import { describeStripe } from "./harness.ts";
 
 describeStripe("Stripe client configuration", () => {
   const errors = setupErrorSpy();

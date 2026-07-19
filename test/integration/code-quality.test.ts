@@ -16,13 +16,13 @@ import {
   getAllFilesWithExt,
   type NamedTypeShape,
   type Site,
-} from "./code-quality/detectors.ts";
+} from "#test/lib/code-quality/detectors.ts";
 
 /**
  * Integration guard for the code-quality rules: it scans the real `src/`+`test/`
  * tree and asserts there are zero violations. The detection logic itself lives
- * in `./code-quality/detectors.ts` and is proven with crafted fixtures in
- * `./code-quality/detectors.test.ts` — this file is only the "is the live
+ * in `test/lib/code-quality/detectors.ts` and is proven with crafted fixtures in
+ * `test/lib/code-quality/detectors.test.ts` — this file is only the "is the live
  * codebase clean?" half. The policy allow-lists (which existing files are
  * exempt, which test hooks are intentional) live here, since they describe this
  * codebase rather than the rules.
@@ -315,7 +315,7 @@ const readAllFiles = async (files: string[]): Promise<Map<string, string>> => {
  * They have no real line-level violations of their own.
  */
 const isCodeQualityFile = (relativePath: string): boolean =>
-  relativePath === "test/lib/code-quality.test.ts" ||
+  relativePath === "test/integration/code-quality.test.ts" ||
   relativePath.startsWith("test/lib/code-quality/");
 
 describe("code quality", () => {

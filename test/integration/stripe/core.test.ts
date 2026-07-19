@@ -16,18 +16,18 @@ import {
   resetStripeClient,
   retrieveCheckoutSession,
 } from "#shared/stripe.ts";
-import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { testListing } from "#test-utils/factories.ts";
-import { withMocks } from "#test-utils/mocks.ts";
-import { activateStripe } from "#test-utils/settings.ts";
 import {
   type CreatedSessionParams,
   lineFor,
   signedHeader,
   stripeClient,
-} from "./fixtures.ts";
-import { describeStripe } from "./harness.ts";
+} from "#test/lib/stripe/fixtures.ts";
+import { describeStripe } from "#test/lib/stripe/harness.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { testListing } from "#test-utils/factories.ts";
+import { withMocks } from "#test-utils/mocks.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 
 describeStripe("stripe", () => {
   describe("getStripeClient", () => {

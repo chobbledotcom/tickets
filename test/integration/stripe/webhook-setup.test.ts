@@ -8,15 +8,15 @@ import {
   setupWebhookEndpoint,
   stripeApi,
 } from "#shared/stripe.ts";
-import { withEnv } from "#test-utils/env.ts";
-import { withFetchMock } from "#test-utils/mocks.ts";
-import { activateStripe } from "#test-utils/settings.ts";
-import { describeStripe } from "./harness.ts";
+import { describeStripe } from "#test/lib/stripe/harness.ts";
 import {
   newWebhookApiCalls,
   setupWithWebhookApi,
   webhookEndpointsApi,
-} from "./webhook-mocks.ts";
+} from "#test/lib/stripe/webhook-mocks.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { withFetchMock } from "#test-utils/mocks.ts";
+import { activateStripe } from "#test-utils/settings.ts";
 
 const withStripeClient = async (
   env: Record<string, string | undefined>,
