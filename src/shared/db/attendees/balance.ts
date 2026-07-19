@@ -125,11 +125,14 @@ const attendeeOrderRowsStatement = (attendeeId: number): SqlStatement => ({
       ORDER BY listingAttendee.id`,
 });
 
-const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => ({
-  args: Array(8).fill(String(attendeeId)),
-  sql: `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid,
-               ${bookingTotalSubquery("attendee", "?")} AS full_price`,
-});
+const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
+  const sql = `SELECT ${externalCashBalanceSubquery("attendee", "?")} AS amount_paid,
+               ${bookingTotalSubquery("attendee", "?")} AS full_price`;
+  return {
+    args: Array.from(sql.matchAll(/\?/g), () => String(attendeeId)),
+    sql,
+  };
+};
 
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
   row.listing_name === null
