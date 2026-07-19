@@ -29,6 +29,7 @@ describe("built site maintenance panel", () => {
 
     expect(html).toContain("/admin/built-sites/42/provision-scheduler");
     expect(html).toContain("Set up scheduled maintenance");
+    expect(html).toContain('<div class="prose">');
     expect(html).not.toContain("stage-scheduler");
   });
 
@@ -44,6 +45,9 @@ describe("built site maintenance panel", () => {
     );
 
     expect(html).toContain(`<code>${TEST_SCHEDULED_KEY}</code>`);
+    expect(html).toContain(
+      `<strong>Active key</strong> <code>${TEST_SCHEDULED_KEY}</code>`,
+    );
     expect(html).toContain("/admin/built-sites/42/stage-scheduler");
     expect(html).toContain("Create and verify next key");
     expect(html).not.toContain("promote-scheduler");
@@ -61,6 +65,10 @@ describe("built site maintenance panel", () => {
     );
 
     expect(html).toContain(`<code>${TEST_SCHEDULED_NEXT_KEY}</code>`);
+    expect(html).toContain(
+      `<strong>Next key</strong> <code>${TEST_SCHEDULED_NEXT_KEY}</code>`,
+    );
+    expect(html).toContain("/admin/built-sites/42/stage-scheduler");
     expect(html).toContain("Verify next key again");
     expect(html).toContain("/admin/built-sites/42/promote-scheduler");
     expect(html).toContain("Promote next key");
@@ -85,6 +93,13 @@ describe("renewal panel", () => {
     expect(html).toContain("bump-deadline");
     expect(html).toContain("override-deadline");
     expect(html).toContain("re-sync-deadline");
+    expect(html).toContain(
+      '<input id="bump_months" max="120" min="1" name="months" type="number" value="1">',
+    );
+    expect(html).toContain(
+      '<input id="override_date" name="date" type="date">',
+    );
+    expect(html).toContain("<strong>Renewal URL:</strong> <code>");
     expect(html).not.toContain("tier_listing_id");
   });
 
@@ -102,6 +117,9 @@ describe("renewal panel", () => {
     expect(html).toContain("override-deadline");
     expect(html).not.toContain("rotate-renewal-token");
     expect(html).not.toContain("re-sync-deadline");
+    expect(html).toContain(
+      '<label for="provision_months">Initial months</label><input id="provision_months" max="120" min="1" name="months" type="number" value="1">',
+    );
   });
 
   test("labels unprovisioned deadline forms with headings", () => {
@@ -110,6 +128,21 @@ describe("renewal panel", () => {
     expect(html).toContain("<h3>Override deadline</h3>");
     expect(html).not.toContain('for="bump_months"');
     expect(html).not.toContain('for="override_date"');
+  });
+
+  test("omits raw deadline details when no deadline is set", () => {
+    const html = String(
+      renewalPanelFor(
+        testBuiltSite({
+          readOnlyFrom: "",
+          renewalToken: "renewal-token",
+          renewalTokenIndex: "renewal-index",
+        }),
+      ),
+    );
+
+    expect(html).not.toContain("<details>");
+    expect(html).not.toContain("Raw ISO value");
   });
 });
 
@@ -135,6 +168,7 @@ describe("secrets panel", () => {
     expect(html).toContain("host-level infrastructure credentials");
     expect(html).toContain("Secrets currently on this site");
     expect(html).toContain("<code>DB_ENCRYPTION_KEY</code>");
+    expect(html).toContain('<div class="prose">');
   });
 
   test("omits empty present and infrastructure sections", () => {
@@ -165,7 +199,9 @@ describe("secrets panel", () => {
         },
       }),
     );
-    expect(html).toContain("All expected secrets are present");
+    expect(html).toContain(
+      '<output class="success">All expected secrets are present',
+    );
     expect(html).not.toContain("add-secrets");
   });
 
@@ -177,13 +213,48 @@ describe("secrets panel", () => {
       }),
     );
     expect(html).toContain("provider failed");
+    expect(html).toContain('<div class="prose">');
     expect(html).not.toContain("add-secrets");
   });
 
   test("shows when secret status is unavailable", () => {
     expect(String(SecretsPanel({ site }))).toContain(
-      "Secrets status is unavailable",
+      '<p class="prose">Secrets status is unavailable',
     );
+  });
+
+  test("separates multiple missing infrastructure secrets", () => {
+    const html = String(
+      SecretsPanel({
+        site,
+        view: {
+          expected: ["STORAGE_ZONE_NAME", "STORAGE_ZONE_KEY"],
+          missing: ["STORAGE_ZONE_NAME", "STORAGE_ZONE_KEY"],
+          ok: true,
+          present: [],
+        },
+      }),
+    );
+
+    expect(html).toContain("Heads up:</strong> some of these");
+    expect(html).toContain("STORAGE_ZONE_NAME, STORAGE_ZONE_KEY");
+  });
+
+  test("shows a single present secret", () => {
+    const html = String(
+      SecretsPanel({
+        site,
+        view: {
+          expected: ["DB_URL"],
+          missing: [],
+          ok: true,
+          present: ["DB_URL"],
+        },
+      }),
+    );
+
+    expect(html).toContain("Secrets currently on this site");
+    expect(html).toContain("<code>DB_URL</code>");
   });
 });
 
@@ -206,14 +277,28 @@ describe("update panel", () => {
     const html = render();
     expect(html).toContain("Thu, 01 Jan 2026 00:00:00 UTC");
     expect(html).toContain("2099-01-01 - Big Update (v2099-01-01-120000)");
+    expect(html).toContain(
+      "<strong>Latest known release:</strong> 2099-01-01 - Big Update",
+    );
     expect(html).toContain("An update is available");
     expect(html).toContain("/admin/built-sites/42/update");
   });
 
   test("shows up-to-date state", () => {
     expect(render({ updateAvailable: false, upToDate: true })).toContain(
-      "on the latest known release",
+      '<output class="success">This site is on the latest known release',
     );
+  });
+
+  test("keeps an empty stored site version label", () => {
+    const html = render({
+      siteVersionError: "must not replace the stored label",
+      siteVersionLabel: "",
+      updateAvailable: false,
+    });
+
+    expect(html).toContain("<strong>Site version:</strong> </p>");
+    expect(html).not.toContain("must not replace the stored label");
   });
 
   test("shows unknown when no database keys are stored", () => {
