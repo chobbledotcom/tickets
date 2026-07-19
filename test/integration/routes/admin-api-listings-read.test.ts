@@ -5,6 +5,7 @@ import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { bookingPageHtml } from "#test-utils/parents.ts";
 import {
   apiRequest,
   createTestApiKeyToken,
@@ -61,6 +62,76 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.listing.name).toBe("Cookie Detail");
         },
       );
+    });
+  });
+
+  describe("listing child IDs", () => {
+    test("rejects child_listing_ids when it is not an array", async () => {
+      const listing = await createTestListing({ name: "Array required" });
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { child_listing_ids: "1" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "child_listing_ids must be an array of listing ids",
+          );
+        },
+      );
+    });
+
+    test("accepts listing ID 1 as a positive integer", async () => {
+      const listing = await createTestListing({ name: "Positive IDs" });
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { child_listing_ids: [1] },
+          method: "PUT",
+        }),
+        200,
+      );
+    });
+
+    test("rejects a fractional child listing ID", async () => {
+      const listing = await createTestListing({ name: "Integer IDs" });
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { child_listing_ids: [1.5] },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "child_listing_ids must contain only positive integer listing ids",
+          );
+        },
+      );
+    });
+
+    test("creates a parent with the first listing as its child", async () => {
+      const child = await createTestListing({ name: "First child" });
+      let parentSlug = "";
+
+      await assertJson(
+        apiRequest("/api/admin/listings", {
+          body: {
+            child_listing_ids: [child.id],
+            max_attendees: 10,
+            name: "New parent",
+          },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          parentSlug = body.listing.slug;
+        },
+      );
+
+      expect(await bookingPageHtml(parentSlug)).toContain("First child");
     });
   });
 });

@@ -15,8 +15,25 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       if (!result.ok) expect(result.error).toBe("name is required");
     });
 
+    test("returns error for a whitespace-only name", async () => {
+      const result = await bodyToCreateInput({ max_attendees: 10, name: "  " });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toBe("name is required");
+    });
+
     test("returns error for missing max_attendees", async () => {
       const result = await bodyToCreateInput({ name: "Test" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBe("max_attendees is required and must be >= 1");
+      }
+    });
+
+    test("returns error when max_attendees is zero", async () => {
+      const result = await bodyToCreateInput({
+        max_attendees: 0,
+        name: "Test",
+      });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error).toBe("max_attendees is required and must be >= 1");
@@ -26,19 +43,38 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("handles all field types correctly", async () => {
       const result = await bodyToCreateInput({
         active: false,
+        bookable_alone: true,
         bookable_days: ["Monday"],
         closes_at: "2026-06-14T23:59:00Z",
         date: "2026-06-15T10:00:00Z",
+        day_prices: { 0: 900, 1: 1200 },
+        duration_days: 3,
         max_attendees: 10,
+        max_price: 5000,
         name: "Test",
       });
 
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.input.active).toBe(false);
+        expect(result.input.bookableAlone).toBe(true);
         expect(result.input.bookableDays).toEqual(["Monday"]);
+        expect(result.input.date).toBe("2026-06-15T10:00:00Z");
+        expect(result.input.dayPrices).toEqual({ 1: 1200 });
+        expect(result.input.durationDays).toBe(3);
+        expect(result.input.maxPrice).toBe(5000);
         expect(result.input.slug).toBeTruthy();
       }
+    });
+
+    test("defaults max_price to zero", async () => {
+      const result = await bodyToCreateInput({
+        max_attendees: 10,
+        name: "No Maximum Price",
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.input.maxPrice).toBe(0);
     });
 
     test("rejects a non-array group_ids", async () => {
@@ -48,7 +84,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         name: "Bad Groups",
       });
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toContain("must be an array");
+      if (!result.ok) expect(result.error).toBe("group_ids must be an array");
     });
 
     test("rejects group_ids with non-positive-integer entries", async () => {

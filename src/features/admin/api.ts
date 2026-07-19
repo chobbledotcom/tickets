@@ -8,6 +8,7 @@
  */
 
 /* jscpd:ignore-start */
+import * as v from "valibot";
 import { mapById, reduce } from "#fp";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
@@ -157,6 +158,38 @@ const optionalFields: FieldMapping[] = [
   ["bookable_alone", "bookableAlone", "boolean"],
 ];
 
+interface ApiBodyFieldRule {
+  apiKey: string;
+  error: string;
+  schema: v.GenericSchema;
+}
+
+const API_BODY_FIELD_RULES: ApiBodyFieldRule[] = [
+  {
+    apiKey: "bookable_days",
+    error: "bookable_days must contain only text",
+    schema: v.array(v.string()),
+  },
+  {
+    apiKey: "duration_days",
+    error: "duration_days must be a safe integer",
+    schema: v.pipe(v.number(), v.safeInteger()),
+  },
+];
+
+/** Reject malformed mapped values before they can reach domain or storage code. */
+const validateApiBodyFields = (
+  body: Record<string, unknown>,
+): ParseResult<undefined> => {
+  const invalid = API_BODY_FIELD_RULES.find(
+    ({ apiKey, schema }) =>
+      body[apiKey] !== undefined && !v.is(schema, body[apiKey]),
+  );
+  return invalid
+    ? { error: invalid.error, ok: false }
+    : { input: undefined, ok: true };
+};
+
 /**
  * Parse a day_prices object from a JSON body into DayPrices. Keeps only
  * positive-integer day counts mapped to numeric prices; everything else is
@@ -249,12 +282,13 @@ const existingToDefaults = (existing: ListingWithCount): FieldRecord =>
 // Body → ListingInput converters
 // =============================================================================
 
-/** Parse the request's group ids, then either bail with the parse error or hand
- * the ids to `build` to finish producing the listing input. */
+/** Validate mapped fields and group ids before building the listing input. */
 const withParsedGroupIds = (
   body: Record<string, unknown>,
   build: (groupIds: number[] | undefined) => Promise<ParseResult<ListingInput>>,
 ): Promise<ParseResult<ListingInput>> => {
+  const fields = validateApiBodyFields(body);
+  if (!fields.ok) return Promise.resolve(fields);
   const groups = parseGroupIds(body.group_ids);
   return groups.ok ? build(groups.input) : Promise.resolve(groups);
 };
