@@ -11,6 +11,7 @@ import {
 } from "#shared/session-context.ts";
 import type { Listing } from "#shared/types.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
   getInternalTestSession,
@@ -413,7 +414,7 @@ export const adminFormPost = async (
 
 export const adminMultipartPost = async (
   path: string,
-  data: Record<string, string> = {},
+  data: TestFormValues = {},
   file?: {
     name: string;
     fieldName: string;

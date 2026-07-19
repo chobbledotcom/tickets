@@ -14,11 +14,10 @@ import {
   validateDate,
 } from "#templates/fields/validators.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 import { expectInvalid, expectValid } from "#test-utils/validation.ts";
 
-const listingForm = (
-  overrides: Record<string, string> = {},
-): Record<string, string> => ({
+const listingForm = (overrides: TestFormValues = {}): TestFormValues => ({
   ...baseListingForm,
   ...overrides,
 });
@@ -259,16 +258,20 @@ describe("listing form contact fields setting", () => {
   test("rejects unknown contact field name", () => {
     expectInvalid("Invalid contact field: invalid")(
       getListingForm().fields,
-      listingForm({ fields: "invalid" }),
+      listingForm({ fields: ["invalid"] }),
     );
   });
 
   test("accepts known contact field values", () => {
     // Derived from the schema, so a new ContactField member is covered here the
     // moment it is added — no hand-maintained list to forget to update.
-    for (const value of [...CONTACT_FIELDS, "email,phone"]) {
-      expectValid(getListingForm().fields, listingForm({ fields: value }));
+    for (const value of CONTACT_FIELDS) {
+      expectValid(getListingForm().fields, listingForm({ fields: [value] }));
     }
+    expectValid(
+      getListingForm().fields,
+      listingForm({ fields: ["email", "phone"] }),
+    );
   });
 
   test("warns that attendees won't be emailed their ticket without email collection", () => {
@@ -332,13 +335,20 @@ describe("listing form bookable_days", () => {
   test("accepts valid day names", () => {
     expectValid(
       getListingForm().fields,
-      listingForm({ bookable_days: "Monday,Wednesday,Friday" }),
+      listingForm({ bookable_days: ["Monday", "Wednesday", "Friday"] }),
     );
     expectValid(
       getListingForm().fields,
       listingForm({
-        bookable_days:
-          "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+        bookable_days: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
       }),
     );
   });
@@ -346,7 +356,10 @@ describe("listing form bookable_days", () => {
   test("rejects invalid day name", () => {
     expectInvalid(
       "Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
-    )(getListingForm().fields, listingForm({ bookable_days: "Monday,Funday" }));
+    )(
+      getListingForm().fields,
+      listingForm({ bookable_days: ["Monday", "Funday"] }),
+    );
   });
 
   test("rejects empty-after-trimming value", () => {

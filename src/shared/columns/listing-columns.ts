@@ -6,7 +6,8 @@
  * cell rendering, and guide documentation.
  */
 
-import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
+import type { ColumnLayout, ListingColumn } from "#shared/column-layout.ts";
+import type { ColumnDef } from "#shared/column-order.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -125,7 +126,7 @@ const renewal: ListingCol = {
 // ---------------------------------------------------------------------------
 
 /** All available listing table columns */
-export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
+export const LISTING_TABLE_COLUMNS = {
   attendees,
   cost,
   created,
@@ -139,41 +140,13 @@ export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
   revenue,
   status,
   tickets,
-};
-
-/** Default column order for the listing table */
-export const LISTING_DEFAULT_ORDER = [
-  "name",
-  "description",
-  "status",
-  "attendees",
-  "tickets",
-  "revenue",
-  "cost",
-  "profit",
-  "created",
-] as const;
+} satisfies Record<ListingColumn, ListingCol>;
 
 /** Listing columns shown to editors: the ledger-derived money columns
  * (revenue/cost/profit) are omitted entirely — not just unordered — so a saved
  * column template can never surface them, and the name links to the edit form
  * rather than the forbidden detail page. */
-export const EDITOR_LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> =
-  {
-    attendees,
-    created,
-    date,
-    description,
-    location,
-    name: editorName,
-    price,
-    renewal,
-    status,
-    tickets,
-  };
-
-/** Default column order for the editor listing table (no money columns). */
-export const EDITOR_LISTING_DEFAULT_ORDER = [
+export const EDITOR_LISTING_COLUMN_KEYS = [
   "name",
   "description",
   "status",
@@ -181,3 +154,18 @@ export const EDITOR_LISTING_DEFAULT_ORDER = [
   "tickets",
   "created",
 ] as const;
+type EditorListingColumn = (typeof EDITOR_LISTING_COLUMN_KEYS)[number];
+
+export const EDITOR_LISTING_TABLE_COLUMNS = {
+  attendees,
+  created,
+  description,
+  name: editorName,
+  status,
+  tickets,
+} satisfies Record<EditorListingColumn, ListingCol>;
+
+export const EDITOR_LISTING_LAYOUT: ColumnLayout<EditorListingColumn> = {
+  columnKeys: EDITOR_LISTING_COLUMN_KEYS,
+  filters: new Map(),
+};

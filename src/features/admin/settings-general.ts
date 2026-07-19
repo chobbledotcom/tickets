@@ -15,9 +15,7 @@ import {
   settingsHandler,
   settingsToggle,
 } from "#routes/admin/settings-helpers.ts";
-import { validateColumnTemplate } from "#shared/column-order.ts";
-import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
-import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -194,24 +192,28 @@ export const handleBookingFeePost = settingsHandler({
  * Build a column-order settings handler for the listing or attendee table.
  * Handles POST /admin/settings/{listing,attendee}-column-order - owner only
  */
-const columnOrderHandler = (kind: "listing" | "attendee") => {
-  const columns =
-    kind === "listing" ? LISTING_TABLE_COLUMNS : ATTENDEE_TABLE_COLUMNS;
-  const update =
-    kind === "listing"
-      ? settings.update.listingColumnOrder
-      : settings.update.attendeeColumnOrder;
-  const label =
-    kind === "listing" ? "Listing column order" : "Attendee column order";
+const COLUMN_ORDER_SETTINGS = {
+  attendee: {
+    label: "Attendee column order",
+    update: settings.update.attendeeColumnOrder,
+  },
+  listing: {
+    label: "Listing column order",
+    update: settings.update.listingColumnOrder,
+  },
+};
+
+type ConfigurableColumnLayoutKind = keyof typeof COLUMN_ORDER_SETTINGS;
+
+const columnOrderHandler = (kind: ConfigurableColumnLayoutKind) => {
+  const config = COLUMN_ORDER_SETTINGS[kind];
   return settingsHandler({
     advanced: true,
     extract: (form) => form.getString("column_order").trim(),
     formId: `settings-${kind}-column-order`,
-    label,
-    save: (value) => update(value),
-    // Empty value clears to the default column order
-    validate: (value) =>
-      value ? validateColumnTemplate(value, Object.keys(columns)) : null,
+    label: config.label,
+    save: config.update,
+    validate: COLUMN_LAYOUTS[kind].validate,
   });
 };
 

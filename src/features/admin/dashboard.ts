@@ -146,7 +146,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           newestAttendees,
           successMessage,
           stats,
-          settings.listingColumnOrder,
+          settings.listingColumnLayout,
           activeType,
           holidays,
           unbookableIds,
@@ -167,7 +167,9 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
     return adminListingsPage(
       listings,
       session,
-      settings.listingColumnOrder,
+      session.adminLevel === "editor"
+        ? undefined
+        : settings.listingColumnLayout,
       await loadListingAttributeFilterContext(request, listings),
     );
   });
@@ -229,9 +231,7 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
     const truncated = entries.length > LOG_DISPLAY_LIMIT;
-    const displayEntries = truncated
-      ? entries.slice(0, LOG_DISPLAY_LIMIT)
-      : entries;
+    const displayEntries = entries.slice(0, LOG_DISPLAY_LIMIT);
     const refs = await loadActivityLogRefs(displayEntries);
     return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
   },

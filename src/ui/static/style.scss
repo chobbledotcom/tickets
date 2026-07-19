@@ -1193,7 +1193,8 @@ label > input[type="number"] {
 }
 
 label > select[name="quantity"],
-label > select[name^="quantity_"] {
+label > select[name^="quantity_"],
+label > select[name^="child_qty_"] {
   width: 8ch;
   flex: 0 0 auto;
 }

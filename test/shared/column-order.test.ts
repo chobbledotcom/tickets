@@ -1,164 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
 import {
-  buildDefaultTemplate,
   getHeaderText,
   renderCells,
   renderFilteredValue,
-  resolveColumnLayout,
-  validateColumnTemplate,
 } from "#shared/column-order.ts";
-import {
-  ATTENDEE_DEFAULT_ORDER,
-  ATTENDEE_TABLE_COLUMNS,
-} from "#shared/columns/attendee-columns.ts";
-import {
-  LISTING_DEFAULT_ORDER,
-  LISTING_TABLE_COLUMNS,
-} from "#shared/columns/listing-columns.ts";
+import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 setupTestEncryptionKey();
-
-const VALID_LISTING_KEYS = Object.keys(LISTING_TABLE_COLUMNS);
-const VALID_ATTENDEE_KEYS = Object.keys(ATTENDEE_TABLE_COLUMNS);
-
-describe("validateColumnTemplate", () => {
-  test("returns null for valid template", () => {
-    expect(
-      validateColumnTemplate("{{name}}, {{status}}", VALID_LISTING_KEYS),
-    ).toBeNull();
-  });
-
-  test("handles wonky spacing", () => {
-    expect(
-      validateColumnTemplate(
-        "{{ name }},{{description}},  {{ status  }}",
-        VALID_LISTING_KEYS,
-      ),
-    ).toBeNull();
-  });
-
-  test("rejects unknown column (typo)", () => {
-    const error = validateColumnTemplate(
-      "{{name}}, {{descritpion}}",
-      VALID_LISTING_KEYS,
-    );
-    expect(error).toContain("descritpion");
-    expect(error).toContain("Available columns");
-  });
-
-  test("lists available columns comma-separated in the error message", () => {
-    const error = validateColumnTemplate("{{bogus}}", [
-      "alpha",
-      "beta",
-      "gamma",
-    ]);
-    expect(error).toBe(
-      'Unknown column "bogus". Available columns: alpha, beta, gamma',
-    );
-  });
-
-  test("rejects empty template", () => {
-    const error = validateColumnTemplate("", VALID_LISTING_KEYS);
-    expect(error).toBe("Template must include at least one column");
-  });
-
-  test("accepts templates with date filter", () => {
-    expect(
-      validateColumnTemplate(
-        '{{name}}, {{created | date: "%B"}}',
-        VALID_LISTING_KEYS,
-      ),
-    ).toBeNull();
-  });
-
-  test("accepts templates with currency filter", () => {
-    expect(
-      validateColumnTemplate(
-        "{{name}}, {{price | currency}}",
-        VALID_LISTING_KEYS,
-      ),
-    ).toBeNull();
-  });
-});
-
-describe("resolveColumnLayout", () => {
-  test("returns default order when template is empty", () => {
-    const { columnKeys, filters } = resolveColumnLayout(
-      "",
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
-    );
-    expect(columnKeys).toEqual([...LISTING_DEFAULT_ORDER]);
-    expect(filters.size).toBe(0);
-  });
-
-  test("returns columns in template order", () => {
-    const { columnKeys } = resolveColumnLayout(
-      "{{status}}, {{name}}",
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
-    );
-    expect(columnKeys).toEqual(["status", "name"]);
-  });
-
-  test("deduplicates repeated columns", () => {
-    const { columnKeys } = resolveColumnLayout(
-      "{{name}}, {{name}}, {{status}}",
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
-    );
-    expect(columnKeys).toEqual(["name", "status"]);
-  });
-
-  test("throws for an invalid template", () => {
-    expect(() =>
-      resolveColumnLayout(
-        "{{bogus}}",
-        VALID_LISTING_KEYS,
-        LISTING_DEFAULT_ORDER,
-      ),
-    ).toThrow('Unknown column "bogus"');
-  });
-
-  test("extracts filter expression for filtered column", () => {
-    const { filters } = resolveColumnLayout(
-      '{{name}}, {{created | date: "%B %d"}}',
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
-    );
-    expect(filters.get("created")).toBe('created | date: "%B %d"');
-  });
-
-  test("does not create filter entry for unfiltered column", () => {
-    const { filters } = resolveColumnLayout(
-      '{{name}}, {{created | date: "%B %d"}}',
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
-    );
-    expect(filters.has("name")).toBe(false);
-  });
-
-  test("resolves all attendee columns from default template", () => {
-    const template = buildDefaultTemplate(ATTENDEE_DEFAULT_ORDER);
-    const { columnKeys } = resolveColumnLayout(
-      template,
-      VALID_ATTENDEE_KEYS,
-      ATTENDEE_DEFAULT_ORDER,
-    );
-    expect(columnKeys).toEqual([...ATTENDEE_DEFAULT_ORDER]);
-  });
-});
-
-describe("buildDefaultTemplate", () => {
-  test("joins column tags with a comma and space", () => {
-    expect(buildDefaultTemplate(["a", "b", "c"])).toBe("{{a}}, {{b}}, {{c}}");
-  });
-});
 
 describe("renderFilteredValue", () => {
   test("applies date filter with strftime format", () => {
@@ -230,16 +84,20 @@ describe("renderFilteredValue", () => {
 });
 
 describe("renderCells", () => {
+  test("rejects a column missing from the supplied definitions", () => {
+    expect(() =>
+      renderCells({}, ["missing"], {}, undefined, new Map(), escapeHtml),
+    ).toThrow("Unknown column: missing");
+  });
+
   test("renders listing columns end-to-end through the full pipeline", () => {
     const listing = testListingWithCount({
       date: "2026-06-15",
       name: "Jazz Night",
       unit_price: 0,
     });
-    const { columnKeys, filters } = resolveColumnLayout(
+    const { columnKeys, filters } = COLUMN_LAYOUTS.listing.parse(
       "{{name}}, {{price}}, {{date}}",
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
     );
     const html = renderCells(
       listing,
@@ -260,10 +118,8 @@ describe("renderCells", () => {
       date: "2026-03-15",
       unit_price: 2500,
     });
-    const { columnKeys, filters } = resolveColumnLayout(
+    const { columnKeys, filters } = COLUMN_LAYOUTS.listing.parse(
       '{{date | date: "%d/%m/%Y"}}, {{created | date: "%B %Y"}}, {{price | currency}}',
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
     );
     const html = renderCells(
       listing,
@@ -282,11 +138,8 @@ describe("renderCells", () => {
     const listing = testListingWithCount({
       location: '<script>alert("xss")</script>',
     });
-    const { columnKeys, filters } = resolveColumnLayout(
-      "{{location}}",
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
-    );
+    const { columnKeys, filters } =
+      COLUMN_LAYOUTS.listing.parse("{{location}}");
     const html = renderCells(
       listing,
       columnKeys,

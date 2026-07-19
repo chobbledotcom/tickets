@@ -11,6 +11,10 @@ import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withTempDir } from "#test-utils/files.ts";
 import {
+  appendTestFormValues,
+  type TestFormValues,
+} from "#test-utils/form-values.ts";
+import {
   TEST_STORAGE_ZONE,
   type TestRequestOptions,
 } from "#test-utils/internal.ts";
@@ -30,10 +34,12 @@ export const mockRequest = (path: string, options: RequestInit = {}): Request =>
 
 export const mockFormRequest = (
   path: string,
-  data: Record<string, string>,
+  data: TestFormValues = {},
   cookie?: string,
 ): Request => {
-  const body = new URLSearchParams(data).toString();
+  const params = new URLSearchParams();
+  appendTestFormValues(params, data);
+  const body = params.toString();
   const headers: HeadersInit = {
     "content-type": "application/x-www-form-urlencoded",
     host: "localhost",
@@ -73,7 +79,7 @@ export const mockAdminLoginRequest = async (
 
 export const mockMultipartRequest = (
   path: string,
-  data: Record<string, string>,
+  data: TestFormValues = {},
   cookie?: string,
   file?: {
     name: string;
@@ -83,9 +89,7 @@ export const mockMultipartRequest = (
   },
 ): Request => {
   const formData = new FormData();
-  for (const [key, value] of Object.entries(data)) {
-    formData.append(key, value);
-  }
+  appendTestFormValues(formData, data);
   if (file) {
     // deno-lint-ignore no-explicit-any
     const blob = new Blob([file.data as any], { type: file.contentType });
