@@ -9,12 +9,12 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
-import { bookFreeOrder } from "./_shared-setup.ts";
+import { bookFreeOrder } from "../../lib/server-reservation/_shared-setup.ts";
 import {
   createOptionalAddOn,
   latestAttendee,
   submitBuyerOrder,
-} from "./helpers.ts";
+} from "../../lib/server-reservation/helpers.ts";
 
 describeWithEnv(
   "server (booking without a payment provider)",

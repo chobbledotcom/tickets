@@ -17,7 +17,7 @@ import {
   describePublicApi,
   fetchListingBySlug,
   withCheckoutStub,
-} from "./helpers.ts";
+} from "../../routes/api/helpers.ts";
 
 describePublicApi(() => {
   describe("POST /api/listings/:slug/book", () => {
