@@ -18,14 +18,13 @@ import {
   resultRows,
   type SqlStatement,
   type TxScope,
-  update,
   useTransaction,
 } from "#shared/db/client.ts";
 import {
   clearImageUsesForItemStatement,
   deleteByItemStatement,
 } from "#shared/db/images.ts";
-import { swapSortOrders } from "#shared/db/query.ts";
+import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
   pageParentMapFromEdges,
@@ -35,6 +34,12 @@ import type { SitePageItem, SitePageItemType } from "#shared/types.ts";
 
 const SELECT_COLS = "page_id, item_type, item_id, sort_order";
 
+export const sitePageItemOrder = defineOrderedCollection({
+  key: ["item_type", "item_id"] as const,
+  scope: "page_id",
+  table: "site_page_items",
+});
+
 const fetchAllItems = (): Promise<SitePageItem[]> =>
   queryAll<SitePageItem>(
     `SELECT ${SELECT_COLS} FROM site_page_items ORDER BY page_id ASC, sort_order ASC, item_id ASC`,
@@ -43,7 +48,7 @@ const fetchAllItems = (): Promise<SitePageItem[]> =>
 // Request-scoped: one query per request feeds the whole nav forest, fresh next
 // request, and cleared on any write to site_page_items.
 const itemsCache = requestCache(fetchAllItems);
-registerTableInvalidation(["site_page_items"], () => itemsCache.invalidate());
+registerTableInvalidation(["site_page_items"], itemsCache.invalidate);
 
 /** Every edge, ordered — the single read the public nav's forest is built from. */
 export const getAllPageItems = (): Promise<SitePageItem[]> =>
@@ -148,13 +153,10 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
       return false;
     }
   }
-  const orderRes = await tx.execute({
-    args: [pageId],
-    sql: "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM site_page_items WHERE page_id = ?",
+  const next = await sitePageItemOrder.next({
+    scope: pageId,
+    transaction: tx,
   });
-  // The aggregate always returns exactly one row, so read it directly rather
-  // than guarding an impossible empty result.
-  const next = Number(resultRows<{ next: number }>(orderRes)[0]!.next);
   await tx.execute({
     args: [pageId, itemType, itemId, next],
     sql: "INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)",
@@ -197,49 +199,6 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
 
 /** Identifies one item within a page by its composite key. */
 export type ItemRef = { type: SitePageItemType; id: number };
-
-/**
- * Swap the `sort_order` of two items within a page, matched on the full
- * composite key (`item_id` alone isn't unique within a page — a listing, group,
- * and page can share a numeric id). No-op if either row is missing.
- */
-export const swapPageItemOrder = (
-  pageId: number,
-  a: ItemRef,
-  b: ItemRef,
-): Promise<void> =>
-  swapSortOrders<{
-    item_id: number;
-    item_type: SitePageItemType;
-    sort_order: number;
-  }>(
-    {
-      args: [pageId, a.type, a.id, b.type, b.id],
-      sql: `SELECT item_type, item_id, sort_order FROM site_page_items
-      WHERE page_id = ? AND ((item_type = ? AND item_id = ?) OR (item_type = ? AND item_id = ?))`,
-    },
-    (rows) => {
-      const orderOf = (ref: ItemRef): number | undefined =>
-        rows.find((r) => r.item_type === ref.type && r.item_id === ref.id)
-          ?.sort_order;
-      return [orderOf(a), orderOf(b)];
-    },
-    async (tx, oa, ob) => {
-      await tx.execute(setOrderStatement(pageId, a, ob));
-      await tx.execute(setOrderStatement(pageId, b, oa));
-    },
-  );
-
-const setOrderStatement = (
-  pageId: number,
-  ref: ItemRef,
-  order: number,
-): SqlStatement =>
-  update(
-    "site_page_items",
-    { sort_order: order },
-    { item_id: ref.id, item_type: ref.type, page_id: pageId },
-  );
 
 /**
  * Delete a page and every edge touching it — its own items, any edge naming it

@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formGuard, type Guard, OWNER_FORM } from "#routes/auth.ts";
-import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
+import {
+  createEntityHandler,
+  createIdEntityHandler,
+  throughParent,
+} from "#routes/entity.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import {
@@ -13,6 +17,44 @@ import {
 type Params = { id: number };
 
 describeWithEnv("entity route handlers", { db: true }, () => {
+  test("builds context from a child loaded through its parent", async () => {
+    expect(
+      await throughParent(
+        Promise.resolve({ children: [3, 7] }),
+        (parent) => `${parent.children.length}:${parent.children[1]}`,
+      ),
+    ).toBe("2:7");
+  });
+
+  test("does not load a child when its parent is missing", async () => {
+    let loadedChild = false;
+    const found = await throughParent(Promise.resolve(null), () => {
+      loadedChild = true;
+      return 1;
+    });
+
+    expect(found).toBeNull();
+    expect(loadedChild).toBe(false);
+  });
+
+  test("loads a child when its parent is zero", async () => {
+    let loadedParent: number | null = null;
+
+    const found = await throughParent(Promise.resolve(0), (parent) => {
+      loadedParent = parent;
+      return "child";
+    });
+
+    expect(found).toBe("child");
+    expect(loadedParent).toBe(0);
+  });
+
+  test("returns null when the parent does not contain the child", async () => {
+    expect(
+      await throughParent(Promise.resolve({ id: 1 }), () => null),
+    ).toBeNull();
+  });
+
   test("runs the auth gate before loading the entity", async () => {
     const calls: string[] = [];
     const blocked: Guard<[role: string]> = (_request, _handle) => {

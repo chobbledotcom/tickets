@@ -1,5 +1,4 @@
 import { handlersFor } from "#routes/admin/handlers.ts";
-import { planReorder } from "#shared/reorder.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
@@ -25,6 +24,7 @@ import {
   createEntityHandler,
   ownerFormById,
   ownerGetById,
+  throughParent,
 } from "#routes/entity.ts";
 /* jscpd:ignore-start */
 import {
@@ -35,12 +35,16 @@ import {
 } from "#routes/response.ts";
 import {
   createAuthedFormRoute,
-  createAuthedHandler,
+  createOrderedCollectionHandlers,
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
+import {
+  flatCollectionSwap,
+  scopedCollectionSwap,
+} from "#shared/db/ordered-collection.ts";
 import {
   type Answer,
   QUESTION_DISPLAY_TYPES,
@@ -67,12 +71,11 @@ import {
   questionListings,
 } from "#shared/db/questions/queries.ts";
 import {
-  assignNextQuestionSortOrder,
-  getNextAnswerSortOrder,
-  swapAnswerOrder,
-  swapQuestionOrder,
-} from "#shared/db/questions/sort-order.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+  answersOrder,
+  answersTable,
+  questionsOrder,
+  questionsTable,
+} from "#shared/db/questions/tables.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import { requireChoiceOptions } from "#shared/forms/field.ts";
@@ -183,7 +186,7 @@ const handleQuestionsPost = createAuthedFormRoute({
       displayType,
       text,
     });
-    await assignNextQuestionSortOrder(question.id);
+    await questionsOrder.append({ key: question.id });
     await logActivity(`Question '${text}' created`);
     return redirect(
       `/admin/questions/${question.id}`,
@@ -289,8 +292,12 @@ const handleAddAnswer = createAuthedFormRoute<
         "Free-text questions don't have answer options",
       );
     }
-    const sortOrder = await getNextAnswerSortOrder(params.id);
-    await answersTable.insert({ questionId: params.id, sortOrder, text });
+    const answer = await answersTable.insert({
+      questionId: params.id,
+      sortOrder: 0,
+      text,
+    });
+    await answersOrder.append({ key: answer.id, scope: params.id });
     await logActivity(`Answer '${text}' added to question ${params.id}`);
     return redirect(`/admin/questions/${params.id}`, "Answer added", true);
   },
@@ -317,17 +324,11 @@ const questionDelete = createConfirmedHandlers<QuestionWithAnswers>({
 type AnswerRouteParams = { id: number; answerId: number };
 type AnswerContext = { question: QuestionWithAnswers; answer: Answer };
 
-/** Load question + answer by route params, returning null if either is missing */
-const loadQuestionAndAnswer = async ({
-  id,
-  answerId,
-}: AnswerRouteParams): Promise<AnswerContext | null> => {
-  const question = await getQuestionWithAnswers(id);
-  if (!question) return null;
-  const answer = findAnswerById(question, answerId);
-  if (!answer) return null;
-  return { answer, question };
-};
+const loadQuestionAndAnswer = ({ id, answerId }: AnswerRouteParams) =>
+  throughParent(getQuestionWithAnswers(id), (question) => {
+    const answer = findAnswerById(question, answerId);
+    return answer ? { answer, question } : null;
+  });
 
 const answerEntityHandler = createEntityHandler<
   AnswerRouteParams,
@@ -513,47 +514,29 @@ const handleAnswerRecalculatePost = answerHandlers.post(
     }),
 );
 
-/** Factory for move-up/move-down handlers */
-const moveAnswerHandler = (dir: "up" | "down") =>
-  answerHandlers.post(async ({ answer, question }) => {
-    const pair = planReorder(
-      question.answers.map((a) => a.id),
-      answer.id,
-      dir,
-    );
-    if (pair) await swapAnswerOrder(pair[0], pair[1]);
-    return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
-  });
+const answerOrder = createOrderedCollectionHandlers({
+  auth: OWNER_FORM,
+  keys: ({ context }) => context.question.answers.map((answer) => answer.id),
+  loadContext: loadQuestionAndAnswer,
+  movedMessage: "Answer moved",
+  redirectPath: ({ context }) => `/admin/questions/${context.question.id}`,
+  swap: scopedCollectionSwap(
+    answersOrder,
+    ({ context }: { context: AnswerContext }) => context.question.id,
+  ),
+  target: ({ context }) => context.answer.id,
+});
 
-/** Handle POST /admin/questions/:id/answers/:answerId/move-up */
-const handleMoveAnswerUp = moveAnswerHandler("up");
-
-/** Handle POST /admin/questions/:id/answers/:answerId/move-down */
-const handleMoveAnswerDown = moveAnswerHandler("down");
-
-/** Factory for question move-up/move-down handlers. Swaps the question's
- * global sort_order with its neighbour in the ordered list. */
-const moveQuestionHandler = (dir: "up" | "down") =>
-  createAuthedHandler<QuestionIdParams, QuestionWithAnswers>({
-    auth: OWNER_FORM,
-    handle: async ({ context: question }) => {
-      const all = await getAllQuestionsWithAnswers();
-      const pair = planReorder(
-        all.map((q) => q.id),
-        question.id,
-        dir,
-      );
-      if (pair) await swapQuestionOrder(pair[0], pair[1]);
-      return redirect("/admin/questions", "Question moved", true);
-    },
-    loadContext: ({ id }) => getQuestionWithAnswers(id),
-  });
-
-/** Handle POST /admin/questions/:id/move-up */
-const handleMoveQuestionUp = moveQuestionHandler("up");
-
-/** Handle POST /admin/questions/:id/move-down */
-const handleMoveQuestionDown = moveQuestionHandler("down");
+const questionOrder = createOrderedCollectionHandlers({
+  auth: OWNER_FORM,
+  keys: async () =>
+    (await getAllQuestionsWithAnswers()).map((question) => question.id),
+  loadContext: ({ id }: QuestionIdParams) => getQuestionWithAnswers(id),
+  movedMessage: "Question moved",
+  redirectPath: () => "/admin/questions",
+  swap: flatCollectionSwap(questionsOrder),
+  target: ({ context }) => context.id,
+});
 
 const handleListingQuestionsPost = createListingChoicePost({
   feature: "questions",
@@ -577,13 +560,13 @@ export const adminHandlers = handlersFor("questions")({
   postQuestionsByIdAnswers: handleAddAnswer,
   postQuestionsByIdAnswersByAnswerIdDelete: handleDeleteAnswerPost,
   postQuestionsByIdAnswersByAnswerIdEdit: handleEditAnswerPost,
-  postQuestionsByIdAnswersByAnswerIdMoveDown: handleMoveAnswerDown,
-  postQuestionsByIdAnswersByAnswerIdMoveUp: handleMoveAnswerUp,
+  postQuestionsByIdAnswersByAnswerIdMoveDown: answerOrder.down,
+  postQuestionsByIdAnswersByAnswerIdMoveUp: answerOrder.up,
   postQuestionsByIdAnswersByAnswerIdRecalculate: handleAnswerRecalculatePost,
   postQuestionsByIdDelete: (request, { id }) =>
     questionDelete.post(request, id),
   postQuestionsByIdEdit: handleQuestionEdit,
   postQuestionsByIdListings: handleQuestionListings,
-  postQuestionsByIdMoveDown: handleMoveQuestionDown,
-  postQuestionsByIdMoveUp: handleMoveQuestionUp,
+  postQuestionsByIdMoveDown: questionOrder.down,
+  postQuestionsByIdMoveUp: questionOrder.up,
 });

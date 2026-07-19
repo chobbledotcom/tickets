@@ -9,18 +9,23 @@
  * dictionaries. Each entry carries its own expiry (`ttlMs`); a whole-list load
  * stamps every entry, a single-record load stamps only what it fetched.
  *
- * Staleness is bounded and never authoritative: writes invalidate immediately
- * within the isolate, and security gating (capacity, session validity) is
- * enforced against the database, not this cache — so a stale entry can only
- * show slightly out-of-date display data for up to the TTL across isolates.
+ * Writes invalidate immediately within the isolate. Refills use the primary
+ * during the replica catch-up window, so a stale replica result cannot replace
+ * the cleared data. Security gating (capacity, session validity) is enforced
+ * against the database, not this cache.
  *
  * A generation counter (bumped by `invalidate`) drops any fetch that was in
  * flight when an invalidation landed, so a write can never be overwritten by a
  * read that started before it.
  */
 
+/* jscpd:ignore-start -- imports */
 import { lazyRef, ttlCache, unique } from "#fp";
+import type { CacheInvalidation } from "#shared/cache-registry.ts";
+import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 import { nowMs } from "#shared/now.ts";
+
+/* jscpd:ignore-end */
 
 /** Reads over a keyed entity cache. */
 export type KeyedCache<T> = {
@@ -28,7 +33,7 @@ export type KeyedCache<T> = {
   getById: (id: number) => Promise<T | null>;
   getByKey: (key: string) => Promise<T | null>;
   getByKeys: (keys: string[]) => Promise<(T | null)[]>;
-  invalidate: () => void;
+  invalidate: (cause?: CacheInvalidation) => void;
   size: () => number;
 };
 
@@ -73,6 +78,7 @@ export const createKeyedCache = <T>(
     loadedAt: number;
   } | null>(() => null);
   let generation = 0;
+  const primaryRefill = createPrimaryCacheRefill(now);
 
   // Index a freshly-loaded row into both dictionaries — unless an invalidation
   // raced the fetch (generation moved), in which case the row may predate a
@@ -87,7 +93,7 @@ export const createKeyedCache = <T>(
 
   const loadFull = async (): Promise<T[]> => {
     const gen = generation;
-    const ordered = await fetchAll();
+    const ordered = await primaryRefill.fetch(fetchAll);
     if (gen === generation) {
       for (const row of ordered) remember(gen, row);
       setFull({ loadedAt: now(), ordered });
@@ -111,7 +117,7 @@ export const createKeyedCache = <T>(
       return byId.get(id) ?? null;
     }
     const gen = generation;
-    const row = await fetchById(id);
+    const row = await primaryRefill.fetch(() => fetchById(id));
     return row ? remember(gen, row) : null;
   };
 
@@ -123,7 +129,7 @@ export const createKeyedCache = <T>(
       const missing = unique(keys).filter((k) => !byKey.get(k));
       if (missing.length > 0) {
         const gen = generation;
-        const rows = await fetchByKeys(missing);
+        const rows = await primaryRefill.fetch(() => fetchByKeys(missing));
         for (const row of rows) remember(gen, row);
       }
     } else {
@@ -140,8 +146,9 @@ export const createKeyedCache = <T>(
     getById,
     getByKey,
     getByKeys,
-    invalidate: () => {
+    invalidate: (cause = "manual") => {
       generation++;
+      primaryRefill.afterInvalidation(cause === "write");
       byId.clear();
       byKey.clear();
       setFull(null);

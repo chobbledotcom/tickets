@@ -232,7 +232,7 @@ export type ListingWithActivityLog = {
  * Get listing and its activity log in a single database round-trip.
  * Uses batch API to reduce latency for remote databases.
  */
-export const getListingWithActivityLog = async (
+export const getListingWithActivityLogOrNull = async (
   listingId: number,
   limit = 100,
 ): Promise<ListingWithActivityLog | null> => {

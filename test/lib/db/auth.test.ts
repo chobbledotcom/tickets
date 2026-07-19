@@ -8,7 +8,7 @@ import {
   unwrapKey,
 } from "#shared/crypto/keys.ts";
 import type { KeyEncrypted, PasswordHash } from "#shared/crypto/sealed.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
 import { createSession, getSession } from "#shared/db/sessions.ts";
@@ -154,14 +154,20 @@ describeWithEnv("db > auth", { db: true }, () => {
       const privateKey = await importPrivateKey(privateKeyJwk);
 
       // Decrypt the attendee created BEFORE password change
-      const decryptedBefore = await getAttendee(attendeeBefore.id, privateKey);
+      const decryptedBefore = await getAttendeeOrNull(
+        attendeeBefore.id,
+        privateKey,
+      );
       expect(decryptedBefore).not.toBeNull();
       expect(decryptedBefore?.name).toBe("Alice Before");
       expect(decryptedBefore?.email).toBe("alice@example.com");
       expect(decryptedBefore?.payment_id).toBe("pi_before_change");
 
       // Decrypt the attendee created AFTER password change
-      const decryptedAfter = await getAttendee(attendeeAfter.id, privateKey);
+      const decryptedAfter = await getAttendeeOrNull(
+        attendeeAfter.id,
+        privateKey,
+      );
       expect(decryptedAfter).not.toBeNull();
       expect(decryptedAfter?.name).toBe("Bob After");
       expect(decryptedAfter?.email).toBe("bob@example.com");

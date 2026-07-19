@@ -115,13 +115,14 @@ describe("resolveColumnLayout", () => {
     expect(columnKeys).toEqual(["name", "status"]);
   });
 
-  test("falls back to default for invalid template", () => {
-    const { columnKeys } = resolveColumnLayout(
-      "{{bogus}}",
-      VALID_LISTING_KEYS,
-      LISTING_DEFAULT_ORDER,
-    );
-    expect(columnKeys).toEqual([...LISTING_DEFAULT_ORDER]);
+  test("throws for an invalid template", () => {
+    expect(() =>
+      resolveColumnLayout(
+        "{{bogus}}",
+        VALID_LISTING_KEYS,
+        LISTING_DEFAULT_ORDER,
+      ),
+    ).toThrow('Unknown column "bogus"');
   });
 
   test("extracts filter expression for filtered column", () => {

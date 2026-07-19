@@ -109,4 +109,13 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
     expectRedirectWithFlash(returnUrl, t("notes.deleted"), true)(response);
     expect(await getNoteRows([attendee.id])).toEqual([]);
   });
+
+  test("POST delete on a missing note is a 404", async () => {
+    const { attendee } = await setupAdminTest();
+    const { response } = await adminFormPost(
+      `/admin/attendee/${attendee.id}/note/424242/delete`,
+    );
+
+    expect(response.status).toBe(404);
+  });
 });

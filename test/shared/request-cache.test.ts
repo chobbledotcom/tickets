@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllCacheStats, registerCache } from "#shared/cache-registry.ts";
 import { holidays } from "#shared/db/holidays.ts";
+import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
 import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -46,6 +47,20 @@ describe("requestCache", () => {
       cache.invalidate();
       expect(await cache.getAll()).toEqual([2]);
     });
+  });
+
+  test("refills from primary across requests while replicas catch up", async () => {
+    const reads: boolean[] = [];
+    const cache = requestCache(() => {
+      reads.push(mustReadFromPrimary());
+      return Promise.resolve([reads.length]);
+    });
+
+    cache.invalidate("write");
+    await runWithRequestCache(() => cache.getAll());
+    await runWithRequestCache(() => cache.getAll());
+
+    expect(reads).toEqual([true, true]);
   });
 
   test("fetches directly without request context", async () => {

@@ -7,6 +7,7 @@
  */
 
 import { COVERAGE_OUTPUT_DIR } from "./coverage-output.ts";
+import { denoCommand } from "./process.ts";
 import { projectRoot } from "./project-root.ts";
 import { readSlowTestsReport } from "./test-durations.ts";
 import { runSuiteWithHarness } from "./test-harness.ts";
@@ -294,8 +295,7 @@ const checkCoverage = async (): Promise<void> => {
     extraArgs: string[],
     io: Partial<Deno.CommandOptions>,
   ): Deno.Command =>
-    new Deno.Command(Deno.execPath(), {
-      args: ["coverage", COVERAGE_OUTPUT_DIR, ...extraArgs],
+    denoCommand(["coverage", COVERAGE_OUTPUT_DIR, ...extraArgs], {
       cwd: projectRoot,
       stderr: "inherit",
       ...io,

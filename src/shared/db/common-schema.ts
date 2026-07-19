@@ -45,8 +45,7 @@ export const cachedEntityTable = <Row, Input, Cached = Row>(
 ): { cache: KeyedCache<Cached>; table: Table<Row, Input> } => {
   const cache = createKeyedCache(config);
   registerCache(() => ({ entries: cache.size(), name }));
-  const invalidate = (): void => cache.invalidate();
-  registerDependencies(table.name, dependsOn, invalidate);
+  registerDependencies(table.name, dependsOn, cache.invalidate);
   return { cache, table };
 };
 

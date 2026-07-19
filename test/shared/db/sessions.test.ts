@@ -1,8 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { getAllCacheStats } from "#shared/cache-registry.ts";
-import { execute } from "#shared/db/client.ts";
+import {
+  getAllCacheStats,
+  invalidateCachesForTable,
+  resetAllCaches,
+} from "#shared/cache-registry.ts";
+import { executeWithoutCacheInvalidation, getDb } from "#shared/db/client.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -10,9 +15,9 @@ import {
   deleteSession,
   getAllSessions,
   getSession,
-  resetSessionCache,
 } from "#shared/db/sessions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 describeWithEnv("db > sessions", { db: true }, () => {
   test("createSession and getSession work together", async () => {
@@ -114,6 +119,23 @@ describeWithEnv("db > sessions", { db: true }, () => {
     expect(afterTtl?.csrf_token).toBe("csrf-ttl");
   });
 
+  test("getSession does not serve an expired cached session", async () => {
+    const startTime = Date.now();
+    using time = new FakeTime(startTime);
+
+    await createSession(
+      "expired-cache",
+      "csrf-expired",
+      startTime + 1000,
+      null,
+      1,
+    );
+    await executeWithoutCacheInvalidation("DELETE FROM sessions");
+    time.now = startTime + 2000;
+
+    expect(await getSession("expired-cache")).toBeNull();
+  });
+
   // The following tests observe the cache's *effect* by mutating the DB row
   // behind the cache's back: a cached read returns the stale in-memory value,
   // while a cache miss reflects the changed DB.
@@ -121,7 +143,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
   test("createSession pre-caches so a later read skips the DB", async () => {
     await createSession("precache", "csrf-pre", Date.now() + 60000, null, 1);
     // Remove the row from the DB; the cache still holds the session.
-    await execute("DELETE FROM sessions");
+    await executeWithoutCacheInvalidation("DELETE FROM sessions");
 
     const session = await getSession("precache");
     expect(session).not.toBeNull();
@@ -130,12 +152,12 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
   test("getSession caches the DB result so a second read skips the DB", async () => {
     await createSession("dbcache", "csrf-db", Date.now() + 60000, null, 1);
-    resetSessionCache(); // drop the pre-cache; the DB row remains
+    invalidateCachesForTable("sessions"); // drop the pre-cache; the DB row remains
 
     const first = await getSession("dbcache"); // cache miss → DB → caches
     expect(first?.csrf_token).toBe("csrf-db");
 
-    await execute("DELETE FROM sessions"); // remove DB row; cache retains it
+    await executeWithoutCacheInvalidation("DELETE FROM sessions"); // remove DB row; cache retains it
     const second = await getSession("dbcache");
     expect(second).not.toBeNull();
     expect(second?.csrf_token).toBe("csrf-db");
@@ -146,7 +168,9 @@ describeWithEnv("db > sessions", { db: true }, () => {
     using time = new FakeTime(start);
     await createSession("ttl-requery", "csrf-old", start + 60000, null, 1);
     // Within TTL: cached (stale) value is served even after the DB changes.
-    await execute("UPDATE sessions SET csrf_token = 'csrf-new'");
+    await executeWithoutCacheInvalidation(
+      "UPDATE sessions SET csrf_token = 'csrf-new'",
+    );
     expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
 
     // Past the 10s TTL: the cache entry expires and the DB is re-read.
@@ -160,14 +184,39 @@ describeWithEnv("db > sessions", { db: true }, () => {
     expect(await getSession("ghost")).toBeNull();
   });
 
-  test("resetSessionCache clears cached sessions", async () => {
+  test("session table invalidation clears cached sessions", async () => {
     await createSession("reset-me", "csrf-reset", Date.now() + 60000, null, 1);
-    await execute("DELETE FROM sessions"); // DB empty; cache still holds it
+    await executeWithoutCacheInvalidation("DELETE FROM sessions"); // DB empty; cache still holds it
 
-    resetSessionCache();
+    invalidateCachesForTable("sessions");
 
     // With the cache cleared, the read falls through to the (empty) DB.
     expect(await getSession("reset-me")).toBeNull();
+  });
+
+  test("full resets do not refill the session cache from a stale replica", async () => {
+    await createSession(
+      "reset-stale",
+      "csrf-stale",
+      Date.now() + 60000,
+      null,
+      1,
+    );
+    const staleReplicaResult = await getDb().execute(
+      "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions",
+    );
+    await executeWithoutCacheInvalidation("DELETE FROM sessions");
+
+    using _env = withEnv({ DB_URL: "libsql://replica.test" });
+    const replicaRead = stub(getDb(), "execute", () =>
+      Promise.resolve(staleReplicaResult),
+    );
+    try {
+      resetAllCaches();
+      expect(await getSession("reset-stale")).toBeNull();
+    } finally {
+      replicaRead.restore();
+    }
   });
 
   test("deleteOtherSessions keeps the current session cached", async () => {
@@ -179,14 +228,14 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
     // The kept session should still be cached: deleting all DB rows leaves a
     // cached read returning it, while the dropped one is gone.
-    await execute("DELETE FROM sessions");
+    await executeWithoutCacheInvalidation("DELETE FROM sessions");
     const kept = await getSession("keep");
     expect(kept).not.toBeNull();
     expect(kept?.csrf_token).toBe("csrf-keep");
   });
 
   test("registers a 'sessions' cache stat reflecting cached entries", async () => {
-    resetSessionCache();
+    invalidateCachesForTable("sessions");
     const before = getAllCacheStats().find((s) => s.name === "sessions");
     expect(before?.entries).toBe(0);
 

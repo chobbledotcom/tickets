@@ -30,6 +30,7 @@ import {
   mockFormRequest,
   withMocks,
 } from "#test-utils/mocks.ts";
+import { statementSql } from "#test-utils/record-queries.ts";
 import {
   adminFormPost,
   createTestManagerSession,
@@ -390,10 +391,16 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       test(name, async () => {
         await setupForEnable("admin@example.com");
         const { getDb: getDbFn } = await import("#shared/db/client.ts");
+        const db = getDbFn();
+        const batch = db.batch.bind(db);
         await withMocks(
           () => ({
-            batchStub: stub(getDbFn(), "batch", () =>
-              Promise.reject(rejection),
+            batchStub: stub(db, "batch", (statements, mode) =>
+              statements.some((statement) =>
+                statementSql(statement).startsWith("DELETE FROM users"),
+              )
+                ? Promise.reject(rejection)
+                : batch(statements, mode),
             ),
             fetchStub: stubFetch(new Response("Error", { status: 500 })),
           }),

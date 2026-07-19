@@ -100,11 +100,11 @@ const crud = createOwnerCrudHandlers({
   getName: (s) => s.name,
   getRowPath: (site) => builtSitePage.path(site.id),
   listPath: "/admin/built-sites",
+  operations: builtSitesResource,
   renderDelete: adminBuiltSiteDeletePage,
   renderEditError: builtSitePage.renderEditError,
   renderList: adminBuiltSitesPage,
   renderNew: adminBuiltSiteNewPage,
-  resource: builtSitesResource,
   singular: "Built site",
 });
 

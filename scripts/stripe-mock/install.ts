@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { delay } from "#shared/now.ts";
 import { withFileLock } from "../lock-file.ts";
 import { rethrowUnlessNotFound } from "../not-found.ts";
+import { removeTree } from "../process.ts";
 import { projectRoot } from "../project-root.ts";
 
 /* jscpd:ignore-end */
@@ -288,7 +289,7 @@ const commandsWithDefaults = (
 const removeStaleInstallTempDirs = async (binDir: string): Promise<void> => {
   for await (const entry of Deno.readDir(binDir)) {
     if (entry.isDirectory && entry.name.startsWith(INSTALL_TEMP_PREFIX)) {
-      await Deno.remove(join(binDir, entry.name), { recursive: true });
+      await removeTree(join(binDir, entry.name));
     }
   }
 };
@@ -337,7 +338,7 @@ const installStripeMock = async (
 
     await Deno.rename(tempBinaryPath, paths.binaryPath);
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await removeTree(tempDir);
   }
 };
 

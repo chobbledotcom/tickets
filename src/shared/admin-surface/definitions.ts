@@ -70,6 +70,18 @@ export type AdminRouteDef = {
   readonly readOnly: "allow" | "block";
 };
 
+type LiteralAdminRoute<
+  Id extends string,
+  Area extends AdminAreaId,
+  Method extends AdminMethod,
+  Pattern extends string,
+> = AdminRouteDef & {
+  readonly area: Area;
+  readonly id: Id;
+  readonly method: Method;
+  readonly pattern: Pattern;
+};
+
 const defineAdminRoute =
   (allowedInReadOnly: (method: AdminMethod) => boolean) =>
   <
@@ -82,12 +94,7 @@ const defineAdminRoute =
     area: Area,
     method: Method,
     pattern: Pattern,
-  ): AdminRouteDef & {
-    readonly area: Area;
-    readonly id: Id;
-    readonly method: Method;
-    readonly pattern: Pattern;
-  } => ({
+  ): LiteralAdminRoute<Id, Area, Method, Pattern> => ({
     area,
     id,
     method,
@@ -96,6 +103,26 @@ const defineAdminRoute =
   });
 
 export const route = defineAdminRoute((method) => method === "GET");
+export const moveRoutes = <
+  IdPrefix extends string,
+  Area extends AdminAreaId,
+  Pattern extends string,
+>(
+  idPrefix: IdPrefix,
+  area: Area,
+  pattern: Pattern,
+): readonly [
+  LiteralAdminRoute<
+    `${IdPrefix}MoveDown`,
+    Area,
+    "POST",
+    `${Pattern}/move-down`
+  >,
+  LiteralAdminRoute<`${IdPrefix}MoveUp`, Area, "POST", `${Pattern}/move-up`>,
+] => [
+  route(`${idPrefix}MoveDown`, area, "POST", `${pattern}/move-down`),
+  route(`${idPrefix}MoveUp`, area, "POST", `${pattern}/move-up`),
+];
 const readOnlyRoute = defineAdminRoute(() => true);
 export const operation = <
   Id extends string,

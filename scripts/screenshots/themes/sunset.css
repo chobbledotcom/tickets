@@ -1,0 +1,15 @@
+:root {
+  --border-radius: 16px;
+  --box-shadow: 0 10px 28px;
+  --color-accent: #ffcf9929;
+  --color-bg: #fff8ed;
+  --color-bg-secondary: #ffe1c2;
+  --color-link: #ad2547;
+  --color-secondary: #db5a34;
+  --color-secondary-accent: #db5a341c;
+  --color-shadow: #7d263a24;
+  --color-table: #ad2547;
+  --color-text: #40212b;
+  --color-text-secondary: #946774;
+  --font-family: "Trebuchet MS", Verdana, sans-serif;
+}

@@ -17,7 +17,7 @@ import {
   overlapsAnyInterval,
 } from "#routes/admin/attendee-logistics-tab.ts";
 import type { LoadedAttendee } from "#routes/admin/attendee-page-data.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import {
   getLogisticsAssignments,
   setLogisticsAssignments,
@@ -54,7 +54,7 @@ describeWithEnv("attendee Logistics tab — demo mode", { db: true }, () => {
       setDemoModeForTest(false);
     }
 
-    const saved = (await getAttendee(id, await getTestPrivateKey()))!;
+    const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     expect(saved.address).not.toBe("1 Real Street, Realtown");
     expect(DEMO_ADDRESSES).toContain(saved.address);
     expect(saved.lat).toBe("");
@@ -80,7 +80,7 @@ describeWithEnv("the Edit tab and the Logistics pin", { db: true }, () => {
     });
     const { response } = await adminFormPost(`/admin/attendees/${id}`, form);
     expect(response.status).toBe(302);
-    const saved = (await getAttendee(id, await getTestPrivateKey()))!;
+    const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     return { lat: saved.lat, lng: saved.lng };
   };
 

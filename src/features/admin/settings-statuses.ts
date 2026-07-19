@@ -1,6 +1,5 @@
 /* jscpd:ignore-start */
 import { handlersFor } from "#routes/admin/handlers.ts";
-import { planReorder } from "#shared/reorder.ts";
 /* jscpd:ignore-end */
 /**
  * Admin routes for managing attendee statuses (owner-only).
@@ -11,32 +10,26 @@ import { planReorder } from "#shared/reorder.ts";
  */
 
 /* jscpd:ignore-start */
-import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
-import {
-  formGuard,
-  OWNER_FORM,
-  ownerPage,
-  requireOwnerOr,
-} from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { createIdEntityHandler, type IdRouteHandler } from "#routes/entity.ts";
-import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
-import { ownerFormHandler } from "#shared/app-forms.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
+import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { OWNER_FORM } from "#routes/auth.ts";
+import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
 import {
   type AttendeeStatus,
   type AttendeeStatusDeleteError,
   type AttendeeStatusSaveError,
   type AttendeeStatusWriteInput,
   attendeeStatuses,
+  attendeeStatusOrder,
   attendeeStatusWrites,
   getAttendeeStatus,
-  swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
+import { flatCollectionSwap } from "#shared/db/ordered-collection.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
-import type { AdminSession } from "#shared/types.ts";
+import type { ParseResult } from "#shared/rest/crud-api.ts";
+import type { NamedOperations } from "#shared/rest/resource.ts";
+import { errorResult } from "#shared/result.ts";
 import { statusPages } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
 
@@ -44,51 +37,28 @@ import { attendeeStatusPage } from "./attendee-status-page.ts";
 
 const LIST_PATH = "/admin/settings/statuses";
 
-type ParseResult =
-  | { ok: true; data: AttendeeStatusWriteInput }
-  | { ok: false; error: string };
-
 /** Parse and validate the status form. */
-const parseStatusForm = (form: FormParams): ParseResult => {
-  const name = form.getString("name");
-  if (!name) return { error: "Please enter a name", ok: false };
-
+const parseStatusForm = (
+  form: FormParams,
+): ParseResult<AttendeeStatusWriteInput> => {
   const isReservation = form.has("is_reservation");
-  const isPaidDefault = form.has("is_paid_default");
-  const isPublicDefault = form.has("is_public_default");
-
-  if (isReservation && isPaidDefault) {
+  const input = {
+    isPaidDefault: form.has("is_paid_default"),
+    isPublicDefault: form.has("is_public_default"),
+    isReservation,
+    name: form.getString("name"),
+    reservationAmount: isReservation
+      ? form.getString("reservation_amount")
+      : "0",
+  };
+  if (!input.name) return { error: "Please enter a name", ok: false };
+  if (input.isReservation && input.isPaidDefault) {
     return { error: "A paid status can't also be a reservation", ok: false };
   }
-
-  let reservationAmount = "0";
-  if (isReservation) {
-    const raw = form.getString("reservation_amount");
-    const error = validateReservationAmount(raw);
-    if (error) return { error, ok: false };
-    reservationAmount = raw;
-  }
-
-  return {
-    data: {
-      isPaidDefault,
-      isPublicDefault,
-      isReservation,
-      name,
-      reservationAmount,
-    },
-    ok: true,
-  };
-};
-
-// Parses the status form for a page whose form lives at `formPath`. Returns the
-// valid data, or the redirect back to that form carrying the error message.
-const parseStatusFormOr = (
-  form: FormParams,
-  formPath: string,
-): AttendeeStatusWriteInput | Response => {
-  const parsed = parseStatusForm(form);
-  return parsed.ok ? parsed.data : errorRedirect(formPath, parsed.error);
+  const error = isReservation
+    ? validateReservationAmount(input.reservationAmount)
+    : null;
+  return error ? { error, ok: false } : { input, ok: true };
 };
 
 const SAVE_ERRORS: Record<AttendeeStatusSaveError, string> = {
@@ -104,99 +74,68 @@ const DELETE_ERRORS: Record<AttendeeStatusDeleteError, string> = {
   status_in_use: "This status is in use by attendees",
 };
 
-const listGet = ownerPage(async (session) => {
-  const statuses = await attendeeStatuses.getAll();
-  const flash = getFlash();
-  return statusPages.listPage(statuses, session, flash.error, flash.success);
-});
-
-const newGet = ownerPage((session) =>
-  statusPages.newPage(session, getFlash().error),
-);
-
-const statusHandler = createIdEntityHandler<AttendeeStatus>(getAttendeeStatus);
-const statusHandlers = {
-  get: statusHandler(requireOwnerOr),
-  post: statusHandler(formGuard(OWNER_FORM)),
+const saveStatus = async (id: number | null, form: FormParams) => {
+  const parsed = parseStatusForm(form);
+  if (!parsed.ok) return parsed;
+  const saved = await attendeeStatusWrites.save(id, parsed.input);
+  if (!saved.ok) return errorResult(SAVE_ERRORS[saved.error]);
+  return { ok: true as const, row: saved.value };
 };
 
-/** Owner-guarded GET that loads a status by id (or 404s) and renders a page. */
-const ownerStatusPage = (
-  render: (status: AttendeeStatus, session: AdminSession) => string,
-): IdRouteHandler =>
-  statusHandlers.get((status, session, request) => {
-    applyFlash(request);
-    return htmlResponse(render(status, session));
-  });
+const statusOperations: NamedOperations<AttendeeStatus> = {
+  create: (form) => saveStatus(null, form),
+  delete: async (id) => {
+    const result = await attendeeStatusWrites.delete(id);
+    return result.ok
+      ? { ok: true }
+      : { error: DELETE_ERRORS[result.error], ok: false };
+  },
+  loadOrNull: getAttendeeStatus,
+  update: async (id, form) =>
+    (await getAttendeeStatus(id)) === null
+      ? { notFound: true, ok: false }
+      : saveStatus(id, form),
+};
 
-const createPost = ownerFormHandler(async ({ form }) => {
-  const parsed = parseStatusFormOr(form, `${LIST_PATH}/new`);
-  if (parsed instanceof Response) return parsed;
-  await attendeeStatusWrites.save(null, parsed);
-  await logActivity(`Attendee status '${parsed.name}' created`);
-  return redirect(LIST_PATH, "Status created", true);
+const crud = createOwnerCrudHandlers({
+  activityName: "Attendee status",
+  getAll: attendeeStatuses.getAll,
+  getCreatePath: () => LIST_PATH,
+  getName: (status) => status.name,
+  getRowPath: (status) => attendeeStatusPage.path(status.id),
+  identifierLabel: "Name",
+  listPath: LIST_PATH,
+  operations: statusOperations,
+  renderDelete: statusPages.deletePage,
+  renderEditError: attendeeStatusPage.renderEditError,
+  renderList: (statuses, session, success) =>
+    statusPages.listPage(statuses, session, getFlash().error, success),
+  renderNew: statusPages.newPage,
+  singular: "Status",
 });
 
-const editPost = statusHandlers.post(
-  async (_existing, session, form, _request, { id }) => {
-    const renderError = (error: string): Promise<Response> =>
-      attendeeStatusPage.renderEditError(id, session, form, error);
-    const parsed = parseStatusForm(form);
-    if (!parsed.ok) return renderError(parsed.error);
-
-    const saved = await attendeeStatusWrites.save(id, parsed.data);
-    if (!saved.ok) {
-      return renderError(SAVE_ERRORS[saved.error]);
-    }
-    await logActivity(`Attendee status '${parsed.data.name}' updated`);
-    return redirect(attendeeStatusPage.path(id), "Status updated", true);
-  },
-);
-
-const deleteGet = ownerStatusPage((status, session) =>
-  statusPages.deletePage(status, session, getFlash().error),
-);
-
-const deletePost = statusHandlers.post(
-  async (status, _session, form, _request, { id }) => {
-    const confirmPath = `${LIST_PATH}/${id}/delete`;
-    const mismatch = verifyOrRedirect(
-      form,
-      status.name,
-      confirmPath,
-      "Name",
-      "deletion",
-    );
-    if (mismatch) return mismatch;
-    const deleted = await attendeeStatusWrites.delete(id);
-    if (!deleted.ok) {
-      return errorRedirect(confirmPath, DELETE_ERRORS[deleted.error]);
-    }
-    await logActivity(`Attendee status '${status.name}' deleted`);
-    return redirect(LIST_PATH, "Status deleted", true);
-  },
-);
-
-/** Factory for move-up / move-down handlers (swap with the ordered neighbour). */
-const moveHandler = (dir: "up" | "down") =>
-  statusHandlers.post(async (_status, _session, _form, _request, { id }) => {
-    const ids = (await attendeeStatuses.getAll()).map((s) => s.id);
-    const pair = planReorder(ids, id, dir);
-    if (pair) await swapAttendeeStatusOrder(pair[0], pair[1]);
-    return redirect(LIST_PATH, "Status moved", true);
-  });
+const statusOrder = createOrderedCollectionHandlers({
+  auth: OWNER_FORM,
+  keys: async () =>
+    (await attendeeStatuses.getAll()).map((status) => status.id),
+  loadContext: ({ id }: { id: number }) => getAttendeeStatus(id),
+  movedMessage: "Status moved",
+  redirectPath: () => LIST_PATH,
+  swap: flatCollectionSwap(attendeeStatusOrder),
+  target: ({ context }) => context.id,
+});
 
 export const adminHandlers = handlersFor("settingsStatuses")({
-  getSettingsStatuses: listGet,
+  getSettingsStatuses: crud.listGet,
   getSettingsStatusesById: (request, { id }) =>
     attendeeStatusPage.renderTab(request, id, ""),
   getSettingsStatusesByIdByTab: (request, { id, tab }) =>
     attendeeStatusPage.renderTab(request, id, tab),
-  getSettingsStatusesByIdDelete: deleteGet,
-  getSettingsStatusesNew: newGet,
-  postSettingsStatuses: createPost,
-  postSettingsStatusesByIdDelete: deletePost,
-  postSettingsStatusesByIdEdit: editPost,
-  postSettingsStatusesByIdMoveDown: moveHandler("down"),
-  postSettingsStatusesByIdMoveUp: moveHandler("up"),
+  getSettingsStatusesByIdDelete: crud.deleteGet,
+  getSettingsStatusesNew: crud.newGet,
+  postSettingsStatuses: crud.createPost,
+  postSettingsStatusesByIdDelete: crud.deletePost,
+  postSettingsStatusesByIdEdit: crud.editPost,
+  postSettingsStatusesByIdMoveDown: statusOrder.down,
+  postSettingsStatusesByIdMoveUp: statusOrder.up,
 });

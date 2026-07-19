@@ -20,12 +20,16 @@
  */
 
 import { lazyRef } from "#fp";
-import { registerCache } from "#shared/cache-registry.ts";
+import {
+  type CacheInvalidation,
+  registerCache,
+} from "#shared/cache-registry.ts";
 import {
   executeWithoutCacheInvalidation,
   queryAll,
   type SqlStatement,
 } from "#shared/db/client.ts";
+import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 import { recordSettingRead } from "#shared/db/settings-audit.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -43,6 +47,9 @@ const [getCacheState, setCacheState] = lazyRef<CacheState>(() => ({
   version: -1,
 }));
 
+/** Keep the version and its setting values on the same primary-backed view. */
+export const settingsReadRefill = createPrimaryCacheRefill();
+
 registerCache(() => ({
   entries: getCacheState().values.size,
   name: "settings",
@@ -57,9 +64,10 @@ export { getCacheState, setCacheState };
  * (a fresh database) it is absent, which reads as version 0.
  */
 export const getCurrentSettingsVersion = async (): Promise<number> => {
-  const rows = await queryAll<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.SETTINGS_VERSION],
+  const rows = await settingsReadRefill.fetch(() =>
+    queryAll<{ value: string }>("SELECT value FROM settings WHERE key = ?", [
+      CONFIG_KEYS.SETTINGS_VERSION,
+    ]),
   );
   return Number.parseInt(rows[0]?.value ?? "0", 10);
 };
@@ -77,6 +85,14 @@ const versionProbe = requestCache<number>(async () => [
 /** The settings version this request should be validated against. */
 export const currentVersion = async (): Promise<number> =>
   (await versionProbe.getAll())[0]!;
+
+/** Clear the request memo so a settings write reloads its version and values from primary. */
+export const invalidateVersionProbe = (
+  cause: CacheInvalidation = "manual",
+): void => {
+  settingsReadRefill.afterInvalidation(cause === "write");
+  versionProbe.invalidate();
+};
 
 /** Start fetching the settings version as early as possible in a request, so
  *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */

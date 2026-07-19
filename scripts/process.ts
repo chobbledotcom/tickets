@@ -8,6 +8,29 @@ export const INHERIT_STDIO = {
   stdout: "inherit",
 } as const;
 
+/** Run the current Deno executable with inherited output. */
+export const denoCommand = (
+  args: string[],
+  options: Omit<Deno.CommandOptions, "args"> = {},
+): Deno.Command =>
+  new Deno.Command(Deno.execPath(), {
+    ...options,
+    args,
+  });
+
+export const runDeno = (
+  args: string[],
+  cwd: string,
+): Promise<Deno.CommandOutput> =>
+  denoCommand(args, {
+    cwd,
+    stderr: "inherit",
+    stdout: "inherit",
+  }).output();
+
+export const removeTree = (path: string): Promise<void> =>
+  Deno.remove(path, { recursive: true });
+
 const beforeTimeout = async (
   status: Promise<unknown>,
   timeoutMs: number,

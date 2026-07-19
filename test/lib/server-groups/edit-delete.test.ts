@@ -5,6 +5,7 @@ import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { listingGroups } from "#shared/db/groups.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -265,7 +266,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       expectStatus(404)(response);
     });
 
-    test("succeeds when group is deleted between load and delete", async () => {
+    test("returns not found when a group disappears before deletion", async () => {
       const group = await createTestGroup({
         name: "Race Group",
         slug: "race-group",
@@ -293,7 +294,10 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
             cookie,
           ),
         );
-        await expectFlashRedirect("/admin/groups", "Group deleted")(response);
+        expect(response.status).toBe(404);
+        expect(await wasActivityLogged("Group 'Race Group' deleted")).toBe(
+          false,
+        );
       } finally {
         findByIdStub.restore();
       }

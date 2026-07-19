@@ -2,8 +2,11 @@ import { expect } from "@std/expect";
 import type { Question, TextAnswer } from "#shared/db/question-types.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { assignNextQuestionSortOrder } from "#shared/db/questions/sort-order.ts";
-import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import {
+  answersTable,
+  questionsOrder,
+  questionsTable,
+} from "#shared/db/questions/tables.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -77,9 +80,9 @@ export const createOrderedQuestionPair = async (
   answerB: string,
 ): Promise<{ q1: Question; q2: Question }> => {
   const q1 = await createQuestion("Q1");
-  await assignNextQuestionSortOrder(q1.id);
+  await questionsOrder.append({ key: q1.id });
   const q2 = await createQuestion("Q2");
-  await assignNextQuestionSortOrder(q2.id);
+  await questionsOrder.append({ key: q2.id });
   await addAnswer(q1.id, 0, answerA);
   await addAnswer(q2.id, 0, answerB);
   return { q1, q2 };

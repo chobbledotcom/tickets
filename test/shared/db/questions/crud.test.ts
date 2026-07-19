@@ -16,16 +16,14 @@ import {
   listingQuestions,
 } from "#shared/db/questions/queries.ts";
 import {
-  assignNextQuestionSortOrder,
-  getNextAnswerSortOrder,
-  swapAnswerOrder,
-  swapQuestionOrder,
-} from "#shared/db/questions/sort-order.ts";
-import {
   getOrCreateStringIds,
   pairStringIds,
 } from "#shared/db/questions/strings.ts";
-import { questionsTable } from "#shared/db/questions/tables.ts";
+import {
+  answersOrder,
+  questionsOrder,
+  questionsTable,
+} from "#shared/db/questions/tables.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -174,12 +172,12 @@ describeWithEnv("custom questions", { db: true }, () => {
   describe("getNextAnswerSortOrder", () => {
     test("returns 0 for a question with no answers", async () => {
       const q = await createQuestion("Empty Q");
-      expect(await getNextAnswerSortOrder(q.id)).toBe(0);
+      expect(await answersOrder.next({ scope: q.id })).toBe(0);
     });
 
     test("returns max sort_order + 1 when answers exist", async () => {
       const q = await createQuestionWithAnswers("Q", ["A1", "A2"]);
-      expect(await getNextAnswerSortOrder(q.id)).toBe(2);
+      expect(await answersOrder.next({ scope: q.id })).toBe(2);
     });
   });
   describe("swapAnswerOrder", () => {
@@ -187,7 +185,11 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await createQuestion("Q");
       const a1 = await addAnswer(q.id, 0, "First");
       const a2 = await addAnswer(q.id, 1, "Second");
-      await swapAnswerOrder(a1.id, a2.id);
+      await answersOrder.swap({
+        first: a1.id,
+        scope: q.id,
+        second: a2.id,
+      });
       const updated = await getQuestionWithAnswers(q.id);
       // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
       expect(updated!.answers[0]!.text).toBe("Second");
@@ -199,8 +201,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q1 = await createQuestionWithAnswers("Q1", ["A"]);
       const q2 = await createQuestionWithAnswers("Q2", ["B"]);
 
-      await assignNextQuestionSortOrder(q1.id);
-      await assignNextQuestionSortOrder(q2.id);
+      await questionsOrder.append({ key: q1.id });
+      await questionsOrder.append({ key: q2.id });
 
       // Both are >= 1 (never 0, so they survive the legacy id-backfill) and q1
       // precedes q2 in the global list.
@@ -211,7 +213,7 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("swapQuestionOrder reorders the global question list", async () => {
       const { q1, q2 } = await createOrderedQuestionPair("A", "B");
 
-      await swapQuestionOrder(q1.id, q2.id);
+      await questionsOrder.swap({ first: q1.id, second: q2.id });
 
       const all = await getAllQuestionsWithAnswers();
       expectQuestionTexts(all, ["Q2", "Q1"]);

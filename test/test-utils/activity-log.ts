@@ -25,7 +25,7 @@ import {
   getAllActivityLog as realGetAllActivityLog,
   getAttendeeActivityLog as realGetAttendeeActivityLog,
   getListingActivityLog as realGetListingActivityLog,
-  getListingWithActivityLog as realGetListingWithActivityLog,
+  getListingWithActivityLogOrNull as realGetListingWithActivityLogOrNull,
 } from "#shared/db/activityLog.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
@@ -71,11 +71,11 @@ export const getAttendeeActivityLog = (
 ): Promise<ActivityLogEntry[]> =>
   withTestSession(() => realGetAttendeeActivityLog(attendeeId, limit));
 
-export const getListingWithActivityLog = (
+export const getListingWithActivityLogOrNull = (
   listingId: number,
   limit?: number,
 ): Promise<ListingWithActivityLog | null> =>
-  withTestSession(() => realGetListingWithActivityLog(listingId, limit));
+  withTestSession(() => realGetListingWithActivityLogOrNull(listingId, limit));
 
 /** True when the activity log holds an entry whose message equals `message`. */
 export const wasActivityLogged = async (message: string): Promise<boolean> =>

@@ -83,11 +83,7 @@ const normalizeUtcDatetime = (value: string, label: string): string => {
   }
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `${label} invalid datetime (${value})`,
-    });
-    return "";
+    throw new Error(`${label} has invalid datetime: ${value}`);
   }
   return date.toISOString();
 };
@@ -148,7 +144,13 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
       default: () => [...DEFAULT_BOOKABLE_DAYS],
       read: (value) => {
         const parsed: unknown = JSON.parse(value as string);
-        return Array.isArray(parsed) ? parsed : [];
+        if (
+          !Array.isArray(parsed) ||
+          !parsed.every((day): day is string => typeof day === "string")
+        ) {
+          throw new Error("Stored bookable_days must be a JSON string array");
+        }
+        return parsed;
       },
       write: (value) => JSON.stringify(value),
     }),
