@@ -58,7 +58,7 @@ const ORGANIC_UNSAFE_PREFIXES = [
 const pathIs = (path: string, prefix: string): boolean =>
   path === prefix || path.startsWith(`${prefix}/`);
 
-export const shouldRunOrganicMaintenance = (
+const shouldRunOrganicMaintenance = (
   method: string,
   path: string,
   status: number,
@@ -70,10 +70,27 @@ export const shouldRunOrganicMaintenance = (
 
 const [getNextOrganicWake, setNextOrganicWake] = lazyRef(() => 0);
 
-export const claimOrganicMaintenanceWake = (time = Date.now()): boolean => {
+const claimOrganicMaintenanceWake = (time = Date.now()): boolean => {
   if (time < getNextOrganicWake()) return false;
   setNextOrganicWake(time + ORGANIC_MAINTENANCE_THROTTLE_MS);
   return true;
+};
+
+/** Run maintenance after a safe response when this isolate's wake is due. */
+export const runOrganicMaintenanceWhenDue = async (
+  method: string,
+  path: string,
+  status: number,
+  run: () => void | Promise<void>,
+  time = Date.now(),
+): Promise<void> => {
+  if (
+    !shouldRunOrganicMaintenance(method, path, status) ||
+    !claimOrganicMaintenanceWake(time)
+  ) {
+    return;
+  }
+  await run();
 };
 
 /** Whether a busy-database page may retry the request automatically. */

@@ -11,7 +11,7 @@ import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
-import { runMaintenance } from "#shared/maintenance/runner.ts";
+import { maintenance } from "#shared/maintenance/runner.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   insertLegacyActivity,
@@ -92,7 +92,7 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
   test("runs the legacy backfill through the maintenance registry", async () => {
     const id = await insertLegacyActivity("registry legacy");
 
-    await runMaintenance(MAINTENANCE_TASKS);
+    await maintenance.run(MAINTENANCE_TASKS);
 
     expect((await rawActivityMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
   });

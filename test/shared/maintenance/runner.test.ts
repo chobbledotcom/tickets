@@ -5,7 +5,7 @@ import {
   defineMaintenanceTasks,
   type MaintenanceTaskDeclaration,
 } from "#shared/maintenance/definition.ts";
-import { runMaintenance } from "#shared/maintenance/runner.ts";
+import { maintenance } from "#shared/maintenance/runner.ts";
 import {
   countSubrequest,
   getSubrequestUsage,
@@ -69,7 +69,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     ]);
 
     await expect(
-      runWithSubrequestBudget(() => runMaintenance(tasks)),
+      runWithSubrequestBudget(() => maintenance.run(tasks)),
     ).rejects.toThrow("Maintenance failed: fails");
     expect(ran.sort()).toEqual(["fails", "works"]);
     expect(
@@ -85,7 +85,9 @@ describeWithEnv("maintenance runner", { db: true }, () => {
 
     await expect(
       runWithSubrequestBudget(() =>
-        runMaintenance(defineMaintenanceTasks([fail("first"), fail("second")])),
+        maintenance.run(
+          defineMaintenanceTasks([fail("first"), fail("second")]),
+        ),
       ),
     ).rejects.toThrow("Maintenance failed: first, second");
   });
@@ -105,7 +107,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     ]);
 
     await expect(
-      runWithSubrequestBudget(() => runMaintenance(tasks)),
+      runWithSubrequestBudget(() => maintenance.run(tasks)),
     ).rejects.toThrow("Maintenance failed: release_fails");
   });
 
@@ -117,8 +119,8 @@ describeWithEnv("maintenance runner", { db: true }, () => {
       }),
     ]);
 
-    await runWithSubrequestBudget(() => runMaintenance(tasks));
-    await runWithSubrequestBudget(() => runMaintenance(tasks));
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
 
     expect(calls.length).toBe(1);
   });
@@ -135,9 +137,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
       ),
     ]);
 
-    await runWithSubrequestBudget(() =>
-      runMaintenance(tasks, { wakePolicy: "organic_safe" }),
-    );
+    await runWithSubrequestBudget(() => maintenance.runOrganic(tasks));
 
     expect(calls).toEqual([]);
   });
@@ -154,7 +154,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
       ),
     ]);
 
-    await runWithSubrequestBudget(() => runMaintenance(tasks));
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
 
     expect(calls).toEqual(["ran"]);
   });
@@ -163,14 +163,14 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     const tasks = defineMaintenanceTasks([
       declaration("too_large", () => {}, { maxDatabaseCalls: 1 }),
     ]);
-    await runWithSubrequestBudget(() => runMaintenance(tasks));
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
     await forceDue(["too_large"]);
     const before = await queryOne<{ next_run_at: number }>(
       "SELECT next_run_at FROM maintenance_tasks WHERE name = 'too_large'",
     );
 
     await runWithSubrequestBudget(() =>
-      runMaintenance(tasks, { combinedAllowance: 4 }),
+      maintenance.run(tasks, { combinedAllowance: 4 }),
     );
 
     const after = await queryOne<{ next_run_at: number }>(
@@ -203,7 +203,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     ]);
     const before = Date.now();
 
-    await runWithSubrequestBudget(() => runMaintenance(tasks));
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
 
     expect(seen).toEqual([
       {
@@ -235,7 +235,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     const requestDeadline = Date.now() + 5_000;
 
     await runWithSubrequestBudget(() =>
-      runMaintenance(tasks, { requestDeadline }),
+      maintenance.run(tasks, { requestDeadline }),
     );
 
     expect(leaseExpiresAt - requestDeadline).toBeGreaterThan(500);
@@ -255,7 +255,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     ]);
     const before = Date.now();
 
-    await runWithSubrequestBudget(() => runMaintenance(tasks));
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
 
     expect(deadline).toBeGreaterThan(before + 23_000);
     expect(deadline).toBeLessThan(before + 24_500);
@@ -270,7 +270,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     ]);
 
     await runWithSubrequestBudget(() =>
-      runMaintenance(tasks, { requestDeadline: 0 }),
+      maintenance.run(tasks, { requestDeadline: 0 }),
     );
 
     expect(calls).toEqual([]);
@@ -286,7 +286,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
 
     await runWithSubrequestBudget(async () => {
       await expect(
-        runMaintenance(tasks, { combinedAllowance: 0 }),
+        maintenance.run(tasks, { combinedAllowance: 0 }),
       ).rejects.toThrow("Subrequest allowance exceeded");
       expect(getSubrequestUsage()).toEqual({
         database: 1,
@@ -312,7 +312,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     await runWithSubrequestBudget(async () => {
       countSubrequest("database", "earlier request work");
       countSubrequest("database", "more earlier request work");
-      await runMaintenance(tasks);
+      await maintenance.run(tasks);
     });
 
     expect(calls).toEqual(["ran"]);
@@ -330,9 +330,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
       ),
     ]);
 
-    await runWithSubrequestBudget(() =>
-      runMaintenance(tasks, { externalAllowance: 0 }),
-    );
+    await runWithSubrequestBudget(() => maintenance.runOrganic(tasks));
 
     expect(calls).toEqual([]);
   });
@@ -347,9 +345,9 @@ describeWithEnv("maintenance runner", { db: true }, () => {
 
     await Promise.all([
       runWithSubrequestBudget(() =>
-        runMaintenance(tasks, { wakePolicy: "organic_safe" }),
+        maintenance.run(tasks, { wakePolicy: "organic_safe" }),
       ),
-      runWithSubrequestBudget(() => runMaintenance(tasks)),
+      runWithSubrequestBudget(() => maintenance.run(tasks)),
     ]);
 
     expect(calls).toEqual(["ran"]);
@@ -371,7 +369,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
 
       for (let minute = minutes; minute <= 15; minute += minutes) {
         await forceDue([name]);
-        await runWithSubrequestBudget(() => runMaintenance(tasks));
+        await runWithSubrequestBudget(() => maintenance.run(tasks));
       }
 
       expect(batches).toBe(expectedBatches);

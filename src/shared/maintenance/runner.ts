@@ -132,7 +132,7 @@ const runWithinAllowance = async (
   }
 };
 
-export const runMaintenance = (
+const runMaintenance = (
   declarations: readonly MaintenanceTaskDeclaration[],
   options: RunMaintenanceOptions = {},
 ): Promise<void> => {
@@ -157,4 +157,18 @@ export const runMaintenance = (
     },
     () => runWithinAllowance(declarations, options, requestDeadline),
   );
+};
+
+/** Run only database-safe work from an ordinary foreground request. */
+const runOrganicMaintenance = (
+  declarations: readonly MaintenanceTaskDeclaration[],
+): Promise<void> =>
+  runMaintenance(declarations, {
+    externalAllowance: 0,
+    wakePolicy: "organic_safe",
+  });
+
+export const maintenance = {
+  run: runMaintenance,
+  runOrganic: runOrganicMaintenance,
 };

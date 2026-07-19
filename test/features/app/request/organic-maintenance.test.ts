@@ -16,6 +16,7 @@ describeWithEnv("organic maintenance failure isolation", { db: true }, () => {
 
     expect(response.status).toBe(200);
     expect(errors.contains("organic maintenance failed")).toBe(true);
+    expect(errors.calls.length).toBe(1);
     expect(
       await queryOne<{ name: string }>(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'maintenance_tasks'",

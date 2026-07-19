@@ -55,18 +55,16 @@ import {
   logRequest,
 } from "#shared/logger.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
-import { flushPendingWork } from "#shared/pending-work.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { defineAppRoute, routeMainApp } from "./routes.ts";
 import {
   bufferRequestIfNeeded,
-  claimOrganicMaintenanceWake,
   ensureCustomCssResponse,
   isSetupPath,
+  runOrganicMaintenanceWhenDue,
   shouldLogQueries,
   shouldPrefetchSettings,
   shouldRetryBusyRequest,
-  shouldRunOrganicMaintenance,
   trackingRedirectLocation,
 } from "./rules.ts";
 
@@ -160,31 +158,22 @@ const prepareRequestEnvironment = async (
   loadEffectiveDomain(url);
 };
 
-const runOrganicMaintenance = async (
+const runOrganicMaintenanceAfterResponse = (
   method: string,
   path: string,
   response: Response,
-): Promise<void> => {
-  if (
-    !shouldRunOrganicMaintenance(method, path, response.status) ||
-    !claimOrganicMaintenanceWake()
-  ) {
-    return;
-  }
-  try {
-    const [{ MAINTENANCE_TASKS }, { runMaintenance }] = await Promise.all([
-      import("#shared/maintenance/registry.ts"),
-      import("#shared/maintenance/runner.ts"),
-    ]);
-    await runMaintenance(MAINTENANCE_TASKS, {
-      externalAllowance: 0,
-      wakePolicy: "organic_safe",
-    });
-  } catch (error) {
-    reportMaintenanceFailure("organic maintenance failed", error);
-  }
-  await flushPendingWork();
-};
+): Promise<void> =>
+  runOrganicMaintenanceWhenDue(method, path, response.status, async () => {
+    try {
+      const [{ MAINTENANCE_TASKS }, { maintenance }] = await Promise.all([
+        import("#shared/maintenance/registry.ts"),
+        import("#shared/maintenance/runner.ts"),
+      ]);
+      await maintenance.runOrganic(MAINTENANCE_TASKS);
+    } catch (error) {
+      reportMaintenanceFailure("organic maintenance failed", error);
+    }
+  });
 
 const routeAndFinalize = async (
   request: Request,
@@ -293,9 +282,7 @@ export const processRequest = async (
     assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
     response = finish(handleRoutingError(error, method, path));
-  } finally {
-    await flushPendingWork();
   }
-  await runOrganicMaintenance(method, path, response);
+  await runOrganicMaintenanceAfterResponse(method, path, response);
   return response;
 };
