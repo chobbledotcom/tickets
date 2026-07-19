@@ -114,24 +114,33 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   // ── setEnvVars ─────────────────────────────────────────────────────────────
 
   test("setEnvVars PATCHes only the supplied vars (no GET)", async () => {
-    let patchUrl: string | undefined;
-    let patchBody: unknown;
+    const captured: CapturedRequest = { body: undefined, url: undefined };
     let callCount = 0;
 
     using _fetch = stubFetch((url, init) => {
       callCount++;
-      patchUrl = url;
-      patchBody = JSON.parse(init?.body as string);
-      return new Response(JSON.stringify({ id: "app_ev", slug: "env-app" }));
+      return captureRequest({ id: "app_ev", slug: "env-app" }, captured)(
+        url,
+        init,
+      );
     });
     const result = await denoDeployApi.setEnvVars("app_ev", [
       ["NEW_VAR", "new-value"],
     ]);
     expect(result.ok).toBe(true);
     expect(callCount).toBe(1);
-    expect(patchUrl).toContain("/apps/app_ev");
-    const envVars = (patchBody as { env_vars: { key: string }[] }).env_vars;
-    expect(envVars.map((e) => e.key)).toContain("NEW_VAR");
+    expect(captured.url).toContain("/apps/app_ev");
+    expect(captured.method).toBe("PATCH");
+    expect(captured.body).toEqual({
+      env_vars: [
+        {
+          contexts: ["production"],
+          key: "NEW_VAR",
+          secret: true,
+          value: "new-value",
+        },
+      ],
+    });
   });
 
   test("setEnvVars returns error when PATCH fails", async () => {

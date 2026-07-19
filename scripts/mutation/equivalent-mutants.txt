@@ -83,7 +83,7 @@ src/shared/db/built-sites.ts:348:15  false → true   # dp has the same non-empt
 src/shared/db/built-sites.ts:419:71  ?? → ||   # each falsy valid input has the same falsy default and is omitted; provider and scheduled-key values are non-empty
 src/shared/deno-deploy-api.ts:91:34  ?? → ||   # env_vars is a record object when present, and every object is truthy
 src/shared/bunny-cdn.ts:477:42  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
-src/shared/bunny-cdn.ts:538:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
+src/shared/bunny-cdn.ts:529:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts:38:40  ?? → ||   # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
@@ -128,7 +128,7 @@ src/shared/db/table.ts:715:6  === → ==   # wrapNullable constrains T to exclud
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/login-attempts.ts:46:39  ?? → ||
-src/shared/db/users.ts:260:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/users.ts:263:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
 src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
 src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
@@ -262,11 +262,6 @@ src/shared/db/attendees/capacity/groups.ts:178:39  ?? → ||   # membership.get(
 
 # v2 signed metadata (Phase 2d).
 src/shared/payment-helpers.ts:159:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-
-# Settings registry: readOnly is optional but can only be true when present, so
-# `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
-# make the same if-condition decision for every valid accessor.
-src/shared/settings/registry.ts:345:40  && → ||   # readOnly?: true; absent is falsy either way, present is true either way
 
 # --- External order widget (src/ui/client/order.ts) ----------------------------
 # This is browser DOM-construction code; many operator swaps are provably

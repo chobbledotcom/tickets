@@ -14,11 +14,14 @@ import {
   decryptUsername,
   deleteUser,
   getAllUsers,
+  getUserAuthFieldsById,
   getUserById,
   getUserByUsername,
   getUserDisplayFields,
   hashInviteCode,
   invalidateUsersCache,
+  isInviteExpired,
+  isInviteValid,
   isUsernameTaken,
   migrateUserToV2Kek,
   verifyUserPassword,
@@ -51,6 +54,20 @@ describeWithEnv("db > users contracts", { db: true }, () => {
       "owner",
       "editor",
     ]);
+  });
+
+  test("returns the exact authentication row for one user", async () => {
+    const invited = await createInvitedUser(
+      "auth-fields-user",
+      "manager",
+      "auth-fields-invite",
+      "2099-01-01T00:00:00.000Z",
+    );
+
+    expect(await getUserAuthFieldsById(invited.id)).toEqual({
+      admin_level: invited.admin_level,
+      id: invited.id,
+    });
   });
 
   test("keeps the full user list cached within its lifetime", async () => {
@@ -116,6 +133,44 @@ describeWithEnv("db > users contracts", { db: true }, () => {
 
     expect(await isUsernameTaken("TAKEN-USER")).toBe(true);
     expect(await isUsernameTaken("available-user")).toBe(false);
+  });
+
+  test("classifies every incomplete, current, and expired invite state", async () => {
+    const current = await createInvitedUser(
+      "invite-states",
+      "manager",
+      "invite-hash",
+      "2099-01-01T00:00:00.000Z",
+    );
+    const expired = {
+      ...current,
+      invite_expiry: await encrypt("2020-01-01T00:00:00.000Z"),
+    };
+    const states = [
+      { ...current, invite_code_hash: null },
+      { ...current, invite_code_hash: await encrypt("") },
+      { ...current, invite_expiry: null },
+      { ...current, invite_expiry: await encrypt("") },
+      current,
+      expired,
+    ];
+
+    expect(await Promise.all(states.map(isInviteValid))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+    ]);
+    expect(await Promise.all(states.map(isInviteExpired))).toEqual([
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+    ]);
   });
 
   test("activates a keyless user once and clears the invite", async () => {
