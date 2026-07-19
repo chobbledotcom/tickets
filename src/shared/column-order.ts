@@ -11,7 +11,6 @@
  */
 
 import { createBaseLiquidEngine } from "#shared/liquid-engine.ts";
-import { requireSuccess } from "#shared/result.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -152,7 +151,7 @@ export const resolveColumnLayout = (
     return { columnKeys: [...defaultOrder], filters: new Map() };
   }
   const result = parseColumnTemplate(template, validKeys);
-  requireSuccess(result);
+  if (!result.ok) throw new Error(result.error);
   return { columnKeys: result.columns, filters: result.filters };
 };
 

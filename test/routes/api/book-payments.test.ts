@@ -71,10 +71,10 @@ describePublicApi(() => {
       expect(attendee?.bookings[0]?.price_paid).toBe(1000);
       // The booking carries the public-default status, matching the web free
       // path so a balance-carrying attendee is never left status-less.
-      const { getPublicStatusId } = await import(
+      const { requirePublicStatusId } = await import(
         "#shared/db/attendee-statuses.ts"
       );
-      expect(attendee?.status_id).toBe(await getPublicStatusId());
+      expect(attendee?.status_id).toBe(await requirePublicStatusId());
     });
 
     test("books a free listing without an owed balance when a provider is configured", async () => {

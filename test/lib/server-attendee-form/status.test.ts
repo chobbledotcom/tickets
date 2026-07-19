@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   attendeeStatuses,
-  getPaidDefaultStatus,
+  requirePaidDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
@@ -101,7 +101,7 @@ describeWithEnv(
         // reachable from a hand-crafted POST) must not clear the attendee — it
         // falls back to the public default instead.
         const reservation = await newReservation(); // a second, non-default status
-        const publicDefault = await getPaidDefaultStatus(); // the seed is also public default
+        const publicDefault = await requirePaidDefaultStatus(); // the seed is also public default
         const id = await seedAttendee(reservation.id, 1500);
         const form = await buildAttendeeEditForm(id, {
           extra: { status_id: "" },
@@ -116,7 +116,7 @@ describeWithEnv(
       });
 
       test("edit page warns when a paid status still owes a balance", async () => {
-        const paid = await getPaidDefaultStatus();
+        const paid = await requirePaidDefaultStatus();
         const id = await seedAttendee(paid!.id, 1500);
         const html = await getEdit(id);
         expect(html).toContain("paid status but still owes");
@@ -193,14 +193,14 @@ describeWithEnv(
 
       test("edit page pre-selects the public default when the attendee has no status", async () => {
         await newReservation(); // a second status, so the select is shown
-        const defaultStatus = await getPaidDefaultStatus(); // also the public default seed
+        const defaultStatus = await requirePaidDefaultStatus(); // also the public default seed
         const id = await seedAttendee(null, 0); // attendee has no status
         const html = await getEdit(id);
         expect(hasSelectedOption(html, String(defaultStatus!.id))).toBe(true);
       });
 
       test("edit page submits the lone status as a hidden field (no dropdown)", async () => {
-        const only = await getPaidDefaultStatus(); // the single seeded status
+        const only = await requirePaidDefaultStatus(); // the single seeded status
         const id = await seedAttendee(only!.id, 0);
         const html = await getEdit(id);
         // No status dropdown is rendered for a single-status site...

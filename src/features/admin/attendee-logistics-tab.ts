@@ -28,7 +28,7 @@ import {
 } from "#shared/db/attendees/overlap.ts";
 import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
 import type { DayRange } from "#shared/db/capacity.ts";
-import { getListingNamesByIds } from "#shared/db/listings/records.ts";
+import { listingNames } from "#shared/db/listings/records.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { AttendeeLogisticsPanel } from "#templates/admin/attendee-logistics-tab.tsx";
 
@@ -87,14 +87,14 @@ const loadOtherAttendees = async (
     unique(rows.map((row) => row.attendee_id)),
     await requireRequestPrivateKey(),
   );
-  const listingNames = await getListingNamesByIds(
+  const namesByListing = await listingNames.byIds(
     unique(rows.map((row) => row.listing_id)),
   );
   return rows.map((row: OverlappingBooking) => ({
     attendeeId: row.attendee_id,
     endAt: row.end_at,
     endTime: row.end_time,
-    listingName: listingNames.get(row.listing_id)!,
+    listingName: namesByListing.get(row.listing_id)!,
     name: names.get(row.attendee_id)!,
     quantity: row.quantity,
     startAt: row.start_at,

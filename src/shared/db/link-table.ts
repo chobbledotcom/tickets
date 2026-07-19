@@ -106,7 +106,7 @@ export const linkTableSide = (
     ];
   };
 
-  return {
+  const linkSide: LinkTableSide = {
     addIdsTx: async (tx, keyId, ids) => {
       const deduped = dedupe(ids);
       if (deduped.length === 0) return;
@@ -120,8 +120,12 @@ export const linkTableSide = (
               SELECT ?, ${valueColumn} FROM ${table} WHERE ${keyColumn} = ?`,
       });
     },
-    getIds: (keyId) =>
-      readIds(({ sql, args }) => queryAll<{ id: number }>(sql, args), keyId),
+    getIds: async (keyId) =>
+      requiredMapValue(
+        await linkSide.getIdsByKeys([keyId]),
+        keyId,
+        `Missing link result for ${keyColumn} ${keyId}`,
+      ),
     getIdsByKeys: async (keyIds) => {
       const keys = unique([...keyIds]);
       const idsByKey = new Map(keys.map((id) => [id, [] as number[]]));
@@ -157,4 +161,5 @@ export const linkTableSide = (
       await tx.batch(replaceStatements(keyId, ids));
     },
   };
+  return linkSide;
 };

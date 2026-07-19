@@ -43,7 +43,7 @@ import {
 import {
   inPlaceholders,
   queryAll,
-  queryOne,
+  requireOne,
   resultRows,
   rowExists,
   type TxScope,
@@ -156,13 +156,13 @@ export const transferActivityBounds = async (): Promise<{
 } | null> => {
   // An ungrouped aggregate always yields exactly one row; MIN and MAX are NULL
   // together iff the table is empty.
-  const row = (await queryOne<{
+  const row = await requireOne<{
     min_ms: number | bigint | null;
     max_ms: number | bigint | null;
   }>(
     "SELECT MIN(occurred_at) AS min_ms, MAX(occurred_at) AS max_ms FROM transfers",
     [],
-  ))!;
+  );
   if (row.min_ms === null || row.max_ms === null) return null;
   return { maxMs: Number(row.max_ms), minMs: Number(row.min_ms) };
 };
@@ -204,7 +204,7 @@ export const ledgerTotals = async (
 ): Promise<LedgerTotals> => {
   const r = occurredAtRange(range);
   // An ungrouped aggregate always yields exactly one row.
-  const row = (await queryOne<LedgerTotalsRow>(
+  const row = await requireOne<LedgerTotalsRow>(
     `SELECT
        COALESCE(SUM(CASE
          WHEN kind = '${KIND.sale}' AND dest_type = '${REVENUE}' THEN amount
@@ -217,7 +217,7 @@ export const ledgerTotals = async (
        ${signedSumCase(`dest_type = '${FEE_INCOME}'`, `source_type = '${FEE_INCOME}'`)} AS fees
      FROM transfers${wherePrefixed(r.clause)}`,
     r.args,
-  ))!;
+  );
   return {
     due: Number(row.due),
     fees: Number(row.fees),
@@ -294,11 +294,11 @@ export const accountBalance = async (acct: AccountRef): Promise<number> => {
   // Each predicate binds (type, id) and appears four times — both CASE arms and
   // both WHERE arms — so the account's pair repeats four times, in that order.
   const pair: InValue[] = [acct.type, acct.id];
-  const row = (await queryOne<{ balance: number | bigint }>(
+  const row = await requireOne<{ balance: number | bigint }>(
     `SELECT ${signedSumCase(asDest, asSource)} AS balance` +
       ` FROM transfers WHERE ${asDest} OR ${asSource}`,
     [...pair, ...pair, ...pair, ...pair],
-  ))!;
+  );
   return Number(row.balance);
 };
 

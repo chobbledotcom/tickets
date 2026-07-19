@@ -29,9 +29,9 @@ import {
 import {
   getAllListings,
   getListingWithCount,
-  getListingWithCountPrimary,
   getStoredListingWithCount,
   listingsTable,
+  requireListingWithCountPrimary,
 } from "#shared/db/listings/records.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
@@ -48,11 +48,11 @@ import {
   bodyNumber,
   type DeleteBody,
   defineCrudApi,
-  type ParseResult,
   parseOptionalArray,
   parseUpdateName,
   withApiEntity,
 } from "#shared/rest/crud-api.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type {
   AdminListing,
   Listing,
@@ -182,11 +182,11 @@ const parseDayPrices = (raw: unknown): Record<number, number> => {
  * `[]`) replaces it. Fails closed: any non-positive-integer entry rejects the
  * whole request rather than being silently dropped, so a typo like
  * `["5"]` can't quietly clear a listing's groups. */
-const parseGroupIds = (raw: unknown): ParseResult<number[] | undefined> =>
+const parseGroupIds = (raw: unknown): Result<number[] | undefined> =>
   parseOptionalArray<number>(raw, "group_ids", (entry) =>
     typeof entry === "number" && Number.isInteger(entry) && entry > 0
-      ? { value: entry }
-      : { error: "group_ids must contain only positive integer ids" },
+      ? okResult(entry)
+      : errorResult("group_ids must contain only positive integer ids"),
   );
 
 /** Check whether a value matches the expected field type */
@@ -253,22 +253,16 @@ const existingToDefaults = (existing: ListingWithCount): FieldRecord =>
  * the ids to `build` to finish producing the listing input. */
 const withParsedGroupIds = (
   body: Record<string, unknown>,
-  build: (groupIds: number[] | undefined) => Promise<ParseResult<ListingInput>>,
-): Promise<ParseResult<ListingInput>> => {
+  build: (groupIds: number[] | undefined) => Promise<Result<ListingInput>>,
+): Promise<Result<ListingInput>> => {
   const groups = parseGroupIds(body.group_ids);
-  return groups.ok ? build(groups.input) : Promise.resolve(groups);
+  return groups.ok ? build(groups.value) : Promise.resolve(groups);
 };
-
-/** A successful listing-input parse result. */
-const okListingInput = (input: ListingInput): ParseResult<ListingInput> => ({
-  input,
-  ok: true,
-});
 
 /** Convert JSON body to ListingInput for create (auto-generates slug) */
 export const bodyToCreateInput = (
   body: Record<string, unknown>,
-): Promise<ParseResult<ListingInput>> => {
+): Promise<Result<ListingInput>> => {
   if (typeof body.name !== "string" || body.name.trim() === "") {
     return Promise.resolve({ error: "name is required", ok: false });
   }
@@ -283,7 +277,7 @@ export const bodyToCreateInput = (
 
   return withParsedGroupIds(body, async (groupIds) => {
     const { slug, slugIndex } = await generateUniqueListingSlug();
-    return okListingInput({
+    return okResult({
       ...pickTypedFields(body, optionalFields),
       dayPrices: parseDayPrices(body.day_prices),
       groupIds,
@@ -300,7 +294,7 @@ export const bodyToCreateInput = (
 export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
   resolved: ListingWithCount,
-): Promise<ParseResult<ListingInput>> => {
+): Promise<Result<ListingInput>> => {
   // Merge the patch onto the listing's *stored* values, not the resolved view,
   // so an API update that doesn't touch a defaulted field can't bake the current
   // default into the row (mirrors the HTML edit path). The lookup row is
@@ -317,7 +311,7 @@ export const bodyToUpdateInput = async (
       existing.max_attendees,
     );
     if (maxAttendees < 1) {
-      return { error: "max_attendees must be >= 1", ok: false };
+      return errorResult("max_attendees must be >= 1");
     }
 
     const { slug, slugIndex } = await parseUpdatedListingSlug(
@@ -325,7 +319,7 @@ export const bodyToUpdateInput = async (
       existing.slug,
     );
 
-    return okListingInput({
+    return okResult({
       ...existingToDefaults(existing),
       ...pickTypedFields(body, optionalFields),
       dayPrices:
@@ -339,7 +333,7 @@ export const bodyToUpdateInput = async (
       groupIds: groupIds ?? existingGroupIds,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),
-      name: parsedName.name,
+      name: parsedName.value,
       slug,
       slugIndex,
     } as ListingInput);
@@ -588,7 +582,7 @@ const listingApiRoutes = defineCrudApi<
   // Reading the row back after its own write must hit the primary — a replica
   // read (as the cache-backed `lookup` does on a miss) can lag the commit and
   // return null, crashing the write response on `.id`.
-  lookupAfterWrite: getListingWithCountPrimary,
+  lookupAfterWrite: requireListingWithCountPrimary,
   name: "listings",
   nameField: "name",
   // The required-child gate and group membership are atomic side effects (Fix

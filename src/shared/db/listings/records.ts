@@ -7,7 +7,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
-  queryOnePrimary,
+  requireOnePrimary,
 } from "#shared/db/client.ts";
 import { cachedEntityTable } from "#shared/db/common-schema.ts";
 import { getImageFilenamesForItem } from "#shared/db/images.ts";
@@ -17,7 +17,7 @@ import {
   syncListingPrices,
 } from "#shared/db/listing-prices.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema/listing-aggregates.ts";
-import { envNameSource } from "#shared/db/query.ts";
+import { envNameSource, rowsByIds } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import { resolveListingDefaults } from "#shared/listing-defaults.ts";
@@ -69,10 +69,10 @@ export const decryptListingWithCount = async (
 export const getStoredListingsWithCountsByIds = async (
   ids: readonly number[],
 ): Promise<ListingWithCount[]> => {
-  if (ids.length === 0) return [];
-  const rows = await queryAll<ListingProjectionRow>(
-    `${LISTING_COUNT_SELECT} WHERE listing.id IN (${inPlaceholders(ids)})`,
+  const rows = await rowsByIds<ListingProjectionRow>(
     [...ids],
+    (placeholders) =>
+      `${LISTING_COUNT_SELECT} WHERE listing.id IN (${placeholders})`,
   );
   return mapParallel(decryptStoredListingWithCount)(rows);
 };
@@ -95,22 +95,6 @@ export const queryListingsWithCounts = async (
   return mapParallel(decryptListingWithCount)(rows);
 };
 
-const queryOneListingWithCount = async (
-  where: string,
-  args: InValue[],
-): Promise<ListingWithCount | null> =>
-  (await queryListingsWithCounts(`WHERE ${where}`, args))[0] ?? null;
-
-/** Read only the requested listings in one bounded query. */
-export const getListingsWithCountsByIds = (
-  ids: readonly number[],
-): Promise<ListingWithCount[]> =>
-  ids.length === 0
-    ? Promise.resolve([])
-    : queryListingsWithCounts(`WHERE listing.id IN (${inPlaceholders(ids)})`, [
-        ...ids,
-      ]);
-
 const LISTINGS_CACHE_TTL_MS = 30_000;
 const listingsEntity = cachedEntityTable<
   Listing,
@@ -121,7 +105,11 @@ const listingsEntity = cachedEntityTable<
   rawListingsTable,
   {
     fetchAll: () => queryListingsWithCounts(),
-    fetchById: (id) => queryOneListingWithCount("listing.id = ?", [id]),
+    fetchByIds: (ids) =>
+      queryListingsWithCounts(
+        `WHERE listing.id IN (${inPlaceholders(ids)})`,
+        ids,
+      ),
     fetchByKeys: (slugIndexes) =>
       queryListingsWithCounts(
         `WHERE listing.slug_index IN (${inPlaceholders(slugIndexes)})`,
@@ -210,33 +198,52 @@ export const getAllListingOptions = (): Promise<ListingOption[]> =>
     `SELECT ${listingOptionProjection.columnsSql("listing")} FROM listings AS listing ORDER BY listing.id ASC`,
   );
 
-/** Read and decrypt names only for the requested listing ids. */
-export const getListingNamesByIds = envNameSource("listings", "listing").byIds;
+/** Read and decrypt listing names without loading full records. */
+export const listingNames = envNameSource("listings", "listing");
 
-/** Read one listing with aggregate projections from the cache. */
+/** Read required listings in input order through the shared cache path. */
+export const requireListingsWithCountsByIds = (
+  ids: number[],
+): Promise<ListingWithCount[]> => listingsCache.requireByIds(ids);
+
+/** Read listings in input order, retaining nulls for expected missing rows. */
+export const getListingsWithCountsByIds = (
+  ids: number[],
+): Promise<(ListingWithCount | null)[]> => listingsCache.getByIds(ids);
+
+/** Read one required listing through the shared many-listing path. */
+export const requireListingWithCount = async (
+  id: number,
+): Promise<ListingWithCount> => {
+  const listing = await listingsCache.getById(id);
+  if (listing === null) throw new Error(`Listing not found: ${id}`);
+  return listing;
+};
+
+/** Read one listing when absence is expected. */
 export const getListingWithCount = (
   id: number,
 ): Promise<ListingWithCount | null> => listingsCache.getById(id);
 
 /** Read a just-written listing from the primary. */
-export const getListingWithCountPrimary = async (
+export const requireListingWithCountPrimary = async (
   id: number,
 ): Promise<ListingWithCount> => {
-  const row = await queryOnePrimary<ListingProjectionRow>(
+  const row = await requireOnePrimary<ListingProjectionRow>(
     `${LISTING_COUNT_SELECT} WHERE listing.id = ?`,
     [id],
   );
-  return decryptListingWithCount(row!);
+  return decryptListingWithCount(row);
 };
 
-/** Read one listing by its plaintext slug. */
+/** Read one listing by its plaintext slug when absence is expected. */
 export const getListingWithCountBySlug = async (
   slug: string,
 ): Promise<ListingWithCount | null> =>
   listingsCache.getByKey(await computeSlugIndex(slug));
 
 /** Read listings by slug in input order, retaining nulls for missing rows. */
-export const getListingsBySlugsBatch = async (
+export const getListingsBySlugs = async (
   slugs: string[],
 ): Promise<(ListingWithCount | null)[]> => {
   if (slugs.length === 0) return [];

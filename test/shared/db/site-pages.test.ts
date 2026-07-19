@@ -7,10 +7,7 @@ import {
   getImageById,
   getImagesForItem,
 } from "#shared/db/images.ts";
-import {
-  getListingNamesByIds,
-  isSlugTaken,
-} from "#shared/db/listings/records.ts";
+import { isSlugTaken, listingNames } from "#shared/db/listings/records.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -182,8 +179,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const listing = await createTestListing({ name: "L" });
       // The id-keyed name lookup short-circuits on empty ids (no query) and
       // decrypts names for real ids — the projection page labels lean on.
-      expect((await getListingNamesByIds([])).size).toBe(0);
-      expect((await getListingNamesByIds([listing.id])).get(listing.id)).toBe(
+      expect((await listingNames.byIds([])).size).toBe(0);
+      expect((await listingNames.byIds([listing.id])).get(listing.id)).toBe(
         "L",
       );
     });

@@ -247,13 +247,10 @@ describeWithEnv(
       await seedSiteBackup(SITE_DB_URL);
       using _fetch = stubReleaseFetch();
       const deployStub = stub(denoDeployApi, "deployCode", () =>
-        Promise.resolve({
-          hostname: "https://app.deno.dev",
-          ok: true as const,
-        }),
+        Promise.resolve({ ok: true as const, value: "https://app.deno.dev" }),
       );
       const getEnvVarNamesStub = stub(denoDeployApi, "getEnvVarNames", () =>
-        Promise.resolve({ names: [], ok: true as const }),
+        Promise.resolve({ ok: true as const, value: [] }),
       );
       try {
         const { response } = await adminFormPost(

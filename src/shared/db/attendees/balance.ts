@@ -20,7 +20,7 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   pricePaidFromLedger,
@@ -198,7 +198,7 @@ export const settleAttendeeBalance = async (
     return { reason: "nothing_owed", settled: false };
   }
 
-  const paid = await getPaidDefaultStatus();
+  const paid = await requirePaidDefaultStatus();
   // The attendee's outstanding balance, projected from the ledger, used as an
   // atomic guard: both writes below fire only while they still owe exactly
   // `expectedAmount`. A concurrent settle whose payment leg already landed sees
@@ -215,7 +215,7 @@ export const settleAttendeeBalance = async (
     {
       // Lifecycle move: only reservations advance to the paid default. Other
       // statuses are operator-owned and stay put once their balance is cleared.
-      args: [paid?.id ?? null, attendeeId, expectedAmount],
+      args: [paid.id, attendeeId, expectedAmount],
       sql: `UPDATE attendees SET status_id = COALESCE(?, status_id)
              WHERE id = ?
                AND status_id IN (

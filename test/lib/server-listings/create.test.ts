@@ -107,11 +107,11 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("still creates when the read-back replica lags the just-committed write", async () => {
       // Regression: the create resource wrote the row in a transaction (on the
-      // primary), then read it back with a plain "read"-mode `findById`. Turso can
+      // primary), then read it back with a plain optional read. Turso can
       // route that read to a replica still lagging the commit, so it returned null
       // and the handler crashed dereferencing `row.id` ("Cannot read properties of
       // null (reading 'id')"). The read-back now uses `findByIdPrimary`
-      // (read-your-writes). Stub the replica read (`findById`) to miss the row —
+      // (read-your-writes). Stub the optional replica read to miss the row —
       // the create must still succeed because it no longer reads back that way.
       const findByIdStub = stub(listingsTable, "findById", () =>
         Promise.resolve(null),

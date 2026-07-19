@@ -13,7 +13,10 @@ import {
   insert,
   queryAll,
   queryBatch,
+  queryOne,
   rawSql,
+  requireOne,
+  requireOnePrimary,
   resetAggregates,
   rowExists,
   setDb,
@@ -187,6 +190,34 @@ describeWithEnv("db > client", { db: true }, () => {
     } finally {
       batchStub.restore();
     }
+  });
+
+  test("queryOne returns null for an expected miss", async () => {
+    expect(
+      await queryOne("SELECT value FROM settings WHERE key = ?", [
+        "missing-query-one-test",
+      ]),
+    ).toBeNull();
+  });
+
+  test("requireOne throws the failed query when a required row is missing", async () => {
+    await expect(
+      requireOne("SELECT value FROM settings WHERE key = ?", [
+        "missing-query-one-test",
+      ]),
+    ).rejects.toThrow(
+      "Required query returned no rows: SELECT value FROM settings WHERE key = ?",
+    );
+  });
+
+  test("requireOnePrimary names a missing row on the primary", async () => {
+    await expect(
+      requireOnePrimary("SELECT value FROM settings WHERE key = ?", [
+        "missing-primary-query-one-test",
+      ]),
+    ).rejects.toThrow(
+      "Required primary query returned no rows: SELECT value FROM settings WHERE key = ?",
+    );
   });
 
   test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {

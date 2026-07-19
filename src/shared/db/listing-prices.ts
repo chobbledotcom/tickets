@@ -34,6 +34,7 @@ import {
   execute,
   executeBatch,
   inPlaceholders,
+  queryAll,
   queryBatchPrimary,
   queryIdColumn,
   type TxScope,
@@ -211,53 +212,42 @@ const foldGroupDayRows = (
  * (the next package save's full replace then clears them for good). */
 export const getGroupDayPrices = async (
   groupId: number,
-): Promise<Map<number, Map<number, number>>> => {
-  const result = await execute(
-    `SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
-       FROM listing_prices AS listingPrice
-       JOIN group_listings AS groupListing
-         ON groupListing.listing_id = listingPrice.listing_id
-        AND groupListing.group_id = ?
-      WHERE listingPrice.price_type = ? AND listingPrice.price_id LIKE ?`,
-    [groupId, PRICE_TYPE_GROUP_DAY, groupDayPriceId(groupId, "%")],
-  );
-  return foldGroupDayRows(result.rows as unknown as GroupDayRow[]);
-};
+): Promise<Map<number, Map<number, number>>> =>
+  (await getGroupDayPricesByGroupIds([groupId])).get(groupId)!;
 
 /** Per-day member overrides for several groups in one query (the API list
- * endpoint's bulk hydration), keyed by group id. Groups without overrides are
- * absent. Reads every CURRENT member's `group_day` row (the JOIN's composed
+ * endpoint's bulk hydration), keyed by group id. Every requested group is
+ * present. Reads every CURRENT member's `group_day` row (the JOIN's composed
  * pattern scopes each row to its own group's membership, exactly like
  * {@link getGroupDayPrices}) and splits by the price_id's group prefix —
- * groups are few, so one SELECT beats a LIKE per group. */
+ * and bounds the query to the requested groups. */
 export const getGroupDayPricesByGroupIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, Map<number, Map<number, number>>>> => {
-  if (groupIds.length === 0) return new Map();
-  const wanted = new Set(groupIds);
-  const rows = await execute(
+  const groups = new Map(
+    [...new Set(groupIds)].map((groupId) => [
+      groupId,
+      new Map<number, Map<number, number>>(),
+    ]),
+  );
+  if (groups.size === 0) return groups;
+  const ids = [...groups.keys()];
+  const rows = await queryAll<GroupDayRow>(
     `SELECT listingPrice.listing_id, listingPrice.price_id, listingPrice.unit_price
        FROM listing_prices AS listingPrice
        JOIN group_listings AS groupListing
          ON groupListing.listing_id = listingPrice.listing_id
         AND listingPrice.price_id LIKE (groupListing.group_id || '/%')
-      WHERE listingPrice.price_type = ?`,
-    [PRICE_TYPE_GROUP_DAY],
+      WHERE listingPrice.price_type = ?
+        AND groupListing.group_id IN (${inPlaceholders(ids)})`,
+    [PRICE_TYPE_GROUP_DAY, ...ids],
   );
   const groupIdOf = (row: GroupDayRow): number =>
     Number(row.price_id.split("/")[0]);
-  const rowsByGroup = Map.groupBy(
-    (rows.rows as unknown as GroupDayRow[]).filter((row) =>
-      wanted.has(groupIdOf(row)),
-    ),
-    groupIdOf,
-  );
-  return new Map(
-    [...rowsByGroup].map(([groupId, groupRows]) => [
-      groupId,
-      foldGroupDayRows(groupRows),
-    ]),
-  );
+  for (const [groupId, groupRows] of Map.groupBy(rows, groupIdOf)) {
+    groups.set(groupId, foldGroupDayRows(groupRows));
+  }
+  return groups;
 };
 
 /** The delete-then-insert statements that make a listing's `base` row match

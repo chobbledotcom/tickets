@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
+import { okResult } from "#shared/result.ts";
 import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
 import {
   expectBuildError,
@@ -214,13 +215,13 @@ describeWithEnv(
         expect(createDbStub.calls[0]!.args[0]).toBe("Auto Site");
 
         if (result.ok) {
-          expect(result.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
-          expect(result.dbToken).toBe(MOCK_DB_RESULT.dbToken);
+          expect(result.dbUrl).toBe(MOCK_DB_RESULT.value.dbUrl);
+          expect(result.dbToken).toBe(MOCK_DB_RESULT.value.dbToken);
         }
 
         const secretsSet = secretsFrom(secretStub);
-        expectSecret(secretsSet, "DB_URL", MOCK_DB_RESULT.dbUrl);
-        expectSecret(secretsSet, "DB_TOKEN", MOCK_DB_RESULT.dbToken);
+        expectSecret(secretsSet, "DB_URL", MOCK_DB_RESULT.value.dbUrl);
+        expectSecret(secretsSet, "DB_TOKEN", MOCK_DB_RESULT.value.dbToken);
       }));
 
     test("buildSite uses provided dbUrl and dbToken without calling createDatabase", () =>
@@ -337,17 +338,18 @@ describeWithEnv(
       withMocks(
         () =>
           stub(tursoApi, "createDatabase", () =>
-            Promise.resolve({
-              dbId: "turso_db_123",
-              dbToken: "turso-token",
-              dbUrl: "libsql://turso.io",
-              ok: true as const,
-            }),
+            Promise.resolve(
+              okResult({
+                dbId: "turso_db_123",
+                dbToken: "turso-token",
+                dbUrl: "libsql://turso.io",
+              }),
+            ),
           ),
         async (tursoStub) => {
           const result = await builderApi.createDatabase("My Site", "turso");
           expect(result.ok).toBe(true);
-          if (result.ok) expect(result.dbUrl).toContain("turso.io");
+          if (result.ok) expect(result.value.dbUrl).toContain("turso.io");
           expect(tursoStub.calls).toHaveLength(1);
         },
       ));
@@ -356,17 +358,18 @@ describeWithEnv(
       withMocks(
         () =>
           stub(bunnyDbApi, "createDatabase", () =>
-            Promise.resolve({
-              dbId: "bunny_db_456",
-              dbToken: "bunny-token",
-              dbUrl: "libsql://bunny.io",
-              ok: true as const,
-            }),
+            Promise.resolve(
+              okResult({
+                dbId: "bunny_db_456",
+                dbToken: "bunny-token",
+                dbUrl: "libsql://bunny.io",
+              }),
+            ),
           ),
         async (bunnyStub) => {
           const result = await builderApi.createDatabase("My Site", "bunny");
           expect(result.ok).toBe(true);
-          if (result.ok) expect(result.dbUrl).toContain("bunny.io");
+          if (result.ok) expect(result.value.dbUrl).toContain("bunny.io");
           expect(bunnyStub.calls).toHaveLength(1);
         },
       ));
@@ -376,12 +379,13 @@ describeWithEnv(
         () => ({
           ...stubBuildSiteApis(),
           tursoStub: stub(tursoApi, "createDatabase", () =>
-            Promise.resolve({
-              dbId: "turso_auto",
-              dbToken: "turso-tok",
-              dbUrl: "libsql://auto.turso.io",
-              ok: true as const,
-            }),
+            Promise.resolve(
+              okResult({
+                dbId: "turso_auto",
+                dbToken: "turso-tok",
+                dbUrl: "libsql://auto.turso.io",
+              }),
+            ),
           ),
         }),
         async ({ tursoStub }) => {

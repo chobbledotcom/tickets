@@ -14,11 +14,9 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { queryOne, type TxScope, useTransaction } from "#shared/db/client.ts";
-import {
-  defineIdTable,
-  idAndEncryptedSlugSchema,
-} from "#shared/db/common-schema.ts";
+import { idAndEncryptedSlugSchema } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import {
   unclaimedSiteSlugCondition,

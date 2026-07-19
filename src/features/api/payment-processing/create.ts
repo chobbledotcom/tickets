@@ -26,7 +26,7 @@ import type {
 } from "#shared/checkout-pricing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   decryptSessionTokens,
@@ -215,7 +215,7 @@ export const attendeeBaseFields = async (
   paymentId: session.paymentReference,
   phone: intent.phone,
   special_instructions: intent.special_instructions,
-  statusId: await getPublicStatusId(),
+  statusId: await requirePublicStatusId(),
 });
 
 export const logPromoCodeModifiers = async (

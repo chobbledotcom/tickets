@@ -114,7 +114,7 @@ describe("fetchEasypostcodesAddresses", () => {
 
     const result = await fetchEasypostcodesAddresses("SW1A 1AA", "secret-key");
 
-    expect(result).toEqual({ addresses: [], ok: true });
+    expect(result).toEqual({ ok: true, value: [] });
     // includeGeo asks the API to return each address's latitude/longitude.
     expect(captured).toEqual({
       key: "secret-key",
@@ -136,18 +136,18 @@ describe("fetchEasypostcodesAddresses", () => {
     );
 
     expect(await fetchEasypostcodesAddresses("SW1A 1AA", "k")).toEqual({
-      addresses: [
+      ok: true,
+      value: [
         { lat: "51.503396", line: "10 Downing Street", lng: "-0.127640" },
       ],
-      ok: true,
     });
   });
 
   test("treats a 404 as no matches, not a failure", async () => {
     using _fetch = stubFetch(new Response("Not Found", { status: 404 }));
     expect(await fetchEasypostcodesAddresses("ZZ99 9ZZ", "k")).toEqual({
-      addresses: [],
       ok: true,
+      value: [],
     });
   });
 

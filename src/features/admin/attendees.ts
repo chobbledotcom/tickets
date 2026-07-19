@@ -17,7 +17,10 @@ import {
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import {
+  getListingWithCount,
+  requireListingWithCount,
+} from "#shared/db/listings/records.ts";
 import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -318,7 +321,7 @@ const resendEntries = async (
     // rows exist, decrypt with the same key, and each names a live listing.
     rows.map(async (row) => ({
       attendee: (await decryptAttendeeOrNull(row, pk))!,
-      listing: (await getListingWithCount(row.listing_id))!,
+      listing: await requireListingWithCount(row.listing_id),
     })),
   );
 };

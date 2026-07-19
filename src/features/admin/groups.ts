@@ -4,7 +4,6 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  * Admin group management routes - accessible to owners and managers
  */
 
-import { compact } from "#fp";
 import { t } from "#i18n";
 import {
   createContentCrudHandlers,
@@ -31,7 +30,7 @@ import {
   validateGroupListingType,
 } from "#shared/db/groups.ts";
 import { clearImageUsesForItemStatement } from "#shared/db/images.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { isNameTakenAnywhere } from "#shared/db/name-registry.ts";
 import { clearItemEdgesStatement } from "#shared/db/site-page-items.ts";
 import {
@@ -352,11 +351,7 @@ const validateListingTypesForGroup = async (
   group: Group,
   listingIds: number[],
 ): Promise<string | null> => {
-  const listings = compact(
-    await Promise.all(
-      listingIds.map((listingId) => getListingWithCount(listingId)),
-    ),
-  );
+  const listings = await requireListingsWithCountsByIds(listingIds);
   for (const listing of listings) {
     const typeError = await validateGroupListingType(
       group.id,

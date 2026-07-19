@@ -28,13 +28,17 @@ import {
   bodyString,
   type DeleteBody,
   defineCrudApi,
-  type ItemResult,
-  type ParseResult,
   parseOptionalArray,
   parseUpdateName,
   parseUpdateSlug,
   requireStrings,
 } from "#shared/rest/crud-api.ts";
+import {
+  errorResult,
+  okResult,
+  parseOptionalResult,
+  type Result,
+} from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import {
   buildDayPrices,
@@ -84,31 +88,29 @@ const STRIP_KEYS = ["slug_index"];
 /** Parse one member's optional `day_prices` object into a {@link DayPrices}
  * map, failing closed on anything malformed: keys must be positive whole day
  * counts and values non-negative integer minor units. `undefined` when absent. */
-const parseMemberDayPrices = (
-  raw: unknown,
-): ItemResult<DayPrices | undefined> => {
-  if (raw === undefined) return { value: undefined };
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    return { error: "package_members day_prices must be an object" };
-  }
-  const dayPrices = buildDayPrices(raw, (key, value) => {
-    const days = Number(key);
-    if (!/^\d+$/.test(key) || !Number.isInteger(days) || days < 1) {
-      return "package_members day_prices keys must be positive day counts";
+const parseMemberDayPrices = (raw: unknown): Result<DayPrices | undefined> =>
+  parseOptionalResult(raw, (value) => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return errorResult("package_members day_prices must be an object");
     }
-    if (!Number.isInteger(value) || (value as number) < 0) {
-      return "package_members day_prices values must be non-negative integers";
-    }
-    return { days, price: value as number };
+    const dayPrices = buildDayPrices(value, (key, price) => {
+      const days = Number(key);
+      if (!/^\d+$/.test(key) || !Number.isInteger(days) || days < 1) {
+        return "package_members day_prices keys must be positive day counts";
+      }
+      if (!Number.isInteger(price) || (price as number) < 0) {
+        return "package_members day_prices values must be non-negative integers";
+      }
+      return { days, price: price as number };
+    });
+    return typeof dayPrices === "string"
+      ? errorResult(dayPrices)
+      : okResult(dayPrices);
   });
-  return typeof dayPrices === "string"
-    ? { error: dayPrices }
-    : { value: dayPrices };
-};
 
-const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
+const parsePackageMember = (item: unknown): Result<PackageMemberInput> => {
   if (typeof item !== "object" || item === null) {
-    return { error: "package_members entries must be objects" };
+    return errorResult("package_members entries must be objects");
   }
   const {
     day_prices,
@@ -117,26 +119,24 @@ const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
     quantity = 1,
   } = item as Record<string, unknown>;
   if (!Number.isInteger(listing_id) || (listing_id as number) <= 0) {
-    return { error: "package_members listing_id must be a positive integer" };
+    return errorResult("package_members listing_id must be a positive integer");
   }
   if (price !== null && (!Number.isInteger(price) || (price as number) < 0)) {
-    return {
-      error: "package_members price must be a non-negative integer or null",
-    };
+    return errorResult(
+      "package_members price must be a non-negative integer or null",
+    );
   }
   if (!Number.isInteger(quantity) || (quantity as number) < 1) {
-    return { error: "package_members quantity must be a positive integer" };
+    return errorResult("package_members quantity must be a positive integer");
   }
   const dayPrices = parseMemberDayPrices(day_prices);
-  if ("error" in dayPrices) return dayPrices;
-  return {
-    value: {
-      dayPrices: dayPrices.value ?? {},
-      listingId: listing_id as number,
-      price: price as number | null,
-      quantity: quantity as number,
-    },
-  };
+  if (!dayPrices.ok) return dayPrices;
+  return okResult({
+    dayPrices: dayPrices.value ?? {},
+    listingId: listing_id as number,
+    price: price as number | null,
+    quantity: quantity as number,
+  });
 };
 
 /**
@@ -147,7 +147,7 @@ const parsePackageMember = (item: unknown): ItemResult<PackageMemberInput> => {
  */
 const parsePackageMembers = (
   body: Record<string, unknown>,
-): ParseResult<PackageMemberInput[] | undefined> =>
+): Result<PackageMemberInput[] | undefined> =>
   parseOptionalArray(
     body.package_members,
     "package_members",
@@ -243,7 +243,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   toCreateInput: async (body) => {
     const required = requireStrings(body, ["name"]);
     if (!required.ok) return required;
-    const { name } = required.values;
+    const { name } = required.value;
 
     // A brand-new group has no `group_listings` rows yet, so member overrides
     // have nothing to attach to — `setGroupPackageMembers` would silently drop
@@ -253,28 +253,23 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
     if (body.package_members !== undefined) {
       const members = parsePackageMembers(body);
       if (!members.ok) return members;
-      return {
-        error:
-          "package_members cannot be set on create; create the group, assign listings, then update it",
-        ok: false,
-      };
+      return errorResult(
+        "package_members cannot be set on create; create the group, assign listings, then update it",
+      );
     }
 
     const { slug, slugIndex } = await generateUniqueGroupSlug();
-    return {
-      input: {
-        description: bodyString(body, "description", ""),
-        hidden: bodyBoolean(body, "hidden", false),
-        hidePackageListings: bodyBoolean(body, "hide_package_listings", false),
-        isPackage: bodyBoolean(body, "is_package", false),
-        maxAttendees: bodyNumber(body, "max_attendees", 0),
-        name,
-        slug,
-        slugIndex,
-        termsAndConditions: bodyString(body, "terms_and_conditions", ""),
-      },
-      ok: true,
-    };
+    return okResult({
+      description: bodyString(body, "description", ""),
+      hidden: bodyBoolean(body, "hidden", false),
+      hidePackageListings: bodyBoolean(body, "hide_package_listings", false),
+      isPackage: bodyBoolean(body, "is_package", false),
+      maxAttendees: bodyNumber(body, "max_attendees", 0),
+      name,
+      slug,
+      slugIndex,
+      termsAndConditions: bodyString(body, "terms_and_conditions", ""),
+    });
   },
 
   toUpdateInput: async (body, existing) => {
@@ -291,29 +286,26 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
       computeGroupSlugIndex,
     );
 
-    return {
-      input: {
-        description: bodyString(body, "description", existing.description),
-        hidden: bodyBoolean(body, "hidden", existing.hidden),
-        hidePackageListings: bodyBoolean(
-          body,
-          "hide_package_listings",
-          existing.hide_package_listings,
-        ),
-        isPackage: bodyBoolean(body, "is_package", existing.is_package),
-        maxAttendees: bodyNumber(body, "max_attendees", existing.max_attendees),
-        name: parsed.name,
-        packageMembers: members.input,
-        slug,
-        slugIndex,
-        termsAndConditions: bodyString(
-          body,
-          "terms_and_conditions",
-          existing.terms_and_conditions,
-        ),
-      },
-      ok: true,
-    };
+    return okResult({
+      description: bodyString(body, "description", existing.description),
+      hidden: bodyBoolean(body, "hidden", existing.hidden),
+      hidePackageListings: bodyBoolean(
+        body,
+        "hide_package_listings",
+        existing.hide_package_listings,
+      ),
+      isPackage: bodyBoolean(body, "is_package", existing.is_package),
+      maxAttendees: bodyNumber(body, "max_attendees", existing.max_attendees),
+      name: parsed.value,
+      packageMembers: members.value,
+      slug,
+      slugIndex,
+      termsAndConditions: bodyString(
+        body,
+        "terms_and_conditions",
+        existing.terms_and_conditions,
+      ),
+    });
   },
   validate: validateGroupWithPackage,
   validateDelete: soldHiddenPackageError,

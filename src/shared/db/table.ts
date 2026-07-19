@@ -21,12 +21,14 @@ import {
   queryAll,
   queryOne,
   queryOnePrimary,
+  requireOnePrimary,
   resultRows,
   type SqlStatement,
   type TxScope,
 } from "#shared/db/client.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { requestCache } from "#shared/request-cache.ts";
+import { requireFound } from "#shared/required-lookups.ts";
 
 /**
  * Column definition for a table
@@ -107,7 +109,7 @@ export interface Table<Row, Input> {
   /** Find all rows */
   findAll: () => Promise<Row[]>;
 
-  /** Find a row by primary key */
+  /** Find a row by primary key, or null when it does not exist. */
   findById: (id: InValue) => Promise<Row | null>;
 
   /**
@@ -122,6 +124,9 @@ export interface Table<Row, Input> {
    * façade table that never takes that path may omit it.
    */
   findByIdPrimary?: (id: InValue) => Promise<Row | null>;
+
+  /** Find rows in input order, retaining nulls for missing primary keys. */
+  findByIds: (ids: InValue[]) => Promise<(Row | null)[]>;
 
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
@@ -139,6 +144,15 @@ export interface Table<Row, Input> {
   primaryKey: keyof Row & string;
 
   readColumn: ReadColumn<Row>;
+
+  /** Find a required row by primary key. */
+  requireById: (id: InValue) => Promise<Row>;
+
+  /** Find a required row on the primary. */
+  requireByIdPrimary?: (id: InValue) => Promise<Row>;
+
+  /** Find required rows by primary key in input order. */
+  requireByIds: (ids: InValue[]) => Promise<Row[]>;
 
   /**
    * Build an Input object from an existing Row by copying the input-eligible
@@ -195,7 +209,7 @@ export interface TableProjection<Row, Columns extends ProjectionColumns<Row>> {
   readonly columns: Columns;
   columnsSql: (alias?: string) => string;
   queryAll: TableProjectionQuery<SelectedTableProjectionRow<Row, Columns>[]>;
-  queryOneOrNull: TableProjectionQuery<SelectedTableProjectionRow<
+  queryOne: TableProjectionQuery<SelectedTableProjectionRow<
     Row,
     Columns
   > | null>;
@@ -274,7 +288,7 @@ export const defineTableProjection = <
       readAll(
         await queryAll<StoredTableProjectionRow<Row, Columns>>(sql, args),
       ),
-    queryOneOrNull: async (sql, args) => {
+    queryOne: async (sql, args) => {
       const row = await queryOne<StoredTableProjectionRow<Row, Columns>>(
         sql,
         args,
@@ -575,11 +589,34 @@ export const defineTable = <Row, Input = Row>(
     return row ? fromDb(row) : null;
   };
 
-  const findById = (id: InValue): Promise<Row | null> =>
-    findByIdVia(queryOne, id);
+  const findByIds = async (ids: InValue[]): Promise<(Row | null)[]> => {
+    if (ids.length === 0) return [];
+    const rows = await queryAll<Row>(
+      `SELECT ${physicalColumnsSql} FROM ${name} WHERE ${primaryKey} IN (${ids.map(() => "?").join(", ")})`,
+      ids,
+    );
+    const readRows = await mapParallel(fromDb)(rows);
+    return ids.map(
+      (id) =>
+        readRows.find((row) => row[primaryKey] === (id as Row[keyof Row])) ??
+        null,
+    );
+  };
+
+  const requireByIds = async (ids: InValue[]): Promise<Row[]> =>
+    requireFound(ids, await findByIds(ids), `${name} rows for ${primaryKey}`);
+
+  const findById = async (id: InValue): Promise<Row | null> =>
+    (await findByIds([id]))[0] ?? null;
+
+  const requireById = async (id: InValue): Promise<Row> =>
+    (await requireByIds([id]))[0]!;
 
   const findByIdPrimary = (id: InValue): Promise<Row | null> =>
     findByIdVia(queryOnePrimary, id);
+
+  const requireByIdPrimary = (id: InValue): Promise<Row> =>
+    findByIdVia(requireOnePrimary, id) as Promise<Row>;
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
@@ -619,6 +656,7 @@ export const defineTable = <Row, Input = Row>(
     findAll,
     findById,
     findByIdPrimary,
+    findByIds,
     fromDb,
     inputKeyMap,
     insert,
@@ -626,6 +664,9 @@ export const defineTable = <Row, Input = Row>(
     name,
     primaryKey,
     readColumn,
+    requireById,
+    requireByIdPrimary,
+    requireByIds,
     rowToInput,
     schema,
     toDbValues,

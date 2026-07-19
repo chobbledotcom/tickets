@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   attendeeStatuses,
-  getPaidDefaultStatus,
+  requirePaidDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
 import {
   getAttendeeBalanceState,
@@ -34,7 +34,7 @@ import { expectRefundReferences } from "#test-utils/payment-references.ts";
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
-    const paid = await getPaidDefaultStatus();
+    const paid = await requirePaidDefaultStatus();
 
     const result = await settleAttendeeBalance(attendeeId, 1500, settle());
     expect(result).toEqual({ amount: 1500, listingId, settled: true });
@@ -146,15 +146,17 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(state?.remainingBalance).toBe(0);
   });
 
-  test("settles even when no paid-default status is configured", async () => {
+  test("fails when no paid-default status is configured", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await getDb().execute("UPDATE attendee_statuses SET is_paid_default = 0");
     attendeeStatuses.invalidate();
-    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
-    expect(result.settled).toBe(true);
-    // No paid default: COALESCE keeps the existing status.
+    await expect(
+      settleAttendeeBalance(attendeeId, 1500, settle()),
+    ).rejects.toThrow(
+      "No attendee status has the required is_paid_default flag",
+    );
     const state = await getAttendeeBalanceState(attendeeId);
-    expect(state?.remainingBalance).toBe(0);
+    expect(state?.remainingBalance).toBe(1500);
   });
 
   test("settles an attendee that has no booking lines", async () => {

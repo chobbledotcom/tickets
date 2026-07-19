@@ -11,6 +11,7 @@ import {
   parseUpdateName,
   requireStrings,
 } from "#shared/rest/crud-api.ts";
+import { okResult } from "#shared/result.ts";
 import type { Holiday } from "#shared/types.ts";
 
 /** JSON body accepted by POST /api/admin/holidays */
@@ -39,8 +40,8 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
   toCreateInput: (body) => {
     const required = requireStrings(body, ["name", "start_date", "end_date"]);
     if (!required.ok) return required;
-    const { end_date: endDate, name, start_date: startDate } = required.values;
-    return { input: { endDate, name, startDate }, ok: true };
+    const { end_date: endDate, name, start_date: startDate } = required.value;
+    return okResult({ endDate, name, startDate });
   },
 
   toUpdateInput: (body, existing) => {
@@ -48,14 +49,11 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
     if (!nameParsed.ok) return nameParsed;
     const str = (key: string, fallback: string) =>
       body[key] != null ? String(body[key]).trim() : fallback;
-    return {
-      input: {
-        endDate: str("end_date", existing.end_date),
-        name: nameParsed.name,
-        startDate: str("start_date", existing.start_date),
-      },
-      ok: true,
-    };
+    return okResult({
+      endDate: str("end_date", existing.end_date),
+      name: nameParsed.value,
+      startDate: str("start_date", existing.start_date),
+    });
   },
   validate: validateDateRange,
 });

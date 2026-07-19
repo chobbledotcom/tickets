@@ -118,7 +118,9 @@ const listingsByIdFor = async (
   const linkedIds = unique(
     sides.flatMap((links) => [...links.values()].flat()),
   );
-  const listings = await getListingsWithCountsByIds(linkedIds);
+  const listings = mapNotNullish((listing: ListingWithCount | null) => listing)(
+    await getListingsWithCountsByIds(linkedIds),
+  );
   return new Map(listings.map((listing) => [listing.id, listing]));
 };
 

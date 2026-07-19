@@ -134,15 +134,16 @@ describeWithEnv(
       }
     });
 
-    test("carries no deposit when no public-default status is configured", async () => {
+    test("fails when no public-default status is configured", async () => {
       const listing = await setupReservationListing();
-      // Clear the public-default flag so getPublicDefaultStatus returns null.
+      // Clear the public-default flag so the required lookup fails.
       await getDb().execute(
         "UPDATE attendee_statuses SET is_public_default = 0",
       );
       attendeeStatuses.invalidate();
-      const captured = await captureCheckoutIntent(listing);
-      expect(captured?.reservationAmount).toBeUndefined();
+      await expect(captureCheckoutIntent(listing)).rejects.toThrow(
+        "No attendee status has the required is_public_default flag",
+      );
     });
 
     test("charges no deposit when the amount is zero, leaving the full balance", async () => {

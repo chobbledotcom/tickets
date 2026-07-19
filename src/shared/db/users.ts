@@ -70,13 +70,16 @@ export type UserAuthFields = Pick<User, "admin_level" | "id">;
  * deleteUser also clears), not on this cache.
  */
 const USERS_CACHE_TTL_MS = 15_000;
-const usersCache = createKeyedCache<User>({
-  fetchAll: () => queryAll<User>(USER_SELECT),
-  fetchByKeys: fetchUsersByIndex,
-  idOf: (u) => u.id,
-  keyOf: (u) => u.username_index,
-  ttlMs: USERS_CACHE_TTL_MS,
-});
+const usersCache = createKeyedCache<User>(
+  {
+    fetchAll: () => queryAll<User>(USER_SELECT),
+    fetchByKeys: fetchUsersByIndex,
+    idOf: (u) => u.id,
+    keyOf: (u) => u.username_index,
+    ttlMs: USERS_CACHE_TTL_MS,
+  },
+  "users",
+);
 /**
  * Callbacks fired on every users-cache invalidation, so derived caches (e.g.
  * the superuser account-state cache) can clear in lockstep with user writes.
@@ -255,6 +258,10 @@ export const getUserByUsername = async (
  */
 export const getUserById = (id: number): Promise<User | null> =>
   usersCache.getById(id);
+
+/** Get a required user by ID. */
+export const requireUserById = (id: number): Promise<User> =>
+  usersCache.requireById(id);
 
 /** Get the minimal encrypted user fields needed to authenticate a session. */
 export const getUserAuthFieldsById = async (

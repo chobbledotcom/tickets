@@ -206,9 +206,9 @@ describe("wrapResourceForDemo", () => {
       fields: [],
       loadOrNull: () => Promise.resolve({ id: 1, name: "" }),
       parseInput: (_form: URLSearchParams) =>
-        Promise.resolve({ input: {}, ok: true as const }),
+        Promise.resolve({ ok: true as const, value: {} }),
       parsePartialInput: (_form: URLSearchParams) =>
-        Promise.resolve({ input: {}, ok: true as const }),
+        Promise.resolve({ ok: true as const, value: {} }),
       table: {} as never,
       update: (_id: unknown, form: URLSearchParams) => {
         lastUpdateForm = form;

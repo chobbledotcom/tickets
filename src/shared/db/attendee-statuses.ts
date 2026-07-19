@@ -93,23 +93,26 @@ const findStatus = async (
 export const getAttendeeStatus = (id: number): Promise<AttendeeStatus | null> =>
   findStatus((s) => s.id === id);
 
-/** The first status whose given default flag is set (decrypted), or null. */
-const findFlaggedStatus =
+/** Get the status carrying a required default flag. */
+const getFlaggedStatus =
   (flag: "is_public_default" | "is_paid_default") =>
-  (): Promise<AttendeeStatus | null> =>
-    findStatus((s) => s[flag]);
+  async (): Promise<AttendeeStatus> => {
+    const status = await findStatus((item) => item[flag]);
+    if (status === null) {
+      throw new Error(`No attendee status has the required ${flag} flag`);
+    }
+    return status;
+  };
 
-/** The status new public bookings start in, or null if none is flagged. */
-export const getPublicDefaultStatus = findFlaggedStatus("is_public_default");
+/** The status new public bookings start in. */
+export const requirePublicDefaultStatus = getFlaggedStatus("is_public_default");
 
 /** The status an attendee moves to once a reservation balance is paid. */
-export const getPaidDefaultStatus = findFlaggedStatus("is_paid_default");
+export const requirePaidDefaultStatus = getFlaggedStatus("is_paid_default");
 
-/** The id of the public-default status, or null if none is configured. */
-export const getPublicStatusId = async (): Promise<number | null> => {
-  const status = await getPublicDefaultStatus();
-  return status === null ? null : status.id;
-};
+/** The id of the public-default status. */
+export const requirePublicStatusId = async (): Promise<number> =>
+  (await requirePublicDefaultStatus()).id;
 
 type DefaultRow = {
   is_paid_default: number;

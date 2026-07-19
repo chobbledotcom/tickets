@@ -21,7 +21,7 @@
 
 import { filter, map, pipe, unique } from "#fp";
 import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
-import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
+import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { hasNewsPosts } from "#shared/db/news-posts.ts";
 import { isQualifyingTierListing } from "#shared/site-assignment.ts";
 import { buildNavModel, targetKey } from "#shared/site-pages/core.ts";
@@ -55,7 +55,7 @@ const resolveTargets = async (
   const listingIds = leafIds(items, "listing");
   const groupIds = leafIds(items, "group");
   const [referenced, allGroups] = await Promise.all([
-    getListingsWithCountsByIds(listingIds),
+    requireListingsWithCountsByIds(listingIds),
     groups.cache.getAll(),
   ]);
   const referencedGroups = allGroups.filter((group) =>

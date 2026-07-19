@@ -32,7 +32,6 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
   cloneGroupMembershipStatement,
-  getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
   groups,
@@ -266,7 +265,8 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
 
   // Resolve the freshly-inserted ids by their (unique) slug_index for the redirect
   // and the edge remap — two reads, not one per clone.
-  const newGroupId = (await getGroupBySlugIndex(slugIndex))!.id;
+  const duplicated = await groups.cache.requireByKey(slugIndex);
+  const newGroupId = duplicated.id;
   const idBySlugIndex = new Map(
     (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
   );

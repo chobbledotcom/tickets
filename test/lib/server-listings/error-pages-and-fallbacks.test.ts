@@ -215,8 +215,8 @@ describeWithEnv(
         });
 
         // handleAdminListingEditPost calls getListingWithCount (raw SQL), then
-        // updateResource.update which calls requireExists -> table.findById.
-        // We spy on findById to return null, simulating the listing being deleted
+        // updateResource.update which checks the nullable table.findById result.
+        // Return null to simulate the listing being deleted
         // between the initial check and the update.
         const findByIdStub2 = stub(listingsTable, "findById", () =>
           Promise.resolve(null),
