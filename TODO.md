@@ -1260,3 +1260,60 @@ an attendee that no longer exists. Start with
 removes a stage and merging repoints it without losing the unique attendee
 invariant. If both attendees have stages, require an explicit conflict decision
 instead of silently choosing or deleting one.
+
+---
+
+## Settings page test mirror after the pure rename
+
+*Origin: Codex review of PR #1871.*
+
+PR #1871 moved `test/ui/templates/admin/settings.test.ts` byte-for-byte to
+`test/ui/templates/admin/settings-advanced/page.test.ts` as a standalone
+100% rename. The renamed file still imports and exercises
+`adminSettingsPage` from `src/ui/templates/admin/settings.tsx` (four
+`describe("adminSettingsPage", …)` blocks plus the `adminSettingsPage >
+PaymentProviderForm radio labels` block), alongside the
+`adminAdvancedSettingsPage` cases from
+`src/ui/templates/admin/settings-advanced.tsx`. The mutation mirror in
+`scripts/mutation/test-map.ts` pairs a source with the test file whose path
+matches its own (`ownsTest`: test base equals
+`test/<…source without src and ext>` or starts with that prefix followed by
+`/`). After the move:
+
+- `src/ui/templates/admin/settings.tsx` (prefix
+  `test/ui/templates/admin/settings`) no longer owns any test — the only test
+  that exercised it lives at `…/settings-advanced/page.test.ts`, which does
+  not match the `…/settings` prefix.
+- `src/ui/templates/admin/settings-advanced.tsx` (prefix
+  `test/ui/templates/admin/settings-advanced`) now owns that file.
+
+Confirmed against the production `buildMutationTestMap` / `requireDirectMutationTests`:
+
+- A future change to **only** `settings.tsx` throws:
+  `Mutation tests must mirror a selected source or live under test/integration/ or test/e2e/`
+  (the moved test is unmatched).
+- A future change to **both** `settings.tsx` and `settings-advanced.tsx` leaves
+  `settings.tsx` with `directTestFiles: []` and throws:
+  `No direct test mirrors src/ui/templates/admin/settings.tsx. Move its test to the matching path under test/.`
+
+So the pure rename regresses the mutation mirror. The fix the reviewer proposed
+is to split the file: keep the `adminSettingsPage` / `SuperuserForm` /
+`PaymentProviderForm` cases at `test/ui/templates/admin/settings.test.ts`
+(the mirror for `settings.tsx`) and move only the `adminAdvancedSettingsPage`
+cases to `test/ui/templates/admin/settings-advanced/page.test.ts` (the mirror
+for `settings-advanced.tsx`).
+
+That split is out of scope for #1871 because #1871 was deliberately constrained
+to a 100% rename with no content edits. The wider split already exists on the
+`work/scheduled-maintenance` branch, which decomposed the original
+`settings.test.ts` into a reduced `settings.test.ts`, a new
+`settings-advanced/page.test.ts`, plus `settings-advanced/rendering.test.ts`,
+`settings-advanced/state.ts`, and
+`test/ui/templates/admin/settings/domain-payment-warning.test.tsx`. Starting
+point for resolving: port the split from `work/scheduled-maintenance` (or re-derive
+it): keep the `adminSettingsPage` describe blocks at
+`test/ui/templates/admin/settings.test.ts`, leave only the
+`adminAdvancedSettingsPage` block and any advanced-only helpers under
+`test/ui/templates/admin/settings-advanced/`. Then re-run
+`deno task precommit:mutation` against a touched `settings.tsx` to confirm
+the mirror resolves.
