@@ -94,15 +94,6 @@ export const extractUpdateColumns = (
 };
 
 /**
- * After a successful write, invalidate every cache that declared a dependency
- * on the mutated table. A no-op for reads (the regex doesn't match) and for
- * tables no cache depends on. For UPDATEs, the SET-clause columns are
- * extracted so column-gated dependencies (e.g. listings ← listing_attendees
- * only when quantity / price_paid / listing_id are written) can skip the
- * invalidation when only unrelated columns are touched. If column extraction
- * fails the write is treated as unconditional — safe over stale.
- */
-/**
  * The statement at the heart of a (possibly CTE-led) SQL string: a
  * `WITH ... AS (...) <verb> ...` is stripped to its `<verb> ...` tail so the
  * write regexes can anchor on the real verb — a CTE-led INSERT/UPDATE/DELETE/
@@ -118,6 +109,16 @@ const writeSqlOf = (sql: string): string => CTE_PREFIX_RE.exec(sql)?.[1] ?? sql;
  *  batch retry gate so the InStatement shape is unwrapped in one place. */
 const sqlOf = (stmt: InStatement): string =>
   typeof stmt === "string" ? stmt : stmt.sql;
+
+/**
+ * After a successful write, invalidate every cache that declared a dependency
+ * on the mutated table. A no-op for reads (the regex doesn't match) and for
+ * tables no cache depends on. For UPDATEs, the SET-clause columns are
+ * extracted so column-gated dependencies (e.g. listings ← listing_attendees
+ * only when quantity / price_paid / listing_id are written) can skip the
+ * invalidation when only unrelated columns are touched. If column extraction
+ * fails the write is treated as unconditional — safe over stale.
+ */
 const invalidateForSql = (sql: string): void => {
   const writeSql = writeSqlOf(sql);
   const match = WRITE_TABLE_RE.exec(writeSql);
@@ -516,12 +517,9 @@ const runBatch = async (
   statements: SqlStatement[],
   mode: TransactionMode,
   invalidate: boolean,
+  retryUpstream: boolean,
 ): Promise<ResultSet[]> => {
   const sqls = statements.map(({ sql }) => sql);
-  // A 5xx on a write batch may have committed before the gateway timed out, so
-  // only an all-reads batch retries upstream gateway errors — matching the
-  // single-statement gate in execute().
-  const retryUpstream = statements.every((stmt) => !isWriteSql(sqlOf(stmt)));
   const results = await trackSql(sqls, () =>
     retryOnTransientDatabaseError(() => getDb().batch(statements, mode), {
       retryUpstream,
@@ -542,17 +540,29 @@ const runBatch = async (
 export const executeBatchWithoutCacheInvalidation = async (
   statements: SqlStatement[],
 ): Promise<void> => {
-  await runBatch(statements, "write", false);
+  await runBatch(statements, "write", false, false);
 };
 
 /** A read/write batch with a fixed mode, or one chosen when it runs. */
 type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
 
-/** Create a batch executor for a fixed or per-call transaction mode. */
+/** Create a batch executor for a fixed or per-call transaction mode. `retryUpstream`
+ *  is a property of the executor, not re-derived from each statement: the read
+ *  executors ({@link queryBatch}, {@link queryBatchPrimary}) always retry a
+ *  fleeting upstream 5xx (their statements are SELECTs by contract — no side
+ *  effects to double-apply); the write executors never do. */
 const batchFor =
-  (mode: TransactionMode | (() => TransactionMode)): BatchExecutor =>
+  (
+    mode: TransactionMode | (() => TransactionMode),
+    retryUpstream: boolean,
+  ): BatchExecutor =>
   (statements) =>
-    runBatch(statements, typeof mode === "function" ? mode() : mode, true);
+    runBatch(
+      statements,
+      typeof mode === "function" ? mode() : mode,
+      true,
+      retryUpstream,
+    );
 
 /** Local SQLite has no replica and write mode would only take a needless lock. */
 const primaryReadMode = (): TransactionMode => {
@@ -561,8 +571,9 @@ const primaryReadMode = (): TransactionMode => {
 };
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
-export const queryBatch = batchFor(() =>
-  mustReadFromPrimary() ? primaryReadMode() : "read",
+export const queryBatch = batchFor(
+  () => (mustReadFromPrimary() ? primaryReadMode() : "read"),
+  true,
 );
 
 /**
@@ -574,14 +585,14 @@ export const queryBatch = batchFor(() =>
  * always serves from the primary. A write-mode transaction may contain only
  * SELECTs — it just guarantees the primary, read-your-writes connection.
  */
-export const queryBatchPrimary = batchFor("write");
+export const queryBatchPrimary = batchFor("write", true);
 
 /**
  * Execute multiple write statements and return their ResultSets.
  * Statements run in order within a single transaction (Turso batch API).
  * Ideal for cascading deletes and multi-step writes.
  */
-export const executeBatchWithResults = batchFor("write");
+export const executeBatchWithResults = batchFor("write", false);
 
 /** Execute multiple write statements, discarding results. */
 export const executeBatch = async (

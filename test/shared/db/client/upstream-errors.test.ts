@@ -5,7 +5,9 @@ import { FakeTime } from "@std/testing/time";
 import {
   execute,
   executeBatch,
+  executeBatchWithoutCacheInvalidation,
   queryBatch,
+  queryBatchPrimary,
   type SqlStatement,
   setDb,
 } from "#shared/db/client.ts";
@@ -174,21 +176,44 @@ describe("db > client transient upstream retry", () => {
     });
   }
 
-  test("a read batch retries on a 504 and succeeds", async () => {
-    using time = new FakeTime();
+  test("a write batch without cache invalidation is not retried on a 504", async () => {
+    // It holds writes (script-version markers); a 5xx may have committed
+    // before the gateway timed out, so it never retries upstream errors.
     let attempts = 0;
     setDb(
       clientWithBatch(() => {
         attempts++;
-        return attempts === 1
-          ? Promise.reject(upstreamError(504))
-          : Promise.resolve([emptyResultSet()]);
+        return Promise.reject(upstreamError(504));
       }),
     );
-    const promise = queryBatch([{ args: [], sql: "SELECT 1" }]);
-    await time.tickAsync(50);
-    const result = await promise;
-    expect(result).toHaveLength(1);
-    expect(attempts).toBe(2);
+    await expect(
+      executeBatchWithoutCacheInvalidation([
+        { args: [], sql: "INSERT INTO settings (key) VALUES ('marker')" },
+      ]),
+    ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
+    expect(attempts).toBe(1);
   });
+
+  for (const [label, batch] of [
+    ["queryBatch", queryBatch],
+    ["queryBatchPrimary", queryBatchPrimary],
+  ] as const) {
+    test(`a ${label} read batch retries on a 504 and succeeds`, async () => {
+      using time = new FakeTime();
+      let attempts = 0;
+      setDb(
+        clientWithBatch(() => {
+          attempts++;
+          return attempts === 1
+            ? Promise.reject(upstreamError(504))
+            : Promise.resolve([emptyResultSet()]);
+        }),
+      );
+      const promise = batch([{ args: [], sql: "SELECT 1" }]);
+      await time.tickAsync(50);
+      const result = await promise;
+      expect(result).toHaveLength(1);
+      expect(attempts).toBe(2);
+    });
+  }
 });
