@@ -44,14 +44,11 @@ const stash = createGlobalStash();
 // test on a virtual clock so settle() skips past it instantly instead of each
 // test genuinely sleeping 300ms.
 const clock: { time: FakeTime | null } = { time: null };
-beforeEach(() => {
-  clock.time = new FakeTime();
-});
-afterEach(() => {
-  clock.time?.restore();
-  clock.time = null;
-  stash.restore();
-});
+
+const getClock = (): FakeTime => {
+  if (clock.time === null) throw new Error("Fake clock was not installed");
+  return clock.time;
+};
 
 /** Install the DOM and a scripted availability endpoint, then boot the
  * script. `responses` are consumed one per request; when empty the endpoint
@@ -117,11 +114,21 @@ const harness = (html = GALLERY_HTML) => {
  *  response microtasks (tickAsync flushes them BEFORE advancing, so the
  *  fired callback's await chain needs one more round). */
 const settle = async (): Promise<void> => {
-  await clock.time!.tickAsync(300);
-  await clock.time!.runMicrotasks();
+  await getClock().tickAsync(300);
+  await getClock().runMicrotasks();
 };
 
 describe("initOrderGallery", () => {
+  beforeEach(() => {
+    clock.time = new FakeTime();
+  });
+  afterEach(() => {
+    // beforeEach always installs the clock; teardown must fail if that changes.
+    getClock().restore();
+    clock.time = null;
+    stash.restore();
+  });
+
   test("does nothing on a page without the gallery form", () => {
     const window = new Window({ url: "https://tickets.test/" });
     window.document.body.innerHTML = "<p>No gallery here</p>";

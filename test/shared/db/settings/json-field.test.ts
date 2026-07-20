@@ -92,7 +92,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
 
     await expect(
       writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, "TRUE"),
-    ).rejects.toThrow("Every admin feature must have an enabled value");
+    ).rejects.toThrow("Stored value does not match its schema");
   });
 
   test("rolls back the JSON change when its settings version write fails", async () => {

@@ -9,6 +9,9 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encryptWithKey } from "#shared/crypto/encryption.ts";
+import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getSumupCheckout,
@@ -17,6 +20,7 @@ import {
   storeSumupCheckout,
 } from "#shared/db/sumup-checkouts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { rejectedError } from "#test-utils/errors.ts";
 
 const REFERENCE = "9c1f7a52-1b3e-4f6d-8a2c-5e9d0b4c7a31";
 
@@ -55,6 +59,34 @@ describeWithEnv("db > sumup-checkouts", { db: true }, () => {
       const result = await getSumupCheckout(crypto.randomUUID());
 
       expect(result).toBeNull();
+    });
+
+    test("rejects non-string metadata before storing it", async () => {
+      await expect(
+        storeSumupCheckout(REFERENCE, {
+          quantity: 2,
+        } as unknown as Record<string, string>),
+      ).rejects.toThrow(
+        "Invalid value for stored JSON in sumup_checkouts.metadata",
+      );
+    });
+
+    test("identifies corrupt metadata without exposing its reference", async () => {
+      await storeSumupCheckout(REFERENCE, METADATA);
+      const row = await rawRow();
+      const dataKey = await unwrapKeyWithToken(
+        row.wrapped_key as WrappedKey,
+        REFERENCE,
+      );
+      const malformed = await encryptWithKey('{"email":123}', dataKey);
+      await getDb().execute(
+        "UPDATE sumup_checkouts SET metadata = ? WHERE reference_index = ?",
+        [malformed, row.reference_index as string],
+      );
+
+      const error = await rejectedError(getSumupCheckout(REFERENCE));
+      expect(error.message).toContain(row.reference_index as string);
+      expect(error.message).not.toContain(REFERENCE);
     });
 
     test("keeps rows isolated per reference", async () => {

@@ -1,16 +1,23 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import { ErrorCode } from "#shared/logger.ts";
 import {
+  cachedClientFactory,
   createWithClient,
   hasRequiredSessionMetadata,
   PaymentUserError,
+  parseWebhookPayload,
   safeAsync,
   toCheckoutResult,
+  validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
-import { isPaymentStatus } from "#shared/payments.ts";
+import { isPaymentStatus, type SessionMetadata } from "#shared/payments.ts";
+import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describe("payment-helpers", () => {
+  const debugSpy = useDebugLogSpy();
+
   describe("hasRequiredSessionMetadata", () => {
     test("returns false for null/undefined", () => {
       expect(hasRequiredSessionMetadata(null)).toBe(false);
@@ -54,6 +61,16 @@ describe("payment-helpers", () => {
         }),
       ).toBe(true);
     });
+
+    test("returns false when a present metadata value is not text", () => {
+      expect(
+        hasRequiredSessionMetadata({
+          email: 123 as unknown as string,
+          items: "[]",
+          name: "Alice",
+        }),
+      ).toBe(false);
+    });
   });
 
   describe("isPaymentStatus", () => {
@@ -89,12 +106,71 @@ describe("payment-helpers", () => {
     });
 
     test("re-throws PaymentUserError", async () => {
+      const error = new PaymentUserError("Bad phone");
+      expect(error.name).toBe("PaymentUserError");
       await expect(
-        safeAsync(
-          () => Promise.reject(new PaymentUserError("Bad phone")),
-          ErrorCode.PAYMENT_CHECKOUT,
-        ),
+        safeAsync(() => Promise.reject(error), ErrorCode.PAYMENT_CHECKOUT),
       ).rejects.toThrow("Bad phone");
+    });
+
+    test("logs unknown for a non-Error rejection", async () => {
+      const errorSpy = spy(console, "error");
+      try {
+        await safeAsync(
+          () => Promise.reject("string error"),
+          ErrorCode.PAYMENT_CHECKOUT,
+        );
+        expect(errorSpy.calls[0]?.args[0]).toBe(
+          '[Error] E_PAYMENT_CHECKOUT detail="unknown"',
+        );
+      } finally {
+        errorSpy.restore();
+      }
+    });
+  });
+
+  describe("cachedClientFactory", () => {
+    test("logs missing configuration and the chosen creation message", async () => {
+      let config: string | null = null;
+      const cache = cachedClientFactory({
+        create: (value: string) => ({ value }),
+        createMessage: () => "",
+        getConfig: () => config,
+        isSameConfig: (a, b) => a === b,
+        missingMessage: "No secret key configured",
+        provider: "Stripe",
+      });
+
+      expect(await cache.getClient()).toBeNull();
+      config = "secret";
+      expect(await cache.getClient()).toEqual({ value: "secret" });
+      expect(debugSpy().calls.map((call) => call.args[0])).toEqual([
+        "[Stripe] No secret key configured",
+        "[Stripe] ",
+      ]);
+    });
+
+    test("reuses and logs the cached client", async () => {
+      const client = { value: "secret" };
+      let createCalls = 0;
+      const cache = cachedClientFactory({
+        create: () => {
+          createCalls += 1;
+          return client;
+        },
+        getConfig: () => "secret",
+        isSameConfig: (a, b) => a === b,
+        missingMessage: "No secret key configured",
+        provider: "Stripe",
+      });
+
+      expect(await cache.getClient()).toBe(client);
+      expect(await cache.getClient()).toBe(client);
+      expect(createCalls).toBe(1);
+      expect(debugSpy().calls.map((call) => call.args[0])).toEqual([
+        "[Stripe] Creating new Stripe client",
+        "[Stripe] Using cached Stripe client",
+      ]);
     });
   });
 
@@ -159,6 +235,29 @@ describe("payment-helpers", () => {
         toCheckoutResult("", "https://pay.example.com", "Stripe"),
       ).toBeNull();
       expect(toCheckoutResult("sess_1", "", "Payment")).toBeNull();
+      expect(debugSpy().calls[0]?.args[0]).toBe(
+        "[Stripe] Checkout result missing session ID or URL",
+      );
     });
+  });
+
+  test("validatedPaymentSession includes a supplied creation time", () => {
+    const createdAt = "2026-07-19T12:00:00.000Z";
+    const session = validatedPaymentSession({
+      amountTotal: 1000,
+      createdAt,
+      id: "session-1",
+      metadata: { items: "[]", name: "Alice" } as SessionMetadata,
+      paymentReference: "payment-1",
+      paymentStatus: "paid",
+    });
+
+    expect(session.createdAt).toBe(createdAt);
+  });
+
+  test("parseWebhookPayload returns the invalid JSON error", () => {
+    expect(parseWebhookPayload("not JSON", ErrorCode.PAYMENT_CHECKOUT)).toEqual(
+      { error: "Invalid JSON payload", valid: false },
+    );
   });
 });

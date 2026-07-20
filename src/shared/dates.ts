@@ -13,9 +13,9 @@ import {
   utcToZoned,
 } from "#shared/timezone.ts";
 import {
+  clampDurationDays,
   type Holiday,
   type Listing,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 
 /** Month names for display */
@@ -181,9 +181,7 @@ export const getAvailableDates = (
   durationOverride?: number,
 ): string[] => {
   const range = bookableRange(listing);
-  const duration = normalizeDurationDays(
-    durationOverride ?? listing.duration_days,
-  );
+  const duration = clampDurationDays(durationOverride ?? listing.duration_days);
   return filter((d: string) =>
     isRangeBookable(d, duration, range.bookableDays, holidays, range.end),
   )(dateRange(range.start, range.end));
@@ -232,7 +230,7 @@ export const isBookingRangeValid = (
   if (date < range.start) return false;
   return isRangeBookable(
     date,
-    normalizeDurationDays(days),
+    clampDurationDays(days),
     range.bookableDays,
     holidays,
     range.end,
@@ -250,7 +248,7 @@ export const getNextBookableDate = (
 ): string | null => {
   const range = bookableRange(listing);
   if (range.bookableDays.length === 0) return null;
-  const duration = normalizeDurationDays(listing.duration_days);
+  const duration = clampDurationDays(listing.duration_days);
 
   let current = range.start;
   while (current <= range.end) {

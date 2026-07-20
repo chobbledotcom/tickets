@@ -1,7 +1,7 @@
 import { filter, map, pipe, sumOf } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
-import { normalizeDurationDays } from "#shared/types.ts";
+import { clampDurationDays } from "#shared/types.ts";
 
 /** Convert a nullable date to the stored half-open range. */
 export const dateToStartEnd = (
@@ -18,7 +18,7 @@ export const expandDailyRange = (
   date: string,
   durationDays: number,
 ): string[] => {
-  const duration = normalizeDurationDays(durationDays);
+  const duration = clampDurationDays(durationDays);
   return Array.from({ length: duration }, (_, i) => addDays(date, i));
 };
 

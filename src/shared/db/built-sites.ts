@@ -13,6 +13,8 @@ import type { ColumnDef, Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { guardFor } from "#shared/validation/guard.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import { OptionalStringSchema } from "#shared/validation/string.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -63,26 +65,20 @@ export const providerOrBunny = <
   provider: TProvider,
 ): "bunny" | TProvider => (value === provider ? provider : "bunny");
 
-/** Encrypted site data blob shape */
-export interface SiteDataBlob {
-  /** Database URL (optional, absent in older blobs) */
-  d?: string;
-  /** Database provider (optional, defaults to "bunny" for backward compat) */
-  dp?: DbProvider;
-  /** Hosting provider (optional, defaults to "bunny" for backward compat) */
-  hp?: HostingProvider;
-  /** Site name */
-  n: string;
-  /** Renewal token (optional, present when renewal access exists) */
-  rt?: string;
-  /** Hosting ID — Bunny script ID or Deno app ID (optional, absent in older blobs) */
-  s?: string;
-  /** Database token (optional, absent in older blobs) */
-  t?: string;
-  /** Site URL (default hostname) */
-  u: string;
-  v: typeof SITE_DATA_BLOB_VERSION;
-}
+/** Encrypted site data blob shape, including fields absent from older blobs. */
+const SiteDataBlobSchema = v.strictObject({
+  d: OptionalStringSchema,
+  dp: v.optional(v.picklist(["bunny", "turso"])),
+  hp: v.optional(v.picklist(["bunny", "deno"])),
+  n: v.string(),
+  rt: OptionalStringSchema,
+  s: OptionalStringSchema,
+  t: OptionalStringSchema,
+  u: v.string(),
+  v: v.optional(v.literal(SITE_DATA_BLOB_VERSION), SITE_DATA_BLOB_VERSION),
+});
+export type SiteDataBlob = v.InferOutput<typeof SiteDataBlobSchema>;
+const siteDataJson = defineStoredJson(SiteDataBlobSchema);
 
 /** Built site row as stored in the database */
 export interface BuiltSiteRow {
@@ -382,8 +378,8 @@ const buildSiteDataBlobFromInput = (
         column.defaultValue) as string | null;
       return column.required || value ? [[column.blobKey, value]] : [];
     }),
-  ]) as unknown as SiteDataBlob;
-  return JSON.stringify(blob);
+  ]);
+  return siteDataJson.write(blob, "built_sites.site_data");
 };
 
 const blobToSiteFields = (blob: SiteDataBlob): BuiltSiteBlobFields =>
@@ -425,7 +421,7 @@ const toDbColumnValues = (
 
 /** Parse a decrypted site data blob */
 export const parseSiteDataBlob = (json: string): SiteDataBlob =>
-  JSON.parse(json) as SiteDataBlob;
+  siteDataJson.read(json, "built_sites.site_data");
 
 /** Convert a raw DB row (after decryption) to a BuiltSite */
 const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {

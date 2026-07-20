@@ -13,9 +13,9 @@
 import { t } from "#i18n";
 import {
   availableDayCounts,
+  clampDurationDays,
   type DayPrices,
   dayPriceFor,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 
 /** The listing fields an edge-compatibility check reasons about. */
@@ -34,9 +34,7 @@ export type EdgeListing = {
  * non-`customisable_days` parent (a customisable parent has a *range*, via
  * {@link availableDayCounts}). */
 const parentFixedDuration = (parent: EdgeListing): number =>
-  parent.listing_type === "daily"
-    ? normalizeDurationDays(parent.duration_days)
-    : 1;
+  parent.listing_type === "daily" ? clampDurationDays(parent.duration_days) : 1;
 
 /**
  * Whether `child`'s booking span can match the duration it inherits from
@@ -62,7 +60,7 @@ export const durationsCompatible = (
     return dayPriceFor(child, parentFixedDuration(parent)) !== null;
   }
   if (child.listing_type !== "daily") return true;
-  const childDuration = normalizeDurationDays(child.duration_days);
+  const childDuration = clampDurationDays(child.duration_days);
   return parent.customisable_days
     ? availableDayCounts(parent).includes(childDuration)
     : childDuration === parentFixedDuration(parent);

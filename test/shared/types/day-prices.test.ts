@@ -38,6 +38,10 @@ describe("parseDayPrices", () => {
   test("drops negative prices but keeps a zero (free) tier", () => {
     expect(parseDayPrices({ 1: -100, 2: 0 })).toEqual({ 2: 0 });
   });
+
+  test("drops prices outside JavaScript's safe integer range", () => {
+    expect(parseDayPrices({ 1: Number.MAX_SAFE_INTEGER + 1 })).toEqual({});
+  });
 });
 
 describe("availableDayCounts", () => {
