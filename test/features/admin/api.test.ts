@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import {
   assertAdminHtml,
@@ -52,6 +53,25 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("returns 404 for non-existent listing", async () => {
       const response = await apiRequest("/api/admin/listings/99999", {
         body: { name: "Ghost" },
+        method: "PUT",
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 when the listing vanishes during update", async () => {
+      const listing = await createTestListing({ name: "Vanishing listing" });
+      await getDb().execute(
+        `CREATE TRIGGER delete_listing_during_update
+         AFTER UPDATE ON listings
+         WHEN NEW.id = ${listing.id}
+         BEGIN
+           DELETE FROM listings WHERE id = NEW.id;
+         END`,
+      );
+
+      const response = await apiRequest(`/api/admin/listings/${listing.id}`, {
+        body: { name: "Gone" },
         method: "PUT",
       });
 
