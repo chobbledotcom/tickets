@@ -173,7 +173,6 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
       },
     );
   });
-
   test("upload identifies its blocked subrequest", async () => {
     await withBunnyStorageStub(
       () => Response.json({ HttpCode: 201 }),
