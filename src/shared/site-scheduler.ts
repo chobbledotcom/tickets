@@ -1,6 +1,6 @@
 import { resolveHostingProvider, siteHostingAccess } from "#shared/builder.ts";
 import { ensureBuiltSiteSchedulerKey } from "#shared/db/built-site-scheduler.ts";
-import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
+import { findBuiltSiteByIdPrimary } from "#shared/db/built-sites.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
@@ -8,7 +8,7 @@ import { SCHEDULED_TASK_KEY_ENV } from "#shared/scheduled-keys.ts";
 type SiteSchedulerResult = Result<void>;
 
 const getSite = async (siteId: number) => {
-  const site = await builtSitesCrudTable.findById(siteId);
+  const site = await findBuiltSiteByIdPrimary(siteId);
   if (!site) throw new Error(`Built site not found: ${siteId}`);
   return site;
 };

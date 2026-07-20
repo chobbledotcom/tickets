@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
+import { ensureBuiltSiteSchedulerKey } from "#shared/db/built-site-scheduler.ts";
 import {
   builtSitesCrudTable,
   insertBuiltSite,
@@ -49,15 +50,28 @@ describeWithEnv(
       );
     });
 
-    test("fails loudly when the child disappears while provisioning", async () => {
+    test("reuses the primary key when a replica read is stale", async () => {
       const child = await site();
+      const stale = await builtSitesCrudTable.findById(child.id);
+      const key = await ensureBuiltSiteSchedulerKey(child.id);
+      const pushed: string[] = [];
       stubs.push(
-        stub(builtSitesCrudTable, "findById", () => Promise.resolve(null)),
+        stub(builtSitesCrudTable, "findById", () => Promise.resolve(stale)),
+        stub(bunnyHostingProvider, "getSecretNames", () =>
+          Promise.resolve({ ok: true, value: ["SCHEDULED_TASK_KEY"] }),
+        ),
+        stub(bunnyHostingProvider, "setSecrets", (_hostingId, secrets) => {
+          pushed.push(secrets[0]![1]);
+          return Promise.resolve({ ok: true, value: undefined });
+        }),
       );
+      using _fetch = stubFetch(new Response(null, { status: 204 }));
 
-      await expect(provisionSiteScheduler(child.id)).rejects.toThrow(
-        `Built site not found: ${child.id}`,
-      );
+      expect(await provisionSiteScheduler(child.id)).toEqual({
+        ok: true,
+        value: undefined,
+      });
+      expect(pushed).toEqual([key]);
     });
 
     test("requires provider access before provisioning", async () => {

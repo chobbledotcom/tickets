@@ -115,7 +115,7 @@ const findBuiltSiteById = async (id: InValue): Promise<BuiltSite | null> => {
   return row ? rowToBuiltSite(row) : null;
 };
 
-const findBuiltSiteByIdPrimary = async (
+export const findBuiltSiteByIdPrimary = async (
   id: InValue,
 ): Promise<BuiltSite | null> => {
   const row = await rawBuiltSitesTable.findByIdPrimary!(id);

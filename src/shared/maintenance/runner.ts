@@ -165,6 +165,7 @@ const runMaintenance = (
       MAINTENANCE_REQUEST_CALL_LIMIT - used,
     ),
   );
+  if (combinedAllowance === 0) return Promise.resolve();
   return withSubrequestAllowance(
     {
       database: combinedAllowance,

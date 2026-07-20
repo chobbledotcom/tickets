@@ -319,7 +319,7 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     expect(calls).toEqual([]);
   });
 
-  test("zero combined allowance cannot start scheduler bookkeeping", async () => {
+  test("zero combined allowance skips scheduler bookkeeping", async () => {
     const calls: string[] = [];
     const tasks = defineMaintenanceTasks([
       declaration("no_allowance", () => {
@@ -328,13 +328,11 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     ]);
 
     await runWithSubrequestBudget(async () => {
-      await expect(
-        maintenance.run(tasks, { combinedAllowance: 0 }),
-      ).rejects.toThrow("Subrequest allowance exceeded");
+      await maintenance.run(tasks, { combinedAllowance: 0 });
       expect(getSubrequestUsage()).toEqual({
-        database: 1,
+        database: 0,
         external: 0,
-        total: 1,
+        total: 0,
       });
     });
     expect(calls).toEqual([]);
