@@ -17,7 +17,10 @@ import {
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
 import { updateCheckedIn } from "#shared/db/attendees/update.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import {
+  getListingWithCount,
+  requireListingWithCount,
+} from "#shared/db/listings/records.ts";
 import { hasAnyPaymentReference } from "#shared/db/payment-references.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -205,9 +208,9 @@ const buildCreateAttendeeInput = (
   const { name, email, phone, address, special_instructions, quantity, date } =
     values;
   const isDaily = listing.listing_type === "daily";
-  // Customisable daily bookings span the admin's chosen day count (a required,
-  // options-constrained field; any odd value is clamped downstream by
-  // normalizeDurationDays); other daily bookings use the fixed duration.
+  // Customisable daily bookings span the admin's chosen day count. The shared
+  // boundary clamps whole numbers outside its range and rejects malformed
+  // numbers. Other daily bookings use the fixed duration.
   const durationDays = listing.customisable_days
     ? Number(values.day_count)
     : listing.duration_days;
@@ -318,7 +321,7 @@ const resendEntries = async (
     // rows exist, decrypt with the same key, and each names a live listing.
     rows.map(async (row) => ({
       attendee: (await decryptAttendeeOrNull(row, pk))!,
-      listing: (await getListingWithCount(row.listing_id))!,
+      listing: await requireListingWithCount(row.listing_id),
     })),
   );
 };

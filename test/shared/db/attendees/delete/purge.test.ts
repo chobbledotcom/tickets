@@ -1,2 +1,2 @@
-import "../../../../lib/db/attendees/delete-attendee.test.ts";
-import "../../../../lib/db/listing-aggregates.test.ts";
+import "../delete.test.ts";
+import "../../migrations/schema/triggers/listing-aggregates.test.ts";

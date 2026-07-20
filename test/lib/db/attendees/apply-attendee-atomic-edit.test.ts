@@ -5,7 +5,10 @@ import {
   loadExistingLines,
 } from "#shared/db/attendees/atomic-update.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#shared/db/attendees/create.ts";
-import { getAttendee, getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import {
+  getAttendeeOrNull,
+  getAttendeesRaw,
+} from "#shared/db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -185,7 +188,10 @@ describeWithEnv(
       expect(update.success).toBe(true);
 
       // PII changed
-      const updated = await getAttendee(attendee.id, await getTestPrivateKey());
+      const updated = await getAttendeeOrNull(
+        attendee.id,
+        await getTestPrivateKey(),
+      );
       expect(updated!.name).toBe("After");
       expect(updated!.email).toBe("after@example.com");
       // Line unchanged
@@ -320,7 +326,7 @@ describeWithEnv(
       // the PII (name/email) is unchanged.
       await expectRawCounts([[listing1, 1]]);
       expect((await getAttendeesRaw(listing2.id))[0]!.quantity).toBe(2);
-      const reloaded = await getAttendee(
+      const reloaded = await getAttendeeOrNull(
         attendee.id,
         await getTestPrivateKey(),
       );

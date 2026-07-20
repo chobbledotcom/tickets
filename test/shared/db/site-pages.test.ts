@@ -7,10 +7,7 @@ import {
   getImageById,
   getImagesForItem,
 } from "#shared/db/images.ts";
-import {
-  getListingNamesByIds,
-  isSlugTaken,
-} from "#shared/db/listings/records.ts";
+import { isSlugTaken, listingNames } from "#shared/db/listings/records.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -19,15 +16,15 @@ import {
   getItemsForPage,
   invalidatePageItemsCache,
   removePageItem,
-  swapPageItemOrder,
+  sitePageItemOrder,
 } from "#shared/db/site-page-items.ts";
 import {
   computeSitePageSlugIndex,
   getSitePageById,
   getSitePageBySlugIndex,
   type SitePageInput,
+  sitePageOrder,
   sitePages,
-  swapSitePageOrder,
   updateSitePage,
 } from "#shared/db/site-pages.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
@@ -182,8 +179,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const listing = await createTestListing({ name: "L" });
       // The id-keyed name lookup short-circuits on empty ids (no query) and
       // decrypts names for real ids — the projection page labels lean on.
-      expect((await getListingNamesByIds([])).size).toBe(0);
-      expect((await getListingNamesByIds([listing.id])).get(listing.id)).toBe(
+      expect((await listingNames.byIds([])).size).toBe(0);
+      expect((await listingNames.byIds([listing.id])).get(listing.id)).toBe(
         "L",
       );
     });
@@ -196,10 +193,10 @@ describeWithEnv("db > site-pages", { db: true }, () => {
   });
 
   describe("root reorder", () => {
-    test("swapSitePageOrder exchanges two pages' sort_order", async () => {
+    test("ordered rows exchange two pages' sort_order", async () => {
       const a = await makePage("first", { sortOrder: 0 });
       const b = await makePage("second", { sortOrder: 1 });
-      await swapSitePageOrder(a.id, b.id);
+      await sitePageOrder.swap({ first: a.id, second: b.id });
       sitePages.invalidate();
       expect((await sitePages.getAll()).map((r) => r.slug)).toEqual([
         "second",
@@ -207,12 +204,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
     });
 
-    test("swapSitePageOrder is a no-op when either row is missing", async () => {
+    test("ordered rows are a no-op when either row is missing", async () => {
       // A stale reorder click racing a delete must not 500 (binding an
       // undefined sort_order) — the swap simply does nothing.
       const a = await makePage("survivor", { sortOrder: 0 });
-      await swapSitePageOrder(a.id, 9999);
-      await swapSitePageOrder(9999, a.id);
+      await sitePageOrder.swap({ first: a.id, second: 9999 });
+      await sitePageOrder.swap({ first: 9999, second: a.id });
       sitePages.invalidate();
       const row = (await sitePages.getAll()).find((r) => r.slug === "survivor");
       expect(row?.sort_order).toBe(0);
@@ -293,17 +290,17 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       ]);
     });
 
-    test("swapPageItemOrder swaps by full composite key", async () => {
+    test("sitePageItemOrder swaps by full composite key", async () => {
       const p = await makePage("swap");
       const q = await makePage("swap-other");
       await addPageItem(p.id, "listing", 5);
       await addPageItem(p.id, "group", 5);
       await addPageItem(q.id, "listing", 5); // same type+id on ANOTHER page
-      await swapPageItemOrder(
-        p.id,
-        { id: 5, type: "listing" },
-        { id: 5, type: "group" },
-      );
+      await sitePageItemOrder.swap({
+        first: ["listing", 5],
+        scope: p.id,
+        second: ["group", 5],
+      });
       const items = await getItemsForPage(p.id);
       expect(items).toEqual([
         { item_id: 5, item_type: "group", page_id: p.id, sort_order: 0 },
@@ -313,14 +310,14 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect((await getItemsForPage(q.id))[0]?.sort_order).toBe(0);
     });
 
-    test("swapPageItemOrder is a no-op when an item is missing", async () => {
+    test("sitePageItemOrder is a no-op when an item is missing", async () => {
       const p = await makePage("noop");
       await addPageItem(p.id, "listing", 1);
-      await swapPageItemOrder(
-        p.id,
-        { id: 1, type: "listing" },
-        { id: 999, type: "group" },
-      );
+      await sitePageItemOrder.swap({
+        first: ["listing", 1],
+        scope: p.id,
+        second: ["group", 999],
+      });
       expect((await getItemsForPage(p.id))[0]?.sort_order).toBe(0);
     });
   });

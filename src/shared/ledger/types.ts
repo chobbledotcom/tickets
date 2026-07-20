@@ -75,8 +75,3 @@ export type LedgerError =
   | { readonly code: "reserved_char_in_account" }
   | { readonly code: "empty_reference" }
   | { readonly code: "empty_event_group" };
-
-/** A validation result: the value, or every reason it was rejected. */
-export type Result<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly errors: LedgerError[] };

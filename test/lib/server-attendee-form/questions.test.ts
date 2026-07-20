@@ -5,6 +5,7 @@ import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/r
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -184,6 +185,42 @@ describeWithEnv(
           [];
         expect(bobAnswers).toEqual([a2.id]);
       });
+    });
+
+    test("rejects an over-length optional free-text answer", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        name: "Free text listing",
+      });
+      const question = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Access needs?",
+      });
+      await listingQuestions.setIds(listing.id, [question.id]);
+      const created = await attendeesApi.createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "free-text@example.com",
+        name: "Free Text",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+      const form = await buildAttendeeEditForm(attendeeId, {
+        email: "free-text@example.com",
+        extra: {
+          [`question_${question.id}`]: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        },
+        name: "Free Text",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}`,
+        form,
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        "Answer is too long: Access needs?",
+      );
     });
   },
 );

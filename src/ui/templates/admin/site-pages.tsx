@@ -24,11 +24,14 @@ import {
   contentEditPanel,
   deleteConfirmPage,
 } from "#templates/admin/site-content.tsx";
-import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
+import { WritableLink } from "#templates/admin/writable-only.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
-import { DataTable } from "#templates/components/data-table.tsx";
+import {
+  type DataColumn,
+  DataTable,
+  reorderTable,
+} from "#templates/components/data-table.tsx";
 import { InlineFormButton } from "#templates/components/inline-form-button.tsx";
-import { ReorderArrows } from "#templates/components/reorder.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 
 /* jscpd:ignore-end */
@@ -54,27 +57,6 @@ export type EditModel = {
   pageOptions: PickerOption[];
 };
 
-/** Up/down reorder arrows for a row at `index` of `count`, posting to `base`. */
-const Arrows = ({
-  base,
-  index,
-  count,
-}: {
-  base: string;
-  index: number;
-  count: number;
-}): JSX.Element => (
-  <WritableOnly>
-    <span class="reorder">
-      <ReorderArrows
-        action={(d) => `${base}/move-${d}`}
-        count={count}
-        index={index}
-      />
-    </span>
-  </WritableOnly>
-);
-
 const DeleteLink = rowDeleteLink(LIST);
 
 /** A page row's name cell: the page name linking through to its edit page.
@@ -89,27 +71,19 @@ const PageNameLink = ({
   <WritableLink href={`${LIST}/${id}/edit`}>{name}</WritableLink>
 );
 
-/** A reorderable table: the order-arrow cell first, then the caller's cells,
- * under (order, ...headers, actions) columns. Shared by the root-page list
- * and the edit page's item manager. */
-const reorderableTable = <T,>(opts: {
-  headers: string[];
-  rows: T[];
+const pageReorderTable = <T,>(opts: {
   base: (row: T) => string;
-  cells: (row: T) => (JSX.Element | string)[];
-}): JSX.Element => (
-  <DataTable
-    columns={[
-      { header: t("site.pages.order_column") },
-      ...opts.headers.map((header) => ({ header })),
-      { header: "" },
-    ]}
-    rows={opts.rows.map((row, index) => [
-      <Arrows base={opts.base(row)} count={opts.rows.length} index={index} />,
-      ...opts.cells(row),
-    ])}
-  />
-);
+  columns: DataColumn<T>[];
+  rows: T[];
+}): JSX.Element =>
+  reorderTable(
+    {
+      action: (row) => (direction) => `${opts.base(row)}/move-${direction}`,
+      header: t("site.pages.order_column"),
+    },
+    opts.columns,
+    opts.rows,
+  );
 
 /** A page-list row's cells: the name link, one middle cell (public slug or
  * parent name), then the delete link. Shared by the root and nested lists. */
@@ -139,10 +113,19 @@ export const adminSitePagesListPage = (
         {/* A nested page always has a root ancestor, so reaching here (not the
               all-empty case above) guarantees at least one root to list. */}
         <h2>{t("site.pages.roots_heading")}</h2>
-        {reorderableTable({
+        {pageReorderTable({
           base: (page) => `${LIST}/${page.id}`,
-          cells: (page) => pageRowCells(page, <code>/page/{page.slug}</code>),
-          headers: [t("site.pages.name_column"), t("common.slug")],
+          columns: [
+            {
+              cell: (page) => <PageNameLink id={page.id} name={page.name} />,
+              header: t("site.pages.name_column"),
+            },
+            {
+              cell: (page) => <code>/page/{page.slug}</code>,
+              header: t("common.slug"),
+            },
+            { cell: (page) => <DeleteLink id={page.id} />, header: "" },
+          ],
           rows: model.roots,
         })}
         {model.nested.length > 0 && (
@@ -194,7 +177,7 @@ export const adminSitePageNewPage = (
     t("site.pages.new_title"),
     LIST,
     session,
-    sitePageForm.renderFields(),
+    sitePageForm.render(),
     error,
     <SubmitButton icon="plus">{t("site.pages.create_submit")}</SubmitButton>,
   );
@@ -237,7 +220,7 @@ const ItemPicker = ({
 export const sitePageEditPanel = (page: SitePage): JSX.Element =>
   contentEditPanel(
     `${LIST}/${page.id}/edit`,
-    sitePageEditForm.renderFields(contentFieldValues(page)),
+    sitePageEditForm.render(contentFieldValues(page)),
   );
 
 /** The Items tab's panel: the page's current contents (reorderable, each
@@ -258,18 +241,22 @@ export const sitePageItemsPanel = (model: EditModel): JSX.Element => {
           <em>{t("site.pages.no_items")}</em>
         </p>
       ) : (
-        reorderableTable({
+        pageReorderTable({
           base: itemBase,
-          cells: (item) => [
-            t(`site.pages.type.${item.type}`),
-            item.label,
-            <InlineFormButton action={`${itemBase(item)}/remove`}>
-              {t("site.pages.remove")}
-            </InlineFormButton>,
-          ],
-          headers: [
-            t("site.pages.item_type_column"),
-            t("site.pages.name_column"),
+          columns: [
+            {
+              cell: (item) => t(`site.pages.type.${item.type}`),
+              header: t("site.pages.item_type_column"),
+            },
+            { cell: (item) => item.label, header: t("site.pages.name_column") },
+            {
+              cell: (item) => (
+                <InlineFormButton action={`${itemBase(item)}/remove`}>
+                  {t("site.pages.remove")}
+                </InlineFormButton>
+              ),
+              header: "",
+            },
           ],
           rows: items,
         })

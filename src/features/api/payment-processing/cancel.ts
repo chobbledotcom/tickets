@@ -67,7 +67,6 @@ export const cancelPageResponse = async (
 ): Promise<Response> => {
   const intent = extractIntent(session);
   const listingId = intent?.items[0]?.e ?? 0;
-  // Use getListingWithCount (not getListingWithCount) - we only need slug for the link
   const listing = await getListingWithCount(listingId);
   if (!listing) {
     logFailure(

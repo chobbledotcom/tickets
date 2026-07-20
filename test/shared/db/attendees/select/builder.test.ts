@@ -1,1 +1,1 @@
-import "../../../../lib/db/attendees/select.test.ts";
+import "../select.test.ts";

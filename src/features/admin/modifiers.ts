@@ -51,7 +51,6 @@ import {
 import { getAllQuestionsWithAnswers } from "#shared/db/questions/queries.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
-  type CalcKind,
   type ModifierScope,
   type ModifierTrigger,
   normalizeCode,
@@ -190,10 +189,15 @@ const childAddOnInputError = async (
   });
 };
 
-const modifierValueError = (kind: CalcKind, value: number): string | null => {
-  const valueError = validateCalcValue(kind, value);
-  if (valueError) return valueError;
-  return kind === "fixed" && exceedsCurrencyPrecision(value)
+const modifierValuesError = (values: ModifierFormValues): string | null => {
+  const valueError = validateCalcValue(
+    values.calc_kind,
+    values.calc_value,
+    values.direction,
+  );
+  if (valueError) return t(valueError);
+  return values.calc_kind === "fixed" &&
+    exceedsCurrencyPrecision(values.calc_value)
     ? "Amount has more decimal places than your currency allows"
     : null;
 };
@@ -220,9 +224,6 @@ const validateModifier = (
   }
   return childAddOnInputError(input, id);
 };
-
-const modifierValuesError = (values: ModifierFormValues): string | null =>
-  modifierValueError(values.calc_kind, values.calc_value);
 
 const getModifiersResource = once(() =>
   defineNamedResource<ModifierRow, ModifierInput, number, ModifierFormValues>({
@@ -315,7 +316,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
       modifier,
       ctx.session,
       rejected?.error,
-      rejected ? Object.fromEntries(rejected.form.entries()) : undefined,
+      rejected?.form.toRenderValues(),
     ),
   guard: requireSessionOr,
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
@@ -329,11 +330,11 @@ const crud = createCrudHandlers({
   getAll: getAllModifiers,
   getName: (m: ModifierRow) => m.name,
   listPath: "/admin/modifiers",
+  operations: getModifiersResource,
   renderDelete: adminModifierDeletePage,
   renderEditError: modifierPage.renderEditError,
   renderList: adminModifiersPage,
   renderNew: adminModifierNewPage,
-  resource: getModifiersResource,
   singular: "Modifier",
 });
 

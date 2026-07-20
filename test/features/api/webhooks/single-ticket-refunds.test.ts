@@ -18,8 +18,8 @@ import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectStagedAttendeeRemovedAndRefunded,
+  expectWebhookIgnored,
   expectWebhookKeptAndRefunded,
-  expectWebhookProcessed,
   stubRefundPayment,
 } from "#test-utils/webhooks.ts";
 
@@ -142,7 +142,7 @@ describeWithEnv(
       }
     });
 
-    test("webhook single-ticket defaults email to empty when metadata email is not a string", async () => {
+    test("webhook does not fulfil a session with non-text metadata", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -150,13 +150,13 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      await expectWebhookProcessed(
+      await expectWebhookIgnored(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_no_email_single",
           metadata: signedMeta(
             {
-              email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
+              email: 12345 as unknown as string,
               items: singleItem(listing.id, 1, 1000),
               name: "No Email Single",
             },
@@ -171,39 +171,7 @@ describeWithEnv(
         "#shared/db/attendees/queries.ts"
       );
       const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
-    });
-
-    test("webhook multi-ticket defaults email to empty when metadata email is not a string", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 500,
-      });
-
-      await expectWebhookProcessed(
-        checkoutSessionEvent({
-          amountTotal: 500,
-          eventId: "evt_no_email_multi",
-          metadata: signedMeta(
-            {
-              email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-              name: "No Email Multi",
-            },
-            500,
-          ),
-          paymentIntent: "pi_wh_no_email_multi",
-          sessionId: "cs_wh_no_email_multi",
-        }),
-      );
-
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
-      );
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees.length).toBe(1);
+      expect(attendees).toEqual([]);
     });
   },
 );

@@ -1,11 +1,11 @@
 /* jscpd:ignore-start */
-import { identity, map, mapById } from "#fp";
+import { compact, identity, map, mapById } from "#fp";
 import {
   bookingsForOrder,
   type CanonicalOrderBooking,
   checkoutBookingLines,
 } from "#shared/booking-lines.ts";
-import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { contactFields } from "#shared/db/attendees/pii.ts";
 import {
@@ -147,10 +147,13 @@ const paidCheckoutBookingsOrNull = async (
     ),
   ];
   const listings = await getListingsWithCountsByIds(listingIds);
-  const listingById = mapById(identity<(typeof listings)[number]>)(listings);
-  if (listingById.size !== listingIds.length) {
+  const foundListings = compact(listings);
+  if (foundListings.length !== listingIds.length) {
     return null;
   }
+  const listingById = mapById(identity<(typeof foundListings)[number]>)(
+    foundListings,
+  );
   return bookingsForOrder(
     intent,
     checkoutBookingLines(intent.items, listingById),
@@ -207,7 +210,7 @@ export const createPaidCheckout = async ({
       {
         ...contactFields(intent),
         bookings: bookings.map((booking) => ({ ...booking, quantity: 0 })),
-        statusId: await getPublicStatusId(),
+        statusId: await requirePublicStatusId(),
       },
       {
         paymentSessionId: result.sessionId,

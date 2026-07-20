@@ -3,17 +3,17 @@ import { it as test } from "@std/testing/bdd";
 import {
   type AttendeeStatusWriteInput,
   attendeeStatuses,
+  attendeeStatusOrder,
   attendeeStatusWrites,
   DEFAULT_ATTENDEE_STATUS_NAME,
   ensureDefaultAttendeeStatus,
   getAttendeeStatus,
-  getPaidDefaultStatus,
-  getPublicDefaultStatus,
-  getPublicStatusId,
-  swapAttendeeStatusOrder,
+  requirePaidDefaultStatus,
+  requirePublicDefaultStatus,
+  requirePublicStatusId,
 } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { updateAttendeeStatus } from "#shared/db/attendees/update.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -76,10 +76,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(seed.sort_order).toBe(0);
   });
 
-  test("getPublicDefaultStatus and getPaidDefaultStatus return the seed", async () => {
+  test("required default status lookups return the seed", async () => {
     const [pub, paid] = await Promise.all([
-      getPublicDefaultStatus(),
-      getPaidDefaultStatus(),
+      requirePublicDefaultStatus(),
+      requirePaidDefaultStatus(),
     ]);
     expect(pub?.name).toBe(DEFAULT_ATTENDEE_STATUS_NAME);
     expect(paid?.name).toBe(DEFAULT_ATTENDEE_STATUS_NAME);
@@ -93,12 +93,14 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(await getAttendeeStatus(9999)).toBeNull();
   });
 
-  test("getPublicStatusId returns the default id, or null when none is set", async () => {
+  test("requirePublicStatusId throws when the required default is missing", async () => {
     const [seed] = await attendeeStatuses.getAll();
-    expect(await getPublicStatusId()).toBe(seed!.id);
+    expect(await requirePublicStatusId()).toBe(seed!.id);
     await getDb().execute("UPDATE attendee_statuses SET is_public_default = 0");
     attendeeStatuses.invalidate();
-    expect(await getPublicStatusId()).toBeNull();
+    await expect(requirePublicStatusId()).rejects.toThrow(
+      "No attendee status has the required is_public_default flag",
+    );
   });
 
   test("ensureDefaultAttendeeStatus is idempotent once a status exists", async () => {
@@ -133,10 +135,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(storedWaitlist?.is_reservation).toBe(false);
   });
 
-  test("swapAttendeeStatusOrder swaps two statuses' sort_order", async () => {
+  test("ordered rows swap two statuses' sort_order", async () => {
     const a = await attendeeStatuses.table.insert({ name: "A", sortOrder: 5 });
     const b = await attendeeStatuses.table.insert({ name: "B", sortOrder: 6 });
-    await swapAttendeeStatusOrder(a.id, b.id);
+    await attendeeStatusOrder.swap({ first: a.id, second: b.id });
     expect((await getAttendeeStatus(a.id))?.sort_order).toBe(6);
     expect((await getAttendeeStatus(b.id))?.sort_order).toBe(5);
   });
@@ -223,8 +225,30 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       ),
     ]);
     expect(results).toEqual([
-      { ok: true, value: first.id },
-      { ok: true, value: second.id },
+      {
+        ok: true,
+        value: {
+          id: first.id,
+          is_paid_default: true,
+          is_public_default: true,
+          is_reservation: false,
+          name: "First",
+          reservation_amount: "0",
+          sort_order: 0,
+        },
+      },
+      {
+        ok: true,
+        value: {
+          id: second.id,
+          is_paid_default: true,
+          is_public_default: true,
+          is_reservation: false,
+          name: "Second",
+          reservation_amount: "0",
+          sort_order: 0,
+        },
+      },
     ]);
 
     const defaults = await getDb().execute(
@@ -289,12 +313,23 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       statusInput("Candidate"),
     );
 
-    expect(await promoted).toEqual({ ok: true, value: candidate.id });
+    expect(await promoted).toEqual({
+      ok: true,
+      value: {
+        id: candidate.id,
+        is_paid_default: false,
+        is_public_default: true,
+        is_reservation: false,
+        name: "Candidate",
+        reservation_amount: "0",
+        sort_order: 0,
+      },
+    });
     expect(await staleEdit).toEqual({
       error: "public_default_required",
       ok: false,
     });
-    expect((await getPublicDefaultStatus())?.id).toBe(candidate.id);
+    expect((await requirePublicDefaultStatus()).id).toBe(candidate.id);
   });
 
   test("status writes fail loudly for a missing status", async () => {
@@ -364,7 +399,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
-    const status = await getPublicDefaultStatus();
+    const status = await requirePublicDefaultStatus();
     const result = await attendeesApi.createAttendeeAtomic({
       bookings: [{ listingId: listing.id, pricePaid: 500, quantity: 1 }],
       email: "guest@example.com",
@@ -384,7 +419,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       gross: 2000,
       listingId: listing.id,
     });
-    const stored = await getAttendee(
+    const stored = await getAttendeeOrNull(
       result.attendees[0]!.id,
       await getTestPrivateKey(),
     );

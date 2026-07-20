@@ -1,12 +1,12 @@
 /* jscpd:ignore-start */
 
 import { assert } from "@std/assert";
-import { requiredMapValue } from "#fp";
+import { compact, requiredMapValue } from "#fp";
 import { classifySession } from "#routes/api/payment-processing/classify.ts";
 import { bookingSlot } from "#routes/api/payment-processing/create.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
 import { bookingsForOrder } from "#shared/booking-lines.ts";
-import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   loadCheckoutStageByPaymentSession,
@@ -15,7 +15,10 @@ import {
 import { execute } from "#shared/db/client.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+} from "#shared/payment-helpers.ts";
 import type {
   PaymentProviderType,
   SessionMetadata,
@@ -42,7 +45,8 @@ export const stagePaymentCallback = async (fields: {
   ) {
     return;
   }
-  const metadata = extractSessionMetadata(fields.metadata as SessionMetadata);
+  if (!hasRequiredSessionMetadata(fields.metadata)) return;
+  const metadata = extractSessionMetadata(fields.metadata);
   const session: ValidatedPaymentSession = {
     amountTotal: fields.amountTotal,
     id: fields.sessionId,
@@ -56,8 +60,11 @@ export const stagePaymentCallback = async (fields: {
   if (intent.balanceAttendeeId) return;
   const listingIds = [...new Set(intent.items.map((item) => item.e))];
   const listings = await getListingsWithCountsByIds(listingIds);
-  const listingById = new Map(listings.map((listing) => [listing.id, listing]));
-  const inactiveIds = listings
+  const foundListings = compact(listings);
+  const listingById = new Map(
+    foundListings.map((listing) => [listing.id, listing]),
+  );
+  const inactiveIds = foundListings
     .filter((listing) => !listing.active)
     .map((listing) => listing.id);
   if (inactiveIds.length > 0) {
@@ -86,7 +93,7 @@ export const stagePaymentCallback = async (fields: {
       name: intent.name,
       phone: intent.phone,
       special_instructions: intent.special_instructions,
-      statusId: await getPublicStatusId(),
+      statusId: await requirePublicStatusId(),
     };
     const staged = await attendeesApi.createStagedCheckoutAtomic(
       attendeeInput,

@@ -133,16 +133,14 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       ).toEqual([]);
     });
 
-    test("drops parent edges whose listing no longer exists", async () => {
+    test("rejects parent edges whose listing no longer exists", async () => {
       const { childA } = await threeListings();
       const missingParentId = childA.id + 100_000;
       await listingChildren.setIds(missingParentId, [childA.id]);
-      // The edge row exists but no parent listing does, so hydration drops it.
       expect(await listingParents.getIds(childA.id)).toEqual([missingParentId]);
-      expect(
-        (await hydratedListings(listingParents, [childA.id])).get(childA.id) ??
-          [],
-      ).toEqual([]);
+      await expect(
+        hydratedListings(listingParents, [childA.id]),
+      ).rejects.toThrow(`Listing not found: ${missingParentId}`);
     });
   });
 
@@ -251,12 +249,13 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       );
     });
 
-    test("omits a key when every linked listing is missing", async () => {
+    test("rejects a link whose listing is missing", async () => {
       const { parent, childA } = await threeListings();
-      await listingChildren.setIds(parent.id, [childA.id + 100_000]);
-      expect((await hydratedListings(listingChildren, [parent.id])).size).toBe(
-        0,
-      );
+      const missingChildId = childA.id + 100_000;
+      await listingChildren.setIds(parent.id, [missingChildId]);
+      await expect(
+        hydratedListings(listingChildren, [parent.id]),
+      ).rejects.toThrow(`Listing not found: ${missingChildId}`);
     });
   });
 
@@ -293,12 +292,13 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       expect((await hydratedListings(listingChildren, [])).size).toBe(0);
     });
 
-    test("drops a child edge whose listing no longer exists", async () => {
+    test("rejects a child edge whose listing no longer exists", async () => {
       const { parent, childA } = await threeListings();
       const missingChildId = childA.id + 100_000;
       await listingChildren.setIds(parent.id, [childA.id, missingChildId]);
-      const map = await hydratedListings(listingChildren, [parent.id]);
-      expect(map.get(parent.id)?.map((c) => c.id)).toEqual([childA.id]);
+      await expect(
+        hydratedListings(listingChildren, [parent.id]),
+      ).rejects.toThrow(`Listing not found: ${missingChildId}`);
     });
   });
 
@@ -321,13 +321,13 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       expect((await hydratedListings(listingParents, [])).size).toBe(0);
     });
 
-    test("drops a parent edge whose listing no longer exists", async () => {
+    test("rejects a parent edge whose listing no longer exists", async () => {
       const { parent, childA } = await threeListings();
       const missingParentId = childA.id + 100_000;
       await linkChildToParents(childA.id, [parent.id, missingParentId]);
-      const map = await hydratedListings(listingParents, [childA.id]);
-      // The edge to the missing parent is dropped; the real parent survives.
-      expect(map.get(childA.id)?.map((p) => p.id)).toEqual([parent.id]);
+      await expect(
+        hydratedListings(listingParents, [childA.id]),
+      ).rejects.toThrow(`Listing not found: ${missingParentId}`);
     });
   });
 
@@ -396,13 +396,15 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       );
     });
 
-    test("ignores edges whose opposite endpoint no longer exists", async () => {
+    test("rejects edges whose opposite endpoint no longer exists", async () => {
       const { childA } = await threeListings();
       const missing = childA.id + 100_000;
       // An edge pointing at a missing child, and one pointing at a missing parent.
       await listingChildren.setIds(childA.id, [missing]);
       await listingChildren.setIds(missing, [childA.id]);
-      expect(await edgeIncompatibilityAfterChange(edge(childA.id))).toBeNull();
+      await expect(
+        edgeIncompatibilityAfterChange(edge(childA.id)),
+      ).rejects.toThrow(`Listing not found: ${missing}`);
     });
   });
 

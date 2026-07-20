@@ -1193,7 +1193,8 @@ label > input[type="number"] {
 }
 
 label > select[name="quantity"],
-label > select[name^="quantity_"] {
+label > select[name^="quantity_"],
+label > select[name^="child_qty_"] {
   width: 8ch;
   flex: 0 0 auto;
 }
@@ -1386,6 +1387,10 @@ td.cell-description {
 /* Income & ledger breakdown: a compact reconciliation table whose figures are
    right-aligned and whose two subtotal rows (recognised income, net balance)
    carry a top border so they read as running totals. */
+.listing-breakdown-table .col-amount {
+  width: 1px;
+}
+
 .listing-breakdown-table .breakdown-subtotal th,
 .listing-breakdown-table .breakdown-subtotal td {
   border-top: 1px solid var(--color-bg-secondary);

@@ -21,6 +21,7 @@ import {
   type WriteVerb,
 } from "#shared/cache-registry.ts";
 import { beginTransaction, wrapExecute } from "#shared/db/libsql-call.ts";
+import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
 import {
   countDatabaseRoundTrip,
   enforceTransactionRoundTripGuard,
@@ -39,6 +40,9 @@ import { retryWithBackoff } from "#shared/retry.ts";
  */
 const WRITE_TABLE_RE =
   /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
+
+/** A CTE-led UPDATE's mutating statement, without its leading read expression. */
+const CTE_UPDATE_RE = /^\s*WITH\b[\s\S]*?\)\s*(UPDATE[\s\S]*)$/i;
 
 /**
  * Parse the column names assigned by an UPDATE SET clause.
@@ -92,16 +96,17 @@ export const extractUpdateColumns = (
  * fails the write is treated as unconditional — safe over stale.
  */
 const invalidateForSql = (sql: string): void => {
-  const match = WRITE_TABLE_RE.exec(sql);
+  const writeSql = CTE_UPDATE_RE.exec(sql)?.[1] ?? sql;
+  const match = WRITE_TABLE_RE.exec(writeSql);
   if (!match) return;
   const table = match[1]!.toLowerCase();
-  const firstWord = sql.trimStart().split(/\s/)[0]!.toLowerCase();
+  const firstWord = writeSql.trimStart().split(/\s/)[0]!.toLowerCase();
   const verb: WriteVerb =
     firstWord === "delete" || firstWord === "update" || firstWord === "replace"
       ? (firstWord as WriteVerb)
       : "insert";
   if (verb === "update") {
-    const columns = extractUpdateColumns(sql);
+    const columns = extractUpdateColumns(writeSql);
     if (columns === null) {
       // Parse failure: fall back to unconditional (treat as INSERT-like)
       invalidateCachesForWrite(table, { columns: new Set(), verb: "insert" });
@@ -251,6 +256,7 @@ const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
 /** A SQL statement and its optional bound args — the shared parameters of the
  * single-statement query and write helpers below. */
 type SqlArgs = [sql: string, args?: InValue[]];
+type SqlWithArgs = [sql: string, args: InValue[]];
 
 /**
  * Run a single statement: track it for the query log / N+1 guard, then fire any
@@ -281,13 +287,41 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
   return rows.length === 0 ? null : rows[0]!;
 };
 
-/** Query single row, returning null if not found */
+/** Run a read on the primary when its cache refill requires read-your-writes. */
+const executeRead = async (...[sql, args]: SqlArgs): Promise<ResultSet> => {
+  if (!mustReadFromPrimary() || primaryReadMode() === "read") {
+    return execute(sql, args);
+  }
+  const [result] = await queryBatchPrimary([{ args: args ?? [], sql }]);
+  return result!;
+};
+
+/** Query all rows, returning a typed array. */
+export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
+  resultRows<T>(await executeRead(sql, args));
+
+/** Query one row, or null when the query returns none. */
 export const queryOne = async <T>(...[sql, args]: SqlArgs): Promise<T | null> =>
-  firstRowOrNull<T>(await execute(sql, args));
+  (await queryAll<T>(sql, args))[0] ?? null;
+
+const requireQueryRow = async <T>(
+  row: Promise<T | null>,
+  sql: string,
+  label: string,
+): Promise<T> => {
+  const found = await row;
+  if (found === null)
+    throw new Error(`${label} query returned no rows: ${sql}`);
+  return found;
+};
+
+/** Query one required row and name the failed query when none exists. */
+export const requireOne = <T>(...[sql, args]: SqlArgs): Promise<T> =>
+  requireQueryRow(queryOne<T>(sql, args), sql, "Required");
 
 /**
- * Query a single row on the primary (read-your-writes), returning null if not
- * found. Use this to read a row back immediately after committing its own write:
+ * Query an optional row on the primary (read-your-writes). Use this to read a
+ * row back immediately after committing its own write:
  * a plain {@link queryOne} runs in "read" mode, which Turso can route to a
  * replica lagging the just-committed write and so miss the row (returning null);
  * routing through {@link queryBatchPrimary} ("write" mode) always hits the
@@ -302,9 +336,9 @@ export const queryOnePrimary = async <T>(
   return firstRowOrNull<T>(result!);
 };
 
-/** Query all rows, returning a typed array */
-export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
-  resultRows<T>(await execute(sql, args));
+/** Query one required row from the primary. */
+export const requireOnePrimary = <T>(...[sql, args]: SqlWithArgs): Promise<T> =>
+  requireQueryRow(queryOnePrimary<T>(sql, args), sql, "Required primary");
 
 /**
  * True when the query returns at least one row. `sql` should be an existence
@@ -330,22 +364,6 @@ export const rowExistsForIdList =
   (leadingId: number, ids: number[]): Promise<boolean> =>
     rowExists(buildSql(inPlaceholders(ids)), [leadingId, ...ids]);
 
-/**
- * The next `sort_order` for rows of `table` in one group: one past the current
- * max, or 0 when the group is empty. `table` and `groupColumn` must be trusted
- * constants, never input.
- */
-export const nextSortOrder = async (
-  table: string,
-  groupColumn: string,
-  groupId: number,
-): Promise<number> =>
-  (await queryOne<{ next_order: number }>(
-    `SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order
-       FROM ${table} WHERE ${groupColumn} = ?`,
-    [groupId],
-  ))!.next_order;
-
 /** Run a query whose single selected column is aliased `id` and return the ids. */
 export const queryIdColumn = async (
   sql: string,
@@ -358,7 +376,7 @@ export const queryIdColumn = async (
 /** Count all rows in a table. `table` must be a trusted constant, not input. */
 export const countRows = async (table: string): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.
-  const row = await queryOne<{ n: number }>(
+  const row = await requireOne<{ n: number }>(
     `SELECT COUNT(*) AS n FROM ${table}`,
     [],
   );
@@ -482,14 +500,25 @@ export const executeBatchWithoutCacheInvalidation = async (
   await runBatch(statements, "write", false);
 };
 
-/** Create a batch executor for a given transaction mode */
+/** A read/write batch with a fixed mode, or one chosen when it runs. */
+type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
+
+/** Create a batch executor for a fixed or per-call transaction mode. */
 const batchFor =
-  (mode: TransactionMode) =>
-  (statements: SqlStatement[]): Promise<ResultSet[]> =>
-    runBatch(statements, mode, true);
+  (mode: TransactionMode | (() => TransactionMode)): BatchExecutor =>
+  (statements) =>
+    runBatch(statements, typeof mode === "function" ? mode() : mode, true);
+
+/** Local SQLite has no replica and write mode would only take a needless lock. */
+const primaryReadMode = (): TransactionMode => {
+  const url = getEnv("DB_URL");
+  return url === ":memory:" || url?.startsWith("file:") ? "read" : "write";
+};
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
-export const queryBatch = batchFor("read");
+export const queryBatch = batchFor(() =>
+  mustReadFromPrimary() ? primaryReadMode() : "read",
+);
 
 /**
  * Run read queries pinned to the primary in a single round-trip.

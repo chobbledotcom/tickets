@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
   cachedClientFactory,
   createWithClient,
-  enforceMetadataLimits,
   hasRequiredSessionMetadata,
   PaymentUserError,
   parseWebhookPayload,
@@ -15,11 +13,10 @@ import {
   validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
 import { isPaymentStatus } from "#shared/payments.ts";
-import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import "../../lib/payment-helpers/limits.test.ts";
+import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describe("payment-helpers", () => {
-  const errors = setupErrorSpy();
+  const debugSpy = useDebugLogSpy();
 
   describe("hasRequiredSessionMetadata", () => {
     test("returns false for null/undefined", () => {
@@ -64,10 +61,16 @@ describe("payment-helpers", () => {
         }),
       ).toBe(true);
     });
-  });
 
-  test("allows absent option fields when the value limit is zero", () => {
-    expect(enforceMetadataLimits({}, 0)).toEqual({});
+    test("returns false when a present metadata value is not text", () => {
+      expect(
+        hasRequiredSessionMetadata({
+          email: 123 as unknown as string,
+          items: "[]",
+          name: "Alice",
+        }),
+      ).toBe(false);
+    });
   });
 
   test("includes only usable provider creation timestamps", () => {
@@ -137,69 +140,71 @@ describe("payment-helpers", () => {
     });
 
     test("re-throws PaymentUserError", async () => {
-      expect(new PaymentUserError("Bad phone").name).toBe("PaymentUserError");
+      const error = new PaymentUserError("Bad phone");
+      expect(error.name).toBe("PaymentUserError");
       await expect(
-        safeAsync(
-          () => Promise.reject(new PaymentUserError("Bad phone")),
-          ErrorCode.PAYMENT_CHECKOUT,
-        ),
+        safeAsync(() => Promise.reject(error), ErrorCode.PAYMENT_CHECKOUT),
       ).rejects.toThrow("Bad phone");
     });
 
-    test("logs the fallback detail for a non-Error failure", async () => {
-      await safeAsync(
-        () => Promise.reject("string error"),
-        ErrorCode.PAYMENT_CHECKOUT,
-      );
-      expect(errors.contains("unknown")).toBe(true);
+    test("logs unknown for a non-Error rejection", async () => {
+      const errorSpy = spy(console, "error");
+      try {
+        await safeAsync(
+          () => Promise.reject("string error"),
+          ErrorCode.PAYMENT_CHECKOUT,
+        );
+        expect(errorSpy.calls[0]?.args[0]).toBe(
+          '[Error] E_PAYMENT_CHECKOUT detail="unknown"',
+        );
+      } finally {
+        errorSpy.restore();
+      }
     });
   });
 
   describe("cachedClientFactory", () => {
-    test("logs missing, created, and cached client states", async () => {
-      setSuppressDebugLogs(false);
-      using debug = spy(console, "debug");
+    test("logs missing configuration and the chosen creation message", async () => {
       let config: string | null = null;
-      const clients = cachedClientFactory({
-        create: (key: string) => ({ key }),
+      const cache = cachedClientFactory({
+        create: (value: string) => ({ value }),
+        createMessage: () => "",
         getConfig: () => config,
-        isSameConfig: (left, right) => left === right,
-        missingMessage: "Provider key is missing",
-        provider: "Payment",
+        isSameConfig: (a, b) => a === b,
+        missingMessage: "No secret key configured",
+        provider: "Stripe",
       });
-      try {
-        expect(await clients.getClient()).toBeNull();
-        config = "key-1";
-        expect(await clients.getClient()).toEqual({ key: "key-1" });
-        expect(await clients.getClient()).toEqual({ key: "key-1" });
-        const output = debug.calls
-          .map((call) => String(call.args[0]))
-          .join("\n");
-        expect(output).toContain("Provider key is missing");
-        expect(output).toContain("Creating new Payment client");
-        expect(output).toContain("Using cached Payment client");
-      } finally {
-        setSuppressDebugLogs(null);
-      }
+
+      expect(await cache.getClient()).toBeNull();
+      config = "secret";
+      expect(await cache.getClient()).toEqual({ value: "secret" });
+      expect(debugSpy().calls.map((call) => call.args[0])).toEqual([
+        "[Stripe] No secret key configured",
+        "[Stripe] ",
+      ]);
     });
 
-    test("keeps an explicitly empty creation message", async () => {
-      setSuppressDebugLogs(false);
-      using debug = spy(console, "debug");
-      const clients = cachedClientFactory({
-        create: () => ({}),
-        createMessage: () => "",
-        getConfig: () => "key",
-        isSameConfig: () => true,
-        missingMessage: "missing",
-        provider: "Payment",
+    test("reuses and logs the cached client", async () => {
+      const client = { value: "secret" };
+      let createCalls = 0;
+      const cache = cachedClientFactory({
+        create: () => {
+          createCalls += 1;
+          return client;
+        },
+        getConfig: () => "secret",
+        isSameConfig: (a, b) => a === b,
+        missingMessage: "No secret key configured",
+        provider: "Stripe",
       });
-      try {
-        await clients.getClient();
-        expect(debug.calls[0]!.args[0]).toBe("[Payment] ");
-      } finally {
-        setSuppressDebugLogs(null);
-      }
+
+      expect(await cache.getClient()).toBe(client);
+      expect(await cache.getClient()).toBe(client);
+      expect(createCalls).toBe(1);
+      expect(debugSpy().calls.map((call) => call.args[0])).toEqual([
+        "[Stripe] Creating new Stripe client",
+        "[Stripe] Using cached Stripe client",
+      ]);
     });
   });
 
@@ -261,52 +266,37 @@ describe("payment-helpers", () => {
     });
 
     test("returns null for missing or empty id/url", () => {
-      setSuppressDebugLogs(false);
-      using debug = spy(console, "debug");
-      try {
-        expect(
-          toCheckoutResult(
-            undefined,
-            "https://pay.example.com",
-            "Stripe",
-            "checkout_1",
-          ),
-        ).toBeNull();
-        expect(
-          toCheckoutResult("sess_1", undefined, "Stripe", "checkout_1"),
-        ).toBeNull();
-        expect(
-          toCheckoutResult("sess_1", null, "Stripe", "checkout_1"),
-        ).toBeNull();
-        expect(
-          toCheckoutResult(
-            "",
-            "https://pay.example.com",
-            "Stripe",
-            "checkout_1",
-          ),
-        ).toBeNull();
-        expect(
-          toCheckoutResult("sess_1", "", "Payment", "checkout_1"),
-        ).toBeNull();
-        expect(
-          toCheckoutResult(
-            "sess_1",
-            "https://pay.example.com",
-            "Stripe",
-            undefined,
-          ),
-        ).toBeNull();
-        expect(
-          debug.calls.some((call) =>
-            String(call.args[0]).includes(
-              "Checkout result missing session ID, provider ID, or URL",
-            ),
-          ),
-        ).toBe(true);
-      } finally {
-        setSuppressDebugLogs(null);
-      }
+      expect(
+        toCheckoutResult(
+          undefined,
+          "https://pay.example.com",
+          "Stripe",
+          "checkout_1",
+        ),
+      ).toBeNull();
+      expect(
+        toCheckoutResult("sess_1", undefined, "Stripe", "checkout_1"),
+      ).toBeNull();
+      expect(
+        toCheckoutResult("sess_1", null, "Stripe", "checkout_1"),
+      ).toBeNull();
+      expect(
+        toCheckoutResult("", "https://pay.example.com", "Stripe", "checkout_1"),
+      ).toBeNull();
+      expect(
+        toCheckoutResult("sess_1", "", "Payment", "checkout_1"),
+      ).toBeNull();
+      expect(
+        toCheckoutResult(
+          "sess_1",
+          "https://pay.example.com",
+          "Stripe",
+          undefined,
+        ),
+      ).toBeNull();
+      expect(debugSpy().calls[0]?.args[0]).toBe(
+        "[Stripe] Checkout result missing session ID, provider ID, or URL",
+      );
     });
   });
 });

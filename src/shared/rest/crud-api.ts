@@ -19,6 +19,7 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
+import { reduce } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
@@ -27,9 +28,14 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
-import type { ApiResult } from "#shared/fetch.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { type JoinWrite, writeEntity } from "#shared/rest/write-entity.ts";
+import {
+  errorResult,
+  okResult,
+  parseOptionalResult,
+  type Result,
+} from "#shared/result.ts";
 import type { AdminSession } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
@@ -49,6 +55,18 @@ const requireString = (
     ? body[key].trim()
     : null;
 
+/** Parse every item with one shared first-error traversal. */
+const parseEach =
+  <Input, Output>(parseItem: (item: Input) => Result<Output>) =>
+  (items: readonly Input[]): Result<Output[]> =>
+    reduce((result: Result<Output[]>, item: Input): Result<Output[]> => {
+      if (!result.ok) return result;
+      const parsed = parseItem(item);
+      if (!parsed.ok) return parsed;
+      result.value.push(parsed.value);
+      return result;
+    }, okResult<Output[]>([]))([...items]);
+
 /**
  * Read several required non-empty string fields from a JSON body in one call.
  * Returns the trimmed values keyed by field name, or a ready `{ ok: false }`
@@ -60,14 +78,16 @@ const requireString = (
 export const requireStrings = <K extends string>(
   body: Record<string, unknown>,
   keys: readonly K[],
-): ApiResult<{ values: Record<K, string> }> => {
-  const values = {} as Record<K, string>;
-  for (const key of keys) {
+): Result<Record<K, string>> => {
+  const parsed = parseEach((key: K): Result<readonly [K, string]> => {
     const value = requireString(body, key);
-    if (!value) return { error: `${key} is required`, ok: false };
-    values[key] = value;
-  }
-  return { ok: true, values };
+    return value
+      ? okResult([key, value] as const)
+      : errorResult(`${key} is required`);
+  })(keys);
+  return parsed.ok
+    ? okResult(Object.fromEntries(parsed.value) as Record<K, string>)
+    : parsed;
 };
 
 /**
@@ -95,12 +115,6 @@ export const bodyBoolean = (
   fallback: boolean,
 ): boolean => (typeof body[key] === "boolean" ? body[key] : fallback);
 
-/** Result of parsing a JSON body into a typed input */
-export type ParseResult<Input> = ApiResult<{ input: Input }>;
-
-/** Outcome of parsing a single array element: a value, or a rejection reason. */
-export type ItemResult<T> = { value: T } | { error: string };
-
 /**
  * Parse an optional JSON-array field with partial-update semantics, failing
  * closed. `undefined` → ok with `undefined` (caller leaves existing data
@@ -111,20 +125,14 @@ export type ItemResult<T> = { value: T } | { error: string };
 export const parseOptionalArray = <T>(
   raw: unknown,
   label: string,
-  parseItem: (item: unknown) => ItemResult<T>,
-): ParseResult<T[] | undefined> => {
-  if (raw === undefined) return { input: undefined, ok: true };
-  if (!Array.isArray(raw)) {
-    return { error: `${label} must be an array`, ok: false };
-  }
-  const items: T[] = [];
-  for (const item of raw) {
-    const parsed = parseItem(item);
-    if ("error" in parsed) return { error: parsed.error, ok: false };
-    items.push(parsed.value);
-  }
-  return { input: items, ok: true };
-};
+  parseItem: (item: unknown) => Result<T>,
+): Result<T[] | undefined> =>
+  parseOptionalResult(raw, (value) => {
+    if (!Array.isArray(value)) {
+      return errorResult(`${label} must be an array`);
+    }
+    return parseEach(parseItem)(value);
+  });
 
 /** Result of parsing + validating: either the input or a pre-built error response */
 export type ValidatedInput<Input> =
@@ -136,7 +144,7 @@ export type ValidatedInput<Input> =
  * error response on failure. Used by route handlers to short-circuit on error.
  */
 export const parseAndValidate = async <Input>(
-  parsed: ParseResult<Input> | Promise<ParseResult<Input>>,
+  parsed: Result<Input> | Promise<Result<Input>>,
   validate?: (input: Input, id?: number) => Promise<string | null>,
   id?: number,
 ): Promise<ValidatedInput<Input>> => {
@@ -145,10 +153,10 @@ export const parseAndValidate = async <Input>(
     return { ok: false, response: apiErrorResponse(result.error) };
   }
   if (validate) {
-    const error = await validate(result.input, id);
+    const error = await validate(result.value, id);
     if (error) return { ok: false, response: apiErrorResponse(error) };
   }
-  return { input: result.input, ok: true };
+  return { input: result.value, ok: true };
 };
 
 /**
@@ -173,11 +181,9 @@ export const parseUpdateSlug = async <Index extends string>(
 export const parseUpdateName = (
   body: Record<string, unknown>,
   existing: string,
-): ApiResult<{ name: string }> => {
+): Result<string> => {
   const name = body.name != null ? String(body.name).trim() : existing;
-  return name === ""
-    ? { error: "name cannot be empty", ok: false }
-    : { name, ok: true };
+  return name === "" ? errorResult("name cannot be empty") : okResult(name);
 };
 
 /**
@@ -287,12 +293,12 @@ export interface CrudApiConfig<
   /** Convert JSON body to Input for create */
   toCreateInput: (
     body: Record<string, unknown>,
-  ) => ParseResult<Input> | Promise<ParseResult<Input>>;
+  ) => Result<Input> | Promise<Result<Input>>;
   /** Convert JSON body + existing row to Input for update */
   toUpdateInput: (
     body: Record<string, unknown>,
     existing: FullRow,
-  ) => ParseResult<Input> | Promise<ParseResult<Input>>;
+  ) => Result<Input> | Promise<Result<Input>>;
   /** Optional validation (return error message or null) */
   validate?: (input: Input, id?: number) => Promise<string | null>;
   /** Optional delete guard: a returned message blocks the deletion with a 400
@@ -484,7 +490,7 @@ export const defineCrudApi = <
   /** Validate raw input against config.validate, then invoke fn with the typed
    * result on success; returns the validation error response on failure. */
   const withValidated = async (
-    raw: ParseResult<Input> | Promise<ParseResult<Input>>,
+    raw: Result<Input> | Promise<Result<Input>>,
     id: number | undefined,
     fn: ResponseHandler<[value: Input]>,
   ): Promise<Response> => {

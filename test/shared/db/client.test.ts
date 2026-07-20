@@ -11,12 +11,18 @@ import {
   getDb,
   inPlaceholders,
   insert,
+  queryAll,
+  queryBatch,
+  queryOne,
   rawSql,
+  requireOne,
+  requireOnePrimary,
   resetAggregates,
   rowExists,
   setDb,
   update,
 } from "#shared/db/client.ts";
+import { runWithPrimaryReads } from "#shared/db/primary-reads.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 
@@ -159,6 +165,59 @@ describeWithEnv("db > client", { db: true }, () => {
     const client1 = getDb();
     const client2 = getDb();
     expect(client1).toBe(client2);
+  });
+
+  test("primary read scopes use remote write mode and local read mode", async () => {
+    const modes: unknown[] = [];
+    const batchStub = stub(getDb(), "batch", (_statements, mode) => {
+      modes.push(mode);
+      return Promise.resolve([emptyResultSet()]);
+    });
+    try {
+      await queryBatch([{ args: [], sql: "SELECT 1" }]);
+      {
+        using _env = withEnv({ DB_URL: "libsql://primary.test" });
+        await runWithPrimaryReads(() => queryAll("SELECT 1"));
+        await runWithPrimaryReads(() =>
+          queryBatch([{ args: [], sql: "SELECT 1" }]),
+        );
+      }
+      const localRows = await runWithPrimaryReads(() =>
+        queryAll<{ one: number }>("SELECT 1 AS one"),
+      );
+      expect(localRows).toEqual([{ one: 1 }]);
+      expect(modes).toEqual(["read", "write", "write"]);
+    } finally {
+      batchStub.restore();
+    }
+  });
+
+  test("queryOne returns null for an expected miss", async () => {
+    expect(
+      await queryOne("SELECT value FROM settings WHERE key = ?", [
+        "missing-query-one-test",
+      ]),
+    ).toBeNull();
+  });
+
+  test("requireOne throws the failed query when a required row is missing", async () => {
+    await expect(
+      requireOne("SELECT value FROM settings WHERE key = ?", [
+        "missing-query-one-test",
+      ]),
+    ).rejects.toThrow(
+      "Required query returned no rows: SELECT value FROM settings WHERE key = ?",
+    );
+  });
+
+  test("requireOnePrimary names a missing row on the primary", async () => {
+    await expect(
+      requireOnePrimary("SELECT value FROM settings WHERE key = ?", [
+        "missing-primary-query-one-test",
+      ]),
+    ).rejects.toThrow(
+      "Required primary query returned no rows: SELECT value FROM settings WHERE key = ?",
+    );
   });
 
   test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {

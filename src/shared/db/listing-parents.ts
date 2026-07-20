@@ -14,7 +14,7 @@
 import { firstProblem, mapNotNullish, unique } from "#fp";
 import { inPlaceholders, queryIdColumn } from "#shared/db/client.ts";
 import { type LinkTableSide, linkTableSide } from "#shared/db/link-table.ts";
-import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
+import { requireListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import {
   type EdgeListing,
   edgeFieldError,
@@ -118,14 +118,13 @@ const listingsByIdFor = async (
   const linkedIds = unique(
     sides.flatMap((links) => [...links.values()].flat()),
   );
-  const listings = await getListingsWithCountsByIds(linkedIds);
+  const listings = await requireListingsWithCountsByIds(linkedIds);
   return new Map(listings.map((listing) => [listing.id, listing]));
 };
 
 /** Batch and hydrate one listing relationship side. Only linked listings are
  * loaded, and hydrated values preserve ascending relationship order. Empty keys
- * and keys whose linked listings no longer exist are omitted from
- * `listingsByKey`, matching the old parent/child row loaders. */
+ * are omitted from `listingsByKey`; a link to a missing listing fails loudly. */
 export const hydrateListingLinks = async (
   side: LinkTableSide,
   keyIds: readonly number[],

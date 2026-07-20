@@ -8,6 +8,7 @@
  */
 
 import { extendedBy } from "#fp";
+import { errorResult, type Result } from "#shared/result.ts";
 
 /** A fetch result whose body has already been read to a string. */
 export type FetchResult = {
@@ -16,9 +17,6 @@ export type FetchResult = {
   text: string;
   headers: Headers;
 };
-
-/** Discriminated result type for external API calls. */
-export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 
 /**
  * Headers for a JSON API request: the given auth header(s) plus a JSON
@@ -39,7 +37,7 @@ export const parseApiError = (
   response: { status: number; text: string },
   label: string,
   keys: string[] = ["message", "error"],
-): { ok: false; error: string } => {
+): Result<never> & { ok: false } => {
   let message = response.text;
   try {
     const json = JSON.parse(response.text);
@@ -52,10 +50,7 @@ export const parseApiError = (
   } catch {
     /* use raw text */
   }
-  return {
-    error: `${label} failed (${response.status}): ${message}`,
-    ok: false,
-  };
+  return errorResult(`${label} failed (${response.status}): ${message}`);
 };
 
 /** Fetch a URL and eagerly read the response body, preventing resource leaks. */

@@ -9,7 +9,7 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert, queryOne } from "#shared/db/client.ts";
+import { getDb, insert, queryOne, requireOne } from "#shared/db/client.ts";
 import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
@@ -54,7 +54,7 @@ const childCount = async (
   table: string,
   attendeeId: number,
 ): Promise<number> => {
-  const row = await queryOne<{ count: number }>(
+  const row = await requireOne<{ count: number }>(
     `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
     [attendeeId],
   );
@@ -126,7 +126,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
         }),
       );
       await purgeOrphanedAttendees(nowIso());
-      const remaining = await queryOne<{ c: number }>(
+      const remaining = await requireOne<{ c: number }>(
         "SELECT COUNT(*) AS c FROM service_costs WHERE servicing_attendee_id = ?",
         [id],
       );

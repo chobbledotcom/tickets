@@ -425,7 +425,7 @@ export const getAttendeeKindsByIds = (
  * Get an attendee by ID (decrypted)
  * Requires private key for decryption - only available to authenticated sessions
  */
-export const getAttendee = async (
+export const getAttendeeOrNull = async (
   id: number,
   privateKey: CryptoKey,
 ): Promise<Attendee | null> => {

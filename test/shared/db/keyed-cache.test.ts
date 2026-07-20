@@ -5,6 +5,7 @@ import {
   type KeyedCache,
   type KeyedCacheConfig,
 } from "#shared/db/keyed-cache.ts";
+import { mustReadFromPrimary } from "#shared/db/primary-reads.ts";
 
 /** A minimal cached row: a numeric id and a secondary string key. */
 type Row = { id: number; key: string };
@@ -14,15 +15,18 @@ const row = (id: number): Row => ({ id, key: `k${id}` });
  * many round-trips the cache made and for which records. */
 const makeFetchers = (rows: Row[]) => {
   const store = new Map(rows.map((r) => [r.id, r]));
-  const calls = { all: 0, byId: [] as number[], byKeys: [] as string[][] };
+  const calls = { all: 0, byIds: [] as number[][], byKeys: [] as string[][] };
   const base: Omit<KeyedCacheConfig<Row>, "ttlMs" | "now"> = {
     fetchAll: () => {
       calls.all++;
       return Promise.resolve([...store.values()]);
     },
-    fetchById: (id) => {
-      calls.byId.push(id);
-      return Promise.resolve(store.get(id) ?? null);
+    fetchByIds: (ids) => {
+      calls.byIds.push(ids);
+      const wanted = new Set(ids);
+      return Promise.resolve(
+        [...store.values()].filter((item) => wanted.has(item.id)),
+      );
     },
     fetchByKeys: (keys) => {
       calls.byKeys.push(keys);
@@ -68,11 +72,11 @@ describe("db > keyed-cache", () => {
     };
   };
 
-  test("getById fetches once, then serves from cache within the TTL", async () => {
+  test("getById uses the batch loader once, then serves from cache", async () => {
     const { cache, calls } = build([row(1), row(2)]);
     expect((await cache.getById(1))?.id).toBe(1);
     expect((await cache.getById(1))?.id).toBe(1);
-    expect(calls.byId).toEqual([1]);
+    expect(calls.byIds).toEqual([[1]]);
   });
 
   test("getById re-fetches only that record once its entry expires", async () => {
@@ -80,14 +84,41 @@ describe("db > keyed-cache", () => {
     await cache.getById(1);
     clock += 1001; // past the TTL
     await cache.getById(1);
-    expect(calls.byId).toEqual([1, 1]);
+    expect(calls.byIds).toEqual([[1], [1]]);
   });
 
   test("getById returns null for a missing record and does not cache the miss", async () => {
     const { cache, calls } = build([row(1)]);
     expect(await cache.getById(99)).toBeNull();
     expect(await cache.getById(99)).toBeNull();
-    expect(calls.byId).toEqual([99, 99]);
+    expect(calls.byIds).toEqual([[99], [99]]);
+  });
+
+  test("getByIds preserves missing and duplicate ids through one batch", async () => {
+    const { cache, calls } = build([row(1), row(2)]);
+    expect(
+      (await cache.getByIds([2, 99, 1, 2])).map((item) => item?.id ?? null),
+    ).toEqual([2, null, 1, 2]);
+    expect(calls.byIds).toEqual([[2, 99, 1]]);
+  });
+
+  test("getByIds keeps a cache hit that expires while misses load", async () => {
+    const { base } = makeFetchers([row(1), row(2)]);
+    const cache = createKeyedCache({
+      ...base,
+      fetchByIds: async (ids) => {
+        if (ids.includes(2)) clock += 2;
+        return base.fetchByIds!(ids);
+      },
+      now,
+      ttlMs: 1000,
+    });
+    await cache.getById(1);
+    clock = 1999;
+
+    expect(
+      (await cache.getByIds([1, 2])).map((item) => item?.id ?? null),
+    ).toEqual([1, 2]);
   });
 
   test("getByKey fetches by key, then serves from cache, without loading all", async () => {
@@ -124,7 +155,7 @@ describe("db > keyed-cache", () => {
     const { cache, calls } = buildLite([row(1), row(2)]);
     expect((await cache.getById(2))?.id).toBe(2);
     expect(await cache.getById(99)).toBeNull();
-    expect(calls.byId).toEqual([]); // single-row fetcher never used
+    expect(calls.byIds).toEqual([]); // batch fetcher never used
     expect(calls.all).toBe(1); // one whole-set load, reused for both reads
   });
 
@@ -156,7 +187,7 @@ describe("db > keyed-cache", () => {
     await cache.getAll();
     expect((await cache.getById(2))?.id).toBe(2);
     expect((await cache.getByKey("k1"))?.id).toBe(1);
-    expect(calls.byId).toEqual([]);
+    expect(calls.byIds).toEqual([]);
     expect(calls.byKeys).toEqual([]);
   });
 
@@ -174,7 +205,37 @@ describe("db > keyed-cache", () => {
     await cache.getById(1); // cached — no second fetch
     cache.invalidate();
     await cache.getById(1); // re-fetched
-    expect(calls.byId).toEqual([1, 1]);
+    expect(calls.byIds).toEqual([[1], [1]]);
+  });
+
+  test("invalidate clears secondary-key entries", async () => {
+    const { base, store } = makeFetchers([row(1)]);
+    const cache = createKeyedCache({ ...base, now, ttlMs: 1000 });
+    expect((await cache.getByKey("k1"))?.id).toBe(1);
+    store.delete(1);
+    cache.invalidate();
+    expect(await cache.getByKey("k1")).toBeNull();
+  });
+
+  test("refills from primary while replicas catch up after invalidation", async () => {
+    const reads: boolean[] = [];
+    const cache = createKeyedCache<Row>({
+      fetchAll: () => Promise.resolve([]),
+      fetchByIds: (ids) => {
+        reads.push(mustReadFromPrimary());
+        return Promise.resolve(ids.map(row));
+      },
+      idOf: (item) => item.id,
+      keyOf: (item) => item.key,
+      now,
+      ttlMs: 1000,
+    });
+
+    await cache.getById(1);
+    cache.invalidate("write");
+    await cache.getById(2);
+
+    expect(reads).toEqual([false, true]);
   });
 
   test("size reports the number of cached records", async () => {
@@ -190,12 +251,12 @@ describe("db > keyed-cache", () => {
     // A controllable fetch lets us land an invalidate() between the fetch
     // starting and resolving — the in-flight row predates the write, so it must
     // be handed back to this caller but NOT installed into the cache.
-    let release!: (r: Row | null) => void;
+    let release!: (r: Row[]) => void;
     const { base } = makeFetchers([]);
     const cache = createKeyedCache<Row>({
       ...base,
-      fetchById: () =>
-        new Promise<Row | null>((r) => {
+      fetchByIds: () =>
+        new Promise<Row[]>((r) => {
           release = r;
         }),
       now,
@@ -204,7 +265,7 @@ describe("db > keyed-cache", () => {
 
     const inflight = cache.getById(1);
     cache.invalidate(); // lands while the fetch is pending
-    release(row(1));
+    release([row(1)]);
     expect((await inflight)?.id).toBe(1); // caller still gets the row
     expect(cache.size()).toBe(0); // but it was not cached
   });
@@ -234,6 +295,6 @@ describe("db > keyed-cache", () => {
     const cache = createKeyedCache<Row>({ ...base, ttlMs: 60_000 });
     await cache.getById(1);
     await cache.getById(1); // well within the TTL on the real clock
-    expect(calls.byId).toEqual([1]);
+    expect(calls.byIds).toEqual([[1]]);
   });
 });

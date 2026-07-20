@@ -65,18 +65,15 @@ describe("bookingDateFields", () => {
     });
   });
 
-  test("a non-finite day count clamps back to one day", () => {
-    // normalizeDurationDays guards the column writer and the per-day expansion
-    // from NaN/Infinity; bookingDateFields routes the chosen count through it.
+  test("rejects a non-finite day count", () => {
     const listing = testListingWithCount({
       customisable_days: true,
       day_prices: { 1: 1000 },
       duration_days: 5,
       listing_type: "daily",
     });
-    expect(bookingDateFields(listing, "2026-07-01", Number.NaN)).toEqual({
-      date: "2026-07-01",
-      durationDays: 1,
-    });
+    expect(() => bookingDateFields(listing, "2026-07-01", Number.NaN)).toThrow(
+      "Invalid booking duration: NaN",
+    );
   });
 });

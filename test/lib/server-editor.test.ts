@@ -21,6 +21,7 @@ import {
   createTestSitePage,
 } from "#test-utils/db-helpers/misc.ts";
 import { testListingInput } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -51,7 +52,7 @@ const postFormAs = async (
 const postMultipartAs = async (
   path: string,
   cookie: string,
-  data: Record<string, string>,
+  data: TestFormValues,
 ): Promise<Response> => {
   const csrf_token = await signCsrfToken();
   return handleRequest(

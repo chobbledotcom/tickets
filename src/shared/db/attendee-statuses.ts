@@ -18,8 +18,9 @@ import {
   withTransaction,
 } from "#shared/db/client.ts";
 import type { NamedSortOrderInput } from "#shared/db/common-schema.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
+import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#shared/db/table.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
@@ -75,6 +76,11 @@ export const attendeeStatuses = defineCachedListTable<
   },
 });
 
+export const attendeeStatusOrder = defineOrderedCollection({
+  key: "id",
+  table: "attendee_statuses",
+});
+
 /** Find the first cached status matching a predicate (decrypted), or null. */
 const findStatus = async (
   pred: (s: AttendeeStatus) => boolean,
@@ -88,27 +94,31 @@ const findStatus = async (
 export const getAttendeeStatus = (id: number): Promise<AttendeeStatus | null> =>
   findStatus((s) => s.id === id);
 
-/** The first status whose given default flag is set (decrypted), or null. */
-const findFlaggedStatus =
+/** Get the status carrying a required default flag. */
+const getFlaggedStatus =
   (flag: "is_public_default" | "is_paid_default") =>
-  (): Promise<AttendeeStatus | null> =>
-    findStatus((s) => s[flag]);
+  async (): Promise<AttendeeStatus> =>
+    requireValue(
+      await findStatus((item) => item[flag]),
+      `No attendee status has the required ${flag} flag`,
+    );
 
-/** The status new public bookings start in, or null if none is flagged. */
-export const getPublicDefaultStatus = findFlaggedStatus("is_public_default");
+/** The status new public bookings start in. */
+export const requirePublicDefaultStatus: () => Promise<AttendeeStatus> =
+  getFlaggedStatus("is_public_default");
 
 /** The status an attendee moves to once a reservation balance is paid. */
-export const getPaidDefaultStatus = findFlaggedStatus("is_paid_default");
+export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
+  getFlaggedStatus("is_paid_default");
 
-/** The id of the public-default status, or null if none is configured. */
-export const getPublicStatusId = async (): Promise<number | null> => {
-  const status = await getPublicDefaultStatus();
-  return status === null ? null : status.id;
-};
+/** The id of the public-default status. */
+export const requirePublicStatusId = async (): Promise<number> =>
+  (await requirePublicDefaultStatus()).id;
 
 type DefaultRow = {
   is_paid_default: number;
   is_public_default: number;
+  sort_order: number;
 };
 
 const executeStatusWrite = async (
@@ -125,7 +135,7 @@ const getCurrentDefaults = async (
   const current = resultRows<DefaultRow>(
     await tx.execute({
       args: [id],
-      sql: `SELECT status.is_public_default, status.is_paid_default
+      sql: `SELECT status.is_public_default, status.is_paid_default, status.sort_order
               FROM attendee_statuses AS status
              WHERE status.id = ?`,
     }),
@@ -172,39 +182,36 @@ const clearChosenDefaults = async (
 const saveStatus = (
   id: number | null,
   input: AttendeeStatusWriteInput,
-): Promise<Result<number, AttendeeStatusSaveError>> =>
+): Promise<Result<AttendeeStatus, AttendeeStatusSaveError>> =>
   withTransaction(async (tx) => {
-    const error =
-      id === null
-        ? null
-        : defaultChangeError(await getCurrentDefaults(tx, id), input);
-    if (error !== null) return errorResult(error);
-    await clearChosenDefaults(tx, id, input);
-
     if (id !== null) {
+      const current = await getCurrentDefaults(tx, id);
+      const error = defaultChangeError(current, input);
+      if (error !== null) return errorResult(error);
+      await clearChosenDefaults(tx, id, input);
       await writeTableRow(tx, attendeeStatuses.table, {
         id,
         input,
         kind: "update",
       });
-      return okResult(id);
+      return okResult({
+        id,
+        is_paid_default: input.isPaidDefault,
+        is_public_default: input.isPublicDefault,
+        is_reservation: input.isReservation,
+        name: input.name,
+        reservation_amount: input.reservationAmount,
+        sort_order: current.sort_order,
+      });
     }
 
+    await clearChosenDefaults(tx, null, input);
+    const sortOrder = await attendeeStatusOrder.next({ transaction: tx });
     const status = await writeTableRow(tx, attendeeStatuses.table, {
-      input,
+      input: { ...input, sortOrder },
       kind: "insert",
     });
-    await executeStatusWrite(tx, {
-      args: [status.id, status.id],
-      sql: `UPDATE attendee_statuses AS status
-               SET sort_order = (
-                 SELECT MAX(otherStatus.sort_order)
-                   FROM attendee_statuses AS otherStatus
-                  WHERE otherStatus.id != ?
-               ) + 1
-             WHERE status.id = ?`,
-    });
-    return okResult(status.id);
+    return okResult(status);
   });
 
 const deleteStatus = (
@@ -247,24 +254,13 @@ export interface AttendeeStatusWrites {
   save: (
     id: number | null,
     input: AttendeeStatusWriteInput,
-  ) => Promise<Result<number, AttendeeStatusSaveError>>;
+  ) => Promise<Result<AttendeeStatus, AttendeeStatusSaveError>>;
 }
 
 /** The single owner-write boundary for status rows and their invariants. */
 export const attendeeStatusWrites: AttendeeStatusWrites = {
   delete: deleteStatus,
   save: saveStatus,
-};
-
-/**
- * Swap the sort_order of two statuses, reading their current values so callers
- * only need the ids.
- */
-export const swapAttendeeStatusOrder = async (
-  id1: number,
-  id2: number,
-): Promise<void> => {
-  await swapSortOrder("attendee_statuses", id1, id2);
 };
 
 /**

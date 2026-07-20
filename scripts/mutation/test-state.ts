@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
+import { denoCommand, removeTree } from "../process.ts";
 
 export interface MutantTestState {
   cleanup(): Promise<void>;
@@ -28,21 +29,18 @@ interface TestStateDeps {
 
 const realDeps: TestStateDeps = {
   makeTempDir: () => Deno.makeTempDir({ prefix: "tickets-mutant-state-" }),
-  remove: (path) => Deno.remove(path, { recursive: true }),
+  remove: removeTree,
   run: async (dir, env, signal) => {
-    const output = await new Deno.Command(Deno.execPath(), {
-      args: [
-        "run",
-        "-A",
-        join(import.meta.dirname!, "build-test-state.ts"),
-        dir,
-      ],
-      clearEnv: true,
-      env,
-      signal,
-      stderr: "piped",
-      stdout: "null",
-    }).output();
+    const output = await denoCommand(
+      ["run", "-A", join(import.meta.dirname!, "build-test-state.ts"), dir],
+      {
+        clearEnv: true,
+        env,
+        signal,
+        stderr: "piped",
+        stdout: "null",
+      },
+    ).output();
     return {
       code: output.code,
       stderr: new TextDecoder().decode(output.stderr),

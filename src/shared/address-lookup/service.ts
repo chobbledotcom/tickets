@@ -17,35 +17,31 @@ import {
 } from "#shared/db/address-cache.ts";
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { ADDRESS_LOOKUP_PROVIDERS } from "./providers.ts";
 import type { AddressLookupProvider, AddressMatch } from "./types.ts";
-
-/** What a lookup reports back to the HTTP route. */
-export type AddressLookupOutcome =
-  | { ok: true; addresses: AddressMatch[] }
-  | { ok: false; error: string };
 
 /** Look up the addresses for a raw search, serving from cache when fresh. */
 export const lookupAddresses = async (
   provider: AddressLookupProvider,
   rawSearch: string,
-): Promise<AddressLookupOutcome> => {
+): Promise<Result<AddressMatch[]>> => {
   const definition = ADDRESS_LOOKUP_PROVIDERS[provider];
   const normalised = definition.normaliseSearch(rawSearch);
   if (normalised === null) {
-    return { error: t("address_lookup.invalid_search"), ok: false };
+    return errorResult(t("address_lookup.invalid_search"));
   }
   const searchIndex = await computeAddressSearchIndex(provider, normalised);
   const cached = await getCachedAddresses(searchIndex);
-  if (cached !== null) return { addresses: cached, ok: true };
+  if (cached !== null) return okResult(cached);
   const result = await definition.fetchAddresses(
     normalised,
     settings.addressLookup.apiKey,
   );
   if (!result.ok) {
     logError({ code: ErrorCode.ADDRESS_LOOKUP, detail: result.error });
-    return { error: t("address_lookup.failed"), ok: false };
+    return errorResult(t("address_lookup.failed"));
   }
-  await storeCachedAddresses(searchIndex, result.addresses);
-  return { addresses: result.addresses, ok: true };
+  await storeCachedAddresses(searchIndex, result.value);
+  return okResult(result.value);
 };

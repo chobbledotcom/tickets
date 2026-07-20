@@ -25,11 +25,11 @@ import {
 } from "#shared/db/client.ts";
 // jscpd:ignore-end
 import {
-  defineIdTable,
   encryptedSlugSchema,
   idAndCreatedSchema,
 } from "#shared/db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#shared/db/content-columns.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import {
   clearImageUsesForItemStatement,
@@ -123,7 +123,7 @@ export const newsSlugBase = (created: string, name: string): string =>
 const existenceCache = requestCache(() =>
   queryAll<{ id: number }>("SELECT id FROM news_posts LIMIT 1"),
 );
-registerTableInvalidation(["news_posts"], () => existenceCache.invalidate());
+registerTableInvalidation(["news_posts"], existenceCache.invalidate);
 
 /** Does at least one news post exist? (Drives the public News nav link.) */
 export const hasNewsPosts = async (): Promise<boolean> =>

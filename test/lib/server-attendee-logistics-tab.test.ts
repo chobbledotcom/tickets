@@ -14,7 +14,7 @@ import {
   startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
-import { getAttendee } from "#shared/db/attendees/queries.ts";
+import { getAttendeeOrNull } from "#shared/db/attendees/queries.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import {
   getLogisticsAssignments,
@@ -85,7 +85,10 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
       `/admin/attendees/${created.id}/logistics`,
     );
 
-    const saved = (await getAttendee(created.id, await getTestPrivateKey()))!;
+    const saved = (await getAttendeeOrNull(
+      created.id,
+      await getTestPrivateKey(),
+    ))!;
     expect(saved.address).toBe("10 Downing Street, LONDON, SW1A 2AA");
     expect(saved.lat).toBe("51.503396");
     expect(saved.lng).toBe("-0.127640");
@@ -113,7 +116,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
 
     await postLogistics(id, { address: "Somewhere", lat: "", lng: "" });
 
-    const saved = (await getAttendee(id, await getTestPrivateKey()))!;
+    const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     expect(saved.lat).toBe("");
     expect(saved.lng).toBe("");
   });
@@ -133,7 +136,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     expect(html).toContain("New Address");
     expect(html).toContain('value="91"');
     expect(html).toContain("leave both empty");
-    const saved = (await getAttendee(id, await getTestPrivateKey()))!;
+    const saved = (await getAttendeeOrNull(id, await getTestPrivateKey()))!;
     expect(saved.address).toBe("");
     expect(saved.lat).toBe("");
   });

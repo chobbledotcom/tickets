@@ -27,6 +27,16 @@
 # mutate the line, then `deno run -A scripts/biome.ts check --error-on-warnings
 # <file>` — exit 0 means lint did not kill it.
 
+src/ui/templates/components/data-table.tsx:85:43  0 → -1   # For the only changed case, an empty array, both branches render the same empty tbody; non-empty arrays make both comparisons false
+src/shared/form-data.ts:16:33  ?? → ||   # trim returns a string, and its only falsy value is the empty string supplied by the fallback
+src/shared/form-data.ts:35:23  !== → !=   # parsePositiveIntId returns number|null and cannot return undefined, so strict and loose inequality agree when comparing it with null
+src/shared/forms/validation.ts:51:8  === → ==   # value is string|number|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/forms/validation.ts:69:10  === → ==   # readSubmittedFieldValue returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/shared/forms/validation.ts:101:46  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
+src/shared/forms/validation.ts:105:16  !== → !=   # validateFieldText returns string|null and cannot return undefined, so strict and loose inequality agree when comparing it with null
+src/features/admin/settings-listing-defaults.ts:53:15  === → ==   # parseNonNegativeInt returns number|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/features/admin/dashboard.ts:235:65  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
+
 src/features/admin/entity-pages.ts:275:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
 src/features/admin/site-content-page.ts:87:38  ?? → ||   # extraTabs is an array when present, and arrays are always truthy
 src/ui/templates/admin/holidays.tsx:79:45  ?? → ||   # values is a render-values object when present, so it is always truthy
@@ -68,8 +78,9 @@ src/shared/accounting/store.ts:221:23  || → &&    # planGroup: for id in {unde
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/shared/db/attendees/balance.ts:223:22  ?? → ||   # attendee status ids are positive integers when present, so the value is always truthy or nullish
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
-src/shared/admin-features.ts:95:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/admin-features.ts:121:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
 src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → ""   # the placeholder key is never stored: a failed condition always aborts on its NULL value
 src/shared/db/admin-features.ts:50:10  __required_setting_condition__ → "__required_setting_condition__ mutated"   # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts:76:49  ?? → ||   # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
@@ -100,13 +111,13 @@ src/fp.ts:449:49  ?? → ||   # items?.length is undefined or a non-negative int
 # undefined, paired null checks already reject both nullish values, optional
 # conditions/dependencies are objects or arrays, and non-generated primary keys
 # are overwritten from the input-column fold in either initial-row branch.
-src/shared/db/table.ts:282:17  === → ==   # queryOne returns StoredRow|null, never undefined
-src/shared/db/table.ts:349:25  !== → !=   # paired checks reject both null and undefined before applying a write transform
-src/shared/db/table.ts:501:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
-src/shared/db/table.ts:541:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
-src/shared/db/table.ts:667:59  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:694:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
-src/shared/db/table.ts:715:6  === → ==   # wrapNullable constrains T to exclude undefined, so v is T|null
+src/shared/db/table.ts:283:17  === → ==   # queryOne returns StoredRow|null, never undefined
+src/shared/db/table.ts:350:25  !== → !=   # paired checks reject both null and undefined before applying a write transform
+src/shared/db/table.ts:502:24  ?: → consequent only   # generated keys use the consequent; non-generated keys are overwritten by their input-column value
+src/shared/db/table.ts:542:28  ?? → ||   # condition?.args is an array or undefined, and every array is truthy
+src/shared/db/table.ts:667:21  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:700:32  ?? → ||   # dependsOn is a readonly array or undefined, and every array is truthy
+src/shared/db/table.ts:721:6  === → ==   # wrapNullable constrains T to exclude undefined, so v is T|null
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
@@ -234,13 +245,26 @@ src/shared/db/attendees/capacity/groups.ts:166:55  ?? → ||   # membership.get(
 src/shared/db/attendees/capacity/groups.ts:178:39  ?? → ||   # membership.get(): number[]|undefined — an array is always truthy
 
 # v2 signed metadata (Phase 2d).
-src/shared/payment-helpers.ts:167:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
-src/shared/payment-helpers.ts:540:16  || → &&   # malformed JSON either returns {} directly or throws while reading null, which the same catch converts to {}
-src/shared/payment-helpers.ts:599:40  ?? → ||   # the value is a string length or undefined; 0 and absence both produce 0
+src/shared/payment-helpers.ts:168:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
+src/shared/payment-helpers.ts:541:17  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
+src/shared/payment-helpers.ts:600:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 src/shared/stripe-provider.ts:75:43  ?? → ||   # refund state is boolean|null; both operators preserve false and use the fallback for null
 src/shared/stripe-provider.ts:148:44  ?? → ||   # payment reference is string|null; the empty string and null both resolve to ""
-src/shared/sumup-provider.ts:171:27  ?? → ||   # webhook order id is string|undefined; empty and absent both resolve to ""
-src/shared/sumup-provider.ts:176:34  ?? → ||   # webhook payment id is string|undefined; empty and absent both resolve to ""
+src/shared/sumup-provider.ts:171:27  ?? → ||   # webhook id is string|undefined; empty and absent both resolve to ""
+src/shared/sumup-provider.ts:176:34  ?? → ||   # webhook event type is string|undefined; empty and absent both resolve to ""
+
+# Built-site blob strings are either truthy or have the same falsy fallback.
+src/shared/db/built-sites.ts:377:71  ?? → ||   # blob input strings use "" as their fallback, providers are non-empty, and renewalToken uses null
+src/shared/db/built-sites.ts:391:54  ?? → ||   # validated optional strings use "" as their fallback, providers are non-empty, and renewalToken is null or non-empty
+
+# Admin listing API fallbacks receive only objects, arrays, positive ids, or
+# nullish values, so no valid request can distinguish these operators.
+src/features/admin/api.ts:349:66  ?? → ||   # stored listing lookup returns a ListingWithCount object or null; listing objects are truthy
+src/features/admin/api.ts:380:25  ?? → ||   # parsed group ids are an array or undefined; every array, including [], is truthy
+src/features/admin/api.ts:499:30  1 → 0   # the mutation changes sentinel -1 to -0; positive listing ids match neither value
+src/features/admin/api.ts:541:19  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
+src/features/admin/api.ts:554:42  ?? → ||   # an existing listing id is positive and truthy, otherwise optional access yields undefined
+src/features/admin/api.ts:556:37  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
 
 # Settings registry: readOnly is optional but can only be true when present, so
 # `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
@@ -248,54 +272,61 @@ src/shared/sumup-provider.ts:176:34  ?? → ||   # webhook payment id is string|
 src/shared/settings/registry.ts:345:40  && → ||   # readOnly?: true; absent is falsy either way, present is true either way
 
 # --- External order widget (src/ui/client/order.ts) ----------------------------
-# This is browser DOM-construction code; many operator swaps are provably
-# equivalent. Each `= → +=` below targets a property whose value before the
-# assignment is fixed, so `x = v` and `x += v` produce the same result:
-#  * a freshly created element's `.className`/`.textContent` is always "" (DOM
-#    spec), so `"" + literal === literal`;
-#  * the boolean flags (`memoryOnly`, `dropped`, `hasVariable`) are `false`
-#    before the swapped assignment and are only ever read for truthiness, so
-#    `false + true === 1` is truthy just like `true`.
-src/ui/client/order.ts:97:28  ?? → ||    # catalogEntry(): CatalogEntry|undefined; an object is truthy, undefined and "" never occur
-src/ui/client/order.ts:136:22  = → +=    # memoryOnly: false → 1, only read for truthiness
-src/ui/client/order.ts:152:24  = → +=    # memoryOnly: false → 1, only read for truthiness
-src/ui/client/order.ts:163:22  = → +=    # memoryOnly: false → 1, only read for truthiness
-src/ui/client/order.ts:177:16  = → +=    # dropped: false → 1, only read for truthiness
-src/ui/client/order.ts:180:51  ?? → ||   # merged.get(): merged values are summed positive quantities (>0), never 0
-src/ui/client/order.ts:183:18  = → +=    # this.notice was "" before this assignment
-src/ui/client/order.ts:261:24  = → +=    # heading.textContent: fresh element, "" before
-src/ui/client/order.ts:266:18  = → +=    # p.className: fresh element, "" before
-src/ui/client/order.ts:267:20  = → +=    # p.textContent: fresh element, "" before
-src/ui/client/order.ts:276:43  = → +=    # hasVariable: false → 1, only read for truthiness
-src/ui/client/order.ts:283:22  = → +=    # total.className: fresh element, "" before
-src/ui/client/order.ts:284:24  = → +=    # total.textContent: fresh element, "" before
-src/ui/client/order.ts:289:23  = → +=    # caveat.className: fresh element, "" before
-src/ui/client/order.ts:290:25  = → +=    # caveat.textContent: fresh element, "" before
-src/ui/client/order.ts:296:24  = → +=    # empty.textContent: fresh element, "" before
-src/ui/client/order.ts:305:18  = → +=    # row.className: fresh element, "" before
-src/ui/client/order.ts:307:19  = → +=    # name.className: fresh element, "" before
-src/ui/client/order.ts:308:21  = → +=    # name.textContent: fresh element, "" before
-src/ui/client/order.ts:312:20  = → +=    # price.className: fresh element, "" before
-src/ui/client/order.ts:313:22  = → +=    # price.textContent: fresh element, "" before
-src/ui/client/order.ts:328:21  = → +=    # continue button.className: fresh element, "" before
-src/ui/client/order.ts:329:23  = → +=    # continue button.textContent: fresh element, "" before
-src/ui/client/order.ts:346:19  = → +=    # cart button.className: fresh element, "" before
-src/ui/client/order.ts:347:16  = → +=    # button.hidden: false → 1 (truthy), and render() overwrites it with count===0 immediately
-src/ui/client/order.ts:347:19  true → false  # button.hidden is overwritten by render()'s `count === 0` on the next line of the constructor
-src/ui/client/order.ts:349:18  = → +=    # count span.className: fresh element, "" before
-src/ui/client/order.ts:350:20  = → +=    # count span.textContent: fresh element, "" before
-src/ui/client/order.ts:352:20  = → +=    # label.textContent: fresh element, "" before
-src/ui/client/order.ts:361:19  = → +=    # close button.className: fresh element, "" before
-src/ui/client/order.ts:362:21  = → +=    # close button.textContent: fresh element, "" before
-src/ui/client/order.ts:372:17  = → +=    # stepper wrap.className: fresh element, "" before
-src/ui/client/order.ts:375:18  = → +=    # dec.textContent: fresh element, "" before
-src/ui/client/order.ts:379:20  = → +=    # value span.textContent: fresh element, "" before
-src/ui/client/order.ts:382:18  = → +=    # inc.textContent: fresh element, "" before
-src/ui/client/order.ts:387:21  = → +=    # remove.textContent: fresh element, "" before
-src/ui/client/order.ts:395:20  = → +=    # style.textContent: fresh element, "" before
-src/ui/client/order.ts:429:27  = → +=    # registry[origin]: undefined → a truthy string; only read for the dedup truthiness check, the live controller is the local var
-src/ui/client/order.ts:433:48  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
-src/ui/client/order.ts:443:59  ?? → ||   # link.dataset.addListing: string|undefined; the only falsy-non-null value "" equals the "" fallback
+# URL matches and catalog entries are either non-empty strings/objects or absent,
+# so these nullish and truthy fallbacks have the same result.
+src/ui/client/order.ts:101:57  ?? → ||   # RegExp match group is a non-empty slug or undefined
+src/ui/client/order.ts:108:36  ?? → ||   # catalogEntry returns a CatalogEntry object or undefined
+src/ui/client/order.ts:213:51  ?? → ||   # merged quantities are positive integers, so an existing sum is truthy
+src/ui/client/order.ts:64:37  0 → 1       # quantity 1 takes the fallback 1 instead of returning 1
+
+# reconcile runs once on a new controller whose notice starts empty. The only
+# production caller of add always passes parseAddQuantity's positive result.
+src/ui/client/order.ts:216:18  = → +=     # empty notice plus the message equals the message
+src/ui/client/order.ts:222:39  1 → 0      # add's default is unused; its only caller always supplies quantity
+
+# Every `= → +=` below writes to a newly-created DOM element property whose DOM
+# default is "". Concatenating the assigned text onto "" is exactly assignment.
+src/ui/client/order.ts:294:24  = → +=    # fresh heading textContent
+src/ui/client/order.ts:299:18  = → +=    # fresh notice paragraph className
+src/ui/client/order.ts:300:20  = → +=    # fresh notice paragraph textContent
+src/ui/client/order.ts:316:22  = → +=    # fresh subtotal paragraph className
+src/ui/client/order.ts:317:24  = → +=    # fresh subtotal paragraph textContent
+src/ui/client/order.ts:322:23  = → +=    # fresh caveat paragraph className
+src/ui/client/order.ts:323:25  = → +=    # fresh caveat paragraph textContent
+src/ui/client/order.ts:329:24  = → +=    # fresh empty paragraph textContent
+src/ui/client/order.ts:338:18  = → +=    # fresh row className
+src/ui/client/order.ts:340:19  = → +=    # fresh name span className
+src/ui/client/order.ts:341:21  = → +=    # fresh name span textContent
+src/ui/client/order.ts:345:20  = → +=    # fresh price span className
+src/ui/client/order.ts:346:22  = → +=    # fresh price span textContent
+src/ui/client/order.ts:360:23  = → +=    # fresh Continue button textContent
+src/ui/client/order.ts:378:18  = → +=    # fresh count span className
+src/ui/client/order.ts:379:20  = → +=    # fresh count span textContent
+src/ui/client/order.ts:381:20  = → +=    # fresh cart label span textContent
+src/ui/client/order.ts:389:21  = → +=    # fresh Close button textContent
+src/ui/client/order.ts:399:17  = → +=    # fresh stepper span className
+src/ui/client/order.ts:402:18  = → +=    # fresh decrease button textContent
+src/ui/client/order.ts:406:20  = → +=    # fresh quantity span textContent
+src/ui/client/order.ts:409:18  = → +=    # fresh increase button textContent
+src/ui/client/order.ts:414:21  = → +=    # fresh Remove button textContent
+src/ui/client/order.ts:422:20  = → +=    # fresh style element textContent
+
+# buildButton's initial values are overwritten by the constructor's render
+# before the button is exposed.
+src/ui/client/order.ts:376:19  true → false  # constructor render immediately sets hidden from the cart count
+src/ui/client/order.ts:379:23  0 → ""     # constructor render immediately writes the current numeric count
+
+# The widget owns this global registry: before init it is undefined, afterwards
+# it is an object. Both are mapped to the same object by these operators.
+src/ui/client/order.ts:450:40  ?? → ||    # registry is Record<string, unknown>|undefined
+
+# Dataset values are strings when present. At initial scan the selector requires
+# the attribute; after enhancement, an absent value and either fallback string
+# all fail both resolvers and preserve normal navigation.
+src/ui/client/order.ts:466:40  ?? → ||    # present dataset string; empty maps to the same empty fallback
+src/ui/client/order.ts:466:44   → "mutated"  # fallback is unreachable for the matching selector
+src/ui/client/order.ts:481:46  ?? → ||    # present strings are truthy or empty; both operators keep the same value
+src/ui/client/order.ts:481:50   → "mutated"  # absent fallback values resolve to neither listing nor package
 src/features/public/site-nav.ts:105:54  ?? → ||    # membersByGroup.get(): ListingWithCount[]|undefined — an array is always truthy
 src/shared/site-pages/core.ts:145:50  ?? → ||    # descendantsOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
 src/shared/site-pages/core.ts:322:43  ?? → ||    # levelOf: forest.itemsByPage.get() → SitePageItem[]|undefined — an array is always truthy
@@ -398,18 +429,6 @@ src/ui/client/admin/bundle-loader.ts:40:13  = → +=    # fresh link.rel is empt
 src/ui/client/admin/bundle-loader.ts:41:14  = → +=    # fresh link.href is empty
 src/ui/client/admin/bundle-loader.ts:45:13  = → +=    # fresh script.src is empty
 src/ui/client/admin/bundle-loader.ts:46:15  = → +=    # false + true coerces back to true
-
-# modifiers.ts — several returns feed truthiness checks or the router's
-# `?? notFoundResponse()` fallthrough, so null/undefined and a 404-vs-undefined
-# return are indistinguishable through every reachable caller.
-src/features/admin/modifiers.ts:208:69  return null → return undefined    # childAddOnInputError "no error"; caller uses truthiness, so null and undefined agree
-src/features/admin/modifiers.ts:294:16  name → ""    # modifiersResource.nameField; the CRUD delete verifies the name via cfg.getName (owner-crud.ts), never resource.verifyName, so nameField is unobservable
-src/features/admin/modifiers.ts:343:10  return null → return undefined    # scopeLinksFor "no links"; edit template renders via `links && …` truthiness, so null and undefined agree
-src/features/admin/modifiers.ts:352:45  return null → return undefined    # answerLinksFor "no links"; rendered via truthiness, so null and undefined agree
-src/features/admin/modifiers.ts:371:46  return Promise.resolve(undefined) → return undefined    # non-owner ledger; awaited in Promise.all where undefined and Promise.resolve(undefined) both resolve to undefined
-src/features/admin/modifiers.ts:409:27  return notFoundResponse() → return undefined    # a handler returning undefined hits routeMainApp's `?? notFoundResponse()` → the same 404
-src/features/admin/modifiers.ts:425:38  return notFoundResponse() → return undefined    # same as 400: undefined → routeMainApp `?? notFoundResponse()` → 404
-src/features/admin/modifiers.ts:536:10  return Promise.resolve() → return undefined    # whole-order modifier writes no links; awaited by caller, so undefined and Promise.resolve() agree
 
 # attendees-route-helpers.ts — loadAttendeeForListing's "not found" returns feed
 # orNotFound's truthiness check (`data ? handler : notFoundResponse()`), so a

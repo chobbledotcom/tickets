@@ -7,6 +7,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type Browser, chromium, type Locator, type Page } from "playwright";
+import { browserLaunchOptions } from "../../scripts/browser-options.ts";
 import { config } from "./config.ts";
 import { log } from "./log.ts";
 import { repoRoot } from "./server.ts";
@@ -48,12 +49,9 @@ export const launchBrowser = async (
   baseUrl: string,
 ): Promise<BrowserSession> => {
   log(`Launching Chromium (headless=${config.headless})…`);
-  const browser = await chromium.launch({
-    headless: config.headless,
-    ...(config.chromiumExecutable
-      ? { executablePath: config.chromiumExecutable }
-      : {}),
-  });
+  const browser = await chromium.launch(
+    browserLaunchOptions(config.headless, config.chromiumExecutable),
+  );
   const context = await browser.newContext({ baseURL: baseUrl });
   context.setDefaultTimeout(config.navTimeoutMs);
   context.setDefaultNavigationTimeout(config.navTimeoutMs);

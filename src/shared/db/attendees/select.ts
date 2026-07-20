@@ -352,7 +352,7 @@ export const attendeeFromWhere = (
     where.dailyRange !== undefined
       ? " JOIN listings AS listing ON listingAttendee.listing_id = listing.id"
       : "";
-  // A single-attendee read (getAttendee) needs no ordering; a list read always
+  // A single-attendee read (getAttendeeOrNull) needs no ordering; a list read always
   // passes one so its rows are deterministic.
   const orderBy = order === undefined ? "" : ` ORDER BY ${ORDER_SQL[order]}`;
   return {
@@ -368,7 +368,7 @@ export const attendeeFromWhere = (
 export type GetAttendeesQuery<F extends AttendeeField> = {
   fields: readonly F[];
   where: AttendeeWhere;
-  /** Row order. Omit only for a single-row {@link getAttendee} read. */
+  /** Row order. Omit only for a single-row {@link getAttendeeOrNull} read. */
   order?: AttendeeOrder;
   /** Defaults to an INNER join; use `"left"` to keep an attendee whose booking
    * linkage is missing (a single COALESCEd `listing_id = 0` row). */

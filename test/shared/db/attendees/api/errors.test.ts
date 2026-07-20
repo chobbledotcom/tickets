@@ -148,7 +148,7 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}`,
           {
-            name: attendee.name,
+            name: "Blank",
             ...attendeeLineFields([
               { eventId: event.id, quantity: Number("0") },
             ]),

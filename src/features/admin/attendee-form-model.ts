@@ -30,8 +30,8 @@ import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type ContactInfo,
+  clampDurationDays,
   type ListingWithCount,
-  normalizeDurationDays,
 } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
@@ -256,7 +256,7 @@ export const attendeeBookingsFromLines = (
 
 /** Clamp a submitted day count to the valid range; blank defaults to 1. */
 const clampDayCount = (raw: number | null): number =>
-  normalizeDurationDays(raw ?? 1);
+  clampDurationDays(raw ?? 1);
 
 /**
  * The status an attendee resolves to: their submitted choice, or the public

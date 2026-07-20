@@ -26,10 +26,10 @@ import {
 } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
-  defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { linkTableSide } from "#shared/db/link-table.ts";
 import { listingChildren, listingParents } from "#shared/db/listing-parents.ts";
 import {
@@ -66,12 +66,16 @@ import type {
   ListingType,
   ListingWithCount,
 } from "#shared/types.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /* jscpd:ignore-end */
 
 /** Groups are few, so the cache loads the whole set and answers by-id / by-slug
  * reads from it — same isolate-level TTL as the listings cache. */
 const GROUPS_CACHE_TTL_MS = 30_000;
+const groupIdsJson = defineStoredJson(
+  v.array(v.pipe(v.number(), v.safeInteger(), v.minValue(1))),
+);
 
 /** A package member's per-unit price override and fixed quantity, as parsed from
  * the group edit form / API. `price` is minor units (0 = no override, use the
@@ -241,7 +245,10 @@ export const getListingsByGroupIds = async (
   );
   const listingsWithGroups: ListingGroups[] = await mapParallel(
     async (row: GroupListingRow): Promise<ListingGroups> => ({
-      groupIds: v.parse(v.array(v.number()), JSON.parse(row.group_ids)),
+      groupIds: groupIdsJson.read(
+        row.group_ids,
+        `group_listings.group_ids for listing ${row.id}`,
+      ),
       member: await decryptListingWithCount(row),
     }),
   )(rows);

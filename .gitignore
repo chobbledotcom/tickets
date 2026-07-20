@@ -26,6 +26,7 @@ cov_profile/
 .local-data/
 .mutation-runs/
 docs-output*/
+/screenshots/
 misc/
 ARCHITECTURE.md
 deploy/certs/*.pem

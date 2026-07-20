@@ -8,6 +8,7 @@
  */
 
 /* jscpd:ignore-start */
+import * as v from "valibot";
 import { mapById, reduce } from "#fp";
 import { groupApiRoutes } from "#routes/admin/api-groups.ts";
 import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
@@ -48,11 +49,11 @@ import {
   bodyNumber,
   type DeleteBody,
   defineCrudApi,
-  type ParseResult,
   parseOptionalArray,
   parseUpdateName,
   withApiEntity,
 } from "#shared/rest/crud-api.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type {
   AdminListing,
   Listing,
@@ -157,6 +158,51 @@ const optionalFields: FieldMapping[] = [
   ["bookable_alone", "bookableAlone", "boolean"],
 ];
 
+interface ApiBodyFieldRule {
+  apiKey: string;
+  error: string;
+  schema: v.GenericSchema;
+}
+
+const API_BODY_FIELD_RULES: ApiBodyFieldRule[] = [
+  {
+    apiKey: "bookable_days",
+    error: "bookable_days must contain only text",
+    schema: v.array(v.string()),
+  },
+  {
+    apiKey: "duration_days",
+    error: "duration_days must be a safe integer",
+    schema: v.pipe(v.number(), v.safeInteger()),
+  },
+  {
+    apiKey: "day_prices",
+    error: "day_prices numeric values must be safe integers",
+    schema: v.pipe(
+      v.unknown(),
+      v.check(
+        (raw) =>
+          typeof raw !== "object" ||
+          raw === null ||
+          Object.values(raw).every(
+            (price) => typeof price !== "number" || Number.isSafeInteger(price),
+          ),
+      ),
+    ),
+  },
+];
+
+/** Reject malformed mapped values before they can reach domain or storage code. */
+const validateApiBodyFields = (
+  body: Record<string, unknown>,
+): Result<undefined> => {
+  const invalid = API_BODY_FIELD_RULES.find(
+    ({ apiKey, schema }) =>
+      body[apiKey] !== undefined && !v.is(schema, body[apiKey]),
+  );
+  return invalid ? errorResult(invalid.error) : okResult(undefined);
+};
+
 /**
  * Parse a day_prices object from a JSON body into DayPrices. Keeps only
  * positive-integer day counts mapped to numeric prices; everything else is
@@ -182,11 +228,11 @@ const parseDayPrices = (raw: unknown): Record<number, number> => {
  * `[]`) replaces it. Fails closed: any non-positive-integer entry rejects the
  * whole request rather than being silently dropped, so a typo like
  * `["5"]` can't quietly clear a listing's groups. */
-const parseGroupIds = (raw: unknown): ParseResult<number[] | undefined> =>
+const parseGroupIds = (raw: unknown): Result<number[] | undefined> =>
   parseOptionalArray<number>(raw, "group_ids", (entry) =>
     typeof entry === "number" && Number.isInteger(entry) && entry > 0
-      ? { value: entry }
-      : { error: "group_ids must contain only positive integer ids" },
+      ? okResult(entry)
+      : errorResult("group_ids must contain only positive integer ids"),
   );
 
 /** Check whether a value matches the expected field type */
@@ -249,26 +295,21 @@ const existingToDefaults = (existing: ListingWithCount): FieldRecord =>
 // Body → ListingInput converters
 // =============================================================================
 
-/** Parse the request's group ids, then either bail with the parse error or hand
- * the ids to `build` to finish producing the listing input. */
+/** Validate mapped fields and group ids before building the listing input. */
 const withParsedGroupIds = (
   body: Record<string, unknown>,
-  build: (groupIds: number[] | undefined) => Promise<ParseResult<ListingInput>>,
-): Promise<ParseResult<ListingInput>> => {
+  build: (groupIds: number[] | undefined) => Promise<Result<ListingInput>>,
+): Promise<Result<ListingInput>> => {
+  const fields = validateApiBodyFields(body);
+  if (!fields.ok) return Promise.resolve(fields);
   const groups = parseGroupIds(body.group_ids);
-  return groups.ok ? build(groups.input) : Promise.resolve(groups);
+  return groups.ok ? build(groups.value) : Promise.resolve(groups);
 };
-
-/** A successful listing-input parse result. */
-const okListingInput = (input: ListingInput): ParseResult<ListingInput> => ({
-  input,
-  ok: true,
-});
 
 /** Convert JSON body to ListingInput for create (auto-generates slug) */
 export const bodyToCreateInput = (
   body: Record<string, unknown>,
-): Promise<ParseResult<ListingInput>> => {
+): Promise<Result<ListingInput>> => {
   if (typeof body.name !== "string" || body.name.trim() === "") {
     return Promise.resolve({ error: "name is required", ok: false });
   }
@@ -283,7 +324,7 @@ export const bodyToCreateInput = (
 
   return withParsedGroupIds(body, async (groupIds) => {
     const { slug, slugIndex } = await generateUniqueListingSlug();
-    return okListingInput({
+    return okResult({
       ...pickTypedFields(body, optionalFields),
       dayPrices: parseDayPrices(body.day_prices),
       groupIds,
@@ -300,7 +341,7 @@ export const bodyToCreateInput = (
 export const bodyToUpdateInput = async (
   body: Record<string, unknown>,
   resolved: ListingWithCount,
-): Promise<ParseResult<ListingInput>> => {
+): Promise<Result<ListingInput>> => {
   // Merge the patch onto the listing's *stored* values, not the resolved view,
   // so an API update that doesn't touch a defaulted field can't bake the current
   // default into the row (mirrors the HTML edit path). The lookup row is
@@ -317,7 +358,7 @@ export const bodyToUpdateInput = async (
       existing.max_attendees,
     );
     if (maxAttendees < 1) {
-      return { error: "max_attendees must be >= 1", ok: false };
+      return errorResult("max_attendees must be >= 1");
     }
 
     const { slug, slugIndex } = await parseUpdatedListingSlug(
@@ -325,7 +366,7 @@ export const bodyToUpdateInput = async (
       existing.slug,
     );
 
-    return okListingInput({
+    return okResult({
       ...existingToDefaults(existing),
       ...pickTypedFields(body, optionalFields),
       dayPrices:
@@ -339,7 +380,7 @@ export const bodyToUpdateInput = async (
       groupIds: groupIds ?? existingGroupIds,
       maxAttendees,
       maxPrice: bodyNumber(body, "max_price", existing.max_price),
-      name: parsedName.name,
+      name: parsedName.value,
       slug,
       slugIndex,
     } as ListingInput);

@@ -1,4 +1,4 @@
-import { route } from "#shared/admin-surface/definitions.ts";
+import { moveRoutes, route } from "#shared/admin-surface/definitions.ts";
 
 export const routes = [
   route(
@@ -37,17 +37,10 @@ export const routes = [
     "POST",
     "/admin/settings/statuses/:id/edit",
   ),
-  route(
-    "postSettingsStatusesByIdMoveDown",
+  ...moveRoutes(
+    "postSettingsStatusesById",
     "settingsStatuses",
-    "POST",
-    "/admin/settings/statuses/:id/move-down",
-  ),
-  route(
-    "postSettingsStatusesByIdMoveUp",
-    "settingsStatuses",
-    "POST",
-    "/admin/settings/statuses/:id/move-up",
+    "/admin/settings/statuses/:id",
   ),
   route(
     "getSettingsStatusesById",

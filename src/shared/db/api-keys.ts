@@ -134,7 +134,7 @@ export const getApiKeyForUser = async (
   id: number,
   userId: number,
 ): Promise<{ id: number; name: string }> => {
-  const decrypted = await apiKeyNameProjection.queryOneOrNull(
+  const decrypted = await apiKeyNameProjection.queryOne(
     `SELECT ${apiKeyNameProjection.columnsSql()} FROM api_keys WHERE id = ? AND user_id = ?`,
     [id, userId],
   );

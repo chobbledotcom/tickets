@@ -113,6 +113,7 @@ describe("payment-helpers", () => {
     test("single-listing metadata survives full pipeline", () => {
       const metadata = buildMetadata({
         address: "123 Main St",
+        balanceAttendeeId: 42,
         date: "2026-02-10",
         email: "alice@example.com",
         items: [{ e: 42, p: 0, q: 3 }],
@@ -131,6 +132,7 @@ describe("payment-helpers", () => {
       expect(extracted.email).toBe("alice@example.com");
       expect(extracted.phone).toBe("+1234567890");
       expect(extracted.address).toBe("123 Main St");
+      expect(extracted.balance_attendee_id).toBe("42");
       expect(extracted.special_instructions).toBe("No nuts");
       expect(extracted.date).toBe("2026-02-10");
       expect(JSON.parse(extracted.answer_ids)).toEqual({ "42": [10, 20] });

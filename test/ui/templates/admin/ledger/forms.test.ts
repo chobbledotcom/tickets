@@ -38,7 +38,7 @@ describe("ledger entry forms", () => {
         type: MANUAL_ATTENDEE_WRITEOFF,
       },
     ];
-    const html = defineLedgerEntryAddForm(options).renderFields({
+    const html = defineLedgerEntryAddForm(options).render({
       amount: "5.00",
       entry_type: MANUAL_ATTENDEE_CHARGE,
       occurred_at: "2026-06-22T09:30",

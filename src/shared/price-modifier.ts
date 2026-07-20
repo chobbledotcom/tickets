@@ -40,6 +40,46 @@ export type ModifierTrigger = v.InferOutput<typeof ModifierTriggerSchema>;
 export const ModifierScopeSchema = v.picklist(["all", "listings", "groups"]);
 export type ModifierScope = v.InferOutput<typeof ModifierScopeSchema>;
 
+export type CalcValueError =
+  | "modifiers.error.amount_positive"
+  | "modifiers.error.invalid_number"
+  | "modifiers.error.multiplier_positive"
+  | "modifiers.error.percent_charge_range"
+  | "modifiers.error.percent_positive"
+  | "modifiers.error.percent_range";
+
+/** Largest percentage charge an operator may save. This keeps later price
+ * arithmetic bounded while allowing surcharges far above 100%. */
+export const MAX_PERCENT_CHARGE = 10_000;
+
+interface PercentRule {
+  max: number;
+  nonPositiveError: CalcValueError;
+  tooLargeError: CalcValueError;
+}
+
+const PERCENT_RULES = {
+  charge: {
+    max: MAX_PERCENT_CHARGE,
+    nonPositiveError: "modifiers.error.percent_positive",
+    tooLargeError: "modifiers.error.percent_charge_range",
+  },
+  discount: {
+    max: 100,
+    nonPositiveError: "modifiers.error.percent_range",
+    tooLargeError: "modifiers.error.percent_range",
+  },
+} as const satisfies Record<ModifierDirection, PercentRule>;
+
+const validatePercent = (
+  value: number,
+  direction: ModifierDirection,
+): CalcValueError | null => {
+  const rule = PERCENT_RULES[direction];
+  if (value <= 0) return rule.nonPositiveError;
+  return value <= rule.max ? null : rule.tooLargeError;
+};
+
 /** Normalise a promo code for storage and matching: trimmed and lower-cased so
  * codes are case-insensitive. The blind index is the HMAC of this. */
 export const normalizeCode = (code: string): string =>
@@ -64,22 +104,20 @@ export const modifierDelta = (
 /**
  * Validate the magnitude an owner entered for a modifier, given its kind.
  * The value is a positive magnitude (the charge/discount direction is a
- * separate field): a percentage above 0 up to 100, a multiplier above 0, or a
- * fixed amount above 0. A zero value is a no-op modifier, so it is rejected for
- * every kind. Returns an error message, or null when valid.
+ * separate field): a percentage above 0 (capped at 100 for discounts), a
+ * multiplier above 0, or a fixed amount above 0. A zero value is a no-op
+ * modifier, so it is rejected for every kind. Returns an error message, or null
+ * when valid.
  */
 export const validateCalcValue = (
   kind: CalcKind,
   value: number,
-): string | null => {
-  if (!Number.isFinite(value)) return "Enter a valid number";
-  if (kind === "percent") {
-    return value > 0 && value <= 100
-      ? null
-      : "Percentage must be greater than 0 and at most 100";
-  }
+  direction: ModifierDirection,
+): CalcValueError | null => {
+  if (!Number.isFinite(value)) return "modifiers.error.invalid_number";
+  if (kind === "percent") return validatePercent(value, direction);
   if (kind === "multiply") {
-    return value > 0 ? null : "Multiplier must be greater than 0";
+    return value > 0 ? null : "modifiers.error.multiplier_positive";
   }
-  return value > 0 ? null : "Amount must be greater than 0";
+  return value > 0 ? null : "modifiers.error.amount_positive";
 };

@@ -136,6 +136,7 @@ describeWithEnv(
       const stripe = await assembleCheckoutMetadata("stripe", intent, total);
       expect(typeof square.b).toBe("string");
       expect("phone" in square).toBe(false);
+      expect(JSON.parse(square.b!)).toMatchObject({ phone: intent.phone });
       expect(stripe.phone).toBe(intent.phone);
       expect("b" in stripe).toBe(false);
     });

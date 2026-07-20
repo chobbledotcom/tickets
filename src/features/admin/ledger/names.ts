@@ -7,7 +7,7 @@ import {
   REVENUE,
   type RowAccountType,
 } from "#shared/accounting/accounts.ts";
-import { getListingNamesByIds } from "#shared/db/listings/records.ts";
+import { listingNames } from "#shared/db/listings/records.ts";
 import { getModifierNamesByIds } from "#shared/db/modifiers.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import {
@@ -45,7 +45,7 @@ export const loadLedgerNamesForAccounts = async (
   const modifierIds = referencedAccountIds(accounts, MODIFIER);
   const [attendees, listings, modifiers] = await Promise.all([
     loadAttendeeNames(attendeeIds),
-    getListingNamesByIds(listingIds),
+    listingNames.byIds(listingIds),
     getModifierNamesByIds(modifierIds),
   ]);
   return {

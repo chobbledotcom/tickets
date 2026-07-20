@@ -14,7 +14,7 @@
  */
 
 import * as v from "valibot";
-import type { ApiResult } from "#shared/fetch.ts";
+import type { Result } from "#shared/result.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
 /** Schema for the stored provider setting ("none" disables lookups). */
@@ -36,10 +36,12 @@ export type AddressLookupProvider = Exclude<AddressLookupSetting, "none">;
 
 /** One matching address: its ready-to-display line, plus the provider's
  * latitude/longitude when it knows them ("" when it doesn't). */
-export type AddressMatch = { line: string; lat: string; lng: string };
-
-/** A successful search: one match per address the provider found. */
-export type AddressLookupResult = { addresses: AddressMatch[] };
+export const AddressMatchSchema = v.strictObject({
+  lat: v.string(),
+  line: v.string(),
+  lng: v.string(),
+});
+export type AddressMatch = v.InferOutput<typeof AddressMatchSchema>;
 
 /** Everything one lookup provider knows how to do. */
 export type AddressLookupProviderDefinition = {
@@ -58,5 +60,5 @@ export type AddressLookupProviderDefinition = {
   fetchAddresses: (
     search: string,
     apiKey: string,
-  ) => Promise<ApiResult<AddressLookupResult>>;
+  ) => Promise<Result<AddressMatch[]>>;
 };

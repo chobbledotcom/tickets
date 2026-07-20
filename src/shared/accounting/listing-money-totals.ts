@@ -11,7 +11,7 @@ import {
   type LedgerRange,
   occurredAtRange,
 } from "#shared/accounting/range.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { requireOne } from "#shared/db/client.ts";
 
 export type ListingMoneyTotals = {
   externalCosts: number;
@@ -68,7 +68,7 @@ export const listingMoneyTotals = async (
   const r = occurredAtRange(range, "transfer.occurred_at");
   // An aggregate without GROUP BY always returns one row; COALESCE supplies
   // zeroes when no transfers match, so the result cannot be null.
-  const row = (await queryOne<ListingMoneyTotalsRow>(
+  const row = await requireOne<ListingMoneyTotalsRow>(
     `WITH selected_listing(id) AS (VALUES ${listingIds.map(() => "(?)").join(", ")})
      SELECT
        COUNT(*) AS transfer_count,
@@ -99,7 +99,7 @@ export const listingMoneyTotals = async (
        r.clause,
      )}`,
     [...listingIds.map(String), ...r.args],
-  ))!;
+  );
   const grossSales = Number(row.gross_sales);
   const externalIncome = Number(row.external_income);
   const manualAdjustments = Number(row.manual_adjustments);

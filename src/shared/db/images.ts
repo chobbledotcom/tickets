@@ -9,8 +9,10 @@ import {
   queryAll,
   queryOne,
   type SqlStatement,
+  useTransaction,
 } from "#shared/db/client.ts";
 import { defineIdTable } from "#shared/db/define-id-table.ts";
+import { defineOrderedCollection } from "#shared/db/ordered-collection.ts";
 import {
   type ColumnDef,
   col,
@@ -182,6 +184,12 @@ const itemTable: Record<ImageUseItemType, string> = {
   page: "site_pages",
 };
 
+const imageUseOrder = defineOrderedCollection({
+  key: "image_id",
+  scope: ["item_type", "item_id"] as const,
+  table: "image_uses",
+});
+
 const imageUseInsertStatement = (
   imageId: number,
   itemType: ImageUseItemType,
@@ -213,6 +221,7 @@ export const setImagesForItem = (
 const attachImageToExistingItemStatement = (
   imageId: number,
   target: ImageUseTarget,
+  sortOrder: number,
 ): SqlStatement => {
   const table = itemTable[target.itemType];
   return {
@@ -220,15 +229,12 @@ const attachImageToExistingItemStatement = (
       imageId,
       target.itemType,
       target.itemId,
-      target.itemType,
-      target.itemId,
+      sortOrder,
       imageId,
       target.itemId,
     ],
     sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
-          SELECT ?, ?, ?,
-                 COALESCE((SELECT MAX(sort_order) + 1 FROM image_uses
-                            WHERE item_type = ? AND item_id = ?), 0)
+          SELECT ?, ?, ?, ?
            WHERE EXISTS (SELECT 1 FROM images WHERE id = ?)
              AND EXISTS (SELECT 1 FROM ${table} WHERE id = ?)`,
   };
@@ -238,7 +244,15 @@ export const appendImageToItem = (
   imageId: number,
   target: ImageUseTarget,
 ): Promise<void> =>
-  executeBatch([attachImageToExistingItemStatement(imageId, target)]);
+  useTransaction(undefined, async (transaction) => {
+    const sortOrder = await imageUseOrder.next({
+      scope: [target.itemType, target.itemId],
+      transaction,
+    });
+    await transaction.execute(
+      attachImageToExistingItemStatement(imageId, target, sortOrder),
+    );
+  });
 
 const clearStaleImageUseTargetsStatement = (
   imageId: number,
@@ -267,12 +281,20 @@ export const setItemsForImage = (
       targets.map((target) => [`${target.itemType}:${target.itemId}`, target]),
     ).values(),
   ];
-  return executeBatch([
-    clearStaleImageUseTargetsStatement(imageId, unique),
-    ...unique.map((target) =>
-      attachImageToExistingItemStatement(imageId, target),
-    ),
-  ]);
+  return useTransaction(undefined, async (transaction) => {
+    const sortOrders = await imageUseOrder.nextMany({
+      items: unique.map((target) => ({
+        scope: [target.itemType, target.itemId],
+      })),
+      transaction,
+    });
+    await transaction.batch([
+      clearStaleImageUseTargetsStatement(imageId, unique),
+      ...unique.map((target, index) =>
+        attachImageToExistingItemStatement(imageId, target, sortOrders[index]!),
+      ),
+    ]);
+  });
 };
 
 /**

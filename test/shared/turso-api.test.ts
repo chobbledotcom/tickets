@@ -89,9 +89,9 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.dbUrl).toBe("libsql://my-site.turso.io");
-          expect(result.dbToken).toBe("jwt_token");
-          expect(result.dbId).toBe("db_test");
+          expect(result.value.dbUrl).toBe("libsql://my-site.turso.io");
+          expect(result.value.dbToken).toBe("jwt_token");
+          expect(result.value.dbId).toBe("db_test");
         }
 
         expect(fetchCalls.length).toBe(2);
@@ -222,8 +222,8 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
         const result = await tursoApi.createDatabase("My App");
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.dbUrl).toMatch(/^libsql:\/\//);
-          expect(result.dbUrl).toContain("my-app.turso.io");
+          expect(result.value.dbUrl).toMatch(/^libsql:\/\//);
+          expect(result.value.dbUrl).toContain("my-app.turso.io");
         }
       },
     );

@@ -8,8 +8,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 import "../../../../lib/db/attendees/availability-consistency.test.ts";
-import "../../../../lib/db/attendees/check-batch-availability.test.ts";
-import "../../../../lib/db/attendees/has-available-spots.test.ts";
+import "./checks/batch.test.ts";
+import "./checks/availability.test.ts";
 
 test("buildCapacityCheckedInsert keeps every booking default and its guard", () => {
   const statement = buildCapacityCheckedInsert({

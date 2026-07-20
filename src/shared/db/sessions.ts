@@ -2,7 +2,11 @@
  * Sessions table operations
  */
 
-import { registerCache, registerCacheReset } from "#shared/cache-registry.ts";
+import {
+  type CacheInvalidation,
+  registerCache,
+  registerTableInvalidation,
+} from "#shared/cache-registry.ts";
 import { hashSessionToken } from "#shared/crypto/hashing.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
 import {
@@ -12,6 +16,7 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
+import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 
 import type { Session } from "#shared/types.ts";
 
@@ -23,6 +28,7 @@ import type { Session } from "#shared/types.ts";
 const SESSION_CACHE_TTL_MS = 10_000;
 type CacheEntry = { session: Session | null; cachedAt: number };
 const sessionCache = new Map<string, CacheEntry>();
+const primaryRefill = createPrimaryCacheRefill();
 
 registerCache(() => ({ entries: sessionCache.size, name: "sessions" }));
 
@@ -55,22 +61,15 @@ const cacheSession = (token: string, session: Session | null): void => {
 };
 
 /**
- * Invalidate a session from cache
+ * Clear the entire session cache. Table registration also keeps full resets,
+ * restores, and writes able to clear it without importing this module.
  */
-const invalidateSessionCache = (token: string): void => {
-  sessionCache.delete(token);
-};
-
-/**
- * Clear the entire session cache. Writes invalidate entry-by-entry, so no
- * table registration covers this cache — the reset hook keeps full resets and
- * restores able to clear it without importing this module.
- */
-export const resetSessionCache = (): void => {
+const resetSessionCache = (cause: CacheInvalidation = "manual"): void => {
   sessionCache.clear();
+  primaryRefill.afterInvalidation(cause === "write");
 };
 
-registerCacheReset(resetSessionCache);
+registerTableInvalidation(["sessions"], resetSessionCache);
 
 /**
  * Create a new session with CSRF token, wrapped data key, and user ID
@@ -112,9 +111,11 @@ export const getSession = async (token: string): Promise<Session | null> => {
   if (cached !== undefined) return cached;
 
   // Query DB and cache result (token column contains the hash)
-  const session = await queryOne<Session>(
-    `SELECT ${SESSION_COLUMNS} FROM sessions WHERE token = ?`,
-    [tokenHash],
+  const session = await primaryRefill.fetch(() =>
+    queryOne<Session>(
+      `SELECT ${SESSION_COLUMNS} FROM sessions WHERE token = ?`,
+      [tokenHash],
+    ),
   );
   cacheSession(tokenHash, session);
   return session;
@@ -126,7 +127,6 @@ export const getSession = async (token: string): Promise<Session | null> => {
  */
 export const deleteSession = async (token: string): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
-  invalidateSessionCache(tokenHash);
   await deleteByField("sessions", "token", tokenHash);
 };
 
@@ -134,7 +134,6 @@ export const deleteSession = async (token: string): Promise<void> => {
  * Delete all sessions (used when password is changed)
  */
 export const deleteAllSessions = async (): Promise<void> => {
-  resetSessionCache();
   await execute("DELETE FROM sessions");
 };
 
@@ -154,13 +153,10 @@ export const deleteOtherSessions = async (
   currentToken: string,
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(currentToken);
-
-  // Clear cache except for current token hash
-  const currentEntry = sessionCache.get(tokenHash);
-  resetSessionCache();
-  if (currentEntry) {
-    sessionCache.set(tokenHash, currentEntry);
-  }
-
+  const currentSession = await getSession(currentToken);
   await execute("DELETE FROM sessions WHERE token != ?", [tokenHash]);
+
+  // The write invalidation clears every entry; the unchanged current session
+  // can be restored without another database read.
+  cacheSession(tokenHash, currentSession);
 };

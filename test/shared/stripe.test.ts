@@ -3,8 +3,8 @@
 import "../lib/stripe/config.test.ts";
 import "../lib/stripe/connection.test.ts";
 import "../lib/stripe/core.test.ts";
-import "../lib/stripe/provider.test.ts";
-import "../lib/stripe/webhook-cleanup.test.ts";
+import "./stripe-provider.test.ts";
+import "./stripe/webhook-cleanup.test.ts";
 import "../lib/stripe/webhook-setup.test.ts";
-import "../lib/stripe/webhook.test.ts";
+import "./stripe/webhook.test.ts";
 import "./stripe-checkout-close.test.ts";

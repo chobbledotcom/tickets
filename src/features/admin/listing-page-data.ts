@@ -20,7 +20,7 @@ import { formatDateLabel } from "#shared/dates.ts";
 import {
   type ActivityLogEntry,
   getListingActivityLog,
-  getListingWithActivityLog,
+  getListingWithActivityLogOrNull,
 } from "#shared/db/activityLog.ts";
 import { decryptAttendees } from "#shared/db/attendees/pii.ts";
 import { getAttendeeNamesByIds } from "#shared/db/attendees/queries.ts";
@@ -310,4 +310,5 @@ export const loadListingActivityPreview = ({
 export const loadListingActivity = async ({
   listing,
 }: LoadedListing): Promise<ActivityLogEntry[]> =>
-  (await getListingWithActivityLog(listing.id))!.entries;
+  // LoadedListing is created only after the same listing row has been found.
+  (await getListingWithActivityLogOrNull(listing.id))!.entries;
