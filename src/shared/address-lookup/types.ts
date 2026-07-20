@@ -36,7 +36,12 @@ export type AddressLookupProvider = Exclude<AddressLookupSetting, "none">;
 
 /** One matching address: its ready-to-display line, plus the provider's
  * latitude/longitude when it knows them ("" when it doesn't). */
-export type AddressMatch = { line: string; lat: string; lng: string };
+export const AddressMatchSchema = v.strictObject({
+  lat: v.string(),
+  line: v.string(),
+  lng: v.string(),
+});
+export type AddressMatch = v.InferOutput<typeof AddressMatchSchema>;
 
 /** Everything one lookup provider knows how to do. */
 export type AddressLookupProviderDefinition = {

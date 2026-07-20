@@ -1,9 +1,7 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Spy, spy } from "@std/testing/mock";
+import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
-import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   type BookingItem,
   BookingItemsSchema,
@@ -11,6 +9,7 @@ import {
   isPaymentStatus,
 } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 /** A minimal booking line that satisfies every schema rule; spread and override
  * one field per case to probe a single boundary in isolation. Each line is
@@ -114,18 +113,9 @@ describe("BookingItemsSchema", () => {
 });
 
 describeWithEnv("getActivePaymentProvider", { db: true }, () => {
-  let debugSpy: Spy;
+  const debugSpy = useDebugLogSpy();
   const debugLogged = (needle: string): boolean =>
-    debugSpy.calls.some((call) => String(call.args[0]).includes(needle));
-
-  beforeEach(() => {
-    setSuppressDebugLogs(false);
-    debugSpy = spy(console, "debug");
-  });
-  afterEach(() => {
-    debugSpy.restore();
-    setSuppressDebugLogs(null);
-  });
+    debugSpy().calls.some((call) => String(call.args[0]).includes(needle));
 
   test("returns null when no provider is configured", async () => {
     expect(await getActivePaymentProvider()).toBeNull();

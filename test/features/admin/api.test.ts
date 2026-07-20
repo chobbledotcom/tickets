@@ -1,7 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
-import { assertJson, expectRejectsEmptyName } from "#test-utils/assertions.ts";
+import { getListingWithCount } from "#shared/db/listings/records.ts";
+import {
+  assertAdminHtml,
+  assertJson,
+  expectRejectsEmptyName,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -78,6 +83,58 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       await expectRejectsEmptyName(`/api/admin/listings/${listing.id}`);
     });
 
+    test("returns 400 for a fractional duration", async () => {
+      const listing = await createTestListing({ name: "Whole Days" });
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { duration_days: 2.5 },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("duration_days must be a safe integer");
+        },
+      );
+    });
+
+    test("returns 400 when a bookable day is not text", async () => {
+      const listing = await createTestListing({ name: "Named Days" });
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { bookable_days: ["Monday", 2] },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("bookable_days must contain only text");
+        },
+      );
+    });
+
+    test("returns 400 without saving an unsafe day price", async () => {
+      const listing = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 500 },
+        durationDays: 2,
+        name: "Safe Prices",
+      });
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { day_prices: { 1: Number.MAX_SAFE_INTEGER + 1 } },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe(
+            "day_prices numeric values must be safe integers",
+          );
+        },
+      );
+      expect((await getListingWithCount(listing.id))?.day_prices).toEqual({
+        1: 500,
+      });
+    });
+
     test("rejects duplicate slug", async () => {
       const listing1 = await createTestListing({ name: "Listing One" });
       const listing2 = await createTestListing({ name: "Listing Two" });
@@ -107,6 +164,23 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         (body) => {
           expect(body.listing.name).toBe("Renamed");
         },
+      );
+    });
+
+    test("links an update to the listing activity page", async () => {
+      const listing = await createTestListing({ name: "Activity before" });
+
+      await assertJson(
+        apiRequest(`/api/admin/listings/${listing.id}`, {
+          body: { name: "Activity after" },
+          method: "PUT",
+        }),
+        200,
+      );
+
+      await assertAdminHtml(
+        `/admin/listing/${listing.id}/activity`,
+        "Listing 'Activity after' updated",
       );
     });
   });

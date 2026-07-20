@@ -21,6 +21,7 @@
  */
 
 /* jscpd:ignore-start */
+import * as v from "valibot";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { clearAttemptsFor, lockoutActive } from "#shared/db/attempt-lockout.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
@@ -30,6 +31,7 @@ import {
   TOKEN_WINDOW_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /* jscpd:ignore-end */
 
@@ -38,6 +40,8 @@ type TokenAttemptRow = {
   locked_until: number | null;
   window_start: number;
 };
+
+const recentTokensJson = defineStoredJson(v.array(v.string()));
 
 const readRow = (hashedIp: string): Promise<TokenAttemptRow | null> =>
   queryOne<TokenAttemptRow>(
@@ -74,7 +78,12 @@ export const recordTokenFailure = async (
 
   const windowValid = row && currentMs - row.window_start <= TOKEN_WINDOW_MS;
   const windowStart = windowValid ? row.window_start : currentMs;
-  const existing: string[] = windowValid ? JSON.parse(row.recent_tokens) : [];
+  const existing = windowValid
+    ? recentTokensJson.read(
+        row.recent_tokens,
+        `token_attempts.recent_tokens for ${hashedIp}`,
+      )
+    : [];
 
   const merged = new Set(existing);
   for (const h of hashedTokens) merged.add(h);
@@ -90,7 +99,12 @@ export const recordTokenFailure = async (
 
   await execute(
     "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, NULL, ?, ?)",
-    [hashedIp, JSON.stringify([...merged]), windowStart, currentMs],
+    [
+      hashedIp,
+      recentTokensJson.write([...merged], "token_attempts.recent_tokens"),
+      windowStart,
+      currentMs,
+    ],
   );
   return false;
 };

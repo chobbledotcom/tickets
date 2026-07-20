@@ -3,10 +3,10 @@ import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import {
   ascending,
   availableDayCounts,
+  clampDurationDays,
   dayPriceFor,
   type Holiday,
   type ListingWithCount,
-  normalizeDurationDays,
   PARENT_CHILD_GROUP_UNITS,
   type SharedGroupCapacity,
 } from "#shared/types.ts";
@@ -84,7 +84,7 @@ export const childUsesSameDays =
   (child: TicketListing): boolean =>
     child.listing.customisable_days ||
     child.listing.listing_type !== "daily" ||
-    normalizeDurationDays(child.listing.duration_days) === days;
+    clampDurationDays(child.listing.duration_days) === days;
 
 /** The order's resolved date is valid for a daily child's own calendar. */
 export const childDateOk =
@@ -145,7 +145,7 @@ export const childDaysFromParent = <T extends number | null>(
 ): T => {
   if (parent.customisable_days) return customisableValue;
   if (parent.listing_type === "daily") {
-    return normalizeDurationDays(parent.duration_days) as T;
+    return clampDurationDays(parent.duration_days) as T;
   }
   return standardValue;
 };
@@ -160,7 +160,7 @@ export const fixedParentDays = (
   childDaysFromParent<number | null>(
     parent,
     null,
-    normalizeDurationDays(parent.duration_days),
+    clampDurationDays(parent.duration_days),
   );
 
 /** Keeps options that at least one child can support. */
@@ -251,7 +251,7 @@ export const dayCountsChildSupports = (
 ): number[] | null => {
   if (child.listing.customisable_days) return availableDayCounts(child.listing);
   if (child.listing.listing_type === "daily") {
-    return [normalizeDurationDays(child.listing.duration_days)];
+    return [clampDurationDays(child.listing.duration_days)];
   }
   return null;
 };

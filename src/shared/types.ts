@@ -18,6 +18,7 @@ import type {
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
 import { guardFor } from "#shared/validation/guard.ts";
+import { clampInteger, integerAtLeast } from "#shared/validation/number.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
@@ -181,20 +182,20 @@ export const hasTicketQuantity = (row: { quantity: number }): boolean =>
 export const MAX_DURATION_DAYS = 90;
 
 /**
- * The single definition of "a valid booking duration": a whole number of
- * days in [1, MAX_DURATION_DAYS]. Non-finite input is invalid and throws.
- *
- * Every read of `duration_days` and every `durationDays` parameter funnels
- * through here so the clamping policy lives in exactly one place — the column
- * write, the per-day capacity expansion (JS + SQL), and all display paths
- * agree by construction. Idempotent, so applying it to an already-normalized
- * value (e.g. a column-clamped `listing.duration_days`) is a safe no-op.
+ * Booking durations clamp valid whole numbers to one safe-integer range.
+ * Fractions, non-finite numbers, and unsafe integers are rejected.
  */
-export const normalizeDurationDays = (value: number): number => {
-  if (!Number.isFinite(value)) {
-    throw new Error(`Invalid booking duration: ${String(value)}`);
+const clampBookingDuration = clampInteger(1, MAX_DURATION_DAYS);
+
+/** Clamp a valid whole-day count to the supported booking range. */
+export const clampDurationDays = (value: number): number => {
+  try {
+    return clampBookingDuration(value);
+  } catch (error) {
+    throw new Error(`Invalid booking duration: ${String(value)}`, {
+      cause: error,
+    });
   }
-  return Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(value)));
 };
 
 /**
@@ -204,6 +205,25 @@ export const normalizeDurationDays = (value: number): number => {
  * present here are offered to the visitor.
  */
 export type DayPrices = Record<number, number>;
+
+const DayPriceKeySchema = v.pipe(
+  v.string(),
+  v.regex(/^[1-9]\d*$/),
+  v.check((value) => {
+    const days = Number(value);
+    return days >= 1 && days <= MAX_DURATION_DAYS;
+  }),
+);
+const DayPricesRecordSchema = v.record(DayPriceKeySchema, integerAtLeast(0));
+
+/** Strict stored shape for per-day-count prices. */
+export const DayPricesSchema = v.pipe(
+  v.intersect([
+    v.custom<Record<string, unknown>>(isRecord),
+    DayPricesRecordSchema,
+  ]),
+  v.transform((prices): DayPrices => prices),
+);
 
 /**
  * Build a {@link DayPrices} map from raw entries. `checkEntry` reads one raw
@@ -244,7 +264,7 @@ export const parseDayPrices = (raw: unknown): DayPrices => {
     return Number.isInteger(days) &&
       days >= 1 &&
       days <= MAX_DURATION_DAYS &&
-      Number.isInteger(price) &&
+      Number.isSafeInteger(price) &&
       price >= 0
       ? { days, price }
       : null;
@@ -266,7 +286,7 @@ export const ascending = (a: number, b: number): number => a - b;
 
 export const availableDayCounts = (listing: DayPricedListing): number[] => {
   if (!listing.customisable_days) return [];
-  const max = normalizeDurationDays(listing.duration_days);
+  const max = clampDurationDays(listing.duration_days);
   return Object.keys(listing.day_prices)
     .map(Number)
     .filter((n) => n >= 1 && n <= max)
@@ -283,7 +303,7 @@ export const dayPriceFor = (
   days: number,
 ): number | null => {
   if (!listing.customisable_days) return null;
-  const max = normalizeDurationDays(listing.duration_days);
+  const max = clampDurationDays(listing.duration_days);
   if (!Number.isInteger(days) || days < 1 || days > max) return null;
   return listing.day_prices[days] ?? null;
 };

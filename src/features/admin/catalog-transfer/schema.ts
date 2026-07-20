@@ -24,6 +24,7 @@ import {
   ListingTypeSchema,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 
 /**
  * True when `value` is storable in a datetime column: empty (no value), or a
@@ -88,16 +89,14 @@ export const CATALOG_TRANSFER_VERSION = 1;
  * so an out-of-safe-range magnitude like `1e100` — which `Number.isInteger`
  * accepts — is a field error here rather than being rounded or throwing a raw
  * error at the storage layer, matching the form's money parser. */
-const intAtLeast = (min: number) =>
-  v.pipe(v.number(), v.safeInteger(), v.minValue(min));
 /** A whole non-negative integer (counts, day windows, minor-unit prices). */
-const NonNegativeIntSchema = intAtLeast(0);
+const NonNegativeIntSchema = integerAtLeast(0);
 /** A whole positive integer (durations, quantities). */
-const PositiveIntSchema = intAtLeast(1);
+const PositiveIntSchema = integerAtLeast(1);
 /** A booking duration in whole days: 1..MAX_DURATION_DAYS, matching the listing
  * form's cap so an over-limit blob is a field error, not silently clamped. */
 const DurationDaysSchema = v.pipe(
-  intAtLeast(1),
+  integerAtLeast(1),
   v.maxValue(MAX_DURATION_DAYS, `must be at most ${MAX_DURATION_DAYS} days`),
 );
 /** A single valid contact-field name (email/phone/address/…). */
@@ -122,7 +121,7 @@ const FieldsSchema = v.pipe(
  * rather than a day that never matches an availability check. */
 const BookableDaySchema = v.picklist(VALID_DAY_NAMES);
 /** A minor-unit price — a non-negative integer. */
-const PriceSchema = intAtLeast(0);
+const PriceSchema = integerAtLeast(0);
 /** A required, trimmed, non-empty name reference. */
 const NameRefSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
 /** A day-count JSON key: a positive whole number within the bookable range, so a

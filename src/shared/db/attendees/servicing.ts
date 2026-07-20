@@ -52,7 +52,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
-import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
+import { type Attendee, clampDurationDays } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** An answer chosen for a service event's custom question. Only the `answerId`
@@ -196,7 +196,7 @@ const saveServicingAnswers = (
 const durationDaysFromRow = (row: ListingAttendeeRow): number | undefined => {
   if (!row.start_at || !row.end_at) return;
   const ms = new Date(row.end_at).getTime() - new Date(row.start_at).getTime();
-  return normalizeDurationDays(Math.round(ms / 86_400_000));
+  return clampDurationDays(Math.round(ms / 86_400_000));
 };
 
 const bookingFromRow = (row: ListingAttendeeRow): ListingBooking => {
@@ -383,7 +383,7 @@ const desiredLines = (
   );
   return input.bookings.map((booking) => {
     const date = booking.date ?? null;
-    const durationDays = normalizeDurationDays(booking.durationDays ?? 1);
+    const durationDays = clampDurationDays(booking.durationDays ?? 1);
     return {
       ...lineKeyForInput(booking, existingBySlot),
       date,

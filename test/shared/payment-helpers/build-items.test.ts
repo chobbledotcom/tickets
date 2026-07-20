@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
+  assembleCheckoutMetadata,
   buildItemsMetadata,
   extractSessionMetadata,
   packMetadata,
@@ -127,6 +128,17 @@ describeWithEnv(
           sig,
         ),
       ).toBe(false);
+    });
+
+    test("assembles Square metadata with small fields packed", async () => {
+      const wire = await assembleCheckoutMetadata(
+        "square",
+        intent,
+        priceCheckout(intent).total,
+      );
+
+      expect("phone" in wire).toBe(false);
+      expect(JSON.parse(wire.b!)).toMatchObject({ phone: "07700900000" });
     });
   },
 );

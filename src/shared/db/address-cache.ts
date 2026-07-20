@@ -10,13 +10,18 @@
  */
 
 /* jscpd:ignore-start */
-import type { AddressMatch } from "#shared/address-lookup/types.ts";
+import * as v from "valibot";
+import {
+  type AddressMatch,
+  AddressMatchSchema,
+} from "#shared/address-lookup/types.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { execute, queryOne, type SqlStatement } from "#shared/db/client.ts";
 import { ADDRESS_CACHE_MS, MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -41,6 +46,10 @@ export const addressCachePruneStatement = (): SqlStatement => ({
          )`,
 });
 
+const cachedAddressesJson = defineStoredJson(
+  v.union([v.array(v.string()), v.array(AddressMatchSchema)]),
+);
+
 /** Read a fresh cached result. Null on miss (absent or expired). Rows cached
  * before matches carried coordinates hold bare line strings; those read as a
  * miss too, so the next lookup re-fetches the postcode WITH coordinates and
@@ -53,12 +62,15 @@ export const getCachedAddresses = async (
     [searchIndex, freshCutoffIso()],
   );
   if (!row) return null;
-  const entries = JSON.parse(await decrypt(row.results)) as (
-    | string
-    | AddressMatch
-  )[];
-  if (entries.some((entry) => typeof entry === "string")) return null;
-  return entries as AddressMatch[];
+  const entries = cachedAddressesJson.read(
+    await decrypt(row.results),
+    `address_cache.results for ${searchIndex}`,
+  );
+  return entries.every(
+    (entry): entry is AddressMatch => typeof entry !== "string",
+  )
+    ? entries
+    : null;
 };
 
 /** Cache a lookup result, replacing any previous row for the same search. */
@@ -71,7 +83,9 @@ export const storeCachedAddresses = async (
       "ON CONFLICT(search_index) DO UPDATE SET results = excluded.results, created = excluded.created",
     [
       searchIndex,
-      await encrypt(JSON.stringify(addresses)),
+      await encrypt(
+        cachedAddressesJson.write(addresses, "address_cache.results"),
+      ),
       new Date(nowMs()).toISOString(),
     ],
   );

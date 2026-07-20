@@ -15,28 +15,27 @@
  * This module is pure. Form parsing/validation lives in the feature layer.
  */
 
+import * as v from "valibot";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { Listing } from "#shared/types.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /**
  * The operator-configurable defaults. A key is present only when a default is
  * set; an absent key means "no default — never override".
  */
-export type ListingDefaults = {
-  /** Always (`true`) / never (`false`) require logistics. */
-  usesLogistics?: boolean;
-  /** Days of the week daily listings are bookable on. */
-  bookableDays?: string[];
-  /** Minimum days' notice before a daily booking. */
-  minimumDaysBefore?: number;
-  /** Maximum days ahead a daily booking can be made. */
-  maximumDaysAfter?: number;
-  /** Booking webhook URL. */
-  webhookUrl?: string;
-  /** Post-purchase thank-you redirect URL. */
-  thankYouUrl?: string;
-  /** Whether listings are hidden from public listing pages. */
-  hidden?: boolean;
-};
+export const ListingDefaultsSchema = v.strictObject({
+  bookableDays: v.optional(v.array(v.picklist(VALID_DAY_NAMES))),
+  hidden: v.optional(v.boolean()),
+  maximumDaysAfter: v.optional(integerAtLeast(0)),
+  minimumDaysBefore: v.optional(integerAtLeast(0)),
+  thankYouUrl: v.optional(v.string()),
+  usesLogistics: v.optional(v.boolean()),
+  webhookUrl: v.optional(v.string()),
+});
+export type ListingDefaults = v.InferOutput<typeof ListingDefaultsSchema>;
+const listingDefaultsJson = defineStoredJson(ListingDefaultsSchema);
 
 /** How a default is stored, validated, and rendered. */
 export type ListingDefaultKind = "bool" | "number" | "url" | "days";
@@ -161,9 +160,10 @@ export const resolveListingDefaults = <T extends Listing>(
  */
 export const parseListingDefaults = (
   raw: string | undefined,
-): ListingDefaults => (raw ? (JSON.parse(raw) as ListingDefaults) : {});
+): ListingDefaults =>
+  raw ? listingDefaultsJson.read(raw, "settings.listing_defaults") : {};
 
 /** Serialize defaults for storage. `JSON.stringify` drops every unset
  * (`undefined`) key, so only configured defaults are persisted. */
 export const serializeListingDefaults = (defaults: ListingDefaults): string =>
-  JSON.stringify(defaults);
+  listingDefaultsJson.write(defaults, "settings.listing_defaults");

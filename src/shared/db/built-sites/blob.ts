@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import { builtSiteBlobColumns } from "./fields.ts";
 import type {
   BuiltSiteBlobFields,
@@ -35,13 +36,14 @@ const siteDataFields = {
 };
 
 const SiteDataBlobSchema = v.variant("v", [
-  v.object({ ...siteDataFields, v: v.literal(1) }),
-  v.object({
+  v.strictObject({ ...siteDataFields, v: v.literal(1) }),
+  v.strictObject({
     ...siteDataFields,
     sk: v.optional(v.pipe(v.string(), v.check(isScheduledTaskKey))),
     v: v.literal(SITE_DATA_BLOB_VERSION),
   }),
 ]);
+const siteDataJson = defineStoredJson(SiteDataBlobSchema);
 
 export const buildSiteDataBlobFromInput = (
   input: Partial<BuiltSiteBlobInput>,
@@ -56,7 +58,7 @@ export const buildSiteDataBlobFromInput = (
       return column.required || value ? [[column.blobKey, value]] : [];
     }),
   ]);
-  return JSON.stringify(v.parse(SiteDataBlobSchema, blob));
+  return siteDataJson.write(blob, "built_sites.site_data");
 };
 
 export const blobToSiteFields = (blob: SiteDataBlob): BuiltSiteBlobFields =>
@@ -70,4 +72,4 @@ export const blobToSiteFields = (blob: SiteDataBlob): BuiltSiteBlobFields =>
   ) as BuiltSiteBlobFields;
 
 export const parseSiteDataBlob = (json: string): SiteDataBlob =>
-  v.parse(SiteDataBlobSchema, JSON.parse(json)) as SiteDataBlob;
+  siteDataJson.read(json, "built_sites.site_data") as SiteDataBlob;

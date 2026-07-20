@@ -78,5 +78,27 @@ test("turns a legacy blob into every site field default", () => {
 test("rejects invalid scheduled keys while building the blob", () => {
   expect(() =>
     buildSiteDataBlobFromInput({ scheduledTaskKey: "invalid" }),
-  ).toThrow();
+  ).toThrow("Invalid value for stored JSON in built_sites.site_data");
+});
+
+test("rejects malformed and unknown stored fields", () => {
+  expect(() => parseSiteDataBlob("{")).toThrow(
+    "Invalid stored JSON in built_sites.site_data",
+  );
+  expect(() =>
+    parseSiteDataBlob(
+      JSON.stringify({ hp: "unknown", n: "Site", u: "site.test", v: 1 }),
+    ),
+  ).toThrow("Invalid stored JSON in built_sites.site_data");
+  expect(() =>
+    parseSiteDataBlob(
+      JSON.stringify({ extra: true, n: "Site", u: "site.test", v: 1 }),
+    ),
+  ).toThrow("Invalid stored JSON in built_sites.site_data");
+});
+
+test("rejects invalid site data before serialization", () => {
+  expect(() =>
+    buildSiteDataBlobFromInput({ hostingProvider: "invalid" as never }),
+  ).toThrow("Invalid value for stored JSON in built_sites.site_data");
 });
