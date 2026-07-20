@@ -664,10 +664,10 @@ logging and table-scoped cache invalidation stay automatic.
   transaction, committing on success and rolling back (then rethrowing) on any
   error. The write lock is acquired with a short retry so concurrent writers
   serialize rather than failing; a database that stays locked surfaces as
-  `DatabaseBusyError`. The same retry also catches a fleeting upstream gateway
-  error (a Turso 502/503/504) on **reads** — a 5xx on a write or a transaction
-  is never retried, because it may have committed before the gateway timed out
-  and replaying it would double-apply. Note the trade-off: an interactive transaction locks the
+  `DatabaseBusyError`. Read-only statements and batches also retry fleeting
+  upstream gateway errors (Turso 502/503/504). Interactive transactions and
+  write paths retry only `SQLITE_BUSY`; gateway 5xx errors are never replayed
+  because the operation may have committed before the gateway timed out. Note the trade-off: an interactive transaction locks the
   database for writing until it commits or rolls back (with a timeout), so keep
   the work inside it tight — do any expensive non-DB computation before opening
   it, and prefer a plain batch whenever no inter-step logic is actually needed.
