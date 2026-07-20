@@ -78,7 +78,9 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     test("checks all regular groups with one batched classification", async () => {
-      const first = await recordGroupPageQueries("group", 0, 1);
+      const firstNames = await addGroupPageFixtures("group", 0, 1);
+      await recordListingsPage(firstNames);
+      const first = await recordListingsPage(firstNames);
       const seen = await recordGroupPageQueries("group", 1, 3);
 
       const childLinkBatches = seen.filter((sql) =>
