@@ -104,21 +104,19 @@ describeWithEnv(
       );
     });
 
-    test("webhook returns 400 when items is missing from metadata", async () => {
+    test("webhook ignores retrieved session when items is missing from metadata", async () => {
       await setupStripe();
 
       // Session with missing items carries no valid price proof, so it can't be
       // proven ours and is ignored: acknowledged (200) without processing.
-      const mockVerify = await stubWebhookVerify({
-        data: {
-          object: {
-            id: "cs_no_listing_id",
-            status: "COMPLETED",
-          },
-        },
-        id: "evt_no_eid",
-        type: "checkout.session.completed",
-      });
+      const mockVerify = await stubWebhookVerify(
+        checkoutSessionEvent({
+          amountTotal: 0,
+          eventId: "evt_no_eid",
+          metadata: {},
+          sessionId: "cs_no_listing_id",
+        }),
+      );
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"

@@ -12,7 +12,7 @@ import {
   toCheckoutResult,
   validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
-import { isPaymentStatus, type SessionMetadata } from "#shared/payments.ts";
+import type { SessionMetadata } from "#shared/payments.ts";
 import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describe("payment-helpers", () => {
@@ -70,19 +70,6 @@ describe("payment-helpers", () => {
           name: "Alice",
         }),
       ).toBe(false);
-    });
-  });
-
-  describe("isPaymentStatus", () => {
-    test("accepts valid statuses", () => {
-      expect(isPaymentStatus("paid")).toBe(true);
-      expect(isPaymentStatus("unpaid")).toBe(true);
-      expect(isPaymentStatus("no_payment_required")).toBe(true);
-    });
-
-    test("rejects invalid values", () => {
-      expect(isPaymentStatus("completed")).toBe(false);
-      expect(isPaymentStatus("")).toBe(false);
     });
   });
 

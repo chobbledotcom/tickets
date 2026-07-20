@@ -1,6 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { cleanupOldWebhookEndpoints } from "#shared/stripe/endpoints.ts";
+import { stub } from "@std/testing/mock";
+import { settings } from "#shared/db/settings.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
+import type { StripeClient } from "#shared/stripe/client.ts";
+import {
+  cleanupOldWebhookEndpoints,
+  testStripeConnection,
+} from "#shared/stripe/endpoints.ts";
+import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import {
   cleanupWithWebhookApi,
@@ -127,5 +135,153 @@ describeStripe("Stripe webhook cleanup", () => {
 
       expect(calls.deleted.toSorted()).toEqual(["we_old_recorded", "we_stray"]);
     });
+
+    test("never deletes the kept endpoint and deletes duplicate IDs once", async () => {
+      const webhookUrl = "https://example.com/payment/webhook";
+      const deleted: string[] = [];
+      const client = {
+        webhookEndpoints: {
+          del: (id: string) => {
+            deleted.push(id);
+            return Promise.resolve({ deleted: true, id });
+          },
+          list: () =>
+            Promise.resolve({
+              data: [
+                {
+                  enabled_events: ["checkout.session.completed"],
+                  id: "we_keep",
+                  status: "enabled",
+                  url: webhookUrl,
+                },
+                {
+                  enabled_events: ["checkout.session.completed"],
+                  id: "we_stale",
+                  status: "enabled",
+                  url: webhookUrl,
+                },
+                {
+                  enabled_events: ["checkout.session.completed"],
+                  id: "we_unrelated",
+                  status: "enabled",
+                  url: "https://another-tickets.example/payment/webhook",
+                },
+              ],
+            }),
+        },
+      } as StripeClient;
+      const createStub = stub(stripeClientRuntime, "create", () => client);
+
+      try {
+        await cleanupOldWebhookEndpoints("sk_test_key", webhookUrl, "we_keep", [
+          "we_stale",
+          "we_keep",
+          "we_stale",
+        ]);
+      } finally {
+        createStub.restore();
+      }
+
+      expect(deleted).toEqual(["we_stale"]);
+    });
+
+    test("deletes explicit IDs without listing an old account", async () => {
+      const deleted: string[] = [];
+      let listCalls = 0;
+      const client = {
+        webhookEndpoints: {
+          del: (id: string) => {
+            deleted.push(id);
+            return Promise.resolve({ deleted: true, id });
+          },
+          list: () => {
+            listCalls++;
+            return Promise.resolve({ data: [] });
+          },
+        },
+      } as unknown as StripeClient;
+      const createStub = stub(stripeClientRuntime, "create", () => client);
+
+      try {
+        await cleanupOldWebhookEndpoints("sk_test_old", null, null, ["we_old"]);
+      } finally {
+        createStub.restore();
+      }
+
+      expect(listCalls).toBe(0);
+      expect(deleted).toEqual(["we_old"]);
+    });
+  });
+
+  describe("connection health", () => {
+    const endpoint = (
+      overrides: Partial<{
+        enabled_events: string[];
+        id: string;
+        status: string;
+        url: string;
+      }> = {},
+    ) => ({
+      enabled_events: ["checkout.session.completed"],
+      id: "we_own",
+      status: "enabled",
+      url: getPaymentWebhookUrl(),
+      ...overrides,
+    });
+
+    const cases = [
+      {
+        expected: true,
+        name: "healthy stored endpoint",
+        webhooks: [endpoint()],
+      },
+      {
+        expected: false,
+        name: "unrelated healthy endpoint",
+        webhooks: [endpoint({ id: "we_other" })],
+      },
+      {
+        expected: false,
+        name: "disabled stored endpoint",
+        webhooks: [endpoint({ status: "disabled" })],
+      },
+      {
+        expected: false,
+        name: "stored endpoint at an old URL",
+        webhooks: [endpoint({ url: "https://old.example/payment/webhook" })],
+      },
+      {
+        expected: false,
+        name: "stored endpoint missing checkout events",
+        webhooks: [endpoint({ enabled_events: ["payment_intent.succeeded"] })],
+      },
+    ];
+
+    for (const entry of cases) {
+      test(`reports ${entry.name} as ${entry.expected ? "ok" : "not ok"}`, async () => {
+        await settings.update.stripe.activate({
+          secretKey: "sk_test_key",
+          webhookEndpointId: "we_own",
+          webhookSecret: "whsec_own",
+        });
+        const client = {
+          balance: {
+            retrieve: () => Promise.resolve({ livemode: false }),
+          },
+          webhookEndpoints: {
+            list: () => Promise.resolve({ data: entry.webhooks }),
+          },
+        } as StripeClient;
+        const getStub = stub(stripeClientRuntime, "get", () =>
+          Promise.resolve(client),
+        );
+
+        try {
+          expect((await testStripeConnection()).ok).toBe(entry.expected);
+        } finally {
+          getStub.restore();
+        }
+      });
+    }
   });
 });

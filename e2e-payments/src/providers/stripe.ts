@@ -1,10 +1,9 @@
 /* jscpd:ignore-start */
-import { readFileSync } from "node:fs";
 import { type BrowserSession, requirePageText } from "../browser.ts";
 import { config } from "../config.ts";
 import { BOOKER_NAME } from "../flow.ts";
 import { log, warn } from "../log.ts";
-import { sleep } from "../util.ts";
+import { pollUntil } from "../util.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
@@ -49,18 +48,76 @@ const testStripeConnection = async (session: BrowserSession): Promise<void> => {
   );
 };
 
-const waitForStripeWebhook = async (logPath: string): Promise<void> => {
-  const deadline = Date.now() + config.paymentConfirmTimeoutMs;
-  const delivered = /\[Request\] POST \/payment\/webhook 2\d\d /u;
-  while (Date.now() < deadline) {
-    if (delivered.test(readFileSync(logPath, "utf8"))) {
-      log("  Stripe checkout webhook reached the app successfully");
-      return;
+type StripeCheckoutEvent = {
+  checkoutId: string;
+  eventId: string;
+  pendingWebhooks: number;
+};
+
+const stripeCheckoutEvents = (value: unknown): StripeCheckoutEvent[] => {
+  if (typeof value !== "object" || value === null || !("data" in value)) {
+    throw new Error("Stripe events response did not contain data");
+  }
+  if (!Array.isArray(value.data)) {
+    throw new Error("Stripe events response data was not an array");
+  }
+  return value.data.map((item) => {
+    if (
+      typeof item !== "object" ||
+      item === null ||
+      !("id" in item) ||
+      typeof item.id !== "string" ||
+      !("pending_webhooks" in item) ||
+      typeof item.pending_webhooks !== "number" ||
+      !("data" in item) ||
+      typeof item.data !== "object" ||
+      item.data === null ||
+      !("object" in item.data) ||
+      typeof item.data.object !== "object" ||
+      item.data.object === null ||
+      !("id" in item.data.object) ||
+      typeof item.data.object.id !== "string"
+    ) {
+      throw new Error("Stripe returned an invalid checkout event");
     }
-    await sleep(1_000);
+    return {
+      checkoutId: item.data.object.id,
+      eventId: item.id,
+      pendingWebhooks: item.pending_webhooks,
+    };
+  });
+};
+
+const waitForStripeWebhook = async (
+  secretKey: string,
+  sessionId: string,
+): Promise<void> => {
+  const delivered = await pollUntil(
+    config.paymentConfirmTimeoutMs,
+    async () => {
+      const response = await fetch(
+        "https://api.stripe.com/v1/events?type=checkout.session.completed&limit=100",
+        { headers: { Authorization: `Bearer ${secretKey}` } },
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Stripe events lookup failed (HTTP ${response.status})`,
+        );
+      }
+      const event = stripeCheckoutEvents(await response.json()).find(
+        ({ checkoutId }) => checkoutId === sessionId,
+      );
+      return event?.pendingWebhooks === 0 ? event : null;
+    },
+  );
+  if (delivered) {
+    log(
+      `  Stripe webhook ${delivered.eventId} for checkout ${sessionId} was delivered`,
+    );
+    return;
   }
   throw new Error(
-    `Stripe did not deliver a successful checkout webhook within ${config.paymentConfirmTimeoutMs}ms`,
+    `Stripe did not finish webhook delivery for checkout ${sessionId} within ${config.paymentConfirmTimeoutMs}ms`,
   );
 };
 
@@ -127,7 +184,13 @@ const exerciseStripeRefund = async (session: BrowserSession): Promise<void> => {
  */
 export const stripe: PaymentProvider = {
   afterPaidBooking: async (session, context): Promise<void> => {
-    await waitForStripeWebhook(context.serverLogPath);
+    if (!context.paymentSessionId) {
+      throw new Error("Stripe checkout return did not include a session id");
+    }
+    await waitForStripeWebhook(
+      context.secrets.secretKey,
+      context.paymentSessionId,
+    );
     await exerciseStripeRefund(session);
   },
   // Each run registers a webhook endpoint for its ephemeral *.trycloudflare.com

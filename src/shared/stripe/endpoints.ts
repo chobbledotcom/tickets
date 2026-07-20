@@ -2,6 +2,7 @@ import { settings } from "#shared/db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { CredentialCheck } from "#shared/payment-helpers.ts";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { SetupWebhookEndpoint } from "#shared/payments.ts";
 import type { StripeClient } from "./client.ts";
 import { STRIPE_API_VERSION } from "./request.ts";
@@ -88,16 +89,14 @@ export const setupWebhookEndpoint: SetupWebhookEndpoint = async (
 
 export const cleanupOldWebhookEndpoints = async (
   secretKey: string,
-  webhookUrl: string,
-  keepEndpointId: string,
+  webhookUrl: string | null,
+  keepEndpointId: string | null,
   alsoDeleteIds: readonly string[] = [],
 ): Promise<void> => {
   const client = stripeClientRuntime.create(secretKey, 0);
-  const staleIds = await listStaleEndpointIds(
-    client,
-    webhookUrl,
-    keepEndpointId,
-  );
+  const staleIds = webhookUrl
+    ? await listStaleEndpointIds(client, webhookUrl, keepEndpointId)
+    : [];
   const allIds = [...new Set([...staleIds, ...alsoDeleteIds])].filter(
     (id) => id !== keepEndpointId,
   );
@@ -118,6 +117,16 @@ export type StripeConnectionTestResult = {
   ownEndpointId?: string | null;
   webhookError?: string;
 };
+
+const isHealthyOwnEndpoint = (
+  endpoint: StripeWebhookEndpoint,
+  ownEndpointId: string,
+  webhookUrl: string,
+): boolean =>
+  endpoint.id === ownEndpointId &&
+  endpoint.status === "enabled" &&
+  endpoint.url === webhookUrl &&
+  endpoint.enabled_events.includes("checkout.session.completed");
 
 export const testStripeConnection =
   async (): Promise<StripeConnectionTestResult> => {
@@ -147,10 +156,14 @@ export const testStripeConnection =
         status: endpoint.status,
         url: endpoint.url,
       }));
+      const ownEndpointId = settings.stripe.webhookEndpointId;
+      const webhookUrl = getPaymentWebhookUrl();
+      result.ok = endpoints.some((endpoint) =>
+        isHealthyOwnEndpoint(endpoint, ownEndpointId, webhookUrl),
+      );
     } catch (error) {
       result.webhookError = errorMessage(error);
       return result;
     }
-    result.ok = result.apiKey.valid && result.webhooks.length > 0;
     return result;
   };

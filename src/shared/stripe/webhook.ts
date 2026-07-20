@@ -1,9 +1,13 @@
+/* jscpd:ignore-start */
+import type Stripe from "stripe";
 import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex, secureCompare } from "#shared/payment-crypto.ts";
 import type { WebhookEvent, WebhookVerifyResult } from "#shared/payments.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
+
+/* jscpd:ignore-end */
 
 const DEFAULT_TOLERANCE_SECONDS = 300;
 
@@ -79,7 +83,8 @@ const parseSignatureHeader = (header: string): SignatureParseResult => {
   return values.ok ? validateSignatureValues(values) : values;
 };
 
-export type StripeWebhookEvent = WebhookEvent;
+export type StripeWebhookEvent = WebhookEvent &
+  Pick<Stripe.Event, "id" | "type">;
 
 /** Verify a Stripe webhook signature with edge-compatible Web Crypto. */
 export const verifyWebhookSignature = async (

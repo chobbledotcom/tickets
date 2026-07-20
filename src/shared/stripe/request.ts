@@ -70,11 +70,11 @@ export class StripeConnectionError extends namedError(
 
 export class StripeProtocolError extends namedError("StripeProtocolError") {}
 
-class StripeBodyReadError extends namedError("StripeBodyReadError") {
+class StripeBodyReadError extends Error {
   readonly source: unknown;
 
   constructor(source: unknown) {
-    super("Stripe response body could not be read");
+    super();
     this.source = source;
   }
 }
@@ -84,11 +84,8 @@ const retryDelay = (
   retryAfter: string | null,
   random: () => number,
 ): number => {
-  const jittered =
-    Math.min(INITIAL_RETRY_MS * 2 ** (retry - 1), MAX_RETRY_MS) *
-    0.5 *
-    (1 + random());
-  const base = Math.max(INITIAL_RETRY_MS, jittered);
+  const jittered = INITIAL_RETRY_MS * 2 ** (retry - 1) * 0.5 * (1 + random());
+  const base = Math.min(MAX_RETRY_MS, Math.max(INITIAL_RETRY_MS, jittered));
   if (retryAfter === null) return base;
   const retryAfterSeconds = Number(retryAfter);
   return Number.isInteger(retryAfterSeconds) &&
@@ -152,8 +149,12 @@ const stripeError = async (response: Response): Promise<StripeApiError> => {
   let parsed: ReturnType<typeof parseStripeErrorBody>;
   try {
     parsed = parseStripeErrorBody(text);
-  } catch {
-    throw new StripeProtocolError("Invalid JSON received from the Stripe API");
+  } catch (error) {
+    throw new StripeProtocolError(
+      error instanceof SyntaxError
+        ? "Invalid JSON received from the Stripe API"
+        : "Invalid response received from the Stripe API",
+    );
   }
   return responseError(
     response,
@@ -161,6 +162,14 @@ const stripeError = async (response: Response): Promise<StripeApiError> => {
     parsed.error.code,
     parsed.error.type,
   );
+};
+
+const cancelResponseBody = async (response: Response): Promise<void> => {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Cancellation only frees resources; its failure must not hide the retry.
+  }
 };
 
 const parseResponse = async <T>(
@@ -265,7 +274,7 @@ export const createStripeRequest = (
         retriesRemain(retry, config.maxNetworkRetries) &&
         shouldRetry(response)
       ) {
-        await response.body?.cancel();
+        await cancelResponseBody(response);
         await config.sleep(
           retryDelay(retry, response.headers.get("retry-after"), config.random),
         );

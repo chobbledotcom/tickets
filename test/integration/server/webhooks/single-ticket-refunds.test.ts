@@ -18,8 +18,8 @@ import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
-  expectWebhookIgnored,
   expectWebhookKeptAndRefunded,
+  expectWebhookRejected,
   stubRefundPayment,
 } from "#test-utils/webhooks.ts";
 
@@ -130,7 +130,7 @@ describeWithEnv(
       }
     });
 
-    test("webhook does not fulfil a session with non-text metadata", async () => {
+    test("webhook single-ticket fails loudly when metadata email is not a string", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -138,7 +138,7 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      await expectWebhookIgnored(
+      await expectWebhookRejected(
         checkoutSessionEvent({
           amountTotal: 1000,
           eventId: "evt_no_email_single",
@@ -153,13 +153,35 @@ describeWithEnv(
           paymentIntent: "pi_wh_no_email_single",
           sessionId: "cs_wh_no_email_single",
         }),
+        "Expected string but received 12345",
       );
+    });
 
-      const { getAttendeesRaw } = await import(
-        "#shared/db/attendees/queries.ts"
+    test("webhook multi-ticket fails loudly when metadata email is not a string", async () => {
+      await setupStripe();
+
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      await expectWebhookRejected(
+        checkoutSessionEvent({
+          amountTotal: 500,
+          eventId: "evt_no_email_multi",
+          metadata: signedMeta(
+            {
+              email: true as unknown as string,
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "No Email Multi",
+            },
+            500,
+          ),
+          paymentIntent: "pi_wh_no_email_multi",
+          sessionId: "cs_wh_no_email_multi",
+        }),
+        "Expected string but received true",
       );
-      const attendees = await getAttendeesRaw(listing.id);
-      expect(attendees).toEqual([]);
     });
   },
 );

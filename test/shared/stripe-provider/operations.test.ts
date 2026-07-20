@@ -16,6 +16,7 @@ import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
+import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 describeStripe("stripe-provider", () => {
   describe("verifyWebhookSignature delegation", () => {
@@ -302,23 +303,19 @@ describeStripe("stripe-provider", () => {
 
   describe("resolveWebhookSession", () => {
     test("extracts session directly from listing with complete metadata", async () => {
-      const result = await stripePaymentProvider.resolveWebhookSession({
-        data: {
-          object: {
-            amount_total: 2000,
-            id: "cs_resolve_1",
-            metadata: {
-              email: "alice@example.com",
-              items: '[{"e":1,"q":1,"p":0}]',
-              name: "Alice",
-            },
-            payment_intent: "pi_resolve_1",
-            payment_status: "paid",
+      const result = await stripePaymentProvider.resolveWebhookSession(
+        checkoutSessionEvent({
+          amountTotal: 2000,
+          eventId: "evt_resolve_1",
+          metadata: {
+            email: "alice@example.com",
+            items: '[{"e":1,"q":1,"p":0}]',
+            name: "Alice",
           },
-        },
-        id: "evt_resolve_1",
-        type: "checkout.session.completed",
-      });
+          paymentIntent: "pi_resolve_1",
+          sessionId: "cs_resolve_1",
+        }),
+      );
       expect(result).not.toBe("skip");
       expect(result).not.toBeNull();
       if (result && result !== "skip") {
@@ -335,16 +332,14 @@ describeStripe("stripe-provider", () => {
       );
 
       try {
-        const result = await stripePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              id: "cs_no_meta",
-              // No payment_status or metadata
-            },
-          },
-          id: "evt_no_meta",
-          type: "checkout.session.completed",
-        });
+        const result = await stripePaymentProvider.resolveWebhookSession(
+          checkoutSessionEvent({
+            amountTotal: 0,
+            eventId: "evt_no_meta",
+            metadata: {},
+            sessionId: "cs_no_meta",
+          }),
+        );
         // retrieveSession called with listing object id
         expect(mockRetrieve.calls[0]!.args[0]).toBe("cs_no_meta");
         expect(result).toBeNull();

@@ -1,3 +1,4 @@
+import type Stripe from "stripe";
 import type { StripeFormValue } from "./form.ts";
 import { createStripeRequest, type StripeClientConfig } from "./request.ts";
 import {
@@ -17,39 +18,54 @@ import {
   StripeWebhookEndpointListSchema,
 } from "./schemas.ts";
 
+type OfficialCheckoutParams = NonNullable<
+  Parameters<Stripe["checkout"]["sessions"]["create"]>[0]
+>;
+type OfficialLineItem = NonNullable<
+  OfficialCheckoutParams["line_items"]
+>[number];
+type StripePriceData = NonNullable<OfficialLineItem["price_data"]>;
+type StripeProductData = NonNullable<StripePriceData["product_data"]>;
+
 interface StripeProductDataParams
   extends Readonly<Record<string, StripeFormValue>> {
-  description?: string;
-  name: string;
+  description?: StripeProductData["description"];
+  name: StripeProductData["name"];
 }
 
 interface StripePriceDataParams
   extends Readonly<Record<string, StripeFormValue>> {
-  currency: string;
+  currency: StripePriceData["currency"];
   product_data: StripeProductDataParams;
-  unit_amount: number;
+  unit_amount: NonNullable<StripePriceData["unit_amount"]>;
 }
 
 export interface StripeCheckoutLineItemParams
   extends Readonly<Record<string, StripeFormValue>> {
   price_data: StripePriceDataParams;
-  quantity: number;
+  quantity: NonNullable<OfficialLineItem["quantity"]>;
 }
 
 export interface StripeCheckoutSessionCreateParams {
-  cancel_url: string;
-  customer_email?: string;
+  cancel_url: NonNullable<OfficialCheckoutParams["cancel_url"]>;
+  customer_email?: NonNullable<OfficialCheckoutParams["customer_email"]>;
   line_items: readonly StripeCheckoutLineItemParams[];
   metadata: Readonly<Record<string, string>>;
-  mode: "payment";
-  payment_method_types: readonly ["card"];
-  success_url: string;
+  mode: Extract<OfficialCheckoutParams["mode"], "payment">;
+  payment_method_types: readonly [
+    "card" &
+      NonNullable<OfficialCheckoutParams["payment_method_types"]>[number],
+  ];
+  success_url: NonNullable<OfficialCheckoutParams["success_url"]>;
 }
 
 export interface StripeWebhookEndpointCreateParams {
-  api_version: string;
-  enabled_events: readonly ["checkout.session.completed"];
-  url: string;
+  api_version: NonNullable<Stripe.WebhookEndpointCreateParams["api_version"]>;
+  enabled_events: readonly [
+    "checkout.session.completed" &
+      Stripe.WebhookEndpointCreateParams.EnabledEvent,
+  ];
+  url: Stripe.WebhookEndpointCreateParams["url"];
 }
 
 export interface StripeClient {
@@ -59,22 +75,28 @@ export interface StripeClient {
       create: (
         params: StripeCheckoutSessionCreateParams,
       ) => Promise<StripeCheckoutSession>;
-      retrieve: (id: string) => Promise<StripeCheckoutSession>;
+      retrieve: (
+        id: Stripe.Checkout.Session["id"],
+      ) => Promise<StripeCheckoutSession>;
     };
   };
   paymentIntents: {
     retrieveWithLatestCharge: (
-      id: string,
+      id: Stripe.PaymentIntent["id"],
     ) => Promise<StripeExpandedPaymentIntent>;
   };
   refunds: {
-    create: (params: { payment_intent: string }) => Promise<StripeRefund>;
+    create: (
+      params: Pick<Stripe.RefundCreateParams, "payment_intent">,
+    ) => Promise<StripeRefund>;
   };
   webhookEndpoints: {
     create: (
       params: StripeWebhookEndpointCreateParams,
     ) => Promise<StripeCreatedWebhookEndpoint>;
-    del: (id: string) => Promise<StripeDeletedWebhookEndpoint>;
+    del: (
+      id: Stripe.WebhookEndpoint["id"],
+    ) => Promise<StripeDeletedWebhookEndpoint>;
     list: () => Promise<{ data: StripeWebhookEndpoint[] }>;
   };
 }

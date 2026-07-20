@@ -91,17 +91,13 @@ describeWithEnv("server webhooks > unrecognized sessions", { db: true }, () => {
     const mockRefund = spy(stripeApi, "refundPayment");
 
     await expectWebhookIgnored(
-      {
-        data: {
-          object: {
-            id: "cs_fallback_foreign",
-            status: "COMPLETED",
-            // No proper metadata -> extractSessionFromListing returns null
-          },
-        },
-        id: "evt_fallback_foreign",
-        type: "checkout.session.completed",
-      },
+      checkoutSessionEvent({
+        amountTotal: 100,
+        eventId: "evt_fallback_foreign",
+        metadata: {},
+        paymentIntent: "pi_fallback_foreign",
+        sessionId: "cs_fallback_foreign",
+      }),
       () => {
         mockRetrieveSession.restore();
         mockRefund.restore();

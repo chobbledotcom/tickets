@@ -3,6 +3,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -23,8 +26,15 @@ import {
 
 // jscpd:ignore-end
 
+const withCheckoutUrl = (
+  event: ReturnType<typeof checkoutSessionEvent>,
+): ReturnType<typeof checkoutSessionEvent> => ({
+  ...event,
+  data: { object: { ...event.data.object, url: null } },
+});
+
 describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
-  test("webhook returns 409 when session is being processed concurrently", async () => {
+  test("concurrent webhooks create one attendee and finalize one session", async () => {
     await setupStripe();
 
     const listing = await createTestListing({
@@ -32,35 +42,72 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    // Pre-reserve the session to simulate concurrent processing
-    const { reserveSession: reserveSessionFn } = await import(
-      "#shared/db/processed-payments.ts"
-    );
-    await reserveSessionFn("cs_webhook_concurrent");
-
     const mockVerify = await stubWebhookVerify(
-      checkoutSessionEvent({
-        amountTotal: 1000,
-        eventId: "evt_concurrent",
-        metadata: signedMeta(
-          {
-            email: "concurrent@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Concurrent Webhook",
-          },
-          1000,
-        ),
-        paymentIntent: "pi_webhook_concurrent",
-        sessionId: "cs_webhook_concurrent",
-      }),
+      withCheckoutUrl(
+        checkoutSessionEvent({
+          amountTotal: 1000,
+          created: 1_700_000_000,
+          eventId: "evt_concurrent",
+          metadata: signedMeta(
+            {
+              email: "concurrent@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Concurrent Webhook",
+            },
+            1000,
+          ),
+          paymentIntent: "pi_webhook_concurrent",
+          sessionId: "cs_webhook_concurrent",
+        }),
+      ),
+    );
+    const createBooking = attendeesApi.createBookingAtomic;
+    const bookingStarted = Promise.withResolvers<void>();
+    const releaseBooking = Promise.withResolvers<void>();
+    const pauseWinner = stub(
+      attendeesApi,
+      "createBookingAtomic",
+      async (...args) => {
+        bookingStarted.resolve();
+        await releaseBooking.promise;
+        return await createBooking(...args);
+      },
     );
 
     try {
-      const response = await handleRequest(
-        mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      const request = () =>
+        handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+      const responses = await Promise.all([
+        request(),
+        (async () => {
+          await bookingStarted.promise;
+          try {
+            return await request();
+          } finally {
+            releaseBooking.resolve();
+          }
+        })(),
+      ]);
+
+      const [concurrent, winner] = responses.toSorted(
+        (left, right) => right.status - left.status,
       );
-      expect(response.status).toBe(409);
+      if (!winner || !concurrent) throw new Error("Expected two responses");
+      expect(winner.status).toBe(200);
+      expect(await winner.json()).toEqual({ processed: true, received: true });
+      expect(concurrent.status).toBe(409);
+      expect(await concurrent.text()).toContain("being processed");
+
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees).toHaveLength(1);
+      const processed = await isSessionProcessed("cs_webhook_concurrent");
+      expect(processed?.attendee_id).toBe(attendees[0]!.id);
+      expect(processed?.failure_data).toBe("");
     } finally {
+      releaseBooking.resolve();
+      pauseWinner.restore();
       mockVerify.restore();
     }
   });
@@ -181,20 +228,23 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
     );
 
     await expectWebhookProcessed(
-      checkoutSessionEvent({
-        amountTotal: 500,
-        eventId: "evt_already_done",
-        metadata: signedMeta(
-          {
-            email: "already@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-            name: "Already Done",
-          },
-          500,
-        ),
-        paymentIntent: "pi_already_done",
-        sessionId: "cs_multi_already_done",
-      }),
+      withCheckoutUrl(
+        checkoutSessionEvent({
+          amountTotal: 500,
+          created: 1_700_000_000,
+          eventId: "evt_already_done",
+          metadata: signedMeta(
+            {
+              email: "already@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Already Done",
+            },
+            500,
+          ),
+          paymentIntent: "pi_already_done",
+          sessionId: "cs_multi_already_done",
+        }),
+      ),
     );
   });
 });

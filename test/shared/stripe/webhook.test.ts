@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
@@ -77,15 +78,21 @@ describeStripe("stripe", () => {
 
     test("rejects a timestamp key without a value", async () => {
       await activateStripe(TEST_SECRET, "we_test_nullish");
-
-      const result = await verifyWebhookSignature(
+      await expectInvalidHeader(
         '{"test": true}',
         "t,v1=abc123",
+        "missing timestamp",
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid signature header format");
-      }
+    });
+
+    test("rejects a signature key without a value", async () => {
+      await activateStripe(TEST_SECRET, "we_test_signature_without_value");
+      await expectInvalidHeader("{}", "t=123,v1", "missing signature");
+    });
+
+    test("ignores a bare signature key", async () => {
+      await activateStripe(TEST_SECRET, "we_test_bare_signature");
+      await expectInvalidHeader("{}", "v1", "missing timestamp and signature");
     });
 
     test("parses timestamps as decimal numbers", async () => {
@@ -147,6 +154,48 @@ describeStripe("stripe", () => {
       const result = await verifyWebhookSignature(payload, `t=1,${signed}`);
       expect(result.valid).toBe(true);
     });
+
+    test("accepts the first of multiple v1 signatures", async () => {
+      await activateStripe(TEST_SECRET, "we_test_first_signature");
+      using _time = new FakeTime(1_700_000_000_000);
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload, 1_700_000_000);
+      const result = await verifyWebhookSignature(
+        payload,
+        `${signed},v1=wrong`,
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("accepts the second of multiple v1 signatures", async () => {
+      await activateStripe(TEST_SECRET, "we_test_second_signature");
+      using _time = new FakeTime(1_700_000_000_000);
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload, 1_700_000_000);
+      const result = await verifyWebhookSignature(
+        payload,
+        signed.replace("v1=", "v1=wrong,v1="),
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    for (const [delta, valid] of [
+      [-301, false],
+      [-300, true],
+      [300, true],
+      [301, false],
+    ] as const) {
+      test(`${delta >= 0 ? "+" : ""}${delta} seconds is ${valid ? "inside" : "outside"} the tolerance`, async () => {
+        await activateStripe(TEST_SECRET, `we_test_tolerance_${delta}`);
+        using _time = new FakeTime(1_700_000_000_000);
+        const payload = "{}";
+        const timestamp = 1_700_000_000 + delta;
+        const signature = await signedHeader(TEST_SECRET, payload, timestamp);
+        expect((await verifyWebhookSignature(payload, signature)).valid).toBe(
+          valid,
+        );
+      });
+    }
 
     test("secureCompare handles strings of different lengths", async () => {
       await activateStripe(TEST_SECRET, "we_test_len");

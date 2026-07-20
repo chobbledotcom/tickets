@@ -52,8 +52,83 @@ const retryingBalance = (firstResponse: Response) => {
   return { client, waits };
 };
 
+const unreadableResponse = (error: unknown, status = 200): Response =>
+  new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.error(error);
+      },
+    }),
+    { status },
+  );
+
+const recordingCheckout = (
+  responses: Response[],
+  maxNetworkRetries: number,
+) => {
+  const requests: RequestInit[] = [];
+  const waits: number[] = [];
+  const client = createStripeClient("sk_test_secret", {
+    fetch: (_input, init = {}) => {
+      requests.push(init);
+      const response = responses.shift();
+      if (!response) throw new Error("No Stripe response left");
+      return Promise.resolve(response);
+    },
+    maxNetworkRetries,
+    random: () => 0,
+    sleep: (milliseconds) => {
+      waits.push(milliseconds);
+      return Promise.resolve();
+    },
+  });
+  return { client, requests, waits };
+};
+
+const oneCallErrorClient = (response: Response) => {
+  let calls = 0;
+  const client = createStripeClient("sk_test_secret", {
+    fetch: () => {
+      calls += 1;
+      return Promise.resolve(response);
+    },
+    sleep: () => Promise.reject(new Error("must not wait")),
+  });
+  return { calls: () => calls, client };
+};
+
+const balanceErrorFrom = async (response: Response): Promise<unknown> => {
+  const client = createStripeClient("sk_test_secret", {
+    fetch: () => Promise.resolve(response),
+    maxNetworkRetries: 0,
+  });
+  return await client.balance.retrieve().catch((caught) => caught);
+};
+
+const failingBalance = (
+  fetch: () => Promise<Response>,
+  maxNetworkRetries: number,
+) => {
+  let calls = 0;
+  const waits: number[] = [];
+  const client = createStripeClient("sk_test_secret", {
+    fetch: () => {
+      calls += 1;
+      return fetch();
+    },
+    maxNetworkRetries,
+    random: () => 0,
+    sleep: (milliseconds) => {
+      waits.push(milliseconds);
+      return Promise.resolve();
+    },
+  });
+  return { calls: () => calls, client, waits };
+};
+
 describe("Stripe request transport", () => {
   test("keeps the production timeout and retry limits explicit", () => {
+    expect(STRIPE_API_VERSION).toBe("2026-04-22.dahlia");
     expect(STRIPE_TIMEOUT_MS).toBe(20_000);
     expect(STRIPE_MAX_NETWORK_RETRIES).toBe(2);
   });
@@ -86,24 +161,13 @@ describe("Stripe request transport", () => {
   });
 
   test("reuses one idempotency key and body across an instant retry", async () => {
-    const requests: RequestInit[] = [];
-    const waits: number[] = [];
-    const responses = [
-      new Response("busy", { status: 500 }),
-      Response.json(stripeCheckoutSession()),
-    ];
-    const client = createStripeClient("sk_test_secret", {
-      fetch: (_input, init = {}) => {
-        requests.push(init);
-        return Promise.resolve(responses.shift()!);
-      },
-      maxNetworkRetries: 2,
-      random: () => 0,
-      sleep: (milliseconds) => {
-        waits.push(milliseconds);
-        return Promise.resolve();
-      },
-    });
+    const { client, requests, waits } = recordingCheckout(
+      [
+        new Response("busy", { status: 500 }),
+        Response.json(stripeCheckoutSession()),
+      ],
+      2,
+    );
 
     await client.checkout.sessions.create(checkoutParams());
 
@@ -111,6 +175,27 @@ describe("Stripe request transport", () => {
     expect(requests[0]!.body).toBe(requests[1]!.body);
     expect(new Headers(requests[0]!.headers).get("idempotency-key")).toBe(
       new Headers(requests[1]!.headers).get("idempotency-key"),
+    );
+    expect(waits).toEqual([500]);
+  });
+
+  test("reuses the POST body and idempotency key after a response body read failure", async () => {
+    const { client, requests, waits } = recordingCheckout(
+      [
+        unreadableResponse(new TypeError("body disconnected")),
+        Response.json(stripeCheckoutSession()),
+      ],
+      1,
+    );
+
+    await client.checkout.sessions.create(checkoutParams());
+
+    const firstKey = new Headers(requests[0]!.headers).get("idempotency-key");
+    expect(requests).toHaveLength(2);
+    expect(requests[0]!.body).toBe(requests[1]!.body);
+    expect(firstKey).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
+    expect(new Headers(requests[1]!.headers).get("idempotency-key")).toBe(
+      firstKey,
     );
     expect(waits).toEqual([500]);
   });
@@ -150,26 +235,17 @@ describe("Stripe request transport", () => {
   });
 
   test("does not retry when Stripe forbids it", async () => {
-    let calls = 0;
-    const client = createStripeClient("sk_test_secret", {
-      fetch: () => {
-        calls += 1;
-        return Promise.resolve(
-          Response.json(
-            {
-              error: { message: "No", type: "api_error" },
-            },
-            { headers: { "stripe-should-retry": "false" }, status: 500 },
-          ),
-        );
-      },
-      sleep: () => Promise.resolve(),
-    });
+    const { calls, client } = oneCallErrorClient(
+      Response.json(
+        { error: { message: "No", type: "api_error" } },
+        { headers: { "stripe-should-retry": "false" }, status: 500 },
+      ),
+    );
 
     await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
       StripeApiError,
     );
-    expect(calls).toBe(1);
+    expect(calls()).toBe(1);
   });
 
   test("uses Retry-After when Stripe requests a retry", async () => {
@@ -196,6 +272,51 @@ describe("Stripe request transport", () => {
     expect(waits).toEqual([500]);
   });
 
+  test("accepts Retry-After at the 60 second boundary", async () => {
+    const { client, waits } = retryingBalance(
+      new Response("busy", {
+        headers: { "retry-after": "60" },
+        status: 500,
+      }),
+    );
+
+    await client.balance.retrieve();
+    expect(waits).toEqual([60_000]);
+  });
+
+  test("uses the default delay for unusable Retry-After values", async () => {
+    const values = ["1.5", "invalid", "0", "-1"];
+    const waits = await Promise.all(
+      values.map(async (retryAfter) => {
+        const retrying = retryingBalance(
+          new Response("busy", {
+            headers: { "retry-after": retryAfter },
+            status: 500,
+          }),
+        );
+        await retrying.client.balance.retrieve();
+        return retrying.waits;
+      }),
+    );
+
+    expect(waits).toEqual([[500], [500], [500], [500]]);
+  });
+
+  test("does not retry a default non-retry response with Retry-After", async () => {
+    for (const status of [400, 499]) {
+      const { calls, client } = oneCallErrorClient(
+        Response.json(
+          { error: { message: "No", type: "invalid_request_error" } },
+          { headers: { "retry-after": "2" }, status },
+        ),
+      );
+      await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
+        StripeApiError,
+      );
+      expect(calls()).toBe(1);
+    }
+  });
+
   test("caps exponential retry delays", async () => {
     const waits: number[] = [];
     let calls = 0;
@@ -203,12 +324,12 @@ describe("Stripe request transport", () => {
       fetch: () => {
         calls += 1;
         return Promise.resolve(
-          calls <= 5
+          calls <= 7
             ? new Response("busy", { status: 500 })
             : Response.json({ livemode: false }),
         );
       },
-      maxNetworkRetries: 5,
+      maxNetworkRetries: 7,
       random: () => 0.5,
       sleep: (milliseconds) => {
         waits.push(milliseconds);
@@ -217,7 +338,7 @@ describe("Stripe request transport", () => {
     });
 
     await client.balance.retrieve();
-    expect(waits).toEqual([500, 500, 750, 1500, 3000]);
+    expect(waits).toEqual([500, 500, 750, 1500, 3000, 5000, 5000]);
   });
 
   test("retries conflicts", async () => {
@@ -238,6 +359,18 @@ describe("Stripe request transport", () => {
     const { client } = retryingBalance(new Response(body, { status: 500 }));
     await client.balance.retrieve();
     expect(cancelled).toBe(true);
+  });
+
+  test("retries when cancelling the response body rejects", async () => {
+    const body = new ReadableStream({
+      cancel: () => Promise.reject(new TypeError("cancel failed")),
+    });
+    const { client, waits } = retryingBalance(
+      new Response(body, { status: 500 }),
+    );
+
+    expect(await client.balance.retrieve()).toEqual({ livemode: false });
+    expect(waits).toEqual([500]);
   });
 
   test("returns structured error fields without exposing the response body", async () => {
@@ -274,17 +407,27 @@ describe("Stripe request transport", () => {
       fetch: () => Promise.resolve(new Response("not json")),
       maxNetworkRetries: 0,
     });
-    await expect(client.balance.retrieve()).rejects.toThrow(
+    const error = await client.balance.retrieve().catch((caught) => caught);
+    expect((error as Error).message).toBe(
       "Invalid JSON received from the Stripe API",
     );
   });
 
-  test("fails loudly on an invalid error response", async () => {
+  test("fails loudly on an invalid success shape", async () => {
     const client = createStripeClient("sk_test_secret", {
-      fetch: () => Promise.resolve(new Response("not json", { status: 400 })),
+      fetch: () => Promise.resolve(Response.json({ livemode: "no" })),
       maxNetworkRetries: 0,
     });
     const error = await client.balance.retrieve().catch((caught) => caught);
+    expect((error as Error).message).toBe(
+      "Invalid response received from the Stripe API",
+    );
+  });
+
+  test("fails loudly on an invalid error response", async () => {
+    const error = await balanceErrorFrom(
+      new Response("not json", { status: 400 }),
+    );
     expect(error).toBeInstanceOf(StripeProtocolError);
     expect(error).toMatchObject({
       message: "Invalid JSON received from the Stripe API",
@@ -292,25 +435,26 @@ describe("Stripe request transport", () => {
     });
   });
 
+  test("reports valid JSON with a malformed error shape as a protocol error", async () => {
+    const error = await balanceErrorFrom(
+      Response.json({ error: {} }, { status: 400 }),
+    );
+    expect(error).toBeInstanceOf(StripeProtocolError);
+    expect((error as Error).message).toBe(
+      "Invalid response received from the Stripe API",
+    );
+    expect((error as Error).name).toBe("StripeProtocolError");
+  });
+
   test("reports a connection failure after the configured retries", async () => {
-    let calls = 0;
-    const waits: number[] = [];
-    const client = createStripeClient("sk_test_secret", {
-      fetch: () => {
-        calls += 1;
-        return Promise.reject(new TypeError("private network detail"));
-      },
-      maxNetworkRetries: 1,
-      random: () => 0,
-      sleep: (milliseconds) => {
-        waits.push(milliseconds);
-        return Promise.resolve();
-      },
-    });
+    const { calls, client, waits } = failingBalance(
+      () => Promise.reject(new TypeError("private network detail")),
+      1,
+    );
     const error = await client.balance.retrieve().catch((caught) => caught);
     expect(error).toBeInstanceOf(StripeConnectionError);
     expect(error.name).toBe("StripeConnectionError");
-    expect(calls).toBe(2);
+    expect(calls()).toBe(2);
     expect(waits).toEqual([500]);
   });
 
@@ -335,13 +479,7 @@ describe("Stripe request transport", () => {
         if (calls > 1)
           return Promise.resolve(Response.json({ livemode: false }));
         return Promise.resolve(
-          new Response(
-            new ReadableStream({
-              start(controller) {
-                controller.error(new DOMException("timed out", "TimeoutError"));
-              },
-            }),
-          ),
+          unreadableResponse(new DOMException("timed out", "TimeoutError")),
         );
       },
       maxNetworkRetries: 1,
@@ -355,6 +493,26 @@ describe("Stripe request transport", () => {
     expect(await client.balance.retrieve()).toEqual({ livemode: false });
     expect(calls).toBe(2);
     expect(waits).toEqual([500]);
+  });
+
+  test("reports the exact connection failure after response body retries end", async () => {
+    const { calls, client, waits } = failingBalance(
+      () =>
+        Promise.resolve(
+          unreadableResponse(new TypeError("private body detail")),
+        ),
+      2,
+    );
+
+    const error = await client.balance.retrieve().catch((caught) => caught);
+    expect(error).toBeInstanceOf(StripeConnectionError);
+    expect(error).toMatchObject({
+      message:
+        "An error occurred with our connection to Stripe. Request was retried 2 times.",
+      name: "StripeConnectionError",
+    });
+    expect(calls()).toBe(3);
+    expect(waits).toEqual([500, 500]);
   });
 
   test("accepts zero as an explicit timeout", async () => {
@@ -374,9 +532,11 @@ describe("Stripe request transport", () => {
 
   test("escapes resource IDs and encodes GET parameters", async () => {
     let requested = "";
+    let requestInit: RequestInit | undefined;
     const client = createStripeClient("sk_test_secret", {
-      fetch: (input) => {
+      fetch: (input, init) => {
         requested = String(input);
+        requestInit = init;
         return Promise.resolve(
           Response.json({
             id: "pi_1",
@@ -390,5 +550,6 @@ describe("Stripe request transport", () => {
     expect(requested).toBe(
       "https://api.stripe.com/v1/payment_intents/pi%2Funsafe?expand[0]=latest_charge",
     );
+    expect(requestInit?.body).toBeUndefined();
   });
 });

@@ -32,6 +32,8 @@ export type PayHostedCheckout = (
 export interface HostedCheckoutContext {
   /** Public base URL the browser drives the app at (the cloudflared tunnel). */
   baseUrl: string;
+  /** Exact provider session seen on this checkout's app return request. */
+  paymentSessionId: string | null;
   /** The provider's sandbox secrets (as returned by providerSecrets). */
   secrets: Record<string, string>;
   /** Path to the app server's log file (provider ids are logged there). */

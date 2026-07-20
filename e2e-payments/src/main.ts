@@ -12,7 +12,7 @@
  * Exit codes: 0 = passed (or skipped for lack of secrets), 1 = failed.
  */
 
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { type BrowserSession, launchBrowser } from "./browser.ts";
 import { config, needsTunnel, providerSecrets, type Target } from "./config.ts";
 import {
@@ -114,16 +114,30 @@ const runJourneys = async ({
   } else {
     const hostedCheckoutContext = {
       baseUrl: tunnel.publicBaseUrl,
+      paymentSessionId: null as string | null,
       secrets: payment.secrets,
       serverLogPath: server.logPath,
     };
     const payOnHostedCheckout = async (message: string): Promise<void> => {
       step(message);
       await assertRedirectedToCheckout(session);
+      const appReturn = session.page.waitForRequest(
+        (request) => {
+          const url = new URL(request.url());
+          return (
+            url.origin === new URL(tunnel.publicBaseUrl).origin &&
+            url.pathname === "/payment/success"
+          );
+        },
+        { timeout: config.paymentConfirmTimeoutMs },
+      );
       await payment.provider.payHostedCheckout(
         session.page,
         hostedCheckoutContext,
       );
+      hostedCheckoutContext.paymentSessionId = new URL(
+        (await appReturn).url(),
+      ).searchParams.get("session_id");
     };
     await payOnHostedCheckout(
       `Paying on the ${payment.provider.name} hosted checkout`,
@@ -175,7 +189,9 @@ const stopRun = async (
   if (server) await server.stop();
 };
 
-const run = async (): Promise<void> => {
+type RunResult = "executed" | "skipped";
+
+const run = async (): Promise<RunResult> => {
   const target = parseTarget();
   step(`Payment sandbox e2e — target: ${target}`);
 
@@ -183,7 +199,7 @@ const run = async (): Promise<void> => {
   const secrets = provider ? providerSecrets(provider.name) : {};
   if (provider && !secrets) {
     log(`SKIP: no sandbox secrets configured for ${target}; nothing to run.`);
-    return; // exit 0 — a missing-secret leg is a skip, not a failure
+    return "skipped";
   }
   const payment = provider && secrets ? { provider, secrets } : null;
 
@@ -217,9 +233,18 @@ const run = async (): Promise<void> => {
   } finally {
     await stopRun(session, tunnel, payment, server);
   }
+  return "executed";
 };
 
-run().catch((err) => {
-  fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
-  process.exitCode = 1;
-});
+const publishResult = (result: RunResult): void => {
+  log(`RESULT: ${result}`);
+  const output = process.env.GITHUB_OUTPUT;
+  if (output) appendFileSync(output, `result=${result}\n`);
+};
+
+run()
+  .then(publishResult)
+  .catch((err) => {
+    fail(err instanceof Error ? (err.stack ?? err.message) : String(err));
+    process.exitCode = 1;
+  });

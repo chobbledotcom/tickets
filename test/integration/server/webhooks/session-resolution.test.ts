@@ -11,6 +11,7 @@ import {
   expectWebhookIgnored,
   expectWebhookPending,
   expectWebhookProcessed,
+  expectWebhookRejected,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -84,7 +85,7 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
     );
   });
 
-  test("webhook treats invalid payment_status as unpaid", async () => {
+  test("webhook fails loudly for an invalid payment status", async () => {
     await setupStripe();
 
     const listing = await createTestListing({
@@ -92,9 +93,7 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    // "completed" is not a valid payment status, so paymentStatus defaults to "unpaid"
-    // This means the session is treated as unpaid and returns a pending acknowledgement
-    await expectWebhookPending(
+    await expectWebhookRejected(
       checkoutSessionEvent({
         amountTotal: 1000,
         eventId: "evt_bad_status",
@@ -107,6 +106,7 @@ describeWithEnv("server webhooks > session resolution", { db: true }, () => {
         paymentStatus: "completed",
         sessionId: "cs_bad_status",
       }),
+      'Expected ("no_payment_required" | "paid" | "unpaid")',
     );
   });
 

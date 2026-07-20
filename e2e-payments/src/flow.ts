@@ -10,6 +10,7 @@ import type { Locator } from "playwright";
 import { type BrowserSession, hrefOf, requirePageText } from "./browser.ts";
 import { config } from "./config.ts";
 import { log, step } from "./log.ts";
+import { pollUntil } from "./util.ts";
 /* jscpd:ignore-end */
 
 export const LISTING_NAME = "E2E Payment Concert";
@@ -104,12 +105,13 @@ export const waitForAppReturn = async (
   dumpLabel: string,
 ): Promise<void> => {
   const { page } = session;
-  const deadline = Date.now() + config.paymentConfirmTimeoutMs;
-  while (Date.now() < deadline) {
+  const returned = await pollUntil(config.paymentConfirmTimeoutMs, async () => {
     const here = page.url().startsWith(session.baseUrl);
-    if (here && success.test(page.url() + (await session.bodyText()))) return;
-    await page.waitForTimeout(1_000);
-  }
+    return here && success.test(page.url() + (await session.bodyText()))
+      ? true
+      : null;
+  });
+  if (returned) return;
   await session.dumpPage(dumpLabel);
   throw new Error(
     `did not land on a page matching ${success} (at ${page.url()})`,

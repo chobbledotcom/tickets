@@ -49,6 +49,7 @@ import {
   stubWebhookVerify,
 } from "#test-utils/settings.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
+import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 /** One package in a journey's catalog: its members sell inside the bundle at
  * the given price (each `quantity` per package unit, default 1). */
@@ -251,19 +252,15 @@ const completePaidCheckout = async (
 ): Promise<void> => {
   const total = priceCheckout(intent).total;
   const metadata = await assembleCheckoutMetadata("stripe", intent, total);
-  const verifyStub = await stubWebhookVerify({
-    data: {
-      object: {
-        amount_total: total,
-        id: sessionId,
-        metadata,
-        payment_intent: `pi_${sessionId}`,
-        payment_status: "paid",
-      },
-    },
-    id: `evt_${sessionId}`,
-    type: "checkout.session.completed",
-  });
+  const verifyStub = await stubWebhookVerify(
+    checkoutSessionEvent({
+      amountTotal: total,
+      eventId: `evt_${sessionId}`,
+      metadata,
+      paymentIntent: `pi_${sessionId}`,
+      sessionId,
+    }),
+  );
   try {
     const response = await handleRequest(
       mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),

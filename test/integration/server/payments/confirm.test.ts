@@ -1,8 +1,11 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
+import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import {
   expectHtmlResponse,
   expectRedirect,
@@ -10,7 +13,6 @@ import {
 } from "#test-utils/assertions.ts";
 import { johnCheckoutSession } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest, withMocks } from "#test-utils/mocks.ts";
@@ -215,7 +217,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("handles replay of same session (idempotent)", async () => {
+    test("concurrent confirmation requests create one paid attendee", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -224,27 +226,62 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       });
 
-      // Create attendee as if payment was already processed (using atomic to simulate production flow)
-      await bookAttendee(listing, {
-        email: "john@example.com",
-        name: "John",
-        paymentId: "pi_test_123",
-      });
-
       await withMocks(
         () =>
-          johnSession("cs_test_paid", singleItem(listing.id, 1, 1000), 1000),
+          johnSession(
+            "cs_concurrent_confirm",
+            singleItem(listing.id, 1, 1000),
+            1000,
+          ),
         async () => {
-          const response = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_test_paid"),
+          const createBooking = attendeesApi.createBookingAtomic;
+          const bookingCommitted = Promise.withResolvers<void>();
+          const releaseBooking = Promise.withResolvers<void>();
+          const pauseWinner = stub(
+            attendeesApi,
+            "createBookingAtomic",
+            async (...args) => {
+              const result = await createBooking(...args);
+              bookingCommitted.resolve();
+              await releaseBooking.promise;
+              return result;
+            },
           );
+          const request = () =>
+            handleRequest(
+              mockRequest("/payment/success?session_id=cs_concurrent_confirm"),
+            );
+          try {
+            const [winner, concurrent] = await Promise.all([
+              request(),
+              (async () => {
+                await bookingCommitted.promise;
+                try {
+                  return await request();
+                } finally {
+                  releaseBooking.resolve();
+                }
+              })(),
+            ]);
 
-          // Capacity check will now fail since we already have the attendee
-          // This is expected - in the new flow, replaying creates a duplicate attempt
-          // which fails the capacity check if listing is near full
-          // For idempotent behavior, we'd need to check payment_intent uniqueness
-          // Response is either a 302 redirect (with tokens) or 200 (direct render for replay)
-          expect([200, 302]).toContain(response.status);
+            expect(winner.status).toBe(302);
+            expect(concurrent.status).toBe(302);
+            expect(concurrent.headers.get("location")).toBe(
+              winner.headers.get("location"),
+            );
+
+            const attendees = await getAttendeesRaw(listing.id);
+            expect(attendees).toHaveLength(1);
+            expect(attendees[0]!.quantity).toBe(1);
+            expect(attendees[0]!.price_paid).toBe(1000);
+            const processed = await isSessionProcessed("cs_concurrent_confirm");
+            expect(processed?.attendee_id).toBe(attendees[0]!.id);
+            expect(processed?.failure_data).toBe("");
+            expect(processed?.ticket_tokens).toBe("");
+          } finally {
+            releaseBooking.resolve();
+            pauseWinner.restore();
+          }
         },
       );
     });

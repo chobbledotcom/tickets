@@ -17,11 +17,13 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   provider: "stripe",
   saveSecret: async (value) => {
     const webhookUrl = getPaymentWebhookUrl();
+    const previousSecretKey = settings.stripe.secretKey;
     const previousEndpointId = settings.stripe.webhookEndpointId;
+    const keyChanged = previousSecretKey !== value;
     const result = await stripeApi.setupWebhookEndpoint(
       value,
       webhookUrl,
-      previousEndpointId,
+      keyChanged ? undefined : previousEndpointId,
     );
     if (!result.success) {
       return `Failed to set up Stripe webhook: ${result.error}`;
@@ -34,11 +36,19 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     // Cleanup can now fail without leaving saved credentials that name a
     // deleted endpoint or leaving Stripe unselected. The error still propagates
     // so stale state is visible.
+    if (keyChanged && previousSecretKey && previousEndpointId) {
+      await stripeApi.cleanupOldWebhookEndpoints(
+        previousSecretKey,
+        null,
+        null,
+        [previousEndpointId],
+      );
+    }
     await stripeApi.cleanupOldWebhookEndpoints(
       value,
       webhookUrl,
       result.endpointId,
-      previousEndpointId ? [previousEndpointId] : [],
+      !keyChanged && previousEndpointId ? [previousEndpointId] : [],
     );
     return null;
   },

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import {
   type StripeWebhookEvent,
@@ -94,6 +95,7 @@ describeStripe("stripe", () => {
 
     test("reports success with one webhook", async () => {
       const client = await stripeClient();
+      await activateStripe("whsec_only", "we_only");
       await withBalanceAndList(
         client,
         okBalance(false),
@@ -105,7 +107,7 @@ describeStripe("stripe", () => {
                 id: "we_only",
                 object: "webhook_endpoint",
                 status: "enabled",
-                url: "https://example.com/payment/webhook",
+                url: getPaymentWebhookUrl(),
               },
             ],
           }),
@@ -149,7 +151,7 @@ describeStripe("stripe", () => {
                 id: "we_test_valid",
                 object: "webhook_endpoint",
                 status: "enabled",
-                url: "https://example.com/payment/webhook",
+                url: getPaymentWebhookUrl(),
               },
               {
                 enabled_events: ["payment_intent.succeeded"],
@@ -169,7 +171,7 @@ describeStripe("stripe", () => {
           expect(result.webhooks).toHaveLength(2);
           const [first, second] = result.webhooks;
           expect(first!.endpointId).toBe("we_test_valid");
-          expect(first!.url).toBe("https://example.com/payment/webhook");
+          expect(first!.url).toBe(getPaymentWebhookUrl());
           expect(first!.status).toBe("enabled");
           expect(first!.enabledEvents).toContain("checkout.session.completed");
           expect(second!.endpointId).toBe("we_test_other");

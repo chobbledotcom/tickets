@@ -27,11 +27,6 @@ import {
 // jscpd:ignore-end
 
 describeAdminSettings(() => {
-  /** Stub `setupWebhookEndpoint` to succeed, then POST the given Stripe key
-   *  to the settings form. Returns a promise so the caller can assert on the
-   *  effects inside the `withMocks` body. Collapses the repeated webhook-stub
-   *  + `adminFormPost` scaffold shared by the test-mode, live-mode, and
-   *  activity-log tests. */
   const stubWebhookAndPostStripe = async (
     secretKey: string,
     body: (response: Response) => Promise<void>,
@@ -134,14 +129,9 @@ describeAdminSettings(() => {
         async (response) => {
           expect(response.status).toBe(302);
           expectRedirect(response, "/admin/settings");
-          // Flash anchors back to the Stripe form (scroll-to-form UX). Assert
-          // the exact form param, not a substring, so a wrong-but-prefixed
-          // form id can't slip through.
           expect(redirectFormId(response)).toBe("settings-stripe");
           expectFlash(response, expect.stringContaining("Stripe key updated"));
           expectFlash(response, expect.stringContaining("webhook configured"));
-          // The webhook config returned by setupWebhookEndpoint must be
-          // persisted, not just acknowledged in the flash.
           expect(settings.stripe.webhookSecret).toBe("whsec_test_secret");
           expect(settings.stripe.webhookEndpointId).toBe("we_test_123");
         },
@@ -331,6 +321,71 @@ describeAdminSettings(() => {
         },
       );
     });
+
+    const rotationCases = [
+      {
+        cleanup: [
+          ["sk_test_old_key", null, null, ["we_old"]],
+          [
+            "sk_test_new_key",
+            "https://localhost/payment/webhook",
+            "we_new",
+            [],
+          ],
+        ],
+        existingEndpointId: undefined,
+        name: "cleans each Stripe account with its own key",
+        newKey: "sk_test_new_key",
+        oldKey: "sk_test_old_key",
+      },
+      {
+        cleanup: [
+          [
+            "sk_test_same_key",
+            "https://localhost/payment/webhook",
+            "we_new",
+            ["we_old"],
+          ],
+        ],
+        existingEndpointId: "we_old",
+        name: "cleans a replaced endpoint once when the key is unchanged",
+        newKey: "sk_test_same_key",
+        oldKey: "sk_test_same_key",
+      },
+    ];
+
+    for (const entry of rotationCases) {
+      test(entry.name, async () => {
+        await activateStripe("whsec_old", "we_old", entry.oldKey);
+        await withMocks(
+          () => ({
+            cleanup: stub(stripeApi, "cleanupOldWebhookEndpoints", () =>
+              Promise.resolve(),
+            ),
+            setup: stub(stripeApi, "setupWebhookEndpoint", () =>
+              Promise.resolve({
+                endpointId: "we_new",
+                secret: "whsec_new",
+                success: true,
+              }),
+            ),
+          }),
+          async ({ cleanup, setup }) => {
+            await adminFormPost("/admin/settings/stripe", {
+              stripe_secret_key: entry.newKey,
+            });
+            expect(setup.calls[0]?.args).toEqual([
+              entry.newKey,
+              "https://localhost/payment/webhook",
+              entry.existingEndpointId,
+            ]);
+            expect(cleanup.calls.map(({ args }) => args)).toEqual(
+              entry.cleanup,
+            );
+          },
+        );
+      });
+    }
   });
 
   test("logs activity when Stripe key is configured", async () => {

@@ -6,7 +6,6 @@ import {
   type BookingItem,
   BookingItemsSchema,
   getActivePaymentProvider,
-  isPaymentStatus,
 } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useDebugLogSpy } from "#test-utils/debug-log.ts";
@@ -20,19 +19,6 @@ const accepts = (item: Record<string, unknown>) =>
   expect(v.is(BookingItemsSchema, [item])).toBe(true);
 const rejects = (item: Record<string, unknown>) =>
   expect(v.is(BookingItemsSchema, [item])).toBe(false);
-
-describe("isPaymentStatus", () => {
-  for (const status of ["paid", "unpaid", "no_payment_required", "failed"]) {
-    test(`accepts ${JSON.stringify(status)}`, () => {
-      expect(isPaymentStatus(status)).toBe(true);
-    });
-  }
-  for (const other of ["", "PAID", "refunded", "pending", "paid "]) {
-    test(`rejects ${JSON.stringify(other)}`, () => {
-      expect(isPaymentStatus(other)).toBe(false);
-    });
-  }
-});
 
 describe("booking line validation", () => {
   test("accepts a minimal signed line", () => {

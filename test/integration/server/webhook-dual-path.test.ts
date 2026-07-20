@@ -13,6 +13,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { checkoutSessionEvent } from "#test-utils/webhooks.ts";
 
 /**
  * Paid orders booking the SAME listing through two paths at once — a package
@@ -52,19 +53,15 @@ const paidSession = async (
   email: string,
   buyer: string,
 ) => {
-  const mockVerify = await stubWebhookVerify({
-    data: {
-      object: {
-        amount_total: total,
-        id: `cs_${ref}`,
-        metadata: signedMeta({ email, name: buyer, ...fields }, total),
-        payment_intent: `pi_${ref}`,
-        payment_status: "paid",
-      },
-    },
-    id: `evt_${ref}`,
-    type: "checkout.session.completed",
-  });
+  const mockVerify = await stubWebhookVerify(
+    checkoutSessionEvent({
+      amountTotal: total,
+      eventId: `evt_${ref}`,
+      metadata: signedMeta({ email, name: buyer, ...fields }, total),
+      paymentIntent: `pi_${ref}`,
+      sessionId: `cs_${ref}`,
+    }),
+  );
   const mockRefund = stub(stripeApi, "refundPayment", () =>
     Promise.resolve({
       id: `re_${ref}`,
