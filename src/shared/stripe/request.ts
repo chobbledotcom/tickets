@@ -101,6 +101,34 @@ const shouldRetry = (response: Response): boolean => {
   return response.status === 409 || response.status >= 500;
 };
 
+/**
+ * Stripe returns HTTP 429 with `error.code === "lock_timeout"` when two
+ * concurrent requests contend on the same resource (e.g. a refund racing a
+ * webhook). Stripe's own SDK and the rate-limits docs both treat these as
+ * retryable. Without a retry, replacing stripe-node can make a retryable
+ * refund or PaymentIntent lookup fail immediately instead of using the
+ * configured retry budget. The rate-limit 429 (no lock_timeout) is NOT
+ * retried here — Stripe marks those with `stripe-should-retry` when it wants
+ * a retry, otherwise they should surface immediately. The clone keeps the
+ * original body readable for the error path if we do not retry.
+ *
+ * https://docs.stripe.com/rate-limits#object-lock-timeouts
+ */
+const isLockTimeoutResponse = async (response: Response): Promise<boolean> => {
+  if (response.status !== 429) return false;
+  try {
+    const body = (await response.clone().json()) as {
+      error?: { code?: unknown; type?: unknown };
+    };
+    return (
+      body?.error?.code === "lock_timeout" ||
+      body?.error?.type === "lock_timeout"
+    );
+  } catch {
+    return false;
+  }
+};
+
 const connectionError = (
   error: unknown,
   retry: number,
@@ -272,7 +300,7 @@ export const createStripeRequest = (
       }
       if (
         retriesRemain(retry, config.maxNetworkRetries) &&
-        shouldRetry(response)
+        (shouldRetry(response) || (await isLockTimeoutResponse(response)))
       ) {
         await cancelResponseBody(response);
         await config.sleep(

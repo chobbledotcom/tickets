@@ -51,7 +51,6 @@ const testStripeConnection = async (session: BrowserSession): Promise<void> => {
 type StripeCheckoutEvent = {
   checkoutId: string;
   eventId: string;
-  pendingWebhooks: number;
 };
 
 const stripeCheckoutEvents = (value: unknown): StripeCheckoutEvent[] => {
@@ -67,8 +66,6 @@ const stripeCheckoutEvents = (value: unknown): StripeCheckoutEvent[] => {
       item === null ||
       !("id" in item) ||
       typeof item.id !== "string" ||
-      !("pending_webhooks" in item) ||
-      typeof item.pending_webhooks !== "number" ||
       !("data" in item) ||
       typeof item.data !== "object" ||
       item.data === null ||
@@ -83,7 +80,6 @@ const stripeCheckoutEvents = (value: unknown): StripeCheckoutEvent[] => {
     return {
       checkoutId: item.data.object.id,
       eventId: item.id,
-      pendingWebhooks: item.pending_webhooks,
     };
   });
 };
@@ -92,6 +88,18 @@ const waitForStripeWebhook = async (
   secretKey: string,
   sessionId: string,
 ): Promise<void> => {
+  // Wait for Stripe to record the checkout.session.completed event for this
+  // session. The booking is already confirmed in the app (the caller asserted
+  // assertPaidBookingConfirmed before invoking afterPaidBooking), which means
+  // our own webhook endpoint has already received and processed the event.
+  // We deliberately do NOT gate on `pending_webhooks === 0`: that counter is
+  // account-wide, so a stale enabled webhook endpoint left behind by an
+  // earlier canceled/failed run (still cleaned up only in `cleanup`, which
+  // runs in finally AFTER this wait) would keep the counter > 0 and stall
+  // the nightly Stripe leg even though our endpoint has already acknowledged.
+  // Gating on the event existing is enough: Stripe has persisted it, our
+  // endpoint has acknowledged (booking is confirmed), and the refund step
+  // below reads the PaymentIntent — not this event.
   const delivered = await pollUntil(
     config.paymentConfirmTimeoutMs,
     async () => {
@@ -107,7 +115,7 @@ const waitForStripeWebhook = async (
       const event = stripeCheckoutEvents(await response.json()).find(
         ({ checkoutId }) => checkoutId === sessionId,
       );
-      return event?.pendingWebhooks === 0 ? event : null;
+      return event ?? null;
     },
   );
   if (delivered) {
@@ -117,7 +125,7 @@ const waitForStripeWebhook = async (
     return;
   }
   throw new Error(
-    `Stripe did not finish webhook delivery for checkout ${sessionId} within ${config.paymentConfirmTimeoutMs}ms`,
+    `Stripe did not record the checkout.session.completed event for ${sessionId} within ${config.paymentConfirmTimeoutMs}ms`,
   );
 };
 

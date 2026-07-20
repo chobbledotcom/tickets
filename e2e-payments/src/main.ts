@@ -171,7 +171,10 @@ const reportFailure = async (
   // replace the original error a caller is about to rethrow.
   if (session) await session.screenshot(`fail-${target}`).catch(() => {});
   if (server) dumpServerLog(server.logPath);
-  await notifyFailure(target);
+  // notifyFailure has its own internal try/catch, but guard the await so a
+  // future change to that helper can never overwrite the journey error: the
+  // original error must always be the one rethrown, regardless of ntfy state.
+  await notifyFailure(target).catch(() => {});
   throw error;
 };
 

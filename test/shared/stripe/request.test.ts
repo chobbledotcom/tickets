@@ -349,6 +349,63 @@ describe("Stripe request transport", () => {
     expect(waits).toEqual([500]);
   });
 
+  test("retries a 429 lock_timeout (object contention)", async () => {
+    // Stripe returns 429 with `error.code === "lock_timeout"` when two
+    // concurrent requests contend on the same resource. Stripe's docs and
+    // SDK treat these as retryable, so the transport must use the configured
+    // retry budget — replacing stripe-node must not turn a retryable refund
+    // or PaymentIntent lookup into an immediate failure.
+    const { client, waits } = retryingBalance(
+      Response.json(
+        {
+          error: {
+            code: "lock_timeout",
+            message: "Locked",
+            type: "lock_timeout",
+          },
+        },
+        { status: 429 },
+      ),
+    );
+    expect(await client.balance.retrieve()).toEqual({ livemode: false });
+    expect(waits).toEqual([500]);
+  });
+
+  test("does not retry a 429 rate-limit without lock_timeout", async () => {
+    // A vanilla 429 rate-limit is only retryable when Stripe asks for it via
+    // `stripe-should-retry: true`; without that header the transport surfaces
+    // the rate-limit immediately rather than compounding it with retries.
+    const { client, waits } = retryingBalance(
+      Response.json(
+        {
+          error: {
+            code: "rate_limit",
+            message: "Slow down",
+            type: "rate_limit_error",
+          },
+        },
+        { status: 429 },
+      ),
+    );
+    await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
+      StripeApiError,
+    );
+    expect(waits).toEqual([]);
+  });
+
+  test("does not retry a 429 whose body cannot be parsed as JSON", async () => {
+    // If the 429 body is not valid JSON, the lock_timeout check fails and
+    // falls through to the error path: the response is surfaced as a
+    // StripeProtocolError (Invalid JSON) without a retry.
+    const { client, waits } = retryingBalance(
+      new Response("not json", { status: 429 }),
+    );
+    await expect(client.balance.retrieve()).rejects.toBeInstanceOf(
+      StripeProtocolError,
+    );
+    expect(waits).toEqual([]);
+  });
+
   test("cancels a retry response body", async () => {
     let cancelled = false;
     const body = new ReadableStream({
@@ -395,8 +452,10 @@ describe("Stripe request transport", () => {
     expect(error).toBeInstanceOf(StripeApiError);
     // Structured fields are the privacy-safe surface (sanitizeStripeError
     // reads these and never logs Stripe's raw message). The raw response's
-    // error.code/type/request-id surface here verbatim, while every other
-    // field of the response body stays off the error object.
+    // error.code/type/request-id surface here verbatim. error.message is
+    // the deliberate exception: it mirrors Stripe's error.message for
+    // stripe-node parity, and the privacy protection lives one layer up
+    // in sanitizeStripeError (runtime.ts:31), which never logs it.
     expect(error).toMatchObject({
       code: "resource_missing",
       requestId: "req_1",
@@ -405,8 +464,8 @@ describe("Stripe request transport", () => {
     });
     expect(error.name).toBe("StripeApiError");
     // The structured fields must not bleed Stripe's raw message into
-    // themselves — that field is reserved for error.message (which mirrors
-    // stripe-node parity and is never logged).
+    // themselves — they are the privacy-safe surface. error.message is
+    // intentionally excluded from this invariant (see the comment above).
     expect(error.code).not.toContain("Private value");
     expect(error.type).not.toContain("Private value");
     expect(error.requestId).not.toContain("Private value");
