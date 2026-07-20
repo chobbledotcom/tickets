@@ -67,7 +67,13 @@ const requestConfig = (maxNetworkRetries?: number): StripeClientConfig => {
 const create = (secretKey: string, maxNetworkRetries?: number): StripeClient =>
   createStripeClient(secretKey, requestConfig(maxNetworkRetries));
 
-const runtimeConfig = (): StripeRuntimeConfig | null => {
+/**
+ * Resolve the active Stripe runtime config, or null when no secret key is
+ * configured. The `OrNull` suffix marks the null result as a deliberate,
+ * expected absence — the caller (cachedClientFactory) treats it as
+ * "provider unconfigured" and skips client creation.
+ */
+const runtimeConfigOrNull = (): StripeRuntimeConfig | null => {
   const secretKey = settings.stripe.secretKey;
   if (!secretKey) return null;
   return {
@@ -79,7 +85,7 @@ const runtimeConfig = (): StripeRuntimeConfig | null => {
 const cache = cachedClientFactory({
   create: (config: StripeRuntimeConfig) =>
     createStripeClient(config.secretKey, config.clientConfig),
-  getConfig: runtimeConfig,
+  getConfig: runtimeConfigOrNull,
   isSameConfig: (a: StripeRuntimeConfig, b: StripeRuntimeConfig) =>
     a.secretKey === b.secretKey &&
     a.clientConfig.apiBase === b.clientConfig.apiBase &&

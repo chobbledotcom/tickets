@@ -67,27 +67,22 @@ describeStripe("stripe-provider", () => {
   describe("setupWebhookEndpoint delegation", () => {
     test("delegates to stripe.ts setupWebhookEndpoint", async () => {
       // Mock stripeApi since setupWebhookEndpointImpl creates its own client
-      const origSetup = stripeApi.setupWebhookEndpoint;
-      stripeApi.setupWebhookEndpoint = (_key, _url, _existing) =>
+      using _mockSetup = stub(stripeApi, "setupWebhookEndpoint", () =>
         Promise.resolve({
           endpointId: "we_provider_created",
           secret: "whsec_provider_secret",
           success: true,
-        });
+        }),
+      );
+      const result = await stripePaymentProvider.setupWebhookEndpoint(
+        "sk_test_mock",
+        "https://example.com/payment/webhook",
+      );
 
-      try {
-        const result = await stripePaymentProvider.setupWebhookEndpoint(
-          "sk_test_mock",
-          "https://example.com/payment/webhook",
-        );
-
-        expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.endpointId).toBe("we_provider_created");
-          expect(result.secret).toBe("whsec_provider_secret");
-        }
-      } finally {
-        stripeApi.setupWebhookEndpoint = origSetup;
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.endpointId).toBe("we_provider_created");
+        expect(result.secret).toBe("whsec_provider_secret");
       }
     });
   });
@@ -286,18 +281,14 @@ describeStripe("stripe-provider", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
       // Stub stripeApi.createCheckoutSession to throw a generic error
       // that propagates through to withUserError's catch
-      const origFn = stripeApi.createCheckoutSession;
-      stripeApi.createCheckoutSession = () =>
-        Promise.reject(new TypeError("unexpected"));
-      try {
-        const result = await stripePaymentProvider.createCheckoutSession(
-          checkoutIntent({ email: "john@example.com", name: "John" }),
-          "http://localhost:3000",
-        );
-        expect(result).toBeNull();
-      } finally {
-        stripeApi.createCheckoutSession = origFn;
-      }
+      using _mockCreate = stub(stripeApi, "createCheckoutSession", () =>
+        Promise.reject(new TypeError("unexpected")),
+      );
+      const result = await stripePaymentProvider.createCheckoutSession(
+        checkoutIntent({ email: "john@example.com", name: "John" }),
+        "http://localhost:3000",
+      );
+      expect(result).toBeNull();
     });
   });
 

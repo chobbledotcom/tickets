@@ -167,7 +167,9 @@ const reportFailure = async (
 ): Promise<never> => {
   const message = error instanceof Error ? error.message : String(error);
   fail(`FAIL — ${target}: ${message}`);
-  if (session) await session.screenshot(`fail-${target}`);
+  // Each step is isolated so a failure in one cannot skip the rest or
+  // replace the original error a caller is about to rethrow.
+  if (session) await session.screenshot(`fail-${target}`).catch(() => {});
   if (server) dumpServerLog(server.logPath);
   await notifyFailure(target);
   throw error;
@@ -179,14 +181,17 @@ const stopRun = async (
   payment: ConfiguredPayment | null,
   server: AppServer | null,
 ): Promise<void> => {
-  if (session) await session.stop();
-  if (tunnel) await tunnel.stop();
+  // Each teardown step is isolated so a failure in one cannot prevent the
+  // rest from running — otherwise a failed session.stop could leave the
+  // app-server child alive and the CI job would hang instead of failing.
+  if (session) await session.stop().catch(() => {});
+  if (tunnel) await tunnel.stop().catch(() => {});
   // Cleanup is best-effort because this runs after both passes and failures.
   // A failed provider cleanup must not hide the original journey result.
   if (payment?.provider.cleanup) {
     await payment.provider.cleanup(payment.secrets).catch(() => {});
   }
-  if (server) await server.stop();
+  if (server) await server.stop().catch(() => {});
 };
 
 type RunResult = "executed" | "skipped";

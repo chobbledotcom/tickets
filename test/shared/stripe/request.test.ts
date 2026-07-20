@@ -373,7 +373,7 @@ describe("Stripe request transport", () => {
     expect(waits).toEqual([500]);
   });
 
-  test("returns structured error fields without exposing the response body", async () => {
+  test("returns structured error fields from a non-ok response", async () => {
     const client = createStripeClient("sk_test_secret", {
       fetch: () =>
         Promise.resolve(
@@ -393,6 +393,10 @@ describe("Stripe request transport", () => {
 
     const error = await client.balance.retrieve().catch((caught) => caught);
     expect(error).toBeInstanceOf(StripeApiError);
+    // Structured fields are the privacy-safe surface (sanitizeStripeError
+    // reads these and never logs Stripe's raw message). The raw response's
+    // error.code/type/request-id surface here verbatim, while every other
+    // field of the response body stays off the error object.
     expect(error).toMatchObject({
       code: "resource_missing",
       requestId: "req_1",
@@ -400,6 +404,12 @@ describe("Stripe request transport", () => {
       type: "invalid_request_error",
     });
     expect(error.name).toBe("StripeApiError");
+    // The structured fields must not bleed Stripe's raw message into
+    // themselves — that field is reserved for error.message (which mirrors
+    // stripe-node parity and is never logged).
+    expect(error.code).not.toContain("Private value");
+    expect(error.type).not.toContain("Private value");
+    expect(error.requestId).not.toContain("Private value");
   });
 
   test("fails loudly on invalid success JSON", async () => {

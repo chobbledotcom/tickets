@@ -167,6 +167,16 @@ export const buildProviderLineItems = <Item>(
   ...order.extras.map((extra) => render.extra(extra, currency)),
 ];
 
+/** Run an operation with the lazily-resolved client. Returns null when the
+ * client is unconfigured or the operation fails (unless the error should
+ * propagate). The named type keeps the contract visible to callers of the
+ * widely-used `stripeClientRuntime.run` so a signature drift fails at the
+ * definition instead of leaking to callers. */
+export type ClientRunner<Client> = <T>(
+  fn: (value: Client) => Promise<T>,
+  errorCode: ErrorCodeType,
+) => Promise<T | null>;
+
 /**
  * Create a withClient helper that runs an operation with a lazily-resolved client.
  * Returns null if the client is not available or the operation fails.
@@ -174,7 +184,7 @@ export const buildProviderLineItems = <Item>(
 export const createWithClient = <Client>(
   getClient: () => Client | null | Promise<Client | null>,
   errorHandling: AsyncErrorHandling = {},
-) => guardedWithValue(getClient, errorHandling);
+): ClientRunner<Client> => guardedWithValue(getClient, errorHandling);
 
 /** Convert registration line items to compact, edge-tagged booking items (v2).
  * Each package member line carries ITS OWN package edge (`k:"p"`, `r`=its group

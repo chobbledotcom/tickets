@@ -132,8 +132,18 @@ describeWithEnv(
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}/edit`)
         ).text();
-        expect(html).toContain('class="line-qty"');
-        expect(html).not.toContain('style="width:5em"');
+        // Scope the assertions to the quantity input itself: broad
+        // html.toContain('class="line-qty"') would also pass if the class
+        // appeared on an unrelated element, and html.not.toContain the
+        // inline width style would also pass if it sat on a different tag.
+        const qtyInputMatch = html.match(
+          /<input\b[^>]*\bclass="line-qty"[^>]*>/,
+        );
+        expect(qtyInputMatch).not.toBeNull();
+        const qtyInput = qtyInputMatch?.[0] ?? "";
+        expect(qtyInput).toContain('class="line-qty"');
+        expect(qtyInput).toContain('type="number"');
+        expect(qtyInput).not.toMatch(/\bstyle\s*=/);
       });
 
       test("marking a checked-in line no-quantity clears its check-in", async () => {

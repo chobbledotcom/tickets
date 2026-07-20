@@ -24,10 +24,6 @@ import { fillSoldOutListing } from "../../../lib/server-payments/_shared-setup.t
 
 describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/success", () => {
-    // Some tests here configure Stripe without installing mocks (so no
-    // withMocks cleanup runs); reset the client after each so configuration
-    // never leaks into the next test.
-
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/success"));
       await expectHtmlResponse(response, 400, "Invalid payment callback");

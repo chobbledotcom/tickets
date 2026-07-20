@@ -20,10 +20,15 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     const previousSecretKey = settings.stripe.secretKey;
     const previousEndpointId = settings.stripe.webhookEndpointId;
     const keyChanged = previousSecretKey !== value;
+    // Always pass the recorded endpoint id. If the new key is on the same
+    // Stripe account, setup's limit-retry path keeps it live until the new
+    // endpoint has been created and saved; the cleanup calls below remove it
+    // once the replacement is in place. Passing undefined on a key rotation
+    // would let the retry delete the live webhook before a replacement exists.
     const result = await stripeApi.setupWebhookEndpoint(
       value,
       webhookUrl,
-      keyChanged ? undefined : previousEndpointId,
+      previousEndpointId,
     );
     if (!result.success) {
       return `Failed to set up Stripe webhook: ${result.error}`;
