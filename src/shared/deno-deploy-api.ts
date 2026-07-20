@@ -12,11 +12,12 @@ import {
   getDenoDeployToken,
   slugifyForProvider,
 } from "#shared/config.ts";
-import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
+import { fetchText, parseApiError } from "#shared/fetch.ts";
 import type {
   HostingProviderApi,
   PrepareSiteFn,
 } from "#shared/provider-types.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /* jscpd:ignore-end */
 
@@ -55,7 +56,7 @@ export const slugifyForDeno = (name: string): string => {
  */
 const createAppImpl = async (
   slug: string,
-): Promise<ApiResult<{ appId: string; slug: string }>> => {
+): Promise<Result<{ appId: string; slug: string }>> => {
   const orgId = getDenoDeployOrgId();
   const res = await fetchText(`${DENO_API_BASE}/apps`, {
     body: JSON.stringify({ orgId, slug }),
@@ -66,23 +67,20 @@ const createAppImpl = async (
   if (!res.ok) return parseApiError(res, "Create app");
 
   const data: CreateAppResponse = JSON.parse(res.text);
-  return { appId: data.id, ok: true, slug: data.slug };
+  return okResult({ appId: data.id, slug: data.slug });
 };
 
 /** Fetch the current env vars for a Deno Deploy app. */
 const fetchAppEnvVars = async (
   appId: string,
-): Promise<
-  | { ok: true; envVars: Record<string, { value: string; is_secret: boolean }> }
-  | { ok: false; error: string }
-> => {
+): Promise<Result<Record<string, { value: string; is_secret: boolean }>>> => {
   const res = await fetchText(
     `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
     { headers: denoApiHeaders() },
   );
   if (!res.ok) return parseApiError(res, "Get app");
   const data: GetAppResponse = JSON.parse(res.text);
-  return { envVars: data.env_vars ?? {}, ok: true };
+  return okResult(data.env_vars ?? {});
 };
 
 /**
@@ -109,9 +107,8 @@ const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
     },
   );
 
-  return patchRes.ok
-    ? { ok: true as const }
-    : parseApiError(patchRes, "Set app env vars");
+  if (!patchRes.ok) return parseApiError(patchRes, "Set app env vars");
+  return okResult(undefined);
 };
 
 /**
@@ -137,19 +134,18 @@ const deployCodeImpl: HostingProviderApi["publishSite"] = async (
     },
   );
 
-  return res.ok ? { ok: true } : parseApiError(res, "Deploy code");
+  if (!res.ok) return parseApiError(res, "Deploy code");
+  return okResult(undefined);
 };
 
 /**
  * Get the names of environment variables currently set on a Deno Deploy app.
  * Used by the secrets backfill UI to diff against the expected set.
  */
-const getEnvVarNamesImpl = async (
-  appId: string,
-): Promise<ApiResult<{ names: string[] }>> => {
+const getEnvVarNamesImpl = async (appId: string): Promise<Result<string[]>> => {
   const appResult = await fetchAppEnvVars(appId);
   if (!appResult.ok) return appResult;
-  return { names: Object.keys(appResult.envVars), ok: true };
+  return okResult(Object.keys(appResult.value));
 };
 
 /** Stubbable API for testing */
@@ -163,28 +159,24 @@ export const denoDeployApi = {
 const prepareDenoSiteImpl: PrepareSiteFn = async (name, _code, secrets) => {
   const createResult = await denoDeployApi.createApp(slugifyForDeno(name));
   if (!createResult.ok) return createResult;
-  const setResult = await denoDeployApi.setEnvVars(createResult.appId, secrets);
+  const setResult = await denoDeployApi.setEnvVars(
+    createResult.value.appId,
+    secrets,
+  );
   if (!setResult.ok) {
-    return {
-      error: `Failed to set secrets: ${setResult.error}`,
-      ok: false as const,
-    };
+    return errorResult(`Failed to set secrets: ${setResult.error}`);
   }
-  return {
-    defaultHostname: `https://${createResult.slug}.deno.dev`,
-    hostingId: createResult.appId,
-    ok: true as const,
-  };
+  return okResult({
+    defaultHostname: `https://${createResult.value.slug}.deno.dev`,
+    hostingId: createResult.value.appId,
+  });
 };
 
 export const denoHostingProvider: HostingProviderApi = {
   configEnvVar: "DENO_DEPLOY_TOKEN",
   getSecretNames: (hostingId) => denoDeployApi.getEnvVarNames(hostingId),
   prepareSite: prepareDenoSiteImpl,
-  publishSite: async (hostingId, code) => {
-    const result = await denoDeployApi.deployCode(hostingId, code);
-    return result.ok ? { ok: true } : result;
-  },
+  publishSite: (hostingId, code) => denoDeployApi.deployCode(hostingId, code),
   setSecrets: (hostingId, secrets) =>
     denoDeployApi.setEnvVars(hostingId, secrets),
 };

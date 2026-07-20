@@ -22,6 +22,7 @@ import {
   siteHostingAccess,
 } from "#shared/builder.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import type { Result } from "#shared/result.ts";
 import { tryStep } from "#shared/try-step.ts";
 
 /**
@@ -63,7 +64,7 @@ export type SiteSecretsView =
 const listSecretNames = (
   site: BuiltSite,
   hostingId: string,
-): Promise<{ ok: true; names: string[] } | { ok: false; error: string }> =>
+): Promise<Result<string[]>> =>
   tryStep("Failed to list secrets", () =>
     resolveHostingProvider(site.hostingProvider).getSecretNames(hostingId),
   );
@@ -90,8 +91,8 @@ const resolveSiteSecrets = async (
   return {
     data: {
       hostingId: pre.hostingId,
-      names: listed.names,
-      present: new Set(listed.names),
+      names: listed.value,
+      present: new Set(listed.value),
     },
     ok: true,
   };

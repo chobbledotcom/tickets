@@ -35,7 +35,7 @@ export const submittedValueProps = (
   rejected
     ? {
         error: rejected.error,
-        values: Object.fromEntries(rejected.form.entries()),
+        values: rejected.form.toRenderValues(),
       }
     : {};
 

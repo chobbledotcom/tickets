@@ -15,5 +15,7 @@ export const DAY_NAMES = [
   "Saturday",
 ] as const;
 
+const [sunday, ...mondayFirst] = DAY_NAMES;
+
 /** Valid day names for bookable_days (Monday-first for display) */
-export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
+export const VALID_DAY_NAMES = [...mondayFirst, sunday] as const;

@@ -33,7 +33,7 @@ import {
   saleLegPredicate,
 } from "#shared/accounting/projection-sql.ts";
 import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { requireOne } from "#shared/db/client.ts";
 import type { Listing } from "#shared/types.ts";
 import { isPaidListing } from "#shared/types.ts";
 
@@ -140,13 +140,13 @@ const incompleteSales = async (listingId: number): Promise<number> => {
     "CAST(saleLeg.source_id AS INTEGER)",
   )} <= 0`;
   const notRefundedSale = notRefunded("CAST(saleLeg.source_id AS INTEGER)");
-  const row = (await queryOne<{ incomplete_sales: number | bigint }>(
+  const row = await requireOne<{ incomplete_sales: number | bigint }>(
     `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
        FROM transfers AS saleLeg
       WHERE ${saleToRevenue} AND ${noPayment} AND ${noProviderReference}
         AND ${nothingOwed} AND ${notRefundedSale}`,
     [String(listingId)],
-  ))!;
+  );
   return Number(row.incomplete_sales);
 };
 
@@ -165,7 +165,7 @@ export const getListingOverviewStats = async (
   const paid = isPaidListing(listing);
   const incomplete = incompleteRowPredicate(paid);
   const confirmed = `NOT ${incomplete} AND listingAttendee.quantity > 0`;
-  const countsPromise = queryOne<OverviewCountsRow>(
+  const countsPromise = requireOne<OverviewCountsRow>(
     `SELECT
        COALESCE(SUM(CASE WHEN ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS incomplete_quantity,
        COALESCE(SUM(CASE WHEN NOT ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS complete_quantity_sum,

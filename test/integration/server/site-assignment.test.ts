@@ -750,7 +750,7 @@ describeWithEnv(
       body: (setStub: SetEnvVarsStub) => Promise<T>,
     ): Promise<T> => {
       const setStub = stub(denoDeployApi, "setEnvVars", () =>
-        Promise.resolve({ ok: true as const }),
+        Promise.resolve({ ok: true as const, value: undefined }),
       );
       try {
         return await body(setStub);

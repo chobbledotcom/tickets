@@ -19,7 +19,7 @@
  * keeps its link (its page serves with noindex). Page targets are always live.
  */
 
-import { filter, map, pipe, unique } from "#fp";
+import { compact, filter, map, pipe, unique } from "#fp";
 import { getHiddenPackageMemberIds, groups } from "#shared/db/groups.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { hasNewsPosts } from "#shared/db/news-posts.ts";
@@ -54,10 +54,11 @@ const resolveTargets = async (
 ): Promise<TargetMap> => {
   const listingIds = leafIds(items, "listing");
   const groupIds = leafIds(items, "group");
-  const [referenced, allGroups] = await Promise.all([
+  const [referencedRows, allGroups] = await Promise.all([
     getListingsWithCountsByIds(listingIds),
     groups.cache.getAll(),
   ]);
+  const referenced = compact(referencedRows);
   const referencedGroups = allGroups.filter((group) =>
     groupIds.includes(group.id),
   );

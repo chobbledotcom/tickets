@@ -5,10 +5,10 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
-  defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import { col, defineTableProjection } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";

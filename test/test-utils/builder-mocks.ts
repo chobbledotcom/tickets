@@ -4,6 +4,7 @@ import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
+import { okResult } from "#shared/result.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
@@ -18,10 +19,12 @@ type DenoEnvResult = Awaited<ReturnType<typeof denoDeployApi.setEnvVars>>;
 
 /** Standard auto-created-database result used across builder tests. */
 export const MOCK_DB_RESULT = {
-  dbId: "db_auto123",
-  dbToken: "auto-token",
-  dbUrl: "libsql://auto.lite.bunnydb.net",
   ok: true as const,
+  value: {
+    dbId: "db_auto123",
+    dbToken: "auto-token",
+    dbUrl: "libsql://auto.lite.bunnydb.net",
+  },
 };
 
 interface ReleaseOptions {
@@ -165,20 +168,15 @@ interface DenoBuilderMockOptions {
 export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
   createAppStub: stub(denoDeployApi, "createApp", () =>
     Promise.resolve(
-      opts.createAppResult ?? {
-        appId: "app_abc123",
-        ok: true as const,
-        slug: "tickets-test",
-      },
+      opts.createAppResult ??
+        okResult({
+          appId: "app_abc123",
+          slug: "tickets-test",
+        }),
     ),
   ),
   deployStub: stub(denoDeployApi, "deployCode", () =>
-    Promise.resolve(
-      opts.deployResult ?? {
-        hostname: "https://tickets-test.deno.dev",
-        ok: true as const,
-      },
-    ),
+    Promise.resolve(opts.deployResult ?? okResult(undefined)),
   ),
   encKeyStub: stub(
     builderApi,
@@ -187,7 +185,7 @@ export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
   ),
   fetchStub: stubBuilderFetch(opts.onOther, opts.releaseOpts),
   setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
-    Promise.resolve(opts.setEnvResult ?? { ok: true as const }),
+    Promise.resolve(opts.setEnvResult ?? okResult(undefined)),
   ),
 });
 

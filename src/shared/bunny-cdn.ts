@@ -15,6 +15,7 @@ import { type FetchResult, fetchText, parseApiError } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -575,13 +576,14 @@ const deployScriptCodeImpl = async (
 // Hosting provider interface implementation (site builder + secrets backfill)
 // ---------------------------------------------------------------------------
 
+const bunnyVoidResult = (result: BunnyApiResult): Result<void> =>
+  result.ok ? okResult(undefined) : errorResult(result.error);
+
 export const bunnyHostingProvider: HostingProviderApi = {
   configEnvVar: "BUNNY_API_KEY",
   async getSecretNames(hostingId) {
     const result = await bunnyCdnApi.listEdgeScriptSecrets(Number(hostingId));
-    return result.ok
-      ? { names: result.secrets.map((s) => s.Name), ok: true as const }
-      : result;
+    return result.ok ? okResult(result.secrets.map((s) => s.Name)) : result;
   },
   async prepareSite(name, code, secrets) {
     const createResult = await bunnyCdnApi.createEdgeScript(name, code);
@@ -607,18 +609,21 @@ export const bunnyHostingProvider: HostingProviderApi = {
           ok: false as const,
         };
     }
-    return { defaultHostname, hostingId: String(scriptId), ok: true as const };
+    return okResult({ defaultHostname, hostingId: String(scriptId) });
   },
-  publishSite: (hostingId) => bunnyCdnApi.publishEdgeScript(Number(hostingId)),
+  async publishSite(hostingId) {
+    return bunnyVoidResult(
+      await bunnyCdnApi.publishEdgeScript(Number(hostingId)),
+    );
+  },
   async setSecrets(hostingId, secrets) {
     const scriptId = Number(hostingId);
-    if (Number.isNaN(scriptId))
-      return { error: "No hostingId", ok: false as const };
+    if (Number.isNaN(scriptId)) return errorResult("No hostingId");
     for (const [name, value] of secrets) {
       const r = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
       if (!r.ok) return r;
     }
-    return { ok: true as const };
+    return okResult(undefined);
   },
 };
 
@@ -660,7 +665,8 @@ export const getCdnHostname = (): Promise<CdnHostnameResult> =>
 
 /** Upload and publish new script code to a Bunny edge script (defaults to this
  * host's own script when `scriptId` is omitted). */
-export const deployScriptCode = (
+export const deployScriptCode = async (
   code: string,
   scriptId?: number | string,
-): Promise<BunnyApiResult> => bunnyCdnApi.deployScriptCode(code, scriptId);
+): Promise<Result<void>> =>
+  bunnyVoidResult(await bunnyCdnApi.deployScriptCode(code, scriptId));

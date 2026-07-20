@@ -77,8 +77,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.createApp("my-app");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.appId).toBe("app_abc123");
-      expect(result.slug).toBe("my-app");
+      expect(result.value.appId).toBe("app_abc123");
+      expect(result.value.slug).toBe("my-app");
     }
     expect(captured.url).toContain("/v2/apps");
     expect(captured.body).toEqual({ orgId: "test-org-id", slug: "my-app" });
@@ -168,7 +168,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       "app_dc",
       "console.log('hello')",
     );
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, value: undefined });
     expect(captured.url).toBe("https://api.deno.com/v2/apps/app_dc/deploy");
     expect(captured.method).toBe("POST");
     expect(captured.body).toEqual({
@@ -216,9 +216,9 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.getEnvVarNames("app_gn");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.names).toContain("DB_URL");
-      expect(result.names).toContain("DB_TOKEN");
-      expect(result.names.length).toBe(2);
+      expect(result.value).toContain("DB_URL");
+      expect(result.value).toContain("DB_TOKEN");
+      expect(result.value.length).toBe(2);
     }
   });
 
@@ -231,18 +231,18 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.getEnvVarNames("app_empty");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.names).toEqual([]);
+      expect(result.value).toEqual([]);
     }
   });
 
-  test("getEnvVarNames returns empty array when env_vars field is absent", async () => {
+  test("getEnvVarNames returns empty when env_vars is omitted", async () => {
     using _fetch = stubFetch(
       new Response(JSON.stringify({ id: "app_no_ev", slug: "no-ev" })),
     );
     const result = await denoDeployApi.getEnvVarNames("app_no_ev");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.names).toEqual([]);
+      expect(result.value).toEqual([]);
     }
   });
 

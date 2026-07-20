@@ -27,7 +27,7 @@ describeWithEnv(
       const child = await site();
       stubs.push(
         stub(bunnyHostingProvider, "getSecretNames", () =>
-          Promise.resolve({ names: ["SCHEDULED_TASK_KEY"], ok: true }),
+          Promise.resolve({ ok: true, value: ["SCHEDULED_TASK_KEY"] }),
         ),
       );
 

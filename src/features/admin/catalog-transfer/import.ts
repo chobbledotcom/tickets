@@ -31,8 +31,8 @@ import {
 } from "#shared/db/listing-prices.ts";
 import {
   getListingsById,
-  getListingsWithCountsByIds,
   listingsTable,
+  requireListingsWithCountsByIds,
 } from "#shared/db/listings/records.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
@@ -58,6 +58,7 @@ import {
   listingInputToEdge,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { seenBefore } from "#shared/seen-before.ts";
 import {
   type AdminLevel,
@@ -82,11 +83,13 @@ import {
 
 /** The result of an import attempt: the created entity's kind/id/name, or an
  * operator-facing error explaining what to fix. */
-export type ImportResult =
-  | { ok: true; kind: "listing" | "group"; id: number; name: string }
-  | { ok: false; error: string };
+type ImportedEntity = {
+  kind: "listing" | "group";
+  id: number;
+  name: string;
+};
 
-const fail = (error: string): ImportResult => ({ error, ok: false });
+const fail = (error: string): Result<ImportedEntity> => errorResult(error);
 
 /** Resolve a list of names to ids within one entity kind, returning the ids or
  * the first reference that can't be resolved (missing or, on legacy duplicate
@@ -348,7 +351,7 @@ const applyImportPolicy = (
 const importListing = async (
   transfer: ListingTransfer,
   adminLevel: AdminLevel | undefined,
-): Promise<ImportResult> => {
+): Promise<Result<ImportedEntity>> => {
   const { groups: memberships, listing, parents } = transfer;
   if (await isNameTakenAnywhere(listing.name)) {
     return fail(nameTakenError(listing.name));
@@ -419,7 +422,7 @@ const importListing = async (
   // insertStatement bypassed the table wrapper, so re-sync the derived `base`
   // price row from the just-written `unit_price` column (as afterCommit does).
   await syncListingPrices(id);
-  return { id, kind: "listing", name: input.name, ok: true };
+  return okResult({ id, kind: "listing", name: input.name });
 };
 
 /** Every listing in a group must share both its type and its customisable-days
@@ -447,7 +450,9 @@ const membersHomogeneous = (
   return null;
 };
 
-const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
+const importGroup = async (
+  transfer: GroupTransfer,
+): Promise<Result<ImportedEntity>> => {
   const { group, members } = transfer;
   if (await isNameTakenAnywhere(group.name)) {
     return fail(nameTakenError(group.name));
@@ -461,9 +466,9 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
   );
   if ("error" in memberResolve) return fail(memberResolve.error);
 
-  const listings = await getListingsWithCountsByIds(memberResolve.ids);
-  // Members are few, so resolve each id against the loaded set directly (order
-  // preserved, missing dropped) rather than building an intermediate index.
+  const listings = await requireListingsWithCountsByIds(memberResolve.ids);
+  // Members are few, so resolve each required id against the loaded set
+  // directly, preserving order without building an intermediate index.
   const memberListings = mapNotNullish((id: number) =>
     listings.find((l) => l.id === id),
   )(memberResolve.ids);
@@ -507,7 +512,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
     null,
     (tx, newId) => writeMembershipsTx(tx, withNewId(specs, "groupId", newId)),
   );
-  return { id, kind: "group", name: input.name, ok: true };
+  return okResult({ id, kind: "group", name: input.name });
 };
 
 /**
@@ -521,7 +526,7 @@ const importGroup = async (transfer: GroupTransfer): Promise<ImportResult> => {
 export const importCatalog = async (
   blob: unknown,
   adminLevel?: AdminLevel,
-): Promise<ImportResult> => {
+): Promise<Result<ImportedEntity>> => {
   const parsed = v.safeParse(CatalogTransferSchema, blob);
   if (!parsed.success) return fail(formatTransferIssues(parsed.issues));
   return parsed.output.kind === "listing"

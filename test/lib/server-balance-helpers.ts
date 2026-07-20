@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
-import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { requirePaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -146,7 +146,7 @@ export const expectSettled = async (
   sessionId: string,
   attendeeId: number,
 ): Promise<void> => {
-  const paid = await getPaidDefaultStatus();
+  const paid = await requirePaidDefaultStatus();
   const response = await handleRequest(
     mockRequest(`/payment/success?session_id=${sessionId}`),
   );

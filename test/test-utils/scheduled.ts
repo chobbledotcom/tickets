@@ -32,9 +32,11 @@ export const stubBunnySchedulerSecrets = (
 ): void => {
   stubs.push(
     stub(bunnyHostingProvider, "getSecretNames", () =>
-      Promise.resolve({ names, ok: true }),
+      Promise.resolve({ ok: true, value: names }),
     ),
-    stub(bunnyHostingProvider, "setSecrets", () => Promise.resolve(result)),
+    stub(bunnyHostingProvider, "setSecrets", () =>
+      Promise.resolve(result.ok ? { ...result, value: undefined } : result),
+    ),
   );
 };
 

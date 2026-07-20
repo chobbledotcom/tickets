@@ -30,10 +30,7 @@ import { getSelectedAttributesForListings } from "#shared/db/attributes.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getNonStandaloneChildIds } from "#shared/db/listing-parents.ts";
-import {
-  getAllListings,
-  getListingNamesByIds,
-} from "#shared/db/listings/records.ts";
+import { getAllListings, listingNames } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
@@ -149,7 +146,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           newestAttendees,
           successMessage,
           stats,
-          settings.listingColumnOrder,
+          settings.listingColumnLayout,
           activeType,
           holidays,
           unbookableIds,
@@ -170,7 +167,9 @@ const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
     return adminListingsPage(
       listings,
       session,
-      settings.listingColumnOrder,
+      session.adminLevel === "editor"
+        ? undefined
+        : settings.listingColumnLayout,
       await loadListingAttributeFilterContext(request, listings),
     );
   });
@@ -220,7 +219,7 @@ const loadActivityLogRefs = async (
   const listingIds = unique(compact(entries.map((e) => e.listing_id)));
   const [attendees, listings] = await Promise.all([
     loadAttendeeLinkRefs(attendeeIds),
-    getListingNamesByIds(listingIds),
+    listingNames.byIds(listingIds),
   ]);
   return { attendees, listings };
 };
@@ -232,9 +231,7 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
   async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
     const truncated = entries.length > LOG_DISPLAY_LIMIT;
-    const displayEntries = truncated
-      ? entries.slice(0, LOG_DISPLAY_LIMIT)
-      : entries;
+    const displayEntries = entries.slice(0, LOG_DISPLAY_LIMIT);
     const refs = await loadActivityLogRefs(displayEntries);
     return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
   },

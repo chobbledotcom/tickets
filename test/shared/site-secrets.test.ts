@@ -5,6 +5,7 @@ import { collectHostSecrets } from "#shared/builder.ts";
 import { bunnyCdnApi, type EdgeScriptSecret } from "#shared/bunny-cdn.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
+import { okResult } from "#shared/result.ts";
 import {
   addMissingSiteSecrets,
   expectedSiteSecrets,
@@ -43,9 +44,9 @@ const expectedNamesFor = (site: BuiltSite): string[] =>
 type DenoSetResult = Awaited<ReturnType<typeof denoDeployApi.setEnvVars>>;
 
 /** Stub denoDeployApi.getEnvVarNames (returns empty) and setEnvVars (defaults to ok). */
-const stubDenoSecrets = (setResult: DenoSetResult = { ok: true as const }) => ({
+const stubDenoSecrets = (setResult: DenoSetResult = okResult(undefined)) => ({
   getStub: stub(denoDeployApi, "getEnvVarNames", () =>
-    Promise.resolve({ names: [], ok: true as const }),
+    Promise.resolve(okResult([])),
   ),
   setStub: stub(denoDeployApi, "setEnvVars", () => Promise.resolve(setResult)),
 });
@@ -298,10 +299,7 @@ describeWithEnv(
       await withMocks(
         () =>
           stub(denoDeployApi, "getEnvVarNames", () =>
-            Promise.resolve({
-              names: ["DB_URL", "DB_TOKEN"],
-              ok: true as const,
-            }),
+            Promise.resolve(okResult(["DB_URL", "DB_TOKEN"])),
           ),
         async () => {
           const view = await loadSiteSecretsStatus(site);

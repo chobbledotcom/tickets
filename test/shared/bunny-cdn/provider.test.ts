@@ -43,9 +43,11 @@ describeWithEnv(
           ["DB_URL", "libsql://child"],
         ]),
       ).toEqual({
-        defaultHostname: "child.b-cdn.net",
-        hostingId: "42",
         ok: true,
+        value: {
+          defaultHostname: "child.b-cdn.net",
+          hostingId: "42",
+        },
       });
       expect(pullZoneSettings).toEqual([{ DisableCookies: false }]);
       expect(secrets).toEqual([

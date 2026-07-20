@@ -5,7 +5,7 @@ import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   attendeeStatuses,
   getAttendeeStatus,
-  getPublicDefaultStatus,
+  requirePublicDefaultStatus,
 } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
@@ -159,7 +159,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       });
       await expectFlashRedirect(PATH, "Status created")(response);
 
-      const newDefault = await getPublicDefaultStatus();
+      const newDefault = await requirePublicDefaultStatus();
       expect(newDefault?.name).toBe("New Default");
       // The seed is no longer the public default.
       expect((await getAttendeeStatus(seed.id))?.is_public_default).toBe(false);

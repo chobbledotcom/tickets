@@ -15,11 +15,8 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
-import {
-  hasSiteDbCredentials,
-  readSiteSetting,
-  type SiteDbResult,
-} from "#shared/site-db.ts";
+import type { Result } from "#shared/result.ts";
+import { hasSiteDbCredentials, readSiteSetting } from "#shared/site-db.ts";
 /* jscpd:ignore-end */
 import { tryStep } from "#shared/try-step.ts";
 import {
@@ -77,7 +74,7 @@ export const deployAndReport = async (opts: {
 /** Read the version a built site recorded for itself, via its read-only keys. */
 export const readSiteScriptVersion = (
   site: BuiltSite,
-): Promise<SiteDbResult<string | null>> =>
+): Promise<Result<string | null>> =>
   readSiteSetting(site, CURRENT_SCRIPT_VERSION_KEY);
 
 /**

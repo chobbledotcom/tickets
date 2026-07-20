@@ -19,9 +19,6 @@ import type { Result } from "#shared/result.ts";
 /** Credentials needed to open a read-only connection to a site's database. */
 export type SiteDbCredentials = Pick<BuiltSite, "dbUrl" | "dbToken">;
 
-/** Result of a read against a site database. */
-export type SiteDbResult<T> = Result<T>;
-
 /** Stubbable client factory so tests can inject an in-memory database. */
 export const siteDbApi = {
   createClient: (url: string, authToken: string): Client =>
@@ -41,7 +38,7 @@ export const hasSiteDbCredentials = (creds: SiteDbCredentials): boolean =>
 export const withSiteDb = async <T>(
   creds: SiteDbCredentials,
   fn: (client: Client) => Promise<T>,
-): Promise<SiteDbResult<T>> => {
+): Promise<Result<T>> => {
   if (!creds.dbUrl)
     return { error: "No database URL for this site", ok: false };
   // Close on both the success and failure paths rather than in a `finally`:
@@ -68,7 +65,7 @@ export const withSiteDb = async <T>(
 export const readSiteSetting = (
   creds: SiteDbCredentials,
   key: string,
-): Promise<SiteDbResult<string | null>> =>
+): Promise<Result<string | null>> =>
   withSiteDb(creds, async (client) => {
     const result = await client.execute({
       args: [key],

@@ -204,10 +204,7 @@ describe("deployLatestReleaseToDeno", () => {
   test("fetches the latest release and deploys it to a Deno app", async () => {
     using _fetch = stubReleaseFetch();
     const deployStub = stub(denoDeployApi, "deployCode", () =>
-      Promise.resolve({
-        hostname: "https://app.deno.dev",
-        ok: true as const,
-      }),
+      Promise.resolve({ ok: true as const, value: undefined }),
     );
     try {
       await runWithSubrequestBudget(async () => {

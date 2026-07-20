@@ -23,8 +23,8 @@ import { escapeHtml } from "#templates/layout.tsx";
 
 /** The ordered column layout a listings table (or single row) renders from. */
 type ListingColumnArgs = {
-  columnKeys: string[];
-  filters: Map<string, string>;
+  columnKeys: readonly string[];
+  filters: ReadonlyMap<string, string>;
   columns?: ColumnGenerators<ListingWithCount>;
 };
 
@@ -51,7 +51,7 @@ export const ListingRow = ({
 
 /** The subset of `columnKeys` that the given column set actually defines. */
 export const validListingColumnKeys = (
-  columnKeys: string[],
+  columnKeys: readonly string[],
   columns: ColumnGenerators<ListingWithCount>,
 ): string[] => columnKeys.filter((key) => columns[key]);
 
@@ -82,7 +82,7 @@ export const renderListingRows = ({
 /** Render the listing table with dynamic column keys. `columns` defaults to the
  * staff column set; the editor variant passes its money-free set. */
 export const renderListingTable = (
-  columnKeys: string[],
+  columnKeys: readonly string[],
   rows: string,
   columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
@@ -95,8 +95,8 @@ export const renderListingTable = (
 
 export const renderListingsTableSection = (
   listings: ListingWithCount[],
-  columnKeys: string[],
-  filters: Map<string, string>,
+  columnKeys: readonly string[],
+  filters: ReadonlyMap<string, string>,
   columns: ColumnGenerators<ListingWithCount> = LISTING_TABLE_COLUMNS,
 ): string => {
   const listingRows = renderListingRows({

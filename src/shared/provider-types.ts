@@ -1,23 +1,39 @@
-import type { ApiResult } from "#shared/fetch.ts";
+import { okResult, type Result } from "#shared/result.ts";
+
+export interface DatabaseCredentials {
+  dbId: string;
+  dbToken: string;
+  dbUrl: string;
+}
+
+export const databaseCredentialsFromResponse = (
+  dbId: string,
+  dbUrl: string,
+  text: string,
+  tokenKey: string,
+): Result<DatabaseCredentials> => {
+  const token = JSON.parse(text)[tokenKey];
+  if (typeof token !== "string") {
+    throw new Error(`Database response is missing ${tokenKey}`);
+  }
+  return okResult({ dbId, dbToken: token, dbUrl });
+};
 
 export type PrepareSiteFn = (
   name: string,
   code: string,
   secrets: [string, string][],
-) => Promise<ApiResult<{ hostingId: string; defaultHostname: string }>>;
+) => Promise<Result<{ hostingId: string; defaultHostname: string }>>;
 
 export interface HostingProviderApi {
   configEnvVar: string;
-  getSecretNames(hostingId: string): Promise<ApiResult<{ names: string[] }>>;
+  getSecretNames(hostingId: string): Promise<Result<string[]>>;
   prepareSite: PrepareSiteFn;
-  publishSite(
-    hostingId: string,
-    code: string,
-  ): Promise<ApiResult<Record<never, never>>>;
+  publishSite(hostingId: string, code: string): Promise<Result<void>>;
   setSecrets(
     hostingId: string,
     secrets: [string, string][],
-  ): Promise<ApiResult<Record<never, never>>>;
+  ): Promise<Result<void>>;
 }
 
 /** Create a database named `name` on a database provider, returning the new
@@ -25,7 +41,7 @@ export interface HostingProviderApi {
  * implementation shares the exact same signature. */
 export type CreateDatabaseFn = (
   name: string,
-) => Promise<ApiResult<{ dbId: string; dbUrl: string; dbToken: string }>>;
+) => Promise<Result<DatabaseCredentials>>;
 
 export interface DatabaseProviderApi {
   createDatabase: CreateDatabaseFn;

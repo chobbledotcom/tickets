@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { parseListingDefaultsForm } from "#routes/admin/settings-listing-defaults.ts";
+import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { FormParams } from "#shared/form-data.ts";
 
 const parse = (query: string, hasLogistics = true) =>
@@ -58,6 +59,22 @@ describe("admin > listing defaults form parse > urls", () => {
     expect(parse("default_webhook_url=ftp://example.com").error).not.toBeNull();
     expect(parse("default_thank_you_url=not-a-url").error).not.toBeNull();
   });
+
+  test("ignores the webhook default in demo mode", () => {
+    setDemoModeForTest(true);
+    try {
+      expect(
+        "webhookUrl" in
+          ok(parse("default_webhook_url=https://example.com/hook")),
+      ).toBe(false);
+      expect(
+        ok(parse("default_thank_you_url=https://example.com/thanks"))
+          .thankYouUrl,
+      ).toBe("https://example.com/thanks");
+    } finally {
+      setDemoModeForTest(false);
+    }
+  });
 });
 
 describe("admin > listing defaults form parse > bookable days", () => {
@@ -81,7 +98,17 @@ describe("admin > listing defaults form parse > bookable days", () => {
       "default_bookable_days_enabled=1&default_bookable_days=Funday&default_bookable_days=Monday",
     ).error;
     expect(error).toContain("Invalid day: Funday");
-    expect(error).toContain("Monday");
+    expect(error).toContain(
+      "Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
+    );
+  });
+
+  test("reports the first malformed day supplied", () => {
+    const error = parse(
+      "default_bookable_days_enabled=1&default_bookable_days=Monday&default_bookable_days=Funday&default_bookable_days=Someday",
+    ).error;
+    expect(error).toContain("Invalid day: Funday");
+    expect(error).not.toContain("Invalid day: Someday");
   });
 
   test("rejects enabled with no valid day chosen", () => {

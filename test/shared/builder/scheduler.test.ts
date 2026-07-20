@@ -22,14 +22,16 @@ describeWithEnv("builder scheduled keys", { encryptionKey: true }, () => {
       stub(bunnyHostingProvider, "prepareSite", (_name, _code, secrets) => {
         calls.push(`prepare:${secrets.map(([name]) => name).join(",")}`);
         return Promise.resolve({
-          defaultHostname: "child.b-cdn.net",
-          hostingId: "42",
           ok: true,
+          value: {
+            defaultHostname: "child.b-cdn.net",
+            hostingId: "42",
+          },
         });
       }),
       stub(bunnyHostingProvider, "publishSite", () => {
         calls.push("publish");
-        return Promise.resolve({ ok: true });
+        return Promise.resolve({ ok: true, value: undefined });
       }),
     );
   };

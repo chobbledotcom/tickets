@@ -18,6 +18,7 @@ import type {
   CreateDatabaseFn,
   DatabaseProviderApi,
 } from "#shared/provider-types.ts";
+import { databaseCredentialsFromResponse } from "#shared/provider-types.ts";
 
 /* jscpd:ignore-end */
 
@@ -38,10 +39,6 @@ interface CreateTursoDbResponse {
     Hostname: string;
     Name: string;
   };
-}
-
-interface CreateTursoTokenResponse {
-  jwt: string;
 }
 
 /** Headers for all Turso API requests. */
@@ -93,9 +90,7 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
     ]);
   }
 
-  const tokenData: CreateTursoTokenResponse = JSON.parse(tokenRes.text);
-
-  return { dbId, dbToken: tokenData.jwt, dbUrl, ok: true };
+  return databaseCredentialsFromResponse(dbId, dbUrl, tokenRes.text, "jwt");
 };
 
 export const tursoDbProvider: DatabaseProviderApi = {

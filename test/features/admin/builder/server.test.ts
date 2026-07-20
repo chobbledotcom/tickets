@@ -353,8 +353,8 @@ describeWithEnv(
 
         const site = await expectSiteCreated(response);
         expect(site.name).toBe("Auto DB Site");
-        expect(site.dbUrl).toBe(MOCK_DB_RESULT.dbUrl);
-        expect(site.dbToken).toBe(MOCK_DB_RESULT.dbToken);
+        expect(site.dbUrl).toBe(MOCK_DB_RESULT.value.dbUrl);
+        expect(site.dbToken).toBe(MOCK_DB_RESULT.value.dbToken);
       });
     });
 

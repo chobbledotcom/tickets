@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -26,6 +27,7 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
       const csv = await response.text();
       expect(csv.split("\n")[0]).toContain("Name,Status,Type");
       expect(csv).toContain("Gala Night");
+      expect(await wasActivityLogged("Listings CSV exported")).toBe(true);
     });
 
     test("filters the export to one type and names the file by type", async () => {
@@ -38,6 +40,9 @@ describeWithEnv("server (admin listings CSV)", { db: true }, () => {
       const csv = await response.text();
       expect(csv).toContain("Daily One");
       expect(csv).not.toContain("Standard One");
+      expect(
+        await wasActivityLogged("Listings CSV exported (type: daily)"),
+      ).toBe(true);
     });
   });
 });

@@ -89,7 +89,7 @@ describe("validateTransfer", () => {
     it(`rejects ${name} with ${code}`, () => {
       const result = validateTransfer({ ...base, ...patch });
       if (result.ok) throw new Error("expected validation to fail");
-      expect(result.errors).toContainEqual({ code });
+      expect(result.error).toContainEqual({ code });
     });
   }
 
@@ -101,7 +101,7 @@ describe("validateTransfer", () => {
       reference: "",
     });
     if (result.ok) throw new Error("expected validation to fail");
-    const codes = result.errors.map((e) => e.code);
+    const codes = result.error.map((e) => e.code);
     expect(codes).toContain("non_positive_amount");
     expect(codes).toContain("self_transfer");
     expect(codes).toContain("empty_reference");

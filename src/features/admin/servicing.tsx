@@ -40,10 +40,7 @@ import {
   servicingHoldsListing,
   updateServicingEvent,
 } from "#shared/db/attendees/servicing.ts";
-import {
-  getAllListings,
-  getListingNamesByIds,
-} from "#shared/db/listings/records.ts";
+import { getAllListings, listingNames } from "#shared/db/listings/records.ts";
 import {
   applyDemoOverrides,
   SERVICING_DEMO_FIELDS,
@@ -88,7 +85,7 @@ const loadEditPage = async (
     getAllListings().then((all) => listingsForServicingEdit(all, event)),
     getServicingCosts(id),
   ]);
-  const costListingNames = await getListingNamesByIds(
+  const costListingNames = await listingNames.byIds(
     unique(map((cost: ServicingCostRecord) => cost.listingId)(costs)),
   );
   return renderServicingPage({

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import type { Table } from "#shared/db/table.ts";
 import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import { okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createIdNameTable,
@@ -20,11 +21,9 @@ const makeRoutes = (table: Table<Row, Input>): Record<string, unknown> =>
     nameField: "name",
     singular: "Widget",
     table,
-    toCreateInput: (body) => ({ input: { name: String(body.name) }, ok: true }),
-    toUpdateInput: (body, existing) => ({
-      input: { name: body.name != null ? String(body.name) : existing.name },
-      ok: true,
-    }),
+    toCreateInput: (body) => okResult({ name: String(body.name) }),
+    toUpdateInput: (body, existing) =>
+      okResult({ name: body.name != null ? String(body.name) : existing.name }),
   });
 
 describeWithEnv("defineCrudApi write not-found", { db: true }, () => {

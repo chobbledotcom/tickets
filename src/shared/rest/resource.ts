@@ -25,8 +25,9 @@ import type { FormSchema } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { mapValidationError } from "#shared/optional-validate.ts";
-import type { AfterCommitConfig, ParseResult } from "#shared/rest/crud-api.ts";
+import type { AfterCommitConfig } from "#shared/rest/crud-api.ts";
 import { writeEntity } from "#shared/rest/write-entity.ts";
+import { okResult, type Result } from "#shared/result.ts";
 
 /* jscpd:ignore-end */
 
@@ -72,7 +73,7 @@ type ValidateFn<Input, Id = InValue> =
 export interface Resource<Row, Input, _Values extends FieldValues = FieldValues>
   extends NamedOperations<Row, InValue> {
   readonly fields: readonly Field[];
-  parseInput: (form: FormParams) => Promise<ParseResult<Input>>;
+  parseInput: (form: FormParams) => Promise<Result<Input>>;
   readonly table: Table<Row, Input>;
   verifyName?: (row: Row, confirmName: string) => boolean;
 }
@@ -120,12 +121,12 @@ const validateAndParse = async <T, V extends FieldValues = FieldValues>(
   schema: FormSchema<V>,
   toInput: (values: V) => T | Promise<T>,
   validateValues?: (values: V) => string | null,
-): Promise<ParseResult<T>> => {
+): Promise<Result<T>> => {
   const validation = schema.validate(form);
   if (!validation.valid) return { error: validation.error, ok: false };
   const valuesError = validateValues?.(validation.values);
   if (valuesError) return { error: valuesError, ok: false };
-  return { input: await toInput(validation.values), ok: true };
+  return okResult(await toInput(validation.values));
 };
 
 /** Run async validation, return error result or null */
@@ -146,13 +147,13 @@ const toUpdateResult = <Row>(row: Row | null): UpdateResult<Row> =>
 /** Parse and validate input, returning parsed input or error */
 const parseAndValidate = async <Input, Id>(
   form: FormParams,
-  parseInput: (form: FormParams) => Promise<ParseResult<Input>>,
+  parseInput: (form: FormParams) => Promise<Result<Input>>,
   validate: ValidateFn<Input, Id>,
   id?: Id,
-): Promise<ParseResult<Input>> => {
+): Promise<Result<Input>> => {
   const parsed = await parseInput(form);
   if (!parsed.ok) return parsed;
-  const validationError = await runValidation(validate, parsed.input, id);
+  const validationError = await runValidation(validate, parsed.value, id);
   return validationError ?? parsed;
 };
 
@@ -178,7 +179,7 @@ export const defineResource = <
 ): Resource<Row, Input, Values> => {
   const { table, form: schema, toInput, nameField } = config;
 
-  const parseInput = (form: FormParams): Promise<ParseResult<Input>> =>
+  const parseInput = (form: FormParams): Promise<Result<Input>> =>
     validateAndParse<Input, Values>(
       form,
       schema,
@@ -214,13 +215,13 @@ export const defineResource = <
       afterCommit: config.afterCommit,
       buildStatement: () =>
         existingId === null
-          ? table.insertStatement!(result.input)
-          : table.updateStatement!(existingId, result.input),
+          ? table.insertStatement!(result.value)
+          : table.updateStatement!(existingId, result.value),
       existingId,
       joinWrites: config.afterWrite
-        ? [(tx, rowId) => config.afterWrite!(tx, rowId, result.input, form)]
+        ? [(tx, rowId) => config.afterWrite!(tx, rowId, result.value, form)]
         : [],
-      plainWrite: () => fallback(result.input),
+      plainWrite: () => fallback(result.value),
       readBack: (rowId) => table.findByIdPrimary!(rowId),
     });
     return { ok: true, row };

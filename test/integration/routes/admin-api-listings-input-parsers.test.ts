@@ -35,9 +35,9 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.input.active).toBe(false);
-        expect(result.input.bookableDays).toEqual(["Monday"]);
-        expect(result.input.slug).toBeTruthy();
+        expect(result.value.active).toBe(false);
+        expect(result.value.bookableDays).toEqual(["Monday"]);
+        expect(result.value.slug).toBeTruthy();
       }
     });
 
@@ -79,7 +79,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         if (sent !== undefined) body.use_defaults = sent;
         const result = await bodyToCreateInput(body);
         expect(result.ok).toBe(true);
-        if (result.ok) expect(result.input.useDefaults).toBe(expected);
+        if (result.ok) expect(result.value.useDefaults).toBe(expected);
       }
     });
   });
@@ -119,24 +119,24 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.input.name).toBe("Existing");
-        expect(result.input.description).toBe("Existing desc");
-        expect(result.input.location).toBe("Old Place");
-        expect(result.input.unitPrice).toBe(100);
-        expect(result.input.maxQuantity).toBe(2);
-        expect(result.input.thankYouUrl).toBe("https://old.com/thanks");
-        expect(result.input.webhookUrl).toBe("https://old.com/hook");
-        expect(result.input.active).toBe(true);
-        expect(result.input.fields).toBe("email");
-        expect(result.input.closesAt).toBe("2026-01-02T00:00:00.000Z");
-        expect(result.input.listingType).toBe("standard");
-        expect(result.input.bookableDays).toEqual(["Monday"]);
-        expect(result.input.minimumDaysBefore).toBe(1);
-        expect(result.input.maximumDaysAfter).toBe(90);
-        expect(result.input.nonTransferable).toBe(false);
-        expect(result.input.canPayMore).toBe(false);
-        expect(result.input.hidden).toBe(false);
-        expect(result.input.maxPrice).toBe(0);
+        expect(result.value.name).toBe("Existing");
+        expect(result.value.description).toBe("Existing desc");
+        expect(result.value.location).toBe("Old Place");
+        expect(result.value.unitPrice).toBe(100);
+        expect(result.value.maxQuantity).toBe(2);
+        expect(result.value.thankYouUrl).toBe("https://old.com/thanks");
+        expect(result.value.webhookUrl).toBe("https://old.com/hook");
+        expect(result.value.active).toBe(true);
+        expect(result.value.fields).toBe("email");
+        expect(result.value.closesAt).toBe("2026-01-02T00:00:00.000Z");
+        expect(result.value.listingType).toBe("standard");
+        expect(result.value.bookableDays).toEqual(["Monday"]);
+        expect(result.value.minimumDaysBefore).toBe(1);
+        expect(result.value.maximumDaysAfter).toBe(90);
+        expect(result.value.nonTransferable).toBe(false);
+        expect(result.value.canPayMore).toBe(false);
+        expect(result.value.hidden).toBe(false);
+        expect(result.value.maxPrice).toBe(0);
       }
     });
 
@@ -155,7 +155,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       // false, so clearing the default later still restores its own value.
       const result = await bodyToUpdateInput({ name: "Renamed" }, resolved);
       expect(result.ok).toBe(true);
-      if (result.ok) expect(result.input.hidden).toBe(false);
+      if (result.ok) expect(result.value.hidden).toBe(false);
     });
 
     test("preserves use_defaults when absent and toggles it when sent", async () => {
@@ -167,10 +167,10 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
       // Omitted → the flag is preserved (an unrelated PUT can't un-inherit it).
       const kept = await bodyToUpdateInput({}, existing);
-      expect(kept.ok && kept.input.useDefaults).toBe(true);
+      expect(kept.ok && kept.value.useDefaults).toBe(true);
       // Explicit false → turned off.
       const off = await bodyToUpdateInput({ use_defaults: false }, existing);
-      expect(off.ok && off.input.useDefaults).toBe(false);
+      expect(off.ok && off.value.useDefaults).toBe(false);
     });
 
     test("preserves existing closes_at null as empty string", async () => {
@@ -184,7 +184,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.input.closesAt).toBe("");
+        expect(result.value.closesAt).toBe("");
       }
     });
   });

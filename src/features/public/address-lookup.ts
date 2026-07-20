@@ -57,7 +57,7 @@ export const handleAddressLookupGet: TypedRouteHandler<
   // receive geolocation data.
   const staff = session && isStaffRole(session.adminLevel);
   return jsonResponse({
-    addresses: outcome.addresses.map((match) => match.line),
-    ...(staff ? { matches: outcome.addresses } : {}),
+    addresses: outcome.value.map((match) => match.line),
+    ...(staff ? { matches: outcome.value } : {}),
   });
 };

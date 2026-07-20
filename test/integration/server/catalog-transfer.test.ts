@@ -45,7 +45,17 @@ const importBuiltSiteListing = async (name: string): Promise<boolean> => {
     version: 1,
   });
   if (!result.ok) throw new Error(result.error);
-  return (await getListingWithCount(result.id))!.assign_built_site;
+  return (await getListingWithCount(result.value.id))!.assign_built_site;
+};
+
+const importLogisticsListing = async (name: string): Promise<boolean> => {
+  const result = await importCatalog({
+    kind: "listing",
+    listing: { maxAttendees: 1, name, usesLogistics: true },
+    version: 1,
+  });
+  if (!result.ok) throw new Error(result.error);
+  return (await getListingWithCount(result.value.id))!.uses_logistics;
 };
 
 describeWithEnv("catalog-transfer", { db: true }, () => {
@@ -73,20 +83,22 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       blob.listing.name = "Child Copy";
       const result = await importCatalog(blob);
       expect(result).toEqual({
-        id: expect.any(Number),
-        kind: "listing",
-        name: "Child Copy",
         ok: true,
+        value: {
+          id: expect.any(Number),
+          kind: "listing",
+          name: "Child Copy",
+        },
       });
       if (!result.ok) throw new Error("unreachable");
 
-      const imported = (await getListingWithCount(result.id))!;
+      const imported = (await getListingWithCount(result.value.id))!;
       expect(imported.name).toBe("Child Copy");
       expect(imported.unit_price).toBe(1500);
       // Slug is freshly minted, never copied from the source.
       expect(imported.slug).not.toBe(child.slug);
-      expect(await listingGroups.getIds(result.id)).toEqual([group.id]);
-      expect(await listingParents.getIds(result.id)).toEqual([parent.id]);
+      expect(await listingGroups.getIds(result.value.id)).toEqual([group.id]);
+      expect(await listingParents.getIds(result.value.id)).toEqual([parent.id]);
     });
 
     test("preserves a child's bookable-alone standalone page", async () => {
@@ -103,8 +115,8 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
 
       blob.listing.name = "Alone Copy";
       const result = await importCatalog(blob);
-      requireSuccess(result);
-      const imported = (await getListingWithCount(result.id))!;
+      const importedResult = requireSuccess(result);
+      const imported = (await getListingWithCount(importedResult.id))!;
       expect(imported.bookable_alone).toBe(true);
     });
 
@@ -129,7 +141,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       if (!created.ok) throw new Error(created.error);
 
-      const blob = unwrapExport(await exportListing(created.id));
+      const blob = unwrapExport(await exportListing(created.value.id));
       expect(blob.listing.useDefaults).toBe(true);
       // The row's own cell (false), not the resolved default (true).
       expect(blob.listing.hidden).toBe(false);
@@ -170,13 +182,13 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       });
       if (!result.ok) throw new Error(result.error);
 
-      const imported = (await getListingWithCount(result.id))!;
+      const imported = (await getListingWithCount(result.value.id))!;
       expect(imported.closes_at).toBe("2030-01-01T00:00:00.000Z");
       // The derived listing_prices base row is re-synced from unit_price after
       // the transactional insert (which bypasses the table wrapper).
       const priceRows = await execute(
         "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'base'",
-        [result.id],
+        [result.value.id],
       );
       expect(priceRows.rows.map((r) => Number(r.unit_price))).toEqual([2500]);
     });
@@ -218,11 +230,11 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       if (!result.ok) throw new Error(result.error);
 
       const rows = await getGroupPackagePrices(group.id);
-      const importedRow = rows.find((r) => r.listing_id === result.id)!;
+      const importedRow = rows.find((r) => r.listing_id === result.value.id)!;
       expect(importedRow.package_price).toBe(800);
       expect(importedRow.quantity).toBe(3);
       const dayPrices = await getGroupDayPrices(group.id);
-      expect(dayPrices.get(result.id)).toEqual(new Map([[1, 900]]));
+      expect(dayPrices.get(result.value.id)).toEqual(new Map([[1, 900]]));
       // The existing member's overrides are untouched by the targeted insert.
       expect(rows.find((r) => r.listing_id === member.id)?.package_price).toBe(
         800,
@@ -256,24 +268,24 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       blob.group.name = "Combo Copy";
       const result = await importCatalog(blob);
       if (!result.ok) throw new Error(result.error);
-      expect(result.kind).toBe("group");
+      expect(result.value.kind).toBe("group");
 
-      const rows = await getGroupPackagePrices(result.id);
+      const rows = await getGroupPackagePrices(result.value.id);
       expect(rows).toEqual([
         {
-          group_id: result.id,
+          group_id: result.value.id,
           listing_id: a.id,
           package_price: 800,
           quantity: 2,
         },
         {
-          group_id: result.id,
+          group_id: result.value.id,
           listing_id: b.id,
           package_price: null,
           quantity: 1,
         },
         {
-          group_id: result.id,
+          group_id: result.value.id,
           listing_id: c.id,
           package_price: 0,
           quantity: 1,
@@ -506,7 +518,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       "editor",
     );
     if (!result.ok) throw new Error(result.error);
-    const imported = (await getListingWithCount(result.id))!;
+    const imported = (await getListingWithCount(result.value.id))!;
     expect(imported.webhook_url).toBe("");
     expect(imported.use_defaults).toBe(false);
   });
@@ -525,7 +537,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       "owner",
     );
     if (!result.ok) throw new Error(result.error);
-    const imported = (await getListingWithCount(result.id))!;
+    const imported = (await getListingWithCount(result.value.id))!;
     expect(imported.webhook_url).toBe("https://example.com/hook");
   });
 
@@ -534,24 +546,12 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
   });
 
   test("clears uses-logistics when logistics is disabled", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Logi Off", usesLogistics: true },
-      version: 1,
-    });
-    if (!result.ok) throw new Error(result.error);
-    expect((await getListingWithCount(result.id))!.uses_logistics).toBe(false);
+    expect(await importLogisticsListing("Logi Off")).toBe(false);
   });
 
   test("keeps uses-logistics when logistics is enabled", async () => {
     settings.setForTest(featureSetting("logistics"));
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Logi On", usesLogistics: true },
-      version: 1,
-    });
-    if (!result.ok) throw new Error(result.error);
-    expect((await getListingWithCount(result.id))!.uses_logistics).toBe(true);
+    expect(await importLogisticsListing("Logi On")).toBe(true);
   });
 
   test("clears package overrides for a non-package group membership", async () => {
@@ -564,7 +564,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
     });
     if (!result.ok) throw new Error(result.error);
     const row = (await getGroupPackagePrices(group.id)).find(
-      (r) => r.listing_id === result.id,
+      (r) => r.listing_id === result.value.id,
     )!;
     // The override is dropped because the group isn't a package.
     expect(row.package_price).toBeNull();
@@ -580,7 +580,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    const row = (await getGroupPackagePrices(result.id))[0]!;
+    const row = (await getGroupPackagePrices(result.value.id))[0]!;
     expect(row.package_price).toBeNull();
     expect(row.quantity).toBe(1);
   });
@@ -634,7 +634,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await listingParents.getIds(result.id)).length).toBe(30);
+    expect((await listingParents.getIds(result.value.id)).length).toBe(30);
   });
 
   test("imports a listing that belongs to many groups", async () => {
@@ -663,7 +663,7 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await listingGroups.getIds(result.id)).length).toBe(30);
+    expect((await listingGroups.getIds(result.value.id)).length).toBe(30);
   });
 
   test("imports a child listing that also belongs to a regular group", async () => {
@@ -680,8 +680,8 @@ describeWithEnv("catalog-transfer review fixes", { db: true }, () => {
       version: 1,
     });
     if (!result.ok) throw new Error(result.error);
-    expect((await listingParents.getIds(result.id)).length).toBe(1);
-    expect((await listingGroups.getIds(result.id)).length).toBe(1);
+    expect((await listingParents.getIds(result.value.id)).length).toBe(1);
+    expect((await listingGroups.getIds(result.value.id)).length).toBe(1);
   });
 
   test("hides the webhook URL from an editor export", async () => {

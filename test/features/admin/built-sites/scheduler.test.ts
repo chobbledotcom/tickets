@@ -42,14 +42,14 @@ describeWithEnv(
       const pushed: string[] = [];
       stubs.push(
         stub(bunnyHostingProvider, "getSecretNames", () =>
-          Promise.resolve({ names: [], ok: true }),
+          Promise.resolve({ ok: true, value: [] }),
         ),
         stub(bunnyHostingProvider, "setSecrets", (_hostingId, secrets) => {
           pushed.push(secrets[0]![1]);
           return Promise.resolve(
             pushed.length === 1
               ? { error: "provider failed", ok: false as const }
-              : { ok: true as const },
+              : { ok: true as const, value: undefined },
           );
         }),
       );

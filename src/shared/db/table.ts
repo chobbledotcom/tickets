@@ -107,7 +107,7 @@ export interface Table<Row, Input> {
   /** Find all rows */
   findAll: () => Promise<Row[]>;
 
-  /** Find a row by primary key */
+  /** Find a row by primary key, or null when it does not exist. */
   findById: (id: InValue) => Promise<Row | null>;
 
   /**
@@ -122,6 +122,9 @@ export interface Table<Row, Input> {
    * façade table that never takes that path may omit it.
    */
   findByIdPrimary?: (id: InValue) => Promise<Row | null>;
+
+  /** Find rows in input order, retaining nulls for missing primary keys. */
+  findByIds: (ids: InValue[]) => Promise<(Row | null)[]>;
 
   /** Transform a row from DB (apply read transforms) */
   fromDb: (row: Row) => Promise<Row>;
@@ -195,7 +198,7 @@ export interface TableProjection<Row, Columns extends ProjectionColumns<Row>> {
   readonly columns: Columns;
   columnsSql: (alias?: string) => string;
   queryAll: TableProjectionQuery<SelectedTableProjectionRow<Row, Columns>[]>;
-  queryOneOrNull: TableProjectionQuery<SelectedTableProjectionRow<
+  queryOne: TableProjectionQuery<SelectedTableProjectionRow<
     Row,
     Columns
   > | null>;
@@ -274,7 +277,7 @@ export const defineTableProjection = <
       readAll(
         await queryAll<StoredTableProjectionRow<Row, Columns>>(sql, args),
       ),
-    queryOneOrNull: async (sql, args) => {
+    queryOne: async (sql, args) => {
       const row = await queryOne<StoredTableProjectionRow<Row, Columns>>(
         sql,
         args,
@@ -397,6 +400,9 @@ export const defineTable = <Row, Input = Row>(
   const allColumns = Object.keys(schema) as (keyof Row & string)[];
   const physicalColumns = allColumns.filter((col) => !schema[col].projected);
   const physicalColumnsSql = physicalColumns.join(", ");
+  const qualifiedPhysicalColumnsSql = physicalColumns
+    .map((column) => `record.${column}`)
+    .join(", ");
   const inputColumns = physicalColumns.filter((col) => !schema[col].generated);
   const inputKeyMap = buildInputKeyMap(inputColumns);
 
@@ -569,14 +575,27 @@ export const defineTable = <Row, Input = Row>(
     id: InValue,
   ): Promise<Row | null> => {
     const row = await query(
-      `SELECT ${physicalColumnsSql} FROM ${name} WHERE ${primaryKey} = ?`,
+      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} = ?`,
       [id],
     );
     return row ? fromDb(row) : null;
   };
 
-  const findById = (id: InValue): Promise<Row | null> =>
-    findByIdVia(queryOne, id);
+  const findByIds = async (ids: InValue[]): Promise<(Row | null)[]> => {
+    if (ids.length === 0) return [];
+    const rows = await queryAll<Row>(
+      `SELECT ${qualifiedPhysicalColumnsSql} FROM ${name} AS record WHERE record.${primaryKey} IN (${ids.map(() => "?").join(", ")})`,
+      ids,
+    );
+    const readRows = await mapParallel(fromDb)(rows);
+    const rowsById = new Map(
+      readRows.map((row) => [row[primaryKey], row] as const),
+    );
+    return ids.map((id) => rowsById.get(id as Row[keyof Row & string]) ?? null);
+  };
+
+  const findById = async (id: InValue): Promise<Row | null> =>
+    (await findByIds([id]))[0] ?? null;
 
   const findByIdPrimary = (id: InValue): Promise<Row | null> =>
     findByIdVia(queryOnePrimary, id);
@@ -619,6 +638,7 @@ export const defineTable = <Row, Input = Row>(
     findAll,
     findById,
     findByIdPrimary,
+    findByIds,
     fromDb,
     inputKeyMap,
     insert,

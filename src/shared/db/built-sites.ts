@@ -163,6 +163,11 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
 
   findById: findBuiltSiteById,
 
+  findByIds: async (ids: InValue[]): Promise<(BuiltSite | null)[]> =>
+    (await rawBuiltSitesTable.findByIds(ids)).map((row) =>
+      row === null ? null : rowToBuiltSite(row),
+    ),
+
   // findByIdPrimary is intentionally omitted: it is optional on Table (like
   // insertStatement/updateStatement) and only used on the transactional
   // afterWrite write-back path, which this façade resource never takes.
@@ -182,6 +187,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     _col: K,
     value: BuiltSite[K],
   ): Promise<BuiltSite[K]> => Promise.resolve(value),
+
   // The CRUD adapter is a façade over the raw table — the built-site blob
   // is always reconstructed from BuiltSiteFormInput, so rowToInput just picks
   // the exposed camelCase fields off an already-decrypted BuiltSite.

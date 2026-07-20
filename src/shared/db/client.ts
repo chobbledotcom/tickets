@@ -256,6 +256,7 @@ const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
 /** A SQL statement and its optional bound args — the shared parameters of the
  * single-statement query and write helpers below. */
 type SqlArgs = [sql: string, args?: InValue[]];
+type SqlWithArgs = [sql: string, args: InValue[]];
 
 /**
  * Run a single statement: track it for the query log / N+1 guard, then fire any
@@ -295,13 +296,32 @@ const executeRead = async (...[sql, args]: SqlArgs): Promise<ResultSet> => {
   return result!;
 };
 
-/** Query single row, returning null if not found */
+/** Query all rows, returning a typed array. */
+export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
+  resultRows<T>(await executeRead(sql, args));
+
+/** Query one row, or null when the query returns none. */
 export const queryOne = async <T>(...[sql, args]: SqlArgs): Promise<T | null> =>
-  firstRowOrNull<T>(await executeRead(sql, args));
+  (await queryAll<T>(sql, args))[0] ?? null;
+
+const requireQueryRow = async <T>(
+  row: Promise<T | null>,
+  sql: string,
+  label: string,
+): Promise<T> => {
+  const found = await row;
+  if (found === null)
+    throw new Error(`${label} query returned no rows: ${sql}`);
+  return found;
+};
+
+/** Query one required row and name the failed query when none exists. */
+export const requireOne = <T>(...[sql, args]: SqlArgs): Promise<T> =>
+  requireQueryRow(queryOne<T>(sql, args), sql, "Required");
 
 /**
- * Query a single row on the primary (read-your-writes), returning null if not
- * found. Use this to read a row back immediately after committing its own write:
+ * Query an optional row on the primary (read-your-writes). Use this to read a
+ * row back immediately after committing its own write:
  * a plain {@link queryOne} runs in "read" mode, which Turso can route to a
  * replica lagging the just-committed write and so miss the row (returning null);
  * routing through {@link queryBatchPrimary} ("write" mode) always hits the
@@ -316,9 +336,9 @@ export const queryOnePrimary = async <T>(
   return firstRowOrNull<T>(result!);
 };
 
-/** Query all rows, returning a typed array */
-export const queryAll = async <T>(...[sql, args]: SqlArgs): Promise<T[]> =>
-  resultRows<T>(await executeRead(sql, args));
+/** Query one required row from the primary. */
+export const requireOnePrimary = <T>(...[sql, args]: SqlWithArgs): Promise<T> =>
+  requireQueryRow(queryOnePrimary<T>(sql, args), sql, "Required primary");
 
 /**
  * True when the query returns at least one row. `sql` should be an existence
@@ -356,7 +376,7 @@ export const queryIdColumn = async (
 /** Count all rows in a table. `table` must be a trusted constant, not input. */
 export const countRows = async (table: string): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.
-  const row = await queryOne<{ n: number }>(
+  const row = await requireOne<{ n: number }>(
     `SELECT COUNT(*) AS n FROM ${table}`,
     [],
   );

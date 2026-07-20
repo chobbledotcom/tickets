@@ -176,6 +176,28 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     expect(rows.length).toBe(2);
   });
 
+  test("defineTable resolves one id through the ordered many-id lookup", async () => {
+    const { col, defineTable } = await import("#shared/db/table.ts");
+    const first = await createTestListing({ name: "First" });
+    const second = await createTestListing({ name: "Second" });
+    const table = buildListingsTestTable<{ name: string }>(col, defineTable);
+
+    expect((await table.findById(second.id))?.id).toBe(second.id);
+    expect(
+      (await table.findByIds([second.id, first.id, second.id])).map(
+        (row) => row?.id,
+      ),
+    ).toEqual([second.id, first.id, second.id]);
+  });
+
+  test("defineTable keeps optional misses nullable", async () => {
+    const { col, defineTable } = await import("#shared/db/table.ts");
+    const table = buildListingsTestTable<{ name: string }>(col, defineTable);
+    expect(await table.findById(999_999)).toBeNull();
+    expect(await table.findByIdPrimary!(999_999)).toBeNull();
+    expect(await table.findByIds([])).toEqual([]);
+  });
+
   test("defineTable.update with no changes returns existing row", async () => {
     const { col, defineTable } = await import("#shared/db/table.ts");
 

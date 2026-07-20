@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { testAttendee } from "#test-utils/factories.ts";
 import { attendeeTableSuite, makeOpts, makeRow } from "./shared.ts";
@@ -11,28 +12,28 @@ attendeeTableSuite(() => {
   test("renders only specified columns in template order", () => {
     const html = AttendeeTable(
       makeOpts({
-        columnTemplate: "{{name}}, {{qty}}, {{registered}}",
+        columnLayout: COLUMN_LAYOUTS.attendee.parse(
+          "{{name}}, {{qty}}, {{registered}}",
+        ),
         showCheckin: false,
       }),
     );
     expect(headersOf(html)).toEqual(["Name", "Qty", "Registered"]);
   });
 
-  test("throws for an invalid template loaded outside the settings form", () => {
-    expect(() =>
-      AttendeeTable(
-        makeOpts({
-          columnTemplate: "{{invalid_column}}",
-        }),
-      ),
-    ).toThrow('Unknown column "invalid_column"');
+  test("rejects an invalid template before rendering", () => {
+    expect(() => COLUMN_LAYOUTS.attendee.parse("{{invalid_column}}")).toThrow(
+      'Unknown column "invalid_column"',
+    );
   });
 
   test("hides a data-dependent template column with no data", () => {
     const attendee = testAttendee({ email: "" });
     const html = AttendeeTable(
       makeOpts({
-        columnTemplate: "{{name}}, {{email}}, {{qty}}",
+        columnLayout: COLUMN_LAYOUTS.attendee.parse(
+          "{{name}}, {{email}}, {{qty}}",
+        ),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),
@@ -44,7 +45,9 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ email: "a@b.com" });
     const html = AttendeeTable(
       makeOpts({
-        columnTemplate: "{{qty}}, {{name}}, {{email}}",
+        columnLayout: COLUMN_LAYOUTS.attendee.parse(
+          "{{qty}}, {{name}}, {{email}}",
+        ),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),
@@ -56,7 +59,9 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ created: "2026-04-10T14:00:00Z" });
     const html = AttendeeTable(
       makeOpts({
-        columnTemplate: '{{name}}, {{registered | date: "%B %d, %Y"}}',
+        columnLayout: COLUMN_LAYOUTS.attendee.parse(
+          '{{name}}, {{registered | date: "%B %d, %Y"}}',
+        ),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),
@@ -68,7 +73,7 @@ attendeeTableSuite(() => {
     const attendee = testAttendee({ created: "2026-04-10T14:00:00Z" });
     const html = AttendeeTable(
       makeOpts({
-        columnTemplate: "{{name}}, {{registered}}",
+        columnLayout: COLUMN_LAYOUTS.attendee.parse("{{name}}, {{registered}}"),
         rows: [makeRow({ attendee })],
         showCheckin: false,
       }),

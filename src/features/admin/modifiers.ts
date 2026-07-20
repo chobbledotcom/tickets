@@ -316,7 +316,7 @@ const modifierPage: EditEntityPage<Modifier> = defineEditEntityPage({
       modifier,
       ctx.session,
       rejected?.error,
-      rejected ? Object.fromEntries(rejected.form.entries()) : undefined,
+      rejected?.form.toRenderValues(),
     ),
   guard: requireSessionOr,
   guideFooter: () => Promise.resolve(ModifiersGuideFooter()),
