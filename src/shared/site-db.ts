@@ -25,7 +25,7 @@ export type SiteDbResult<T> = Result<T>;
 /** Stubbable client factory so tests can inject an in-memory database. */
 export const siteDbApi = {
   createClient: (url: string, authToken: string): Client =>
-    createClient(authToken ? { authToken, url } : { url }),
+    createClient({ authToken, url }),
 };
 
 /** Do we hold both a URL and a read-only token for this site's database? */

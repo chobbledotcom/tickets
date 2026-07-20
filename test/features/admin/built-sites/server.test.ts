@@ -17,7 +17,6 @@ import {
   updateTestBuiltSite,
 } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { testBuiltSite } from "#test-utils/factories.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -587,50 +586,6 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const site = await createTestBuiltSite({ name: "Deleted Site" });
       await deleteTestBuiltSite(site.id);
       await expectActivityLogShows("Deleted Site", "deleted");
-    });
-  });
-
-  describe("builtSiteToFieldValues", () => {
-    test("returns empty defaults when no site provided", async () => {
-      const { builtSiteToFieldValues } = await import(
-        "#templates/admin/built-sites.tsx"
-      );
-      const values = builtSiteToFieldValues();
-      expect(values.name).toBe("");
-      expect(values.site_url).toBe("");
-      expect(values.db_url).toBe("");
-      expect(values.db_token).toBe("");
-      expect(values.hosting_id).toBe("");
-      expect(values.assignable).toBe("");
-    });
-
-    test("returns site values when site provided", async () => {
-      const { builtSiteToFieldValues } = await import(
-        "#templates/admin/built-sites.tsx"
-      );
-      const site = testBuiltSite({
-        dbToken: "tok123",
-        dbUrl: "libsql://test.turso.io",
-        hostingId: "42",
-        name: "Test",
-        siteUrl: "https://test.b-cdn.net",
-      });
-      const values = builtSiteToFieldValues(site);
-      expect(values.name).toBe("Test");
-      expect(values.site_url).toBe("https://test.b-cdn.net");
-      expect(values.db_url).toBe("libsql://test.turso.io");
-      expect(values.db_token).toBe("tok123");
-      expect(values.hosting_id).toBe("42");
-      expect(values.assignable).toBe("");
-    });
-
-    test("returns assignable=1 for assignable site", async () => {
-      const { builtSiteToFieldValues } = await import(
-        "#templates/admin/built-sites.tsx"
-      );
-      const site = testBuiltSite({ assignable: true });
-      const values = builtSiteToFieldValues(site);
-      expect(values.assignable).toBe("1");
     });
   });
 

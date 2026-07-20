@@ -40,6 +40,23 @@ test("renders a site's link, URL, status, channel, and host id", () => {
   expect(html).toContain("host-42");
 });
 
+test("distinguishes available and unavailable unassigned sites", () => {
+  const html = String(
+    BuiltSitesListBody({
+      hostingIds: "",
+      renewalTiers: [],
+      sites: [
+        testBuiltSite({ assignable: true, id: 1, name: "Available" }),
+        testBuiltSite({ assignable: false, id: 2, name: "Unavailable" }),
+      ],
+    }),
+  );
+  expect(html).toContain("Available</a>");
+  expect(html).toContain("Available</td>");
+  expect(html).toContain("Unavailable</a>");
+  expect(html).toContain("Not assignable");
+});
+
 test("renders the list actions and guide destination", () => {
   const actions = String(BuiltSitesListActions());
   expect(actions).toContain('href="/admin/built-sites/new"');

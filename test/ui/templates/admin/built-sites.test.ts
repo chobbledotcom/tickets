@@ -6,7 +6,13 @@ import {
   SecretsPanel,
   UpdatePanel,
 } from "#templates/admin/built-sites/panels.tsx";
-import { adminBuiltSitesPage } from "#templates/admin/built-sites.tsx";
+import {
+  adminBuiltSiteDeletePage,
+  adminBuiltSiteNewPage,
+  adminBuiltSitesPage,
+  BuiltSiteEditPanel,
+  builtSiteToFieldValues,
+} from "#templates/admin/built-sites.tsx";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -57,6 +63,19 @@ describe("built-site templates", () => {
       expect(html).toContain('href="/admin/built-sites/7"');
     });
 
+    test("lists only Bunny hosting ids in the shared host marker", () => {
+      const html = adminBuiltSitesPage(
+        [
+          testBuiltSite({ hostingId: "bunny-1", hostingProvider: "bunny" }),
+          testBuiltSite({ hostingId: "deno-1", hostingProvider: "deno" }),
+          testBuiltSite({ hostingId: "", hostingProvider: "bunny" }),
+        ],
+        TEST_SESSION,
+      );
+      expect(html).toContain("bunny-1");
+      expect(html).not.toContain("deno-1</p>");
+    });
+
     test("lists each tier with units sold from attendee_count", () => {
       const monthly = testListingWithCount({
         attendee_count: 7,
@@ -91,6 +110,62 @@ describe("built-site templates", () => {
       expect(html).toContain('href="/admin/listing/12"');
       // Warning copy must not appear when tiers exist
       expect(html).not.toContain("No renewal tier listing is configured");
+    });
+  });
+
+  describe("built-site forms", () => {
+    test("maps exact empty and populated field values", () => {
+      expect(builtSiteToFieldValues()).toEqual({
+        assignable: "",
+        db_provider: "bunny",
+        db_token: "",
+        db_url: "",
+        hosting_id: "",
+        hosting_provider: "bunny",
+        name: "",
+        site_url: "",
+        updates: "release",
+      });
+      expect(
+        builtSiteToFieldValues(
+          testBuiltSite({
+            assignable: true,
+            dbProvider: "turso",
+            dbToken: "token",
+            dbUrl: "libsql://site",
+            hostingId: "app-1",
+            hostingProvider: "deno",
+            name: "Site",
+            siteUrl: "site.example",
+            updates: "alpha",
+          }),
+        ),
+      ).toEqual({
+        assignable: "1",
+        db_provider: "turso",
+        db_token: "token",
+        db_url: "libsql://site",
+        hosting_id: "app-1",
+        hosting_provider: "deno",
+        name: "Site",
+        site_url: "site.example",
+        updates: "alpha",
+      });
+    });
+
+    test("renders new, edit, and delete destinations and labels", () => {
+      const site = testBuiltSite({ id: 42, name: "Delete <site>" });
+      const newPage = adminBuiltSiteNewPage(TEST_SESSION);
+      expect(newPage).toContain('action="/admin/built-sites"');
+      expect(newPage).toContain("Add Built Site");
+      const edit = String(BuiltSiteEditPanel({ site }));
+      expect(edit).toContain('action="/admin/built-sites/42/edit"');
+      expect(edit).toContain("Save Changes");
+      const deletePage = adminBuiltSiteDeletePage(site, TEST_SESSION);
+      expect(deletePage).toContain('action="/admin/built-sites/42/delete"');
+      expect(deletePage).toContain("Delete Built Site");
+      expect(deletePage).toContain("Delete &lt;site&gt;");
+      expect(deletePage).not.toContain("button-danger");
     });
   });
 

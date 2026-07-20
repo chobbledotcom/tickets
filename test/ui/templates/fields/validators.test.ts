@@ -1,14 +1,27 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
+  buildDescriptionField,
+  buildHiddenField,
+  getSlugField,
+  getUsernameFieldBase,
+  slugFieldBase,
   splitCsv,
   validateAddress,
   validateBookableDays,
   validateDate,
+  validateDatetime,
+  validateDescription,
   validateEmail,
+  validateHttpsDomainUrl,
+  validateListingFields,
+  validateNonNegativeInteger,
+  validateNonNegativePrice,
   validatePhone,
   validateSpecialInstructions,
+  validateUpdateTier,
   validateUsername,
 } from "#templates/fields/validators.ts";
 
@@ -25,6 +38,29 @@ const rejects = (validate: (v: string) => string | null, value: string) => {
 };
 
 describe("fields validators", () => {
+  describe("numeric and URL validators", () => {
+    test("accepts public HTTPS URLs only", () => {
+      accepts(validateHttpsDomainUrl, "https://example.com/path");
+      rejects(validateHttpsDomainUrl, "http://example.com");
+      rejects(validateHttpsDomainUrl, "https://localhost/path");
+    });
+
+    test("accepts zero and positive prices only", () => {
+      accepts(validateNonNegativePrice, "0");
+      accepts(validateNonNegativePrice, "12.34");
+      rejects(validateNonNegativePrice, "-1");
+      rejects(validateNonNegativePrice, "not-money");
+    });
+
+    test("validates non-negative whole numbers with the field label", () => {
+      const validate = validateNonNegativeInteger("Capacity");
+      accepts(validate, "0");
+      accepts(validate, "2");
+      expect(validate("-1")).toBe("Capacity must be 0 or greater");
+      expect(validate("1.5")).toBe("Capacity must be 0 or greater");
+    });
+  });
+
   describe("validateEmail", () => {
     test("accepts a well-formed address", () => {
       accepts(validateEmail, "person@example.com");
@@ -86,6 +122,31 @@ describe("fields validators", () => {
     });
   });
 
+  test("defines the exact username field contract", () => {
+    expect(getUsernameFieldBase()).toMatchObject({
+      maxlength: 32,
+      minlength: 2,
+      name: "username",
+      pattern: "[a-zA-Z0-9_\\-]+",
+      required: true,
+      type: "text",
+    });
+  });
+
+  describe("stored option validators", () => {
+    test("accepts known contact fields and rejects unknown ones", () => {
+      accepts(validateListingFields, "email, phone, address");
+      expect(validateListingFields("email, unknown")).toContain("unknown");
+    });
+
+    test("accepts exact update tiers only", () => {
+      for (const tier of ["alpha", "beta", "release"]) {
+        accepts(validateUpdateTier, tier);
+      }
+      rejects(validateUpdateTier, "stable");
+    });
+  });
+
   describe("splitCsv", () => {
     test("trims tokens and drops empty ones", () => {
       expect(splitCsv("a, b ,,  , c")).toEqual(["a", "b", "c"]);
@@ -126,6 +187,52 @@ describe("fields validators", () => {
     for (const bad of ["", "07/07/2026", "2026-13-01", "not-a-date"]) {
       test(`rejects ${JSON.stringify(bad)}`, () => rejects(validateDate, bad));
     }
+  });
+
+  describe("description and datetime fields", () => {
+    test("validates descriptions at the configured limit", () => {
+      accepts(validateDescription, "Short description");
+      rejects(validateDescription, "x".repeat(MAX_TEXTAREA_LENGTH + 1));
+    });
+
+    test("keeps optional HTML hints in description fields", () => {
+      expect(buildDescriptionField("Hint")).not.toHaveProperty("hintHtml");
+      expect(buildDescriptionField("Hint", "<b>Hint</b>")).toMatchObject({
+        hint: "Hint",
+        hintHtml: "<b>Hint</b>",
+        markdown: true,
+        name: "description",
+        type: "textarea",
+      });
+    });
+
+    test("validates local datetimes", () => {
+      accepts(validateDatetime, "2026-07-20T12:30");
+      rejects(validateDatetime, "not-a-datetime");
+    });
+
+    test("uses distinct listing and group visibility copy", () => {
+      const listing = buildHiddenField("Listing");
+      const group = buildHiddenField("Group");
+      expect(listing.name).toBe("hidden");
+      expect(listing.hint).not.toBe(group.hint);
+      expect(listing.label).not.toBe(group.label);
+      expect(listing.options).toEqual([
+        { label: "Hide from public listings list", value: "1" },
+      ]);
+    });
+  });
+
+  test("defines exact slug field constraints", () => {
+    expect(slugFieldBase()).toMatchObject({
+      name: "slug",
+      pattern: "[a-z0-9_\\-]+",
+      required: true,
+      type: "text",
+    });
+    expect(getSlugField()).toHaveProperty("hint");
+    expect(slugFieldBase().validate("Valid Slug")).toBeNull();
+    rejects(slugFieldBase().validate, "!!!");
   });
 
   describe("length-bounded text validators", () => {

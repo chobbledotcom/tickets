@@ -68,6 +68,28 @@ describe("withSiteDb", () => {
       createStub.restore();
     }
   });
+
+  test("closes the client after a successful read", async () => {
+    const client = await seededClient([]);
+    let closes = 0;
+    const close = client.close.bind(client);
+    const closeStub = stub(client, "close", () => {
+      closes++;
+    });
+    const createStub = stub(siteDbApi, "createClient", () => client);
+    try {
+      expect(
+        await withSiteDb({ dbToken: "token", dbUrl: "libsql://site" }, () =>
+          Promise.resolve("read"),
+        ),
+      ).toEqual({ ok: true, value: "read" });
+      expect(closes).toBe(1);
+    } finally {
+      createStub.restore();
+      closeStub.restore();
+      close();
+    }
+  });
 });
 
 describe("readSiteSetting", () => {

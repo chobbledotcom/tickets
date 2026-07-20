@@ -245,16 +245,20 @@ describeWithEnv(
           ),
         async () => {
           const view = await loadSiteSecretsStatus(buildSite());
-          expect(view.ok).toBe(false);
-          if (!view.ok) expect(view.error).toContain("network down");
+          expect(view).toEqual({
+            error: "Failed to list secrets: network down",
+            ok: false,
+          });
         },
       );
     });
 
     test("refuses a site with no script id", async () => {
       const view = await loadSiteSecretsStatus(buildSite({ hostingId: "" }));
-      expect(view.ok).toBe(false);
-      if (!view.ok) expect(view.error).toContain("no hosting ID");
+      expect(view).toEqual({
+        error: "This site has no hosting ID, so its secrets can't be read.",
+        ok: false,
+      });
     });
   },
 );

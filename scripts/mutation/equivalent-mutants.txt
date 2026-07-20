@@ -72,10 +72,12 @@ src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|und
 src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/maintenance/runner.ts:113:40  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
-src/shared/builder.ts:198:44  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
-src/shared/builder.ts:199:35  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
-src/shared/builder.ts:204:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
-src/shared/builder.ts:284:26  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:201:44  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
+src/shared/builder.ts:202:35  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:207:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:287:26  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/features/url.ts:58:35  ?? → ||   # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
+src/shared/storage.ts:376:18  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
 src/shared/site-build.ts:39:21  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
 src/shared/db/built-site-scheduler.ts:11:36  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
 src/shared/deno-deploy-api.ts:85:34  ?? → ||   # env_vars is a record object when present, and every object is truthy

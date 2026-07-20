@@ -72,17 +72,30 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
   test("returns 404 when MAIN_INSTANCE_KEY is not configured", async () => {
     const response = await post({ authorization: `Bearer ${KEY}` });
     expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "not_found" });
   });
 
   test("returns 401 when the bearer key is missing", async () => {
     using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
-    expect((await post()).status).toBe(401);
+    const response = await post();
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "unauthorized" });
   });
 
   test("returns 401 when the bearer key is wrong", async () => {
     using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
     const response = await post({ authorization: "Bearer not-the-key" });
     expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "unauthorized" });
+  });
+
+  test("rejects a key without the exact bearer scheme", async () => {
+    using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
+    for (const authorization of [KEY, `bearer ${KEY}`, `Token ${KEY}`]) {
+      const response = await post({ authorization });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: "unauthorized" });
+    }
   });
 
   test("returns read-only credentials for sites that have them", async () => {
@@ -97,6 +110,26 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
     );
     // A half-provisioned site (no script id / credentials) is omitted.
     await insertBuiltSite("Pending", "pending.b-cdn.net");
+    await insertBuiltSite(
+      "Deno",
+      "deno.example",
+      "libsql://deno",
+      "deno-token",
+      false,
+      "deno-app",
+      "release",
+      "deno",
+      "bunny",
+    );
+    await insertBuiltSite("No URL", "no-url.example", "", "token", false, "1");
+    await insertBuiltSite(
+      "No token",
+      "no-token.example",
+      "libsql://no-token",
+      "",
+      false,
+      "2",
+    );
 
     const response = await post({ authorization: `Bearer ${KEY}` });
     expect(response.status).toBe(200);
