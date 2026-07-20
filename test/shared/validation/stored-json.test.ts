@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import { thrownError } from "#test-utils/errors.ts";
 
 const entriesJson = defineStoredJson(
   v.array(v.strictObject({ id: v.number(), name: v.string() })),
@@ -23,7 +24,7 @@ describe("defineStoredJson", () => {
 
   test("rejects the wrong top-level shape", () => {
     expect(() => entriesJson.read('{"id":1}', "test.entries")).toThrow(
-      "Invalid stored JSON in test.entries",
+      "Invalid stored JSON in test.entries: Stored value does not match its schema",
     );
   });
 
@@ -31,6 +32,18 @@ describe("defineStoredJson", () => {
     expect(() =>
       entriesJson.read('[{"id":"1","name":"First"}]', "test.entries"),
     ).toThrow("Invalid stored JSON in test.entries");
+  });
+
+  test("does not attach rejected plaintext to read errors", () => {
+    const secret = "private stored value";
+    const error = thrownError(() =>
+      entriesJson.read(
+        JSON.stringify([{ id: secret, name: "First" }]),
+        "test.entries",
+      ),
+    );
+    expect(error.cause).toBeUndefined();
+    expect(error.message).not.toContain(secret);
   });
 
   test("rejects extra object fields", () => {
@@ -59,5 +72,14 @@ describe("defineStoredJson", () => {
         "test.entries",
       ),
     ).toThrow("Invalid value for stored JSON in test.entries");
+  });
+
+  test("does not attach rejected plaintext to write errors", () => {
+    const error = thrownError(() =>
+      entriesJson.write([{ id: 1, name: 2 }] as unknown as Parameters<
+        typeof entriesJson.write
+      >[0]),
+    );
+    expect(error.cause).toBeUndefined();
   });
 });

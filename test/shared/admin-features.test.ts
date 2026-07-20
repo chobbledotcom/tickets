@@ -141,7 +141,7 @@ describe("admin features", () => {
     }
   });
 
-  test("explains why an incomplete setting is invalid", () => {
+  test("identifies an incomplete setting without retaining its value", () => {
     let thrown: unknown;
     try {
       parseEnabledFeatures(JSON.stringify({ money: false }));
@@ -150,15 +150,9 @@ describe("admin features", () => {
     }
     expect(thrown).toMatchObject({
       message:
-        "Invalid stored JSON in settings.enabled_features: Every admin feature must have an enabled value",
+        "Invalid stored JSON in settings.enabled_features: Stored value does not match its schema",
     });
-    expect((thrown as Error).cause).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          message: "Every admin feature must have an enabled value",
-        }),
-      ]),
-    );
+    expect((thrown as Error).cause).toBeUndefined();
   });
 
   test("names the setting when serialization rejects invalid features", () => {

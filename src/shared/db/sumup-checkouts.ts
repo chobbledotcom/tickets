@@ -110,9 +110,10 @@ export const hasSumupCheckoutId = async (sumupId: string): Promise<boolean> => {
 export const getSumupCheckout = async (
   reference: string,
 ): Promise<SumupCheckoutEntry | null> => {
+  const referenceIndex = await hmacHash(reference);
   const row = await queryOne<SumupCheckoutRow>(
     "SELECT wrapped_key, metadata, sumup_id FROM sumup_checkouts WHERE reference_index = ?",
-    [await hmacHash(reference)],
+    [referenceIndex],
   );
   if (!row) return null;
   const dataKey = await unwrapKeyWithToken(row.wrapped_key, reference);
@@ -120,7 +121,7 @@ export const getSumupCheckout = async (
   return {
     metadata: metadataJson.read(
       json,
-      `sumup_checkouts.metadata for ${reference}`,
+      `sumup_checkouts.metadata for reference_index ${referenceIndex}`,
     ),
     sumupId: row.sumup_id,
   };

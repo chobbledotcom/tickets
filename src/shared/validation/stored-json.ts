@@ -8,9 +8,11 @@ export interface StoredJson<TSchema extends v.GenericSchema> {
 const invalidStoredJson = (
   context: string,
   detail: string,
-  cause: unknown,
+  cause?: unknown,
 ): Error =>
   new Error(`Invalid stored JSON in ${context}: ${detail}`, { cause });
+
+const INVALID_SCHEMA_DETAIL = "Stored value does not match its schema";
 
 /** Define one schema-backed JSON format for both storage reads and writes. */
 export const defineStoredJson = <TSchema extends v.GenericSchema>(
@@ -25,11 +27,7 @@ export const defineStoredJson = <TSchema extends v.GenericSchema>(
     }
     const result = v.safeParse(schema, parsed);
     if (!result.success) {
-      throw invalidStoredJson(
-        context,
-        result.issues[0]!.message,
-        result.issues,
-      );
+      throw invalidStoredJson(context, INVALID_SCHEMA_DETAIL);
     }
     return result.output;
   },
@@ -38,7 +36,6 @@ export const defineStoredJson = <TSchema extends v.GenericSchema>(
     if (!result.success) {
       throw new Error(
         `Invalid value for stored JSON${context ? ` in ${context}` : ""}`,
-        { cause: result.issues },
       );
     }
     return JSON.stringify(result.output);

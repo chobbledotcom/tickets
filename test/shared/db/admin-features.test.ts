@@ -257,7 +257,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     );
 
     await expect(setAdminFeatureEnabled("money", true)).rejects.toThrow(
-      "Every admin feature must have an enabled value",
+      "Stored value does not match its schema",
     );
   });
 
@@ -288,7 +288,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     );
 
     await expect(setAdminFeatureEnabled("logistics", false)).rejects.toThrow(
-      "Every admin feature must have an enabled value",
+      "Stored value does not match its schema",
     );
     expect(await settingValue(CONFIG_KEYS.LISTING_DEFAULTS)).toBe(
       defaultsBefore,
