@@ -37,9 +37,11 @@ For a target (`stripe` | `square` | `sumup` | `free`):
      income ledger, **and** the booker on the listing's Attendees tab).
 
 The Stripe leg also saves the key twice to rotate the webhook endpoint through
-the app's own cleanup path, runs the connection test, waits for Stripe's signed
-webhook, refreshes the paid booking from its PaymentIntent, and issues a full
-refund through the admin UI. Together these journeys exercise every Stripe HTTP
+the app's own cleanup path, runs the connection test, holds the first browser
+return so the signed webhook must create the booking, refreshes the paid booking
+from its PaymentIntent, and issues a full refund through the admin UI. The later
+complex order uses the normal browser return, so both confirmation paths are
+exercised. Together these journeys exercise every Stripe HTTP
 operation the app uses against Stripe's real test API: balance retrieval,
 Checkout Session creation and retrieval, expanded PaymentIntent retrieval,
 refund creation, and webhook endpoint creation, listing, and deletion.
@@ -54,7 +56,7 @@ involvement differs by provider:
 
 | Provider | Confirmation asserted | Webhook involvement |
 | --- | --- | --- |
-| Stripe | Return URL + captured amount + real refund | Endpoint registration, rotation/deletion, connection status, and successful signed delivery are asserted. |
+| Stripe | Signed webhook + captured amount + real refund; later complex order via return URL | Endpoint registration, rotation/deletion, connection status, and successful signed processing are asserted. |
 | SumUp | Return URL + captured amount | Needs no signature; a delivered webhook would be processed, but delivery is not asserted. |
 | Square | Return URL + captured amount | None — Square requires a manually-signed subscription against a fixed URL, which can't be provisioned for an ephemeral tunnel. |
 

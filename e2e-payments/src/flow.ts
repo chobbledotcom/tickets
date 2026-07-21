@@ -259,7 +259,6 @@ const collectHostedErrors = async (
  */
 export const assertPaidBookingConfirmed = async (
   session: BrowserSession,
-  _ticketPath: string,
 ): Promise<void> => {
   step("Confirming the paid booking");
   const { page } = session;
@@ -286,7 +285,7 @@ export const assertPaidBookingConfirmed = async (
           : appBody.slice(0, 400)),
     );
   }
-  log(`  ✔ customer saw the success page (${page.url()})`);
+  log(`  ✔ browser reached the app return (${page.url()})`);
 
   // 2. Cross-check in admin: the listing's Overview tab shows the captured
   // income, and its Attendees tab shows the booker — the listing detail page
@@ -302,7 +301,15 @@ export const assertPaidBookingConfirmed = async (
   // (price_paid = 0) records no income and the ledger section does not render.
   // Do NOT fall back to scanning the whole page: the listing detail also shows
   // the configured ticket price, which would give a false pass with no payment.
-  const paidRegion = await incomeLedgerText(session);
+  const paidRegion = await pollUntil(
+    config.paymentConfirmTimeoutMs,
+    async () => {
+      const text = await incomeLedgerText(session);
+      if (text !== null) return text;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      return null;
+    },
+  );
   if (paidRegion === null) {
     await session.screenshot("paid-admin-no-income-ledger");
     throw new Error(

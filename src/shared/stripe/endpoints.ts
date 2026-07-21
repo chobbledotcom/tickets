@@ -58,7 +58,7 @@ export const setupWebhookEndpoint: SetupWebhookEndpoint = async (
   existingEndpointId,
 ) => {
   try {
-    const client = stripeClientRuntime.create(secretKey, 0);
+    const client = stripeClientRuntime.create(secretKey);
     let endpoint: StripeCreatedWebhookEndpoint;
     try {
       endpoint = await createCheckoutWebhook(client, webhookUrl);

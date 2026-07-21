@@ -83,6 +83,23 @@ type ConfiguredPayment = {
   secrets: Record<string, string>;
 };
 
+/** Keep the first Stripe return out of the app so only its webhook can create
+ * the booking. The route applies once; the later complex-order journey still
+ * exercises the normal browser return path. */
+const holdAppReturn = async (session: BrowserSession): Promise<void> => {
+  const appOrigin = new URL(session.baseUrl).origin;
+  await session.page.route(
+    (url) => url.origin === appOrigin && url.pathname === "/payment/success",
+    (route) =>
+      route.fulfill({
+        body: "The browser return is held while the webhook confirms payment.",
+        contentType: "text/plain",
+        status: 202,
+      }),
+    { times: 1 },
+  );
+};
+
 const runJourneys = async ({
   country,
   payment,
@@ -114,35 +131,26 @@ const runJourneys = async ({
   } else {
     const hostedCheckoutContext = {
       baseUrl: tunnel.publicBaseUrl,
-      paymentSessionId: null as string | null,
       secrets: payment.secrets,
       serverLogPath: server.logPath,
     };
-    const payOnHostedCheckout = async (message: string): Promise<void> => {
+    const payOnHostedCheckout = async (
+      message: string,
+      confirmation: PaymentProvider["firstBookingConfirmation"] = "return",
+    ): Promise<void> => {
       step(message);
       await assertRedirectedToCheckout(session);
-      const appReturn = session.page.waitForRequest(
-        (request) => {
-          const url = new URL(request.url());
-          return (
-            url.origin === new URL(tunnel.publicBaseUrl).origin &&
-            url.pathname === "/payment/success"
-          );
-        },
-        { timeout: config.paymentConfirmTimeoutMs },
-      );
+      if (confirmation === "webhook") await holdAppReturn(session);
       await payment.provider.payHostedCheckout(
         session.page,
         hostedCheckoutContext,
       );
-      hostedCheckoutContext.paymentSessionId = new URL(
-        (await appReturn).url(),
-      ).searchParams.get("session_id");
     };
     await payOnHostedCheckout(
       `Paying on the ${payment.provider.name} hosted checkout`,
+      payment.provider.firstBookingConfirmation,
     );
-    await assertPaidBookingConfirmed(session, ticketPath);
+    await assertPaidBookingConfirmed(session);
     await payment.provider.afterPaidBooking?.(session, hostedCheckoutContext);
     payForComplexOrder = () =>
       payOnHostedCheckout(

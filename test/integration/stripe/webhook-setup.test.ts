@@ -14,12 +14,18 @@ import { activateStripe } from "#test-utils/settings.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 const setupWhileFetchThrows = (thrown: unknown, url: string) =>
-  withFetchMock(async () => {
-    globalThis.fetch = () => {
-      throw thrown;
-    };
-    return await stripeApi.setupWebhookEndpoint("sk_test_mock", url);
-  });
+  withVirtualBackoff(() =>
+    withFetchMock(async () => {
+      using _env = withEnv({
+        STRIPE_MOCK_HOST: undefined,
+        STRIPE_MOCK_PORT: undefined,
+      });
+      globalThis.fetch = () => {
+        throw thrown;
+      };
+      return await stripeApi.setupWebhookEndpoint("sk_test_mock", url);
+    }),
+  );
 
 const expectFetchFailure = async (
   thrown: unknown,
@@ -28,7 +34,7 @@ const expectFetchFailure = async (
   const result = await setupWhileFetchThrows(thrown, url);
   expect(result).toEqual({
     error:
-      "An error occurred with our connection to Stripe. Request was retried 0 times.",
+      "An error occurred with our connection to Stripe. Request was retried 2 times.",
     success: false,
   });
 };
@@ -310,7 +316,7 @@ describeStripe("Stripe webhook setup", () => {
       );
     });
 
-    test("does not spend request retries on endpoint setup", async () => {
+    test("retries a transient endpoint setup failure", async () => {
       using _env = withEnv({
         STRIPE_MOCK_HOST: undefined,
         STRIPE_MOCK_PORT: undefined,
@@ -320,10 +326,17 @@ describeStripe("Stripe webhook setup", () => {
         globalThis.fetch = () => {
           calls++;
           return Promise.resolve(
-            Response.json(
-              { error: { message: "Temporary failure", type: "api_error" } },
-              { status: 500 },
-            ),
+            calls === 1
+              ? Response.json(
+                  {
+                    error: { message: "Temporary failure", type: "api_error" },
+                  },
+                  { status: 500 },
+                )
+              : Response.json({
+                  id: "we_retried",
+                  secret: "whsec_retried",
+                }),
           );
         };
         return await withVirtualBackoff(() =>
@@ -334,8 +347,12 @@ describeStripe("Stripe webhook setup", () => {
         );
       });
 
-      expect(result.success).toBe(false);
-      expect(calls).toBe(1);
+      expect(result).toEqual({
+        endpointId: "we_retried",
+        secret: "whsec_retried",
+        success: true,
+      });
+      expect(calls).toBe(2);
     });
   });
 });

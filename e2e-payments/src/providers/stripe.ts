@@ -3,7 +3,6 @@ import { type BrowserSession, requirePageText } from "../browser.ts";
 import { config } from "../config.ts";
 import { BOOKER_NAME } from "../flow.ts";
 import { log, warn } from "../log.ts";
-import { pollUntil } from "../util.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
@@ -45,87 +44,6 @@ const testStripeConnection = async (session: BrowserSession): Promise<void> => {
     "Stripe connection test did not confirm one current webhook endpoint. " +
       `Missing: ${missing.join(", ") || "none"}; ` +
       `current endpoint count: ${webhookCount}. Result:\n${text}`,
-  );
-};
-
-type StripeCheckoutEvent = {
-  checkoutId: string;
-  eventId: string;
-};
-
-const stripeCheckoutEvents = (value: unknown): StripeCheckoutEvent[] => {
-  if (typeof value !== "object" || value === null || !("data" in value)) {
-    throw new Error("Stripe events response did not contain data");
-  }
-  if (!Array.isArray(value.data)) {
-    throw new Error("Stripe events response data was not an array");
-  }
-  return value.data.map((item) => {
-    if (
-      typeof item !== "object" ||
-      item === null ||
-      !("id" in item) ||
-      typeof item.id !== "string" ||
-      !("data" in item) ||
-      typeof item.data !== "object" ||
-      item.data === null ||
-      !("object" in item.data) ||
-      typeof item.data.object !== "object" ||
-      item.data.object === null ||
-      !("id" in item.data.object) ||
-      typeof item.data.object.id !== "string"
-    ) {
-      throw new Error("Stripe returned an invalid checkout event");
-    }
-    return {
-      checkoutId: item.data.object.id,
-      eventId: item.id,
-    };
-  });
-};
-
-const waitForStripeWebhook = async (
-  secretKey: string,
-  sessionId: string,
-): Promise<void> => {
-  // Wait for Stripe to record the checkout.session.completed event for this
-  // session. The booking is already confirmed in the app (the caller asserted
-  // assertPaidBookingConfirmed before invoking afterPaidBooking), which means
-  // our own webhook endpoint has already received and processed the event.
-  // We deliberately do NOT gate on `pending_webhooks === 0`: that counter is
-  // account-wide, so a stale enabled webhook endpoint left behind by an
-  // earlier canceled/failed run (still cleaned up only in `cleanup`, which
-  // runs in finally AFTER this wait) would keep the counter > 0 and stall
-  // the nightly Stripe leg even though our endpoint has already acknowledged.
-  // Gating on the event existing is enough: Stripe has persisted it, our
-  // endpoint has acknowledged (booking is confirmed), and the refund step
-  // below reads the PaymentIntent — not this event.
-  const delivered = await pollUntil(
-    config.paymentConfirmTimeoutMs,
-    async () => {
-      const response = await fetch(
-        "https://api.stripe.com/v1/events?type=checkout.session.completed&limit=100",
-        { headers: { Authorization: `Bearer ${secretKey}` } },
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Stripe events lookup failed (HTTP ${response.status})`,
-        );
-      }
-      const event = stripeCheckoutEvents(await response.json()).find(
-        ({ checkoutId }) => checkoutId === sessionId,
-      );
-      return event ?? null;
-    },
-  );
-  if (delivered) {
-    log(
-      `  Stripe webhook ${delivered.eventId} for checkout ${sessionId} was delivered`,
-    );
-    return;
-  }
-  throw new Error(
-    `Stripe did not record the checkout.session.completed event for ${sessionId} within ${config.paymentConfirmTimeoutMs}ms`,
   );
 };
 
@@ -191,16 +109,7 @@ const exerciseStripeRefund = async (session: BrowserSession): Promise<void> => {
  * Docs: https://docs.stripe.com/testing
  */
 export const stripe: PaymentProvider = {
-  afterPaidBooking: async (session, context): Promise<void> => {
-    if (!context.paymentSessionId) {
-      throw new Error("Stripe checkout return did not include a session id");
-    }
-    await waitForStripeWebhook(
-      context.secrets.secretKey,
-      context.paymentSessionId,
-    );
-    await exerciseStripeRefund(session);
-  },
+  afterPaidBooking: exerciseStripeRefund,
   // Each run registers a webhook endpoint for its ephemeral *.trycloudflare.com
   // URL, and the throwaway DB forgets the id — so without cleanup they pile up
   // and Stripe eventually rejects new ones (accounts cap webhook endpoints).
@@ -245,6 +154,7 @@ export const stripe: PaymentProvider = {
     await saveStripeKey(session, secrets.secretKey);
     await testStripeConnection(session);
   }),
+  firstBookingConfirmation: "webhook",
   name: "stripe",
 
   payHostedCheckout: hostedCheckout(

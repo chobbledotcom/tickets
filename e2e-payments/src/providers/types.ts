@@ -32,8 +32,6 @@ export type PayHostedCheckout = (
 export interface HostedCheckoutContext {
   /** Public base URL the browser drives the app at (the cloudflared tunnel). */
   baseUrl: string;
-  /** Exact provider session seen on this checkout's app return request. */
-  paymentSessionId: string | null;
   /** The provider's sandbox secrets (as returned by providerSecrets). */
   secrets: Record<string, string>;
   /** Path to the app server's log file (provider ids are logged there). */
@@ -61,6 +59,8 @@ export interface PaymentProvider {
    * payment provider, then save its credentials. Throws on failure.
    */
   configure: ConfigureProvider;
+  /** How the first paid booking must reach the app before it is accepted. */
+  readonly firstBookingConfirmation: "return" | "webhook";
   name: ProviderName;
   /**
    * Drive the provider's *hosted* checkout page: enter the sandbox test card

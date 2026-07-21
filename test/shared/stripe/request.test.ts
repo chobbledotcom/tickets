@@ -52,6 +52,16 @@ const retryingBalance = (firstResponse: Response) => {
   return { client, waits };
 };
 
+const expectLockTimeoutRetry = async (
+  error: Record<string, string>,
+): Promise<void> => {
+  const { client, waits } = retryingBalance(
+    Response.json({ error: { ...error, message: "Locked" } }, { status: 429 }),
+  );
+  expect(await client.balance.retrieve()).toEqual({ livemode: false });
+  expect(waits).toEqual([500]);
+};
+
 const unreadableResponse = (error: unknown, status = 200): Response =>
   new Response(
     new ReadableStream({
@@ -349,26 +359,20 @@ describe("Stripe request transport", () => {
     expect(waits).toEqual([500]);
   });
 
-  test("retries a 429 lock_timeout (object contention)", async () => {
+  test("retries a 429 whose error code is lock_timeout", async () => {
     // Stripe returns 429 with `error.code === "lock_timeout"` when two
     // concurrent requests contend on the same resource. Stripe's docs and
     // SDK treat these as retryable, so the transport must use the configured
     // retry budget — replacing stripe-node must not turn a retryable refund
     // or PaymentIntent lookup into an immediate failure.
-    const { client, waits } = retryingBalance(
-      Response.json(
-        {
-          error: {
-            code: "lock_timeout",
-            message: "Locked",
-            type: "lock_timeout",
-          },
-        },
-        { status: 429 },
-      ),
-    );
-    expect(await client.balance.retrieve()).toEqual({ livemode: false });
-    expect(waits).toEqual([500]);
+    await expectLockTimeoutRetry({
+      code: "lock_timeout",
+      type: "invalid_request_error",
+    });
+  });
+
+  test("retries a 429 whose error type is lock_timeout", async () => {
+    await expectLockTimeoutRetry({ type: "lock_timeout" });
   });
 
   test("does not retry a 429 rate-limit without lock_timeout", async () => {
