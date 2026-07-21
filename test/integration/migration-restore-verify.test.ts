@@ -17,16 +17,16 @@ import { loadMigrations } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import {
-  downgradeListingDomainToLegacyNames,
-  tableRowCount,
-} from "../migration-test-helpers.ts";
-import {
   additiveMigrations,
   dropOwnedObjects,
   migrationById,
   seedSentinelListing,
   triggerExists,
-} from "./helpers.ts";
+} from "../lib/db/migration-restore/helpers.ts";
+import {
+  downgradeListingDomainToLegacyNames,
+  tableRowCount,
+} from "../lib/db/migration-test-helpers.ts";
 
 const MIGRATIONS = await loadMigrations();
 const RESTORE_TRIGGER: Trigger = {
