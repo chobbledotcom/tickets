@@ -53,10 +53,10 @@ src/shared/config.ts:177:33  ?? → ||    # getEnv(): string|undefined, only fal
 src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
 src/shared/app-forms.ts:71:18  ?? → ||    # config.auth is an AuthPolicy object when present, so it is always truthy
-src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
-src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
-src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
-src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/site-assignment.ts:161:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
+src/shared/site-assignment.ts:332:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
+src/shared/site-assignment.ts:354:34  ?? → ||    # getEmailConfig(): EmailConfig|null
+src/shared/site-assignment.ts:378:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
 src/shared/ledger/project.ts:20:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/listing-parents-rules.ts:124:4  ?? → ||    # find()?.error(): an i18n message is never "", so only undefined reaches the fallback either way
 src/shared/ledger/project.ts:38:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
@@ -77,7 +77,21 @@ src/shared/accounting/rows.ts:262:58  ?? → ||   # selectById (await …)[0]: T
 src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: InValue[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
-src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
+src/shared/maintenance/runner.ts:113:40  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:201:44  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
+src/shared/builder.ts:202:35  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:207:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:287:26  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/features/url.ts:58:35  ?? → ||   # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
+src/shared/storage.ts:376:18  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
+src/shared/site-build.ts:39:21  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
+src/shared/db/built-site-scheduler.ts:11:36  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
+src/shared/deno-deploy-api.ts:85:34  ?? → ||   # env_vars is a record object when present, and every object is truthy
+src/shared/bunny-cdn.ts:477:42  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
+src/shared/bunny-cdn.ts:529:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
+src/shared/subrequest-budget.ts:38:40  ?? → ||   # scoped counts is an object when present, and every object is truthy
 src/shared/db/attendees/balance.ts:223:22  ?? → ||   # attendee status ids are positive integers when present, so the value is always truthy or nullish
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts:121:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
@@ -122,6 +136,12 @@ src/shared/db/table.ts:721:6  === → ==   # wrapNullable constrains T to exclud
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/login-attempts.ts:46:39  ?? → ||
+src/shared/db/users.ts:263:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
+src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
+src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
+src/shared/update.ts:131:45  ?? → ||   # the stored marker is a string or undefined and the fallback is empty, so both operators return the same string
+src/shared/update.ts:156:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
@@ -273,11 +293,6 @@ src/features/admin/api.ts:549:19  ?? → ||   # groupIds is an array or undefine
 src/features/admin/api.ts:562:43  ?? → ||   # an existing listing id is positive and truthy, otherwise optional access yields undefined
 src/features/admin/api.ts:564:38  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
 
-# Settings registry: readOnly is optional but can only be true when present, so
-# `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
-# make the same if-condition decision for every valid accessor.
-src/shared/settings/registry.ts:345:40  && → ||   # readOnly?: true; absent is falsy either way, present is true either way
-
 # --- External order widget (src/ui/client/order.ts) ----------------------------
 # URL matches and catalog entries are either non-empty strings/objects or absent,
 # so these nullish and truthy fallbacks have the same result.
@@ -419,14 +434,11 @@ src/shared/images/resize.ts:75:19  = → +=    # out[o+1] = G into fresh-zeroed 
 src/shared/images/resize.ts:76:19  = → +=    # out[o+2] = B into fresh-zeroed array; written once
 src/shared/images/resize.ts:78:17  = → +=    # out[o+3] = A into fresh-zeroed array; written once
 
-# middleware.ts's missing Content-Type fallback is fed only to startsWith checks,
-# so neither "" nor "mutated" can match an accepted MIME prefix. Once a tracking
-# key is found, assigning true with `=` or `+=` is the same (`false + true` is 1,
-# which is truthy), and continuing instead of breaking can only rediscover more
-# tracking keys without changing the final boolean.
-src/features/middleware.ts:163:63   → "mutated"    # neither fallback matches an accepted Content-Type
-src/features/middleware.ts:213:18  = → +=    # false + true is truthy, matching true
-src/features/middleware.ts:214:7  break; → (removed)    # later keys cannot reverse hasTracking
+# middleware.ts's Content-Type fallback already equals the only falsy string.
+# Once a tracking key is found, continuing instead of breaking can only
+# rediscover more tracking keys without changing the final boolean.
+src/features/middleware.ts:155:39  ?? → ||    # Content-Type is string|null; the only falsy non-null string is "", which is also the fallback
+src/features/middleware.ts:217:7  break; → (removed)    # later keys cannot reverse hasTracking
 
 # bundle-loader.ts assigns query/style/script values onto freshly-created URLs
 # and elements. Each left-hand value is empty (or false for defer), so `=` and
@@ -969,8 +981,8 @@ src/features/admin/index.ts:28:21  ?? → ||   # `path.split("/")[2] ?? ""`: the
 src/features/admin/index.ts:45:43  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
 
 # App prefix dispatch (app/routes.ts) — two provably-equivalent survivors.
-src/features/app/routes.ts:239:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
-src/features/app/routes.ts:444:59  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
+src/features/app/routes.ts:235:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
+src/features/app/routes.ts:439:59  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
 
 # Logger (logger.ts) — two provably-equivalent survivors from the run over the
 # logger suites.
@@ -982,10 +994,10 @@ src/shared/logger.ts:77:70  ?? → ||   # getRequestId's `getStore() ?? ""`: the
 # the packByReferenceCount run.
 src/features/admin/refunds/waves.ts:16:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
 
-# Attendee PII (db/attendees/pii.ts) — two provably-equivalent survivors from
-# the decryptPiiBlob run.
-src/shared/db/attendees/pii.ts:72:17  ?? → ||   # decryptPiiBlob's `blob.la ?? ""`: buildPiiBlob stores `info.lat || undefined`, so blob.la is a non-empty string or undefined — never "". The only falsy value is undefined, so `x ?? ""` and `x || ""` agree on every possible input
-src/shared/db/attendees/pii.ts:73:17  ?? → ||   # decryptPiiBlob's `blob.lo ?? ""`: same as la above — blob.lo is a non-empty string or undefined (buildPiiBlob stores `info.lng || undefined`), so `?? ""` and `|| ""` agree on every input
+# Attendee PII (db/attendees/pii.ts) — three provably-equivalent survivors.
+src/shared/db/attendees/pii.ts:64:5  attendees.pii_blob → ""   # buildPiiBlob receives AttendeePii: every field is already a string, and it supplies the only literal/version fields itself, so the stored-JSON writer cannot reject any contract input; its error label is never observed
+src/shared/db/attendees/pii.ts:88:17  ?? → ||   # decryptPiiBlob's `blob.la` is string|undefined and the fallback is "": truthy strings pass through, while both undefined and the only falsy string ("") produce "", so `??` and `||` agree on every input
+src/shared/db/attendees/pii.ts:89:17  ?? → ||   # decryptPiiBlob's `blob.lo` has the same string|undefined domain and "" fallback as latitude, so `??` and `||` agree on every input
 
 # Unit-tests-report import attribution (unit-tests-report-imports.ts) — the
 # stem() dir-strip replacement value is unobservable.
@@ -1020,3 +1032,15 @@ src/ui/templates/admin/questions.tsx:256:50  ?? → ||   # `answerCounts?.get(a.
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
 src/shared/cache-registry.ts:126:47  ?? → ||   # get(): Set|undefined — a Set is always truthy
+
+# Stripe request null checks: both values are typed as string|null, never undefined,
+# so strict and loose null equality agree for every possible input.
+src/shared/stripe/request.ts:89:17  === → ==   # retryAfter is string|null; both comparisons are true only for null
+src/shared/stripe/request.ts:151:15  === → ==   # Headers.get returns string|null; both comparisons are true only for null
+
+# A header part without "=" has no value. Its key cannot affect timestamp or
+# signature state: a timestamp assignment remains undefined and a v1 signature
+# is added only when its value is truthy. These alternate key expressions differ
+# only for that value-less case, so every parsed result is identical.
+src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
+src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored

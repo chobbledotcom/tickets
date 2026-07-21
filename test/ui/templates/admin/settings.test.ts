@@ -7,14 +7,14 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
-import { defaultState } from "./settings/test-helpers.ts";
+import { defaultSettingsState } from "./settings-state.ts";
 
 describe("adminSettingsPage", () => {
   beforeAll(setupAdminPageTest);
 
   test("omits the key-mode notice for a configured key with an unknown mode", () => {
     const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
+      ...defaultSettingsState(),
       paymentProvider: "sumup",
       sumupKeyConfigured: true,
       sumupKeyMode: null,
@@ -25,7 +25,7 @@ describe("adminSettingsPage", () => {
   });
 
   test("renders the underline-links checkbox, unchecked by default", () => {
-    const html = adminSettingsPage(OWNER_SESSION, defaultState());
+    const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
     expect(html).toContain("Underline links");
     const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
     expect(checkbox?.[0]).toContain('type="checkbox"');
@@ -34,7 +34,7 @@ describe("adminSettingsPage", () => {
 
   test("checks the underline-links checkbox when enabled", () => {
     const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
+      ...defaultSettingsState(),
       underlineLinks: true,
     });
     const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
@@ -43,7 +43,7 @@ describe("adminSettingsPage", () => {
 
   test("shows square webhook configured message when key is set", () => {
     const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
+      ...defaultSettingsState(),
       paymentProvider: "square",
       squareTokenConfigured: true,
       squareWebhookConfigured: true,
@@ -54,7 +54,7 @@ describe("adminSettingsPage", () => {
 
   test("shows square webhook not configured message when key is not set", () => {
     const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
+      ...defaultSettingsState(),
       paymentProvider: "square",
       squareTokenConfigured: true,
     });
@@ -64,7 +64,7 @@ describe("adminSettingsPage", () => {
 
   test("shows sandbox checkbox checked when sandbox mode enabled", () => {
     const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
+      ...defaultSettingsState(),
       paymentProvider: "square",
       squareSandbox: true,
       squareTokenConfigured: true,
@@ -74,14 +74,14 @@ describe("adminSettingsPage", () => {
   });
 
   test("shows settings sub-navigation", () => {
-    const html = adminSettingsPage(OWNER_SESSION, defaultState());
+    const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
     expect(html).toContain('href="/admin/settings-advanced"');
     expect(html).toContain('href="/admin/backup"');
     expect(html).toContain('href="/admin/debug"');
   });
 
   test("renders the calendar feeds form as markup, not escaped HTML", () => {
-    const html = adminSettingsPage(OWNER_SESSION, defaultState());
+    const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
     expect(html).toContain('action="/admin/settings/calendar-feeds"');
     expect(html).toContain('name="calendar_feeds_enabled"');
     expect(html).toContain('name="calendar_feeds_group_by"');
@@ -90,7 +90,7 @@ describe("adminSettingsPage", () => {
 
   test("checks the calendar feeds toggle when enabled", () => {
     const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
+      ...defaultSettingsState(),
       calendarFeedsEnabled: true,
     });
     expect(hasCheckedInput(html, "calendar_feeds_enabled", "true")).toBe(true);
@@ -108,7 +108,7 @@ describe("adminSettingsPage", () => {
     };
 
     test("attaches each registry label to its own radio value", () => {
-      const html = adminSettingsPage(OWNER_SESSION, defaultState());
+      const html = adminSettingsPage(OWNER_SESSION, defaultSettingsState());
       expect(labelForValue(html, "stripe")).toBe("Stripe");
       expect(labelForValue(html, "square")).toBe("Square");
       expect(labelForValue(html, "sumup")).toBe("SumUp");
@@ -118,7 +118,7 @@ describe("adminSettingsPage", () => {
       const values = ["none", ...PAYMENT_PROVIDER_IDS];
       for (const selected of values) {
         const html = adminSettingsPage(OWNER_SESSION, {
-          ...defaultState(),
+          ...defaultSettingsState(),
           paymentProvider: selected === "none" ? "" : selected,
         });
         for (const value of values) {

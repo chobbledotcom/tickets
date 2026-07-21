@@ -18,7 +18,10 @@ import { lazyRef, map, pipe, reduce, sort } from "#fp";
 import { withLazyLogger } from "#shared/lazy-logger.ts";
 import { shouldSuppressDebugLogs } from "#shared/log-settings.ts";
 import { createScope } from "#shared/request-scoped.ts";
-import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
+import {
+  BUNNY_SUBREQUEST_LIMIT,
+  countSubrequest,
+} from "#shared/subrequest-budget.ts";
 
 /** A single logged query */
 export type QueryLogEntry = {
@@ -171,6 +174,7 @@ export const TRANSACTION_ROUNDTRIP_THRESHOLD = 30;
  * network. Unlike advisory N+1 reporting, this stays hard in production because
  * Bunny would reject the same request immediately afterwards anyway. */
 export const countDatabaseRoundTrip = (operation: string): void => {
+  countSubrequest("database", operation);
   const state = queryLogScope.current();
   if (!state) return;
   state.databaseRoundTrips += 1;

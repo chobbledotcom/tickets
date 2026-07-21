@@ -54,6 +54,12 @@ export const routes = [
     "/admin/built-sites/:id/provision-renewal",
   ),
   route(
+    "postBuiltSitesByIdProvisionScheduler",
+    "builtSites",
+    "POST",
+    "/admin/built-sites/:id/provision-scheduler",
+  ),
+  route(
     "postBuiltSitesByIdReSyncDeadline",
     "builtSites",
     "POST",

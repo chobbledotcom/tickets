@@ -8,7 +8,7 @@ import {
 } from "#test-utils/admin-page-test.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { defaultState } from "./test-helpers.ts";
+import { defaultSettingsState } from "../settings-state.ts";
 
 type AvailableSuperuser = Extract<
   SettingsPageState["superuser"],
@@ -28,7 +28,7 @@ const availableSuperuser = (
 });
 
 const renderSuperuser = (superuser: SettingsPageState["superuser"]): string =>
-  adminSettingsPage(OWNER_SESSION, { ...defaultState(), superuser });
+  adminSettingsPage(OWNER_SESSION, { ...defaultSettingsState(), superuser });
 
 const superuserFormHtml = (html: string): string => {
   const start = html.indexOf('id="settings-superuser"');

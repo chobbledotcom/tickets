@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import {
   withRejectedBookingWrite,
   withSkippedBookingWrite,
@@ -51,22 +49,5 @@ describeWithEnv("admin attendee create atomic failures", { db: true }, () => {
     });
 
     await expectNoAttendeesForListings([first.id, rejected.id]);
-  });
-
-  test("reports an encryption failure instead of calling it a capacity error", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const encryptionFailure = stub(attendeesApi, "createAttendeeAtomic", () =>
-      Promise.resolve({ reason: "encryption_error" as const, success: false }),
-    );
-    try {
-      await expect(
-        adminFormPost("/admin/attendees/new", {
-          name: "Admin Encryption Failure",
-          ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
-        }),
-      ).rejects.toThrow("Could not encrypt the new attendee");
-    } finally {
-      encryptionFailure.restore();
-    }
   });
 });

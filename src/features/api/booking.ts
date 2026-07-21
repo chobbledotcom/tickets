@@ -40,10 +40,6 @@ const bookingResultToResponse = (
       return soldOutResponse();
     case "checkout_failed":
       return checkoutFailedResponse(result.error);
-    case "creation_failed":
-      return result.reason === "capacity_exceeded"
-        ? soldOutResponse()
-        : apiError(bookingError.fallback, 500);
   }
 };
 

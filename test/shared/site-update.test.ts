@@ -5,7 +5,10 @@ import { type Stub, stub } from "@std/testing/mock";
 import { queryOne } from "#shared/db/client.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { siteDbApi } from "#shared/site-db.ts";
-import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
+import {
+  deployAndReport,
+  loadBuiltSiteUpdateState,
+} from "#shared/site-update.ts";
 import {
   CURRENT_SCRIPT_VERSION_KEY,
   readRecordedScriptCommit,
@@ -17,6 +20,31 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 
 const LATEST_TAG = "v2099-01-01-120000";
+
+test("deployAndReport keeps the update task name and full failure context", async () => {
+  const taskStub = stub(
+    settings,
+    "withCurrentTask",
+    async <T>(_task: string, run: () => Promise<T>) => ({
+      ok: true as const,
+      value: await run(),
+    }),
+  );
+  try {
+    const response = await deployAndReport({
+      deploy: () => Promise.reject(new Error("provider down")),
+      logPrefix: "Updated",
+      onError: (message) => new Response(message, { status: 500 }),
+      onSuccess: (message) => new Response(message),
+      successPrefix: "Updated",
+    });
+    expect(taskStub.calls[0]?.args[0]).toBe("update");
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe("Update failed: provider down");
+  } finally {
+    taskStub.restore();
+  }
+});
 
 /** Seed an in-memory libsql client standing in for the remote site's DB. */
 const seedSiteDb = async (version: string | null): Promise<Client> => {
@@ -82,6 +110,8 @@ describeWithEnv(
 
       const state = await loadBuiltSiteUpdateState(site);
 
+      expect(state.latestVersion).toBe(LATEST_TAG);
+      expect(state.latestVersionName).toBe("2099-01-01 - Big Update");
       expect(state.siteVersionLabel).toContain("2026");
       expect(state.updateAvailable).toBe(true);
       expect(state.upToDate).toBe(false);

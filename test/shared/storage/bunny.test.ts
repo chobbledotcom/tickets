@@ -1,15 +1,37 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  deleteFile,
   downloadRaw,
   listFiles,
   listFilesWithMeta,
   runWithStorageConfig,
   uploadRaw,
 } from "#shared/storage.ts";
+import {
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withBunnyStorageStub } from "#test-utils/mocks.ts";
 import { STORAGE_TEST_ENV } from "./fixtures.ts";
+
+const noExternalRequests = {
+  database: 50,
+  external: 0,
+  total: 50,
+};
+
+const expectBlockedOperation = async (
+  label: string,
+  action: () => Promise<unknown>,
+): Promise<void> => {
+  await expect(
+    runWithSubrequestBudget(() =>
+      withSubrequestAllowance(noExternalRequests, action),
+    ),
+  ).rejects.toThrow(`Blocked external operation: ${label}`);
+};
 
 describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
   test("rejects incomplete Bunny credentials before loading the SDK", async () => {
@@ -149,6 +171,43 @@ describeWithEnv("Bunny storage", STORAGE_TEST_ENV, () => {
           { name: "backup-2025.zip", size: 0 },
         ]);
       },
+    );
+  });
+  test("upload identifies its blocked subrequest", async () => {
+    await withBunnyStorageStub(
+      () => Response.json({ HttpCode: 201 }),
+      () =>
+        expectBlockedOperation("storage upload", () =>
+          uploadRaw(new Uint8Array([1]), "file.bin"),
+        ),
+    );
+  });
+
+  test("download identifies its blocked subrequest", async () => {
+    await withBunnyStorageStub(
+      () => new Response(new Uint8Array([1])),
+      () =>
+        expectBlockedOperation("storage download", () =>
+          downloadRaw("file.bin"),
+        ),
+    );
+  });
+
+  test("delete identifies its blocked subrequest", async () => {
+    await withBunnyStorageStub(
+      () => Response.json({ HttpCode: 200 }),
+      () =>
+        expectBlockedOperation("storage delete", () => deleteFile("file.bin")),
+    );
+  });
+
+  test("listing identifies its blocked subrequest", async () => {
+    await withBunnyStorageStub(
+      () => Response.json([]),
+      () =>
+        expectBlockedOperation("storage directory listing", () =>
+          listFiles("backup-"),
+        ),
     );
   });
 });

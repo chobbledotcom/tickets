@@ -13,6 +13,10 @@ describe("isProvisioned", () => {
     const site = testBuiltSite({ renewalTokenIndex: null });
     expect(isProvisioned(site)).toBe(false);
   });
+
+  test("returns false when a legacy renewal index is empty", () => {
+    expect(isProvisioned(testBuiltSite({ renewalTokenIndex: "" }))).toBe(false);
+  });
 });
 
 describe("formatDeadlineLabel", () => {

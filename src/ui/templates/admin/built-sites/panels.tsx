@@ -1,5 +1,5 @@
 import { t } from "#i18n";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
@@ -162,6 +162,31 @@ const unprovisionedPanel = (site: BuiltSite): JSX.Element => (
 
 export const renewalPanelFor = (site: BuiltSite): JSX.Element =>
   isProvisioned(site) ? provisionedPanel(site) : unprovisionedPanel(site);
+
+export const MaintenancePanel = ({
+  site,
+}: {
+  site: BuiltSite;
+}): JSX.Element => (
+  <div class="prose">
+    <p>{t("built_sites.maintenance_intro")}</p>
+    {site.scheduledTaskKey && (
+      <p>
+        <strong>{t("built_sites.maintenance_site_key")}</strong>{" "}
+        <code>{site.scheduledTaskKey}</code>
+      </p>
+    )}
+    <SiteActionForm action="provision-scheduler" siteId={site.id}>
+      <SubmitButton icon="hammer">
+        {t(
+          site.scheduledTaskKey
+            ? "built_sites.maintenance_resend"
+            : "built_sites.maintenance_provision",
+        )}
+      </SubmitButton>
+    </SiteActionForm>
+  </div>
+);
 
 export const SecretsPanel = ({
   site,

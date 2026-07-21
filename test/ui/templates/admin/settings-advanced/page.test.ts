@@ -2,56 +2,15 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
-import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { advancedDefaultState } from "./state.ts";
 
 describe("adminAdvancedSettingsPage", () => {
   beforeAll(setupAdminPageTest);
-
-  const advancedDefaultState: AdvancedSettingsPageState = {
-    addressLookupApiKeyConfigured: false,
-    addressLookupProvider: "none",
-    adminTemplates: { html: "", subject: "", text: "" },
-    appleWalletConfigured: false,
-    appleWalletPassTypeId: "",
-    appleWalletTeamId: "",
-    attendeeColumnOrder: "",
-    bunnyCdnEnabled: false,
-    bunnyDnsEnabled: false,
-    bunnyDnsSubdomainSuffix: "",
-    bunnySubdomain: "",
-    businessEmail: "",
-    cdnHostname: "",
-    confirmationTemplates: { html: "", subject: "", text: "" },
-    customCss: "",
-    customDomain: "",
-    customDomainLastValidated: "",
-    emailApiKeyConfigured: false,
-    emailFromAddress: "",
-    emailProvider: "",
-    externalOrderEnabled: false,
-    googleWalletConfigured: false,
-    googleWalletIssuerId: "",
-    googleWalletServiceAccountEmail: "",
-    hostAppleWalletLabel: "",
-    hostEmailLabel: "",
-    hostGoogleWalletLabel: "",
-    listingColumnOrder: "",
-    paymentProvider: "",
-    showPublicApi: false,
-    smsGatewayBaseUrl: "",
-    smsGatewayPassphraseConfigured: false,
-    smsGatewayPasswordConfigured: false,
-    smsGatewayUsername: "",
-    smsGatewayWebhookConfigured: false,
-    subdomainPreview: "",
-    subdomainPreviewFullDomain: "",
-    theme: "light",
-  };
 
   test("renders the SMS gateway card with current values", () => {
     const html = adminAdvancedSettingsPage(OWNER_SESSION, {

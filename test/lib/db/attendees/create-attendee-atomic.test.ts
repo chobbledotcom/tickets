@@ -9,7 +9,6 @@ import {
 import { dateToRange } from "#shared/db/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
 import { updateListingAggregateValues } from "#shared/db/listings/aggregates.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
@@ -196,30 +195,6 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.reason).toBe("capacity_exceeded");
-    }
-  });
-
-  test("fails when encryption key not configured", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 50,
-      thankYouUrl: "https://example.com",
-    });
-
-    await getDb().execute({
-      args: [CONFIG_KEYS.PUBLIC_KEY],
-      sql: "DELETE FROM settings WHERE key = ?",
-    });
-    settings.invalidateCache();
-
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id }],
-      email: "john@example.com",
-      name: "John",
-    });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.reason).toBe("encryption_error");
     }
   });
 

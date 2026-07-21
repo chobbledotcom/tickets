@@ -4,7 +4,7 @@ export type { ConfigKey };
 export { CONFIG_KEYS };
 
 type StringStorage = "plaintext" | "encrypted";
-type StringTag = "emailBody" | "prune";
+type StringTag = "emailBody";
 
 type AccessorConfig = {
   name: string;
@@ -21,20 +21,6 @@ type StringSettingConfig<K extends ConfigKey = ConfigKey> = {
 const setting = <const Definition extends StringSettingConfig>(
   definition: Definition,
 ): Definition => definition;
-
-/** A "last pruned" timestamp setting: plaintext, tagged for the pruner, and
- * reached by an accessor of the given name. Collapses the repeated shape of the
- * housekeeping timestamps below into one call. */
-const pruneSetting = <const Name extends string, const Key extends ConfigKey>(
-  name: Name,
-  key: Key,
-) =>
-  setting({
-    accessor: { name },
-    key,
-    storage: "plaintext",
-    tags: ["prune"],
-  });
 
 /** An email template/credential setting: encrypted and tagged so it is rebuilt
  * whenever the email body changes. Collapses the repeated shape of the email
@@ -131,40 +117,8 @@ export const STRING_SETTING_DEFINITIONS = [
     storage: "plaintext",
   }),
   setting({
-    accessor: { name: "lastPrunedPayments" },
-    key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
-    storage: "plaintext",
-  }),
-  setting({
-    accessor: { name: "lastPrunedSessions" },
-    key: CONFIG_KEYS.LAST_PRUNED_SESSIONS,
-    storage: "plaintext",
-  }),
-  setting({
-    accessor: { name: "lastPrunedSumup" },
-    key: CONFIG_KEYS.LAST_PRUNED_SUMUP,
-    storage: "plaintext",
-  }),
-  pruneSetting("lastPrunedStrings", CONFIG_KEYS.LAST_PRUNED_STRINGS),
-  pruneSetting("lastPrunedLogins", CONFIG_KEYS.LAST_PRUNED_LOGINS),
-  pruneSetting("lastPrunedTokens", CONFIG_KEYS.LAST_PRUNED_TOKENS),
-  pruneSetting("lastPrunedContacts", CONFIG_KEYS.LAST_PRUNED_CONTACTS),
-  pruneSetting("lastPrunedAddresses", CONFIG_KEYS.LAST_PRUNED_ADDRESSES),
-  pruneSetting("lastPrunedInvites", CONFIG_KEYS.LAST_PRUNED_INVITES),
-  pruneSetting("lastPrunedOrphans", CONFIG_KEYS.LAST_PRUNED_ORPHANS),
-  setting({
     accessor: { name: "smsGatewayBaseUrl" },
     key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
-    storage: "plaintext",
-  }),
-  setting({
-    accessor: { name: "activityLogBackfillDone" },
-    key: CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
-    storage: "plaintext",
-  }),
-  setting({
-    accessor: { name: "lastActivityLogBackfill" },
-    key: CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
     storage: "plaintext",
   }),
   setting({
@@ -335,5 +289,4 @@ const keysWithTag = (tag: StringTag): readonly StringSettingKey[] =>
 
 export const PLAINTEXT_KEYS = keysWithStorage("plaintext");
 export const ENCRYPTED_KEYS = keysWithStorage("encrypted");
-export const PRUNE_KEYS = keysWithTag("prune");
 export const EMAIL_BODY_KEYS = keysWithTag("emailBody");

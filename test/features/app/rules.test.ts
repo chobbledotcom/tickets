@@ -1,14 +1,15 @@
+// test-groups: run-alone - this suite verifies isolate-lived wake throttling.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   bufferRequestIfNeeded,
   ensureCustomCssResponse,
   isSetupPath,
+  runOrganicMaintenanceWhenDue,
   shouldBufferRequestBody,
   shouldLogQueries,
   shouldPrefetchSettings,
   shouldRetryBusyRequest,
-  shouldRunPrunes,
   trackingRedirectLocation,
 } from "#routes/app/rules.ts";
 
@@ -61,10 +62,60 @@ describe("request rules", () => {
     expect(shouldLogQueries("GET", "ticket")).toBe(false);
   });
 
-  test("skips background prunes only for the orphan settings POST", () => {
-    expect(shouldRunPrunes("POST", "/admin/privacy/orphans")).toBe(false);
-    expect(shouldRunPrunes("GET", "/admin/privacy/orphans")).toBe(true);
-    expect(shouldRunPrunes("POST", "/admin/privacy/erase")).toBe(true);
+  test("runs organic maintenance only after safe successful reads", async () => {
+    const calls: string[] = [];
+    const run = (name: string) => () => {
+      calls.push(name);
+    };
+    await runOrganicMaintenanceWhenDue("GET", "/", 200, run("get"), 0);
+    await runOrganicMaintenanceWhenDue(
+      "HEAD",
+      "/admin",
+      204,
+      run("head"),
+      60_000,
+    );
+    await runOrganicMaintenanceWhenDue("POST", "/", 200, run("post"), 120_000);
+    await runOrganicMaintenanceWhenDue("GET", "/", 199, run("early"), 120_000);
+    await runOrganicMaintenanceWhenDue("GET", "/", 404, run("error"), 120_000);
+    expect(calls).toEqual(["get", "head"]);
+  });
+
+  test("excludes checkout, payment, webhook, and setup paths", async () => {
+    const calls: string[] = [];
+    for (const path of [
+      "/api/listing/book",
+      "/calculate/listing",
+      "/order",
+      "/pay/token",
+      "/payment/webhook",
+      "/renew",
+      "/sms/webhook",
+      "/ticket/listing",
+      "/setup",
+    ]) {
+      await runOrganicMaintenanceWhenDue(
+        "GET",
+        path,
+        200,
+        () => {
+          calls.push(path);
+        },
+        120_000,
+      );
+    }
+    expect(calls).toEqual([]);
+  });
+
+  test("throttles repeated organic wakes in one warm isolate", async () => {
+    const calls: number[] = [];
+    const run = (time: number) => () => {
+      calls.push(time);
+    };
+    await runOrganicMaintenanceWhenDue("GET", "/", 200, run(120_000), 120_000);
+    await runOrganicMaintenanceWhenDue("GET", "/", 200, run(179_999), 179_999);
+    await runOrganicMaintenanceWhenDue("GET", "/", 200, run(180_000), 180_000);
+    expect(calls).toEqual([120_000, 180_000]);
   });
 
   test("retries busy requests only when they are safe to repeat", () => {

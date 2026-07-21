@@ -8,12 +8,7 @@ import { defineProviderCredentialsRoute } from "#routes/admin/settings-helpers.t
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
-import {
-  cleanupOldWebhookEndpoints,
-  detectStripeKeyMode,
-  setupWebhookEndpoint,
-  testStripeConnection,
-} from "#shared/stripe.ts";
+import { detectStripeKeyMode, stripeApi } from "#shared/stripe.ts";
 
 export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   formId: "settings-stripe",
@@ -22,8 +17,15 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
   provider: "stripe",
   saveSecret: async (value) => {
     const webhookUrl = getPaymentWebhookUrl();
+    const previousSecretKey = settings.stripe.secretKey;
     const previousEndpointId = settings.stripe.webhookEndpointId;
-    const result = await setupWebhookEndpoint(
+    const keyChanged = previousSecretKey !== value;
+    // Always pass the recorded endpoint id. If the new key is on the same
+    // Stripe account, setup's limit-retry path keeps it live until the new
+    // endpoint has been created and saved; the cleanup calls below remove it
+    // once the replacement is in place. Passing undefined on a key rotation
+    // would let the retry delete the live webhook before a replacement exists.
+    const result = await stripeApi.setupWebhookEndpoint(
       value,
       webhookUrl,
       previousEndpointId,
@@ -39,18 +41,26 @@ export const stripeRoutes = defineProviderCredentialsRoute<undefined>({
     // Cleanup can now fail without leaving saved credentials that name a
     // deleted endpoint or leaving Stripe unselected. The error still propagates
     // so stale state is visible.
-    await cleanupOldWebhookEndpoints(
+    if (keyChanged && previousSecretKey && previousEndpointId) {
+      await stripeApi.cleanupOldWebhookEndpoints(
+        previousSecretKey,
+        null,
+        null,
+        [previousEndpointId],
+      );
+    }
+    await stripeApi.cleanupOldWebhookEndpoints(
       value,
       webhookUrl,
       result.endpointId,
-      previousEndpointId ? [previousEndpointId] : [],
+      !keyChanged && previousEndpointId ? [previousEndpointId] : [],
     );
     return null;
   },
   secretField: "stripe_secret_key",
   secretRequiredError: t("error.stripe_key_required"),
   successMessage: t("success.stripe_updated"),
-  testFn: testStripeConnection,
+  testFn: () => stripeApi.testStripeConnection(),
   unchangedMessage: t("success.stripe_unchanged"),
   validate: (_fields, secret) => {
     if (isDemoMode()) return t("error.stripe_demo_mode");

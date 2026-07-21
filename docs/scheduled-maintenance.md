@@ -1,0 +1,49 @@
+# Scheduled maintenance
+
+Each site runs its own small database maintenance jobs. An external HTTPS
+monitor must send one request to each site at least every 15 minutes:
+
+```http
+POST /scheduled HTTP/1.1
+Authorization: Bearer <site key>
+```
+
+The request has no body. A successful run returns an empty `204`. A configured
+site returns an empty `401` for a missing or wrong key. A site with no key, or a
+non-`POST` request, returns an empty `404`. A system failure returns an empty
+`503`. All responses use `Cache-Control: no-store`.
+
+## Set Up A Site
+
+Create a different 32-byte key for every independently deployed site:
+
+```bash
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+```
+
+Store it as the native `SCHEDULED_TASK_KEY` secret on that site. Never put the
+key in a URL, monitor name, note, log, or plaintext database field. The owner
+can read the local key on **Settings > Advanced**.
+
+The built-site manager creates a different key for every child. It stores the
+key in the child's native secret and in the builder's encrypted site data. Use
+the child's **Scheduled maintenance** tab to set up an older child.
+
+## Change A Child Key
+
+Coordinated one-click key rotation is intentionally deferred to the upcoming
+Uptime Kuma integration, which will update the child and its monitor together.
+Until then, a host operator can manually replace a compromised key on the child
+and in the monitor.
+
+## CDN Rules
+
+Allow the monitor to reach `/scheduled` without a browser challenge, cached
+response, redirect, or body rewrite. If the CDN has an allowlist, add the
+monitor there.
+
+Rate-limit `/scheduled` at the CDN before requests reach the edge script. The
+application deliberately does not keep a request counter for rejected calls:
+doing so would let unauthenticated traffic consume database subrequests before
+authentication. Keep the limit high enough for the monitor's retries, but far
+below a general API traffic rate.

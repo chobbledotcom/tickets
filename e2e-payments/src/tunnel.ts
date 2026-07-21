@@ -33,7 +33,9 @@ const attemptTunnel = async (localPort: number): Promise<Tunnel | null> => {
 
   let publicUrl: string | null = null;
   const scan = (chunk: Uint8Array | string): void => {
-    const m = (typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk)).match(TRYCLOUDFLARE_RE);
+    const m = (
+      typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk)
+    ).match(TRYCLOUDFLARE_RE);
     if (m && !publicUrl) publicUrl = m[0];
   };
   child.stdout?.on("data", scan);

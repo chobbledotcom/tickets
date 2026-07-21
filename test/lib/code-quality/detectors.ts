@@ -1,7 +1,7 @@
 /**
  * Pure detection logic for the "code quality" test suite.
  *
- * This module exists so the rules enforced by `test/lib/code-quality.test.ts`
+ * This module exists so the rules enforced by `test/integration/code-quality.test.ts`
  * can be exercised directly with crafted fixtures — feeding each detector a
  * known-bad input and asserting it fires, and a known-good input and asserting
  * it stays quiet. The integration test that scans the real `src/`+`test/` tree

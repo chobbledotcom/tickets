@@ -4,7 +4,7 @@
  * Only *failed* Bearer lookups are counted, so legitimate clients with a valid
  * key are never throttled. This caps brute-force guessing and the database load
  * of a token-guessing flood. Counters share the login_attempts table under a
- * dedicated namespace and are cleaned by pruneLoginAttempts.
+ * dedicated namespace and are cleaned by database pruning.
  */
 
 import { makeIpRateLimiter } from "#shared/db/login-attempts.ts";

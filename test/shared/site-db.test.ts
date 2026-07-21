@@ -33,6 +33,7 @@ describe("hasSiteDbCredentials", () => {
       false,
     );
     expect(hasSiteDbCredentials({ dbToken: "t", dbUrl: "" })).toBe(false);
+    expect(hasSiteDbCredentials({ dbToken: "", dbUrl: "" })).toBe(false);
   });
 });
 
@@ -65,6 +66,28 @@ describe("withSiteDb", () => {
       expect(result).toEqual({ error: "connect boom", ok: false });
     } finally {
       createStub.restore();
+    }
+  });
+
+  test("closes the client after a successful read", async () => {
+    const client = await seededClient([]);
+    let closes = 0;
+    const close = client.close.bind(client);
+    const closeStub = stub(client, "close", () => {
+      closes++;
+    });
+    const createStub = stub(siteDbApi, "createClient", () => client);
+    try {
+      expect(
+        await withSiteDb({ dbToken: "token", dbUrl: "libsql://site" }, () =>
+          Promise.resolve("read"),
+        ),
+      ).toEqual({ ok: true, value: "read" });
+      expect(closes).toBe(1);
+    } finally {
+      createStub.restore();
+      closeStub.restore();
+      close();
     }
   });
 });
