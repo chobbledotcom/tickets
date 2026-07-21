@@ -31,8 +31,6 @@ const csrfFormInFlash = (
     return String(CsrfForm(props));
   });
 
-beforeAll(setupAdminPageTest);
-
 describe("renderError", () => {
   test("returns empty string when no error", () => {
     expect(renderError()).toBe("");
@@ -122,6 +120,8 @@ test("requestFlash renders every message from the request context", () => {
 });
 
 describe("CsrfForm", () => {
+  beforeAll(setupAdminPageTest);
+
   afterEach(() => {
     detectIframeMode(new URL("https://example.com/"));
   });

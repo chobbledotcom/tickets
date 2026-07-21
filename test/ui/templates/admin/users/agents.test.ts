@@ -28,9 +28,9 @@ const agentUser = (agentNames: string[]): DisplayUser => ({
   username: "driver",
 });
 
-beforeAll(setupAdminPageTest);
-
 describe("adminUserNewPage agent selector", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders the agent checkboxes when agents exist", () => {
     const html = adminUserNewPage(OWNER_SESSION, AGENTS);
     expect(html).toContain("Assigned logistics agents");
@@ -47,6 +47,8 @@ describe("adminUserNewPage agent selector", () => {
 });
 
 describe("UserAgentsPanel", () => {
+  beforeAll(setupAdminPageTest);
+
   // The user whose agent assignments the page edits (distinct from the
   // agentUser factory above, which builds display-row fixtures).
   const editedUser: DisplayUser = {
@@ -92,6 +94,8 @@ describe("UserAgentsPanel", () => {
 });
 
 describe("adminUsersPage agent rows", () => {
+  beforeAll(setupAdminPageTest);
+
   test("shows assigned agent names and links to the manage page for agent users", () => {
     const users: DisplayUser[] = [agentUser(["Van 1", "Van 2"])];
     const html = adminUsersPage(users, OWNER_SESSION, {

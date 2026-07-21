@@ -19,8 +19,6 @@ import {
 } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
-beforeAll(setupAdminPageTest);
-
 const calendarAttendee = (
   overrides: Partial<CalendarAttendeeRow> = {},
 ): CalendarAttendeeRow => ({
@@ -72,6 +70,8 @@ const calendarHtml = (
   );
 
 describe("adminCalendarPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders Calendar title", () => {
     const html = calendarHtml();
     expect(html).toContain("Calendar");
@@ -365,6 +365,8 @@ describe("generateCalendarCsv", () => {
 });
 
 describe("admin nav Calendar link", () => {
+  beforeAll(setupAdminPageTest);
+
   test("admin dashboard includes Calendar link in nav", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
     expect(html).toContain('href="/admin/calendar"');
@@ -373,6 +375,8 @@ describe("admin nav Calendar link", () => {
 });
 
 describe("adminCalendarPage availability checker", () => {
+  beforeAll(setupAdminPageTest);
+
   const availabilityRow = (
     overrides: Partial<AvailabilityRow> = {},
   ): AvailabilityRow => ({

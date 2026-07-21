@@ -9,9 +9,9 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 
-beforeAll(setupAdminPageTest);
-
 describe("adminAdvancedSettingsPage", () => {
+  beforeAll(setupAdminPageTest);
+
   const advancedDefaultState: AdvancedSettingsPageState = {
     addressLookupApiKeyConfigured: false,
     addressLookupProvider: "none",

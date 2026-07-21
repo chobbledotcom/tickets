@@ -1,14 +1,16 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
   registerPublicTemplateHooks,
   ticketListing,
 } from "#test/templates/public/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describe("ticketPage day-count selector", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("renders a priced day-count selector for a single customisable listing", () => {

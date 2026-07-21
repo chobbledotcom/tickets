@@ -4,9 +4,9 @@ import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-beforeAll(setupAdminPageTest);
-
 describe("generateListingsCsv", () => {
+  beforeAll(setupAdminPageTest);
+
   test("emits the header row when there are no listings", () => {
     expect(generateListingsCsv([])).toBe(
       "Name,Status,Type,Attendees,Capacity,Tickets,Revenue,Price,Date,Location,Created,Description",

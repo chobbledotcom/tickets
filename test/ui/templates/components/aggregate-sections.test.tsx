@@ -10,8 +10,6 @@ import {
 } from "#templates/components/aggregate-sections.tsx";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
-beforeAll(setupAdminPageTest);
-
 describe("SectionFieldset", () => {
   test("puts its children directly in a legend fieldset", () => {
     const html = String(
@@ -74,6 +72,8 @@ describe("StackDetails", () => {
 });
 
 describe("CheckboxForm", () => {
+  beforeAll(setupAdminPageTest);
+
   test("wraps its children in a checkboxes fieldset with a save submit", () => {
     const html = String(
       CheckboxForm({ action: "/x", children: "kids", submitLabel: "Save it" }),

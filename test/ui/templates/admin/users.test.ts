@@ -20,9 +20,9 @@ const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
   ...overrides,
 });
 
-beforeAll(setupAdminPageTest);
-
 describe("adminUsersPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders statuses and links each username to its manage page", () => {
     const users: DisplayUser[] = [
       displayUser(),
@@ -100,6 +100,8 @@ describe("adminUsersPage", () => {
 });
 
 describe("adminUserDeletePage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders delete confirmation form with username", () => {
     const user: DisplayUser = {
       activated: true,

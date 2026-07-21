@@ -1,10 +1,9 @@
-import { afterEach, beforeAll } from "@std/testing/bdd";
+import { afterEach } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { pagePackage as sharedPagePackage } from "#test/lib/package-cap-fixtures.ts";
-import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A ticket-page listing row built from column overrides (not hidden, no
@@ -86,13 +85,12 @@ export const pagePackage = (
     ...overrides,
   });
 
-/** Register the beforeAll/afterEach hooks every public-template test shares. */
+/** Reset iframe mode after each public-template test. */
 /** Call it as the first statement INSIDE each top-level describe — at module
  * level it would register *global* hooks, which cannot be added once any
  * other module's tests exist (files share an isolate under the grouped
  * runner). */
 export const registerPublicTemplateHooks = (): void => {
-  beforeAll(setupAdminPageTest);
   afterEach(() => {
     detectIframeMode(new URL("https://example.com/"));
   });

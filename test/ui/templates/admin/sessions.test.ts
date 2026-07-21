@@ -17,9 +17,9 @@ const mkSession = (token: string): Session => ({
   wrapped_data_key: null,
 });
 
-beforeAll(setupAdminPageTest);
-
 describe("adminSessionsPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders session rows", () => {
     const sessions = [
       {

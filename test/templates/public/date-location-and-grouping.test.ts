@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { addDays } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -8,11 +8,13 @@ import { todayInTz } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 import { registerPublicTemplateHooks } from "./helpers.ts";
 
 describe("ticketPage listing date and location", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   const renderTicket = (ev: ListingWithCount, opts?: { iframe?: boolean }) => {
@@ -118,6 +120,7 @@ describe("ticketPage listing date and location", () => {
 });
 
 describe("ticketViewPage package grouping", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   const token = "PKG00011AABBCCDD";

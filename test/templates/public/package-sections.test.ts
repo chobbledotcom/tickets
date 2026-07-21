@@ -13,8 +13,6 @@ import { pagePackage } from "#test/lib/package-cap-fixtures.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-beforeAll(setupAdminPageTest);
-
 const ticketListing = (over: Partial<ListingWithCount>) =>
   buildTicketListing(
     testListingWithCount({ attendee_count: 0, max_attendees: 100, ...over }),
@@ -35,6 +33,8 @@ const mixedPage = (memberListing = member()) =>
   });
 
 describe("ticketPage — package sections beside standalone rows", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders the bundle as a titled section and keeps the listing's own row", () => {
     const html = mixedPage();
     expect(html).toContain('data-package-section="7"');

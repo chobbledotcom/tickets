@@ -13,9 +13,9 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
-beforeAll(setupAdminPageTest);
-
 describe("adminBuiltSitesPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders formatted deadline column", () => {
     const site = testBuiltSite({ readOnlyFrom: "2099-06-01T00:00:00Z" });
     const html = adminBuiltSitesPage([site], OWNER_SESSION);
@@ -92,6 +92,8 @@ describe("adminBuiltSitesPage", () => {
 });
 
 describe("renewalPanelFor — provisioned site", () => {
+  beforeAll(setupAdminPageTest);
+
   const provisionedSite = testBuiltSite({
     readOnlyFrom: "2027-01-15T00:00:00Z",
     renewalToken: "real-customer-renewal-token",
@@ -129,6 +131,8 @@ describe("renewalPanelFor — provisioned site", () => {
 });
 
 describe("renewalPanelFor — unprovisioned site", () => {
+  beforeAll(setupAdminPageTest);
+
   const unprovisionedSite = testBuiltSite({
     readOnlyFrom: "",
     renewalTokenIndex: null,
@@ -155,6 +159,8 @@ describe("renewalPanelFor — unprovisioned site", () => {
 });
 
 describe("SecretsPanel", () => {
+  beforeAll(setupAdminPageTest);
+
   const site = testBuiltSite({ id: 9, name: "Sec" });
 
   test("lists the missing secrets with a backfill button", () => {
@@ -238,6 +244,8 @@ describe("SecretsPanel", () => {
 });
 
 describe("UpdatePanel", () => {
+  beforeAll(setupAdminPageTest);
+
   const site = testBuiltSite({ id: 42, name: "Panel Site" });
   const baseState = {
     hasHostingId: true,

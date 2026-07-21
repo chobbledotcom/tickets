@@ -42,9 +42,9 @@ const row = (
   listings: [{ id: listingId, name: listingName }],
 });
 
-beforeAll(setupAdminPageTest);
-
 describe("adminAttendeesListPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders the page title, nav, and heading", () => {
     const html = adminAttendeesListPage(buildProps());
     expect(html).toContain("<title>Attendees</title>");

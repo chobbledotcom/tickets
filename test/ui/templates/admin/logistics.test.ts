@@ -22,9 +22,9 @@ const users: AgentUserOption[] = [
   { adminLevel: "manager", id: 2, username: "boss" },
 ];
 
-beforeAll(setupAdminPageTest);
-
 describe("LogisticsAgentEditPanel", () => {
+  beforeAll(setupAdminPageTest);
+
   const renderPanel = (
     selectedUserIds: ReadonlySet<number> = new Set(),
   ): string =>
@@ -90,6 +90,8 @@ describe("LogisticsAgentEditPanel", () => {
 });
 
 describe("logisticsAgentPages delete page", () => {
+  beforeAll(setupAdminPageTest);
+
   test("confirms the agent by name and posts to its delete path", () => {
     const html = logisticsAgentPages.deletePage(agent, OWNER_SESSION);
     expect(html).toContain('action="/admin/logistics/7/delete"');
@@ -108,6 +110,8 @@ describe("logisticsAgentPages delete page", () => {
 });
 
 describe("logisticsAgentPages new page", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders the add-agent form posting to the logistics base path", () => {
     const html = logisticsAgentPages.newPage(OWNER_SESSION);
     expect(html).toContain("Add Logistics Agent");

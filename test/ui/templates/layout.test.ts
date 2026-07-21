@@ -39,18 +39,21 @@ const expectRenewalLink = async (): Promise<void> => {
   expect(html).toContain("https://example.com/renew");
 };
 
-beforeAll(async () => {
+const setupLayoutTest = async (): Promise<void> => {
   setupTestEncryptionKey();
   setDemoModeForTest(false);
   await signCsrfToken();
-});
+};
 
-afterEach(() => {
+const resetLayoutTest = (): void => {
   settings.clearTestOverrides();
   setDemoModeForTest(false);
-});
+};
 
 describe("asset-paths", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("pages include CSS_PATH in stylesheet link", () => {
     const html = adminLoginPage();
     expect(html).toContain(`href="${CSS_PATH}"`);
@@ -70,6 +73,9 @@ describe("asset-paths", () => {
 });
 
 describe("Layout skip navigation", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("renders skip-nav link targeting main-content", () => {
     const html = String(Layout({ children: "", title: "Test" }));
     expect(html).toContain('class="skip-nav"');
@@ -96,6 +102,9 @@ describe("Layout skip navigation", () => {
 });
 
 describe("Layout document shell", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("renders the required document metadata and stylesheet contracts", () => {
     const html = String(Layout({ children: "", title: "Test" }));
 
@@ -181,6 +190,9 @@ describe("Layout document shell", () => {
 });
 
 describe("adminLoginPage", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("renders login form", () => {
     const html = adminLoginPage();
     expect(html).toContain("Login");
@@ -202,6 +214,9 @@ describe("adminLoginPage", () => {
 });
 
 describe("AdminNav image storage gating", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("shows Images only when file storage is enabled", () => {
     const hasImagesLink = (session: AdminSession): boolean =>
       String(AdminNav({ active: "/admin/", session })).includes(
@@ -223,6 +238,9 @@ describeWithEnv(
   "read-only mode templates",
   { env: { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" } },
   () => {
+    beforeAll(setupLayoutTest);
+    afterEach(resetLayoutTest);
+
     test("AdminNav shows read-only banner", () => {
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),
@@ -256,6 +274,9 @@ describeWithEnv(
     },
   },
   () => {
+    beforeAll(setupLayoutTest);
+    afterEach(resetLayoutTest);
+
     test("AdminNav shows warning banner before expiry", () => {
       const html = String(
         AdminNav({ active: "/admin/", session: OWNER_SESSION }),

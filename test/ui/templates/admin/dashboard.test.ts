@@ -29,9 +29,9 @@ import {
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
 
-beforeAll(setupAdminPageTest);
-
 describe("adminDashboardPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders empty state when no listings", () => {
     const html = adminDashboardPage([], OWNER_SESSION);
     expect(html).toContain("Listings");
@@ -236,6 +236,8 @@ describe("adminDashboardPage", () => {
 });
 
 describe("adminDashboardPage inactive listings", () => {
+  beforeAll(setupAdminPageTest);
+
   test("hides inactive listings from home", () => {
     const listings = [
       testListingWithCount({
@@ -252,6 +254,8 @@ describe("adminDashboardPage inactive listings", () => {
 });
 
 describe("adminDashboardPage with column template filters", () => {
+  beforeAll(setupAdminPageTest);
+
   test("applies date filter to created column", () => {
     const listings = [
       testListingWithCount({ created: "2026-04-10T14:00:00Z" }),
@@ -324,6 +328,8 @@ describe("activeListingStatsSection", () => {
 });
 
 describe("adminDashboardPage active listing statistics", () => {
+  beforeAll(setupAdminPageTest);
+
   test("shows stats section when stats provided", () => {
     const html = adminDashboardPage(
       [],
@@ -359,6 +365,8 @@ describe("adminDashboardPage active listing statistics", () => {
 });
 
 describe("adminDashboardPage multi-booking link", () => {
+  beforeAll(setupAdminPageTest);
+
   const renderDashboard = (
     listings: ReturnType<typeof testListingWithCount>[],
     ...expectations: string[]
@@ -524,6 +532,8 @@ describe("adminDashboardPage multi-booking link", () => {
 });
 
 describe("adminDashboardPage type filter", () => {
+  beforeAll(setupAdminPageTest);
+
   const standard = testListingWithCount({
     id: 1,
     listing_type: "standard",
@@ -613,6 +623,8 @@ describe("adminDashboardPage type filter", () => {
 });
 
 describeWithEnv("admin servicing routes", { db: true }, () => {
+  beforeAll(setupAdminPageTest);
+
   test("the servicing list route renders service-event row details", async () => {
     const listing = await createDailyTestListing({
       maxAttendees: 5,
@@ -748,6 +760,8 @@ describeWithEnv(
   { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
     describe("adminDashboardPage with images", () => {
+      beforeAll(setupAdminPageTest);
+
       test("shows thumbnail when listing has image_url", () => {
         const listings = [testListingWithCount({ image_url: "thumb.jpg" })];
         const html = adminDashboardPage(listings, OWNER_SESSION);
@@ -765,6 +779,8 @@ describeWithEnv(
 );
 
 describe("adminListingsPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders active listings first and deactivated listings second", () => {
     const active = testListingWithCount({
       active: true,

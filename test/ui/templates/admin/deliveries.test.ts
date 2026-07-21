@@ -27,8 +27,6 @@ const dateNav = (over: Partial<DeliveriesDateNav> = {}): DeliveriesDateNav => ({
   ...over,
 });
 
-beforeAll(setupAdminPageTest);
-
 const leg = (over: Partial<DeliveryLegView> = {}): DeliveryLegView => ({
   agentName: "Van 1",
   date: "2026-06-16",
@@ -53,6 +51,8 @@ const booking = (
 });
 
 describe("agentDeliveriesPage", () => {
+  beforeAll(setupAdminPageTest);
+
   /** Render the deliveries page for the standard "agent has groups" case.
    *  Agents get no date picker, so `dateNav` is null. Every test in this block
    *  that passes groups uses this exact call. */

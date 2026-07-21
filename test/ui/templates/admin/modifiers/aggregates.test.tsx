@@ -1,25 +1,22 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
 import {
   adminModifierRecalculatePage,
   ModifierRunningTotalsSection,
 } from "#templates/admin/modifiers/aggregates.tsx";
-import {
-  OWNER_SESSION,
-  setupAdminPageTest,
-} from "#test-utils/admin-page-test.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testModifier } from "#test-utils/factories.ts";
-import { featureSetting } from "#test-utils/settings.ts";
+import {
+  resetFeaturePageTest,
+  setupFeaturePageTest,
+} from "../feature-page-test.ts";
 
-beforeAll(async () => {
-  await setupAdminPageTest();
-  settings.setForTest(featureSetting("modifiers"));
-});
-
-afterAll(() => settings.clearTestOverride("enabled_features"));
+const setupModifierPageTest = setupFeaturePageTest("modifiers");
 
 describe("ModifierRunningTotalsSection", () => {
+  beforeAll(setupModifierPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("renders the two count aggregates and a recalculate link", () => {
     const html = String(
       ModifierRunningTotalsSection({
@@ -38,6 +35,9 @@ describe("ModifierRunningTotalsSection", () => {
 });
 
 describe("adminModifierRecalculatePage", () => {
+  beforeAll(setupModifierPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("shows current and attendee-derived totals for the count aggregates", () => {
     const html = adminModifierRecalculatePage(
       testModifier({ name: "Loyalty" }),

@@ -24,9 +24,9 @@ const image = (id: number, name: string): Image => ({
   name,
 });
 
-beforeAll(setupAdminPageTest);
-
 describe("admin image templates", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders the library table and hides edit actions in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     withStorageEnabled(() => {

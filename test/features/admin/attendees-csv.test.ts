@@ -8,9 +8,9 @@ import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
-beforeAll(setupAdminPageTest);
-
 describe("generateAttendeesCsv", () => {
+  beforeAll(setupAdminPageTest);
+
   test("generates CSV header for empty attendees", () => {
     const csv = generateAttendeesCsv([]);
     expect(csv).toBe(
@@ -164,6 +164,8 @@ describe("generateAttendeesCsv", () => {
 });
 
 describe("generateAttendeesCsv with listingInfo", () => {
+  beforeAll(setupAdminPageTest);
+
   test("includes Listing Date column when listingInfo has non-empty listingDate", () => {
     const listingInfo: CsvListingInfo = {
       listingDate: "2026-06-15T14:00:00.000Z",

@@ -23,9 +23,9 @@ const note = (overrides: Partial<SystemNote> = {}): SystemNote => ({
   ...overrides,
 });
 
-beforeAll(setupAdminPageTest);
-
 describe("AttendeeNotesSection", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders a system note as a red alert with its markdown link", () => {
     const html = String(<AttendeeNotesSection isOwner notes={[note()]} />);
     expect(html).toContain("system-note-alert");
@@ -94,6 +94,8 @@ describe("AttendeeNotesSection", () => {
 });
 
 describe("AddNoteLink", () => {
+  beforeAll(setupAdminPageTest);
+
   test("links to the add-note page, returning to the attendee page", () => {
     const html = String(<AddNoteLink attendeeId={7} />);
     expect(html).toContain(
@@ -103,6 +105,8 @@ describe("AddNoteLink", () => {
 });
 
 describe("AttendeeNotesSummary", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders an expandable grouped by attendee with the count", () => {
     const names = new Map([
       [5, "Alice"],
@@ -171,6 +175,8 @@ describe("AttendeeNotesSummary", () => {
 });
 
 describe("adminAddNotePage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders the add form scoped to the attendee", () => {
     const html = adminAddNotePage({
       attendeeId: 5,
@@ -200,6 +206,8 @@ describe("adminAddNotePage", () => {
 });
 
 describe("adminDeleteNotePage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("asks for confirmation without a copy/paste field", () => {
     const html = adminDeleteNotePage({
       note: note({ note: "delete this" }),

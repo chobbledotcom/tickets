@@ -11,8 +11,6 @@ import {
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 
-beforeAll(setupAdminPageTest);
-
 describe("summary section", () => {
   const rows: SummaryRow[] = [
     { labelKey: "common.name", value: "Jane" },
@@ -176,6 +174,8 @@ describe("custom section", () => {
 });
 
 describe("entityPageView", () => {
+  beforeAll(setupAdminPageTest);
+
   const view = {
     banner: Raw({ html: '<output class="warning">note</output>' }),
     navActive: "/admin/attendees",

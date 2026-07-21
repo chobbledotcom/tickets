@@ -12,8 +12,6 @@ import { testModifier } from "#test-utils/factories.ts";
 
 const MODIFIER = testModifier({ id: 1 });
 
-beforeAll(setupAdminPageTest);
-
 describe("SCOPE_LINK_KINDS", () => {
   test("maps each kind to its form field and plural type term", () => {
     expect(SCOPE_LINK_KINDS.listings).toEqual({
@@ -28,6 +26,8 @@ describe("SCOPE_LINK_KINDS", () => {
 });
 
 describe("ScopeLinksForm", () => {
+  beforeAll(setupAdminPageTest);
+
   const render = (links: ScopeLinks): string =>
     String(ScopeLinksForm({ links, modifier: MODIFIER }));
 
@@ -99,6 +99,8 @@ describe("ScopeLinksForm", () => {
 });
 
 describe("AnswerLinksForm", () => {
+  beforeAll(setupAdminPageTest);
+
   const render = (answerLinks: AnswerLinks): string =>
     String(AnswerLinksForm({ answerLinks, modifier: MODIFIER }));
 

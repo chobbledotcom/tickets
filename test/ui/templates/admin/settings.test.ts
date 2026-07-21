@@ -1,74 +1,17 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
-import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
-import { validEmail } from "#test-utils/email.ts";
-
-const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
-
-beforeAll(setupAdminPageTest);
-
-const defaultState = (): SettingsPageState => ({
-  bookingFee: "0",
-  businessEmail: "",
-  calendarFeedsEnabled: false,
-  calendarFeedsGroupBy: "attendees",
-  embedHosts: "",
-  enabledFeatures: DEFAULT_ENABLED_FEATURES,
-  headerImageUrl: "",
-  paymentProvider: "",
-  squareSandbox: false,
-  squareTokenConfigured: false,
-  squareWebhookConfigured: false,
-  storageEnabled: false,
-  stripeKeyConfigured: false,
-  stripeKeyMode: null,
-  sumupKeyConfigured: false,
-  sumupKeyMode: null,
-  superuser: { available: false, reason: "missing-env" },
-  termsAndConditions: "",
-  theme: "light",
-  underlineLinks: false,
-  webhookUrl: "https://example.com/payment/webhook",
-});
-
-type AvailableSuperuser = Extract<
-  SettingsPageState["superuser"],
-  { available: true }
->;
-
-/** An available (recovery-enabled) superuser state; override per test. */
-const availableSuperuser = (
-  overrides: Partial<AvailableSuperuser> = {},
-): AvailableSuperuser => ({
-  activated: false,
-  available: true,
-  choice: "",
-  email: validEmail("admin@example.com"),
-  userExists: false,
-  username: "admin",
-  ...overrides,
-});
-
-/** Render adminSettingsPage with the given superuser state, defaults otherwise. */
-const renderSuperuser = (superuser: SettingsPageState["superuser"]): string =>
-  adminSettingsPage(OWNER_SESSION, { ...defaultState(), superuser });
-
-/** The `id="settings-superuser"` form section of a rendered settings page. */
-const superuserFormHtml = (html: string): string => {
-  const start = html.indexOf('id="settings-superuser"');
-  const end = html.indexOf("</form>", start) + 7;
-  return html.slice(start, end);
-};
+import { defaultState } from "./settings/test-helpers.ts";
 
 describe("adminSettingsPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("omits the key-mode notice for a configured key with an unknown mode", () => {
     const html = adminSettingsPage(OWNER_SESSION, {
       ...defaultState(),
@@ -126,8 +69,8 @@ describe("adminSettingsPage", () => {
       squareSandbox: true,
       squareTokenConfigured: true,
     });
-    expect(html).toContain("Sandbox mode");
-    expect(html).toContain('name="square_sandbox"');
+    const checkbox = html.match(/<input[^>]*name="square_sandbox"[^>]*>/);
+    expect(checkbox?.[0]).toContain("checked");
   });
 
   test("shows settings sub-navigation", () => {
@@ -142,7 +85,6 @@ describe("adminSettingsPage", () => {
     expect(html).toContain('action="/admin/settings/calendar-feeds"');
     expect(html).toContain('name="calendar_feeds_enabled"');
     expect(html).toContain('name="calendar_feeds_group_by"');
-    // The form is real markup, not an escaped string rendered as text.
     expect(html).not.toContain("&lt;form");
   });
 
@@ -153,314 +95,38 @@ describe("adminSettingsPage", () => {
     });
     expect(hasCheckedInput(html, "calendar_feeds_enabled", "true")).toBe(true);
   });
-});
 
-// ---------------------------------------------------------------------------
-// SuperuserForm availability
-// ---------------------------------------------------------------------------
+  describe("PaymentProviderForm radio labels", () => {
+    /** The visible label attached to one radio value, or null if absent. */
+    const labelForValue = (html: string, value: string): string | null => {
+      const match = html.match(
+        new RegExp(
+          `<input\\b[^>]*value="${value}"[^>]*>\\s*([^<]*?)\\s*</label>`,
+        ),
+      );
+      return match?.[1] ?? null;
+    };
 
-describe("adminSettingsPage > SuperuserForm", () => {
-  test("renders 'Superuser Recovery' heading when superuser.available is true", () => {
-    const html = renderSuperuser(availableSuperuser());
-    expect(html).toContain("Superuser Recovery");
-  });
-
-  test("does not render form section when superuser.available is false", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: { available: false, reason: "missing-env" },
+    test("attaches each registry label to its own radio value", () => {
+      const html = adminSettingsPage(OWNER_SESSION, defaultState());
+      expect(labelForValue(html, "stripe")).toBe("Stripe");
+      expect(labelForValue(html, "square")).toBe("Square");
+      expect(labelForValue(html, "sumup")).toBe("SumUp");
     });
-    expect(html).not.toContain("Superuser Recovery");
-    expect(html).not.toContain("superuser_choice");
-  });
 
-  test("does not render form section when available is false with reason 'invalid-env'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: { available: false, reason: "invalid-env" },
-    });
-    expect(html).not.toContain("Superuser Recovery");
-    expect(html).not.toContain("superuser_choice");
-  });
-
-  test("does not render form section when available is false with reason 'invalid-username'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: { available: false, reason: "invalid-username" },
-    });
-    expect(html).not.toContain("Superuser Recovery");
-    expect(html).not.toContain("superuser_choice");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Radio labels — correctness
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm radio labels", () => {
-  test("renders self-managed radio label with exact grammatically-correct text", () => {
-    const html = renderSuperuser(availableSuperuser());
-    expect(html).toContain(
-      "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
-    );
-    expect(html).toContain("responsible");
-    expect(html).not.toContain("responsiblity");
-  });
-
-  test("renders enable-superuser radio label with the admin email address interpolated", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "",
-        email: validEmail("myadmin@example.com"),
-        userExists: false,
-        username: "myadmin",
-      },
-    });
-    expect(html).toContain(
-      "I wish to enable a &quot;super user&quot; account on this platform for my admin, myadmin@example.com.",
-    );
-    expect(html).toContain(
-      "This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access.",
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Radio input values and form structure
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm form structure", () => {
-  const baseSuperuser = {
-    activated: false,
-    available: true,
-    choice: "",
-    email: validEmail("admin@example.com"),
-    userExists: false,
-    username: "admin",
-  } as const;
-
-  test("radio inputs have correct name='superuser_choice'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    const matches = html.match(/name="superuser_choice"/g);
-    expect(matches).not.toBeNull();
-    expect(matches!.length).toBe(2);
-  });
-
-  test("first radio has value='self-managed'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('value="self-managed"');
-  });
-
-  test("second radio has value='enable-superuser'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('value="enable-superuser"');
-  });
-
-  test("form action is '/admin/settings/superuser'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('action="/admin/settings/superuser"');
-  });
-
-  test("form has id='settings-superuser' for anchor linking", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('id="settings-superuser"');
-  });
-
-  test("form includes a CSRF token field", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('type="hidden"');
-    expect(html).toContain('name="csrf_token"');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Radio pre-selection (checked state reflects persisted choice)
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm radio checked state", () => {
-  test("self-managed radio is checked when choice is 'self-managed'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "self-managed",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
-    expect(hasCheckedInput(html, "superuser_choice", "self-managed")).toBe(
-      true,
-    );
-    expect(hasCheckedInput(html, "superuser_choice", "enable-superuser")).toBe(
-      false,
-    );
-  });
-
-  test("enable-superuser radio is checked when choice is 'enabled'", () => {
-    const html = adminSettingsPage(OWNER_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "enabled",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
-    expect(hasCheckedInput(html, "superuser_choice", "self-managed")).toBe(
-      false,
-    );
-    expect(hasCheckedInput(html, "superuser_choice", "enable-superuser")).toBe(
-      true,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Existing-superuser state
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm existing-superuser state", () => {
-  test("shows already-exists message with interpolated username", () => {
-    const html = renderSuperuser(
-      availableSuperuser({
-        activated: true,
-        userExists: true,
-        username: "myadmin",
-      }),
-    );
-    expect(html).toContain("Superuser myadmin is already activated.");
-  });
-
-  test("already-exists message links 'users page' to /admin/users", () => {
-    const html = renderSuperuser(
-      availableSuperuser({
-        activated: true,
-        userExists: true,
-        username: "myadmin",
-      }),
-    );
-    expect(html).toContain('<a href="/admin/users">users page</a>');
-  });
-
-  test("already-exists message ends with a period after the link", () => {
-    const html = renderSuperuser(
-      availableSuperuser({
-        activated: true,
-        userExists: true,
-        username: "myadmin",
-      }),
-    );
-    expect(html).toContain("users page</a>.");
-  });
-
-  test("does not render radio inputs when user exists", () => {
-    const html = renderSuperuser(
-      availableSuperuser({ activated: true, userExists: true }),
-    );
-    // Extract just the superuser form section
-    const superuserHtml = superuserFormHtml(html);
-    expect(superuserHtml).not.toContain('type="radio"');
-  });
-
-  test("submit button is NOT rendered in superuser form when user exists", () => {
-    const html = renderSuperuser(
-      availableSuperuser({ activated: true, userExists: true }),
-    );
-    const superuserHtml = superuserFormHtml(html);
-    expect(superuserHtml).not.toContain('type="submit"');
-    expect(superuserHtml).not.toContain("<button");
-  });
-
-  test("submit button IS rendered in superuser form when activated is false", () => {
-    const html = renderSuperuser(availableSuperuser());
-    const superuserHtml = superuserFormHtml(html);
-    expect(superuserHtml).toContain('type="submit"');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Placement
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm placement", () => {
-  test("SuperuserForm is placed immediately before ChangePasswordForm in DOM order", () => {
-    const html = renderSuperuser(availableSuperuser());
-    const superuserIndex = html.indexOf("Superuser Recovery");
-    const changePasswordIndex = html.indexOf("Change Password");
-    expect(superuserIndex).toBeGreaterThan(-1);
-    expect(changePasswordIndex).toBeGreaterThan(-1);
-    expect(superuserIndex).toBeLessThan(changePasswordIndex);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Payment provider radio — labels come from the PAYMENT_PROVIDERS registry
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > PaymentProviderForm radio labels", () => {
-  /** The visible label text attached to the radio option with this value, or
-   * null if none. Scoped to the single <label> so a label attached to the
-   * wrong option isn't mistaken for a match. */
-  const labelForValue = (html: string, value: string): string | null => {
-    const m = html.match(
-      new RegExp(
-        `<input\\b[^>]*value="${value}"[^>]*>\\s*([^<]*?)\\s*</label>`,
-      ),
-    );
-    return m?.[1] ?? null;
-  };
-
-  test("attaches each registry label to its own radio value", () => {
-    const html = adminSettingsPage(OWNER_SESSION, defaultState());
-    // The label must sit inside the SAME option as its value, so a swap (e.g.
-    // the "Stripe" label on the square radio) is caught — a page-wide toContain
-    // would miss it.
-    expect(labelForValue(html, "stripe")).toBe("Stripe");
-    expect(labelForValue(html, "square")).toBe("Square");
-    expect(labelForValue(html, "sumup")).toBe("SumUp");
-  });
-
-  test("checks exactly the radio matching the persisted provider", () => {
-    // "" is the persisted value for the "none" option; the rest come from the
-    // registry so this stays exhaustive as providers are added.
-    const values = ["none", ...PAYMENT_PROVIDER_IDS];
-    for (const selected of values) {
-      const html = adminSettingsPage(OWNER_SESSION, {
-        ...defaultState(),
-        paymentProvider: selected === "none" ? "" : selected,
-      });
-      // Exactly the selected radio is checked; every other one is not. This
-      // fails an implementation that hard-codes one provider as checked.
-      for (const value of values) {
-        expect(hasCheckedInput(html, "payment_provider", value)).toBe(
-          value === selected,
-        );
+    test("checks exactly the radio matching the persisted provider", () => {
+      const values = ["none", ...PAYMENT_PROVIDER_IDS];
+      for (const selected of values) {
+        const html = adminSettingsPage(OWNER_SESSION, {
+          ...defaultState(),
+          paymentProvider: selected === "none" ? "" : selected,
+        });
+        for (const value of values) {
+          expect(hasCheckedInput(html, "payment_provider", value)).toBe(
+            value === selected,
+          );
+        }
       }
-    }
+    });
   });
 });

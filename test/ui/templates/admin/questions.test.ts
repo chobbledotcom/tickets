@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   ListingOverviewPanel,
   overviewStatsFromAttendees,
@@ -17,7 +15,7 @@ import {
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   singleAnswerSizeQuestionData,
   smallLargeAnswers,
@@ -25,7 +23,10 @@ import {
   testListingWithCount,
   testQuestion,
 } from "#test-utils/factories.ts";
-import { featureSetting } from "#test-utils/settings.ts";
+import {
+  resetFeaturePageTest,
+  setupFeaturePageTest,
+} from "./feature-page-test.ts";
 
 const TEST_LISTINGS = [
   testListingWithCount({ id: 1, name: "Spring Gig" }),
@@ -42,17 +43,12 @@ const tShirtQuestion = testQuestion({
   text: "T-shirt size?",
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  settings.setForTest(featureSetting("questions"));
-  await signCsrfToken();
-});
-
-afterAll(() => {
-  settings.clearTestOverride("enabled_features");
-});
+const setupQuestionPageTest = setupFeaturePageTest("questions");
 
 describe("adminQuestionsPage", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   const colourQuestion = testQuestion({
     answers: [
       testAnswer({ id: 10, sort_order: 0, text: "Red" }),
@@ -170,6 +166,9 @@ describe("adminQuestionsPage", () => {
 });
 
 describe("adminQuestionPage", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   const question = tShirtQuestion;
 
   test("renders question text and edit form", () => {
@@ -428,6 +427,9 @@ describe("adminQuestionPage", () => {
 });
 
 describe("adminQuestionDeletePage", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   const question = testQuestion({
     answers: [testAnswer({ id: 10, sort_order: 0, text: "Small" })],
     id: 1,
@@ -460,6 +462,9 @@ describe("adminQuestionDeletePage", () => {
 });
 
 describe("adminAnswerEditPage", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   const question = tShirtQuestion;
   const answer = question.answers[1]!;
   const modifiers = [
@@ -632,6 +637,9 @@ describe("adminAnswerEditPage", () => {
 });
 
 describe("adminAnswerRecalculatePage", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   const question = testQuestion({
     answers: [testAnswer({ id: 11, sort_order: 1, text: "Large" })],
     id: 1,
@@ -682,6 +690,9 @@ describe("adminAnswerRecalculatePage", () => {
 });
 
 describe("adminAnswerDeletePage", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   const question = tShirtQuestion;
   const answer = question.answers[0]!;
 
@@ -710,6 +721,9 @@ describe("adminAnswerDeletePage", () => {
 });
 
 describe("adminListingQuestionsPage", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("shows empty state when no questions exist", () => {
     const listing = testListingWithCount({ id: 1, name: "My Listing" });
     const html = String(
@@ -797,6 +811,9 @@ describe("adminListingQuestionsPage", () => {
 });
 
 describe("adminListingPage with questionData", () => {
+  beforeAll(setupQuestionPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("renders answer summary rows in details table", () => {
     const listing = testListingWithCount({ id: 1, name: "E" });
     const html = String(

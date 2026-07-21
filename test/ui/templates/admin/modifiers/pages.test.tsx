@@ -1,30 +1,27 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#shared/currency.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   adminModifierDeletePage,
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import {
-  OWNER_SESSION,
-  setupAdminPageTest,
-} from "#test-utils/admin-page-test.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testModifier } from "#test-utils/factories.ts";
-import { featureSetting } from "#test-utils/settings.ts";
+import {
+  resetFeaturePageTest,
+  setupFeaturePageTest,
+} from "../feature-page-test.ts";
 
 const mod = testModifier;
 
-beforeAll(async () => {
-  await setupAdminPageTest();
-  settings.setForTest(featureSetting("modifiers"));
-});
-
-afterAll(() => settings.clearTestOverride("enabled_features"));
+const setupModifierPageTest = setupFeaturePageTest("modifiers");
 
 describe("adminModifiersPage", () => {
+  beforeAll(setupModifierPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("renders a rule summary and edit link for each modifier", () => {
     const html = adminModifiersPage(
       [
@@ -79,6 +76,9 @@ describe("adminModifiersPage", () => {
 });
 
 describe("adminModifierNewPage", () => {
+  beforeAll(setupModifierPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("renders the create form", () => {
     const html = adminModifierNewPage(OWNER_SESSION);
     expect(html).toContain("Add Modifier");
@@ -95,6 +95,9 @@ describe("adminModifierNewPage", () => {
 });
 
 describe("adminModifierDeletePage", () => {
+  beforeAll(setupModifierPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("renders a confirmation form keyed on the modifier name", () => {
     const html = adminModifierDeletePage(
       mod({ name: "Loyalty" }),
