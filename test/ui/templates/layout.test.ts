@@ -6,7 +6,6 @@ import {
   JS_PATH,
 } from "#shared/asset-paths.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
@@ -21,9 +20,12 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 
@@ -40,9 +42,8 @@ const expectRenewalLink = async (): Promise<void> => {
 };
 
 const setupLayoutTest = async (): Promise<void> => {
-  setupTestEncryptionKey();
+  await setupAdminPageTest();
   setDemoModeForTest(false);
-  await signCsrfToken();
 };
 
 const resetLayoutTest = (): void => {
