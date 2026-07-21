@@ -20,18 +20,42 @@ export type MaintenanceTaskContext = {
   setCheckpoint: (checkpoint: string | null) => void;
 };
 
-export interface MaintenanceTaskDeclaration {
-  deadlineMs: number;
+export interface MaintenanceTaskCheck {
   enabled: () => boolean | Promise<boolean>;
+  maxDatabaseCalls: number;
+  maxExternalCalls: number;
+  settingsKeys: readonly string[];
+}
+
+export interface MaintenanceTaskDeclaration {
+  check: MaintenanceTaskCheck;
+  deadlineMs: number;
   failureRetryIntervalMs: number;
   intervalMs: number;
   maxDatabaseCalls: number;
   maxExternalCalls: number;
   name: string;
   run: (context: MaintenanceTaskContext) => void | Promise<void>;
-  settingsKeys: readonly string[];
   wakePolicy: MaintenanceWakePolicy;
 }
+
+export const maintenanceStartupCalls = (
+  tasks: readonly MaintenanceTaskDeclaration[],
+): { database: number; external: number; total: number } => {
+  if (tasks.length === 0) return { database: 0, external: 0, total: 0 };
+  const settingsRead = tasks.some((task) => task.check.settingsKeys.length > 0)
+    ? 1
+    : 0;
+  const database =
+    1 +
+    settingsRead +
+    tasks.reduce((sum, task) => sum + task.check.maxDatabaseCalls, 0);
+  const external = tasks.reduce(
+    (sum, task) => sum + task.check.maxExternalCalls,
+    0,
+  );
+  return { database, external, total: database + external };
+};
 
 const assertNonNegativeInteger = (
   task: MaintenanceTaskDeclaration,
@@ -72,6 +96,16 @@ const validateTask = (task: MaintenanceTaskDeclaration): void => {
   }
   assertNonNegativeInteger(task, task.maxDatabaseCalls, "database");
   assertNonNegativeInteger(task, task.maxExternalCalls, "external");
+  assertNonNegativeInteger(
+    task,
+    task.check.maxDatabaseCalls,
+    "enabled-check database",
+  );
+  assertNonNegativeInteger(
+    task,
+    task.check.maxExternalCalls,
+    "enabled-check external",
+  );
   const calls = task.maxDatabaseCalls + task.maxExternalCalls;
   if (calls > MAINTENANCE_TASK_CALL_LIMIT) {
     throw new Error(
@@ -92,6 +126,12 @@ export const defineMaintenanceTasks = <
     }
     names.add(task.name);
     validateTask(task);
+  }
+  const startup = maintenanceStartupCalls(tasks);
+  if (startup.total > MAINTENANCE_REQUEST_CALL_LIMIT) {
+    throw new Error(
+      `Maintenance checks declare ${startup.total} startup calls; maximum is ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
+    );
   }
   return tasks;
 };

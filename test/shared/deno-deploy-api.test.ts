@@ -1,15 +1,19 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
   denoDeployApi,
   denoHostingProvider,
   slugifyForDeno,
 } from "#shared/deno-deploy-api.ts";
+import { okResult } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
+import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
 
 const DENO_ENV = {
   DENO_DEPLOY_ORG_ID: "test-org-id",
+  DENO_DEPLOY_ORG_SLUG: "test-org",
   DENO_DEPLOY_TOKEN: "test-deno-token",
 };
 
@@ -162,7 +166,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   test("deployCode POSTs assets and config to the revision endpoint", async () => {
     const captured: CapturedRequest = { body: undefined, url: undefined };
     using _fetch = stubFetch(
-      captureRequest({ domains: ["my-app.deno.dev"], id: "dep_123" }, captured),
+      captureRequest({ id: "dep_123", status: "succeeded" }, captured),
     );
     const result = await denoDeployApi.deployCode(
       "app_dc",
@@ -182,6 +186,98 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       config: { runtime: { entrypoint: "main.ts", type: "dynamic" } },
       production: true,
     });
+  });
+
+  test("deployCode waits for an accepted revision to succeed", async () => {
+    const requests: string[] = [];
+    const requestTimes: number[] = [];
+    const responses = [
+      { id: "revision-1", status: "queued" },
+      { id: "revision-1", status: "building" },
+      { id: "revision-1", status: "succeeded" },
+    ];
+    using _fetch = stubFetch((url) => {
+      requests.push(String(url));
+      requestTimes.push(Date.now());
+      return Response.json(responses.shift());
+    });
+
+    expect(
+      await withVirtualBackoff(() => denoDeployApi.deployCode("app_1", "code")),
+    ).toEqual({ ok: true, value: undefined });
+    expect(requests).toEqual([
+      "https://api.deno.com/v2/apps/app_1/deploy",
+      "https://api.deno.com/v2/revisions/revision-1",
+      "https://api.deno.com/v2/revisions/revision-1",
+    ]);
+    expect(requestTimes.map((time) => time - requestTimes[0]!)).toEqual([
+      0, 1_000, 2_000,
+    ]);
+  });
+
+  test("deployCode reports a failed accepted revision", async () => {
+    using _fetch = stubFetch(
+      Response.json({
+        failure_reason: "error",
+        id: "revision-failed",
+        status: "failed",
+      }),
+    );
+
+    expect(await denoDeployApi.deployCode("app_1", "code")).toEqual({
+      error: "Deno revision revision-failed failed: error",
+      ok: false,
+    });
+  });
+
+  test("deployCode reports a skipped accepted revision", async () => {
+    using _fetch = stubFetch(
+      Response.json({ id: "revision-skipped", status: "skipped" }),
+    );
+
+    expect(await denoDeployApi.deployCode("app_1", "code")).toEqual({
+      error: "Deno revision revision-skipped skipped: skipped",
+      ok: false,
+    });
+  });
+
+  test("deployCode reports a revision that never finishes", async () => {
+    using _fetch = stubFetch(() =>
+      Response.json({ id: "revision-pending", status: "queued" }),
+    );
+
+    expect(
+      await withVirtualBackoff(() => denoDeployApi.deployCode("app_1", "code")),
+    ).toEqual({
+      error: "Deno revision revision-pending did not finish within 20 seconds",
+      ok: false,
+    });
+  });
+
+  test("deployCode reports repeated revision read failures", async () => {
+    const calls = { value: 0 };
+    using _fetch = stubFetch(() => {
+      calls.value += 1;
+      return calls.value === 1
+        ? Response.json({ id: "revision-unreadable", status: "queued" })
+        : new Response("unavailable", { status: 503 });
+    });
+
+    expect(
+      await withVirtualBackoff(() => denoDeployApi.deployCode("app_1", "code")),
+    ).toEqual({
+      error:
+        "Deno revision revision-unreadable could not be read: Get revision failed (503): unavailable",
+      ok: false,
+    });
+  });
+
+  test("deployCode rejects an undocumented revision response", async () => {
+    using _fetch = stubFetch(
+      Response.json({ id: "revision-unknown", status: "running" }),
+    );
+
+    await expect(denoDeployApi.deployCode("app_1", "code")).rejects.toThrow();
   });
 
   test("deployCode returns error when API responds with failure", async () => {
@@ -204,10 +300,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     using _fetch = stubFetch(
       new Response(
         JSON.stringify({
-          env_vars: {
-            DB_TOKEN: { is_secret: true, value: "" },
-            DB_URL: { is_secret: true, value: "" },
-          },
+          env_vars: [{ key: "DB_TOKEN" }, { key: "DB_URL" }],
           id: "app_gn",
           slug: "gn-app",
         }),
@@ -225,7 +318,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   test("getEnvVarNames returns empty array when no env vars are set", async () => {
     using _fetch = stubFetch(
       new Response(
-        JSON.stringify({ env_vars: {}, id: "app_empty", slug: "empty" }),
+        JSON.stringify({ env_vars: [], id: "app_empty", slug: "empty" }),
       ),
     );
     const result = await denoDeployApi.getEnvVarNames("app_empty");
@@ -235,15 +328,11 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     }
   });
 
-  test("getEnvVarNames returns empty when env_vars is omitted", async () => {
+  test("getEnvVarNames rejects an app response without env vars", async () => {
     using _fetch = stubFetch(
       new Response(JSON.stringify({ id: "app_no_ev", slug: "no-ev" })),
     );
-    const result = await denoDeployApi.getEnvVarNames("app_no_ev");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value).toEqual([]);
-    }
+    await expect(denoDeployApi.getEnvVarNames("app_no_ev")).rejects.toThrow();
   });
 
   test("getEnvVarNames returns error when API fails", async () => {
@@ -262,10 +351,25 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     expect(denoHostingProvider.configEnvVar).toBe("DENO_DEPLOY_TOKEN");
   });
 
-  test("hosting publish returns only provider success", async () => {
-    using _fetch = stubFetch(
-      new Response(JSON.stringify({ domains: ["child.deno.dev"], id: "dep" })),
+  test("hosting provider builds the Deno v2 production domain", async () => {
+    using _create = stub(denoDeployApi, "createApp", () =>
+      Promise.resolve(okResult({ appId: "app_1", slug: "child" })),
     );
+    using _secrets = stub(denoDeployApi, "setEnvVars", () =>
+      Promise.resolve(okResult(undefined)),
+    );
+
+    expect(await denoHostingProvider.prepareSite("Child", "code", [])).toEqual({
+      ok: true,
+      value: {
+        defaultHostname: "https://child.test-org.deno.net",
+        hostingId: "app_1",
+      },
+    });
+  });
+
+  test("hosting publish returns only provider success", async () => {
+    using _fetch = stubFetch(Response.json({ id: "dep", status: "succeeded" }));
 
     expect(await denoHostingProvider.publishSite("app_1", "code")).toEqual({
       ok: true,

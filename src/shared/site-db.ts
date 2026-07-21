@@ -14,10 +14,20 @@
 
 import { type Client, createClient } from "@libsql/client";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import { wrapExecute } from "#shared/db/libsql-call.ts";
+import { countDatabaseRoundTrip } from "#shared/db/query-log.ts";
 import type { Result } from "#shared/result.ts";
 
 /** Credentials needed to open a read-only connection to a site's database. */
 export type SiteDbCredentials = Pick<BuiltSite, "dbUrl" | "dbToken">;
+export type SiteDbReader = Pick<Client, "execute">;
+
+const childSiteReader = (client: Client): SiteDbReader => ({
+  execute: wrapExecute(client, (_statement, execute) => {
+    countDatabaseRoundTrip("child site statement");
+    return execute();
+  }),
+});
 
 /** Stubbable client factory so tests can inject an in-memory database. */
 export const siteDbApi = {
@@ -37,7 +47,7 @@ export const hasSiteDbCredentials = (creds: SiteDbCredentials): boolean =>
  */
 export const withSiteDb = async <T>(
   creds: SiteDbCredentials,
-  fn: (client: Client) => Promise<T>,
+  fn: (client: SiteDbReader) => Promise<T>,
 ): Promise<Result<T>> => {
   if (!creds.dbUrl)
     return { error: "No database URL for this site", ok: false };
@@ -48,7 +58,7 @@ export const withSiteDb = async <T>(
   let client: Client | undefined;
   try {
     client = siteDbApi.createClient(creds.dbUrl, creds.dbToken);
-    const value = await fn(client);
+    const value = await fn(childSiteReader(client));
     client.close();
     return { ok: true, value };
   } catch (e) {

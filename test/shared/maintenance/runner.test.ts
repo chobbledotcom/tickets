@@ -13,24 +13,7 @@ import {
   runWithSubrequestBudget,
 } from "#shared/subrequest-budget.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-
-const declaration = (
-  name: string,
-  run: MaintenanceTaskDeclaration["run"],
-  overrides: Partial<MaintenanceTaskDeclaration> = {},
-): MaintenanceTaskDeclaration => ({
-  deadlineMs: 10_000,
-  enabled: () => true,
-  failureRetryIntervalMs: 60_000,
-  intervalMs: 60_000,
-  maxDatabaseCalls: 0,
-  maxExternalCalls: 0,
-  name,
-  run,
-  settingsKeys: [],
-  wakePolicy: "organic_safe",
-  ...overrides,
-});
+import { maintenanceDeclaration as declaration } from "./fixtures.ts";
 
 const forceDue = (names: string[]): Promise<unknown> =>
   execute(
@@ -336,6 +319,49 @@ describeWithEnv("maintenance runner", { db: true }, () => {
       });
     });
     expect(calls).toEqual([]);
+  });
+
+  test("an allowance below startup cost skips all bookkeeping", async () => {
+    const tasks = defineMaintenanceTasks([
+      declaration("startup_cost", () => {}, {
+        check: {
+          enabled: async () => {
+            await queryOne("SELECT 1");
+            return true;
+          },
+          maxDatabaseCalls: 1,
+        },
+      }),
+    ]);
+
+    await runWithSubrequestBudget(async () => {
+      await maintenance.run(tasks, { combinedAllowance: 1 });
+      expect(getSubrequestUsage()).toEqual({
+        database: 0,
+        external: 0,
+        total: 0,
+      });
+    });
+  });
+
+  test("an external activation check needs external startup allowance", async () => {
+    const checks: string[] = [];
+    const tasks = defineMaintenanceTasks([
+      declaration("external_startup", () => {}, {
+        check: {
+          enabled: () => {
+            checks.push("checked");
+            return true;
+          },
+          maxExternalCalls: 1,
+        },
+      }),
+    ]);
+
+    await runWithSubrequestBudget(() =>
+      maintenance.run(tasks, { externalAllowance: 0 }),
+    );
+    expect(checks).toEqual([]);
   });
 
   test("subtracts request calls already used from the maintenance envelope", async () => {

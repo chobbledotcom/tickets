@@ -212,9 +212,11 @@ export const isInstanceApiEnabled = (): boolean =>
 /** The shared secret authorizing the inter-instance site-credentials endpoint. */
 export const getMainInstanceKey = (): string => requireEnv("MAIN_INSTANCE_KEY");
 
-/** Check if Deno Deploy hosting is enabled (requires DENO_DEPLOY_TOKEN and DENO_DEPLOY_ORG_ID). */
+/** Check if Deno Deploy hosting has its token, organization ID, and domain slug. */
 export const isDenoDeployEnabled = (): boolean =>
-  !!getEnv("DENO_DEPLOY_TOKEN") && !!getEnv("DENO_DEPLOY_ORG_ID");
+  !!getEnv("DENO_DEPLOY_TOKEN") &&
+  !!getEnv("DENO_DEPLOY_ORG_ID") &&
+  !!getEnv("DENO_DEPLOY_ORG_SLUG");
 
 /** Get the Deno Deploy API token from environment. */
 export const getDenoDeployToken = (): string => requireEnv("DENO_DEPLOY_TOKEN");
@@ -222,6 +224,10 @@ export const getDenoDeployToken = (): string => requireEnv("DENO_DEPLOY_TOKEN");
 /** Get the Deno Deploy organization ID from environment. */
 export const getDenoDeployOrgId = (): string =>
   requireEnv("DENO_DEPLOY_ORG_ID");
+
+/** Get the Deno Deploy organization slug used in managed production domains. */
+export const getDenoDeployOrgSlug = (): string =>
+  requireEnv("DENO_DEPLOY_ORG_SLUG");
 
 /** Get the default database provider from DEFAULT_DB_HOST env var. Returns "turso" when set to "turso", "bunny" otherwise. */
 export const getDefaultDbProvider = (): "bunny" | "turso" =>

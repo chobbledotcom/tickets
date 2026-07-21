@@ -35,8 +35,11 @@ const siteDataFields = {
   u: v.string(),
 };
 
-const SiteDataBlobSchema = v.variant("v", [
-  v.strictObject({ ...siteDataFields, v: v.literal(1) }),
+const SiteDataBlobSchema = v.union([
+  v.strictObject({
+    ...siteDataFields,
+    v: v.optional(v.literal(1), 1),
+  }),
   v.strictObject({
     ...siteDataFields,
     sk: v.optional(v.pipe(v.string(), v.check(isScheduledTaskKey))),

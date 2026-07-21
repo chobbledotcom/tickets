@@ -10,6 +10,7 @@ import {
   getDebugKey,
   getDefaultDbProvider,
   getDenoDeployOrgId,
+  getDenoDeployOrgSlug,
   getDenoDeployToken,
   getMainInstanceKey,
   getTursoApiToken,
@@ -213,6 +214,7 @@ expectRequiredEnvGetter(
 expectEnabledByAllKeys("isDenoDeployEnabled", isDenoDeployEnabled, [
   "DENO_DEPLOY_TOKEN",
   "DENO_DEPLOY_ORG_ID",
+  "DENO_DEPLOY_ORG_SLUG",
 ]);
 expectRequiredEnvGetter(
   "getDenoDeployToken",
@@ -225,6 +227,12 @@ expectRequiredEnvGetter(
   getDenoDeployOrgId,
   "DENO_DEPLOY_ORG_ID",
   "deploy_org",
+);
+expectRequiredEnvGetter(
+  "getDenoDeployOrgSlug",
+  getDenoDeployOrgSlug,
+  "DENO_DEPLOY_ORG_SLUG",
+  "deploy-org",
 );
 
 describe("getDefaultDbProvider", () => {
