@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
@@ -8,9 +8,11 @@ import {
   singleListingPageHtml,
   ticketListing,
 } from "#test/templates/public/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 
 describe("ticketPage — fields & form", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("renders markdown paragraphs in terms and conditions", () => {

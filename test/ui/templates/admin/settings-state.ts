@@ -1,7 +1,7 @@
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 
-export const TEST_SETTINGS_SESSION = { adminLevel: "owner" as const };
+const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
 export const defaultSettingsState = (): SettingsPageState => ({
   bookingFee: "0",
@@ -9,7 +9,7 @@ export const defaultSettingsState = (): SettingsPageState => ({
   calendarFeedsEnabled: false,
   calendarFeedsGroupBy: "attendees",
   embedHosts: "",
-  enabledFeatures: parseEnabledFeatures(""),
+  enabledFeatures: DEFAULT_ENABLED_FEATURES,
   headerImageUrl: "",
   paymentProvider: "",
   squareSandbox: false,

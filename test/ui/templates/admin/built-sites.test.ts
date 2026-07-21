@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   renewalPanelFor,
   SecretsPanel,
@@ -13,21 +12,20 @@ import {
   BuiltSiteEditPanel,
   builtSiteToFieldValues,
 } from "#templates/admin/built-sites.tsx";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
 
-const TEST_SESSION = { adminLevel: "owner" as const };
-
 describe("built-site templates", () => {
-  beforeAll(async () => {
-    setupTestEncryptionKey();
-    await signCsrfToken();
-  });
+  beforeAll(setupAdminPageTest);
 
   describe("adminBuiltSitesPage", () => {
     test("renders formatted deadline column", () => {
       const site = testBuiltSite({ readOnlyFrom: "2099-06-01T00:00:00Z" });
-      const html = adminBuiltSitesPage([site], TEST_SESSION);
+      const html = adminBuiltSitesPage([site], OWNER_SESSION);
       expect(html).toContain("Read-only from");
       expect(html).toContain("in");
       expect(html).toContain("day");
@@ -35,20 +33,20 @@ describe("built-site templates", () => {
 
     test("renders 'never' for empty deadline", () => {
       const site = testBuiltSite({ readOnlyFrom: "" });
-      const html = adminBuiltSitesPage([site], TEST_SESSION);
+      const html = adminBuiltSitesPage([site], OWNER_SESSION);
       expect(html).toContain("never");
     });
 
     test("links each site name to its entity page and has no list delete link", () => {
       const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
-      const html = adminBuiltSitesPage([site], TEST_SESSION);
+      const html = adminBuiltSitesPage([site], OWNER_SESSION);
       expect(html).toContain('href="/admin/built-sites/7">Linky</a>');
       expect(html).not.toContain("/admin/built-sites/7/delete");
     });
 
     test("warns when no qualifying renewal tier is configured", () => {
       const site = testBuiltSite({ readOnlyFrom: "" });
-      const html = adminBuiltSitesPage([site], TEST_SESSION, undefined, []);
+      const html = adminBuiltSitesPage([site], OWNER_SESSION, undefined, []);
       expect(html).toContain("Renewal tiers");
       expect(html).toContain("No renewal tier listing is configured");
       expect(html).toContain("won't be able to renew");
@@ -57,7 +55,7 @@ describe("built-site templates", () => {
     test("keeps the read-only entity link but hides create actions", () => {
       using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
       const site = testBuiltSite({ id: 7, name: "Linky", readOnlyFrom: "" });
-      const html = adminBuiltSitesPage([site], TEST_SESSION);
+      const html = adminBuiltSitesPage([site], OWNER_SESSION);
       expect(html).toContain("Linky");
       expect(html).not.toContain('href="/admin/built-sites/new"');
       expect(html).toContain('href="/admin/built-sites/7"');
@@ -70,7 +68,7 @@ describe("built-site templates", () => {
           testBuiltSite({ hostingId: "deno-1", hostingProvider: "deno" }),
           testBuiltSite({ hostingId: "", hostingProvider: "bunny" }),
         ],
-        TEST_SESSION,
+        OWNER_SESSION,
       );
       expect(html).toContain("bunny-1");
       expect(html).not.toContain("deno-1</p>");
@@ -96,19 +94,16 @@ describe("built-site templates", () => {
         unit_price: 5000,
       });
       const site = testBuiltSite({ readOnlyFrom: "" });
-      const html = adminBuiltSitesPage([site], TEST_SESSION, undefined, [
+      const html = adminBuiltSitesPage([site], OWNER_SESSION, undefined, [
         monthly,
         annual,
       ]);
       expect(html).toContain("Monthly tier");
       expect(html).toContain("Annual tier");
-      // Units sold = attendee_count
       expect(html).toContain(">7<");
       expect(html).toContain(">2<");
-      // Linked back to the listing detail page
       expect(html).toContain('href="/admin/listing/11"');
       expect(html).toContain('href="/admin/listing/12"');
-      // Warning copy must not appear when tiers exist
       expect(html).not.toContain("No renewal tier listing is configured");
     });
   });
@@ -155,13 +150,13 @@ describe("built-site templates", () => {
 
     test("renders new, edit, and delete destinations and labels", () => {
       const site = testBuiltSite({ id: 42, name: "Delete <site>" });
-      const newPage = adminBuiltSiteNewPage(TEST_SESSION);
+      const newPage = adminBuiltSiteNewPage(OWNER_SESSION);
       expect(newPage).toContain('action="/admin/built-sites"');
       expect(newPage).toContain("Add Built Site");
       const edit = String(BuiltSiteEditPanel({ site }));
       expect(edit).toContain('action="/admin/built-sites/42/edit"');
       expect(edit).toContain("Save Changes");
-      const deletePage = adminBuiltSiteDeletePage(site, TEST_SESSION);
+      const deletePage = adminBuiltSiteDeletePage(site, OWNER_SESSION);
       expect(deletePage).toContain('action="/admin/built-sites/42/delete"');
       expect(deletePage).toContain("Delete Built Site");
       expect(deletePage).toContain("Delete &lt;site&gt;");
@@ -191,9 +186,6 @@ describe("built-site templates", () => {
 
     test("renders the actual renewal URL (token, not placeholder)", () => {
       const html = String(renewalPanelFor(provisionedSite));
-      // The real token must appear inside a /renew/?t=… URL. The previous
-      // implementation rendered "<token>" literally with a bogus host — guard
-      // against regression by asserting both the path shape and the token.
       expect(html).toContain("/renew/?t=real-customer-renewal-token");
       expect(html).not.toContain("?t=<token>");
     });
@@ -253,11 +245,8 @@ describe("built-site templates", () => {
       expect(html).toContain("<code>NTFY_URL</code>");
       expect(html).toContain("<code>STORAGE_ZONE_KEY</code>");
       expect(html).toContain("Set 2 missing secret(s)");
-      // STORAGE_ZONE_KEY is host-level infrastructure, so the heads-up note names
-      // it so the operator knows backfilling grants the child host-level access.
       expect(html).toContain("host-level infrastructure credentials");
       expect(html).toContain("STORAGE_ZONE_KEY");
-      // Live secrets are listed for insight, including ones outside the copy set.
       expect(html).toContain("Secrets currently on this site");
       expect(html).toContain("<code>DB_ENCRYPTION_KEY</code>");
     });
@@ -276,7 +265,6 @@ describe("built-site templates", () => {
       );
       expect(html).not.toContain("Secrets currently on this site");
       expect(html).toContain("/admin/built-sites/9/add-secrets");
-      // NTFY_URL is not host-level infrastructure, so the heads-up note is absent.
       expect(html).not.toContain("host-level infrastructure credentials");
     });
 

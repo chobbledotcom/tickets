@@ -1,26 +1,22 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   adminModifierRecalculatePage,
   ModifierRunningTotalsSection,
 } from "#templates/admin/modifiers/aggregates.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testModifier } from "#test-utils/factories.ts";
-import { featureSetting } from "#test-utils/settings.ts";
+import {
+  resetFeaturePageTest,
+  setupFeaturePageTest,
+} from "../feature-page-test.ts";
 
-const SESSION = { adminLevel: "owner" as const };
-
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-  settings.setForTest(featureSetting("modifiers"));
-});
-
-afterAll(() => settings.clearTestOverride("enabled_features"));
+const setupModifierPageTest = setupFeaturePageTest("modifiers");
 
 describe("ModifierRunningTotalsSection", () => {
+  beforeAll(setupModifierPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("renders the two count aggregates and a recalculate link", () => {
     const html = String(
       ModifierRunningTotalsSection({
@@ -39,6 +35,9 @@ describe("ModifierRunningTotalsSection", () => {
 });
 
 describe("adminModifierRecalculatePage", () => {
+  beforeAll(setupModifierPageTest);
+  afterAll(resetFeaturePageTest);
+
   test("shows current and attendee-derived totals for the count aggregates", () => {
     const html = adminModifierRecalculatePage(
       testModifier({ name: "Loyalty" }),
@@ -46,7 +45,7 @@ describe("adminModifierRecalculatePage", () => {
         total_uses: { current: 9, recalculated: 4 },
         usage_count: { current: 5, recalculated: 2 },
       },
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain("Recalculate: Loyalty");
     expect(html).toContain("Current");
@@ -70,7 +69,7 @@ describe("adminModifierRecalculatePage", () => {
         total_uses: { current: 1, recalculated: 1 },
         usage_count: { current: 1, recalculated: 1 },
       },
-      SESSION,
+      OWNER_SESSION,
       "Something went wrong",
     );
     expect(html).toContain("Something went wrong");

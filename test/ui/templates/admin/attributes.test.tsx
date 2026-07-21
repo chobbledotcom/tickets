@@ -1,12 +1,10 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeListingRow } from "#routes/admin/attribute-page-data.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type {
   AttributeOption,
   AttributeWithOptions,
 } from "#shared/db/attributes.ts";
-import { settings } from "#shared/db/settings.ts";
 import {
   adminAttributeDeletePage,
   adminAttributeOptionDeletePage,
@@ -16,11 +14,14 @@ import {
   attributeNameFlat,
   ListingAttributesPanel,
 } from "#templates/admin/attributes.tsx";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-import { featureSetting } from "#test-utils/settings.ts";
+import {
+  resetFeaturePageTest,
+  setupFeaturePageTest,
+} from "./feature-page-test.ts";
 
-const SESSION = { adminLevel: "owner" as const };
 const ATTRIBUTE: AttributeWithOptions = {
   id: 1,
   name: "Colour",
@@ -60,15 +61,7 @@ const COUNTS = new Map([[10, 3]]);
 
 const NO_LISTINGS_TEXT = "No listings have this attribute set yet.";
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  settings.setForTest(featureSetting("attributes"));
-  await signCsrfToken();
-});
-
-afterAll(() => {
-  settings.clearTestOverride("enabled_features");
-});
+const setupAttributePageTest = setupFeaturePageTest("attributes");
 
 describe("attributeNameFlat", () => {
   test("joins name lines with a slash separator", () => {
@@ -81,8 +74,11 @@ describe("attributeNameFlat", () => {
 });
 
 describe("adminAttributesPage (writable list)", () => {
+  beforeAll(setupAttributePageTest);
+  afterAll(resetFeaturePageTest);
+
   const html = (): string =>
-    adminAttributesPage([ATTRIBUTE, ATTRIBUTE_B], SESSION);
+    adminAttributesPage([ATTRIBUTE, ATTRIBUTE_B], OWNER_SESSION);
 
   test("marks the attributes nav link active", () => {
     expect(html()).toContain('class="active" href="/admin/attributes"');
@@ -110,8 +106,11 @@ describe("adminAttributesPage (writable list)", () => {
 });
 
 describe("adminAttributePage (detail)", () => {
+  beforeAll(setupAttributePageTest);
+  afterAll(resetFeaturePageTest);
+
   const withListings = (listings: AttributeListingRow[]): string =>
-    adminAttributePage(ATTRIBUTE, SESSION, undefined, {
+    adminAttributePage(ATTRIBUTE, OWNER_SESSION, undefined, {
       listingCounts: COUNTS,
       listings,
     });
@@ -183,8 +182,11 @@ describe("adminAttributePage (detail)", () => {
 });
 
 describe("adminAttributeOptionEditPage", () => {
+  beforeAll(setupAttributePageTest);
+  afterAll(resetFeaturePageTest);
+
   const html = (): string =>
-    adminAttributeOptionEditPage(ATTRIBUTE, OPTION, SESSION, undefined, [
+    adminAttributeOptionEditPage(ATTRIBUTE, OPTION, OWNER_SESSION, undefined, [
       ACTIVE_LISTING,
     ]);
 
@@ -215,8 +217,11 @@ describe("adminAttributeOptionEditPage", () => {
 });
 
 describe("attribute delete pages", () => {
+  beforeAll(setupAttributePageTest);
+  afterAll(resetFeaturePageTest);
+
   test("attribute delete page marks the nav active and posts to delete", () => {
-    const html = adminAttributeDeletePage(ATTRIBUTE, SESSION);
+    const html = adminAttributeDeletePage(ATTRIBUTE, OWNER_SESSION);
     expect(html).toContain('class="active" href="/admin/attributes"');
     expect(html).toContain('action="/admin/attributes/1/delete"');
     expect(html).toContain(
@@ -225,7 +230,11 @@ describe("attribute delete pages", () => {
   });
 
   test("option delete page marks the nav active and posts to delete", () => {
-    const html = adminAttributeOptionDeletePage(ATTRIBUTE, OPTION, SESSION);
+    const html = adminAttributeOptionDeletePage(
+      ATTRIBUTE,
+      OPTION,
+      OWNER_SESSION,
+    );
     expect(html).toContain('class="active" href="/admin/attributes"');
     expect(html).toContain('action="/admin/attributes/1/options/10/delete"');
     expect(html).toContain("This will remove &quot;Red&quot; from Colour");
@@ -233,6 +242,9 @@ describe("attribute delete pages", () => {
 });
 
 describe("ListingAttributesPanel", () => {
+  beforeAll(setupAttributePageTest);
+  afterAll(resetFeaturePageTest);
+
   const LISTING = testListingWithCount({ id: 7, name: "Panel Listing" });
 
   test("links to manage attributes and pre-checks selected options", () => {
@@ -267,9 +279,12 @@ describe("ListingAttributesPanel", () => {
 });
 
 describe("attribute pages in read-only mode", () => {
+  beforeAll(setupAttributePageTest);
+  afterAll(resetFeaturePageTest);
+
   test("keeps the list readable without create or reorder controls", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    const html = adminAttributesPage([ATTRIBUTE], SESSION);
+    const html = adminAttributesPage([ATTRIBUTE], OWNER_SESSION);
     expect(html).toContain("Colour");
     expect(html).toContain('href="/admin/attributes/1"');
     expect(html).not.toContain('id="new-attribute"');
@@ -279,7 +294,7 @@ describe("attribute pages in read-only mode", () => {
 
   test("keeps details readable without edit or delete controls", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    const html = adminAttributePage(ATTRIBUTE, SESSION, undefined, {
+    const html = adminAttributePage(ATTRIBUTE, OWNER_SESSION, undefined, {
       listingCounts: new Map([[10, 2]]),
       listings: [],
     });
@@ -293,13 +308,18 @@ describe("attribute pages in read-only mode", () => {
   });
 });
 
-test("attribute option arrows use their declared action routes", () => {
-  const html = adminAttributePage(ATTRIBUTE, SESSION, undefined, {
-    listingCounts: new Map(),
-    listings: [],
+describe("attribute option arrows", () => {
+  beforeAll(setupAttributePageTest);
+  afterAll(resetFeaturePageTest);
+
+  test("use their declared action routes", () => {
+    const html = adminAttributePage(ATTRIBUTE, OWNER_SESSION, undefined, {
+      listingCounts: new Map(),
+      listings: [],
+    });
+    expect(html).not.toContain("/options/10/move-up");
+    expect(html).toContain("/options/10/move-down");
+    expect(html).toContain("/options/11/move-up");
+    expect(html).not.toContain("/options/11/move-down");
   });
-  expect(html).not.toContain("/options/10/move-up");
-  expect(html).toContain("/options/10/move-down");
-  expect(html).toContain("/options/11/move-up");
-  expect(html).not.toContain("/options/11/move-down");
 });

@@ -1,15 +1,16 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
-import type { AdminSession, Holiday } from "#shared/types.ts";
+import type { Holiday } from "#shared/types.ts";
 import {
   adminHolidaysPage,
   getHolidayPages,
   HolidayEditPanel,
 } from "#templates/admin/holidays.tsx";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
-
-const session: AdminSession = { adminLevel: "owner" };
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 const holiday: Holiday = {
   end_date: "2026-12-26",
@@ -19,21 +20,18 @@ const holiday: Holiday = {
 };
 
 describe("holiday templates", () => {
-  beforeAll(async () => {
-    setupTestEncryptionKey();
-    await signCsrfToken();
-  });
+  beforeAll(setupAdminPageTest);
 
   describe("adminHolidaysPage (resource factory list page)", () => {
     test("renders the add-holiday action and guide link in the action row", () => {
-      const html = adminHolidaysPage([holiday], session);
+      const html = adminHolidaysPage([holiday], OWNER_SESSION);
       expect(html).toContain('href="/admin/holidays/new"');
       expect(html).toContain("Add Holiday");
       expect(html).toContain('href="/admin/guide#holidays"');
     });
 
     test("renders the table with name links and start/end columns", () => {
-      const html = adminHolidaysPage([holiday], session);
+      const html = adminHolidaysPage([holiday], OWNER_SESSION);
       expect(html).toContain(
         '<a class="active" href="/admin/holidays">Holidays</a>',
       );
@@ -44,7 +42,7 @@ describe("holiday templates", () => {
     });
 
     test("renders the empty state when there are no holidays", () => {
-      const html = adminHolidaysPage([], session);
+      const html = adminHolidaysPage([], OWNER_SESSION);
       // The empty-state paragraph; assert no edit links (the only /admin/holidays
       // links are the nav link and the add action).
       expect(html).toContain("No holidays configured");
@@ -52,13 +50,13 @@ describe("holiday templates", () => {
     });
 
     test("renders the success flash when a success message is passed", () => {
-      const html = adminHolidaysPage([], session, "Holiday deleted");
+      const html = adminHolidaysPage([], OWNER_SESSION, "Holiday deleted");
       expect(html).toContain("Holiday deleted");
     });
 
     test("shows holiday data without write links in read-only mode", () => {
       using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-      const html = adminHolidaysPage([holiday], session);
+      const html = adminHolidaysPage([holiday], OWNER_SESSION);
       expect(html).toContain("Christmas");
       expect(html).not.toContain('href="/admin/holidays/new"');
       expect(html).not.toContain('href="/admin/holidays/42"');
@@ -67,7 +65,7 @@ describe("holiday templates", () => {
 
   describe("holidayPages.newPage (resource factory new page)", () => {
     test("renders the create form posting to the base path with the add fields", () => {
-      const html = getHolidayPages().newPage(session);
+      const html = getHolidayPages().newPage(OWNER_SESSION);
       expect(html).toContain('action="/admin/holidays"');
       expect(html).toContain('name="name"');
       expect(html).toContain('name="start_date"');
@@ -77,7 +75,10 @@ describe("holiday templates", () => {
     });
 
     test("renders the error flash when an error is passed", () => {
-      const html = getHolidayPages().newPage(session, "Start Date is required");
+      const html = getHolidayPages().newPage(
+        OWNER_SESSION,
+        "Start Date is required",
+      );
       expect(html).toContain("Start Date is required");
     });
   });
@@ -112,7 +113,7 @@ describe("holiday templates", () => {
 
   describe("holidayPages.deletePage (resource factory delete confirmation)", () => {
     test("renders the type-the-name confirmation form posting to the delete path", () => {
-      const html = getHolidayPages().deletePage(holiday, session);
+      const html = getHolidayPages().deletePage(holiday, OWNER_SESSION);
       expect(html).toContain('action="/admin/holidays/42/delete"');
       expect(html).toContain('name="confirm_identifier"');
       // The name to type is shown as the confirm target.
@@ -124,7 +125,7 @@ describe("holiday templates", () => {
     test("renders the error flash when an error is passed", () => {
       const html = getHolidayPages().deletePage(
         holiday,
-        session,
+        OWNER_SESSION,
         "Holiday name does not match",
       );
       expect(html).toContain("Holiday name does not match");
