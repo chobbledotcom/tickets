@@ -244,38 +244,12 @@ applies.
 
 ## 9. `needsPayment` predicate — extract the inline boolean
 
-**Problem.** The rule "a booking needs payment when payments are enabled AND
-the listing price (or a custom-overridden price) is positive" is an inline
-duplicated boolean in `processBooking` (`booking.ts:73–76`):
-
-```typescript
-const paymentsEnabled = isPaymentsEnabled();
-const needsPayment =
-  (paymentsEnabled && listing.unit_price > 0) ||
-  (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
-```
-
-The `paymentsEnabled &&` appears twice. It has no name and is only testable
-through the full `processBooking` path.
-
-**Plan.** Extract a pure helper:
-
-```typescript
-export const bookingNeedsPayment = (
-  paymentsEnabled: boolean,
-  unitPrice: number,
-  customUnitPrice?: number,
-): boolean =>
-  paymentsEnabled && (unitPrice > 0 || (customUnitPrice ?? 0) > 0);
-```
-
-Unit-test it in isolation with table-driven examples (zero price + no custom
-→ false; custom override → depends on override; payments disabled → always
-false). `processBooking` reads from it.
-
-**Exemplar:** `largest-remainder.ts` — a pure allocation algorithm with zero
-imports, fully unit-tested. This is a much simpler version of the same
-principle: name the rule, make it pure, test it directly.
+**Status: Shipped.** `bookingNeedsPayment` in
+`src/shared/booking/payment-needed.ts` is the pure rule for whether a booking
+must open a payment checkout. `processBooking` delegates to it instead of
+repeating the payments-enabled condition. Its table-driven direct tests cover
+disabled payments, priced and free listings, and positive and zero custom
+prices.
 
 ---
 
@@ -354,9 +328,9 @@ pattern to content string fields.
 - **Item 8 (capacity rules)** — `capacity-rules.ts` is the declarative table;
   the JS preflight and the inline SQL guard both derive from it.
 
-**Remaining (items 9–11):**
+**Remaining (items 10–11):**
 
-Items 9, 10, and 11 are independent, small refactors that can be done in any
+Items 10 and 11 are independent, small refactors that can be done in either
 order.
 
 When taking any item, follow the codebase conventions: put the schema in

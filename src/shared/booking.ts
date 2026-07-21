@@ -7,6 +7,7 @@
  */
 
 import { mapBooking } from "#shared/accounting/mappers.ts";
+import { bookingNeedsPayment } from "#shared/booking/payment-needed.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
@@ -83,11 +84,10 @@ export const processBooking = async (
   answerIds?: number[],
 ): Promise<BookingResult> => {
   const paymentsEnabled = isPaymentsEnabled();
-  const needsPayment =
-    (paymentsEnabled && listing.unit_price > 0) ||
-    (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
 
-  if (needsPayment) {
+  if (
+    bookingNeedsPayment(paymentsEnabled, listing.unit_price, customUnitPrice)
+  ) {
     const available = await listingHasSpots(listing, quantity, date);
     if (!available) return { type: "sold_out" };
 
