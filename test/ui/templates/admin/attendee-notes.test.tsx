@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type { SystemNote } from "#shared/db/system-notes.ts";
-import type { AdminSession } from "#shared/types.ts";
 import {
   AddNoteLink,
   AttendeeNotesSection,
@@ -10,9 +8,11 @@ import {
   adminAddNotePage,
   adminDeleteNotePage,
 } from "#templates/admin/attendee-notes.tsx";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
-
-const SESSION: AdminSession = { adminLevel: "owner" };
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 const note = (overrides: Partial<SystemNote> = {}): SystemNote => ({
   attendee_id: 5,
@@ -23,10 +23,7 @@ const note = (overrides: Partial<SystemNote> = {}): SystemNote => ({
   ...overrides,
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("AttendeeNotesSection", () => {
   test("renders a system note as a red alert with its markdown link", () => {
@@ -179,7 +176,7 @@ describe("adminAddNotePage", () => {
       attendeeId: 5,
       attendeeName: "Alice Example",
       returnUrl: "/admin/attendees/5",
-      session: SESSION,
+      session: OWNER_SESSION,
     });
     expect(html).toContain("Add a note for Alice Example");
     expect(html).toContain('action="/admin/attendee/5/note"');
@@ -196,7 +193,7 @@ describe("adminAddNotePage", () => {
       attendeeName: "Alice",
       error: "Enter a note before saving.",
       returnUrl: "",
-      session: SESSION,
+      session: OWNER_SESSION,
     });
     expect(html).toContain("Enter a note before saving.");
   });
@@ -207,7 +204,7 @@ describe("adminDeleteNotePage", () => {
     const html = adminDeleteNotePage({
       note: note({ note: "delete this" }),
       returnUrl: "/admin/attendees/5",
-      session: SESSION,
+      session: OWNER_SESSION,
     });
     expect(html).toContain("Are you sure");
     expect(html).toContain("delete this");

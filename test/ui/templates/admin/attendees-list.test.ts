@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type { SystemNote } from "#shared/db/system-notes.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import {
   type AttendeesListPageProps,
   adminAttendeesListPage,
 } from "#templates/admin/attendees-list.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
 
 /** Build page props with sensible defaults, overridable per test */
 const buildProps = (
@@ -25,7 +25,7 @@ const buildProps = (
   page: 0,
   phonePrefix: "44",
   rows: [],
-  session: TEST_SESSION,
+  session: OWNER_SESSION,
   sort: "newest",
   type: "all",
   ...overrides,
@@ -42,10 +42,7 @@ const row = (
   listings: [{ id: listingId, name: listingName }],
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("adminAttendeesListPage", () => {
   test("renders the page title, nav, and heading", () => {

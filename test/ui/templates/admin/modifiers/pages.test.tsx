@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { afterAll, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -8,16 +7,18 @@ import {
   adminModifierNewPage,
   adminModifiersPage,
 } from "#templates/admin/modifiers/pages.tsx";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testModifier } from "#test-utils/factories.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
-const SESSION = { adminLevel: "owner" as const };
 const mod = testModifier;
 
 beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
+  await setupAdminPageTest();
   settings.setForTest(featureSetting("modifiers"));
 });
 
@@ -36,7 +37,7 @@ describe("adminModifiersPage", () => {
         }),
         mod({ calc_kind: "multiply", calc_value: 1.5, id: 3 }),
       ],
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain("Discount · 10%");
     expect(html).toContain("Charge · 500");
@@ -49,7 +50,7 @@ describe("adminModifiersPage", () => {
   test("shows the trigger-maintained usage figures", () => {
     const html = adminModifiersPage(
       [mod({ id: 1, total_revenue: 2500, total_uses: 7, usage_count: 3 })],
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain("Uses");
     expect(html).toContain("Orders");
@@ -64,13 +65,13 @@ describe("adminModifiersPage", () => {
   });
 
   test("shows an empty state when there are no modifiers", () => {
-    const html = adminModifiersPage([], SESSION);
+    const html = adminModifiersPage([], OWNER_SESSION);
     expect(html).toContain("No modifiers configured");
   });
 
   test("hides create and edit actions in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    const html = adminModifiersPage([mod()], SESSION);
+    const html = adminModifiersPage([mod()], OWNER_SESSION);
     expect(html).not.toContain("Add Modifier");
     expect(html).not.toContain("/admin/modifiers/1/edit");
     expect(html).toContain("Modifier");
@@ -79,7 +80,7 @@ describe("adminModifiersPage", () => {
 
 describe("adminModifierNewPage", () => {
   test("renders the create form", () => {
-    const html = adminModifierNewPage(SESSION);
+    const html = adminModifierNewPage(OWNER_SESSION);
     expect(html).toContain("Add Modifier");
     expect(html).toContain("Create Modifier");
     expect(html).toContain("Name");
@@ -95,7 +96,7 @@ describe("adminModifierNewPage", () => {
 
 describe("adminModifierDeletePage", () => {
   test("renders a confirmation form keyed on the modifier name", () => {
-    const html = adminModifierDeletePage(mod({ name: "Loyalty" }), SESSION);
+    const html = adminModifierDeletePage(mod({ name: "Loyalty" }), OWNER_SESSION);
     expect(html).toContain("Delete Modifier");
     expect(html).toContain("Loyalty");
     expect(html).toContain('name="confirm_identifier"');

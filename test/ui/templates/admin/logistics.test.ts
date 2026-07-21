@@ -1,18 +1,20 @@
 import { expect } from "@std/expect";
 import { beforeAll, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import type { AdminSession, LogisticsAgent } from "#shared/types.ts";
+import type { LogisticsAgent } from "#shared/types.ts";
 import {
   type AgentUserOption,
   adminLogisticsPage,
   LogisticsAgentEditPanel,
   logisticsAgentPages,
 } from "#templates/admin/logistics.tsx";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 
-const session: AdminSession = { adminLevel: "owner" };
 const agent: LogisticsAgent = { id: 7, name: "Van 1" };
 
 const users: AgentUserOption[] = [
@@ -20,10 +22,7 @@ const users: AgentUserOption[] = [
   { adminLevel: "manager", id: 2, username: "boss" },
 ];
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("LogisticsAgentEditPanel", () => {
   const renderPanel = (
@@ -92,7 +91,7 @@ describe("LogisticsAgentEditPanel", () => {
 
 describe("logisticsAgentPages delete page", () => {
   test("confirms the agent by name and posts to its delete path", () => {
-    const html = logisticsAgentPages.deletePage(agent, session);
+    const html = logisticsAgentPages.deletePage(agent, OWNER_SESSION);
     expect(html).toContain('action="/admin/logistics/7/delete"');
     expect(html).toContain(
       "delete the logistics agent <strong>Van 1</strong>?",
@@ -101,7 +100,7 @@ describe("logisticsAgentPages delete page", () => {
   });
 
   test("renders the delete as a non-danger confirmation", () => {
-    const html = logisticsAgentPages.deletePage(agent, session);
+    const html = logisticsAgentPages.deletePage(agent, OWNER_SESSION);
     // delete.danger is false, so the submit is the plain (check) button, not
     // the red danger one.
     expect(html).not.toContain('<button class="danger"');
@@ -110,7 +109,7 @@ describe("logisticsAgentPages delete page", () => {
 
 describe("logisticsAgentPages new page", () => {
   test("renders the add-agent form posting to the logistics base path", () => {
-    const html = logisticsAgentPages.newPage(session);
+    const html = logisticsAgentPages.newPage(OWNER_SESSION);
     expect(html).toContain("Add Logistics Agent");
     expect(html).toContain("Create Agent");
     expect(html).toContain('action="/admin/logistics"');
@@ -126,7 +125,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
   });
 
   test("renders agent management and the guide without the old toggle", () => {
-    const html = adminLogisticsPage([agent], session);
+    const html = adminLogisticsPage([agent], OWNER_SESSION);
 
     expect(html).not.toContain('action="/admin/logistics/has-logistics"');
     expect(html).not.toContain('name="has_logistics"');
@@ -138,7 +137,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
 
   test("renders a row per agent and marks enabled logistics active", async () => {
     await enableFeature("logistics");
-    const html = adminLogisticsPage([agent], session);
+    const html = adminLogisticsPage([agent], OWNER_SESSION);
 
     expect(html).toContain("Logistics Agents");
     expect(html).toContain("Agents (e.g. vans, drivers, or crew)");
@@ -156,7 +155,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
   });
 
   test("shows the empty-state placeholder with no agents", () => {
-    const html = adminLogisticsPage([], session);
+    const html = adminLogisticsPage([], OWNER_SESSION);
 
     expect(html).toContain("Logistics Agents");
     expect(html).toContain("No logistics agents yet.");

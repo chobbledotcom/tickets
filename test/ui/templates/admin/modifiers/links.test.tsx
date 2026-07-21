@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   type AnswerLinks,
   AnswerLinksForm,
@@ -8,15 +7,12 @@ import {
   type ScopeLinks,
   ScopeLinksForm,
 } from "#templates/admin/modifiers/links.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testModifier } from "#test-utils/factories.ts";
 
 const MODIFIER = testModifier({ id: 1 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("SCOPE_LINK_KINDS", () => {
   test("maps each kind to its form field and plural type term", () => {

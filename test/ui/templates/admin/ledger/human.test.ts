@@ -2,16 +2,16 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { account } from "#shared/ledger/account.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import {
   ledgerRows,
   names,
   renderLedger,
-  setUpLedgerPageCrypto,
   transfer,
 } from "./helpers.ts";
 
 describe("HumanLedgerTable", () => {
-  beforeAll(setUpLedgerPageCrypto);
+  beforeAll(setupAdminPageTest);
 
   test("renders plain-language descriptions for every known ledger event family", () => {
     const refs = names({

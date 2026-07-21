@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
-import type { AdminSession, Image } from "#shared/types.ts";
+import type { Image } from "#shared/types.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import {
   adminImageDeletePage,
@@ -10,10 +9,12 @@ import {
   adminImagesPage,
   ItemImagesPanel,
 } from "#templates/admin/images.tsx";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
-
-const SESSION: AdminSession = { adminLevel: "owner" };
 
 const image = (id: number, name: string): Image => ({
   alt_text: `Alt ${name}`,
@@ -23,16 +24,13 @@ const image = (id: number, name: string): Image => ({
   name,
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("admin image templates", () => {
   test("renders the library table and hides edit actions in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     withStorageEnabled(() => {
-      const html = adminImagesPage([image(7, "Hero")], SESSION);
+      const html = adminImagesPage([image(7, "Hero")], OWNER_SESSION);
       expect(html).toContain("Hero");
       expect(html).toContain("/image/hero-thumb.webp");
       expect(html).not.toContain('href="/admin/images/7/edit"');
@@ -42,7 +40,7 @@ describe("admin image templates", () => {
 
   test("renders the thumbnail from the image thumbnail filename", () => {
     withStorageEnabled(() => {
-      const html = adminImagesPage([image(8, "Poster")], SESSION);
+      const html = adminImagesPage([image(8, "Poster")], OWNER_SESSION);
       expect(html).toContain(
         '<img alt="Alt Poster" class="image-library-thumb" src="/image/poster-thumb.webp">',
       );
@@ -53,14 +51,14 @@ describe("admin image templates", () => {
 
   test("renders the empty-library message when there are no images", () => {
     withStorageEnabled(() => {
-      const html = adminImagesPage([], SESSION);
+      const html = adminImagesPage([], OWNER_SESSION);
       expect(html).toContain("No images yet.");
     });
   });
 
   test("hides the image library table and actions when storage is disabled", () => {
     withStorageDisabled(() => {
-      const html = adminImagesPage([image(8, "Poster")], SESSION);
+      const html = adminImagesPage([image(8, "Poster")], OWNER_SESSION);
       expect(html).toContain(
         '<p class="notice">File storage is not configured.</p>',
       );
@@ -72,7 +70,7 @@ describe("admin image templates", () => {
 
   test("renders the new image upload form", () => {
     withStorageEnabled(() => {
-      const html = adminImageNewPage(SESSION, "Upload failed");
+      const html = adminImageNewPage(OWNER_SESSION, "Upload failed");
       expect(html).toContain("Upload failed");
       expect(html).toContain('action="/admin/images"');
       expect(html).toContain('enctype="multipart/form-data"');
@@ -88,7 +86,7 @@ describe("admin image templates", () => {
 
   test("renders the new image disabled state when storage is disabled", () => {
     withStorageDisabled(() => {
-      const html = adminImageNewPage(SESSION, "Upload failed");
+      const html = adminImageNewPage(OWNER_SESSION, "Upload failed");
       expect(html).toContain("Upload failed");
       expect(html).toContain("File storage is not configured.");
       expect(html).not.toContain('enctype="multipart/form-data"');
@@ -105,7 +103,7 @@ describe("admin image templates", () => {
           { active: true, id: 5, label: "Group B", type: "group" },
         ],
         selected: new Set(["group:5"]),
-        session: SESSION,
+        session: OWNER_SESSION,
       }),
     );
 
@@ -135,7 +133,7 @@ describe("admin image templates", () => {
           { active: true, id: 2, label: "A page", type: "page" },
         ],
         selected: new Set(["page:2"]),
-        session: SESSION,
+        session: OWNER_SESSION,
       }),
     );
 
@@ -155,7 +153,7 @@ describe("admin image templates", () => {
         { active: false, id: 7, label: "Retired listing", type: "listing" },
       ],
       selected: new Set(["listing:4"]),
-      session: SESSION,
+      session: OWNER_SESSION,
     });
 
     expect(html).toContain("<strong>Linked listings (1):</strong>");
@@ -174,14 +172,14 @@ describe("admin image templates", () => {
       image: image(9, "Unlinked"),
       options: [],
       selected: new Set(),
-      session: SESSION,
+      session: OWNER_SESSION,
     });
     expect(html).toContain("No listings or groups yet.");
   });
 
   test("renders the delete confirmation page", () => {
     const html = withStorageEnabled(() =>
-      adminImageDeletePage(image(2, "Remove me"), SESSION, "Nope"),
+      adminImageDeletePage(image(2, "Remove me"), OWNER_SESSION, "Nope"),
     );
     expect(html).toContain("Delete Remove me");
     expect(html).toContain("Nope");

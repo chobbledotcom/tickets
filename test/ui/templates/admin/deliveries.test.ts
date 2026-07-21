@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   agentDeliveriesPage,
@@ -9,7 +8,7 @@ import {
   type DeliveryDayGroup,
   type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 /** Agent-class session so the page renders the agent header (no staff nav). */
 const agentSession: AdminSession = { adminLevel: "agent" };
@@ -28,10 +27,7 @@ const dateNav = (over: Partial<DeliveriesDateNav> = {}): DeliveriesDateNav => ({
   ...over,
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 const leg = (over: Partial<DeliveryLegView> = {}): DeliveryLegView => ({
   agentName: "Van 1",

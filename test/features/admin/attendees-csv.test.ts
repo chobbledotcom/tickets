@@ -4,15 +4,11 @@ import {
   type CsvListingInfo,
   generateAttendeesCsv,
 } from "#routes/admin/attendees-csv.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("generateAttendeesCsv", () => {
   test("generates CSV header for empty attendees", () => {

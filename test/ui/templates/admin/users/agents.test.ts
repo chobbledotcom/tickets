@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type { LogisticsAgent } from "#shared/types.ts";
 import {
   adminUserNewPage,
@@ -8,9 +7,11 @@ import {
   type DisplayUser,
   UserAgentsPanel,
 } from "#templates/admin/users.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 
-const SESSION = { adminLevel: "owner" as const };
 const AGENTS: LogisticsAgent[] = [
   { id: 1, name: "Van 1" },
   { id: 2, name: "Van 2" },
@@ -27,14 +28,11 @@ const agentUser = (agentNames: string[]): DisplayUser => ({
   username: "driver",
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("adminUserNewPage agent selector", () => {
   test("renders the agent checkboxes when agents exist", () => {
-    const html = adminUserNewPage(SESSION, AGENTS);
+    const html = adminUserNewPage(OWNER_SESSION, AGENTS);
     expect(html).toContain("Assigned logistics agents");
     expect(html).toContain('name="agent_ids"');
     expect(html).toContain("Van 1");
@@ -43,7 +41,7 @@ describe("adminUserNewPage agent selector", () => {
   });
 
   test("omits the selector when there are no agents", () => {
-    const html = adminUserNewPage(SESSION, []);
+    const html = adminUserNewPage(OWNER_SESSION, []);
     expect(html).not.toContain("Assigned logistics agents");
   });
 });
@@ -96,7 +94,7 @@ describe("UserAgentsPanel", () => {
 describe("adminUsersPage agent rows", () => {
   test("shows assigned agent names and links to the manage page for agent users", () => {
     const users: DisplayUser[] = [agentUser(["Van 1", "Van 2"])];
-    const html = adminUsersPage(users, SESSION, {
+    const html = adminUsersPage(users, OWNER_SESSION, {
       currentUserId: 1,
       inviteLink: "",
     });
@@ -108,7 +106,7 @@ describe("adminUsersPage agent rows", () => {
 
   test("shows a placeholder when an agent user has no agents", () => {
     const users: DisplayUser[] = [agentUser([])];
-    const html = adminUsersPage(users, SESSION, {
+    const html = adminUsersPage(users, OWNER_SESSION, {
       currentUserId: 1,
       inviteLink: "",
     });

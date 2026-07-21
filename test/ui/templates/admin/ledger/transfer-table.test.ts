@@ -12,15 +12,15 @@ import {
   ManualLedgerEntryTypeSchema,
 } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import {
   names,
   renderLedger,
-  setUpLedgerPageCrypto,
   transfer,
 } from "./helpers.ts";
 
 describe("LedgerTable", () => {
-  beforeAll(setUpLedgerPageCrypto);
+  beforeAll(setupAdminPageTest);
 
   test("renders each money change with a translated event, time and amount", () => {
     const refs = names({

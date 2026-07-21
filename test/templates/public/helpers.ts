@@ -1,11 +1,10 @@
 import { afterEach, beforeAll } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { pagePackage as sharedPagePackage } from "#test/lib/package-cap-fixtures.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A ticket-page listing row built from column overrides (not hidden, no
@@ -93,10 +92,7 @@ export const pagePackage = (
  * other module's tests exist (files share an isolate under the grouped
  * runner). */
 export const registerPublicTemplateHooks = (): void => {
-  beforeAll(async () => {
-    setupTestEncryptionKey();
-    await signCsrfToken();
-  });
+  beforeAll(setupAdminPageTest);
   afterEach(() => {
     detectIframeMode(new URL("https://example.com/"));
   });

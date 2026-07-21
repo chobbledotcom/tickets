@@ -18,13 +18,17 @@ import {
   AccountStatementSection,
   adminAccountStatementPage,
 } from "#templates/admin/ledger/statement.tsx";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
-import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
+import { names, transfer } from "./helpers.ts";
 
 describe("statementBalanceKey", () => {
-  beforeAll(setUpLedgerPageCrypto);
+  beforeAll(setupAdminPageTest);
 
   test("maps every account type to its final balance label", () => {
     expect(
@@ -52,7 +56,7 @@ describe("statementBalanceKey", () => {
 });
 
 describe("AccountStatementSection", () => {
-  beforeAll(setUpLedgerPageCrypto);
+  beforeAll(setupAdminPageTest);
 
   const acct = account("attendee", 1);
 
@@ -214,7 +218,7 @@ describe("AccountStatementSection", () => {
 });
 
 describe("adminAccountStatementPage", () => {
-  beforeAll(setUpLedgerPageCrypto);
+  beforeAll(setupAdminPageTest);
   useSetting(featureSetting("money"));
 
   const acct = account("attendee", 7);
@@ -231,7 +235,7 @@ describe("adminAccountStatementPage", () => {
         source: acct,
       }),
     ]);
-    const html = adminAccountStatementPage(acct, lines, refs, SESSION);
+    const html = adminAccountStatementPage(acct, lines, refs, OWNER_SESSION);
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain(`Amount still owed: ${formatCurrency(5000)}`);
     expect(html).not.toContain(`Amount still owed: −${formatCurrency(5000)}`);
@@ -246,7 +250,7 @@ describe("adminAccountStatementPage", () => {
   });
 
   test("shows a zero balance for an account with no history", () => {
-    const html = adminAccountStatementPage(acct, [], names(), SESSION);
+    const html = adminAccountStatementPage(acct, [], names(), OWNER_SESSION);
     expect(html).toContain(`Amount still owed: ${formatCurrency(0)}`);
     expect(html).toContain("No money changes yet.");
     expect(html).not.toContain("/admin/ledger/attendee/7/add");
@@ -268,7 +272,7 @@ describe("adminAccountStatementPage", () => {
         }),
       ]),
       refs,
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).not.toContain("/admin/ledger/attendee/7/add");
     expect(html).not.toContain("/admin/ledger/entries/77/edit");

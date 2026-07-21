@@ -6,13 +6,12 @@ import {
   renderSection,
   type SummaryRow,
 } from "#templates/admin/entity-pages.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 
-beforeAll(() => {
-  setupTestEncryptionKey();
-});
-
-const SESSION = { adminLevel: "owner" as const };
+beforeAll(setupAdminPageTest);
 
 describe("summary section", () => {
   const rows: SummaryRow[] = [
@@ -186,7 +185,7 @@ describe("entityPageView", () => {
         rows: [{ labelKey: "common.name", value: "Jane" }],
       },
     ],
-    session: SESSION,
+    session: OWNER_SESSION,
     tabs: [
       {
         active: true,

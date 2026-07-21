@@ -1,12 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { TokenHash } from "#shared/crypto/sealed.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type { Session } from "#shared/types.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 
 const mkSession = (token: string): Session => ({
   csrf_token: "csrf",
@@ -17,10 +17,7 @@ const mkSession = (token: string): Session => ({
   wrapped_data_key: null,
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("adminSessionsPage", () => {
   test("renders session rows", () => {
@@ -45,7 +42,7 @@ describe("adminSessionsPage", () => {
     const html = adminSessionsPage(
       sessions,
       "abcdefghijklmnop",
-      TEST_SESSION,
+      OWNER_SESSION,
       "",
     );
     expect(html).toContain("abcdefgh...");
@@ -54,19 +51,19 @@ describe("adminSessionsPage", () => {
   });
 
   test("renders empty state when no sessions", () => {
-    const html = adminSessionsPage([], "some-token", TEST_SESSION, "");
+    const html = adminSessionsPage([], "some-token", OWNER_SESSION, "");
     expect(html).toContain("No sessions");
   });
 
   test("marks the row that matches the current token as current", () => {
     const s = mkSession("abcdefghijklmnop");
-    const html = adminSessionsPage([s], s.token, TEST_SESSION, "");
+    const html = adminSessionsPage([s], s.token, OWNER_SESSION, "");
     expect(html).toContain("Current");
   });
 
   test("does not mark a row whose token is not the current one", () => {
     const s = mkSession("abcdefghijklmnop");
-    const html = adminSessionsPage([s], "a-different-token", TEST_SESSION, "");
+    const html = adminSessionsPage([s], "a-different-token", OWNER_SESSION, "");
     expect(html).not.toContain("Current");
   });
 
@@ -75,7 +72,7 @@ describe("adminSessionsPage", () => {
     const html = adminSessionsPage(
       [current, mkSession("bbbbbbbbbbbbbbbb"), mkSession("cccccccccccccccc")],
       current.token,
-      TEST_SESSION,
+      OWNER_SESSION,
       "",
     );
     // Two sessions other than the current one.
@@ -84,7 +81,7 @@ describe("adminSessionsPage", () => {
 
   test("hides the logout-others control when there are no other sessions", () => {
     const s = mkSession("aaaaaaaaaaaaaaaa");
-    const html = adminSessionsPage([s], s.token, TEST_SESSION, "");
+    const html = adminSessionsPage([s], s.token, OWNER_SESSION, "");
     expect(html).not.toContain("Log out of all other sessions");
   });
 });

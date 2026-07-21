@@ -16,6 +16,7 @@ import {
   ListingQuestionsPanel,
   questionTextFlat,
 } from "#templates/admin/questions.tsx";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
 import {
   singleAnswerSizeQuestionData,
@@ -30,8 +31,6 @@ const TEST_LISTINGS = [
   testListingWithCount({ id: 1, name: "Spring Gig" }),
   testListingWithCount({ id: 2, name: "Summer Gig" }),
 ];
-
-const TEST_SESSION = { adminLevel: "owner" as const };
 
 /** The "T-shirt size?" question with Small/Large answers — the canonical radio
  *  question reused by the question, answer-edit, and answer-delete page tests.
@@ -64,16 +63,16 @@ describe("adminQuestionsPage", () => {
   });
 
   test("renders empty state when no questions", () => {
-    const html = adminQuestionsPage([], TEST_SESSION);
+    const html = adminQuestionsPage([], OWNER_SESSION);
     expect(html).toContain("No custom questions yet");
   });
 
   test("removes the Custom Questions heading", () => {
-    expect(adminQuestionsPage([], TEST_SESSION)).not.toContain("<h1");
+    expect(adminQuestionsPage([], OWNER_SESSION)).not.toContain("<h1");
   });
 
   test("renders questions in a table with the answer count", () => {
-    const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
+    const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
     expect(html).toContain("<table");
     expect(html).toContain("Favourite colour?");
     // Answer-count cell shows the raw number.
@@ -83,7 +82,7 @@ describe("adminQuestionsPage", () => {
   test("shows a Listings count with the listing names as the cell title", () => {
     const html = adminQuestionsPage(
       [colourQuestion],
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       new Map([[1, ["Spring Gig", "Summer Gig"]]]),
       5,
@@ -96,7 +95,7 @@ describe("adminQuestionsPage", () => {
   test("shows All and the total count for assign-all questions", () => {
     const html = adminQuestionsPage(
       [{ ...colourQuestion, assign_all: true }],
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       new Map(),
       5,
@@ -110,13 +109,13 @@ describe("adminQuestionsPage", () => {
     // caught rather than silently over-reporting the listing count.
     const html = adminQuestionsPage(
       [{ ...colourQuestion, assign_all: true }],
-      TEST_SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain('<td class="col-quantity" title="All">0</td>');
   });
 
   test("marks the nav active, renders the add form, and links to the guide", () => {
-    const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
+    const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
     expect(html).toContain('class="active" href="/admin/questions"');
     expect(html).toContain(
       '<form action="/admin/questions" autocomplete="off" method="POST" id="new-question">',
@@ -145,7 +144,7 @@ describe("adminQuestionsPage", () => {
           text: "Second Q",
         }),
       ],
-      TEST_SESSION,
+      OWNER_SESSION,
     );
     // First question: down button, but no up button.
     expect(html).toContain("/admin/questions/1/move-down");
@@ -156,13 +155,13 @@ describe("adminQuestionsPage", () => {
   });
 
   test("renders error message when provided", () => {
-    const html = adminQuestionsPage([], TEST_SESSION, "Something went wrong");
+    const html = adminQuestionsPage([], OWNER_SESSION, "Something went wrong");
     expect(html).toContain("Something went wrong");
   });
 
   test("keeps the list readable without write controls in read-only mode", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
-    const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
+    const html = adminQuestionsPage([colourQuestion], OWNER_SESSION);
     expect(html).toContain("Favourite colour?");
     expect(html).toContain('href="/admin/questions/1"');
     expect(html).not.toContain('id="new-question"');
@@ -174,7 +173,7 @@ describe("adminQuestionPage", () => {
   const question = tShirtQuestion;
 
   test("renders question text and edit form", () => {
-    const html = adminQuestionPage(question, TEST_SESSION);
+    const html = adminQuestionPage(question, OWNER_SESSION);
     expect(html).toContain("T-shirt size?");
     expect(html).toContain('action="/admin/questions/1/edit"');
     expect(html).toContain('class="active" href="/admin/questions"');
@@ -186,7 +185,7 @@ describe("adminQuestionPage", () => {
   });
 
   test("renders answer list linking to each answer's edit page", () => {
-    const html = adminQuestionPage(question, TEST_SESSION);
+    const html = adminQuestionPage(question, OWNER_SESSION);
     expect(html).toContain("Small");
     expect(html).toContain("Large");
     expect(html).toContain('href="/admin/questions/1/answers/10/edit"');
@@ -197,24 +196,24 @@ describe("adminQuestionPage", () => {
   });
 
   test("no longer links to answer deletion from the question page", () => {
-    const html = adminQuestionPage(question, TEST_SESSION);
+    const html = adminQuestionPage(question, OWNER_SESSION);
     expect(html).not.toContain("/admin/questions/1/answers/10/delete");
   });
 
   test("renders delete question link", () => {
-    const html = adminQuestionPage(question, TEST_SESSION);
+    const html = adminQuestionPage(question, OWNER_SESSION);
     expect(html).toContain('href="/admin/questions/1/delete"');
   });
 
   test("renders error message when provided", () => {
-    const html = adminQuestionPage(question, TEST_SESSION, "Error!");
+    const html = adminQuestionPage(question, OWNER_SESSION, "Error!");
     expect(html).toContain("Error!");
   });
 
   test("renders empty answers state", () => {
     const html = adminQuestionPage(
       testQuestion({ id: 1, text: "Q?" }),
-      TEST_SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain("No answers yet");
   });
@@ -226,7 +225,7 @@ describe("adminQuestionPage", () => {
         id: 1,
         text: "Notes?",
       }),
-      TEST_SESSION,
+      OWNER_SESSION,
     );
     // No selector — a hidden field keeps it free-text and the choice options
     // are not offered.
@@ -243,7 +242,7 @@ describe("adminQuestionPage", () => {
         id: 1,
         text: "Notes?",
       }),
-      TEST_SESSION,
+      OWNER_SESSION,
     );
     // No add-answer form or answer heading — just an explanatory note that also
     // tells the operator a free-text question can't drive a price, and why.
@@ -258,7 +257,7 @@ describe("adminQuestionPage", () => {
       [10, 5],
       [11, 3],
     ]);
-    const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
+    const html = adminQuestionPage(question, OWNER_SESSION, undefined, counts);
     expect(html).toContain("<table");
     expect(html).toContain('<td class="col-quantity">5</td>');
     expect(html).toContain('<td class="col-quantity">3</td>');
@@ -267,7 +266,7 @@ describe("adminQuestionPage", () => {
   test("shows zero selections for answers with no stored total", () => {
     const html = adminQuestionPage(
       question,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       new Map(),
     );
@@ -275,7 +274,7 @@ describe("adminQuestionPage", () => {
   });
 
   test("renders move-up and move-down buttons", () => {
-    const html = adminQuestionPage(question, TEST_SESSION);
+    const html = adminQuestionPage(question, OWNER_SESSION);
     expect(html).toContain("/answers/10/move-down");
     expect(html).not.toContain("/answers/10/move-up");
     expect(html).toContain("/answers/11/move-up");
@@ -294,7 +293,7 @@ describe("adminQuestionPage", () => {
       id: 1,
       text: "Q?",
     });
-    const html = adminQuestionPage(q, TEST_SESSION);
+    const html = adminQuestionPage(q, OWNER_SESSION);
     expect(html).toContain("/answers/11/move-up");
     expect(html).toContain("/answers/11/move-down");
   });
@@ -303,7 +302,7 @@ describe("adminQuestionPage", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = adminQuestionPage(
       { ...question, assign_all: false },
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       new Map([[10, 5]]),
       TEST_LISTINGS,
@@ -327,7 +326,7 @@ describe("adminQuestionPage", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = adminQuestionPage(
       { ...question, assign_all: false },
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       undefined,
       TEST_LISTINGS,
@@ -337,7 +336,7 @@ describe("adminQuestionPage", () => {
   });
 
   test("renders empty state when no listings exist", () => {
-    const html = adminQuestionPage(question, TEST_SESSION);
+    const html = adminQuestionPage(question, OWNER_SESSION);
     expect(html).toContain("Assign to Listings");
     expect(html).toContain("No listings yet");
   });
@@ -345,7 +344,7 @@ describe("adminQuestionPage", () => {
   test("renders an listing checkbox for each listing", () => {
     const html = adminQuestionPage(
       question,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       undefined,
       TEST_LISTINGS,
@@ -364,7 +363,7 @@ describe("adminQuestionPage", () => {
   test("renders the assign-to-all toggle before the listing checkboxes", () => {
     const html = adminQuestionPage(
       { ...question, assign_all: true },
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       undefined,
       TEST_LISTINGS,
@@ -381,7 +380,7 @@ describe("adminQuestionPage", () => {
     // so the count must not read "(0)" next to a checked "Assign to all" toggle.
     const html = adminQuestionPage(
       { ...question, assign_all: true },
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       undefined,
       TEST_LISTINGS,
@@ -394,7 +393,7 @@ describe("adminQuestionPage", () => {
   test("sorts a deactivated listing last and renders it muted", () => {
     const html = adminQuestionPage(
       question,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       undefined,
       [
@@ -413,7 +412,7 @@ describe("adminQuestionPage", () => {
   test("checks listings the question is assigned to", () => {
     const html = adminQuestionPage(
       question,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       undefined,
       TEST_LISTINGS,
@@ -436,7 +435,7 @@ describe("adminQuestionDeletePage", () => {
   });
 
   test("renders confirmation form with question text", () => {
-    const html = adminQuestionDeletePage(question, TEST_SESSION);
+    const html = adminQuestionDeletePage(question, OWNER_SESSION);
     expect(html).toContain("Delete Question");
     expect(html).toContain("T-shirt size?");
     expect(html).toContain('name="confirm_identifier"');
@@ -445,7 +444,7 @@ describe("adminQuestionDeletePage", () => {
   });
 
   test("warns about cascading deletes", () => {
-    const html = adminQuestionDeletePage(question, TEST_SESSION);
+    const html = adminQuestionDeletePage(question, OWNER_SESSION);
     expect(html).toContain("all its answers");
     expect(html).toContain("attendee responses");
   });
@@ -453,7 +452,7 @@ describe("adminQuestionDeletePage", () => {
   test("renders error message when provided", () => {
     const html = adminQuestionDeletePage(
       question,
-      TEST_SESSION,
+      OWNER_SESSION,
       "Text does not match",
     );
     expect(html).toContain("Text does not match");
@@ -474,7 +473,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -494,7 +493,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       testAnswer({ active: false, id: 12, sort_order: 2, text: "Retired" }),
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -508,7 +507,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -522,7 +521,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -536,7 +535,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -549,7 +548,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -562,7 +561,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       drifted,
       modifiers,
@@ -578,7 +577,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -594,7 +593,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -607,7 +606,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       undefined,
       aligned,
       modifiers,
@@ -622,7 +621,7 @@ describe("adminAnswerEditPage", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       "Invalid modifier",
       aligned,
       modifiers,
@@ -646,7 +645,7 @@ describe("adminAnswerRecalculatePage", () => {
       question,
       answer,
       snapshot,
-      TEST_SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain(
       'action="/admin/questions/1/answers/11/recalculate"',
@@ -665,7 +664,7 @@ describe("adminAnswerRecalculatePage", () => {
         question,
         answer,
         snapshot,
-        TEST_SESSION,
+        OWNER_SESSION,
         "Choose at least one total to recalculate",
       ),
     ).toContain("Choose at least one total to recalculate");
@@ -674,7 +673,7 @@ describe("adminAnswerRecalculatePage", () => {
         question,
         answer,
         snapshot,
-        TEST_SESSION,
+        OWNER_SESSION,
         undefined,
         "Selection total recalculated",
       ),
@@ -687,7 +686,7 @@ describe("adminAnswerDeletePage", () => {
   const answer = question.answers[0]!;
 
   test("renders confirmation form with answer text", () => {
-    const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+    const html = adminAnswerDeletePage(question, answer, OWNER_SESSION);
     expect(html).toContain("Delete Answer");
     expect(html).toContain("Small");
     expect(html).toContain('name="confirm_identifier"');
@@ -695,7 +694,7 @@ describe("adminAnswerDeletePage", () => {
   });
 
   test("shows question context", () => {
-    const html = adminAnswerDeletePage(question, answer, TEST_SESSION);
+    const html = adminAnswerDeletePage(question, answer, OWNER_SESSION);
     expect(html).toContain("T-shirt size?");
   });
 
@@ -703,7 +702,7 @@ describe("adminAnswerDeletePage", () => {
     const html = adminAnswerDeletePage(
       question,
       answer,
-      TEST_SESSION,
+      OWNER_SESSION,
       "Text does not match",
     );
     expect(html).toContain("Text does not match");

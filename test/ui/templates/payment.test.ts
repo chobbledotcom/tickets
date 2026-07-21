@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import {
   checkoutPopupPage,
@@ -9,13 +8,10 @@ import {
   paymentPage,
   successPage,
 } from "#templates/payment.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListing } from "#test-utils/factories.ts";
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 afterEach(() => {
   detectIframeMode(new URL("https://example.com/"));

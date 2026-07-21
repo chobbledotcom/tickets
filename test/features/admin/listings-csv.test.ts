@@ -1,14 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+beforeAll(setupAdminPageTest);
 
 describe("generateListingsCsv", () => {
   test("emits the header row when there are no listings", () => {
