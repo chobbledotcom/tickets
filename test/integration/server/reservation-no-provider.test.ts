@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { requirePublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { settings } from "#shared/db/settings.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -20,8 +19,6 @@ describeWithEnv(
   "server (booking without a payment provider)",
   { db: true },
   () => {
-    afterEach(() => resetStripeClient());
-
     test("books a paid listing owing its full value when no provider is set up", async () => {
       // No setupStripe: payments are disabled. A booking fee is configured to
       // prove it is never folded into the amount owed when no payment is taken.

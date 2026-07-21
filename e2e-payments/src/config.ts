@@ -55,8 +55,8 @@ export const config = {
   cloudflaredBin: env("CLOUDFLARED_BIN") ?? "cloudflared",
 
   /** 32-byte base64 key. Defaults to the repo's well-known test key. */
-  dbEncryptionKey: env("DB_ENCRYPTION_KEY") ??
-    "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+  dbEncryptionKey:
+    env("DB_ENCRYPTION_KEY") ?? "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
   /** Deno binary used to boot the app server. */
   denoBin: env("DENO_BIN") ?? "deno",
 
@@ -101,11 +101,9 @@ export const needsTunnel = (target: Target): boolean => {
   // Stripe registers its webhook endpoint against a public HTTPS URL at config
   // time, so it cannot be set up without a tunnel. Square/SumUp confirm via the
   // browser return URL, which providers expect to be a public HTTPS URL — hence
-  // the tunnel for them too. Note the tunnel does NOT mean any leg *asserts*
-  // webhook delivery: confirmation is asserted via the return URL for every
-  // provider (Stripe additionally exercises webhook registration, but delivery
-  // is not asserted). Square's webhook needs a manually-signed subscription and
-  // is not tested here; SumUp needs no
+  // the tunnel for them too. Stripe's first return request is held in Playwright
+  // so only its signed webhook can create the booking. Square's webhook needs a
+  // manually-signed subscription and is not tested here; SumUp needs no
   // signature. See the providers' notes and the README.
   return target !== "free";
 };

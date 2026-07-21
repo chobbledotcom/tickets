@@ -211,7 +211,6 @@ const ListingRow = ({
           max={listing.max_quantity}
           min="0"
           name={`${QTY_PREFIX}${index}`}
-          style="width:5em"
           type="number"
           value={line.quantity === null ? "0" : String(line.quantity)}
         />

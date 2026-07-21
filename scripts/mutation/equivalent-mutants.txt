@@ -1020,3 +1020,15 @@ src/ui/templates/admin/questions.tsx:256:50  ?? → ||   # `answerCounts?.get(a.
 # cache-registry table sets: invalidatorsByTable.get() is Set|undefined, and a
 # Set object is always truthy, so `?? new Set()` and `|| new Set()` agree.
 src/shared/cache-registry.ts:126:47  ?? → ||   # get(): Set|undefined — a Set is always truthy
+
+# Stripe request null checks: both values are typed as string|null, never undefined,
+# so strict and loose null equality agree for every possible input.
+src/shared/stripe/request.ts:89:17  === → ==   # retryAfter is string|null; both comparisons are true only for null
+src/shared/stripe/request.ts:151:15  === → ==   # Headers.get returns string|null; both comparisons are true only for null
+
+# A header part without "=" has no value. Its key cannot affect timestamp or
+# signature state: a timestamp assignment remains undefined and a v1 signature
+# is added only when its value is truthy. These alternate key expressions differ
+# only for that value-less case, so every parsed result is identical.
+src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
+src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored

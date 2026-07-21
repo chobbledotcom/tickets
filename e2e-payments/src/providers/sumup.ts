@@ -37,6 +37,7 @@ export const sumup: PaymentProvider = {
     await session.fill("sumup_merchant_code", secrets.merchantCode);
     await session.clickButton("Update SumUp Credentials");
   }),
+  firstBookingConfirmation: "return",
   name: "sumup",
 
   payHostedCheckout: hostedCheckout(

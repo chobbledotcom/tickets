@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
@@ -9,7 +9,6 @@ import { deleteListing } from "#shared/db/listings/delete.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { prunePayments } from "#shared/db/prune.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -42,10 +41,6 @@ describeWithEnv(
   "webhook signed price oracle — trusted & mismatch",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("a faithfully signed session is processed and creates the attendee", async () => {
       const listing = await setupWithListing();
       await runWebhook(

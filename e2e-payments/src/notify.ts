@@ -20,8 +20,7 @@ export const notifyFailure = async (target: string): Promise<void> => {
 
   try {
     const res = await fetch(ntfyUrl, {
-      body:
-        `payment sandbox e2e (${target}) failed — see the CI job log/artifacts for details.`,
+      body: `payment sandbox e2e (${target}) failed — see the CI job log/artifacts for details.`,
       headers: {
         Tags: "warning",
         Title: `payment sandbox e2e: ${target} failed`,
@@ -31,9 +30,10 @@ export const notifyFailure = async (target: string): Promise<void> => {
     });
     if (!res.ok) {
       warn(
-        `ntfy publish rejected: HTTP ${res.status} ${
-          (await res.text()).slice(0, 200)
-        }`,
+        `ntfy publish rejected: HTTP ${res.status} ${(await res.text()).slice(
+          0,
+          200,
+        )}`,
       );
       return;
     }
