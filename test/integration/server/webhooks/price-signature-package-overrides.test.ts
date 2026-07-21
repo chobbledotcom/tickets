@@ -4,12 +4,6 @@ import { execute } from "#shared/db/client.ts";
 import { groups, setGroupPackageMembers } from "#shared/db/groups.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { assertJson } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { signMeta, webhookMeta } from "#test-utils/factories.ts";
-import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectPackageRefund,
   expectProcessed,
@@ -20,7 +14,13 @@ import {
   setupPackage,
   setupWithListing,
   webhookRequest,
-} from "../../../lib/webhook-price-signature/helpers.ts";
+} from "#test/lib/webhook-price-signature/helpers.ts";
+import { assertJson } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta, webhookMeta } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "webhook signed price oracle — mismatch & package overrides",

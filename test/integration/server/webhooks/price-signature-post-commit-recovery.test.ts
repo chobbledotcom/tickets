@@ -21,6 +21,13 @@ import {
 import { getAttendeeAnswersBatch } from "#shared/db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
 import { answersTable, questionsTable } from "#shared/db/questions/tables.ts";
+import {
+  redirectRequest,
+  runWebhook,
+  setupWithListing,
+  signedMeta,
+  webhookRequest,
+} from "#test/lib/webhook-price-signature/helpers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -29,13 +36,6 @@ import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { expectProcessedPaymentReference } from "#test-utils/processed-payments.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
-import {
-  redirectRequest,
-  runWebhook,
-  setupWithListing,
-  signedMeta,
-  webhookRequest,
-} from "../../../lib/webhook-price-signature/helpers.ts";
 
 const contactCountsByHash = async (hash: string) =>
   queryOne<{ public_booking_count: number; visits: number }>(

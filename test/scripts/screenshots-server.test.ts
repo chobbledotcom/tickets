@@ -3,7 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import {
   startWithFailureCleanup,
   waitForHealthy,
-} from "../../scripts/screenshots/server.ts";
+} from "#scripts/screenshots/server.ts";
 
 const expectOneRetry = async (
   request: () => Promise<Response>,

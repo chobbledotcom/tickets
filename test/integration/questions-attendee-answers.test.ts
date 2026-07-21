@@ -10,17 +10,17 @@ import {
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { getOrCreateStringIds } from "#shared/db/questions/strings.ts";
 import { nowIso } from "#shared/now.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withPoisonedTransactionWrite } from "#test-utils/db-poison.ts";
-import { expectRejects } from "#test-utils/servicing.ts";
 import {
   addAnswer,
   createAttendee,
   createQuestion,
   saveTextAnswers,
-} from "../shared/db/questions/helpers.ts";
+} from "#test/shared/db/questions/helpers.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withPoisonedTransactionWrite } from "#test-utils/db-poison.ts";
+import { expectRejects } from "#test-utils/servicing.ts";
 
 /** The choice answer ids one attendee has saved (undefined when none). Shared by
  *  the replace and rollback tests so the read+assert pair stays one line each. */

@@ -1,7 +1,4 @@
-import type {
-  GraphQlPr,
-  MergeQueueEntry,
-} from "../../../scripts/pr-queue/types.ts";
+import type { GraphQlPr, MergeQueueEntry } from "#scripts/pr-queue/types.ts";
 
 /**
  * Shared `GraphQlPr` fixture builder for the pr-queue summary tests. The default

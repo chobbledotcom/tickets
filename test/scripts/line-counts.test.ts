@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { printLineCounts } from "#scripts/line-counts-lib.ts";
 import { tempDir } from "#test-utils/files.ts";
-import { printLineCounts } from "../../scripts/line-counts-lib.ts";
 
 describe("line-counts", () => {
   test("prints recursive line counts grouped by extension", async () => {

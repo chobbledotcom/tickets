@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
-import { withEnv } from "#test-utils/env.ts";
 import {
   balancedCycles,
   balancedRotation,
@@ -9,7 +8,8 @@ import {
   requiredEnv,
   sampleMap,
   samplesFor,
-} from "../../scripts/bench/cold-start/support.ts";
+} from "#scripts/bench/cold-start/support.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 const completeCatalogueBody = (): string =>
   benchmarkCatalogueMarkers().join("\n");

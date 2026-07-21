@@ -1,8 +1,8 @@
 import { resolve } from "@std/path";
-import { withCleanup } from "../cleanup.ts";
-import { dim, yellow } from "../precommit/colors.ts";
-import { projectRoot } from "../project-root.ts";
-import type { StaticAssetBuild } from "../static-assets/session.ts";
+import { withCleanup } from "#scripts/cleanup.ts";
+import { dim, yellow } from "#scripts/precommit/colors.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import type { StaticAssetBuild } from "#scripts/static-assets/session.ts";
 import {
   mutantTestEnv,
   runTests,

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { CommandResult, RunCommand } from "../../scripts/precommit/git.ts";
+import type { CommandResult, RunCommand } from "#scripts/precommit/git.ts";
 import {
   type ChangedFiles,
   changedFiles,
@@ -9,7 +9,7 @@ import {
   partitionChanged,
   runMutationStep,
   STALE_BASE_SOURCE_LIMIT,
-} from "../../scripts/precommit/mutation-step.ts";
+} from "#scripts/precommit/mutation-step.ts";
 
 const ok = (stdout = ""): CommandResult => ({
   code: 0,

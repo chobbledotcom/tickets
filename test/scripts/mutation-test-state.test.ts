@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { createMutantTestState } from "../../scripts/mutation/test-state.ts";
-import { captureCommands } from "../../test/test-utils/command-capture.ts";
-import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
+import { createMutantTestState } from "#scripts/mutation/test-state.ts";
+import { captureCommands } from "#test-utils/command-capture.ts";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 describe("mutant test state", () => {
   const setup = (exit: number) => {

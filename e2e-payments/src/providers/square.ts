@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "playwright";
+import { log } from "#e2e/log.ts";
+import { sleep } from "#e2e/util.ts";
 import { squareRequestInit } from "#shared/square.ts";
-import { log } from "../log.ts";
-import { sleep } from "../util.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { HostedCheckoutContext, PaymentProvider } from "./types.ts";
 

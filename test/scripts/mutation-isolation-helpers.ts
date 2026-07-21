@@ -1,13 +1,13 @@
 import { join } from "node:path";
 import { stub } from "@std/testing/mock";
-import { withTempDir as withSharedTempDir } from "#test-utils/files.ts";
-import { runIsolatedMutationCommand } from "../../scripts/mutation/isolation.ts";
+import { runIsolatedMutationCommand } from "#scripts/mutation/isolation.ts";
 import {
   markFinished,
   newRunRecord,
   recordPath,
   runRoot,
-} from "../../scripts/mutation/isolation-state.ts";
+} from "#scripts/mutation/isolation-state.ts";
+import { withTempDir as withSharedTempDir } from "#test-utils/files.ts";
 
 export const withTempDir = async (
   run: (dir: string) => Promise<void>,

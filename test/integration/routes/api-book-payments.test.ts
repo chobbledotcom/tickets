@@ -1,14 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { PublicListingSchema } from "#test-utils/api-schemas.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import {
-  createDailyTestListing,
-  createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-
 import {
   bookForToken,
   bookListing,
@@ -16,7 +8,14 @@ import {
   describePublicApi,
   fetchListingBySlug,
   withCheckoutStub,
-} from "../../routes/api/helpers.ts";
+} from "#test/routes/api/helpers.ts";
+import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describePublicApi(() => {
   describe("POST /api/listings/:slug/book", () => {

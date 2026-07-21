@@ -4,12 +4,12 @@ import {
   adminModifierRecalculatePage,
   ModifierRunningTotalsSection,
 } from "#templates/admin/modifiers/aggregates.tsx";
-import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
-import { testModifier } from "#test-utils/factories.ts";
 import {
   resetFeaturePageTest,
   setupFeaturePageTest,
-} from "../feature-page-test.ts";
+} from "#test/ui/templates/admin/feature-page-test.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { testModifier } from "#test-utils/factories.ts";
 
 const setupModifierPageTest = setupFeaturePageTest("modifiers");
 

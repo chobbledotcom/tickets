@@ -1,6 +1,6 @@
 import type { BuildOptions } from "esbuild";
-import { runCleanups } from "../cleanup.ts";
-import { rethrowUnlessNotFound } from "../not-found.ts";
+import { runCleanups } from "#scripts/cleanup.ts";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 
 export interface StaticBundle {
   label: string;

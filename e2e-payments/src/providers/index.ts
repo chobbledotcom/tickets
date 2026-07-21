@@ -1,4 +1,4 @@
-import type { ProviderName } from "../config.ts";
+import type { ProviderName } from "#e2e/config.ts";
 import { square } from "./square.ts";
 import { stripe } from "./stripe.ts";
 import { sumup } from "./sumup.ts";

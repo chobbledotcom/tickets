@@ -14,19 +14,19 @@ import {
   runMigration,
 } from "#shared/db/migrations/schema-sync.ts";
 import { loadMigrations } from "#shared/db/migrations.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { indexExists } from "#test-utils/migrations.ts";
 import {
   additiveMigrations,
   dropOwnedObjects,
   migrationById,
   seedSentinelListing,
   triggerExists,
-} from "../lib/db/migration-restore/helpers.ts";
+} from "#test/lib/db/migration-restore/helpers.ts";
 import {
   downgradeListingDomainToLegacyNames,
   tableRowCount,
-} from "../lib/db/migration-test-helpers.ts";
+} from "#test/lib/db/migration-test-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { indexExists } from "#test-utils/migrations.ts";
 
 const MIGRATIONS = await loadMigrations();
 const RESTORE_TRIGGER: Trigger = {

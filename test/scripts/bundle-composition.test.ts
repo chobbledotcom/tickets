@@ -9,7 +9,7 @@ import {
   dependencyName,
   groupSourceBytes,
   sourceLineKey,
-} from "../../scripts/bench/bundle-composition/model.ts";
+} from "#scripts/bench/bundle-composition/model.ts";
 
 const sourceMap = (
   sources: string[],

@@ -6,7 +6,7 @@ import {
   getSearchParam,
   parseCookies,
   parseRequest,
-} from "../../src/features/url.ts";
+} from "#routes/url.ts";
 
 test("parses request cookies", () => {
   const request = new Request("https://example.test", {

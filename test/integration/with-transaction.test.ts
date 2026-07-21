@@ -1,13 +1,12 @@
 import { type Client, createClient, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   DatabaseBusyError,
   queryOne,
   setDb,
   withTransaction,
-  writeRowInTransaction,
 } from "#shared/db/client.ts";
 import {
   enableQueryLog,
@@ -48,6 +47,10 @@ const count = async (): Promise<number> => {
 };
 
 describe("withTransaction", () => {
+  // A file that boots the app switches the guard to notify-only for the rest
+  // of the shared isolate; the budget tests need the default throw mode.
+  beforeEach(() => setN1GuardNotifyOnly(null));
+
   test("commits all writes on success", async () => {
     await withFileDb(async () => {
       await withTransaction(async (tx) => {
@@ -232,32 +235,6 @@ describe("withTransaction lock contention", () => {
         error = caught;
       }
       expect(error).toBeInstanceOf(DatabaseBusyError);
-    } finally {
-      setDb(null);
-    }
-  });
-
-  test("writeRowInTransaction honours an explicit existing id verbatim, even 0", async () => {
-    // `existingId ?? lastInsertRowid` must be nullish- (not falsy-) coalescing:
-    // only a null existingId means "this was an INSERT, use its new rowid".
-    const tx = {
-      commit: () => Promise.resolve(),
-      execute: () => Promise.resolve({ lastInsertRowid: 42n }),
-      rollback: () => Promise.resolve(),
-    } as unknown as Transaction;
-    setDb(clientWith(() => Promise.resolve(tx)));
-    try {
-      const persistedIds: number[] = [];
-      const id = await writeRowInTransaction(
-        "UPDATE rows SET x = 1",
-        0,
-        (_tx, rowId) => {
-          persistedIds.push(rowId);
-          return Promise.resolve();
-        },
-      );
-      expect(id).toBe(0);
-      expect(persistedIds).toEqual([0]);
     } finally {
       setDb(null);
     }

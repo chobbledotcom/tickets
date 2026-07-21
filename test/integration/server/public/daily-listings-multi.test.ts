@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { createDailyListing } from "#test/lib/server-public/daily-listing.ts";
 import {
   assertPublicHtml,
   expectFlash,
@@ -15,7 +16,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { createDailyListing } from "../../../lib/server-public/daily-listing.ts";
 
 // jscpd:ignore-end
 

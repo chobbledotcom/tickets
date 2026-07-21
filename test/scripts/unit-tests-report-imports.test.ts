@@ -7,7 +7,7 @@ import {
   parseImportSpecifiers,
   resolveImportToSourceOrNull,
   resolveTestImports,
-} from "../../scripts/unit-tests-report-imports.ts";
+} from "#scripts/unit-tests-report-imports.ts";
 import { options } from "./unit-tests-report-fixtures.ts";
 
 /** A small import map covering an exact alias, nested and general directory
