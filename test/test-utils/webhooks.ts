@@ -33,13 +33,12 @@ export const checkoutSessionEvent = (opts: {
   data: {
     object: {
       amount_total: opts.amountTotal,
-      ...(opts.created === undefined ? {} : { created: opts.created }),
+      created: opts.created ?? 1_700_000_000,
       id: opts.sessionId,
       metadata: opts.metadata,
-      ...(opts.paymentIntent === undefined
-        ? {}
-        : { payment_intent: opts.paymentIntent }),
+      payment_intent: opts.paymentIntent ?? null,
       payment_status: opts.paymentStatus ?? "paid",
+      url: null,
     },
   },
   id: opts.eventId,
@@ -71,6 +70,25 @@ export const postWebhookAndAssert = async <T = Record<string, unknown>>(
     );
   } finally {
     cleanup();
+  }
+};
+
+/** A signed Stripe event that violates its provider schema must reach the
+ * request boundary and fail there instead of becoming an unpaid booking. */
+export const expectWebhookRejected = async (
+  event: Parameters<typeof stubWebhookVerify>[0],
+  message: string,
+): Promise<void> => {
+  const { handleRequest } = await import("#routes");
+  const verify = await stubWebhookVerify(event);
+  try {
+    await expect(
+      handleRequest(
+        mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+      ),
+    ).rejects.toThrow(message);
+  } finally {
+    verify.restore();
   }
 };
 

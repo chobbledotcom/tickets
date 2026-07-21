@@ -199,6 +199,7 @@ export const square: PaymentProvider = {
     if (secrets.sandbox === "true") await session.check("square_sandbox");
     await session.clickButton("Update Square Credentials");
   }),
+  firstBookingConfirmation: "return",
   name: "square",
 
   payHostedCheckout: hostedCheckout(

@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { it as test } from "@std/testing/bdd";
 import {
   latestAttendee,
   submitBuyerOrder,
@@ -11,8 +10,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("server previous bookings", { db: true }, () => {
-  afterEach(() => resetStripeClient());
-
   test("the contact summary reports the capped number shown", async () => {
     const listing = await createTestListing({
       maxAttendees: 200,

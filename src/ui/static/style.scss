@@ -2101,6 +2101,10 @@ form.listing-form--templated.listing-form--no-daily:not(
 // row's quantity input (the line is kept as a quantity-0 sentinel — owners never
 // edit a literal 0). Row-scoped via :has() so it only affects the ticked row;
 // pure CSS, no JavaScript.
+.line-qty {
+  width: 5em;
+}
+
 .attendee-line-qty:has(.no-quantity-toggle:checked) .line-qty {
   display: none;
 }

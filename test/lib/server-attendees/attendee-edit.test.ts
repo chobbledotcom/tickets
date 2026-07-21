@@ -391,8 +391,8 @@ describeWithEnv(
 
       test("firstAttendee throws on a failed booking result, surfacing the reason", () => {
         expect(() =>
-          firstAttendee({ reason: "encryption_error", success: false }),
-        ).toThrow("Failed to create attendee: encryption_error");
+          firstAttendee({ reason: "capacity_exceeded", success: false }),
+        ).toThrow("Failed to create attendee: capacity_exceeded");
       });
     });
   },

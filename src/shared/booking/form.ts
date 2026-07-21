@@ -1,4 +1,7 @@
-import { capacityErrorFormatter } from "#shared/capacity-error.ts";
+import {
+  type AttendeeFailureFormatter,
+  attendeeFailureFormatter,
+} from "#shared/attendee-failures.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validatePrice } from "#shared/validation/money.ts";
 
@@ -14,7 +17,7 @@ export const parseCustomPrice = (
 /** The messages a failed public booking answers with — written once here so
  * the web form and the JSON API never retype (and drift on) the same copy. */
 export const bookingError = {
-  /** A creation failure that isn't about capacity (e.g. encryption_error). */
+  /** An attendee write failure that isn't about capacity. */
   fallback: "Registration failed. Please try again.",
   /** Out of capacity, with no listing name to point at. */
   generic: "Sorry, not enough spots available",
@@ -28,4 +31,5 @@ export const bookingError = {
 };
 
 /** Format error message for failed attendee creation. */
-export const formatAtomicError = capacityErrorFormatter(bookingError);
+export const formatAtomicError: AttendeeFailureFormatter =
+  attendeeFailureFormatter(bookingError);

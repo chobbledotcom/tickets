@@ -10,11 +10,13 @@
 # also sold on its own row + a plain listing, one checkout paying every path),
 # verified path-by-path on the admin side — the real-sandbox twin of the
 # stubbed test/e2e/order-journeys.test.ts suite (src/order-flow.ts).
+# The Stripe leg also tests the connection, rotates its webhook endpoint, waits
+# for a signed webhook, checks the PaymentIntent, and issues a real test refund.
 #
 # It is deliberately NOT a PR gate: it needs network to third-party sandboxes
 # and is inherently slower/flakier than mocked tests. It runs nightly and on
-# demand. A provider leg with no configured secrets SKIPS (passes) rather than
-# failing, so you can enable providers one at a time.
+# demand. Square and SumUp skip when unconfigured, so they can be enabled one at
+# a time. The free and Stripe legs must execute; a missing Stripe secret fails.
 #
 # Required repository secrets (add only the providers you use):
 #   STRIPE_SECRET_KEY          — sk_test_… (Stripe test mode)
@@ -47,7 +49,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [free, stripe, square, sumup]
+        include:
+          - target: free
+            must_execute: true
+          - target: stripe
+            must_execute: true
+          - target: square
+            must_execute: false
+          - target: sumup
+            must_execute: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -101,6 +111,7 @@ jobs:
         run: deno run -A npm:playwright@${{ steps.pw.outputs.version }} install-deps chromium
 
       - name: Run ${{ matrix.target }} payment e2e
+        id: payment-run
         env:
           # Throwaway key for the ephemeral local DB — not a real secret.
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
@@ -112,6 +123,20 @@ jobs:
           SUMUP_MERCHANT_CODE: ${{ secrets.SUMUP_MERCHANT_CODE }}
           NTFY_URL: ${{ secrets.NTFY_URL }}
         run: deno task e2e ${{ matrix.target }}
+
+      - name: Verify payment leg execution
+        env:
+          ACTUAL_RESULT: ${{ steps.payment-run.outputs.result }}
+          MUST_EXECUTE: ${{ matrix.must_execute }}
+        run: |
+          if [[ "$ACTUAL_RESULT" != "executed" && "$ACTUAL_RESULT" != "skipped" ]]; then
+            echo "Payment harness did not report whether the leg executed or skipped." >&2
+            exit 1
+          fi
+          if [[ "$MUST_EXECUTE" == "true" && "$ACTUAL_RESULT" != "executed" ]]; then
+            echo "The ${{ matrix.target }} payment leg is configured to run but skipped." >&2
+            exit 1
+          fi
 
       - name: Upload run artifacts (screenshots, page HTML, server logs)
         if: always()
