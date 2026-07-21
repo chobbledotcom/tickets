@@ -1,4 +1,7 @@
-import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
+import type {
+  BuiltSite,
+  BuiltSiteFormInput,
+} from "#shared/db/built-sites/types.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 

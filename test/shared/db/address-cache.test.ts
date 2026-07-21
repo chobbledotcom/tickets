@@ -11,7 +11,7 @@ import {
   storeCachedAddresses,
 } from "#shared/db/address-cache.ts";
 import { queryOne } from "#shared/db/client.ts";
-import { pruneAddressCache } from "#shared/db/prune.ts";
+import { runDatabasePruning } from "#shared/db/prune.ts";
 import { ADDRESS_CACHE_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -133,7 +133,7 @@ describeWithEnv("address cache", { db: true }, () => {
     await storeCachedAddresses(fresh, ADDRESSES);
     await backdateRow(stale, ADDRESS_CACHE_MS + 1000);
 
-    expect(await pruneAddressCache()).toBe(1);
+    await runDatabasePruning();
 
     const count = await queryOne<{ n: number }>(
       "SELECT COUNT(*) AS n FROM address_cache",

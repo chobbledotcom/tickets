@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildOgTags } from "#templates/public/reservations/og-tags.ts";
 
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 describe("buildOgTags", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("includes title, type, and url", () => {

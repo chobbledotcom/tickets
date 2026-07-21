@@ -17,6 +17,7 @@ import {
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
 import { type Result, requireSuccess } from "#shared/result.ts";
+import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 
 /** GitHub repo URL — update here if the repo moves */
 export const GITHUB_REPO = "chobbledotcom/tickets";
@@ -78,8 +79,10 @@ export const setBuildTimestampForTest = (ts: string | null): void => {
 };
 
 /** Get the effective build timestamp (override or real). */
-const getEffectiveBuildTimestamp = (): string =>
-  getBuildTimestampOverride() ?? BUILD_TIMESTAMP;
+const getEffectiveBuildTimestamp = (): string => {
+  const override = getBuildTimestampOverride();
+  return override === null ? BUILD_TIMESTAMP : override;
+};
 
 /** Override for BUILD_COMMIT in tests; null falls back to the compile-time constant. */
 const [getBuildCommitOverride, setBuildCommitOverride] = lazyRef<string | null>(
@@ -92,8 +95,10 @@ export const setBuildCommitForTest = (commit: string | null): void => {
 };
 
 /** Get the effective build commit (override or real). */
-const getEffectiveBuildCommit = (): string =>
-  getBuildCommitOverride() ?? BUILD_COMMIT;
+const getEffectiveBuildCommit = (): string => {
+  const override = getBuildCommitOverride();
+  return override === null ? BUILD_COMMIT : override;
+};
 
 /**
  * Check if a release tag is newer than a build timestamp. Defaults to this
@@ -192,6 +197,7 @@ export const formatBuildDate = (iso: string): string => {
  * Throws on network/API errors.
  */
 export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
+  countExternalSubrequest("GitHub release lookup");
   const response = await fetch(GITHUB_LATEST_RELEASE_URL, {
     headers: { Accept: "application/vnd.github.v3+json" },
   });
@@ -212,6 +218,7 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
 
 /** Download a release asset URL and return the source code text. */
 const downloadReleaseAsset = async (assetUrl: string): Promise<string> => {
+  countExternalSubrequest("GitHub release download");
   const assetResponse = await fetch(assetUrl);
   if (!assetResponse.ok) {
     throw new Error(

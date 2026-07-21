@@ -1,4 +1,7 @@
 {
+  "settings.advanced.scheduled_title": "Scheduled maintenance",
+  "settings.advanced.scheduled_intro": "Use this key in the monitor for this site.",
+  "settings.advanced.scheduled_unset": "No scheduled maintenance key is set on this site.",
   "settings.title": "Settings",
   "settings.guide_link": "Settings guide",
   "settings.header_image": "Header Image",

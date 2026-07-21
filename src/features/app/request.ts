@@ -9,6 +9,7 @@ import {
   isEmbeddablePath,
   isValidContentType,
 } from "#routes/middleware.ts";
+import { requestScopedHandler } from "#routes/request-scopes.ts";
 import {
   databaseBusyResponse,
   migrationInProgressResponse,
@@ -30,14 +31,12 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
-import { maybeBackfillActivityLog } from "#shared/db/activity-log-backfill.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
   initDb,
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "#shared/db/migrations.ts";
-import { maybeRunPrunes } from "#shared/db/prune.ts";
 import { enableQueryLog } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { assertSettingsReadsDeclared } from "#shared/db/settings-audit.ts";
@@ -56,17 +55,17 @@ import {
   logError,
   logRequest,
 } from "#shared/logger.ts";
-import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
+import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { defineAppRoute, routeMainApp } from "./routes.ts";
 import {
   bufferRequestIfNeeded,
   ensureCustomCssResponse,
   isSetupPath,
+  runOrganicMaintenanceWhenDue,
   shouldLogQueries,
   shouldPrefetchSettings,
   shouldRetryBusyRequest,
-  shouldRunPrunes,
   trackingRedirectLocation,
 } from "./rules.ts";
 
@@ -157,12 +156,25 @@ const prepareRequestEnvironment = async (
 
   await settings.loadKeys(settingsForPath(path));
 
-  if (shouldRunPrunes(method, path)) {
-    addPendingWork(maybeRunPrunes());
-  }
-  addPendingWork(maybeBackfillActivityLog());
   loadEffectiveDomain(url);
 };
+
+const runOrganicMaintenanceAfterResponse = (
+  method: string,
+  path: string,
+  response: Response,
+): Promise<void> =>
+  runOrganicMaintenanceWhenDue(method, path, response.status, async () => {
+    try {
+      const [{ MAINTENANCE_TASKS }, { maintenance }] = await Promise.all([
+        import("#shared/maintenance/registry.ts"),
+        import("#shared/maintenance/runner.ts"),
+      ]);
+      await maintenance.runOrganic(MAINTENANCE_TASKS);
+    } catch (error) {
+      reportMaintenanceFailure("organic maintenance failed", error);
+    }
+  });
 
 const routeAndFinalize = async (
   request: Request,
@@ -213,8 +225,8 @@ const handleRoutingError = (
   return temporaryErrorResponse();
 };
 
-/** Run the request pipeline inside the request-scoped contexts from index.ts. */
-export const processRequest = async (
+/** Run the application request pipeline. */
+const processRequest = async (
   request: Request,
   server: ServerContext | undefined,
 ): Promise<Response> => {
@@ -271,8 +283,10 @@ export const processRequest = async (
     assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
     response = finish(handleRoutingError(error, method, path));
-  } finally {
-    await flushPendingWork();
   }
+  await runOrganicMaintenanceAfterResponse(method, path, response);
   return response;
 };
+
+/** Handle one request inside every request-scoped store. */
+export const handleRequest = requestScopedHandler(processRequest);

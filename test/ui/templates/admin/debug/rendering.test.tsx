@@ -36,8 +36,8 @@ describe("admin debug template rendering", () => {
     const html = adminDebugPage(debugOwnerSession, makeDebugState());
 
     expect(html).toContain('href="/admin/debug"');
-    expect([...html.matchAll(/class="prose"/g)]).toHaveLength(3);
-    expect([...html.matchAll(/class="table-scroll"/g)]).toHaveLength(13);
+    expect([...html.matchAll(/class="prose"/g)]).toHaveLength(2);
+    expect([...html.matchAll(/class="table-scroll"/g)]).toHaveLength(12);
   });
 
   test("shows every missing value in its own row", () => {

@@ -6,7 +6,6 @@ import {
   JS_PATH,
 } from "#shared/asset-paths.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
@@ -16,40 +15,46 @@ import {
 } from "#shared/flash-context.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
+import type { AdminSession } from "#shared/types.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 
-const TEST_SESSION = { adminLevel: "owner" as const };
-const EDITOR_SESSION = { adminLevel: "editor" as const };
+const EDITOR_SESSION: AdminSession = { adminLevel: "editor" };
 
 /** Set `RENEWAL_URL`, render `AdminNav`, assert the renewal link is present,
  *  and clean up the env var. Both the read-only and warning-banner describe
  *  blocks repeat this exact sequence. */
 const expectRenewalLink = async (): Promise<void> => {
   using _env = withEnv({ RENEWAL_URL: "https://example.com/renew" });
-  const html = String(AdminNav({ active: "/admin/", session: TEST_SESSION }));
+  const html = String(AdminNav({ active: "/admin/", session: OWNER_SESSION }));
   expect(html).toContain("Renew now");
   expect(html).toContain("https://example.com/renew");
 };
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
+const setupLayoutTest = async (): Promise<void> => {
+  await setupAdminPageTest();
   setDemoModeForTest(false);
-  await signCsrfToken();
-});
+};
 
-afterEach(() => {
+const resetLayoutTest = (): void => {
   settings.clearTestOverrides();
   setDemoModeForTest(false);
-});
+};
 
 describe("asset-paths", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("pages include CSS_PATH in stylesheet link", () => {
     const html = adminLoginPage();
     expect(html).toContain(`href="${CSS_PATH}"`);
@@ -69,6 +74,9 @@ describe("asset-paths", () => {
 });
 
 describe("Layout skip navigation", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("renders skip-nav link targeting main-content", () => {
     const html = String(Layout({ children: "", title: "Test" }));
     expect(html).toContain('class="skip-nav"');
@@ -95,6 +103,9 @@ describe("Layout skip navigation", () => {
 });
 
 describe("Layout document shell", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("renders the required document metadata and stylesheet contracts", () => {
     const html = String(Layout({ children: "", title: "Test" }));
 
@@ -180,6 +191,9 @@ describe("Layout document shell", () => {
 });
 
 describe("adminLoginPage", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("renders login form", () => {
     const html = adminLoginPage();
     expect(html).toContain("Login");
@@ -201,20 +215,21 @@ describe("adminLoginPage", () => {
 });
 
 describe("AdminNav image storage gating", () => {
+  beforeAll(setupLayoutTest);
+  afterEach(resetLayoutTest);
+
   test("shows Images only when file storage is enabled", () => {
-    const hasImagesLink = (
-      session: typeof TEST_SESSION | typeof EDITOR_SESSION,
-    ): boolean =>
+    const hasImagesLink = (session: AdminSession): boolean =>
       String(AdminNav({ active: "/admin/", session })).includes(
         'href="/admin/images"',
       );
 
     withStorageEnabled(() => {
-      expect(hasImagesLink(TEST_SESSION)).toBe(true);
+      expect(hasImagesLink(OWNER_SESSION)).toBe(true);
       expect(hasImagesLink(EDITOR_SESSION)).toBe(true);
     });
     withStorageDisabled(() => {
-      expect(hasImagesLink(TEST_SESSION)).toBe(false);
+      expect(hasImagesLink(OWNER_SESSION)).toBe(false);
       expect(hasImagesLink(EDITOR_SESSION)).toBe(false);
     });
   });
@@ -224,9 +239,12 @@ describeWithEnv(
   "read-only mode templates",
   { env: { READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" } },
   () => {
+    beforeAll(setupLayoutTest);
+    afterEach(resetLayoutTest);
+
     test("AdminNav shows read-only banner", () => {
       const html = String(
-        AdminNav({ active: "/admin/", session: TEST_SESSION }),
+        AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
       expect(html).toContain("read-only-banner");
       expect(html).toContain("This site is in read-only mode");
@@ -257,9 +275,12 @@ describeWithEnv(
     },
   },
   () => {
+    beforeAll(setupLayoutTest);
+    afterEach(resetLayoutTest);
+
     test("AdminNav shows warning banner before expiry", () => {
       const html = String(
-        AdminNav({ active: "/admin/", session: TEST_SESSION }),
+        AdminNav({ active: "/admin/", session: OWNER_SESSION }),
       );
       expect(html).toContain("read-only-banner-warning");
       expect(html).toContain("expires on");
@@ -274,7 +295,7 @@ describeWithEnv(
       Date.prototype.toLocaleDateString = () => "";
       try {
         const html = String(
-          AdminNav({ active: "/admin/", session: TEST_SESSION }),
+          AdminNav({ active: "/admin/", session: OWNER_SESSION }),
         );
         expect(html).toContain("read-only-banner-warning");
         expect(html).toContain("Your site is approaching its expiry");

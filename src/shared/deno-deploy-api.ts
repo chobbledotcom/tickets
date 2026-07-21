@@ -14,8 +14,8 @@ import {
 } from "#shared/config.ts";
 import { fetchText, parseApiError } from "#shared/fetch.ts";
 import type {
-  CreateSiteFn,
   HostingProviderApi,
+  PrepareSiteFn,
 } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
@@ -32,12 +32,6 @@ interface GetAppResponse {
   env_vars?: Record<string, { value: string; is_secret: boolean }>;
   id: string;
   slug: string;
-}
-
-interface DeploymentResponse {
-  domains?: string[];
-  hostnames?: string[];
-  id: string;
 }
 
 /** Headers for all Deno Deploy API requests. */
@@ -96,18 +90,18 @@ const fetchAppEnvVars = async (
  * (Re-sending existing secrets risks clearing them: the GET response masks
  * secret values, so a round-trip GET→merge→PATCH would PATCH with empty values.)
  */
-const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
-  const envVarsArray = secrets.map(([key, value]) => ({
-    contexts: ["production"],
-    key,
-    secret: true,
-    value,
-  }));
+const envVar = ([key, value]: [string, string]) => ({
+  contexts: ["production"],
+  key,
+  secret: true,
+  value,
+});
 
+const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
   const patchRes = await fetchText(
     `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
     {
-      body: JSON.stringify({ env_vars: envVarsArray }),
+      body: JSON.stringify({ env_vars: secrets.map(envVar) }),
       headers: denoApiHeaders(),
       method: "PATCH",
     },
@@ -121,12 +115,12 @@ const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
  * Deploy code to a Deno Deploy app (production deployment).
  * Returns the primary hostname for the deployment.
  */
-const deployCodeImpl = async (
-  appId: string,
-  code: string,
-): Promise<Result<string>> => {
+const deployCodeImpl: HostingProviderApi["publishSite"] = async (
+  appId,
+  code,
+) => {
   const res = await fetchText(
-    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}/deployments`,
+    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}/deploy`,
     {
       body: JSON.stringify({
         assets: {
@@ -141,13 +135,7 @@ const deployCodeImpl = async (
   );
 
   if (!res.ok) return parseApiError(res, "Deploy code");
-
-  const data: DeploymentResponse = JSON.parse(res.text);
-  const hostname = data.domains?.[0] ?? data.hostnames?.[0];
-  if (!hostname) {
-    return errorResult("Deploy code failed: no hostname in response");
-  }
-  return okResult(`https://${hostname}`);
+  return okResult(undefined);
 };
 
 /**
@@ -168,7 +156,7 @@ export const denoDeployApi = {
   setEnvVars: setEnvVarsImpl,
 };
 
-const createDenoSiteImpl: CreateSiteFn = async (name, code, secrets) => {
+const prepareDenoSiteImpl: PrepareSiteFn = async (name, _code, secrets) => {
   const createResult = await denoDeployApi.createApp(slugifyForDeno(name));
   if (!createResult.ok) return createResult;
   const setResult = await denoDeployApi.setEnvVars(
@@ -178,21 +166,17 @@ const createDenoSiteImpl: CreateSiteFn = async (name, code, secrets) => {
   if (!setResult.ok) {
     return errorResult(`Failed to set secrets: ${setResult.error}`);
   }
-  const deployResult = await denoDeployApi.deployCode(
-    createResult.value.appId,
-    code,
-  );
-  if (!deployResult.ok) return deployResult;
   return okResult({
-    defaultHostname: deployResult.value,
+    defaultHostname: `https://${createResult.value.slug}.deno.dev`,
     hostingId: createResult.value.appId,
   });
 };
 
 export const denoHostingProvider: HostingProviderApi = {
   configEnvVar: "DENO_DEPLOY_TOKEN",
-  createSite: createDenoSiteImpl,
   getSecretNames: (hostingId) => denoDeployApi.getEnvVarNames(hostingId),
+  prepareSite: prepareDenoSiteImpl,
+  publishSite: (hostingId, code) => denoDeployApi.deployCode(hostingId, code),
   setSecrets: (hostingId, secrets) =>
     denoDeployApi.setEnvVars(hostingId, secrets),
 };

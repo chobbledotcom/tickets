@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("ticketViewPage listing date and location", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   const token = "AABB0011CCDDEEFF";

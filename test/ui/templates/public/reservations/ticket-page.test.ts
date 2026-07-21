@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttributeWithOptions } from "#shared/db/attributes.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
@@ -16,6 +16,7 @@ import {
   registerPublicTemplateHooks,
   ticketListing,
 } from "#test/templates/public/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 const attributeWithOptions = (
   id: number,
@@ -29,6 +30,7 @@ const attributeWithOptions = (
 });
 
 describe("ticketPage — packages", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("shows all sold out message when every listing is sold out", () => {

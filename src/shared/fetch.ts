@@ -9,6 +9,7 @@
 
 import { extendedBy } from "#fp";
 import { errorResult, type Result } from "#shared/result.ts";
+import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 
 /** A fetch result whose body has already been read to a string. */
 export type FetchResult = {
@@ -58,6 +59,7 @@ export const fetchText = async (
   url: string,
   init?: RequestInit,
 ): Promise<FetchResult> => {
+  countExternalSubrequest(`fetch ${new URL(url).origin}`);
   const response = await fetch(url, init);
   const text = await response.text();
   return {

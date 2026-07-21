@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -10,6 +10,7 @@ import {
   registerPublicTemplateHooks,
   ticketListing,
 } from "#test/templates/public/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -17,6 +18,7 @@ describeWithEnv(
   "listing images",
   { env: { STORAGE_ZONE_KEY: "testkey", STORAGE_ZONE_NAME: "testzone" } },
   () => {
+    beforeAll(setupAdminPageTest);
     registerPublicTemplateHooks();
 
     describe("renderListingImage", () => {

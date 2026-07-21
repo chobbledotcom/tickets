@@ -5,6 +5,7 @@ import {
   adminDuplicateListingPage,
   adminListingNewPage,
 } from "#templates/admin/listings/form-pages.tsx";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { TEST_STORAGE_ZONE } from "#test-utils/internal.ts";
@@ -14,7 +15,6 @@ import {
   detailHtml,
   editPanelHtml,
   registerListingTemplateHooks,
-  TEST_SESSION,
   withBuilder,
   withoutBuilder,
 } from "./helpers.ts";
@@ -29,10 +29,10 @@ const builderListing = () =>
 const expectNoImageInDuplicateAndNew = (
   listing: Parameters<typeof adminDuplicateListingPage>[0],
 ): void => {
-  expect(adminDuplicateListingPage(listing, [], TEST_SESSION)).not.toContain(
+  expect(adminDuplicateListingPage(listing, [], OWNER_SESSION)).not.toContain(
     'name="image"',
   );
-  expect(adminListingNewPage([], TEST_SESSION)).not.toContain('name="image"');
+  expect(adminListingNewPage([], OWNER_SESSION)).not.toContain('name="image"');
 };
 
 describeWithEnv(
@@ -82,7 +82,7 @@ describeWithEnv(
     describe("assign_built_site field", () => {
       test("shows assign built site field when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
-          const html = adminListingNewPage([], TEST_SESSION);
+          const html = adminListingNewPage([], OWNER_SESSION);
           expect(html).toContain("assign_built_site");
           expect(html).toContain("Assign a site on booking");
         });
@@ -90,7 +90,7 @@ describeWithEnv(
 
       test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
-          const html = adminListingNewPage([], TEST_SESSION);
+          const html = adminListingNewPage([], OWNER_SESSION);
           expect(html).not.toContain("assign_built_site");
         });
       });
@@ -108,7 +108,7 @@ describeWithEnv(
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const listing = testListingWithCount({ assign_built_site: true });
-          const html = adminDuplicateListingPage(listing, [], TEST_SESSION);
+          const html = adminDuplicateListingPage(listing, [], OWNER_SESSION);
           expect(html).toContain("assign_built_site");
         });
       });
@@ -117,7 +117,7 @@ describeWithEnv(
     describe("months_per_unit and initial_site_months fields", () => {
       test("shows months_per_unit and initial_site_months when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
-          const html = adminListingNewPage([], TEST_SESSION);
+          const html = adminListingNewPage([], OWNER_SESSION);
           expect(html).toContain("months_per_unit");
           expect(html).toContain("Months Per Unit");
           expect(html).toContain("initial_site_months");
@@ -127,7 +127,7 @@ describeWithEnv(
 
       test("hides months_per_unit and initial_site_months when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
-          const html = adminListingNewPage([], TEST_SESSION);
+          const html = adminListingNewPage([], OWNER_SESSION);
           expect(html).not.toContain("months_per_unit");
           expect(html).not.toContain("Months Per Unit");
           expect(html).not.toContain("initial_site_months");
@@ -156,7 +156,7 @@ describeWithEnv(
           const html = adminDuplicateListingPage(
             builderListing(),
             [],
-            TEST_SESSION,
+            OWNER_SESSION,
           );
           expect(html).toContain("months_per_unit");
           expect(html).toContain("initial_site_months");
@@ -168,7 +168,7 @@ describeWithEnv(
           const html = adminDuplicateListingPage(
             builderListing(),
             [],
-            TEST_SESSION,
+            OWNER_SESSION,
           );
           expect(html).not.toContain("months_per_unit");
           expect(html).not.toContain("initial_site_months");

@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   agentDeliveriesPage,
@@ -9,7 +8,7 @@ import {
   type DeliveryDayGroup,
   type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 /** Agent-class session so the page renders the agent header (no staff nav). */
 const agentSession: AdminSession = { adminLevel: "agent" };
@@ -26,11 +25,6 @@ const dateNav = (over: Partial<DeliveriesDateNav> = {}): DeliveriesDateNav => ({
   today: "2026-07-06",
   viewMonth: null,
   ...over,
-});
-
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
 });
 
 const leg = (over: Partial<DeliveryLegView> = {}): DeliveryLegView => ({
@@ -57,6 +51,8 @@ const booking = (
 });
 
 describe("agentDeliveriesPage", () => {
+  beforeAll(setupAdminPageTest);
+
   /** Render the deliveries page for the standard "agent has groups" case.
    *  Agents get no date picker, so `dateNav` is null. Every test in this block
    *  that passes groups uses this exact call. */

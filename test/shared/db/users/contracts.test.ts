@@ -12,6 +12,7 @@ import {
   createUser,
   decryptAdminLevel,
   decryptUsername,
+  deleteUser,
   getAllUsers,
   getUserAuthFieldsById,
   getUserById,
@@ -28,6 +29,10 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
+import {
+  addUserOwnedAccessRecords,
+  getUserOwnedRowSources,
+} from "#test-utils/user-owned-records.ts";
 
 describeWithEnv("db > users contracts", { db: true }, () => {
   test("returns every display field in user id order", async () => {
@@ -231,5 +236,25 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     const migrated = (await getUserById(user.id))!;
     expect(migrated.kek_version).toBe(2);
     expect(migrated.wrapped_data_key).not.toBeNull();
+  });
+
+  test("deletes the user and every owned access record", async () => {
+    const user = await createInvitedUser(
+      "deleted-agent",
+      "agent",
+      "delete-invite",
+      "2099-01-01T00:00:00.000Z",
+    );
+    await addUserOwnedAccessRecords(user.id, "delete");
+    expect(await getUserOwnedRowSources(user.id)).toEqual([
+      "api_keys",
+      "sessions",
+      "user_logistics_agents",
+      "users",
+    ]);
+
+    await deleteUser(user.id);
+
+    expect(await getUserOwnedRowSources(user.id)).toEqual([]);
   });
 });

@@ -1,5 +1,8 @@
 import { t } from "#i18n";
-import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
+import {
+  type BuiltSite,
+  DEFAULT_UPDATE_TIER,
+} from "#shared/db/built-sites/types.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { booleanToCheckbox } from "#shared/forms/values.ts";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";

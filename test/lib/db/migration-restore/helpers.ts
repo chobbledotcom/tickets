@@ -342,6 +342,9 @@ const columnsRemovedByMigration: Partial<Record<string, string[]>> = {
   "2026-07-05_first_class_images": [
     "ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''",
   ],
+  "2026-07-18_drop_built_sites_last_pruned": [
+    "ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''",
+  ],
 };
 
 /** Wind the live schema back to just before these migrations ran. */

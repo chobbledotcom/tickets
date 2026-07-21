@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { generateCalendarCsv } from "#routes/admin/calendar-csv.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
 import {
@@ -11,18 +10,14 @@ import {
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
 import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import {
   expectTestAttendeeCsvColumns,
   selectOptionLabels,
 } from "#test-utils/assertions.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testAttendee } from "#test-utils/factories.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
-
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
 
 const calendarAttendee = (
   overrides: Partial<CalendarAttendeeRow> = {},
@@ -46,7 +41,7 @@ const calendarDate = (
 ): DatePickerDate => ({ label, selectable, value });
 
 /** Render the admin calendar page with the test constants (`"localhost"`,
- *  owner {@link TEST_SESSION}, today `2026-03-10`) baked in, so each test
+ *  owner {@link OWNER_SESSION}, today `2026-03-10`) baked in, so each test
  *  only spells out the inputs it actually varies. Optional fields default
  *  to "no attendees, no selected date, no available dates, no availability
  *  checker" — the common empty-calendar case. */
@@ -63,7 +58,7 @@ const calendarHtml = (
   adminCalendarPage(
     overrides.attendees ?? [],
     "localhost",
-    TEST_SESSION,
+    OWNER_SESSION,
     overrides.dateFilter ?? null,
     overrides.availableDates ?? [],
     overrides.today ?? "2026-03-10",
@@ -75,6 +70,8 @@ const calendarHtml = (
   );
 
 describe("adminCalendarPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders Calendar title", () => {
     const html = calendarHtml();
     expect(html).toContain("Calendar");
@@ -368,14 +365,18 @@ describe("generateCalendarCsv", () => {
 });
 
 describe("admin nav Calendar link", () => {
+  beforeAll(setupAdminPageTest);
+
   test("admin dashboard includes Calendar link in nav", () => {
-    const html = adminDashboardPage([], TEST_SESSION);
+    const html = adminDashboardPage([], OWNER_SESSION);
     expect(html).toContain('href="/admin/calendar"');
     expect(html).toContain("Calendar");
   });
 });
 
 describe("adminCalendarPage availability checker", () => {
+  beforeAll(setupAdminPageTest);
+
   const availabilityRow = (
     overrides: Partial<AvailabilityRow> = {},
   ): AvailabilityRow => ({

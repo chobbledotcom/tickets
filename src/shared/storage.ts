@@ -24,6 +24,7 @@ import {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { createScopedValue } from "#shared/request-scoped.ts";
 import { streamChunks } from "#shared/stream-chunks.ts";
+import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { getDeleteOverride } from "#shared/test-overrides.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 
@@ -80,8 +81,8 @@ const getStorageConfig = (): StorageConfig => {
   const ctx = configOverride.read();
   if (ctx) return ctx;
   return {
-    zoneKey: getEnv("STORAGE_ZONE_KEY") ?? "",
-    zoneName: getEnv("STORAGE_ZONE_NAME") ?? "",
+    zoneKey: getEnv("STORAGE_ZONE_KEY") || "",
+    zoneName: getEnv("STORAGE_ZONE_NAME") || "",
   };
 };
 
@@ -94,7 +95,7 @@ const getLocalStoragePath = (): string | null => {
   if (ctx && "localPath" in ctx) {
     return ctx.localPath || null;
   }
-  return getEnv("LOCAL_STORAGE_PATH") ?? null;
+  return getEnv("LOCAL_STORAGE_PATH") || null;
 };
 
 /** Derived lookup: file extension → MIME type, for serving stored files. */
@@ -130,7 +131,7 @@ export const getImageProxyUrl = (filename: string): string =>
 export const getMimeTypeFromFilename = (filename: string): ImageMime | null => {
   const dotIndex = filename.lastIndexOf(".");
   if (dotIndex === -1) return null;
-  return EXT_TO_MIME[filename.slice(dotIndex)] ?? null;
+  return EXT_TO_MIME[filename.slice(dotIndex)] || null;
 };
 
 /**
@@ -370,6 +371,7 @@ export const uploadRaw = async (
       controller.close();
     },
   });
+  countExternalSubrequest("storage upload");
   await sdk.file.upload(sz, `/${filename}`, stream as never, {
     contentType: "application/octet-stream",
   });
@@ -441,6 +443,7 @@ export const downloadRaw = async (
   }
   try {
     const { sdk, sz } = await connectZone();
+    countExternalSubrequest("storage download");
     const { stream } = await sdk.file.download(sz, `/${filename}`);
     return collectStream(stream as ReadableStream<Uint8Array>);
   } catch (err) {
@@ -472,6 +475,7 @@ export const deleteFile = async (filename: string): Promise<void> => {
     return;
   }
   const { sdk, sz } = await connectZone();
+  countExternalSubrequest("storage delete");
   await sdk.file.remove(sz, `/${filename}`);
 };
 
@@ -565,7 +569,7 @@ const readDirSafe = async (dir: string): Promise<Deno.DirEntry[]> => {
 export type StorageFileMeta = { name: string; size: number };
 
 /** Sort stored files by name, ascending. */
-const byName = sort<StorageFileMeta>((a, b) => (a.name < b.name ? -1 : 1));
+const byName = sort<StorageFileMeta>((a, b) => a.name.localeCompare(b.name));
 
 /**
  * Split a listing prefix into the directory to read and the leaf-name filter
@@ -610,6 +614,7 @@ export const listFilesWithMeta = async (
   }
   const config = getStorageConfig();
   const url = `https://storage.bunnycdn.com/${config.zoneName}/${dir}`;
+  countExternalSubrequest("storage directory listing");
   const response = await fetch(url, {
     headers: { AccessKey: config.zoneKey },
   });
@@ -626,7 +631,7 @@ export const listFilesWithMeta = async (
       // isFile for the same reason).
       .filter((item) => !item.IsDirectory)
       .map((item) => ({
-        name: String(item.ObjectName ?? ""),
+        name: String(item.ObjectName || ""),
         size: Number(item.Length) || 0,
       }))
       .filter((f) => f.name !== "" && f.name.startsWith(namePrefix))

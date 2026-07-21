@@ -21,10 +21,21 @@ import {
 // mirror is a cache hit — keeping their fire-and-forget flush deterministic
 // rather than time-dependent.
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
-import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
+import {
+  BUNNY_SUBREQUEST_LIMIT,
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+} from "#shared/subrequest-budget.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog resets previous entries", () => {
+    test("does not record before logging is enabled", async () => {
+      await runWithQueryLogContext(async () => {
+        await trackSql("SELECT hidden", () => Promise.resolve());
+        expect(getQueryLog()).toEqual([]);
+      });
+    });
+
     test("clears log on enable", async () => {
       await runWithQueryLogContext(async () => {
         enableQueryLog();
@@ -82,6 +93,10 @@ describe("query-log", () => {
     test("counts one query fully contained in another only once", () => {
       // [100,120] contains [105,110] → union stays 20ms.
       expect(sqlWallClockMs([entry(100, 20), entry(105, 5)])).toBe(20);
+    });
+
+    test("sorts by start time when a contained query is listed first", () => {
+      expect(sqlWallClockMs([entry(105, 5), entry(100, 20)])).toBe(20);
     });
 
     test("counts a shared batch round-trip window once", () => {
@@ -361,6 +376,17 @@ describe("query-log", () => {
         countRoundTrips(BUNNY_SUBREQUEST_LIMIT + 1, "startup"),
       ).not.toThrow();
     });
+
+    test("counts database calls in the combined subrequest budget", () => {
+      runWithSubrequestBudget(() => {
+        countDatabaseRoundTrip("scheduled claim");
+        expect(getSubrequestUsage()).toEqual({
+          database: 1,
+          external: 0,
+          total: 1,
+        });
+      });
+    });
   });
 
   describe("transaction round-trip guard", () => {
@@ -381,7 +407,9 @@ describe("query-log", () => {
             TRANSACTION_ROUNDTRIP_THRESHOLD + 1,
             "INSERT INTO t VALUES (1)",
           ),
-        ).toThrow(/Interactive transaction too chatty/);
+        ).toThrow(
+          "Interactive transaction too chatty: 31 statements (limit 30) held the write lock open — prepare reads outside the transaction and apply the writes as one batch. Last statement: INSERT INTO t VALUES (1)",
+        );
       });
     });
 

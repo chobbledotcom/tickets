@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#shared/db/client.ts";
-import { pruneUnusedStrings } from "#shared/db/prune.ts";
+import { runDatabasePruning } from "#shared/db/prune.ts";
 import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
@@ -316,7 +316,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await execute(
         "UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0",
       );
-      await pruneUnusedStrings();
+      await runDatabasePruning();
       expect(await queryAll("SELECT id FROM strings")).toEqual([]);
     });
 

@@ -5,11 +5,15 @@ import {
   adminLedgerPage,
   type LedgerPageData,
 } from "#templates/admin/ledger.tsx";
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
-import { names, SESSION, setUpLedgerPageCrypto, transfer } from "./helpers.ts";
+import { names, transfer } from "./helpers.ts";
 
 describe("adminLedgerPage", () => {
-  beforeAll(setUpLedgerPageCrypto);
+  beforeAll(setupAdminPageTest);
   useSetting(featureSetting("money"));
 
   const NO_FILTERS: LedgerFilterState = {
@@ -41,7 +45,7 @@ describe("adminLedgerPage", () => {
   });
 
   test("renders the money heading, nav, stats, filters, and simple list", () => {
-    const html = adminLedgerPage(pageData(), SESSION);
+    const html = adminLedgerPage(pageData(), OWNER_SESSION);
     expect(html).toContain("Money");
     expect(html).not.toContain("Money history");
     expect(html).toContain('href="/admin/ledger"');
@@ -70,7 +74,7 @@ describe("adminLedgerPage", () => {
   test("heads the stats with the listing name when scoped to one listing", () => {
     const html = adminLedgerPage(
       pageData({ statsHeading: "Summer Concert" }),
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain("<h2>Summer Concert</h2>");
   });
@@ -78,7 +82,7 @@ describe("adminLedgerPage", () => {
   test("can switch to the detailed money-change list", () => {
     const html = adminLedgerPage(
       pageData({ filters: { ...NO_FILTERS, view: "dual" } }),
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain("<th>Money moved</th>");
     expect(html).toContain('href="/admin/ledger">Simple view</a>');
@@ -93,7 +97,7 @@ describe("adminLedgerPage", () => {
           scope: { id: 1, kind: "listing", name: "Summer Concert" },
         },
       }),
-      SESSION,
+      OWNER_SESSION,
     );
     // The listing option carries `selected`; its value scopes the URL to it.
     expect(html).toContain(
@@ -110,7 +114,7 @@ describe("adminLedgerPage", () => {
         },
         statsHeading: "Festival package",
       }),
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain(
       '<option selected value="/admin/ledger?group=2">Festival package</option>',
@@ -127,7 +131,7 @@ describe("adminLedgerPage", () => {
           scope: { id: 1, kind: "listing", name: "Summer Concert" },
         },
       }),
-      SESSION,
+      OWNER_SESSION,
     );
     // A "to" day link keeps the existing from + listing scope.
     expect(html).toContain("to=2026-06-20");
@@ -148,7 +152,7 @@ describe("adminLedgerPage", () => {
           view: "dual",
         },
       }),
-      SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain(
       'value="/admin/ledger?from=2026-06-20&amp;to=2026-06-22&amp;view=dual&amp;fromCal=2026-05&amp;toCal=2026-07"',
@@ -158,9 +162,9 @@ describe("adminLedgerPage", () => {
   });
 
   test("surfaces the 'showing recent' note only when truncated", () => {
-    const shown = adminLedgerPage(pageData({ truncated: true }), SESSION);
+    const shown = adminLedgerPage(pageData({ truncated: true }), OWNER_SESSION);
     expect(shown).toContain("Showing the 500 most recent money changes.");
-    const all = adminLedgerPage(pageData({ truncated: false }), SESSION);
+    const all = adminLedgerPage(pageData({ truncated: false }), OWNER_SESSION);
     expect(all).not.toContain("Showing the 500 most recent money changes.");
   });
 });

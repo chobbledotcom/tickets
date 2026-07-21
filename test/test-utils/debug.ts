@@ -54,13 +54,6 @@ export const makeDebugState = (
     provider: "",
     webhookConfigured: false,
   },
-  prune: {
-    addresses: "Never",
-    logins: "Never",
-    payments: "Never",
-    sessions: "Never",
-    strings: "Never",
-  },
   runtime: {
     arch: "",
     denoVersion: "",

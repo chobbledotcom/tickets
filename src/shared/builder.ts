@@ -22,12 +22,17 @@ import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider } from "#shared/bunny-db.ts";
 import { getDefaultDbProvider } from "#shared/config.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
-import type { DbProvider, HostingProvider } from "#shared/db/built-sites.ts";
+import type {
+  DbProvider,
+  HostingProvider,
+} from "#shared/db/built-sites/types.ts";
 import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { fetchText } from "#shared/fetch.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { errorResult } from "#shared/result.ts";
+import { generateScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { withSiteDb } from "#shared/site-db.ts";
 import { tryStep } from "#shared/try-step.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
@@ -102,6 +107,12 @@ export type BuildSiteResult =
       dbProvider: DbProvider;
     }
   | { ok: false; error: string };
+
+export type PreparedBuildSite = Extract<BuildSiteResult, { ok: true }> & {
+  scheduledTaskKey: string;
+};
+
+export type RetainPreparedSite = (site: PreparedBuildSite) => Promise<void>;
 
 type BuildSiteCredentials = { dbUrl: string; dbToken: string };
 
@@ -216,20 +227,20 @@ const buildSiteOnProvider = async (
   dbCredentials: BuildSiteCredentials,
   dbProvider: DbProvider,
   hostingProvider: HostingProvider,
+  retain: RetainPreparedSite,
 ): Promise<BuildSiteResult> => {
   const fullName = `Tickets - ${input.siteName}`;
   const encryptionKey = builderApi.generateEncryptionKey();
+  const scheduledTaskKey = generateScheduledTaskKey();
   const secrets: [string, string][] = [
     ...buildBaseSecrets(dbCredentials, encryptionKey),
+    ["SCHEDULED_TASK_KEY", scheduledTaskKey],
     ...collectHostSecrets(hostingProvider),
   ];
-  const result = await resolveHostingProvider(hostingProvider).createSite(
-    fullName,
-    code,
-    secrets,
-  );
+  const provider = resolveHostingProvider(hostingProvider);
+  const result = await provider.prepareSite(fullName, code, secrets);
   if (!result.ok) return result;
-  return {
+  const prepared: PreparedBuildSite = {
     dbProvider,
     dbToken: dbCredentials.dbToken,
     dbUrl: dbCredentials.dbUrl,
@@ -237,7 +248,20 @@ const buildSiteOnProvider = async (
     hostingId: result.value.hostingId,
     hostingProvider,
     ok: true,
+    scheduledTaskKey,
   };
+  try {
+    await retain(prepared);
+  } catch (error) {
+    return {
+      error: `Failed to retain site: ${errorMessage(error)}`,
+      ok: false,
+    };
+  }
+  const published = await provider.publishSite(result.value.hostingId, code);
+  if (!published.ok) return published;
+  const { scheduledTaskKey: _scheduledTaskKey, ...built } = prepared;
+  return built;
 };
 
 /**
@@ -246,6 +270,7 @@ const buildSiteOnProvider = async (
  */
 export const buildSite = async (
   input: BuildSiteInput,
+  retain: RetainPreparedSite,
 ): Promise<BuildSiteResult> => {
   // 1. Source the bundle code: caller-supplied or latest GitHub release
   const codeResult = await getBuildCode(input);
@@ -263,6 +288,7 @@ export const buildSite = async (
     dbCredentials,
     dbProvider,
     input.hostingProvider ?? "bunny",
+    retain,
   );
 };
 

@@ -1,28 +1,48 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { routeMainApp } from "#routes/app/routes.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { setAdminFeatureEnabled } from "#shared/db/admin-features.ts";
+import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { provisionTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
+import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicApi, enablePublicSite } from "#test-utils/settings.ts";
 
-const route = async (path: string, method = "GET"): Promise<Response> => {
+const routeRequest = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response> => {
   const response = await routeMainApp({
     method,
     path,
-    request: mockRequest(path, { method }),
+    request,
     server: undefined,
   });
   return response;
 };
 
-describeWithEnv("main app router", { db: true }, () => {
-  test("returns not found for an inherited object property", async () => {
-    expect((await route("/constructor")).status).toBe(404);
-  });
+const route = (path: string, method = "GET"): Promise<Response> =>
+  routeRequest(mockRequest(path, { method }), path, method);
 
+const routeRenewal = async (method: string): Promise<Response> => {
+  await insertBuiltSite("Route Renewal Site", "route-renewal.b-cdn.net");
+  const site = (await builtSites.getAll()).find(
+    ({ name }) => name === "Route Renewal Site",
+  );
+  if (!site) throw new Error("Route renewal site not found");
+  const { token } = await provisionTestBuiltSite(site.id);
+  return routeRequest(
+    mockRequest(`/renew?t=${encodeURIComponent(token)}`, { method }),
+    "/renew",
+    method,
+  );
+};
+
+describeWithEnv("main app router", { db: true }, () => {
   test("returns not found for an inherited object property", async () => {
     expect((await route("/constructor")).status).toBe(404);
   });
@@ -50,6 +70,10 @@ describeWithEnv("main app router", { db: true }, () => {
   test("does not serve a public page below its exact path", async () => {
     await enablePublicSite();
     expect((await route("/listings/extra")).status).toBe(404);
+  });
+
+  test("does not expose scheduled maintenance through the app router", async () => {
+    expect((await route("/scheduled", "POST")).status).toBe(404);
   });
 
   test("turns a null result from a known prefix into not found", async () => {
@@ -96,6 +120,35 @@ describeWithEnv("main app router", { db: true }, () => {
     await settings.update.businessEmail("owner@example.com");
     await settings.update.contactFormEnabled(true);
     expect((await route("/contact", "POST")).status).toBe(302);
+  });
+
+  test("routes configured address lookup on its exact path", async () => {
+    await settings.update.addressLookup.provider("easypostcodes");
+    await settings.update.addressLookup.apiKey("test-api-key");
+
+    expect((await route("/address-lookup")).status).toBe(400);
+  });
+
+  test("routes renewal GET requests", async () => {
+    expect((await routeRenewal("GET")).status).toBe(200);
+  });
+
+  test("routes renewal POST requests", async () => {
+    expect((await routeRenewal("POST")).status).toBe(200);
+  });
+
+  test("routes unsubscribe GET requests", async () => {
+    expect((await route("/unsubscribe")).status).toBe(200);
+  });
+
+  test("routes unsubscribe POST requests", async () => {
+    const request = mockFormRequest("/unsubscribe", {
+      csrf_token: await signCsrfToken(),
+    });
+
+    expect((await routeRequest(request, "/unsubscribe", "POST")).status).toBe(
+      302,
+    );
   });
 
   test("serves the read-only information page only for GET", async () => {

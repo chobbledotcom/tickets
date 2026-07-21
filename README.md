@@ -24,12 +24,13 @@ This is the recommended way to deploy it. Fork the repo, connect it to Bunny, an
    | `DB_URL`            | Your Bunny database URL            |
    | `DB_TOKEN`          | Your Bunny database auth token     |
    | `DB_ENCRYPTION_KEY` | 32-byte base64-encoded AES-256 key |
+   | `SCHEDULED_TASK_KEY` | Unique 32-byte base64url maintenance key |
 
 5. **Add GitHub Actions secrets** to your repository: `BUNNY_SCRIPT_ID` and `BUNNY_ACCESS_KEY`
 
 Pushes to `main` trigger the deploy workflow automatically. The database schema auto-migrates on first request. Visit `/setup/` to set your admin password and currency.
 
-For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny secrets. See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables.
+For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny secrets. Configure an external monitor using the [scheduled maintenance guide](docs/scheduled-maintenance.md). See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables.
 
 ---
 
@@ -355,7 +356,7 @@ Optional:
 | `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
 | `DEBUG_KEY` | Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request carrying a matching `X-Debug-Key` header gets a small JSON payload (build commit, build timestamp, server time). Unset ⇒ the verbose response is disabled. |
 
-**Database maintenance:** pruning of expired sessions, rate-limit rows, payment idempotency records and (optionally) orphaned attendees runs automatically while serving requests, self-gated to roughly once per `PRUNE_INTERVAL_HOURS` (default 24) per table — so a site with regular traffic needs no setup. To guarantee pruning on a quiet site, point a cron at `GET /scheduled` — a dynamic route that prunes on every hit (static asset URLs such as `/favicon.ico` are served before pruning runs, so they won't do). On a builder, `POST /scheduled` additionally pokes the least-recently-pruned built site (a plain request that triggers _its_ prune), so one cron on the master keeps quiet client sites pruned too — run it often enough to cover the fleet within `PRUNE_INTERVAL_HOURS` (e.g. hourly handles ~24 clients at the default).
+**Database maintenance:** pruning of expired sessions, rate-limit rows, payment records, and optional orphan attendees runs automatically while serving requests. For quiet sites, configure an external monitor to send an authenticated `POST /scheduled` to each site at least every 15 minutes. Each site needs its own key. The builder does not contact child sites for the monitor. See the [scheduled maintenance guide](docs/scheduled-maintenance.md) for setup and CDN rules.
 
 **Backups:** every table is dumped to a single `.zip`, with table reads keyset-paginated so no single response trips libsqld's "Response is too large" payload cap (the server limit behind Bunny's databases). Backups run **out-of-band**, not inside the migration: a full dump of a ~31-table schema can't fit alongside a migration within one edge request's [50-subrequest budget](https://docs.bunny.net/scripting/limits), so migrations just migrate, and a backup is taken by GitHub Actions (or `deno task backup`) beforehand. To enforce that, **`/admin/update` and the per-site update button refuse to deploy unless a backup of that database was taken in the last hour.**
 

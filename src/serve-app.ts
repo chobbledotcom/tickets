@@ -14,6 +14,7 @@ import { once } from "#fp";
 import { handleRequest } from "#routes";
 import { temporaryErrorResponse } from "#routes/response.ts";
 import { validateBootChecks } from "#shared/boot-checks.ts";
+import { seedEffectiveDomainHost } from "#shared/config.ts";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
 import {
@@ -22,6 +23,10 @@ import {
   logDebug,
   logError,
 } from "#shared/logger.ts";
+import {
+  scheduledAccessFromEnv,
+  scheduledResponse,
+} from "#shared/scheduled-access.ts";
 import { initSentry } from "#shared/sentry.ts";
 
 const runtimeLoadFinishedAt = performance.now();
@@ -75,11 +80,20 @@ const initialize = once((): Promise<boolean> => {
  * turned into a generic 503 so a single bad request never crashes the isolate.
  */
 export const serveHandler = async (request: Request): Promise<Response> => {
+  const scheduledAccess = scheduledAccessFromEnv(request);
+  if (scheduledAccess.kind === "rejected") {
+    return scheduledResponse(scheduledAccess.status);
+  }
+  const url = new URL(request.url);
+  if (scheduledAccess.kind === "authorized") seedEffectiveDomainHost(url);
   try {
     await initialize();
+    if (scheduledAccess.kind === "authorized") {
+      const { handleScheduledRequest } = await import("#routes/scheduled.ts");
+      return await handleScheduledRequest(request);
+    }
     return await handleRequest(request);
   } catch (error) {
-    const url = new URL(request.url);
     logError({
       code: ErrorCode.CDN_REQUEST,
       detail: `unhandled ${formatRequestError(
@@ -89,6 +103,8 @@ export const serveHandler = async (request: Request): Promise<Response> => {
       )}`,
       error,
     });
-    return temporaryErrorResponse();
+    return scheduledAccess.kind === "authorized"
+      ? scheduledResponse(503)
+      : temporaryErrorResponse();
   }
 };

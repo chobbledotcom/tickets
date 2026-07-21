@@ -1,6 +1,6 @@
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
 import type {
   Answer,
@@ -227,6 +227,8 @@ export const testBuiltSite = (
   readOnlyFrom: "",
   renewalToken: null,
   renewalTokenIndex: null,
+  scheduledTaskKey: null,
+  siteDataRevision: 0,
   siteUrl: "https://test.b-cdn.net",
   updates: "release",
   ...overrides,

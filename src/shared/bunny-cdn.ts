@@ -12,7 +12,7 @@ import {
   getBunnyScriptId,
 } from "#shared/config.ts";
 import { type FetchResult, fetchText, parseApiError } from "#shared/fetch.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { delay } from "#shared/now.ts";
 import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -344,10 +344,6 @@ const registerBunnySubdomainImpl = async (
     Value: target,
   };
   const dnsUrl = `${BUNNY_API_BASE}/dnszone/${zoneId}/records`;
-  logDebug(
-    "Domain",
-    `Adding DNS CNAME: url=${dnsUrl} name=${recordName} value=${target} fullDomain=${fullDomain}`,
-  );
   const addResponse = await bunnyJsonRequest(
     dnsUrl,
     JSON.stringify(dnsRecordBody),
@@ -382,12 +378,6 @@ const registerBunnySubdomainImpl = async (
     attempt < CERT_RETRY_COUNT && !cdnResult.ok;
     attempt++
   ) {
-    logDebug(
-      "Domain",
-      `Certificate not ready, retrying in ${certRetryDelay(
-        attempt,
-      )}ms (attempt ${attempt + 1}/${CERT_RETRY_COUNT})`,
-    );
     await bunnyCdnApi.delay(certRetryDelay(attempt));
     cdnResult = await bunnyCdnApi.validateCustomDomain(fullDomain);
   }
@@ -412,7 +402,6 @@ const deleteDnsRecordImpl = async (
   recordId: number,
 ): Promise<BunnyApiResult> => {
   const url = `${BUNNY_API_BASE}/dnszone/${zoneId}/records/${recordId}`;
-  logDebug("Domain", `Deleting DNS record: ${url}`);
   const response = await bunnyKeyRequest(url, "DELETE");
   return okOrError(response, "Delete DNS record");
 };
@@ -587,9 +576,16 @@ const deployScriptCodeImpl = async (
 // Hosting provider interface implementation (site builder + secrets backfill)
 // ---------------------------------------------------------------------------
 
+const bunnyVoidResult = (result: BunnyApiResult): Result<void> =>
+  result.ok ? okResult(undefined) : errorResult(result.error);
+
 export const bunnyHostingProvider: HostingProviderApi = {
   configEnvVar: "BUNNY_API_KEY",
-  async createSite(name, code, secrets) {
+  async getSecretNames(hostingId) {
+    const result = await bunnyCdnApi.listEdgeScriptSecrets(Number(hostingId));
+    return result.ok ? okResult(result.secrets.map((s) => s.Name)) : result;
+  },
+  async prepareSite(name, code, secrets) {
     const createResult = await bunnyCdnApi.createEdgeScript(name, code);
     if (!createResult.ok) return createResult;
     const { scriptId, pullZoneId, defaultHostname } = createResult;
@@ -613,13 +609,12 @@ export const bunnyHostingProvider: HostingProviderApi = {
           ok: false as const,
         };
     }
-    const publishResult = await bunnyCdnApi.publishEdgeScript(scriptId);
-    if (!publishResult.ok) return publishResult;
     return okResult({ defaultHostname, hostingId: String(scriptId) });
   },
-  async getSecretNames(hostingId) {
-    const result = await bunnyCdnApi.listEdgeScriptSecrets(Number(hostingId));
-    return result.ok ? okResult(result.secrets.map((s) => s.Name)) : result;
+  async publishSite(hostingId) {
+    return bunnyVoidResult(
+      await bunnyCdnApi.publishEdgeScript(Number(hostingId)),
+    );
   },
   async setSecrets(hostingId, secrets) {
     const scriptId = Number(hostingId);
@@ -673,7 +668,5 @@ export const getCdnHostname = (): Promise<CdnHostnameResult> =>
 export const deployScriptCode = async (
   code: string,
   scriptId?: number | string,
-): Promise<Result<void>> => {
-  const result = await bunnyCdnApi.deployScriptCode(code, scriptId);
-  return result.ok ? okResult(undefined) : errorResult(result.error);
-};
+): Promise<Result<void>> =>
+  bunnyVoidResult(await bunnyCdnApi.deployScriptCode(code, scriptId));
