@@ -15,6 +15,7 @@ import {
   queryAll,
   queryBatch,
   queryOne,
+  queryOnePrimary,
   rawSql,
   requireOne,
   requireOnePrimary,
@@ -219,6 +220,18 @@ describeWithEnv("db > client", { db: true }, () => {
     ).rejects.toThrow(
       "Required primary query returned no rows: SELECT value FROM settings WHERE key = ?",
     );
+  });
+
+  test("queryOnePrimary returns the single matching row from the primary", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('query_one_primary', 'found')",
+    );
+    const row = await queryOnePrimary<{ value: string }>(
+      "SELECT value FROM settings WHERE key = ?",
+      ["query_one_primary"],
+    );
+    // Exactly one row must surface as that row (not null, not the next one).
+    expect(row?.value).toBe("found");
   });
 
   test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {

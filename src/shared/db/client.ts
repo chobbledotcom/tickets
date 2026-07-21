@@ -98,7 +98,7 @@ export const extractUpdateColumns = (
  * `WITH ... AS (...) <verb> ...` is stripped to its `<verb> ...` tail so the
  * write regexes can anchor on the real verb — a CTE-led INSERT/UPDATE/DELETE/
  * REPLACE is a write, a CTE-led SELECT stays a read. Shared by
- * {@link isWriteSql} (the read/write split the upstream retry hinges on) and
+ * {@link isReadSql} (the read/write split the upstream retry hinges on) and
  * {@link invalidateForSql} (table/verb classification) so the two never drift
  * on what counts as a write.
  */
@@ -267,14 +267,20 @@ const isTransientUpstreamError = (error: unknown): boolean =>
   error.code === "SERVER_ERROR" &&
   TRANSIENT_UPSTREAM_STATUS_RE.test(error.message);
 
+/** The one statement shape the upstream retry may replay: a SELECT, possibly
+ *  CTE-led. Anything else — a write, DDL (CREATE/ALTER/DROP), a PRAGMA — may
+ *  have side effects that landed before the gateway timed out, so the gate
+ *  fails closed: only a positively recognized read retries. */
+const READ_SQL_RE = /^\s*select\b/i;
+
 /**
- * Whether a statement mutates the database — the CTE prefix stripped first so
- * a `WITH ... INSERT/UPDATE/DELETE/REPLACE` is detected as a write, not misread
- * as a read. Shares the strip with {@link invalidateForSql} so the read/write
- * split the upstream retry hinges on stays in lockstep with cache invalidation.
+ * Whether a statement is a read the upstream retry may replay — the CTE prefix
+ * stripped first so a `WITH ... SELECT` is detected as a read, not misread as
+ * an unknown statement. Shares the strip with {@link invalidateForSql} so the
+ * read/write split the upstream retry hinges on stays in lockstep with cache
+ * invalidation.
  */
-const isWriteSql = (sql: string): boolean =>
-  WRITE_TABLE_RE.test(writeSqlOf(sql));
+const isReadSql = (sql: string): boolean => READ_SQL_RE.test(writeSqlOf(sql));
 
 /**
  * Retry `run` while it hits a transient failure, backing off between attempts
@@ -310,9 +316,9 @@ const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
   trackSql(sql, () =>
     retryOnTransientDatabaseError(
       () => (args ? getDb().execute({ args, sql }) : getDb().execute(sql)),
-      // A 5xx on a write may have committed before the gateway timed out, so
-      // only reads retry upstream gateway errors.
-      { retryUpstream: !isWriteSql(sql) },
+      // A 5xx on anything but a read may have side effects that committed
+      // before the gateway timed out, so only reads retry upstream errors.
+      { retryUpstream: isReadSql(sql) },
     ),
   );
 
@@ -566,23 +572,38 @@ export const executeBatchWithoutCacheInvalidation = async (
 /** A read/write batch with a fixed mode, or one chosen when it runs. */
 type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
 
+/** The read batch executors retry a fleeting upstream 5xx on the strength of
+ *  every statement being a side-effect-free SELECT, so a write smuggled into
+ *  one is rejected loudly here rather than risk a double-apply on a retry. */
+const requireReadStatements = (statements: SqlStatement[]): void => {
+  for (const { sql } of statements) {
+    if (!isReadSql(sql)) {
+      throw new Error(
+        `Read-only batch executors accept only SELECT statements: ${sql}`,
+      );
+    }
+  }
+};
+
 /** Create a batch executor for a fixed or per-call transaction mode. `retryUpstream`
  *  is a property of the executor, not re-derived from each statement: the read
  *  executors ({@link queryBatch}, {@link queryBatchPrimary}) always retry a
- *  fleeting upstream 5xx (their statements are SELECTs by contract — no side
+ *  fleeting upstream 5xx (their statements are validated SELECTs — no side
  *  effects to double-apply); the write executors never do. */
 const batchFor =
   (
     mode: TransactionMode | (() => TransactionMode),
     retryUpstream: boolean,
   ): BatchExecutor =>
-  (statements) =>
-    runBatch(
+  async (statements) => {
+    if (retryUpstream) requireReadStatements(statements);
+    return runBatch(
       statements,
       typeof mode === "function" ? mode() : mode,
       true,
       retryUpstream,
     );
+  };
 
 /** Local SQLite has no replica and write mode would only take a needless lock. */
 const primaryReadMode = (): TransactionMode => {

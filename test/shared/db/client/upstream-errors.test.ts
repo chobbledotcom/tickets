@@ -130,13 +130,23 @@ describe("db > client transient upstream retry", () => {
     ["a CTE-led INSERT", "WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x"],
     ["a CTE-led UPDATE", "WITH x AS (SELECT 1) UPDATE t SET a = ?"],
     ["a CTE-led DELETE", "WITH x AS (SELECT 1) DELETE FROM t USING x"],
+    [
+      "a CTE-led REPLACE",
+      "WITH x AS (SELECT 1) REPLACE INTO t SELECT * FROM x",
+    ],
+    ["a CREATE TABLE", "CREATE TABLE t (id INTEGER)"],
+    ["an ALTER TABLE", "ALTER TABLE t ADD COLUMN x INTEGER"],
+    ["a DROP TABLE", "DROP TABLE t"],
+    ["a PRAGMA", "PRAGMA table_info(t)"],
   ] as const) {
     test(`a fleeting upstream 504 on ${label} is not retried`, async () => {
-      // A 5xx on a write may have committed before the gateway timed out;
-      // replaying it could double-apply, so writes never retry upstream errors
-      // even when a read of the same shape would. Every CTE-led write — INSERT,
-      // UPDATE, or DELETE — is a write: the CTE prefix must not trip the
-      // read-only retry gate.
+      // A 5xx on anything but a read may have committed its side effects
+      // before the gateway timed out; replaying it could double-apply, so
+      // only positively recognized SELECTs retry upstream errors. Every
+      // CTE-led write — INSERT, UPDATE, DELETE, or REPLACE — is a write: the
+      // CTE prefix must not trip the read-only retry gate. DDL and PRAGMA
+      // statements are no more reads than writes are, so they fail closed the
+      // same way.
       let attempts = 0;
       setDb(
         clientWith(() => {
@@ -150,6 +160,26 @@ describe("db > client transient upstream retry", () => {
       expect(attempts).toBe(1);
     });
   }
+
+  test("a fleeting upstream 504 on a CTE-led SELECT retries and succeeds", async () => {
+    // The CTE prefix must not hide a read either: a WITH ... SELECT is a
+    // side-effect-free read, so it takes the upstream retry like a bare one.
+    using time = new FakeTime();
+    let attempts = 0;
+    setDb(
+      clientWith(() => {
+        attempts++;
+        return attempts === 1
+          ? Promise.reject(upstreamError(504))
+          : Promise.resolve(emptyResultSet());
+      }),
+    );
+    const promise = execute("WITH x AS (SELECT 1) SELECT * FROM x");
+    await time.tickAsync(50);
+    const result = await promise;
+    expect(result.rowsAffected).toBe(0);
+    expect(attempts).toBe(2);
+  });
 
   for (const [label, statements] of [
     ["a write batch", [{ args: [], sql: "INSERT INTO t (x) VALUES (1)" }]],
@@ -214,6 +244,26 @@ describe("db > client transient upstream retry", () => {
       const result = await promise;
       expect(result).toHaveLength(1);
       expect(attempts).toBe(2);
+    });
+
+    test(`a ${label} batch holding a write is rejected before it runs`, async () => {
+      // The read executors retry a 5xx on the strength of every statement
+      // being a side-effect-free SELECT, so a write fails loudly instead of
+      // running — the rejection must come before any round trip, not after
+      // one whose side effects may have landed.
+      let attempts = 0;
+      setDb(
+        clientWithBatch(() => {
+          attempts++;
+          return Promise.resolve([emptyResultSet()]);
+        }),
+      );
+      await expect(
+        batch([{ args: [], sql: "INSERT INTO t (x) VALUES (1)" }]),
+      ).rejects.toThrow(
+        "Read-only batch executors accept only SELECT statements",
+      );
+      expect(attempts).toBe(0);
     });
   }
 });
