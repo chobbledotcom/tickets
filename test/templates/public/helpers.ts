@@ -3,8 +3,8 @@ import { buildTicketListing } from "#shared/booking/model.ts";
 import type { PagePackage } from "#shared/booking/page-packages.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
-import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { pagePackage as sharedPagePackage } from "#test/lib/package-cap-fixtures.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** A ticket-page listing row built from column overrides (not hidden, no

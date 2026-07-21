@@ -96,7 +96,10 @@ describe("adminModifierNewPage", () => {
 
 describe("adminModifierDeletePage", () => {
   test("renders a confirmation form keyed on the modifier name", () => {
-    const html = adminModifierDeletePage(mod({ name: "Loyalty" }), OWNER_SESSION);
+    const html = adminModifierDeletePage(
+      mod({ name: "Loyalty" }),
+      OWNER_SESSION,
+    );
     expect(html).toContain("Delete Modifier");
     expect(html).toContain("Loyalty");
     expect(html).toContain('name="confirm_identifier"');

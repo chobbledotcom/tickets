@@ -4,8 +4,8 @@ import {
   type CsvListingInfo,
   generateAttendeesCsv,
 } from "#routes/admin/attendees-csv.ts";
-import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectTestAttendeeCsvColumns } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
 beforeAll(setupAdminPageTest);

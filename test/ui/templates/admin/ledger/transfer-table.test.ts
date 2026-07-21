@@ -13,11 +13,7 @@ import {
 } from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-import {
-  names,
-  renderLedger,
-  transfer,
-} from "./helpers.ts";
+import { names, renderLedger, transfer } from "./helpers.ts";
 
 describe("LedgerTable", () => {
   beforeAll(setupAdminPageTest);

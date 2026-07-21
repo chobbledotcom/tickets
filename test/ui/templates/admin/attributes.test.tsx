@@ -226,7 +226,11 @@ describe("attribute delete pages", () => {
   });
 
   test("option delete page marks the nav active and posts to delete", () => {
-    const html = adminAttributeOptionDeletePage(ATTRIBUTE, OPTION, OWNER_SESSION);
+    const html = adminAttributeOptionDeletePage(
+      ATTRIBUTE,
+      OPTION,
+      OWNER_SESSION,
+    );
     expect(html).toContain('class="active" href="/admin/attributes"');
     expect(html).toContain('action="/admin/attributes/1/options/10/delete"');
     expect(html).toContain("This will remove &quot;Red&quot; from Colour");

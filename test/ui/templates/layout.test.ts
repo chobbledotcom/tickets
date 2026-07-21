@@ -203,9 +203,7 @@ describe("adminLoginPage", () => {
 
 describe("AdminNav image storage gating", () => {
   test("shows Images only when file storage is enabled", () => {
-    const hasImagesLink = (
-      session: AdminSession,
-    ): boolean =>
+    const hasImagesLink = (session: AdminSession): boolean =>
       String(AdminNav({ active: "/admin/", session })).includes(
         'href="/admin/images"',
       );

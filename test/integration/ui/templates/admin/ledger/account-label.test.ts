@@ -1,13 +1,12 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
-import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
-
 import {
   names,
   renderLedger,
   transfer,
 } from "#test/ui/templates/admin/ledger/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 describe("money account labels", () => {
   beforeAll(setupAdminPageTest);

@@ -57,7 +57,12 @@ describe("adminBuilderPage", () => {
   });
 
   test("renders success message", () => {
-    const html = adminBuilderPage(OWNER_SESSION, [], undefined, "Site created!");
+    const html = adminBuilderPage(
+      OWNER_SESSION,
+      [],
+      undefined,
+      "Site created!",
+    );
     expect(html).toContain("Site created!");
     expect(html).toContain('class="success"');
   });

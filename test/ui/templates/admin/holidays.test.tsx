@@ -75,7 +75,10 @@ describe("holiday templates", () => {
     });
 
     test("renders the error flash when an error is passed", () => {
-      const html = getHolidayPages().newPage(OWNER_SESSION, "Start Date is required");
+      const html = getHolidayPages().newPage(
+        OWNER_SESSION,
+        "Start Date is required",
+      );
       expect(html).toContain("Start Date is required");
     });
   });
