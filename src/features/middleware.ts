@@ -158,11 +158,9 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   if (request.method !== "POST") {
     return true;
   }
-  // The scheduled maintenance ping and the inter-instance credentials endpoint
-  // carry no body and use no cookie/session auth (the latter authenticates via a
-  // bearer key), so there's nothing to CSRF-protect — accept a bare
-  // `curl -X POST` with no content-type.
-  if (path === "/scheduled" || path === "/instance/site-credentials") {
+  // The inter-instance credentials endpoint carries no body and authenticates
+  // via a bearer key, so there is nothing to CSRF-protect.
+  if (path === "/instance/site-credentials") {
     return true;
   }
   const contentType = lowerContentType(request);

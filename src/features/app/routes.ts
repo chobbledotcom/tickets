@@ -172,10 +172,6 @@ const loadAdminApiRoutes = once(async () =>
   createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
 );
 
-const loadScheduledRoutes = once(async () =>
-  createRouter((await import("#routes/scheduled.ts")).scheduledRoutes),
-);
-
 const loadInstanceRoutes = once(async () =>
   createRouter((await import("#routes/instance.ts")).instanceRoutes),
 );
@@ -387,7 +383,6 @@ const prefixHandlers: Record<string, PrefixRoute> = {
     ),
     lazyRoute(exactRouteLoaders.renewal),
   ),
-  scheduled: prefixRoute([], lazyRoute(loadScheduledRoutes)),
   sms: prefixRoute([], lazyRoute(routeLoaders.smsWebhook)),
   t: prefixRoute(
     publicMessageGroups("listing-qr", "payment", "tickets"),

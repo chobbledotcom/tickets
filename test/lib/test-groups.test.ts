@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withEnv } from "#test-utils/env.ts";
-import { withTempDir } from "#test-utils/files.ts";
-import { rethrowUnlessNotFound } from "../../scripts/not-found.ts";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
 import {
   collectTestFiles,
   defaultGroupCount,
@@ -15,7 +13,9 @@ import {
   rethrowUnlessLeftoverDir,
   shardRoundRobin,
   writeTestGroups,
-} from "../../scripts/test-groups.ts";
+} from "#scripts/test-groups.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { withTempDir } from "#test-utils/files.ts";
 
 describe("test-groups", () => {
   describe("mustRunAlone", () => {

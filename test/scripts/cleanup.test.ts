@@ -6,7 +6,7 @@ import {
   removeIfPresent,
   runCleanups,
   withCleanup,
-} from "../../scripts/cleanup.ts";
+} from "#scripts/cleanup.ts";
 
 const failingCleanup =
   (calls: string[], name: string, error: unknown) => () => {

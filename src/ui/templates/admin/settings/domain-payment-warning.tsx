@@ -14,7 +14,7 @@ import { rawParagraph } from "#templates/components/raw-paragraph.tsx";
 export const DomainPaymentWebhookWarning = ({
   paymentProvider,
 }: {
-  paymentProvider: string;
+  paymentProvider: string | null;
 }): JSX.Element | null => {
   if (paymentProvider !== "square" && paymentProvider !== "stripe") return null;
   return (

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { prunePayments } from "#shared/db/prune.ts";
+import { runDatabasePruning } from "#shared/db/prune.ts";
 import { PRUNE_PAYMENTS_RETENTION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -31,7 +31,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
   test("deletes old finalized payments with no useful refund reference", async () => {
     await insertFinalizedPayment("sess_old", oldEnoughToPrune());
 
-    await prunePayments();
+    await runDatabasePruning();
 
     expect(await paymentExists("sess_old")).toBe(false);
   });
@@ -39,7 +39,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
   test("keeps old finalized payments while their refund reference is useful", async () => {
     await insertOldReferencedPayment("sess_refund_useful");
 
-    await prunePayments();
+    await runDatabasePruning();
 
     expect(await paymentExists("sess_refund_useful")).toBe(true);
   });
@@ -48,7 +48,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     const attendeeId = await insertOldReferencedPayment("sess_refund_done");
     await postRefundCash(attendeeId);
 
-    await prunePayments();
+    await runDatabasePruning();
 
     expect(await paymentExists("sess_refund_done")).toBe(false);
   });
@@ -57,7 +57,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     const recent = new Date(nowMs() - 1000).toISOString();
     await insertFinalizedPayment("sess_recent", recent);
 
-    await prunePayments();
+    await runDatabasePruning();
 
     expect(await paymentExists("sess_recent")).toBe(true);
   });
@@ -65,7 +65,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
   test("leaves unfinalized reservations alone regardless of age", async () => {
     await insertUnfinalizedPayment("sess_unfinalized", oldEnoughToPrune());
 
-    await prunePayments();
+    await runDatabasePruning();
 
     expect(await paymentExists("sess_unfinalized")).toBe(true);
   });
@@ -73,7 +73,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
   test("deletes recorded terminal failures older than retention window", async () => {
     await insertFailedPayment("sess_failed_old", oldEnoughToPrune());
 
-    await prunePayments();
+    await runDatabasePruning();
 
     expect(await paymentExists("sess_failed_old")).toBe(false);
   });
@@ -82,7 +82,7 @@ describeWithEnv("db > prunePayments", { db: true }, () => {
     const recent = new Date(nowMs() - 1000).toISOString();
     await insertFailedPayment("sess_failed_recent", recent);
 
-    await prunePayments();
+    await runDatabasePruning();
 
     expect(await paymentExists("sess_failed_recent")).toBe(true);
   });

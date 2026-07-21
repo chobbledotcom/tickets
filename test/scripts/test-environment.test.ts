@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withEnvironment } from "../../scripts/test-environment.ts";
+import { withEnvironment } from "#scripts/test-environment.ts";
 
 const HOST = "STRIPE_MOCK_HOST";
 const PORT = "STRIPE_MOCK_PORT";

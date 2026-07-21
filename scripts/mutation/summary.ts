@@ -9,8 +9,8 @@
  * running inside GitHub Actions.
  */
 
-import { bold, dim, green, red, yellow } from "../precommit/colors.ts";
-import { projectRoot } from "../project-root.ts";
+import { bold, dim, green, red, yellow } from "#scripts/precommit/colors.ts";
+import { projectRoot } from "#scripts/project-root.ts";
 import type { Mutant } from "./generate.ts";
 import type { MutationPhase, PhaseTiming } from "./phases.ts";
 

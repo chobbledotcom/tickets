@@ -7,22 +7,25 @@
  */
 
 import { stop, transform } from "esbuild";
-import { utf8ByteLength } from "../../../src/shared/bytes.ts";
-import { ASSETS } from "../../../src/shared/images/wasm-assets.ts";
-import { minifyCss } from "../../css-minify.ts";
-import { readStaticAssets } from "../../edge-bundle-lib.ts";
+import { minifyCss } from "#scripts/css-minify.ts";
+import { readStaticAssets } from "#scripts/edge-bundle-lib.ts";
 import {
   buildAssetPathsModule,
   buildAssetsModule,
   type PublishedAssetUrls,
-} from "../../edge-bundle-modules.ts";
+} from "#scripts/edge-bundle-modules.ts";
 import {
   ASSET_DEFS,
   buildCdnAssets,
   CDN_ASSET_DEFS,
-} from "../../edge-cdn-assets.ts";
-import { buildRemoteModule, wasmFilename } from "../../inline-jsquash-wasm.ts";
-import { cleanCdnUrl } from "../../static-cdn.ts";
+} from "#scripts/edge-cdn-assets.ts";
+import {
+  buildRemoteModule,
+  wasmFilename,
+} from "#scripts/inline-jsquash-wasm.ts";
+import { cleanCdnUrl } from "#scripts/static-cdn.ts";
+import { utf8ByteLength } from "#src/shared/bytes.ts";
+import { ASSETS } from "#src/shared/images/wasm-assets.ts";
 import { countJavaScriptAstNodes } from "./javascript-ast.ts";
 import {
   applicationArea,

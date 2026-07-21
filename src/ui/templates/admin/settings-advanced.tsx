@@ -57,12 +57,13 @@ export type AdvancedSettingsPageState = {
   theme: Theme;
   listingColumnOrder: string;
   attendeeColumnOrder: string;
-  paymentProvider: string;
+  paymentProvider: string | null;
   smsGatewayUsername: string;
   smsGatewayBaseUrl: string;
   smsGatewayPasswordConfigured: boolean;
   smsGatewayPassphraseConfigured: boolean;
   smsGatewayWebhookConfigured: boolean;
+  scheduledTaskKey: string | undefined;
 };
 
 export const adminAdvancedSettingsPage = (
@@ -94,6 +95,16 @@ export const adminAdvancedSettingsPage = (
       {AppleWalletForm(s)}
       {SmsGatewayForm(s)}
       {AddressLookupForm(s)}
+
+      <article class="prose">
+        <h2>{t("settings.advanced.scheduled_title")}</h2>
+        <p>{t("settings.advanced.scheduled_intro")}</p>
+        {s.scheduledTaskKey ? (
+          <code>{s.scheduledTaskKey}</code>
+        ) : (
+          <p>{t("settings.advanced.scheduled_unset")}</p>
+        )}
+      </article>
 
       <ResetDatabaseForm
         action="/admin/settings/reset-database"

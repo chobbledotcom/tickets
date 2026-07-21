@@ -1,18 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { AdminSession } from "#shared/types.ts";
 import {
   adminBuilderPage,
   type BuiltSiteDisplay,
 } from "#templates/admin/builder.tsx";
-
-const SESSION: AdminSession = {
-  adminLevel: "owner",
-};
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 
 describe("adminBuilderPage", () => {
   test("renders form fields", () => {
-    const html = adminBuilderPage(SESSION, []);
+    const html = adminBuilderPage(OWNER_SESSION, []);
     expect(html).toContain("Site Name");
     expect(html).toContain("Database URL");
     expect(html).toContain("Database Token");
@@ -23,7 +19,7 @@ describe("adminBuilderPage", () => {
   });
 
   test("renders empty state when no sites", () => {
-    const html = adminBuilderPage(SESSION, []);
+    const html = adminBuilderPage(OWNER_SESSION, []);
     expect(html).toContain("No sites have been built yet");
   });
 
@@ -32,7 +28,7 @@ describe("adminBuilderPage", () => {
       { created: "1 Jan 2026", name: "Alpha", siteUrl: "alpha.b-cdn.net" },
       { created: "2 Jan 2026", name: "Beta", siteUrl: "beta.b-cdn.net" },
     ];
-    const html = adminBuilderPage(SESSION, sites);
+    const html = adminBuilderPage(OWNER_SESSION, sites);
     expect(html).toContain("Alpha");
     expect(html).toContain("alpha.b-cdn.net");
     expect(html).toContain("Beta");
@@ -49,25 +45,30 @@ describe("adminBuilderPage", () => {
         siteUrl: "https://test.b-cdn.net",
       },
     ];
-    const html = adminBuilderPage(SESSION, sites);
+    const html = adminBuilderPage(OWNER_SESSION, sites);
     expect(html).toContain('href="https://test.b-cdn.net"');
     expect(html).toContain('target="_blank"');
   });
 
   test("renders error message", () => {
-    const html = adminBuilderPage(SESSION, [], "Something went wrong");
+    const html = adminBuilderPage(OWNER_SESSION, [], "Something went wrong");
     expect(html).toContain("Something went wrong");
     expect(html).toContain('class="error"');
   });
 
   test("renders success message", () => {
-    const html = adminBuilderPage(SESSION, [], undefined, "Site created!");
+    const html = adminBuilderPage(
+      OWNER_SESSION,
+      [],
+      undefined,
+      "Site created!",
+    );
     expect(html).toContain("Site created!");
     expect(html).toContain('class="success"');
   });
 
   test("renders page title", () => {
-    const html = adminBuilderPage(SESSION, []);
+    const html = adminBuilderPage(OWNER_SESSION, []);
     expect(html).toContain("Site Builder");
   });
 });

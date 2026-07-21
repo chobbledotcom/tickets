@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import {
   CompactTapReporter,
   hasReporterArg,
-} from "../../scripts/compact-test-reporter.ts";
+} from "#scripts/compact-test-reporter.ts";
 
 const consume = (reporter: CompactTapReporter, lines: string[]): void => {
   for (const line of lines) reporter.consumeLine(line);

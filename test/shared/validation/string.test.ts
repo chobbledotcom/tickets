@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import * as v from "valibot";
 import {
   isNonEmptyString,
   type NonEmptyString,
+  NonEmptyTextSchema,
   nonEmptyString,
   parseNonEmptyString,
 } from "#shared/validation/string.ts";
@@ -28,5 +30,10 @@ describe("validation/string", () => {
     expect(() => nonEmptyString(empty, "image filename")).toThrow(
       "image filename must be non-empty",
     );
+  });
+
+  test("validates non-empty text without changing its string type", () => {
+    expect(v.parse(NonEmptyTextSchema, "ticket-token")).toBe("ticket-token");
+    expect(() => v.parse(NonEmptyTextSchema, "")).toThrow();
   });
 });

@@ -8,6 +8,11 @@ import {
   siteDbApi,
   withSiteDb,
 } from "#shared/site-db.ts";
+import {
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
 
 /** Build an in-memory libsql client seeded with a settings table. */
 const seededClient = async (rows: [string, string][]): Promise<Client> => {
@@ -33,6 +38,7 @@ describe("hasSiteDbCredentials", () => {
       false,
     );
     expect(hasSiteDbCredentials({ dbToken: "t", dbUrl: "" })).toBe(false);
+    expect(hasSiteDbCredentials({ dbToken: "", dbUrl: "" })).toBe(false);
   });
 });
 
@@ -67,6 +73,28 @@ describe("withSiteDb", () => {
       createStub.restore();
     }
   });
+
+  test("closes the client after a successful read", async () => {
+    const client = await seededClient([]);
+    let closes = 0;
+    const close = client.close.bind(client);
+    const closeStub = stub(client, "close", () => {
+      closes++;
+    });
+    const createStub = stub(siteDbApi, "createClient", () => client);
+    try {
+      expect(
+        await withSiteDb({ dbToken: "token", dbUrl: "libsql://site" }, () =>
+          Promise.resolve("read"),
+        ),
+      ).toEqual({ ok: true, value: "read" });
+      expect(closes).toBe(1);
+    } finally {
+      createStub.restore();
+      closeStub.restore();
+      close();
+    }
+  });
 });
 
 describe("readSiteSetting", () => {
@@ -91,6 +119,36 @@ describe("readSiteSetting", () => {
       "current_script_version",
     );
     expect(result).toEqual({ ok: true, value: "2026-06-19T12:00:00Z" });
+  });
+
+  test("counts a child database read against the shared request budget", async () => {
+    await runWithSubrequestBudget(async () => {
+      await readSiteSetting(
+        { dbToken: "t", dbUrl: "libsql://u" },
+        "current_script_version",
+      );
+      expect(getSubrequestUsage()).toEqual({
+        database: 1,
+        external: 0,
+        total: 1,
+      });
+    });
+  });
+
+  test("names a child database read blocked by the request budget", async () => {
+    const result = await runWithSubrequestBudget(() =>
+      withSubrequestAllowance({ database: 0, external: 0, total: 0 }, () =>
+        readSiteSetting(
+          { dbToken: "t", dbUrl: "libsql://u" },
+          "current_script_version",
+        ),
+      ),
+    );
+    expect(result).toEqual({
+      error:
+        "Subrequest allowance exceeded: 1 database + 0 external calls. Blocked database operation: child site statement",
+      ok: false,
+    });
   });
 
   test("connects with the site's read-only URL and token", async () => {

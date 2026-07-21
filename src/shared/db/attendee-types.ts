@@ -2,6 +2,7 @@
  * Types for attendee operations
  */
 
+import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#shared/crypto/sealed.ts";
 import type { AttendeeKind } from "#shared/db/attendees/kind.ts";
 import type { BookingSource } from "#shared/db/contact-tokens.ts";
@@ -63,7 +64,7 @@ export type BuildAttendeeInput = ContactInfo & {
 /** Result of atomic attendee creation */
 export type CreateAttendeeResult =
   | { success: true; attendees: Attendee[] }
-  | { success: false; reason: "capacity_exceeded" | "encryption_error" };
+  | { success: false; reason: AttendeeCreationFailureReason };
 
 /** A single listing booking within a multi-listing attendee creation */
 export type ListingBooking = {

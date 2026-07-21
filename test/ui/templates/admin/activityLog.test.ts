@@ -7,13 +7,12 @@ import {
   adminGlobalActivityLogPage,
   adminListingActivityLogPage,
 } from "#templates/admin/activityLog.tsx";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import {
   clearTestEncryptionKey,
   setupTestEncryptionKey,
 } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
 
 const test = (name: string, body: () => void | Promise<void>): void => {
   bddTest(name, async () => {
@@ -68,7 +67,7 @@ describe("activity log templates", () => {
         logEntry({ listing_id: 1, message: "Ticket reserved" }),
         logEntry({ id: 2, listing_id: 1, message: "Payment received" }),
       ];
-      const html = adminListingActivityLogPage(listing, entries, TEST_SESSION);
+      const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
       expect(html).toContain("Ticket reserved");
       expect(html).toContain("Payment received");
       expect(html).toContain("Log");
@@ -76,7 +75,7 @@ describe("activity log templates", () => {
 
     test("renders empty state when no entries", () => {
       const listing = testListingWithCount();
-      const html = adminListingActivityLogPage(listing, [], TEST_SESSION);
+      const html = adminListingActivityLogPage(listing, [], OWNER_SESSION);
       expect(html).toContain("No activity recorded yet");
     });
   });
@@ -87,7 +86,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).toContain("System started");
@@ -98,7 +97,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         [],
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).toContain("No activity recorded yet");
@@ -109,7 +108,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         true,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).toContain("Showing the most recent 200 entries");
@@ -120,7 +119,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).not.toContain("Showing the most recent 200 entries");
@@ -138,7 +137,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).toContain('href="/admin/settings#settings-square-webhook"');
@@ -152,7 +151,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).not.toContain("Re-enter your Square settings");
@@ -175,7 +174,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         [],
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).toContain("<th>Attendee</th>");
@@ -196,7 +195,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         refs,
       );
       expect(html).toContain('<a href="/admin/attendees/7">Ada Lovelace</a>');
@@ -209,7 +208,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         refs,
       );
       expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
@@ -221,7 +220,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       // Scoped to the table body: the admin nav itself always carries
@@ -245,7 +244,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).not.toContain('href="/admin/attendees/42"');
@@ -262,7 +261,7 @@ describe("activity log templates", () => {
       const entries = [
         logEntry({ attendee_id: attendeeId, message: "Note added" }),
       ];
-      const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION, {
+      const html = adminGlobalActivityLogPage(entries, false, OWNER_SESSION, {
         attendees,
         listings: new Map(),
       });
@@ -299,7 +298,7 @@ describe("activity log templates", () => {
       const html = adminGlobalActivityLogPage(
         entries,
         false,
-        TEST_SESSION,
+        OWNER_SESSION,
         emptyRefs(),
       );
       expect(html).not.toContain('href="/admin/listing/99"');
@@ -317,7 +316,7 @@ describe("activity log templates", () => {
           message: "Ticket reserved",
         }),
       ];
-      const html = adminListingActivityLogPage(listing, entries, TEST_SESSION);
+      const html = adminListingActivityLogPage(listing, entries, OWNER_SESSION);
       expect(html).not.toContain("<th>Attendee</th>");
       expect(html).not.toContain('href="/admin/attendees/7"');
     });

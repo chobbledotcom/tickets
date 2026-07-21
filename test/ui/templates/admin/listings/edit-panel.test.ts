@@ -5,9 +5,9 @@ import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import {
   editPanelHtml,
   registerListingTemplateHooks,
-  TEST_SESSION,
   withBuilder,
 } from "#test/templates/admin/listings/helpers.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
@@ -34,7 +34,7 @@ describe("adminListingEditPage group select", () => {
         groups,
         listing,
         selectedGroupIds: [2],
-        session: TEST_SESSION,
+        session: OWNER_SESSION,
       }),
     );
     expect(html).toContain('name="group_ids"');
@@ -45,7 +45,7 @@ describe("adminListingEditPage group select", () => {
   test("does not link to the JSON export (that now lives on the Actions tab)", () => {
     const listing = testListingWithCount({ id: 9 });
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // The Actions tab is now editor-visible too, so the export link lives
     // only there — the Edit panel no longer duplicates it.
@@ -62,7 +62,7 @@ describe("adminListingEditPage duration warning", () => {
       listing_type: "daily",
     });
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     expect(html).toContain(
       "Changing booking duration will update existing bookings",
@@ -85,7 +85,7 @@ describe("adminListingEditPage day prices", () => {
       duration_days: 2,
     });
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // One input per day up to the maximum duration, pre-filled from day_prices.
     expect(html).toContain('name="day_price_1"');
@@ -98,7 +98,7 @@ describe("adminListingEditPage day prices", () => {
   });
 
   test("renders a single blank day-price row on the new-listing form", () => {
-    const html = adminListingNewPage([], TEST_SESSION);
+    const html = adminListingNewPage([], OWNER_SESSION);
     expect(html).toContain('name="day_price_1"');
     // The maximum defaults to 1 day for a new listing, so only one row shows.
     expect(html).not.toContain('name="day_price_2"');
@@ -126,7 +126,7 @@ describe("adminListingEditPage form sections", () => {
         },
         groups: [],
         listing,
-        session: TEST_SESSION,
+        session: OWNER_SESSION,
       }),
     );
     return { html, listing };
@@ -135,7 +135,7 @@ describe("adminListingEditPage form sections", () => {
   test("groups fields under section legends and an Advanced disclosure", () => {
     const listing = testListingWithCount();
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     expect(html).toContain("<legend>Basics</legend>");
     expect(html).toContain("<legend>Tickets &amp; Pricing</legend>");
@@ -154,7 +154,7 @@ describe("adminListingEditPage form sections", () => {
       duration_days: 1,
     });
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     const customisableIdx = html.indexOf('name="customisable_days"');
     const dayPriceIdx = html.indexOf('name="day_price_1"');
@@ -169,7 +169,7 @@ describe("adminListingEditPage form sections", () => {
   test("places the technical fields inside the Advanced disclosure", () => {
     const listing = testListingWithCount();
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     const advancedIdx = html.indexOf("<summary>Advanced settings</summary>");
     expect(advancedIdx).toBeGreaterThan(-1);
@@ -184,7 +184,7 @@ describe("adminListingEditPage form sections", () => {
       tickets_count: 3,
     });
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     expect(html).toContain("<legend>Running totals</legend>");
     expect(html).toContain("Accuracy is not guaranteed");
@@ -205,7 +205,7 @@ describe("adminListingEditPage form sections", () => {
   test("renders the separate income-correction form (decision 14)", () => {
     const listing = testListingWithCount();
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // Income correction stays in a dedicated warned form, apart from counts.
     expect(html).toContain("<h2>Adjust income</h2>");
@@ -217,7 +217,7 @@ describe("adminListingEditPage form sections", () => {
   test("links from the income form to the detail page's money breakdown", () => {
     const listing = testListingWithCount({ id: 4 });
     const html = String(
-      ListingEditPanel({ groups: [], listing, session: TEST_SESSION }),
+      ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
     // A compact pointer beside the adjust-income form to the full reconciliation
     // section on the detail page, so the two figures are explained in one place.

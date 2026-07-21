@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
+import { getCurrentCsrfToken } from "#shared/csrf.ts";
 import {
   type Flash as FlashMessage,
   runWithFlashContext,
@@ -15,8 +15,8 @@ import {
   requestFlash,
 } from "#shared/forms/flash.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 /** Render a CsrfForm inside a flash context targeting `formId`, so the form's
  *  inline-flash branch (id === target form) can be exercised. */
@@ -30,11 +30,6 @@ const csrfFormInFlash = (
     setFlashFormId(formId);
     return String(CsrfForm(props));
   });
-
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
 
 describe("renderError", () => {
   test("returns empty string when no error", () => {
@@ -125,6 +120,8 @@ test("requestFlash renders every message from the request context", () => {
 });
 
 describe("CsrfForm", () => {
+  beforeAll(setupAdminPageTest);
+
   afterEach(() => {
     detectIframeMode(new URL("https://example.com/"));
   });

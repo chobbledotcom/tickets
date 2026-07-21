@@ -5,6 +5,18 @@
  * decides which path the priced total demands.
  */
 
+import {
+  type AnswerInfo,
+  type extractContact,
+  listingAnswerMaps,
+  ticketFormErrorResponse,
+} from "#routes/public/ticket-form.ts";
+import {
+  checkAvailability,
+  createFreeReservation,
+  handlePaymentFlow,
+} from "#routes/public/ticket-payment.ts";
+import type { TicketCtx } from "#routes/public/types.ts";
 import { redirectResponse } from "#routes/response.ts";
 import type { OrderSpan } from "#shared/booking/order-span.ts";
 import type {
@@ -21,18 +33,6 @@ import {
 } from "#shared/db/questions/attendee-answers/save.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
-import {
-  type AnswerInfo,
-  type extractContact,
-  listingAnswerMaps,
-  ticketFormErrorResponse,
-} from "../ticket-form.ts";
-import {
-  checkAvailability,
-  createFreeReservation,
-  handlePaymentFlow,
-} from "../ticket-payment.ts";
-import type { TicketCtx } from "../types.ts";
 import { computeListingTextAnswerIdMap } from "./parse.ts";
 
 export type PathParams = OrderSpan & {

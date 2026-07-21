@@ -5,7 +5,7 @@ import {
   runDeno,
   stopProcess,
   stopProcessNow,
-} from "../../scripts/process.ts";
+} from "#scripts/process.ts";
 
 const stopped = (code = 0): Deno.CommandStatus => ({
   code,

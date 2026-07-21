@@ -25,8 +25,7 @@ import {
   PII_BLOB_VERSION,
   parsePiiBlob,
 } from "#shared/db/attendees/pii.ts";
-import { getDb } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import type { Attendee, PiiBlob } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -174,26 +173,14 @@ describeWithEnv("PII crypto", { db: true }, () => {
 
   test("encryptAttendeeFields encrypts blank coordinates that decrypt back to empty", async () => {
     const result = await encryptAttendeeFields(encInput);
-    expect(result).not.toBeNull();
     const pii = await decryptPiiBlob(
-      result!.encryptedPiiBlob,
+      result.encryptedPiiBlob,
       await getTestPrivateKey(),
       true,
     );
     expect(pii.lat).toBe("");
     expect(pii.lng).toBe("");
     expect(pii.payment_id).toBe("pay_pii");
-  });
-
-  test("encryptAttendeeFields returns null when no public key is configured", async () => {
-    await getDb().execute({
-      args: [CONFIG_KEYS.PUBLIC_KEY],
-      sql: "DELETE FROM settings WHERE key = ?",
-    });
-    settings.invalidateCache();
-
-    const result = await encryptAttendeeFields(encInput);
-    expect(result).toBeNull();
   });
 
   test("decryptAttendeeFields defaults to paid, surfacing payment id and refunded", async () => {
@@ -205,6 +192,15 @@ describeWithEnv("PII crypto", { db: true }, () => {
     expect(decrypted.name).toBe("Aggie Attendee");
     expect(decrypted.payment_id).toBe("pay_pii");
     expect(decrypted.refunded).toBe(true);
+  });
+
+  test("decryptAttendeeFields normalizes a selected numeric price", async () => {
+    const row = { ...(await encryptedRow()), price_paid: 2500 };
+    const decrypted = await decryptAttendeeFields(
+      row,
+      await getTestPrivateKey(),
+    );
+    expect(decrypted.price_paid).toBe("2500");
   });
 
   test("decryptAttendeeFields hides payment id and forces refunded false when unpaid", async () => {

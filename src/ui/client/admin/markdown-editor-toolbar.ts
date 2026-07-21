@@ -18,7 +18,7 @@ import type { MarkType, NodeType } from "prosemirror-model";
 import { wrapInList } from "prosemirror-schema-list";
 import type { Command, EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { createButton } from "../dom.ts";
+import { createButton } from "#src/ui/client/dom.ts";
 
 const { marks, nodes } = schema;
 

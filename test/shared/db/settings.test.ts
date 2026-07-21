@@ -26,6 +26,17 @@ import { seedCountry, testWithSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("db > settings", { db: true }, () => {
   describe("basic CRUD", () => {
+    test("excludes retired maintenance timestamps from settings snapshots", () => {
+      expect(
+        ALL_SETTINGS_KEYS.filter(
+          (key) =>
+            key.startsWith("last_pruned_") ||
+            key === "last_activity_log_backfill" ||
+            key === "activity_log_backfill_done",
+        ),
+      ).toEqual([]);
+    });
+
     test("getSetting returns null for missing key", () => {
       const value = settings.getCachedRaw("missing");
       expect(value).toBeNull();

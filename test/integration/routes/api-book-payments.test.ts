@@ -1,15 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import * as v from "valibot";
-import { PublicListingSchema } from "#test-utils/api-schemas.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import {
-  createDailyTestListing,
-  createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-
 import {
   bookForToken,
   bookListing,
@@ -17,7 +8,14 @@ import {
   describePublicApi,
   fetchListingBySlug,
   withCheckoutStub,
-} from "../../routes/api/helpers.ts";
+} from "#test/routes/api/helpers.ts";
+import { PublicListingSchema } from "#test-utils/api-schemas.ts";
+import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createDailyTestListing,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describePublicApi(() => {
   describe("POST /api/listings/:slug/book", () => {
@@ -286,24 +284,6 @@ describePublicApi(() => {
         expect(response.status).toBe(400);
         expect(body.error).toBe("Invalid amount");
       });
-    });
-
-    test("returns 500 on encryption error for free listing", async () => {
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
-        Promise.resolve({
-          reason: "encryption_error" as const,
-          success: false as const,
-        }),
-      );
-      try {
-        const { response, body } = await bookListing(listing.slug);
-        expect(response.status).toBe(500);
-        expect(body.error).toMatch(/try again/i);
-      } finally {
-        mockCreate.restore();
-      }
     });
   });
 });

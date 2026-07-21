@@ -16,6 +16,7 @@ import { identity, mapById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
+import { childAddOnError } from "#routes/admin/listings-parents.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
   type GroupInput,
@@ -71,7 +72,6 @@ import {
   type ListingWithCount,
   parseDayPrices,
 } from "#shared/types.ts";
-import { childAddOnError } from "../listings-parents.ts";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
 import {
   CatalogTransferSchema,

@@ -19,8 +19,8 @@ import type {
 } from "#shared/db/attributes.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { escapeHtml } from "#templates/layout.tsx";
-import { renderListingAttributes } from "../listing-attributes.ts";
-import { renderListingImage } from "../shared.tsx";
+import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
+import { renderListingImage } from "#templates/public/shared.tsx";
 import { renderChildBlock } from "./child-block.ts";
 import { childLimitedMax } from "./child-pricing.ts";
 import { renderPayMoreInput } from "./controls.ts";

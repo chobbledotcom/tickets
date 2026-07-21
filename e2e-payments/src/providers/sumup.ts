@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
 import type { Page } from "playwright";
-import { log, warn } from "../log.ts";
+import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillCard, fillFirst, fillFrameInput } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
@@ -37,6 +37,7 @@ export const sumup: PaymentProvider = {
     await session.fill("sumup_merchant_code", secrets.merchantCode);
     await session.clickButton("Update SumUp Credentials");
   }),
+  firstBookingConfirmation: "return",
   name: "sumup",
 
   payHostedCheckout: hostedCheckout(

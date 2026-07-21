@@ -8,7 +8,7 @@
  */
 
 import type { Frame, Locator, Page } from "playwright";
-import { log, warn } from "../log.ts";
+import { log, warn } from "#e2e/log.ts";
 
 const FILL_TIMEOUT = 8_000;
 
@@ -137,13 +137,13 @@ export const fillFrameInput = async (
 
 /** Sandbox card details to enter on a hosted checkout page. */
 export interface CardDetails {
-  number: string;
+  cvc: string;
+  email?: string;
   /** Expiry as digits or MM/YY — fields auto-format on input. */
   expiry: string;
-  cvc: string;
   name?: string;
+  number: string;
   postal?: string;
-  email?: string;
 }
 
 /**

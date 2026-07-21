@@ -6,45 +6,53 @@
  * Auth: Authorization: Bearer {DENO_DEPLOY_TOKEN}
  */
 
+import * as v from "valibot";
 /* jscpd:ignore-start */
 import {
   getDenoDeployOrgId,
+  getDenoDeployOrgSlug,
   getDenoDeployToken,
   slugifyForProvider,
 } from "#shared/config.ts";
+import {
+  DenoAppEnvVarsSchema,
+  DenoAppIdentitySchema,
+  type DenoRevision,
+  DenoRevisionSchema,
+} from "#shared/deno-deploy-schema.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import { fetchText, parseApiError } from "#shared/fetch.ts";
 import type {
-  CreateSiteFn,
   HostingProviderApi,
+  PrepareSiteFn,
 } from "#shared/provider-types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
+import { retryWithBackoff } from "#shared/retry.ts";
 
 /* jscpd:ignore-end */
 
 const DENO_API_BASE = "https://api.deno.com/v2";
-
-interface CreateAppResponse {
-  id: string;
-  slug: string;
-}
-
-interface GetAppResponse {
-  env_vars?: Record<string, { value: string; is_secret: boolean }>;
-  id: string;
-  slug: string;
-}
-
-interface DeploymentResponse {
-  domains?: string[];
-  hostnames?: string[];
-  id: string;
-}
 
 /** Headers for all Deno Deploy API requests. */
 const denoApiHeaders = (): Record<string, string> => ({
   Authorization: `Bearer ${getDenoDeployToken()}`,
   "Content-Type": "application/json",
 });
+
+const parseDenoRevision = (text: string): DenoRevision =>
+  v.parse(DenoRevisionSchema, JSON.parse(text));
+
+const getDenoApi = async <T>(
+  path: string,
+  label: string,
+  parse: (text: string) => T,
+): Promise<Result<T>> => {
+  const res = await fetchText(`${DENO_API_BASE}/${path}`, {
+    headers: denoApiHeaders(),
+  });
+  if (!res.ok) return parseApiError(res, label);
+  return okResult(parse(res.text));
+};
 
 /**
  * Sanitize a site name into a valid Deno Deploy slug.
@@ -72,21 +80,21 @@ const createAppImpl = async (
 
   if (!res.ok) return parseApiError(res, "Create app");
 
-  const data: CreateAppResponse = JSON.parse(res.text);
+  const data = v.parse(DenoAppIdentitySchema, JSON.parse(res.text));
   return okResult({ appId: data.id, slug: data.slug });
 };
 
 /** Fetch the current env vars for a Deno Deploy app. */
-const fetchAppEnvVars = async (
+const fetchAppEnvVarNames = async (
   appId: string,
-): Promise<Result<Record<string, { value: string; is_secret: boolean }>>> => {
-  const res = await fetchText(
-    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
-    { headers: denoApiHeaders() },
+): Promise<Result<string[]>> => {
+  const result = await getDenoApi(
+    `apps/${encodeURIComponent(appId)}`,
+    "Get app",
+    (text) => v.parse(DenoAppEnvVarsSchema, JSON.parse(text)),
   );
-  if (!res.ok) return parseApiError(res, "Get app");
-  const data: GetAppResponse = JSON.parse(res.text);
-  return okResult(data.env_vars ?? {});
+  if (!result.ok) return result;
+  return okResult(result.value.env_vars.map(({ key }) => key));
 };
 
 /**
@@ -96,18 +104,18 @@ const fetchAppEnvVars = async (
  * (Re-sending existing secrets risks clearing them: the GET response masks
  * secret values, so a round-trip GET→merge→PATCH would PATCH with empty values.)
  */
-const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
-  const envVarsArray = secrets.map(([key, value]) => ({
-    contexts: ["production"],
-    key,
-    secret: true,
-    value,
-  }));
+const envVar = ([key, value]: [string, string]) => ({
+  contexts: ["production"],
+  key,
+  secret: true,
+  value,
+});
 
+const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
   const patchRes = await fetchText(
     `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}`,
     {
-      body: JSON.stringify({ env_vars: envVarsArray }),
+      body: JSON.stringify({ env_vars: secrets.map(envVar) }),
       headers: denoApiHeaders(),
       method: "PATCH",
     },
@@ -117,16 +125,78 @@ const setEnvVarsImpl = async (appId: string, secrets: [string, string][]) => {
   return okResult(undefined);
 };
 
+const REVISION_POLL_BACKOFF_MS = Array<number>(20).fill(1_000);
+
+class RevisionPendingError extends Error {}
+
+const revisionOutcome = (revision: DenoRevision): Result<void> | null => {
+  if (revision.status === "succeeded") return okResult(undefined);
+  if (revision.status === "queued" || revision.status === "building") {
+    return null;
+  }
+  return errorResult(
+    `Deno revision ${revision.id} ${revision.status}: ${
+      revision.failure_reason ?? revision.status
+    }`,
+  );
+};
+
+const fetchRevision = async (
+  revisionId: string,
+): Promise<Result<DenoRevision>> =>
+  getDenoApi(
+    `revisions/${encodeURIComponent(revisionId)}`,
+    "Get revision",
+    parseDenoRevision,
+  );
+
+const waitForRevision = async (
+  initial: DenoRevision,
+): Promise<Result<void>> => {
+  let current = initial;
+  let fetchNext = false;
+  try {
+    return await retryWithBackoff(
+      async () => {
+        if (fetchNext) {
+          const fetched = await fetchRevision(initial.id);
+          if (!fetched.ok) throw new Error(fetched.error);
+          current = fetched.value;
+        }
+        const outcome = revisionOutcome(current);
+        if (outcome) return outcome;
+        fetchNext = true;
+        throw new RevisionPendingError();
+      },
+      REVISION_POLL_BACKOFF_MS,
+      (error, { willRetry }) => {
+        if (willRetry) return;
+        if (error instanceof RevisionPendingError) {
+          throw new Error(
+            `Deno revision ${initial.id} did not finish within ${REVISION_POLL_BACKOFF_MS.length} seconds`,
+          );
+        }
+        throw new Error(
+          `Deno revision ${initial.id} could not be read: ${errorMessage(error)}`,
+          { cause: error },
+        );
+      },
+    );
+  } catch (error) {
+    return errorResult(errorMessage(error));
+  }
+};
+
 /**
  * Deploy code to a Deno Deploy app (production deployment).
  * Returns the primary hostname for the deployment.
  */
-const deployCodeImpl = async (
-  appId: string,
-  code: string,
-): Promise<Result<string>> => {
+const deployCodeImpl: HostingProviderApi["publishSite"] = async (
+  appId,
+  code,
+) => {
   const res = await fetchText(
-    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}/deployments`,
+    `${DENO_API_BASE}/apps/${encodeURIComponent(appId)}/deploy`,
     {
       body: JSON.stringify({
         assets: {
@@ -141,24 +211,15 @@ const deployCodeImpl = async (
   );
 
   if (!res.ok) return parseApiError(res, "Deploy code");
-
-  const data: DeploymentResponse = JSON.parse(res.text);
-  const hostname = data.domains?.[0] ?? data.hostnames?.[0];
-  if (!hostname) {
-    return errorResult("Deploy code failed: no hostname in response");
-  }
-  return okResult(`https://${hostname}`);
+  return waitForRevision(parseDenoRevision(res.text));
 };
 
 /**
  * Get the names of environment variables currently set on a Deno Deploy app.
  * Used by the secrets backfill UI to diff against the expected set.
  */
-const getEnvVarNamesImpl = async (appId: string): Promise<Result<string[]>> => {
-  const appResult = await fetchAppEnvVars(appId);
-  if (!appResult.ok) return appResult;
-  return okResult(Object.keys(appResult.value));
-};
+const getEnvVarNamesImpl = async (appId: string): Promise<Result<string[]>> =>
+  fetchAppEnvVarNames(appId);
 
 /** Stubbable API for testing */
 export const denoDeployApi = {
@@ -168,7 +229,7 @@ export const denoDeployApi = {
   setEnvVars: setEnvVarsImpl,
 };
 
-const createDenoSiteImpl: CreateSiteFn = async (name, code, secrets) => {
+const prepareDenoSiteImpl: PrepareSiteFn = async (name, _code, secrets) => {
   const createResult = await denoDeployApi.createApp(slugifyForDeno(name));
   if (!createResult.ok) return createResult;
   const setResult = await denoDeployApi.setEnvVars(
@@ -178,21 +239,17 @@ const createDenoSiteImpl: CreateSiteFn = async (name, code, secrets) => {
   if (!setResult.ok) {
     return errorResult(`Failed to set secrets: ${setResult.error}`);
   }
-  const deployResult = await denoDeployApi.deployCode(
-    createResult.value.appId,
-    code,
-  );
-  if (!deployResult.ok) return deployResult;
   return okResult({
-    defaultHostname: deployResult.value,
+    defaultHostname: `https://${createResult.value.slug}.${getDenoDeployOrgSlug()}.deno.net`,
     hostingId: createResult.value.appId,
   });
 };
 
 export const denoHostingProvider: HostingProviderApi = {
   configEnvVar: "DENO_DEPLOY_TOKEN",
-  createSite: createDenoSiteImpl,
   getSecretNames: (hostingId) => denoDeployApi.getEnvVarNames(hostingId),
+  prepareSite: prepareDenoSiteImpl,
+  publishSite: (hostingId, code) => denoDeployApi.deployCode(hostingId, code),
   setSecrets: (hostingId, secrets) =>
     denoDeployApi.setEnvVars(hostingId, secrets),
 };

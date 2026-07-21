@@ -1,7 +1,7 @@
-import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
-import { commandExitCode } from "../deno-command.ts";
-import { projectRoot } from "../project-root.ts";
-import { stripeMockEnv } from "../stripe-mock.ts";
+import { commandExitCode } from "#scripts/deno-command.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import { stripeMockEnv } from "#scripts/stripe-mock.ts";
+import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
 import { denoExitCode, envWith } from "./child-process.ts";
 import type { Status } from "./summary.ts";

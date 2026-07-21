@@ -1,5 +1,5 @@
-import { dim, green, red, yellow } from "../precommit/colors.ts";
-import { write } from "../precommit/write.ts";
+import { dim, green, red, yellow } from "#scripts/precommit/colors.ts";
+import { write } from "#scripts/precommit/write.ts";
 import { evaluateMutant, type FileMutationPlan } from "./evaluate.ts";
 import { type StaticGate, type TestRunConfig, testEnv } from "./execution.ts";
 import { type IgnoreList, isIgnored } from "./ignore.ts";

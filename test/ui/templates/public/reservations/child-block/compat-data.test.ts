@@ -5,6 +5,8 @@ import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { weekdayOf } from "#test/lib/booking-model-fixtures.ts";
+import { firstBookableDate } from "#test/lib/server-parents-gate/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import {
@@ -12,8 +14,6 @@ import {
   createDailyTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
-import { weekdayOf } from "../../../../../lib/booking-model-fixtures.ts";
-import { firstBookableDate } from "../../../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 

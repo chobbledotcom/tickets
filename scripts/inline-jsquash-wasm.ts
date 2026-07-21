@@ -2,7 +2,7 @@ import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
 import { fromFileUrl } from "@std/path";
 import type { OnLoadResult, OnResolveResult, Plugin } from "esbuild";
 import { map } from "#fp";
-import { ASSETS, readAsset } from "../src/shared/images/wasm-assets.ts";
+import { ASSETS, readAsset } from "#src/shared/images/wasm-assets.ts";
 import { STATIC_CDN_REQUEST_TIMEOUT_MS } from "./static-cdn.ts";
 
 type ExportAsset = Pick<(typeof ASSETS)[number], "exportName">;

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   databaseBusyPage,
   migrationInProgressPage,
@@ -11,9 +11,11 @@ import {
   temporaryErrorPage,
 } from "#templates/public/errors.tsx";
 import { registerPublicTemplateHooks } from "#test/templates/public/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 describe("notFoundPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("renders not found message", () => {
@@ -23,6 +25,7 @@ describe("notFoundPage", () => {
 });
 
 describe("temporaryErrorPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("renders error message with auto-refresh", () => {
@@ -41,6 +44,7 @@ describe("temporaryErrorPage", () => {
 });
 
 describe("qrBookErrorPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("offers the normal booking page when the listing has a slug", () => {
@@ -61,6 +65,7 @@ describe("qrBookErrorPage", () => {
 });
 
 describe("rateLimitedPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("renders the too-many-requests message", () => {
@@ -71,6 +76,7 @@ describe("rateLimitedPage", () => {
 });
 
 describe("databaseBusyPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("auto-refreshes and reassures when the method is idempotent", () => {
@@ -93,6 +99,7 @@ describe("databaseBusyPage", () => {
 });
 
 describe("readOnlyPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   // Set RENEWAL_URL through the worker-local overlay (not the shared process
@@ -122,6 +129,7 @@ describe("readOnlyPage", () => {
 });
 
 describe("migrationInProgressPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("renders update message with auto-refresh", () => {
@@ -141,6 +149,7 @@ describe("migrationInProgressPage", () => {
 });
 
 describe("siteNotActivatedPage", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   test("renders not-activated message in the error dialog style", () => {

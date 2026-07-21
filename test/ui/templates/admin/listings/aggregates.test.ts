@@ -5,10 +5,8 @@ import {
   ListingAggregateMismatchNotice,
   ListingAggregateMismatchRow,
 } from "#templates/admin/listings/aggregates.tsx";
-import {
-  registerListingTemplateHooks,
-  TEST_SESSION,
-} from "#test/templates/admin/listings/helpers.ts";
+import { registerListingTemplateHooks } from "#test/templates/admin/listings/helpers.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** booked_quantity mismatches (9 vs 4), tickets_count matches (5 vs 5). */
@@ -28,7 +26,7 @@ describe("adminListingRecalculatePage", () => {
         booked_quantity: { current: 9, recalculated: 4 },
         tickets_count: { current: 5, recalculated: 2 },
       },
-      TEST_SESSION,
+      OWNER_SESSION,
     );
     expect(html).toContain("Recalculate: Workshop");
     expect(html).toContain("Current");

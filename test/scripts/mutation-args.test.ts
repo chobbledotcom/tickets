@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { DEFAULT_TIMEOUT, parseArgs } from "../../scripts/mutation/args.ts";
+import { DEFAULT_TIMEOUT, parseArgs } from "#scripts/mutation/args.ts";
 
 describe("parseArgs", () => {
   test("defaults the per-mutant timeout to ten seconds", () => {

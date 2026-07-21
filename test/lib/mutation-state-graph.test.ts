@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { tempDir } from "#test-utils/files.ts";
 import {
   collectModuleGraphFiles,
   STATE_BUILDER_ROOT,
-} from "../../scripts/mutation/state-graph.ts";
+} from "#scripts/mutation/state-graph.ts";
+import { tempDir } from "#test-utils/files.ts";
 
 /** Scratch modules: an entry with one static import, one dynamic import, and
  * one data: import (a non-file module that must be left out), plus a file

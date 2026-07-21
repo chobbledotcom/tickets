@@ -4,7 +4,7 @@ import {
   applyMutant,
   generateMutants,
   type Mutant,
-} from "../../scripts/mutation/generate.ts";
+} from "#scripts/mutation/generate.ts";
 
 const mutationLabels = (content: string, exhaustive = false): string[] =>
   generateMutants(content, "sample.ts", exhaustive).map(

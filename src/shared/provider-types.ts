@@ -19,10 +19,7 @@ export const databaseCredentialsFromResponse = (
   return okResult({ dbId, dbToken: token, dbUrl });
 };
 
-/** Create a site on a hosting provider: deploy `code` under `name` with the
- * given secrets, returning the new site's id and default hostname. Declared
- * once so every provider implementation shares the exact same signature. */
-export type CreateSiteFn = (
+export type PrepareSiteFn = (
   name: string,
   code: string,
   secrets: [string, string][],
@@ -30,8 +27,9 @@ export type CreateSiteFn = (
 
 export interface HostingProviderApi {
   configEnvVar: string;
-  createSite: CreateSiteFn;
   getSecretNames(hostingId: string): Promise<Result<string[]>>;
+  prepareSite: PrepareSiteFn;
+  publishSite(hostingId: string, code: string): Promise<Result<void>>;
   setSecrets(
     hostingId: string,
     secrets: [string, string][],

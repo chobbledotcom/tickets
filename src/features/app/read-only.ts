@@ -24,7 +24,6 @@ const READ_ONLY_SAFE_PATHS = [
   /^\/unsubscribe$/,
   /^\/contact$/,
   /^\/instance\/site-credentials$/,
-  /^\/scheduled$/,
   /^\/checkin\/[^/]+$/,
 ];
 
@@ -35,7 +34,7 @@ const isMutatingMethod = (method: string): boolean =>
   method === "PUT";
 
 const isAdminMutation = (path: string, method: string): boolean =>
-  isMutatingMethod(method) && (path === "/admin" || path.startsWith("/admin/"));
+  isMutatingMethod(method) && path.startsWith("/admin/");
 
 const isAllowedAdminOperation = (path: string, method: string): boolean =>
   READ_ONLY_ADMIN_OPERATIONS.some(

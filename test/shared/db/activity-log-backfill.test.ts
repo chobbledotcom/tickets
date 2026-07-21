@@ -1,49 +1,60 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
-import { FakeTime } from "@std/testing/time";
-import { ENCRYPTION_PREFIX, encrypt } from "#shared/crypto/encryption.ts";
+import { stub } from "@std/testing/mock";
+import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import {
   backfillActivityLogBatch,
-  maybeBackfillActivityLog,
+  hasLegacyActivityLog,
+  runActivityLogBackfill,
 } from "#shared/db/activity-log-backfill.ts";
 import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { execute } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { ACTIVITY_LOG_BACKFILL_INTERVAL_MS } from "#shared/limits.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
+import { maintenance } from "#shared/maintenance/runner.ts";
 import { nowIso } from "#shared/now.ts";
+import {
+  insertLegacyActivity,
+  rawActivityMessage,
+} from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
-/** Insert a row encrypted with DB_ENCRYPTION_KEY (the pre-migration format). */
-const insertLegacyRow = async (message: string): Promise<number> => {
-  const result = await execute(
-    "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-    [await encrypt(message), nowIso()],
-  );
-  return Number(result.lastInsertRowid);
+const captureBackfillLogs = async (
+  operation: () => Promise<void>,
+): Promise<string[]> => {
+  setSuppressDebugLogs(false);
+  const debugStub = stub(console, "debug");
+  try {
+    await operation();
+    return debugStub.calls
+      .map((call) => String(call.args[0]))
+      .filter((line) => line.includes("[Backfill]"));
+  } finally {
+    debugStub.restore();
+    setSuppressDebugLogs(null);
+  }
 };
-
-/** Raw (still-encrypted) stored message for a row. */
-const rawMessage = async (id: number): Promise<string> =>
-  (await queryOne<{ message: string }>(
-    "SELECT message FROM activity_log WHERE id = ?",
-    [id],
-  ))!.message;
 
 describeWithEnv("db > activity log backfill", { db: true }, () => {
   test("re-encrypts legacy rows to the owner key, preserving the plaintext", async () => {
-    const id1 = await insertLegacyRow("legacy one");
-    const id2 = await insertLegacyRow("legacy two");
-    expect((await rawMessage(id1)).startsWith(ENCRYPTION_PREFIX)).toBe(true);
+    const id1 = await insertLegacyActivity("legacy one");
+    const id2 = await insertLegacyActivity("legacy two");
+    expect((await rawActivityMessage(id1)).startsWith(ENCRYPTION_PREFIX)).toBe(
+      true,
+    );
 
     const converted = await backfillActivityLogBatch(settings.publicKey);
 
     expect(converted).toBe(2);
-    expect((await rawMessage(id1)).startsWith(HYBRID_PREFIX)).toBe(true);
-    expect((await rawMessage(id2)).startsWith(HYBRID_PREFIX)).toBe(true);
+    expect((await rawActivityMessage(id1)).startsWith(HYBRID_PREFIX)).toBe(
+      true,
+    );
+    expect((await rawActivityMessage(id2)).startsWith(HYBRID_PREFIX)).toBe(
+      true,
+    );
     // Re-encrypted rows still read back as the original plaintext for an admin.
     const messages = (await withTestSession(() => getAllActivityLog())).map(
       (e) => e.message,
@@ -53,20 +64,22 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
   });
 
   test("leaves owner-key rows untouched", async () => {
-    const legacyId = await insertLegacyRow("legacy");
+    const legacyId = await insertLegacyActivity("legacy");
     const owner = await logActivity("already owner-key");
-    const ownerBefore = await rawMessage(owner.id);
+    const ownerBefore = await rawActivityMessage(owner.id);
 
     const converted = await backfillActivityLogBatch(settings.publicKey);
 
     expect(converted).toBe(1); // only the legacy row matched
-    expect(await rawMessage(owner.id)).toBe(ownerBefore); // byte-for-byte
-    expect((await rawMessage(legacyId)).startsWith(HYBRID_PREFIX)).toBe(true);
+    expect(await rawActivityMessage(owner.id)).toBe(ownerBefore); // byte-for-byte
+    expect((await rawActivityMessage(legacyId)).startsWith(HYBRID_PREFIX)).toBe(
+      true,
+    );
   });
 
   test("writes each re-encrypted message back to its own row (by id)", async () => {
-    const id1 = await insertLegacyRow("first plaintext");
-    const id2 = await insertLegacyRow("second plaintext");
+    const id1 = await insertLegacyActivity("first plaintext");
+    const id2 = await insertLegacyActivity("second plaintext");
 
     await backfillActivityLogBatch(settings.publicKey);
 
@@ -86,113 +99,50 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     expect(await backfillActivityLogBatch(settings.publicKey)).toBe(0);
   });
 
-  test("scheduler converts a due batch and records the run timestamp", async () => {
-    const id = await insertLegacyRow("convert me");
-    // A last-run a full day ago is unambiguously past the interval, so the run
-    // is due — pinning the elapsed-time subtraction in the interval check
-    // (now - last >= interval), not merely the last=0 boundary.
-    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    await settings.update.lastActivityLogBackfill(String(dayAgo));
+  test("logs the exact number of converted rows", async () => {
+    const logs = await captureBackfillLogs(async () => {
+      await insertLegacyActivity("legacy");
+      await runActivityLogBackfill(settings.publicKey);
+    });
 
-    await maybeBackfillActivityLog();
-
-    expect((await rawMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
-    // Work may remain, so it is not marked done after a non-empty batch.
-    expect(settings.activityLogBackfillDone).not.toBe("true");
-    // The run stamped a fresh, newer timestamp over the day-old one.
-    expect(Number(settings.lastActivityLogBackfill)).toBeGreaterThan(dayAgo);
+    expect(logs).toEqual(["[Backfill] activity_log: re-encrypted 1 rows"]);
   });
 
-  test("scheduler treats an unset last-run as never run (epoch 0), so the first interval is exactly due", async () => {
-    // Freeze the clock at exactly one interval past the epoch. With no stored
-    // last-run the fallback must be 0 — "never ran" — making the batch due on
-    // the >= boundary; any later fallback would still be inside the interval
-    // and silently delay the very first run.
-    const id = await insertLegacyRow("due at the exact boundary");
-    using _time = new FakeTime(ACTIVITY_LOG_BACKFILL_INTERVAL_MS);
-
-    await maybeBackfillActivityLog();
-
-    expect((await rawMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
-  });
-
-  /** Run the scheduler with debug logs on, capturing every console.debug line. */
-  const debugLinesFromRun = async (): Promise<string[]> => {
-    setSuppressDebugLogs(false);
-    using debug = spy(console, "debug");
-    try {
-      await maybeBackfillActivityLog();
-    } finally {
-      setSuppressDebugLogs(null);
-    }
-    return debug.calls.map((call) => String(call.args[0]));
-  };
-
-  test("scheduler logs the converted row count under the Backfill category", async () => {
-    await insertLegacyRow("logged");
-
-    expect(await debugLinesFromRun()).toContain(
-      "[Backfill] activity_log: re-encrypted 1 rows",
+  test("does not log when no rows need conversion", async () => {
+    const logs = await captureBackfillLogs(() =>
+      runActivityLogBackfill(settings.publicKey),
     );
+
+    expect(logs).toEqual([]);
   });
 
-  test("scheduler logs a failed batch under the Backfill category", async () => {
-    // A corrupt env-key payload makes the batch throw; the swallowed failure
-    // must still surface as a categorised debug line for the operator.
+  test("reports whether legacy work remains", async () => {
+    expect(await hasLegacyActivityLog()).toBe(false);
+    await insertLegacyActivity("legacy");
+    expect(await hasLegacyActivityLog()).toBe(true);
+    await runActivityLogBackfill(settings.publicKey);
+    expect(await hasLegacyActivityLog()).toBe(false);
+  });
+
+  test("runs the legacy backfill through the maintenance registry", async () => {
+    const id = await insertLegacyActivity("registry legacy");
+
+    await maintenance.run(MAINTENANCE_TASKS);
+
+    expect((await rawActivityMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
+  });
+
+  test("surfaces a corrupt legacy message to the task runner", async () => {
     await execute(
       "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
       [`${ENCRYPTION_PREFIX}AAAA:BBBB`, nowIso()],
     );
+    await expect(runActivityLogBackfill(settings.publicKey)).rejects.toThrow();
+  });
 
-    const failureLine = (await debugLinesFromRun()).find((line) =>
-      line.includes("activity_log failed"),
+  test("fails loudly when a raw activity row does not exist", async () => {
+    await expect(rawActivityMessage(999_999)).rejects.toThrow(
+      "Activity log entry not found: 999999",
     );
-    expect(failureLine).toMatch(/^\[Backfill\] activity_log failed: /);
-  });
-
-  test("scheduler marks itself done once nothing remains", async () => {
-    await maybeBackfillActivityLog();
-
-    expect(settings.activityLogBackfillDone).toBe("true");
-  });
-
-  test("scheduler is a no-op once done", async () => {
-    await settings.update.activityLogBackfillDone("true");
-    const id = await insertLegacyRow("should stay legacy");
-
-    await maybeBackfillActivityLog();
-
-    expect((await rawMessage(id)).startsWith(ENCRYPTION_PREFIX)).toBe(true);
-  });
-
-  test("scheduler is a no-op before a key pair is configured", async () => {
-    const id = await insertLegacyRow("no key yet");
-    settings.setForTest({ public_key: "" });
-
-    await maybeBackfillActivityLog();
-
-    expect((await rawMessage(id)).startsWith(ENCRYPTION_PREFIX)).toBe(true);
-    expect(settings.activityLogBackfillDone).not.toBe("true");
-  });
-
-  test("scheduler skips when the interval has not elapsed", async () => {
-    await settings.update.lastActivityLogBackfill(String(Date.now()));
-    const id = await insertLegacyRow("too soon");
-
-    await maybeBackfillActivityLog();
-
-    expect((await rawMessage(id)).startsWith(ENCRYPTION_PREFIX)).toBe(true);
-  });
-
-  test("scheduler swallows a failing batch without marking done", async () => {
-    // A corrupt env-key payload makes decrypt throw partway through the batch.
-    await execute(
-      "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-      [`${ENCRYPTION_PREFIX}AAAA:BBBB`, nowIso()],
-    );
-
-    await maybeBackfillActivityLog(); // must not throw
-
-    expect(settings.activityLogBackfillDone).not.toBe("true");
   });
 });
