@@ -78,7 +78,7 @@ const unreadableResponse = (error: unknown, status = 200): Response =>
   );
 
 const recordingCheckout = (
-  responses: Response[],
+  responses: (Error | Response)[],
   maxNetworkRetries: number,
 ) => {
   const requests: RequestInit[] = [];
@@ -88,6 +88,7 @@ const recordingCheckout = (
       requests.push(init);
       const response = responses.shift();
       if (!response) throw new Error("No Stripe response left");
+      if (response instanceof Error) return Promise.reject(response);
       return Promise.resolve(response);
     },
     maxNetworkRetries,
@@ -98,6 +99,24 @@ const recordingCheckout = (
     },
   });
   return { client, requests, waits };
+};
+
+const expectTwoCountedCheckoutAttempts = async (
+  firstAttempt: Error | Response,
+): Promise<void> => {
+  const { client } = recordingCheckout(
+    [firstAttempt, Response.json(stripeCheckoutSession())],
+    1,
+  );
+
+  await runWithSubrequestBudget(async () => {
+    await client.checkout.sessions.create(checkoutParams());
+    expect(getSubrequestUsage()).toEqual({
+      database: 0,
+      external: 2,
+      total: 2,
+    });
+  });
 };
 
 const oneCallErrorClient = (response: Response) => {
@@ -195,22 +214,15 @@ describe("Stripe request transport", () => {
   });
 
   test("counts every Stripe retry against the shared request budget", async () => {
-    const { client } = recordingCheckout(
-      [
-        new Response("busy", { status: 500 }),
-        Response.json(stripeCheckoutSession()),
-      ],
-      1,
+    await expectTwoCountedCheckoutAttempts(
+      new Response("busy", { status: 500 }),
     );
+  });
 
-    await runWithSubrequestBudget(async () => {
-      await client.checkout.sessions.create(checkoutParams());
-      expect(getSubrequestUsage()).toEqual({
-        database: 0,
-        external: 2,
-        total: 2,
-      });
-    });
+  test("counts a rejected Stripe transport before retrying", async () => {
+    await expectTwoCountedCheckoutAttempts(
+      new TypeError("network unavailable"),
+    );
   });
 
   test("blocks Stripe before transport when no external allowance remains", async () => {
