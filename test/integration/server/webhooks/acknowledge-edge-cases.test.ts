@@ -1,6 +1,5 @@
 // jscpd:ignore-start
-import { afterEach, it as test } from "@std/testing/bdd";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
@@ -17,10 +16,6 @@ describeWithEnv(
   "server webhooks > acknowledging edge-case sessions",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("acknowledges non-checkout listings", async () => {
       await setupStripe();
 

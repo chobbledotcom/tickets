@@ -21,9 +21,9 @@ export const repoRoot = resolve(here, "..", "..");
 export interface AppServer {
   /** Local base URL, e.g. http://127.0.0.1:38123 */
   localBaseUrl: string;
-  port: number;
   /** Path to the app server's captured stdout/stderr log. */
   logPath: string;
+  port: number;
   stop: () => Promise<void>;
 }
 
@@ -39,12 +39,10 @@ export const buildStaticAssets = async (): Promise<void> => {
       stdio: "inherit",
     });
     child.on("error", reject);
-    child.on(
-      "exit",
-      (code) =>
-        code === 0
-          ? resolveP()
-          : reject(new Error(`build:static exited ${code}`)),
+    child.on("exit", (code) =>
+      code === 0
+        ? resolveP()
+        : reject(new Error(`build:static exited ${code}`)),
     );
   });
 };

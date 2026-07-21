@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
@@ -7,7 +7,14 @@ import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
+import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  modifierUsageAmount,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
 import {
   bookFreeOrder,
   bookPaidReservation,
@@ -34,8 +41,6 @@ describeWithEnv(
   "server (reservation deposit at checkout)",
   { db: true },
   () => {
-    afterEach(() => resetStripeClient());
-
     test("reservation balance page shows cash paid and the discounted full price", async () => {
       const listing = await setupReservationListing({
         bookingFee: "0",

@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 /**
  * Request schemas for the public JSON API's booking bodies — the ONE
@@ -14,8 +15,6 @@ export const ApiQuantitySchema = v.pipe(
   v.minValue(1),
 );
 
-const NonEmptyStringSchema = v.pipe(v.string(), v.nonEmpty());
-
 /** One `children` entry of a booking body — declared once as a schema, so the
  * accepted shape, its validation (a NaN/garbage `customPrice` is a parse error,
  * never a stored price), and the {@link ApiChildSelection} type stay one
@@ -25,9 +24,9 @@ const NonEmptyStringSchema = v.pipe(v.string(), v.nonEmpty());
  * with a "choose more" error). */
 const childSelectionEntries = {
   customPrice: v.optional(v.pipe(v.number(), v.finite(), v.minValue(0))),
-  parent: v.optional(NonEmptyStringSchema),
+  parent: v.optional(NonEmptyTextSchema),
   quantity: ApiQuantitySchema,
-  slug: NonEmptyStringSchema,
+  slug: NonEmptyTextSchema,
 };
 
 export const ChildrenSchema = v.nullish(
@@ -35,7 +34,7 @@ export const ChildrenSchema = v.nullish(
   [],
 );
 export const PackageChildrenSchema = v.nullish(
-  v.array(v.object({ ...childSelectionEntries, parent: NonEmptyStringSchema })),
+  v.array(v.object({ ...childSelectionEntries, parent: NonEmptyTextSchema })),
   [],
 );
 

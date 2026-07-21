@@ -26,6 +26,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
+import { NonEmptyTextSchema } from "#shared/validation/string.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ const listingTargetSchema = v.object({
 /** One attendee, from that attendee's edit page (by non-empty ticket token). */
 const attendeeTargetSchema = v.object({
   kind: v.literal("attendee"),
-  token: v.pipe(v.string(), v.nonEmpty()),
+  token: NonEmptyTextSchema,
 });
 
 export type AudienceTarget = v.InferOutput<typeof audienceTargetSchema>;
