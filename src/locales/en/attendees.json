@@ -201,7 +201,6 @@
   "admin.attendee_table.no_quantity": "No quantity",
   "admin.attendee_table.servicing": "Service",
   "error.not_enough_spots": "Not enough spots available",
-  "error.encryption_error": "Encryption error — check that DB_ENCRYPTION_KEY is configured",
   "error.no_payment_to_refund": "This attendee has no payment to refund.",
   "error.no_attendees_to_refund": "No attendees have payments to refund.",
   "error.refund_failed": "Refund failed. The payment may have already been refunded.",
