@@ -1,4 +1,4 @@
-import { capacityErrorFormatter } from "#shared/capacity-error.ts";
+import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validatePrice } from "#shared/validation/money.ts";
 
@@ -28,4 +28,4 @@ export const bookingError = {
 };
 
 /** Format error message for failed attendee creation. */
-export const formatAtomicError = capacityErrorFormatter(bookingError);
+export const formatAtomicError = attendeeFailureFormatter(bookingError);

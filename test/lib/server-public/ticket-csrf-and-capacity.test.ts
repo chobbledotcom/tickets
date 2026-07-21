@@ -2,7 +2,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   expectFlash,
@@ -149,28 +148,6 @@ describeWithEnv(
           mockAtomic.restore();
           mockBooking.restore();
         }
-      });
-    });
-
-    describe("capacityErrorFormatter", () => {
-      const format = capacityErrorFormatter({
-        fallback: "fallback",
-        generic: "generic",
-        withName: (name) => `${name} is full`,
-      });
-
-      test("returns the named message for capacity_exceeded with an listing name", () => {
-        expect(format("capacity_exceeded", "My Listing")).toBe(
-          "My Listing is full",
-        );
-      });
-
-      test("returns the generic capacity message when no listing name is given", () => {
-        expect(format("capacity_exceeded", "")).toBe("generic");
-      });
-
-      test("returns the fallback for non-capacity reasons", () => {
-        expect(format("encryption_error", "My Listing")).toBe("fallback");
       });
     });
 

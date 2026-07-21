@@ -5,7 +5,7 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import type { TransferEndpoints } from "#shared/accounting/rows.ts";
 import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
-import { capacityErrorFormatter } from "#shared/capacity-error.ts";
+import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -148,7 +148,7 @@ const assertServicingEditInput = servicingInputAsserter(false);
  *  requested capacity slot — names the SPECIFIC listing(s) that were sold
  *  out instead of surfacing the bare "capacity_exceeded"/"encryption_error"
  *  reason string. */
-const formatServicingCapacityError = capacityErrorFormatter({
+const formatServicingCapacityError = attendeeFailureFormatter({
   fallback: "Failed to save the service event. Please try again.",
   generic: "Not enough spots available.",
   withName: (name) => `Not enough spots available for: ${name}`,

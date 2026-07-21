@@ -15,6 +15,7 @@ import {
 import { isRegistrationClosed } from "#routes/format.ts";
 import { parentRequiresChild } from "#routes/public/ticket-payment.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
 import { bookingError } from "#shared/booking/form.ts";
 import { processBooking } from "#shared/booking.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
@@ -26,6 +27,14 @@ import {
   extractContact,
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
+
+const CREATION_FAILURE_RESPONSES: Record<
+  AttendeeCreationFailureReason,
+  () => Response
+> = {
+  capacity_exceeded: soldOutResponse,
+  encryption_error: () => apiError(bookingError.fallback, 500),
+};
 
 /** Map a BookingResult to an API JSON response */
 const bookingResultToResponse = (
@@ -41,9 +50,7 @@ const bookingResultToResponse = (
     case "checkout_failed":
       return checkoutFailedResponse(result.error);
     case "creation_failed":
-      return result.reason === "capacity_exceeded"
-        ? soldOutResponse()
-        : apiError(bookingError.fallback, 500);
+      return CREATION_FAILURE_RESPONSES[result.reason]();
   }
 };
 

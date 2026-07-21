@@ -242,44 +242,29 @@ applies.
 
 ---
 
-## 9. `needsPayment` predicate — extract the inline boolean
+## 9. Booking payment plan
 
-**Status: Shipped.** `bookingNeedsPayment` in
-`src/shared/booking/payment-needed.ts` is the pure rule for whether a booking
-must open a payment checkout. `processBooking` delegates to it instead of
-repeating the payments-enabled condition. Its table-driven direct tests cover
-disabled payments, priced and free listings, and positive and zero custom
-prices.
+**Status: Shipped.** `planBookingPayment` in
+`src/shared/booking/payment-plan.ts` resolves the effective unit price and
+returns a discriminated plan: open checkout at that price, or create the
+booking directly with its provider-less balance. `processBooking` executes the
+plan instead of separately deciding whether payment is needed, resolving the
+price twice, and calculating the balance in its IO path. Table-driven direct
+tests cover listing and custom prices, free bookings, provider-disabled
+balances, and the exact one-minor-unit checkout boundary.
 
 ---
 
 ## 10. `creation_failed` reasons — unify into one schema
 
-**Problem.** The `BookingResult` union (`booking.ts:54`) defines
-`reason: "capacity_exceeded" | "encryption_error"`, while
-`capacity-error.ts:8–21` only special-cases `"capacity_exceeded"` and treats
-everything else as fallback. These are parallel definitions of the same reason
-set. Adding a new reason (e.g. `"sold_out"`) means editing the union AND the
-error formatter AND every dispatcher, with a silent-fallthrough risk.
-
-**Plan.** Create a single `FailureReasonSchema` (valibot picklist, like
-`PaymentStatusSchema`), derive the `BookingResult` reason type from it, and
-build a `Record<FailureReason, messageBuilder>` for the error formatter:
-
-```typescript
-export const FailureReasonSchema = v.picklist(["capacity_exceeded", "encryption_error"]);
-export type FailureReason = v.InferOutput<typeof FailureReasonSchema>;
-
-const FAILURE_MESSAGES: Record<FailureReason, (name?: string) => string> = {
-  capacity_exceeded: (name) => name ? `Sorry, ${name} no longer has enough spots available` : "Sorry, not enough spots available",
-  encryption_error: () => "Registration failed. Please try again.",
-};
-```
-
-A new reason is a compile error in the `Record` until the message exists.
-
-**Exemplar:** `PaymentStatusSchema` (`payments.ts:249–257`) — valibot picklist
-as single source of truth for a status union.
+**Status: Shipped.** `src/shared/attendee-failures.ts` declares the failure
+reason literals once and composes them into precise Valibot schemas for attendee
+creation, attendee updates, and shared message formatting. `CreateAttendeeResult`,
+`UpdateAttendeeAtomicResult`, and `BookingResult` derive their reason types from
+those schemas. The old `capacity-error.ts` string fallback is gone: an
+exhaustive `Record<AttendeeFailureReason, messageBuilder>` now handles every
+known reason, and the JSON booking API has its own exhaustive response table.
+Adding a reason is a compile error until every dispatcher handles it.
 
 ---
 
@@ -305,7 +290,7 @@ pattern to content string fields.
 
 ## Prioritisation
 
-**Shipped (items 1–8):**
+**Shipped (items 1–10):**
 
 - **Item 1 (admin-page schema)** — the schema, nav.tsx migration, and
   nav.test.tsx migration are done. Remaining: `adminLandingPath` derivation
@@ -327,11 +312,14 @@ pattern to content string fields.
   by `edgeFieldError`; tests derive messages from the i18n keys.
 - **Item 8 (capacity rules)** — `capacity-rules.ts` is the declarative table;
   the JS preflight and the inline SQL guard both derive from it.
+- **Item 9 (booking payment plan)** — one pure discriminated plan resolves the
+  effective price, checkout path, and provider-less balance.
+- **Item 10 (attendee failure reasons)** — composable Valibot schemas derive the
+  creation/update reason types and exhaustive message/response dispatchers.
 
-**Remaining (items 10–11):**
+**Remaining (item 11):**
 
-Items 10 and 11 are independent, small refactors that can be done in either
-order.
+Item 11 is an independent small refactor.
 
 When taking any item, follow the codebase conventions: put the schema in
 `src/shared/` (pure, data-in/data-out), keep the IO shell thin, and migrate

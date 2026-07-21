@@ -28,6 +28,7 @@
 
 import type { InValue } from "@libsql/client";
 import { unique } from "#fp";
+import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -109,7 +110,7 @@ export type UpdateAttendeeAtomicResult =
   | { success: true }
   | {
       success: false;
-      reason: "capacity_exceeded" | "no_lines";
+      reason: AttendeeUpdateFailureReason;
       listingIds: number[];
     };
 
