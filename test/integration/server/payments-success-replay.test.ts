@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { groups } from "#shared/db/groups.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { renderPaymentSuccess } from "#test/lib/payment-success-helpers.ts";
 import { expectHtmlResponse, followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -12,7 +13,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { renderPaymentSuccess } from "../../lib/payment-success-helpers.ts";
 
 // jscpd:ignore-end
 

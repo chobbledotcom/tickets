@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { expectBothReservedAtTwoAndOne } from "#test/lib/server-public/_shared-multi.ts";
 import {
   assertPublicHtml,
   expectCheckoutRedirect,
@@ -26,7 +27,6 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { expectBothReservedAtTwoAndOne } from "../../../lib/server-public/_shared-multi.ts";
 
 // jscpd:ignore-end
 

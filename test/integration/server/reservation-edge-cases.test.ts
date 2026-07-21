@@ -1,3 +1,4 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -8,13 +9,6 @@ import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  modifierUsageAmount,
-  modifierUsageCount,
-} from "#test-utils/modifiers.ts";
 import {
   bookFreeOrder,
   bookPaidReservation,
@@ -36,6 +30,8 @@ import {
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
+
+// jscpd:ignore-end
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

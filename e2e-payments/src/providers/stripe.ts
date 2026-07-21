@@ -1,8 +1,8 @@
 /* jscpd:ignore-start */
-import { type BrowserSession, requirePageText } from "../browser.ts";
-import { config } from "../config.ts";
-import { BOOKER_NAME } from "../flow.ts";
-import { log, warn } from "../log.ts";
+import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
+import { config } from "#e2e/config.ts";
+import { BOOKER_NAME } from "#e2e/flow.ts";
+import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
@@ -107,8 +107,10 @@ const isTrycloudflareTunnelUrl = (raw: string | undefined): boolean => {
   if (!raw) return false;
   try {
     const { hostname } = new URL(raw);
-    return hostname === "trycloudflare.com" ||
-      hostname.endsWith(".trycloudflare.com");
+    return (
+      hostname === "trycloudflare.com" ||
+      hostname.endsWith(".trycloudflare.com")
+    );
   } catch {
     return false;
   }

@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
+import { createDailyListing } from "#test/lib/server-public/daily-listing.ts";
 import {
   assertPublicHtml,
   expectFlash,
@@ -14,7 +15,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { createDailyListing } from "../../../lib/server-public/daily-listing.ts";
 
 // jscpd:ignore-end
 
