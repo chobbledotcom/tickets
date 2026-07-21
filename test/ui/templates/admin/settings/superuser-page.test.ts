@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
+import { defaultSettingsState } from "#test/ui/templates/admin/settings-state.ts";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { validEmail } from "#test-utils/email.ts";
-import { defaultSettingsState } from "../settings-state.ts";
 
 type AvailableSuperuser = Extract<
   SettingsPageState["superuser"],

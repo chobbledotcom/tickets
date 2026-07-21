@@ -1,6 +1,6 @@
 import { isAbsolute, relative } from "node:path";
 import { filter, map, sort } from "#fp";
-import { projectRoot } from "../project-root.ts";
+import { projectRoot } from "#scripts/project-root.ts";
 
 export interface SourceTestTarget {
   directTestFiles: string[];

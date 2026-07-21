@@ -15,7 +15,7 @@
 
 import { fromFileUrl } from "@std/path";
 import * as v from "valibot";
-import { runCommand } from "../precommit/git.ts";
+import { runCommand } from "#scripts/precommit/git.ts";
 
 /** The module whose import graph produces the prebuilt test state. */
 export const STATE_BUILDER_ROOT = "test/test-utils/test-state.ts";

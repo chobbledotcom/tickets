@@ -4,22 +4,22 @@ import {
   type CommandResult,
   runCommand,
   runInteractiveCommand,
-} from "../../scripts/precommit/git.ts";
+} from "#scripts/precommit/git.ts";
 import {
   getMergeConflictWarning,
   parseMergeTreeConflictedPaths,
-} from "../../scripts/precommit/merge-warning.ts";
+} from "#scripts/precommit/merge-warning.ts";
 import {
   formatPushPrompt,
   getPushPromptContext,
   promptToPushCheckedInChanges,
   shouldPushFromAnswer,
-} from "../../scripts/precommit/push.ts";
+} from "#scripts/precommit/push.ts";
 import {
   canPrompt,
   canShowProgress,
   currentTerminalState,
-} from "../../scripts/precommit/terminal.ts";
+} from "#scripts/precommit/terminal.ts";
 
 const ok = (stdout = ""): CommandResult => ({
   code: 0,

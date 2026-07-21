@@ -4,15 +4,15 @@ import { handleRequest } from "#routes";
 import { routeBalance } from "#routes/public/balance.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
 import {
   createNonReservation,
   createReserved,
   expectRecap,
   getPayPage,
   settle,
-} from "../../lib/server-balance-helpers.ts";
+} from "#test/lib/server-balance-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 
 describeWithEnv("server (public balance page) > GET", { db: true }, () => {
   test("GET shows the recap and balance due for a reserved attendee", async () => {

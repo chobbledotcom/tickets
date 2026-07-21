@@ -1,13 +1,13 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
-import { withTempDir } from "#test-utils/files.ts";
-import { wait } from "#test-utils/mocks.ts";
-import { installLockPath } from "../../../scripts/stripe-mock/install.ts";
+import { installLockPath } from "#scripts/stripe-mock/install.ts";
 import {
   STRIPE_MOCK_FAILED_TO_START,
   startStripeMock,
-} from "../../../scripts/stripe-mock.ts";
+} from "#scripts/stripe-mock.ts";
+import { withTempDir } from "#test-utils/files.ts";
+import { wait } from "#test-utils/mocks.ts";
 
 export type TestStripeMockPaths = { binDir: string; binaryPath: string };
 export type StartOptions = NonNullable<Parameters<typeof startStripeMock>[0]>;

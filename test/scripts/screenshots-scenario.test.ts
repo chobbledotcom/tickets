@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { fromFileUrl } from "@std/path";
 import { it as test } from "@std/testing/bdd";
-import { loadScreenshotScenario } from "../../scripts/screenshots/scenario.ts";
+import { loadScreenshotScenario } from "#scripts/screenshots/scenario.ts";
 
 const loadFixture = (name: string) =>
   loadScreenshotScenario(

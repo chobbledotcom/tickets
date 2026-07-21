@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
+import { twoListingsAttendees } from "#test/lib/attendee-read-helpers.ts";
 import {
   expectHtmlResponse,
   expectRedirect,
@@ -14,7 +15,6 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { twoListingsAttendees } from "../../lib/attendee-read-helpers.ts";
 
 /** Assert every package member's most recent booking landed on `date` and
  *  carries the package's group id — the shared check for a dated package

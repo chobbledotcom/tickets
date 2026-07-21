@@ -3,10 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
-import { setupStripe } from "#test-utils/settings.ts";
 import {
   expectProcessed,
   expectStoredRefund,
@@ -14,7 +10,11 @@ import {
   runWebhook,
   setupPackage,
   signedMeta,
-} from "../../../lib/webhook-price-signature/helpers.ts";
+} from "#test/lib/webhook-price-signature/helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "webhook signed price oracle — hidden & standalone members",

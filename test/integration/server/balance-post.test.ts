@@ -6,16 +6,16 @@ import { signBalanceToken } from "#shared/balance-link.ts";
 import { attendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import {
+  createReserved,
+  insertBareAttendee,
+  postPay,
+} from "#test/lib/server-balance-helpers.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import {
-  createReserved,
-  insertBareAttendee,
-  postPay,
-} from "../../lib/server-balance-helpers.ts";
 
 describeWithEnv("server (public balance page) > POST", { db: true }, () => {
   test("POST refuses a reservation with no real booking line", async () => {

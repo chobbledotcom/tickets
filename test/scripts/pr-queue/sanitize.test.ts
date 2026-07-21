@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   sanitizeSummary,
   stripControlChars,
-} from "../../../scripts/pr-queue/sanitize.ts";
-import type { PrSummary } from "../../../scripts/pr-queue/types.ts";
+} from "#scripts/pr-queue/sanitize.ts";
+import type { PrSummary } from "#scripts/pr-queue/types.ts";
 
 describe("stripControlChars", () => {
   test("removes C0 control bytes (ESC, bell) but keeps the visible text", () => {

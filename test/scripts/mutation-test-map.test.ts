@@ -3,8 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   buildMutationTestMap,
   requireDirectMutationTests,
-} from "../../scripts/mutation/test-map.ts";
-import { projectRoot } from "../../scripts/project-root.ts";
+} from "#scripts/mutation/test-map.ts";
+import { projectRoot } from "#scripts/project-root.ts";
 
 describe("mutation test map", () => {
   test("does not use another source's mirrored tests as fallback tests", () => {

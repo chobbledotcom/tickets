@@ -4,12 +4,12 @@
  * All testable logic is in stripe-mock.ts
  */
 
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   startStripeMock,
   stripeMockEnv,
   stripeMockPortFromEnv,
-} from "../scripts/stripe-mock.ts";
+} from "#scripts/stripe-mock.ts";
+import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 const port = stripeMockPortFromEnv();
 

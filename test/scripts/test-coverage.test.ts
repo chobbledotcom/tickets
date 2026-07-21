@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { removeOldCoverageOutput } from "#scripts/coverage-output.ts";
 import { pathExists, withTempDir, withTempFile } from "#test-utils/files.ts";
-import { removeOldCoverageOutput } from "../../scripts/coverage-output.ts";
 
 const withTempCoverageDir = <Result>(
   run: (path: string) => Result | Promise<Result>,

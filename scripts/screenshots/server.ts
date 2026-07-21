@@ -2,7 +2,7 @@ import {
   type CleanupTask,
   failAfterCleanups,
   runCleanups,
-} from "../cleanup.ts";
+} from "#scripts/cleanup.ts";
 
 export interface StartupCleanup {
   add: (cleanup: CleanupTask) => void;

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { commandExitCode, denoNpmArgs } from "../../scripts/deno-command.ts";
+import { commandExitCode, denoNpmArgs } from "#scripts/deno-command.ts";
 
 describe("denoNpmArgs", () => {
   test("builds the deno run -A npm:<pkg> arg list with the extra args", () => {

@@ -13,9 +13,9 @@ import {
   resolve,
   SEPARATOR,
 } from "@std/path";
-import { openLockFile } from "../lock-file.ts";
-import { rethrowUnlessNotFound } from "../not-found.ts";
-import { projectRoot } from "../project-root.ts";
+import { openLockFile } from "#scripts/lock-file.ts";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { projectRoot } from "#scripts/project-root.ts";
 import { denoExitCode } from "./child-process.ts";
 
 export const MUTATION_RUNS_DIR = ".mutation-runs";

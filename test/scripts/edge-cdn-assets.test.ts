@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { ASSET_DEFS, buildCdnAssets } from "../../scripts/edge-cdn-assets.ts";
+import { ASSET_DEFS, buildCdnAssets } from "#scripts/edge-cdn-assets.ts";
 
 const CDN_STATIC_FILENAMES = [
   "style.css",

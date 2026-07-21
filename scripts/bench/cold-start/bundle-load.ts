@@ -11,7 +11,7 @@
  */
 
 import { encodeBase64 } from "jsr:@std/encoding@^1.0.0/base64";
-import { buildEdgeBundle } from "../../edge-bundle-lib.ts";
+import { buildEdgeBundle } from "#scripts/edge-bundle-lib.ts";
 import { spawnChildJson } from "./spawn-child.ts";
 import { median, stripBase64Payloads, strippedChars } from "./strip-lib.ts";
 import {

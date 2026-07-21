@@ -9,13 +9,13 @@ import {
 import type { MaintenanceTaskDeclaration } from "#shared/maintenance/definition.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { nowMs } from "#shared/now.ts";
-import { insertLegacyActivity } from "#test-utils/activity-log.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertLoginAttempt,
   insertStrings,
   loginAttemptExists,
-} from "../db/prune/helpers.ts";
+} from "#test/shared/db/prune/helpers.ts";
+import { insertLegacyActivity } from "#test-utils/activity-log.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   const task = MAINTENANCE_TASKS.find((candidate) => candidate.name === name);

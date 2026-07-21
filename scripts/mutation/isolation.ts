@@ -6,14 +6,14 @@
  */
 
 import { relative } from "@std/path";
-import { errorMessage } from "#shared/error-message.ts";
 import {
   INHERIT_STDIO,
   processExists,
   stopProcess,
   stopProcessNow,
-} from "../process.ts";
-import { projectRoot } from "../project-root.ts";
+} from "#scripts/process.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import {
   envWith,
   offTerminationSignals,

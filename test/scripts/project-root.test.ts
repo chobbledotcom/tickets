@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { toDisplayPath } from "../../scripts/project-root.ts";
+import { toDisplayPath } from "#scripts/project-root.ts";
 
 describe("toDisplayPath", () => {
   test("strips a leading ./ from a relative path", () => {

@@ -2,6 +2,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import {
+  addServiceCharge,
+  attendeeCount,
+  setPublicReservation,
+  setupSoldOutModifierRace,
+  submitBuyerOrder,
+  totalContactActivity,
+} from "#test/lib/server-reservation/helpers.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
@@ -10,14 +18,6 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { modifierUsageAmount } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import {
-  addServiceCharge,
-  attendeeCount,
-  setPublicReservation,
-  setupSoldOutModifierRace,
-  submitBuyerOrder,
-  totalContactActivity,
-} from "../../../lib/server-reservation/helpers.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",
