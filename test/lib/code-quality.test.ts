@@ -536,9 +536,13 @@ describe("code quality", () => {
     detect: (relativePath: string, contents: string) => string[],
   ): string[] => {
     const violations: string[] = [];
-    forEachScannedFile(files, contents, (_file, relativePath, fileContents) => {
-      violations.push(...detect(relativePath, fileContents));
-    });
+    // Whole-file detectors (like detectRelativeImport) skip comments and
+    // string literals themselves, so code-quality's own files don't need the
+    // blanket skip the line-level detectors use — they can't self-flag.
+    for (const file of files) {
+      const relativePath = repoRelative(file);
+      violations.push(...detect(relativePath, contents.get(file)!));
+    }
     return violations;
   };
 

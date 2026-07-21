@@ -408,10 +408,11 @@ describe("detectRelativeImport", () => {
     expect(detect('const c = `import { x } from "../b.ts";`;')).toEqual([]);
   });
 
-  test("does not flag a template specifier with a substitution", () => {
-    // A template literal with `\${...}` can't be reduced to a static path, so
-    // the walker treats it as "no specifier" — not a ../ to flag.
-    expect(detect("import `../${x}`;")).toEqual([]);
+  test("does not flag a template specifier whose static prefix is not parent-walking", () => {
+    // A template literal with `\${...}` whose static prefix is `./` or a
+    // package name is left alone — only `../` prefixes are flagged.
+    expect(detect("import `./${x}`;")).toEqual([]);
+    expect(detect("import `pages/${x}`;")).toEqual([]);
   });
 
   test("returns no violations for code without imports", () => {
@@ -448,6 +449,54 @@ describe("detectRelativeImport", () => {
     // `"."` is 3 chars — `isParentRelativeSpecifier` returns false before
     // checking the prefix (the `length < 5` guard).
     expect(detect('import ".";')).toEqual([]);
+  });
+
+  test("flags a named re-export from a parent path", () => {
+    expect(detect('export { x } from "../b.ts";')).toEqual(
+      violation('export { x } from "../b.ts"'),
+    );
+  });
+
+  test("flags a namespace re-export from a parent path", () => {
+    expect(detect('export * from "../b.ts";')).toEqual(
+      violation('export * from "../b.ts"'),
+    );
+  });
+
+  test("flags a type-only re-export from a parent path", () => {
+    expect(detect('export type { Foo } from "../b.ts";')).toEqual(
+      violation('export type { Foo } from "../b.ts"'),
+    );
+  });
+
+  test("does not flag a re-export from a sibling or package", () => {
+    expect(detect('export { x } from "./b.ts";')).toEqual([]);
+    expect(detect('export { x } from "valibot";')).toEqual([]);
+  });
+
+  test("flags a side-effect import with a parent-walking template prefix", () => {
+    // The template has a `${…}` substitution, but the static prefix `../`
+    // still walks to the parent — flagged via `readTemplatePrefix`.
+    expect(detect("import `../pages/${name}.ts`;")).toEqual(
+      violation("import `../pages/"),
+    );
+  });
+
+  test("flags a dynamic import with a parent-walking template prefix", () => {
+    expect(detect("const mod = await import(`../pages/${name}.ts`);")).toEqual(
+      violation("import(`../pages/"),
+    );
+  });
+
+  test("flags a static import with a parent-walking template specifier", () => {
+    expect(detect("import { x } from `../pages/${name}.ts`;")).toEqual(
+      violation("import { x } from `../pages/"),
+    );
+  });
+
+  test("does not flag a template specifier without a parent-walking prefix", () => {
+    expect(detect("import `./pages/${name}.ts`;")).toEqual([]);
+    expect(detect("import { x } from `pages/${name}.ts`;")).toEqual([]);
   });
 });
 

@@ -61,15 +61,21 @@ export const stripe: PaymentProvider = {
         isTrycloudflareTunnelUrl(e.url),
       );
       for (const endpoint of stale) {
-        const del = await fetch(
-          `https://api.stripe.com/v1/webhook_endpoints/${endpoint.id}`,
-          { headers, method: "DELETE" },
-        );
-        if (del.ok) {
-          log(`  deleted stale Stripe webhook endpoint ${endpoint.id}`);
-        } else {
+        try {
+          const del = await fetch(
+            `https://api.stripe.com/v1/webhook_endpoints/${endpoint.id}`,
+            { headers, method: "DELETE" },
+          );
+          if (del.ok) {
+            log(`  deleted stale Stripe webhook endpoint ${endpoint.id}`);
+          } else {
+            warn(
+              `  failed to delete stale Stripe webhook endpoint ${endpoint.id} (HTTP ${del.status})`,
+            );
+          }
+        } catch (err) {
           warn(
-            `  failed to delete stale Stripe webhook endpoint ${endpoint.id} (HTTP ${del.status})`,
+            `  failed to delete stale Stripe webhook endpoint ${endpoint.id}: ${String(err)}`,
           );
         }
       }
