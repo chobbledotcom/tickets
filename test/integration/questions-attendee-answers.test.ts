@@ -20,7 +20,7 @@ import {
   createAttendee,
   createQuestion,
   saveTextAnswers,
-} from "./helpers.ts";
+} from "#test/shared/db/questions/helpers.ts";
 
 /** The choice answer ids one attendee has saved (undefined when none). Shared by
  *  the replace and rollback tests so the read+assert pair stays one line each. */

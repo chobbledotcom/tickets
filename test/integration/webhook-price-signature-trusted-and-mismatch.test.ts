@@ -25,7 +25,7 @@ import {
   setupWithListing,
   signedMeta,
   webhookRequest,
-} from "./helpers.ts";
+} from "#test/lib/webhook-price-signature/helpers.ts";
 
 const pruneReplayRowWithoutRefundReference = async (sessionId: string) => {
   await execute(

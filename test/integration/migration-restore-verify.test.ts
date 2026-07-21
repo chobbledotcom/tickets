@@ -14,10 +14,6 @@ import {
   runMigration,
 } from "#shared/db/migrations/schema-sync.ts";
 import { loadMigrations } from "#shared/db/migrations.ts";
-import {
-  downgradeListingDomainToLegacyNames,
-  tableRowCount,
-} from "#test/lib/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 import {
@@ -26,7 +22,11 @@ import {
   migrationById,
   seedSentinelListing,
   triggerExists,
-} from "./helpers.ts";
+} from "#test/lib/db/migration-restore/helpers.ts";
+import {
+  downgradeListingDomainToLegacyNames,
+  tableRowCount,
+} from "#test/lib/db/migration-test-helpers.ts";
 
 const MIGRATIONS = await loadMigrations();
 const RESTORE_TRIGGER: Trigger = {
