@@ -6,26 +6,44 @@ import {
   MAINTENANCE_REQUEST_CALL_LIMIT,
   MAINTENANCE_TASK_CALL_LIMIT,
   type MaintenanceTaskDeclaration,
+  maintenanceStartupCalls,
   maintenanceTaskByName,
 } from "#shared/maintenance/definition.ts";
+import { maintenanceDeclaration } from "./fixtures.ts";
 
 const task = (
-  overrides: Partial<MaintenanceTaskDeclaration> = {},
-): MaintenanceTaskDeclaration => ({
-  deadlineMs: 10_000,
-  enabled: () => true,
-  failureRetryIntervalMs: 60_000,
-  intervalMs: 60_000,
-  maxDatabaseCalls: 1,
-  maxExternalCalls: 0,
-  name: "test_task",
-  run: () => Promise.resolve(),
-  settingsKeys: [],
-  wakePolicy: "organic_safe",
-  ...overrides,
-});
+  overrides: Parameters<typeof maintenanceDeclaration>[2] = {},
+): MaintenanceTaskDeclaration =>
+  maintenanceDeclaration("test_task", () => Promise.resolve(), {
+    maxDatabaseCalls: 1,
+    ...overrides,
+  });
 
 describe("maintenance task declarations", () => {
+  test("totals every startup call and the shared settings and sync reads", () => {
+    expect(maintenanceStartupCalls([])).toEqual({
+      database: 0,
+      external: 0,
+      total: 0,
+    });
+    expect(
+      maintenanceStartupCalls([
+        task({
+          check: {
+            maxDatabaseCalls: 2,
+            maxExternalCalls: 4,
+            settingsKeys: ["first"],
+          },
+          name: "first",
+        }),
+        task({
+          check: { maxDatabaseCalls: 3, maxExternalCalls: 5 },
+          name: "second",
+        }),
+      ]),
+    ).toEqual({ database: 7, external: 9, total: 16 });
+  });
+
   test("reserves seven calls and one second for scheduler bookkeeping", () => {
     expect(MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_TASK_CALL_LIMIT).toBe(
       7,
@@ -91,6 +109,18 @@ describe("maintenance task declarations", () => {
     ).not.toThrow();
   });
 
+  test("rejects activation checks that cannot fit the request", () => {
+    expect(() =>
+      defineMaintenanceTasks([
+        task({
+          check: { maxDatabaseCalls: MAINTENANCE_REQUEST_CALL_LIMIT },
+        }),
+      ]),
+    ).toThrow(
+      `Maintenance checks declare ${MAINTENANCE_REQUEST_CALL_LIMIT + 1} startup calls; maximum is ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
+    );
+  });
+
   test("rejects invalid call counts and deadlines", () => {
     expect(() =>
       defineMaintenanceTasks([task({ maxDatabaseCalls: -1 })]),
@@ -98,6 +128,16 @@ describe("maintenance task declarations", () => {
     expect(() =>
       defineMaintenanceTasks([task({ maxExternalCalls: -1 })]),
     ).toThrow("test_task external calls must be a non-negative integer");
+    expect(() =>
+      defineMaintenanceTasks([task({ check: { maxDatabaseCalls: -1 } })]),
+    ).toThrow(
+      "test_task enabled-check database calls must be a non-negative integer",
+    );
+    expect(() =>
+      defineMaintenanceTasks([task({ check: { maxExternalCalls: -1 } })]),
+    ).toThrow(
+      "test_task enabled-check external calls must be a non-negative integer",
+    );
     expect(() => defineMaintenanceTasks([task({ deadlineMs: 0 })])).toThrow(
       "test_task deadline must be greater than 0ms",
     );

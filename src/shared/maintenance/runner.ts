@@ -18,6 +18,7 @@ import {
   MAINTENANCE_REQUEST_DEADLINE_MS,
   type MaintenanceTaskDeclaration,
   type MaintenanceWakePolicy,
+  maintenanceStartupCalls,
   maintenanceTaskByName,
 } from "./definition.ts";
 
@@ -30,6 +31,15 @@ export type RunMaintenanceOptions = {
 
 const taskCalls = (task: MaintenanceTaskDeclaration): number =>
   task.maxDatabaseCalls + task.maxExternalCalls;
+
+const tasksForWake = (
+  declarations: readonly MaintenanceTaskDeclaration[],
+  wakePolicy: MaintenanceWakePolicy,
+): readonly MaintenanceTaskDeclaration[] =>
+  declarations.filter(
+    (task) =>
+      wakePolicy === "scheduled_only" || task.wakePolicy === "organic_safe",
+  );
 
 // Claim, finish, and the final no-work claim remain outside the task allowance.
 const TASK_RUNNER_CALL_RESERVE = 3;
@@ -48,7 +58,10 @@ const enabledTasks = async (
   enabled: MaintenanceTaskDeclaration[];
 }> => {
   const states = await Promise.all(
-    tasks.map(async (task) => ({ enabled: await task.enabled(), task })),
+    tasks.map(async (task) => ({
+      enabled: await task.check.enabled(),
+      task,
+    })),
   );
   return {
     disabledNames: states
@@ -106,17 +119,11 @@ const runClaimedTask = async (
 };
 
 const runWithinAllowance = async (
-  declarations: readonly MaintenanceTaskDeclaration[],
-  options: RunMaintenanceOptions,
+  candidates: readonly MaintenanceTaskDeclaration[],
   requestDeadline: number,
 ): Promise<void> => {
-  const wakePolicy = options.wakePolicy ?? "scheduled_only";
-  const candidates = declarations.filter(
-    (task) =>
-      wakePolicy === "scheduled_only" || task.wakePolicy === "organic_safe",
-  );
   await settings.loadKeys(
-    unique(candidates.flatMap((task) => task.settingsKeys)),
+    unique(candidates.flatMap((task) => task.check.settingsKeys)),
   );
   const { enabled, disabledNames } = await enabledTasks(candidates);
   await syncMaintenanceTaskRows(
@@ -165,17 +172,29 @@ const runMaintenance = (
       MAINTENANCE_REQUEST_CALL_LIMIT - used,
     ),
   );
-  if (combinedAllowance === 0) return Promise.resolve();
+  const externalAllowance = Math.min(
+    options.externalAllowance ?? combinedAllowance,
+    combinedAllowance,
+  );
+  const candidates = tasksForWake(
+    declarations,
+    options.wakePolicy ?? "scheduled_only",
+  );
+  const startup = maintenanceStartupCalls(candidates);
+  if (
+    startup.database > combinedAllowance ||
+    startup.external > externalAllowance ||
+    startup.total > combinedAllowance
+  ) {
+    return Promise.resolve();
+  }
   return withSubrequestAllowance(
     {
       database: combinedAllowance,
-      external: Math.min(
-        options.externalAllowance ?? combinedAllowance,
-        combinedAllowance,
-      ),
+      external: externalAllowance,
       total: combinedAllowance,
     },
-    () => runWithinAllowance(declarations, options, requestDeadline),
+    () => runWithinAllowance(candidates, requestDeadline),
   );
 };
 

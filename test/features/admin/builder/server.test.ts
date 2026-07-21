@@ -223,6 +223,7 @@ describeWithEnv(
     test("POST /admin/builder returns error when Deno Deploy is not configured", async () => {
       using _env = withEnv({
         DENO_DEPLOY_ORG_ID: undefined,
+        DENO_DEPLOY_ORG_SLUG: undefined,
         DENO_DEPLOY_TOKEN: undefined,
       });
       const { response } = await adminFormPost("/admin/builder", {
@@ -491,6 +492,7 @@ describeWithEnv(
     test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {
       using _env = withEnv({
         DENO_DEPLOY_ORG_ID: "test-org",
+        DENO_DEPLOY_ORG_SLUG: "test-org",
         DENO_DEPLOY_TOKEN: "test-token",
       });
       await withMocks(

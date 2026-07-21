@@ -54,6 +54,12 @@ test("parses legacy blobs without current optional fields", () => {
   ).toEqual({ n: "Legacy", u: "legacy.example", v: 1 });
 });
 
+test("treats an unversioned legacy blob as version 1", () => {
+  expect(
+    parseSiteDataBlob(JSON.stringify({ n: "Legacy", u: "legacy.example" })),
+  ).toEqual({ n: "Legacy", u: "legacy.example", v: 1 });
+});
+
 test("turns a legacy blob into every site field default", () => {
   expect(
     blobToSiteFields({
