@@ -1333,12 +1333,15 @@ out of scope for that PR's brief — recorded here for a follow-up.*
   shared `stubFetch` helper and asserts only that one request was made. It does
   not prove the emitted event is tagged or carries the intended test-error
   message. Replace the shared stub with a local fetch recorder inside that test,
-  then assert the captured Sentry envelope body contains the expected message and
-  the `source=admin-debug` / `test=true` tags. Retain the existing request-count,
-  redirect, and flash assertions. Starting point: read
-  `src/features/admin/debug.ts` (the `POST /admin/debug/sentry` handler) to find
-  where the envelope is constructed, and look at
-  `test/test-utils/fetch-stub.ts` to see what the shared stub exposes today.
+  then assert the captured Sentry envelope body contains the literal message
+  `"Test Sentry notification from the admin debug page."` and the
+  `source=admin-debug` / `test=true` tags (the literal values
+  `src/shared/sentry.ts` `sendSentryTest` writes today — keep them in sync with
+  that source when the follow-up lands). Retain the existing request-count,
+  redirect, and flash assertions. Starting point: read `sendSentryTest` in
+  `src/shared/sentry.ts` (lines ~74-101) to confirm the exact envelope values,
+  then look at `test/test-utils/fetch-stub.ts` to see what the shared stub
+  exposes today.
 - **Assert semantic debug sections, not CSS-class counts.** In
   `test/ui/templates/admin/debug/rendering.test.tsx` (around lines 38-40), the
   "keeps the debug navigation and section structure" test asserts the page
@@ -1346,10 +1349,13 @@ out of scope for that PR's brief — recorded here for a follow-up.*
   Those counts couple the test to presentation wrappers, so a layout change can
   fail it without changing page behaviour. PR #1875 carried these counts in
   because the brief explicitly asked for them as the current-main contract; a
-  follow-up can replace them with assertions on the section headings
-  (`t("debug.section.*")` keys) or the `DEBUG_SECTIONS` list and the
-  `proseTableSection` calls in `src/ui/templates/admin/debug.tsx`. Keep the
-  `href="/admin/debug"` link assertion. Starting point: enumerate
-  `DEBUG_SECTIONS` in `src/ui/templates/admin/debug.tsx` and derive the expected
-  section-title set from it, so the test fails only when a section is added,
-  removed, or renamed rather than when a wrapper class changes.
+  follow-up can replace them with assertions on the rendered section headings.
+  Keep the `href="/admin/debug"` link assertion. Maintain the expected heading
+  set as an explicit literal list inside the test (`t("debug.section.build")`,
+  `t("debug.section.runtime")`, etc.) — do **not** derive it from
+  `DEBUG_SECTIONS` in `src/ui/templates/admin/debug.tsx`: deriving the oracle
+  from the same source list the template renders against lets a removed or
+  renamed section pass undetected when both the rendering and the oracle shift
+  in lockstep. An independent literal list makes a section addition/removal/rename
+  a deliberate test review, which is the only way the test catches the failure
+  mode it is meant to catch.
