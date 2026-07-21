@@ -18,7 +18,7 @@ import {
   createReserved,
   expectSettled,
   stubBalanceSession,
-} from "./server-balance-helpers.ts";
+} from "../lib/server-balance-helpers.ts";
 
 // Stubs the Stripe refund call to report a refund with the given id.
 const stubRefund = (id: string) =>
