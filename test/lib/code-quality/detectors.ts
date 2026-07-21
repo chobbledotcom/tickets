@@ -173,14 +173,21 @@ export const detectThenUsage = (
  * -------------------------------------------------------------------------- */
 
 /**
- * Matches a relative import specifier that walks up a directory: any `from
- * "../…"` static import, `await import("../…")` dynamic import, or the bare
- * `import("../…")` form. A leading `./../` also matches. Sibling (`./x`) and
- * same-directory (`./`) imports are fine — only the parent-walking kind forces
- * a file to know where it sits in the tree, which is what aliases exist to hide.
+ * Matches a relative import specifier that walks up a directory: a `from
+ * "../…"` static import, a dynamic `import("../…")` / `await import("../…")`,
+ * or a bare side-effect `import "../…";`. A leading `./../` also matches.
+ * Sibling (`./x`) and same-directory (`./`) imports are fine — only the
+ * parent-walking kind forces a file to know where it sits in the tree, which
+ * is what aliases exist to hide.
+ *
+ * The bare side-effect `import "../…"` alternative is anchored to the start
+ * of the line (with optional leading whitespace) so the pattern does not match
+ * that text when it appears inside a string literal — e.g.
+ * `expect(...).toContain('import "../x.ts";')` in a test fixture is data, not
+ * an import statement.
  */
 export const RELATIVE_PARENT_IMPORT_PATTERN =
-  /(?:from\s+|import\s*\(\s*)["'](?:\.{2}|\.\/\.{2})\//;
+  /(?:from\s+|import\s*\(\s*|^\s*import\s+)["'](?:\.{2}|\.\/\.{2})\//m;
 
 /** A single line's parent-walking relative-import violation, or `null`. */
 export const detectRelativeImport = (

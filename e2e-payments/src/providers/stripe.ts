@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { log, warn } from "../log.ts";
+import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";

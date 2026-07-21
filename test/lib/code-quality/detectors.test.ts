@@ -266,6 +266,22 @@ describe("detectRelativeImport", () => {
     );
   });
 
+  test("flags a bare side-effect import with ../", () => {
+    expect(detectRelativeImport("src/a.ts", 'import "../b.ts";', 5)).toBe(
+      'src/a.ts:5: import "../b.ts";... (use a # alias instead of a ../ relative import)',
+    );
+  });
+
+  test("flags a side-effect import with leading whitespace", () => {
+    expect(detectRelativeImport("src/a.ts", '  import "../b.ts";', 1)).toBe(
+      'src/a.ts:1: import "../b.ts";... (use a # alias instead of a ../ relative import)',
+    );
+  });
+
+  test("does not flag a sibling side-effect import", () => {
+    expect(detectRelativeImport("src/a.ts", 'import "./b.ts";', 1)).toBe(null);
+  });
+
   test("flags the ./../ form", () => {
     expect(
       detectRelativeImport("src/a.ts", 'import { x } from "./../b.ts";', 1),

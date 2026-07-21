@@ -8,7 +8,7 @@
  */
 
 import type { Frame, Locator, Page } from "playwright";
-import { log, warn } from "../log.ts";
+import { log, warn } from "#e2e/log.ts";
 
 const FILL_TIMEOUT = 8_000;
 
