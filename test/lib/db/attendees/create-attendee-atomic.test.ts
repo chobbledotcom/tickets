@@ -199,7 +199,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     }
   });
 
-  test("fails when encryption key not configured", async () => {
+  test("throws when the attendee encryption public key is missing", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,
       thankYouUrl: "https://example.com",
@@ -211,16 +211,13 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     });
     settings.invalidateCache();
 
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id }],
-      email: "john@example.com",
-      name: "John",
-    });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.reason).toBe("encryption_error");
-    }
+    await expect(
+      createAttendeeAtomic({
+        bookings: [{ listingId: listing.id }],
+        email: "john@example.com",
+        name: "John",
+      }),
+    ).rejects.toThrow("Missing attendee encryption public key");
   });
 
   test("stores and returns price_paid when provided", async () => {

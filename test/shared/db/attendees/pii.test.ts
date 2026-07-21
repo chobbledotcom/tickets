@@ -174,9 +174,8 @@ describeWithEnv("PII crypto", { db: true }, () => {
 
   test("encryptAttendeeFields encrypts blank coordinates that decrypt back to empty", async () => {
     const result = await encryptAttendeeFields(encInput);
-    expect(result).not.toBeNull();
     const pii = await decryptPiiBlob(
-      result!.encryptedPiiBlob,
+      result.encryptedPiiBlob,
       await getTestPrivateKey(),
       true,
     );
@@ -185,15 +184,16 @@ describeWithEnv("PII crypto", { db: true }, () => {
     expect(pii.payment_id).toBe("pay_pii");
   });
 
-  test("encryptAttendeeFields returns null when no public key is configured", async () => {
+  test("encryptAttendeeFields throws when the public key is missing", async () => {
     await getDb().execute({
       args: [CONFIG_KEYS.PUBLIC_KEY],
       sql: "DELETE FROM settings WHERE key = ?",
     });
     settings.invalidateCache();
 
-    const result = await encryptAttendeeFields(encInput);
-    expect(result).toBeNull();
+    await expect(encryptAttendeeFields(encInput)).rejects.toThrow(
+      "Missing attendee encryption public key",
+    );
   });
 
   test("decryptAttendeeFields defaults to paid, surfacing payment id and refunded", async () => {
@@ -205,6 +205,15 @@ describeWithEnv("PII crypto", { db: true }, () => {
     expect(decrypted.name).toBe("Aggie Attendee");
     expect(decrypted.payment_id).toBe("pay_pii");
     expect(decrypted.refunded).toBe(true);
+  });
+
+  test("decryptAttendeeFields normalizes a selected numeric price", async () => {
+    const row = { ...(await encryptedRow()), price_paid: 2500 };
+    const decrypted = await decryptAttendeeFields(
+      row,
+      await getTestPrivateKey(),
+    );
+    expect(decrypted.price_paid).toBe("2500");
   });
 
   test("decryptAttendeeFields hides payment id and forces refunded false when unpaid", async () => {

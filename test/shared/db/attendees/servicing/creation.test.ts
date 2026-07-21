@@ -143,12 +143,9 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
     );
   });
 
-  test("a create that fails for a non-capacity reason gets the plain save error", async () => {
+  test("a missing attendee encryption key fails loudly", async () => {
     const { CONFIG_KEYS, settings } = await import("#shared/db/settings.ts");
     const listing = await createTestListing({ maxAttendees: 10 });
-    // Break encryption by removing the public key: the create now fails with
-    // "encryption_error", which must surface as the generic save message —
-    // there is no sold-out listing to name.
     await getDb().execute({
       args: [CONFIG_KEYS.PUBLIC_KEY],
       sql: "DELETE FROM settings WHERE key = ?",
@@ -159,7 +156,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
         bookings: [{ listingId: listing.id, quantity: 1 }],
         name: "Enc Fail",
       }),
-      /Failed to save the service event/,
+      /Missing attendee encryption public key/,
     );
     expect((await servicingRowsForListing(listing.id)).length).toBe(0);
   });

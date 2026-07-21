@@ -146,8 +146,7 @@ const assertServicingEditInput = servicingInputAsserter(false);
 
 /** Admin-facing message for a servicing event that couldn't hold every
  *  requested capacity slot — names the SPECIFIC listing(s) that were sold
- *  out instead of surfacing the bare "capacity_exceeded"/"encryption_error"
- *  reason string. */
+ *  out instead of surfacing the bare "capacity_exceeded" reason string. */
 const formatServicingCapacityError = attendeeFailureFormatter({
   fallback: "Failed to save the service event. Please try again.",
   generic: "Not enough spots available.",
@@ -270,12 +269,9 @@ export const createServicingEvent = async (
     normalizedCreateInput(input, name),
   );
   if (!createResult.success) {
-    const names =
-      createResult.reason === "capacity_exceeded"
-        ? await joinedListingNames(
-            unique(input.bookings.map((booking) => booking.listingId)),
-          )
-        : "";
+    const names = await joinedListingNames(
+      unique(input.bookings.map((booking) => booking.listingId)),
+    );
     throw new Error(formatServicingCapacityError(createResult.reason, names));
   }
   const id = createResult.attendees[0]!.id;

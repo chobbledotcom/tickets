@@ -29,7 +29,6 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   availableDayCounts,
@@ -232,27 +231,6 @@ const buildCreateAttendeeInput = (
   };
 };
 
-/** Convert a failed createAttendeeAtomic result into a redirect response */
-const handleCreateAttendeeFailure = (
-  result: { success: false; reason: string },
-  listingId: number,
-): Response => {
-  if (result.reason === "encryption_error") {
-    logError({
-      code: ErrorCode.ENCRYPT_FAILED,
-      detail: "manual add attendee",
-      listingId,
-    });
-  }
-  const errorMsg =
-    result.reason === "capacity_exceeded"
-      ? t("error.not_enough_spots")
-      : t("error.encryption_error");
-  // Back to the roster (Attendees tab), where the quick-add form is, so the
-  // operator can correct the submission in context.
-  return redirect(`/admin/listing/${listingId}/attendees`, errorMsg, false);
-};
-
 /** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
 const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/attendee"> =
   createAuthedFormRoute<
@@ -281,7 +259,13 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         buildCreateAttendeeInput(values, listing),
       );
       if (!createResult.success) {
-        return handleCreateAttendeeFailure(createResult, params.listingId);
+        // Back to the roster, where the quick-add form is, so the operator can
+        // correct the quantity in context.
+        return redirect(
+          `/admin/listing/${params.listingId}/attendees`,
+          t("error.not_enough_spots"),
+          false,
+        );
       }
       await logActivity(
         `Attendee '${values.name}' added manually`,

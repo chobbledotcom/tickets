@@ -3,16 +3,12 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { resetStripeClient } from "#shared/stripe.ts";
-import {
-  expectFlash,
-  expectReservedRedirectWithTokens,
-} from "#test-utils/assertions.ts";
+import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import {
   bookOneEachViaTicketForm,
   expectBookOneEachRejected,
   expectMissingCsrfRejected,
   submitMultiTicketForm,
-  submitTicketForm,
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -114,39 +110,6 @@ describeWithEnv(
         } finally {
           attendeesApi.createAttendeeAtomic = originalFn;
           attendeesApi.createBookingAtomic = originalBooking;
-        }
-      });
-    });
-
-    describe("routes/public.ts (formatAtomicError encryption_error single-ticket)", () => {
-      test("shows encryption error message when atomic create fails with encryption_error", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 50,
-        });
-
-        const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-        const failure = () =>
-          Promise.resolve({
-            reason: "encryption_error" as const,
-            success: false as const,
-          });
-        const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", failure);
-        const mockBooking = stub(attendeesApi, "createBookingAtomic", failure);
-
-        try {
-          const response = await submitTicketForm(listing.slug, {
-            email: "john@example.com",
-            name: "John Doe",
-          });
-          expect(response.status).toBe(302);
-          expectFlash(
-            response,
-            expect.stringContaining("Registration failed"),
-            false,
-          );
-        } finally {
-          mockAtomic.restore();
-          mockBooking.restore();
         }
       });
     });

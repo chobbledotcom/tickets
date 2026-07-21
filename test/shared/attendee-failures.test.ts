@@ -16,12 +16,6 @@ describe("attendee failure schemas", () => {
       schema: AttendeeCreationFailureReasonSchema,
     },
     {
-      accepted: true,
-      name: "creation accepts an encryption failure",
-      reason: "encryption_error",
-      schema: AttendeeCreationFailureReasonSchema,
-    },
-    {
       accepted: false,
       name: "creation rejects an empty-line failure",
       reason: "no_lines",
@@ -37,12 +31,6 @@ describe("attendee failure schemas", () => {
       accepted: true,
       name: "updates accept an empty-line failure",
       reason: "no_lines",
-      schema: AttendeeUpdateFailureReasonSchema,
-    },
-    {
-      accepted: false,
-      name: "updates reject an encryption failure",
-      reason: "encryption_error",
       schema: AttendeeUpdateFailureReasonSchema,
     },
   ] as const;
@@ -72,12 +60,6 @@ describe("attendeeFailureFormatter", () => {
       listingName: undefined,
       name: "uses the generic message for an unnamed capacity failure",
       reason: "capacity_exceeded",
-    },
-    {
-      expected: "fallback",
-      listingName: "My Listing",
-      name: "uses the fallback for an encryption failure",
-      reason: "encryption_error",
     },
     {
       expected: "fallback",

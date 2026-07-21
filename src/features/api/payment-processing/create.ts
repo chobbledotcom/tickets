@@ -142,11 +142,7 @@ export type HonourResult =
   | { ok: null; error: unknown }
   | {
       ok: false;
-      reason:
-        | "sold_out"
-        | "capacity_exceeded"
-        | "encryption_error"
-        | "unexpected_error";
+      reason: "sold_out" | "capacity_exceeded" | "unexpected_error";
       detail: string;
     };
 

@@ -7,7 +7,6 @@
  */
 
 import { mapBooking } from "#shared/accounting/mappers.ts";
-import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
 import { planBookingPayment } from "#shared/booking/payment-plan.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
@@ -62,11 +61,7 @@ export type BookingResult =
   | { type: "success"; attendee: Attendee }
   | { type: "checkout"; checkoutUrl: string }
   | { type: "sold_out" }
-  | { type: "checkout_failed"; error?: string }
-  | {
-      type: "creation_failed";
-      reason: AttendeeCreationFailureReason;
-    };
+  | { type: "checkout_failed"; error?: string };
 
 /**
  * Process a single-listing booking.
@@ -148,7 +143,7 @@ export const processBooking = async (
   );
 
   if (!result.success) {
-    return { reason: result.reason, type: "creation_failed" };
+    return { type: "sold_out" };
   }
 
   await logAndNotifyRegistration([{ attendee: result.attendees[0]!, listing }]);

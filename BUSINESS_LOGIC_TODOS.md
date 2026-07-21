@@ -259,12 +259,16 @@ balances, and the exact one-minor-unit checkout boundary.
 
 **Status: Shipped.** `src/shared/attendee-failures.ts` declares the failure
 reason literals once and composes them into precise Valibot schemas for attendee
-creation, attendee updates, and shared message formatting. `CreateAttendeeResult`,
-`UpdateAttendeeAtomicResult`, and `BookingResult` derive their reason types from
-those schemas. The old `capacity-error.ts` string fallback is gone: an
+creation, attendee updates, and shared message formatting. `CreateAttendeeResult`
+and `UpdateAttendeeAtomicResult` derive their reason types from those schemas.
+The old `capacity-error.ts` string fallback is gone: an
 exhaustive `Record<AttendeeFailureReason, messageBuilder>` now handles every
-known reason, and the JSON booking API has its own exhaustive response table.
-Adding a reason is a compile error until every dispatcher handles it.
+known recoverable reason. `BookingResult` no longer has a parallel
+`creation_failed` outcome: an atomic capacity loss is the same `sold_out`
+outcome as the preflight check. A missing encryption key is a broken setup
+invariant, so `encryptAttendeeFields` throws instead of turning it into a
+recoverable reason. Adding a recoverable reason is a compile error until every
+dispatcher handles it.
 
 ---
 
@@ -315,7 +319,8 @@ pattern to content string fields.
 - **Item 9 (booking payment plan)** — one pure discriminated plan resolves the
   effective price, checkout path, and provider-less balance.
 - **Item 10 (attendee failure reasons)** — composable Valibot schemas derive the
-  creation/update reason types and exhaustive message/response dispatchers.
+  creation/update reason types and exhaustive messages; impossible encryption
+  failures throw, while booking capacity failures share the `sold_out` outcome.
 
 **Remaining (item 11):**
 
