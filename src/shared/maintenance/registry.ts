@@ -11,8 +11,16 @@ const FAILURE_RETRY_MS = 5 * 60 * 1000;
 
 export const MAINTENANCE_TASKS = defineMaintenanceTasks([
   {
+    check: {
+      enabled: () => true,
+      maxDatabaseCalls: 0,
+      maxExternalCalls: 0,
+      settingsKeys: [
+        CONFIG_KEYS.AUTO_PURGE_ORPHANS,
+        CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
+      ],
+    },
     deadlineMs: 15_000,
-    enabled: () => true,
     failureRetryIntervalMs: FAILURE_RETRY_MS,
     intervalMs: PRUNE_INTERVAL_MS,
     maxDatabaseCalls: 2,
@@ -24,15 +32,17 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
       setCheckpoint(result.checkpoint);
       if (result.fullBatch) requestFollowUp();
     },
-    settingsKeys: [
-      CONFIG_KEYS.AUTO_PURGE_ORPHANS,
-      CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
-    ],
     wakePolicy: "organic_safe",
   },
   {
+    check: {
+      enabled: async () =>
+        Boolean(settings.publicKey) && hasLegacyActivityLog(),
+      maxDatabaseCalls: 1,
+      maxExternalCalls: 0,
+      settingsKeys: [CONFIG_KEYS.PUBLIC_KEY],
+    },
     deadlineMs: 10_000,
-    enabled: async () => Boolean(settings.publicKey) && hasLegacyActivityLog(),
     failureRetryIntervalMs: ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
     intervalMs: ACTIVITY_LOG_BACKFILL_INTERVAL_MS,
     maxDatabaseCalls: 2,
@@ -44,7 +54,6 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
       );
       await runActivityLogBackfill(settings.publicKey);
     },
-    settingsKeys: [CONFIG_KEYS.PUBLIC_KEY],
     wakePolicy: "organic_safe",
   },
 ]);

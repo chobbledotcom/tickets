@@ -40,35 +40,46 @@ const runTask = (
 describeWithEnv("maintenance registry", { db: true }, () => {
   test("declares only bounded local pruning and activity backfill", () => {
     expect(
-      MAINTENANCE_TASKS.map(
-        ({ enabled: _enabled, run: _run, ...task }) => task,
-      ),
+      MAINTENANCE_TASKS.map(({ check, run: _run, ...task }) => ({
+        ...task,
+        check: { ...check, enabled: undefined },
+      })),
     ).toEqual([
       {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 0,
+          maxExternalCalls: 0,
+          settingsKeys: ["auto_purge_orphans", "orphan_purge_retention"],
+        },
         deadlineMs: 15_000,
         failureRetryIntervalMs: 300_000,
         intervalMs: 86_400_000,
         maxDatabaseCalls: 2,
         maxExternalCalls: 0,
         name: "database_pruning",
-        settingsKeys: ["auto_purge_orphans", "orphan_purge_retention"],
         wakePolicy: "organic_safe",
       },
       {
+        check: {
+          enabled: undefined,
+          maxDatabaseCalls: 1,
+          maxExternalCalls: 0,
+          settingsKeys: ["public_key"],
+        },
         deadlineMs: 10_000,
         failureRetryIntervalMs: 60_000,
         intervalMs: 60_000,
         maxDatabaseCalls: 2,
         maxExternalCalls: 0,
         name: "activity_log_backfill",
-        settingsKeys: ["public_key"],
         wakePolicy: "organic_safe",
       },
     ]);
   });
 
   test("the pruning task runs one bounded database batch", async () => {
-    expect(await taskNamed("database_pruning").enabled()).toBe(true);
+    expect(await taskNamed("database_pruning").check.enabled()).toBe(true);
     const ipHash = await insertLoginAttempt("192.0.2.10", 1, 0);
     expect(await loginAttemptExists(ipHash)).toBe(true);
 
@@ -96,20 +107,24 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     await insertLegacyActivity("registry legacy");
     const task = taskNamed("activity_log_backfill");
 
-    expect(await task.enabled()).toBe(true);
+    expect(await task.check.enabled()).toBe(true);
     await runTask(task);
 
     expect(await hasLegacyActivityLog()).toBe(false);
   });
 
   test("the activity task stays disabled when no legacy rows remain", async () => {
-    expect(await taskNamed("activity_log_backfill").enabled()).toBe(false);
+    expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(
+      false,
+    );
   });
 
   test("the activity task stays disabled without an owner public key", async () => {
     await insertLegacyActivity("legacy without owner key");
     settings.setForTest({ public_key: "" });
 
-    expect(await taskNamed("activity_log_backfill").enabled()).toBe(false);
+    expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(
+      false,
+    );
   });
 });

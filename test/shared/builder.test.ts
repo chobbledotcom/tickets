@@ -125,6 +125,7 @@ describeWithEnv(
     db: true,
     env: {
       ADMIN_EMAIL_ADDRESS: "admin@example.com",
+      DENO_DEPLOY_ORG_SLUG: "test-org",
       NTFY_URL: "https://ntfy.example.com/test",
       SENTRY_URL: "https://k@bugs.example.com/2",
     },
@@ -277,7 +278,7 @@ describeWithEnv(
             expect(result.hostingProvider).toBe("deno");
             expect(result.hostingId).toBe("app_abc123");
             expect(result.defaultHostname).toBe(
-              "https://tickets-test.deno.dev",
+              "https://tickets-test.test-org.deno.net",
             );
           }
           expect(deployStub.calls).toHaveLength(1);

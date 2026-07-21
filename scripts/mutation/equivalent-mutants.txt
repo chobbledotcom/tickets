@@ -46,10 +46,11 @@ src/ui/templates/admin/holidays.tsx:79:45  ?? → ||   # values is a render-valu
 src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
 src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
-src/shared/config.ts:150:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts:163:61  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts:170:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts:177:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:166:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:36:5  ?? → ||    # providerValue returns boolean or null, and false stays false with either fallback operator
+src/shared/config.ts:179:61  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:186:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:193:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
 src/shared/app-forms.ts:71:18  ?? → ||    # config.auth is an AuthPolicy object when present, so it is always truthy
@@ -79,7 +80,7 @@ src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error messag
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
-src/shared/maintenance/runner.ts:113:40  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
+src/shared/maintenance/runner.ts:181:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:201:44  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
 src/shared/builder.ts:202:35  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:207:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
@@ -88,7 +89,7 @@ src/features/url.ts:58:35  ?? → ||   # URLSearchParams.get returns null or a s
 src/shared/storage.ts:376:18  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
 src/shared/site-build.ts:39:21  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
 src/shared/db/built-site-scheduler.ts:11:36  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
-src/shared/deno-deploy-api.ts:85:34  ?? → ||   # env_vars is a record object when present, and every object is truthy
+src/shared/deno-deploy-api.ts:139:30  ?? → ||   # failure_reason is null or a non-empty picklist value, so both use the status only for null
 src/shared/bunny-cdn.ts:477:42  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
 src/shared/bunny-cdn.ts:529:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts:38:40  ?? → ||   # scoped counts is an object when present, and every object is truthy
