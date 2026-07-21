@@ -4,6 +4,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { twoListingsAttendees } from "#test/lib/attendee-read-helpers.ts";
 import {
   expectFlash,
   expectReservedRedirectWithTokens,
@@ -18,7 +19,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { twoListingsAttendees } from "../attendee-read-helpers.ts";
 
 // jscpd:ignore-end
 

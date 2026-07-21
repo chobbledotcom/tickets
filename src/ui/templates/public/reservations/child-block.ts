@@ -24,7 +24,7 @@ import {
 } from "#shared/booking/tree.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
-import { renderListingAttributes } from "../listing-attributes.ts";
+import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
 import {
   childLimitedMax,
   childPriceLabel,

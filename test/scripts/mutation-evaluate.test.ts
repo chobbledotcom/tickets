@@ -4,9 +4,9 @@ import {
   type EvaluationDeps,
   evaluateMutant,
   type FileMutationPlan,
-} from "../../scripts/mutation/evaluate.ts";
-import type { Mutant } from "../../scripts/mutation/generate.ts";
-import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
+} from "#scripts/mutation/evaluate.ts";
+import type { Mutant } from "#scripts/mutation/generate.ts";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 const mutant: Mutant = {
   column: 1,

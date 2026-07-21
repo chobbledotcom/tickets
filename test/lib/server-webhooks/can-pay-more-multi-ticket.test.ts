@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { resetStripeClient } from "#shared/stripe.ts";
+import { twoListingsAttendees } from "#test/lib/attendee-read-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
@@ -15,7 +16,6 @@ import {
   expectWebhookKeptAndRefunded,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
-import { twoListingsAttendees } from "../attendee-read-helpers.ts";
 
 // jscpd:ignore-end
 

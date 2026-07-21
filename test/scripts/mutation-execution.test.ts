@@ -8,10 +8,10 @@ import {
   type StaticGateDeps,
   testEnv,
   toStatus,
-} from "../../scripts/mutation/execution.ts";
-import { projectRoot } from "../../scripts/project-root.ts";
-import { captureCommands } from "../../test/test-utils/command-capture.ts";
-import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
+} from "#scripts/mutation/execution.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import { captureCommands } from "#test-utils/command-capture.ts";
+import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
 
 const config = {
   batchJobs: 1,

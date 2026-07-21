@@ -7,7 +7,7 @@
  */
 
 import { sort } from "#fp";
-import { bold, dim, green, red, yellow } from "../precommit/colors.ts";
+import { bold, dim, green, red, yellow } from "#scripts/precommit/colors.ts";
 import type { Bucket, PrSummary } from "./types.ts";
 
 // Inputs are already stripped of control characters by `sanitizeSummary` and the

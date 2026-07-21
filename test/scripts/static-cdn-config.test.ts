@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { loadStaticCdnConfig } from "../../scripts/static-cdn.ts";
+import { loadStaticCdnConfig } from "#scripts/static-cdn.ts";
 import { CONFIG, ENV } from "./static-cdn-fixtures.ts";
 
 const REGIONAL_STORAGE_HOSTS = [

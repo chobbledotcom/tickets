@@ -1,4 +1,4 @@
-import { readStream } from "../stream-lines.ts";
+import { readStream } from "#scripts/stream-lines.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
 import { getMergeConflictWarning } from "./merge-warning.ts";

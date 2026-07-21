@@ -5,6 +5,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   detectAliasing,
   detectModuleLevelLet,
+  detectRelativeImport,
   detectThenUsage,
   extractCallSites,
   extractTypeShapes,
@@ -32,6 +33,8 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(currentDir, "../..");
 const SRC_DIR = join(currentDir, "../../src");
 const TEST_DIR = join(currentDir, "../../test");
+const SCRIPTS_DIR = join(currentDir, "../../scripts");
+const CLI_DIR = join(currentDir, "../../cli");
 
 /**
  * src/ files allowed to hold module-level Map/Set state (the in-memory-state
@@ -326,25 +329,37 @@ describe("code quality", () => {
   let testContents: Map<string, string>;
   let tsxFiles: string[];
   let tsxContents: Map<string, string>;
+  let scriptsFiles: string[];
+  let scriptsContents: Map<string, string>;
+  let cliFiles: string[];
+  let cliContents: Map<string, string>;
 
   const ensureLoaded = async (): Promise<void> => {
     if (srcContents) return;
-    const [sf, tf, txf] = await Promise.all([
+    const [sf, tf, txf, scf, cf] = await Promise.all([
       getAllTsFiles(SRC_DIR),
       getAllTsFiles(TEST_DIR),
       getAllFilesWithExt(SRC_DIR, ".tsx"),
+      getAllTsFiles(SCRIPTS_DIR),
+      getAllTsFiles(CLI_DIR),
     ]);
     srcFiles = sf;
     testFiles = tf;
     tsxFiles = txf;
-    const [sc, tc, txc] = await Promise.all([
+    scriptsFiles = scf;
+    cliFiles = cf;
+    const [sc, tc, txc, scc, cc] = await Promise.all([
       readAllFiles(srcFiles),
       readAllFiles(testFiles),
       readAllFiles(tsxFiles),
+      readAllFiles(scriptsFiles),
+      readAllFiles(cliFiles),
     ]);
     srcContents = sc;
     testContents = tc;
     tsxContents = txc;
+    scriptsContents = scc;
+    cliContents = cc;
   };
 
   describe("no in-memory state", () => {
@@ -451,6 +466,31 @@ describe("code quality", () => {
   describe("no .then() usage", () => {
     test("should use async/await instead of .then()", async () => {
       const violations = await scanSourceLines(detectThenUsage);
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no ../ relative imports", () => {
+    /**
+     * Parent-walking relative imports tie a file to its location in the tree.
+     * The `#` aliases in deno.json map every top-level dir (src, test, scripts,
+     * cli) to a stable prefix, so a file can name what it imports without
+     * caring where it sits — and a moved file keeps working. The rule scans
+     * tsx templates too (scanSourceLines only walks .ts by default), since UI
+     * templates were the worst offender for `../`-walking to sibling files.
+     */
+    test("imports should use a # alias, not ../", async () => {
+      await ensureLoaded();
+      const violations = [
+        ...(await scanSourceLines(detectRelativeImport)),
+        ...collectLineViolations(tsxFiles, tsxContents, detectRelativeImport),
+        ...collectLineViolations(
+          scriptsFiles,
+          scriptsContents,
+          detectRelativeImport,
+        ),
+        ...collectLineViolations(cliFiles, cliContents, detectRelativeImport),
+      ];
       expect(violations).toEqual([]);
     });
   });

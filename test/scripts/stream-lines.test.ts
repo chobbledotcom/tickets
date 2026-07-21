@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { readStream } from "../../scripts/stream-lines.ts";
+import { readStream } from "#scripts/stream-lines.ts";
 
 const streamOf = (...chunks: string[]): ReadableStream<Uint8Array> => {
   const encoder = new TextEncoder();

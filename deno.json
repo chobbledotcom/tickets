@@ -60,6 +60,7 @@
     "#src/": "./src/",
     "#test/": "./test/",
     "#cli/": "./cli/",
+    "#scripts/": "./scripts/",
     "@libsql/client": "npm:@libsql/client@^0.17.2",
     "fast-check": "npm:fast-check@^3.23.0",
     "intl-messageformat": "npm:intl-messageformat@^10",

@@ -21,8 +21,11 @@ import type {
   ListingWithCount,
 } from "#shared/types.ts";
 import { Badge } from "#templates/components/badge.tsx";
-import { renderListingAttributes } from "../listing-attributes.ts";
-import { PublicImageGallery, renderListingImage } from "../shared.tsx";
+import { renderListingAttributes } from "#templates/public/listing-attributes.ts";
+import {
+  PublicImageGallery,
+  renderListingImage,
+} from "#templates/public/shared.tsx";
 import {
   renderDateSelector,
   renderDayCountSelector,

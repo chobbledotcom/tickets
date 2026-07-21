@@ -8,17 +8,10 @@ import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
-import { captureCheckoutIntent } from "#test-utils/checkout.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  modifierUsageAmount,
-  modifierUsageCount,
-} from "#test-utils/modifiers.ts";
 import {
   bookFreeOrder,
   bookPaidReservation,
-} from "../../lib/server-reservation/_shared-setup.ts";
+} from "#test/lib/server-reservation/_shared-setup.ts";
 import {
   createProgrammeCharge,
   createSave10Promo,
@@ -28,7 +21,14 @@ import {
   setPublicReservation,
   setupReservationListing,
   stubPaidSession,
-} from "../../lib/server-reservation/helpers.ts";
+} from "#test/lib/server-reservation/helpers.ts";
+import { captureCheckoutIntent } from "#test-utils/checkout.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  modifierUsageAmount,
+  modifierUsageCount,
+} from "#test-utils/modifiers.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

@@ -4,7 +4,7 @@ import {
   parseScreenshotOptions,
   SCREENSHOT_NAMES,
   THEME_NAMES,
-} from "../../scripts/screenshots/options.ts";
+} from "#scripts/screenshots/options.ts";
 
 describe("screenshot options", () => {
   it("captures every scene with the default theme when no options are given", () => {

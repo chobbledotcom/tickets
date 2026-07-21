@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-import { forEachAnchor } from "../dom.ts";
+import { forEachAnchor } from "#src/ui/client/dom.ts";
 
 /** Fill default template: clicking "Edit default template" fills the textarea
  * from its data-default-tpl attribute when the textarea is empty. */

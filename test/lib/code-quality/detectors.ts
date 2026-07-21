@@ -169,6 +169,34 @@ export const detectThenUsage = (
 };
 
 /* -------------------------------------------------------------------------- *
+ * No relative "../" imports — use a `#` alias instead                         *
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Matches a relative import specifier that walks up a directory: any `from
+ * "../…"` static import, `await import("../…")` dynamic import, or the bare
+ * `import("../…")` form. A leading `./../` also matches. Sibling (`./x`) and
+ * same-directory (`./`) imports are fine — only the parent-walking kind forces
+ * a file to know where it sits in the tree, which is what aliases exist to hide.
+ */
+export const RELATIVE_PARENT_IMPORT_PATTERN =
+  /(?:from\s+|import\s*\(\s*)["'](?:\.{2}|\.\/\.{2})\//;
+
+/** A single line's parent-walking relative-import violation, or `null`. */
+export const detectRelativeImport = (
+  relativePath: string,
+  line: string,
+  lineNum: number,
+): string | null => {
+  if (RELATIVE_PARENT_IMPORT_PATTERN.test(line)) {
+    return `${relativePath}:${lineNum}: ${line
+      .trim()
+      .slice(0, 50)}... (use a # alias instead of a ../ relative import)`;
+  }
+  return null;
+};
+
+/* -------------------------------------------------------------------------- *
  * No test-only exports                                                       *
  * -------------------------------------------------------------------------- */
 

@@ -4,8 +4,8 @@ import {
   type MutationPhase,
   measurePhase,
   runTestStages,
-} from "../../scripts/mutation/phases.ts";
-import type { Status } from "../../scripts/mutation/summary.ts";
+} from "#scripts/mutation/phases.ts";
+import type { Status } from "#scripts/mutation/summary.ts";
 
 const takeFirst = <Value>(values: Value[]): Value => {
   const value = values.shift();

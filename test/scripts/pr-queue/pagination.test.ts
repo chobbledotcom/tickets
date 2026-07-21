@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { truncationWarnings } from "../../../scripts/pr-queue/pagination.ts";
-import type { GraphQlPr } from "../../../scripts/pr-queue/types.ts";
+import { truncationWarnings } from "#scripts/pr-queue/pagination.ts";
+import type { GraphQlPr } from "#scripts/pr-queue/types.ts";
 import { makePr } from "./fixtures.ts";
 
 // makePr() always builds a commit with a check rollup for callers in this file,

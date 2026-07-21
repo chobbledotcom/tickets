@@ -5,6 +5,17 @@
  * form and the resolved page context; nothing prices or persists.
  */
 
+import {
+  type AnswerInfo,
+  getTicketFieldsSetting,
+  listingAnswerMaps,
+  parseQuantities,
+  ticketFormErrorResponse,
+} from "#routes/public/ticket-form.ts";
+import {
+  REGISTRATION_CLOSED_SUBMIT_MESSAGE,
+  type TicketCtx,
+} from "#routes/public/types.ts";
 import type { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { parseCustomPrice } from "#shared/booking/form.ts";
 import {
@@ -32,17 +43,6 @@ import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields/ticket.ts";
-import {
-  type AnswerInfo,
-  getTicketFieldsSetting,
-  listingAnswerMaps,
-  parseQuantities,
-  ticketFormErrorResponse,
-} from "../ticket-form.ts";
-import {
-  REGISTRATION_CLOSED_SUBMIT_MESSAGE,
-  type TicketCtx,
-} from "../types.ts";
 
 /** Validate page-level form state before deeper parsing. Returns an error
  * message, or null when the form state is acceptable. */

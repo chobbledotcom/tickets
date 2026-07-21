@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { TEST_STATE_DIR_ENV } from "../../test/test-utils/test-state-env.ts";
-import { denoCommand, removeTree } from "../process.ts";
+import { denoCommand, removeTree } from "#scripts/process.ts";
+import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 
 export interface MutantTestState {
   cleanup(): Promise<void>;

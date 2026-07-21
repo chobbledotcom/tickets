@@ -6,7 +6,7 @@ import {
   startStripeMock,
   stripeMockEnv,
   stripeMockPortFromEnv,
-} from "../../../scripts/stripe-mock.ts";
+} from "#scripts/stripe-mock.ts";
 import {
   expectPortAvailable,
   expectPortOpen,

@@ -11,6 +11,7 @@ import {
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { uploadRaw } from "#shared/storage.ts";
+import { useLocalStoragePath } from "#test/lib/_shared-site-update.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -19,7 +20,6 @@ import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { type TempPath, tempDir } from "#test-utils/files.ts";
 import { stubReleaseFetch } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
-import { useLocalStoragePath } from "../../lib/_shared-site-update.ts";
 
 /** A built site database URL whose backups land in a site-specific folder. */
 const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";

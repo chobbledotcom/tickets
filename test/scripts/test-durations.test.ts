@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withTempFile } from "#test-utils/files.ts";
 import {
   formatSlowTestsReport,
   JUNIT_PATH,
@@ -10,7 +9,8 @@ import {
   SLOW_TEST_THRESHOLD_MS,
   slowTests,
   type TestDuration,
-} from "../../scripts/test-durations.ts";
+} from "#scripts/test-durations.ts";
+import { withTempFile } from "#test-utils/files.ts";
 
 /** Build a minimal JUnit document wrapping the given `<testcase>` fragments. */
 const junit = (cases: string): string =>

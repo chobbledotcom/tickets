@@ -20,7 +20,7 @@ import {
   renameSourceMapLink,
   SENTRY_BUILD_DEFINES,
   sentryTreeShakingGuard,
-} from "../../scripts/edge-bundle-modules.ts";
+} from "#scripts/edge-bundle-modules.ts";
 
 describe("buildBuildInfoModule", () => {
   test("emits both constants with the given timestamp and commit", () => {
