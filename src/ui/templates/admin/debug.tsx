@@ -86,13 +86,6 @@ export type DebugPageState = {
   runtime: RuntimeInfo;
   domain: string;
   limits: typeof LIMIT_ENTRIES;
-  prune: {
-    addresses: string;
-    payments: string;
-    sessions: string;
-    strings: string;
-    logins: string;
-  };
   theme: Theme;
 };
 
@@ -503,43 +496,6 @@ const LimitsSection = ({
     ),
   );
 
-/** Every pruned table, named as it appears in the schema, paired with the
- * `DebugPageState["prune"]` field that carries its last-pruned time. */
-const PRUNE_ROWS: readonly [
-  table: string,
-  field: keyof DebugPageState["prune"],
-][] = [
-  ["processed_payments", "payments"],
-  ["sessions", "sessions"],
-  ["strings", "strings"],
-  ["login_attempts", "logins"],
-  ["address_cache", "addresses"],
-];
-
-const PruneSection = ({
-  prune,
-}: {
-  prune: DebugPageState["prune"];
-}): JSX.Element =>
-  proseTableSection(
-    t("debug.section.database_pruning"),
-    <>
-      Automatic cleanup of short-lived rows. Runs in the background on incoming
-      requests; frequency controlled by <code>PRUNE_INTERVAL_HOURS</code>.
-    </>,
-  )(
-    rowsTable(
-      [t("debug.field.table"), t("debug.field.last_pruned_utc")],
-      PRUNE_ROWS,
-      ([table, field]) => (
-        <tr>
-          <td>{table}</td>
-          <td>{prune[field]}</td>
-        </tr>
-      ),
-    ),
-  );
-
 /**
  * Admin debug page
  */
@@ -558,6 +514,5 @@ export const adminDebugPage = (
         <DebugSection rows={section.rows(s)} title={t(section.titleKey)} />
       ))}
       <LimitsSection limits={s.limits} />
-      <PruneSection prune={s.prune} />
     </>,
   );

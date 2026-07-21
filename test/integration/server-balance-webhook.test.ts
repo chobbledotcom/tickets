@@ -9,7 +9,7 @@ import {
 } from "#shared/accounting/queries.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
-import { prunePayments } from "#shared/db/prune.ts";
+import { runDatabasePruning } from "#shared/db/prune.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -89,7 +89,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
       "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
       ["2000-01-01T00:00:00.000Z", "cs_balance_replay"],
     );
-    await prunePayments();
+    await runDatabasePruning();
 
     // The replay: the balance is already paid (owed 0), so without the ledger
     // preflight settleAttendeeBalance reports nothing_owed and refunds the

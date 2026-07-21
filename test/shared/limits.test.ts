@@ -15,6 +15,7 @@ import {
   formatSeconds,
   LIMIT_ENTRIES,
   LOGIN_LOCKOUT_MS,
+  MAINTENANCE_PRUNE_BATCH,
   MAX_ADDRESS_LOOKUPS,
   MAX_ATTACHMENT_SIZE,
   MAX_BACKUPS,
@@ -92,6 +93,10 @@ describe("limits", () => {
   });
 
   describe("assertPaymentsRetentionSafe", () => {
+    test("uses the providers' three-day webhook retry window", () => {
+      expect(WEBHOOK_RETRY_WINDOW_DAYS).toBe(3);
+    });
+
     test("returns the value when it meets the webhook-retry floor", () => {
       expect(assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS)).toBe(
         WEBHOOK_RETRY_WINDOW_DAYS,
@@ -105,7 +110,13 @@ describe("limits", () => {
       // the paid session and risking a duplicate refund — so it must fail loudly.
       expect(() =>
         assertPaymentsRetentionSafe(WEBHOOK_RETRY_WINDOW_DAYS - 1),
-      ).toThrow("webhook-retry window");
+      ).toThrow(
+        "PRUNE_PAYMENTS_RETENTION_DAYS=2 is below the 3-day provider " +
+          "webhook-retry window. A shorter retention can prune a payment's " +
+          "idempotency row while the provider is still retrying its webhook, " +
+          "which would re-process the session and risk a duplicate refund. " +
+          "Set it to at least 3 (the default is 90).",
+      );
     });
 
     test("the live retention constant satisfies its own floor", () => {
@@ -142,6 +153,7 @@ describe("limits", () => {
         "FORM_STASH_MAX_ENTRIES",
         "FORM_STASH_TTL_MS",
         "LOGIN_LOCKOUT_MS",
+        "MAINTENANCE_PRUNE_BATCH",
         "MAX_ADDRESS_LOOKUPS",
         "MAX_APIKEY_ATTEMPTS",
         "MAX_ATTACHMENT_SIZE",
@@ -192,6 +204,9 @@ describe("limits", () => {
       );
       expect(currentByKey.get("MAX_LOGIN_ATTEMPTS")).toBe(MAX_LOGIN_ATTEMPTS);
       expect(currentByKey.get("LOGIN_LOCKOUT_MS")).toBe(LOGIN_LOCKOUT_MS);
+      expect(currentByKey.get("MAINTENANCE_PRUNE_BATCH")).toBe(
+        MAINTENANCE_PRUNE_BATCH,
+      );
       expect(currentByKey.get("PRUNE_PAYMENTS_RETENTION_DAYS")).toBe(
         PRUNE_PAYMENTS_RETENTION_DAYS,
       );

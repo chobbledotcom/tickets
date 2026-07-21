@@ -11,7 +11,7 @@
 import * as v from "valibot";
 import { t } from "#i18n";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { isUpdateTier } from "#shared/db/built-sites.ts";
+import { isUpdateTier } from "#shared/db/built-sites/types.ts";
 import type {
   ChoiceField,
   Field,

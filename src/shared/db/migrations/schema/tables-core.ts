@@ -27,6 +27,30 @@ export const coreTables: [name: string, table: Table][] = [
   ],
 
   [
+    "maintenance_tasks",
+    {
+      columns: [
+        ["name", "TEXT PRIMARY KEY"],
+        ["checkpoint", "TEXT"],
+        ["next_run_at", "INTEGER NOT NULL"],
+        ["lease_token", "TEXT"],
+        ["lease_expires_at", "INTEGER"],
+        ["last_started_at", "INTEGER"],
+        [
+          "last_finished_at",
+          "INTEGER CHECK ((lease_token IS NULL) = (lease_expires_at IS NULL))",
+        ],
+      ],
+      indexes: [
+        {
+          columns: ["next_run_at", "lease_expires_at", "name"],
+          name: "idx_maintenance_tasks_due",
+        },
+      ],
+    },
+  ],
+
+  [
     "listings",
     {
       columns: [

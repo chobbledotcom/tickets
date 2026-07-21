@@ -1,48 +1,24 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
 import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import { hasCheckedInput } from "#test-utils/csrf.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
-const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
+import {
+  defaultSettingsState as defaultState,
+  TEST_SETTINGS_SESSION as TEST_SESSION,
+} from "../settings-state.ts";
+import { advancedDefaultState } from "./state.ts";
 
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
-});
-
-const defaultState = (): SettingsPageState => ({
-  bookingFee: "0",
-  businessEmail: "",
-  calendarFeedsEnabled: false,
-  calendarFeedsGroupBy: "attendees",
-  embedHosts: "",
-  enabledFeatures: DEFAULT_ENABLED_FEATURES,
-  headerImageUrl: "",
-  paymentProvider: "",
-  squareSandbox: false,
-  squareTokenConfigured: false,
-  squareWebhookConfigured: false,
-  storageEnabled: false,
-  stripeKeyConfigured: false,
-  stripeKeyMode: null,
-  sumupKeyConfigured: false,
-  sumupKeyMode: null,
-  superuser: { available: false, reason: "missing-env" },
-  termsAndConditions: "",
-  theme: "light",
-  underlineLinks: false,
-  webhookUrl: "https://example.com/payment/webhook",
 });
 
 type AvailableSuperuser = Extract<
@@ -425,47 +401,6 @@ describe("adminSettingsPage > SuperuserForm placement", () => {
 });
 
 describe("adminAdvancedSettingsPage", () => {
-  const advancedDefaultState: AdvancedSettingsPageState = {
-    addressLookupApiKeyConfigured: false,
-    addressLookupProvider: "none",
-    adminTemplates: { html: "", subject: "", text: "" },
-    appleWalletConfigured: false,
-    appleWalletPassTypeId: "",
-    appleWalletTeamId: "",
-    attendeeColumnOrder: "",
-    bunnyCdnEnabled: false,
-    bunnyDnsEnabled: false,
-    bunnyDnsSubdomainSuffix: "",
-    bunnySubdomain: "",
-    businessEmail: "",
-    cdnHostname: "",
-    confirmationTemplates: { html: "", subject: "", text: "" },
-    customCss: "",
-    customDomain: "",
-    customDomainLastValidated: "",
-    emailApiKeyConfigured: false,
-    emailFromAddress: "",
-    emailProvider: "",
-    externalOrderEnabled: false,
-    googleWalletConfigured: false,
-    googleWalletIssuerId: "",
-    googleWalletServiceAccountEmail: "",
-    hostAppleWalletLabel: "",
-    hostEmailLabel: "",
-    hostGoogleWalletLabel: "",
-    listingColumnOrder: "",
-    paymentProvider: "",
-    showPublicApi: false,
-    smsGatewayBaseUrl: "",
-    smsGatewayPassphraseConfigured: false,
-    smsGatewayPasswordConfigured: false,
-    smsGatewayUsername: "",
-    smsGatewayWebhookConfigured: false,
-    subdomainPreview: "",
-    subdomainPreviewFullDomain: "",
-    theme: "light",
-  };
-
   test("renders the SMS gateway card with current values", () => {
     const html = adminAdvancedSettingsPage(TEST_SESSION, {
       ...advancedDefaultState,

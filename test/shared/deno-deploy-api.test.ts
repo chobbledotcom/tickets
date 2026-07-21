@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { denoDeployApi, slugifyForDeno } from "#shared/deno-deploy-api.ts";
+import {
+  denoDeployApi,
+  denoHostingProvider,
+  slugifyForDeno,
+} from "#shared/deno-deploy-api.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
@@ -11,6 +15,8 @@ const DENO_ENV = {
 
 interface CapturedRequest {
   body: unknown;
+  contentType?: string | null;
+  method?: string;
   url: string | undefined;
 }
 
@@ -20,6 +26,8 @@ const captureRequest =
   (url: string, init?: RequestInit): Response => {
     captured.url = url;
     captured.body = JSON.parse(init?.body as string);
+    captured.contentType = new Headers(init?.headers).get("content-type");
+    if (init?.method !== undefined) captured.method = init.method;
     return new Response(JSON.stringify(responseBody));
   };
 
@@ -52,13 +60,11 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   });
 
   test("slugifyForDeno pads short slugs to at least 3 chars", () => {
-    const result = slugifyForDeno("ab");
-    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(slugifyForDeno("ab")).toBe("abapp");
   });
 
   test("slugifyForDeno handles single-char input", () => {
-    const result = slugifyForDeno("a");
-    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(slugifyForDeno("a")).toBe("aapp");
   });
 
   // ── createApp ──────────────────────────────────────────────────────────────
@@ -76,6 +82,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     }
     expect(captured.url).toContain("/v2/apps");
     expect(captured.body).toEqual({ orgId: "test-org-id", slug: "my-app" });
+    expect(captured.contentType).toBe("application/json");
+    expect(captured.method).toBe("POST");
   });
 
   test("createApp uses Bearer auth header", async () => {
@@ -106,24 +114,33 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   // ── setEnvVars ─────────────────────────────────────────────────────────────
 
   test("setEnvVars PATCHes only the supplied vars (no GET)", async () => {
-    let patchUrl: string | undefined;
-    let patchBody: unknown;
+    const captured: CapturedRequest = { body: undefined, url: undefined };
     let callCount = 0;
 
     using _fetch = stubFetch((url, init) => {
       callCount++;
-      patchUrl = url;
-      patchBody = JSON.parse(init?.body as string);
-      return new Response(JSON.stringify({ id: "app_ev", slug: "env-app" }));
+      return captureRequest({ id: "app_ev", slug: "env-app" }, captured)(
+        url,
+        init,
+      );
     });
     const result = await denoDeployApi.setEnvVars("app_ev", [
       ["NEW_VAR", "new-value"],
     ]);
     expect(result.ok).toBe(true);
     expect(callCount).toBe(1);
-    expect(patchUrl).toContain("/apps/app_ev");
-    const envVars = (patchBody as { env_vars: { key: string }[] }).env_vars;
-    expect(envVars.map((e) => e.key)).toContain("NEW_VAR");
+    expect(captured.url).toContain("/apps/app_ev");
+    expect(captured.method).toBe("PATCH");
+    expect(captured.body).toEqual({
+      env_vars: [
+        {
+          contexts: ["production"],
+          key: "NEW_VAR",
+          secret: true,
+          value: "new-value",
+        },
+      ],
+    });
   });
 
   test("setEnvVars returns error when PATCH fails", async () => {
@@ -142,7 +159,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
 
   // ── deployCode ─────────────────────────────────────────────────────────────
 
-  test("deployCode POSTs assets and config to /deployments endpoint", async () => {
+  test("deployCode POSTs assets and config to the revision endpoint", async () => {
     const captured: CapturedRequest = { body: undefined, url: undefined };
     using _fetch = stubFetch(
       captureRequest({ domains: ["my-app.deno.dev"], id: "dep_123" }, captured),
@@ -151,38 +168,20 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       "app_dc",
       "console.log('hello')",
     );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value).toBe("https://my-app.deno.dev");
-    }
-    expect(captured.url).toContain("/apps/app_dc/deployments");
-    expect(
-      (captured.body as { assets: { "main.ts": { content: string } } }).assets[
-        "main.ts"
-      ].content,
-    ).toBe("console.log('hello')");
-  });
-
-  test("deployCode falls back to hostnames when domains is empty", async () => {
-    using _fetch = stubFetch(
-      new Response(
-        JSON.stringify({ hostnames: ["fallback.deno.dev"], id: "dep_fb" }),
-      ),
-    );
-    const result = await denoDeployApi.deployCode("app_fb", "code");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value).toBe("https://fallback.deno.dev");
-    }
-  });
-
-  test("deployCode returns error when response has no hostname", async () => {
-    using _fetch = stubFetch(new Response(JSON.stringify({ id: "dep_nh" })));
-    const result = await denoDeployApi.deployCode("app_nh", "code");
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toContain("no hostname");
-    }
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(captured.url).toBe("https://api.deno.com/v2/apps/app_dc/deploy");
+    expect(captured.method).toBe("POST");
+    expect(captured.body).toEqual({
+      assets: {
+        "main.ts": {
+          content: "console.log('hello')",
+          encoding: "utf-8",
+          kind: "file",
+        },
+      },
+      config: { runtime: { entrypoint: "main.ts", type: "dynamic" } },
+      production: true,
+    });
   });
 
   test("deployCode returns error when API responds with failure", async () => {
@@ -257,5 +256,28 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
       expect(result.error).toContain("Get app failed (404)");
       expect(result.error).toContain("app not found");
     }
+  });
+
+  test("hosting provider names its required credential", () => {
+    expect(denoHostingProvider.configEnvVar).toBe("DENO_DEPLOY_TOKEN");
+  });
+
+  test("hosting publish returns only provider success", async () => {
+    using _fetch = stubFetch(
+      new Response(JSON.stringify({ domains: ["child.deno.dev"], id: "dep" })),
+    );
+
+    expect(await denoHostingProvider.publishSite("app_1", "code")).toEqual({
+      ok: true,
+    });
+  });
+
+  test("hosting publish preserves provider failure", async () => {
+    using _fetch = stubFetch(new Response("failed", { status: 500 }));
+
+    expect(await denoHostingProvider.publishSite("app_1", "code")).toEqual({
+      error: "Deploy code failed (500): failed",
+      ok: false,
+    });
   });
 });

@@ -13,7 +13,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import type { Result } from "#shared/result.ts";
 
 /** Credentials needed to open a read-only connection to a site's database. */
@@ -22,7 +22,7 @@ export type SiteDbCredentials = Pick<BuiltSite, "dbUrl" | "dbToken">;
 /** Stubbable client factory so tests can inject an in-memory database. */
 export const siteDbApi = {
   createClient: (url: string, authToken: string): Client =>
-    createClient(authToken ? { authToken, url } : { url }),
+    createClient({ authToken, url }),
 };
 
 /** Do we hold both a URL and a read-only token for this site's database? */

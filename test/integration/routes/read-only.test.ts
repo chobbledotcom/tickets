@@ -261,7 +261,6 @@ describeWithEnv(
       "/contact",
       "/admin/support",
       "/instance/site-credentials",
-      "/scheduled",
       "/admin/backup/create",
       "/checkin/abc123+def456",
       "/admin/listing/42/attendee/99/checkin",

@@ -8,7 +8,7 @@ import { listingChildren } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
-import { prunePayments } from "#shared/db/prune.ts";
+import { runDatabasePruning } from "#shared/db/prune.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -33,7 +33,7 @@ const pruneReplayRowWithoutRefundReference = async (sessionId: string) => {
       WHERE payment_session_id = ?`,
     ["2000-01-01T00:00:00.000Z", sessionId],
   );
-  await prunePayments();
+  await runDatabasePruning();
   expect(await isSessionProcessed(sessionId)).toBe(null);
 };
 

@@ -12,7 +12,7 @@
  *   BUNNY_API_KEY=... deno run --allow-all scripts/build-site.ts "My Event Site"
  */
 
-import { builderApi } from "#shared/builder.ts";
+import { buildRetainedSite } from "#shared/site-build.ts";
 import { runBuildEdge } from "./run-build-edge.ts";
 
 const [siteName] = Deno.args;
@@ -41,7 +41,7 @@ console.log(
   `Bundle ready (${code.length} bytes). Provisioning site "${siteName}"…`,
 );
 
-const result = await builderApi.buildSite({ code, siteName });
+const { result } = await buildRetainedSite(siteName, { code, siteName });
 
 if (!result.ok) {
   console.error(`Build failed: ${result.error}`);

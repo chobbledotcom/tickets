@@ -1,0 +1,108 @@
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import {
+  defineMaintenanceTasks,
+  MAINTENANCE_RELEASE_HEADROOM_MS,
+  MAINTENANCE_REQUEST_CALL_LIMIT,
+  MAINTENANCE_TASK_CALL_LIMIT,
+  type MaintenanceTaskDeclaration,
+  maintenanceTaskByName,
+} from "#shared/maintenance/definition.ts";
+
+const task = (
+  overrides: Partial<MaintenanceTaskDeclaration> = {},
+): MaintenanceTaskDeclaration => ({
+  deadlineMs: 10_000,
+  enabled: () => true,
+  failureRetryIntervalMs: 60_000,
+  intervalMs: 60_000,
+  maxDatabaseCalls: 1,
+  maxExternalCalls: 0,
+  name: "test_task",
+  run: () => Promise.resolve(),
+  settingsKeys: [],
+  wakePolicy: "organic_safe",
+  ...overrides,
+});
+
+describe("maintenance task declarations", () => {
+  test("reserves seven calls and one second for scheduler bookkeeping", () => {
+    expect(MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_TASK_CALL_LIMIT).toBe(
+      7,
+    );
+    expect(MAINTENANCE_RELEASE_HEADROOM_MS).toBe(1_000);
+  });
+
+  test("rejects a name that cannot be stored as a task key", () => {
+    expect(() => defineMaintenanceTasks([task({ name: "Not valid" })])).toThrow(
+      "Invalid maintenance task name",
+    );
+  });
+
+  test("fails loudly when a claimed task was not declared", () => {
+    expect(() => maintenanceTaskByName([task()], "missing")).toThrow(
+      "Claimed undeclared maintenance task: missing",
+    );
+  });
+
+  test("keeps one validated static declaration", () => {
+    const declaration = task();
+    expect(defineMaintenanceTasks([declaration])[0]).toBe(declaration);
+  });
+
+  test("rejects duplicate stable names", () => {
+    expect(() => defineMaintenanceTasks([task(), task()])).toThrow(
+      "Duplicate maintenance task: test_task",
+    );
+  });
+
+  test("rejects intervals shorter than one minute", () => {
+    expect(() =>
+      defineMaintenanceTasks([task({ intervalMs: 59_999 })]),
+    ).toThrow("test_task interval must be at least 60000ms");
+  });
+
+  test("rejects retries longer than the normal interval", () => {
+    expect(() =>
+      defineMaintenanceTasks([
+        task({ failureRetryIntervalMs: 60_001, intervalMs: 60_000 }),
+      ]),
+    ).toThrow("test_task failure retry must be between 60000ms and 60000ms");
+  });
+
+  test("rejects a task that cannot fit the whole request budget", () => {
+    expect(() =>
+      defineMaintenanceTasks([
+        task({
+          maxDatabaseCalls: MAINTENANCE_TASK_CALL_LIMIT,
+          maxExternalCalls: 1,
+        }),
+      ]),
+    ).toThrow(
+      `test_task declares ${MAINTENANCE_TASK_CALL_LIMIT + 1} calls; maximum is ${MAINTENANCE_TASK_CALL_LIMIT}`,
+    );
+  });
+
+  test("accepts the exact whole-request task allowance", () => {
+    expect(() =>
+      defineMaintenanceTasks([
+        task({ maxDatabaseCalls: MAINTENANCE_TASK_CALL_LIMIT }),
+      ]),
+    ).not.toThrow();
+  });
+
+  test("rejects invalid call counts and deadlines", () => {
+    expect(() =>
+      defineMaintenanceTasks([task({ maxDatabaseCalls: -1 })]),
+    ).toThrow("test_task database calls must be a non-negative integer");
+    expect(() =>
+      defineMaintenanceTasks([task({ maxExternalCalls: -1 })]),
+    ).toThrow("test_task external calls must be a non-negative integer");
+    expect(() => defineMaintenanceTasks([task({ deadlineMs: 0 })])).toThrow(
+      "test_task deadline must be greater than 0ms",
+    );
+    expect(() =>
+      defineMaintenanceTasks([task({ deadlineMs: 1 })]),
+    ).not.toThrow();
+  });
+});

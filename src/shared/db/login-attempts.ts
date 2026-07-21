@@ -5,7 +5,7 @@
  * abuse-prone entry points (e.g. public booking). Each call site namespaces its
  * counters with a `prefix` so they never collide — a booking flood can't lock
  * anyone out of logging in, and vice versa. Rows whose lockout has expired are
- * removed on the next check and by pruneLoginAttempts; counter-only rows (no
+ * removed on the next check and by database pruning; counter-only rows (no
  * lockout) are left to be overwritten by the next attempt from that IP.
  */
 

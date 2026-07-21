@@ -10,11 +10,13 @@ import {
 } from "#shared/db/settings.ts";
 import { getHeader } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import { testCookie } from "#test-utils/session.ts";
+import { enablePublicSite } from "#test-utils/settings.ts";
 
 const deleteSetting = async (key: string): Promise<void> => {
   const { getDb } = await import("#shared/db/client.ts");
@@ -27,6 +29,34 @@ const deleteSetting = async (key: string): Promise<void> => {
 
 describeWithEnv("request pipeline", { db: true }, () => {
   const errors = setupErrorSpy();
+
+  test("runs an ordinary page through routing and response security", async () => {
+    await enablePublicSite();
+    const response = await handleRequest(mockRequest("/"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  test("keeps ticket pages embeddable inside the request scopes", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const response = await handleRequest(
+      mockRequest(`/ticket/${listing.slug}`),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-frame-options")).toBeNull();
+    expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+  });
+
+  test("uses the configured payment provider in response security", async () => {
+    await settings.update.paymentProvider("square");
+    await settings.update.square.sandbox(true);
+    const response = await handleRequest(mockRequest("/"));
+    expect(response.headers.get("content-security-policy")).toContain(
+      "https://connect.squareupsandbox.com",
+    );
+  });
 
   test("rejects a body-bearing POST with no content type", async () => {
     const request = new Request("http://localhost/admin/login", {

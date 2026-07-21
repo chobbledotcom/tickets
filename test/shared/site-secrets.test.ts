@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { collectHostSecrets } from "#shared/builder.ts";
 import { bunnyCdnApi, type EdgeScriptSecret } from "#shared/bunny-cdn.ts";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { okResult } from "#shared/result.ts";
 import {
@@ -246,16 +246,20 @@ describeWithEnv(
           ),
         async () => {
           const view = await loadSiteSecretsStatus(buildSite());
-          expect(view.ok).toBe(false);
-          if (!view.ok) expect(view.error).toContain("network down");
+          expect(view).toEqual({
+            error: "Failed to list secrets: network down",
+            ok: false,
+          });
         },
       );
     });
 
     test("refuses a site with no script id", async () => {
       const view = await loadSiteSecretsStatus(buildSite({ hostingId: "" }));
-      expect(view.ok).toBe(false);
-      if (!view.ok) expect(view.error).toContain("no hosting ID");
+      expect(view).toEqual({
+        error: "This site has no hosting ID, so its secrets can't be read.",
+        ok: false,
+      });
     });
   },
 );

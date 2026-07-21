@@ -23,4 +23,10 @@ describe("settings bundles", () => {
       CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
     );
   });
+
+  test("does not reserve a settings bundle for the early scheduled route", () => {
+    expect(settingsForPath("/scheduled")).toContain(
+      CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
+    );
+  });
 });

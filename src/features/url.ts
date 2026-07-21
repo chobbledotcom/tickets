@@ -40,13 +40,6 @@ export const getBaseUrl = (request: Request): string => {
 };
 
 /**
- * Normalize path by stripping trailing slashes (except root "/")
- * This allows consistent path comparisons like "/admin" instead of checking both "/admin" and "/admin/"
- */
-export const normalizePath = (path: string): string =>
-  path !== "/" && path.endsWith("/") ? path.slice(0, -1) : path;
-
-/**
  * Parse request URL and extract path/method
  * Paths are normalized to strip trailing slashes
  */
@@ -64,3 +57,5 @@ export const getSearchParam = (request: Request, key: string): string => {
   const url = new URL(request.url);
   return url.searchParams.get(key) ?? "";
 };
+
+import { normalizePath } from "#shared/path.ts";

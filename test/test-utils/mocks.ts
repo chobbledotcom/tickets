@@ -19,6 +19,12 @@ import {
   type TestRequestOptions,
 } from "#test-utils/internal.ts";
 
+export const restoreStubsAfterEach = (stubs: { restore(): void }[]): void => {
+  afterEach(() => {
+    for (const active of stubs.splice(0)) active.restore();
+  });
+};
+
 export const mockRequestWithHost = (
   path: string,
   host: string,
