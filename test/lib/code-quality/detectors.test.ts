@@ -5,6 +5,7 @@ import { tempDir } from "#test-utils/files.ts";
 import {
   detectAliasing,
   detectModuleLevelLet,
+  detectMultilineRelativeImport,
   detectRelativeImport,
   detectThenUsage,
   extractExports,
@@ -306,6 +307,67 @@ describe("detectRelativeImport", () => {
     expect(
       detectRelativeImport("src/a.ts", 'import { x } from "valibot";', 1),
     ).toBe(null);
+  });
+});
+
+describe("detectMultilineRelativeImport", () => {
+  test("flags a dynamic import whose specifier is on the next line", () => {
+    const contents = [
+      "const x = 1;",
+      "const mod = await import(",
+      '  "../setup.ts"',
+      ");",
+    ].join("\n");
+    expect(detectMultilineRelativeImport("src/a.ts", contents)).toBe(
+      'src/a.ts:2: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
+    );
+  });
+
+  test("flags a dynamic import with `await` and whitespace/newlines between", () => {
+    const contents = [
+      "const mod = await import(",
+      "",
+      '  "../setup.ts"',
+      ");",
+    ].join("\n");
+    expect(detectMultilineRelativeImport("src/a.ts", contents)).toBe(
+      'src/a.ts:1: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
+    );
+  });
+
+  test("does not match a comment between import( and the specifier", () => {
+    // A comment between `(` and the specifier breaks the `\\s*` gap, so this
+    // form is not caught by the regex. That is acceptable: it is rare, and
+    // harder forms (whitespace-only between) are caught.
+    const contents = [
+      "const mod = await import(",
+      "  // a comment",
+      '  "../setup.ts"',
+      ");",
+    ].join("\n");
+    expect(detectMultilineRelativeImport("src/a.ts", contents)).toBe(null);
+  });
+
+  test("does not flag a single-line dynamic import (the line detector handles it)", () => {
+    expect(
+      detectMultilineRelativeImport(
+        "src/a.ts",
+        'const mod = await import("../setup.ts");',
+      ),
+    ).toBe(null);
+  });
+
+  test("does not flag a package multi-line import", () => {
+    const contents = ["const mod = await import(", '  "valibot"', ");"].join(
+      "\n",
+    );
+    expect(detectMultilineRelativeImport("src/a.ts", contents)).toBe(null);
+  });
+
+  test("does not flag when there is no import( anywhere", () => {
+    expect(detectMultilineRelativeImport("src/a.ts", "const x = 1;\n")).toBe(
+      null,
+    );
   });
 });
 

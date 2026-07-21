@@ -203,6 +203,49 @@ export const detectRelativeImport = (
   return null;
 };
 
+/**
+ * Matches a multi-line dynamic import whose specifier walks up a directory:
+ * `import(` followed by a newline (with optional whitespace) and then a
+ * `"../…"` / `'../…'` specifier. The single-line {@link detectRelativeImport}
+ * sees each line in isolation, so a dynamic import split across two lines like
+ *
+ * ```ts
+ * const mod = await import(
+ *   "../setup.ts",
+ * );
+ * ```
+ *
+ * would slip past it — the `import(` line has no specifier, the specifier line
+ * has no `import(`. This regex bridges that gap by requiring a newline between
+ * the `(` and the opening quote of the specifier, so single-line
+ * `import("../…")` is left to the line detector and not double-counted. The
+ * match extends to the closing quote so the snippet in the violation message
+ * shows the full specifier path, not just the opening `"../`.
+ *
+ * `s` (`dotAll`) makes `.` match newlines so the gap between `(` and the
+ * opening quote can include line breaks; the explicit `\\n` inside the gap
+ * forces this to be multi-line.
+ */
+export const MULTILINE_DYNAMIC_PARENT_IMPORT_PATTERN =
+  /import\s*\(\s*\n\s*["'](?:\.{2}|\.\/\.{2})\/[^"'\n]+["']/s;
+
+/**
+ * A parent-walking relative import that spans multiple lines — specifically
+ * the multi-line dynamic `import(` form. Returns the line number of the
+ * `import(` token (the start of the violation), or `null`. Operates on the
+ * whole file content.
+ */
+export const detectMultilineRelativeImport = (
+  relativePath: string,
+  contents: string,
+): string | null => {
+  const match = MULTILINE_DYNAMIC_PARENT_IMPORT_PATTERN.exec(contents);
+  if (!match) return null;
+  const lineNum = contents.slice(0, match.index).split("\n").length;
+  const snippet = match[0].replace(/\s+/g, " ").trim().slice(0, 50);
+  return `${relativePath}:${lineNum}: ${snippet}... (use a # alias instead of a ../ relative import)`;
+};
+
 /* -------------------------------------------------------------------------- *
  * No test-only exports                                                       *
  * -------------------------------------------------------------------------- */

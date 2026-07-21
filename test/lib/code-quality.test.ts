@@ -5,6 +5,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   detectAliasing,
   detectModuleLevelLet,
+  detectMultilineRelativeImport,
   detectRelativeImport,
   detectThenUsage,
   extractCallSites,
@@ -294,6 +295,17 @@ const ALLOWED_TEST_HOOKS: string[] = [
 const getAllTsFiles = (dir: string): Promise<string[]> =>
   getAllFilesWithExt(dir, ".ts");
 
+/** `.tsx` files across every in-scope tree. The template-aware rules
+ *  (parent-import is the first one) scan these in addition to the `.ts`
+ *  lists so a `.tsx` file can't bypass the rule by sitting outside `src/`. */
+const getAllTsxFiles = async (): Promise<string[]> => {
+  const dirs = [SRC_DIR, TEST_DIR, SCRIPTS_DIR, CLI_DIR, E2E_PAYMENTS_DIR];
+  const perDir = await Promise.all(
+    dirs.map((dir) => getAllFilesWithExt(dir, ".tsx")),
+  );
+  return perDir.flat();
+};
+
 const getRelativePath = (fullPath: string): string =>
   fullPath.replace(`${SRC_DIR}/`, "");
 
@@ -342,7 +354,7 @@ describe("code quality", () => {
     const [sf, tf, txf, scf, cf, ef] = await Promise.all([
       getAllTsFiles(SRC_DIR),
       getAllTsFiles(TEST_DIR),
-      getAllFilesWithExt(SRC_DIR, ".tsx"),
+      getAllTsxFiles(),
       getAllTsFiles(SCRIPTS_DIR),
       getAllTsFiles(CLI_DIR),
       getAllTsFiles(E2E_PAYMENTS_DIR),
@@ -407,6 +419,22 @@ describe("code quality", () => {
     });
   });
 
+  /** Iterate the in-scope files, skipping the code-quality folder's own
+   *  fixtures (which legitimately use the patterns the rules forbid, e.g.
+   *  `'import "../x.ts"'` as detector input). Each surviving file is handed to
+   *  the caller alongside its repo-relative path and contents. */
+  const forEachScannedFile = (
+    files: string[],
+    contents: Map<string, string>,
+    fn: (file: string, relativePath: string, fileContents: string) => void,
+  ): void => {
+    for (const file of files) {
+      const relativePath = repoRelative(file);
+      if (isCodeQualityFile(relativePath)) continue;
+      fn(file, relativePath, contents.get(file)!);
+    }
+  };
+
   /**
    * Scan one file set line by line, collecting violations via a detector.
    * Skips code-quality's own files so its rule literals never self-flag.
@@ -421,19 +449,15 @@ describe("code quality", () => {
     ) => string | null,
   ): string[] => {
     const violations: string[] = [];
-    for (const file of files) {
-      const relativePath = repoRelative(file);
-      if (isCodeQualityFile(relativePath)) continue;
-      // ensureLoaded() populates `contents` from this same `files` list, so
-      // every file requested here is guaranteed present.
-      const lines = contents.get(file)!.split("\n");
+    forEachScannedFile(files, contents, (_file, relativePath, fileContents) => {
+      const lines = fileContents.split("\n");
       let lineNum = 0;
       for (const line of lines) {
         lineNum++;
         const v = detect(relativePath, line, lineNum);
         if (v) violations.push(v);
       }
-    }
+    });
     return violations;
   };
 
@@ -453,6 +477,37 @@ describe("code quality", () => {
     return [
       ...collectLineViolations(srcFiles, srcContents, detect),
       ...collectLineViolations(testFiles, testContents, detect),
+    ];
+  };
+
+  /** Run a whole-file detector (one call per file, receiving the full contents)
+   *  over every in-scope tree. Used by rules that need cross-line context the
+   *  line-by-line scan can't provide — e.g. a multi-line `import(` whose
+   *  specifier sits on the next line. */
+  const collectFileViolations = (
+    files: string[],
+    contents: Map<string, string>,
+    detect: (relativePath: string, contents: string) => string | null,
+  ): string[] => {
+    const violations: string[] = [];
+    forEachScannedFile(files, contents, (_file, relativePath, fileContents) => {
+      const v = detect(relativePath, fileContents);
+      if (v) violations.push(v);
+    });
+    return violations;
+  };
+
+  const scanSourceFiles = async (
+    detect: (relativePath: string, contents: string) => string | null,
+  ): Promise<string[]> => {
+    await ensureLoaded();
+    return [
+      ...collectFileViolations(srcFiles, srcContents, detect),
+      ...collectFileViolations(testFiles, testContents, detect),
+      ...collectFileViolations(tsxFiles, tsxContents, detect),
+      ...collectFileViolations(scriptsFiles, scriptsContents, detect),
+      ...collectFileViolations(cliFiles, cliContents, detect),
+      ...collectFileViolations(e2eFiles, e2eContents, detect),
     ];
   };
 
@@ -483,8 +538,14 @@ describe("code quality", () => {
      * The `#` aliases in deno.json map every top-level dir (src, test, scripts,
      * cli, e2e-payments) to a stable prefix, so a file can name what it imports
      * without caring where it sits — and a moved file keeps working. The rule
-     * scans tsx templates too (scanSourceLines only walks .ts by default), since
-     * UI templates were the worst offender for `../`-walking to sibling files.
+     * scans tsx templates too, since UI templates were the worst offender for
+     * `../`-walking to sibling files.
+     *
+     * Two detectors cover this: the line scanner catches every import form
+     * whose specifier sits on the same line as the `from`/`import`/`import(`
+     * token; the file scanner catches the multi-line dynamic `import(` form
+     * (where the specifier sits on the next line) that the line scanner can't
+     * see, because it inspects each line in isolation.
      */
     test("imports should use a # alias, not ../", async () => {
       await ensureLoaded();
@@ -498,6 +559,7 @@ describe("code quality", () => {
         ),
         ...collectLineViolations(cliFiles, cliContents, detectRelativeImport),
         ...collectLineViolations(e2eFiles, e2eContents, detectRelativeImport),
+        ...(await scanSourceFiles(detectMultilineRelativeImport)),
       ];
       expect(violations).toEqual([]);
     });
