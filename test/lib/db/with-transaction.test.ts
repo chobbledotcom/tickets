@@ -1,6 +1,6 @@
 import { type Client, createClient, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
   DatabaseBusyError,
@@ -12,6 +12,7 @@ import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
+  setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
 import {
@@ -46,6 +47,10 @@ const count = async (): Promise<number> => {
 };
 
 describe("withTransaction", () => {
+  // A file that boots the app switches the guard to notify-only for the rest
+  // of the shared isolate; the budget tests need the default throw mode.
+  beforeEach(() => setN1GuardNotifyOnly(null));
+
   test("commits all writes on success", async () => {
     await withFileDb(async () => {
       await withTransaction(async (tx) => {

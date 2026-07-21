@@ -1,6 +1,6 @@
 import { LibsqlError, type ResultSet, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import {
   getDb,
@@ -9,6 +9,7 @@ import {
 } from "#shared/db/client.ts";
 import {
   runWithQueryLogContext,
+  setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -25,6 +26,10 @@ import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
  * deterministic.
  */
 describeWithEnv("db > client transaction", { db: true }, () => {
+  // A file that boots the app switches the guard to notify-only for the rest
+  // of the shared isolate; the budget tests need the default throw mode.
+  beforeEach(() => setN1GuardNotifyOnly(null));
+
   /** Run a transaction that issues `executes` single statements, then one
    *  two-statement batch. Each statement carries a distinct SQL string so the
    *  N+1 read guard (per-SQL, threshold 25) stays quiet and only the
