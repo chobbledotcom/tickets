@@ -38,7 +38,7 @@ const importListingOverride = (
 const importStoredListing = async (listing: Record<string, unknown>) => {
   const result = await importCatalog({ kind: "listing", listing, version: 1 });
   if (!result.ok) throw new Error(result.error);
-  const stored = await getListingWithCount(result.id);
+  const stored = await getListingWithCount(result.value.id);
   if (!stored) throw new Error("listing not found after import");
   return stored;
 };

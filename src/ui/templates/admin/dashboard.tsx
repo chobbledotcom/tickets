@@ -5,11 +5,13 @@
 import { filter, joinStrings, map, pipe, unique } from "#fp";
 import { t } from "#i18n";
 import { groupAttendeeRows } from "#shared/attendee-table-rows.ts";
-import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
-  EDITOR_LISTING_DEFAULT_ORDER,
+  COLUMN_LAYOUTS,
+  type ListingColumnLayout,
+} from "#shared/column-layout.ts";
+import {
+  EDITOR_LISTING_LAYOUT,
   EDITOR_LISTING_TABLE_COLUMNS,
-  LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -223,18 +225,15 @@ export const adminDashboardPage = (
   newestAttendees: DisplayAttendee[] = [],
   successMessage?: string,
   stats?: ActiveListingStats | null,
-  listingColumnTemplate?: string,
+  listingColumnLayout?: ListingColumnLayout,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
   unbookableIds: ReadonlySet<number> = new Set(),
   upcomingServicingEvents: ServicingEventSummary[] = [],
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
-  const { columnKeys, filters } = resolveColumnLayout(
-    listingColumnTemplate ?? "",
-    Object.keys(LISTING_TABLE_COLUMNS),
-    LISTING_DEFAULT_ORDER,
-  );
+  const { columnKeys, filters } =
+    listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout;
 
   // Type filter narrows the listing table only; the stats, multi-booking, and
   // newest-attendee sections below stay based on the full set. Offer the bar
@@ -312,7 +311,7 @@ export const adminDashboardPage = (
 export const adminListingsPage = (
   listings: ListingWithCount[],
   session: AdminSession,
-  listingColumnTemplate?: string,
+  listingColumnLayout?: ListingColumnLayout,
   attributeFilterView: ListingAttributeFilterView = emptyAttributeFilterView(),
 ): string => {
   // Editors see a money-free, edit-linked table on a fixed order (their saved
@@ -322,11 +321,9 @@ export const adminListingsPage = (
   const columns = isEditor
     ? EDITOR_LISTING_TABLE_COLUMNS
     : LISTING_TABLE_COLUMNS;
-  const { columnKeys, filters } = resolveColumnLayout(
-    isEditor ? "" : (listingColumnTemplate ?? ""),
-    Object.keys(columns),
-    isEditor ? EDITOR_LISTING_DEFAULT_ORDER : LISTING_DEFAULT_ORDER,
-  );
+  const { columnKeys, filters } = isEditor
+    ? EDITOR_LISTING_LAYOUT
+    : (listingColumnLayout ?? COLUMN_LAYOUTS.listing.defaultLayout);
   const activeListings = activeOnly(listings);
   const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
     listings,

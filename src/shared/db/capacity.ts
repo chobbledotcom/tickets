@@ -20,7 +20,7 @@ import type { InValue } from "@libsql/client";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import { joinStatements, type SqlStatement } from "#shared/db/client.ts";
-import { normalizeDurationDays } from "#shared/types.ts";
+import { clampDurationDays } from "#shared/types.ts";
 
 /** A half-open [startAt, endAt) window of whole days, as timestamps. Also
  * the shape of an attendee's booked windows on the Logistics tab. */
@@ -38,7 +38,7 @@ export type DayRange = { startAt: string; endAt: string };
  * to match, because SQLite TEXT comparison is byte-for-byte and tests
  * assert the exact stored format. */
 export const dateToRange = (date: string, durationDays = 1): DayRange => {
-  const days = normalizeDurationDays(durationDays);
+  const days = clampDurationDays(durationDays);
   const ms = new Date(`${date}T00:00:00Z`).getTime();
   const endIso = new Date(ms + days * 86_400_000).toISOString();
   return { endAt: endIso, startAt: `${date}T00:00:00Z` };
@@ -293,7 +293,7 @@ export const buildCapacityCondition = (
       qty,
     );
   }
-  const duration = normalizeDurationDays(durationDays);
+  const duration = clampDurationDays(durationDays);
   const dayClauses = Array.from({ length: duration }, (_, i) => {
     const daily = buildDayCapacitySql(
       {

@@ -1,5 +1,22 @@
 import * as v from "valibot";
 import { parseOrNull } from "./parse.ts";
+import { NonEmptyTextSchema } from "./string.ts";
+
+/** A safe whole number no lower than `minimum`. */
+export const integerAtLeast = (
+  minimum: number,
+): v.GenericSchema<number, number> =>
+  v.pipe(v.number(), v.safeInteger(), v.minValue(minimum));
+
+/** Clamp safe whole numbers to a range. Malformed numbers still throw. */
+export const clampInteger = (
+  minimum: number,
+  maximum: number,
+): ((value: number) => number) => {
+  const integerSchema = integerAtLeast(Number.MIN_SAFE_INTEGER);
+  return (value) =>
+    Math.max(minimum, Math.min(maximum, v.parse(integerSchema, value)));
+};
 
 /**
  * Plain decimal integer strings. The schemas accept digits only, so no signs,
@@ -14,19 +31,14 @@ import { parseOrNull } from "./parse.ts";
  * Mirrors the schema + parse-helper shape of validation/email.ts and
  * validation/date.ts as the rest of the app's validation migrates to valibot.
  */
-const createIntSchema = (minimum: number) =>
-  v.pipe(
-    v.string(),
-    v.nonEmpty(),
-    v.digits(),
-    v.transform(Number),
-    v.minValue(minimum),
-  );
-
-type IntSchema = ReturnType<typeof createIntSchema>;
-
-const NonNegativeIntSchema = createIntSchema(0);
-const PositiveIntSchema = createIntSchema(1);
+const NonNegativeIntSchema = v.pipe(
+  NonEmptyTextSchema,
+  v.digits(),
+  v.transform(Number),
+  v.safeInteger(),
+);
+const PositiveIntSchema = v.pipe(NonNegativeIntSchema, v.minValue(1));
+type IntSchema = v.GenericSchema<string, number>;
 
 const parseIntWithSchema = (schema: IntSchema, value: string): number | null =>
   parseOrNull(schema, value.trim());

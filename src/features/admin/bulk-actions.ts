@@ -59,6 +59,7 @@ import {
   buildDuplicateListingInput,
   deactivationOrphanedAddOnError,
 } from "#shared/listings-actions.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import {
@@ -266,7 +267,11 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
 
   // Resolve the freshly-inserted ids by their (unique) slug_index for the redirect
   // and the edge remap — two reads, not one per clone.
-  const newGroupId = (await getGroupBySlugIndex(slugIndex))!.id;
+  const duplicated = requireValue(
+    await getGroupBySlugIndex(slugIndex),
+    `Group with slug index ${slugIndex} does not exist`,
+  );
+  const newGroupId = duplicated.id;
   const idBySlugIndex = new Map(
     (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
   );

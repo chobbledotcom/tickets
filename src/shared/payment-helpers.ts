@@ -3,6 +3,7 @@
  * Eliminates duplication between stripe.ts/square.ts and their provider adapters.
  */
 
+import * as v from "valibot";
 import { lazyRef, map } from "#fp";
 import { signedEdgeFor } from "#shared/booking/signed-metadata.ts";
 import type {
@@ -619,13 +620,15 @@ export const enforceMetadataLimits = (
 };
 
 /**
- * Validate that session metadata contains required fields (name + items).
+ * Validate that every metadata value is text and required fields are present.
  */
+const ProviderMetadataSchema = v.record(v.string(), v.string());
+
 export const hasRequiredSessionMetadata = (
   metadata: Record<string, string | undefined> | null | undefined,
 ): metadata is SessionMetadata => {
-  if (!metadata?.name) return false;
-  return !!metadata.items;
+  if (!v.is(ProviderMetadataSchema, metadata)) return false;
+  return !!metadata.name && !!metadata.items;
 };
 
 /**

@@ -33,5 +33,6 @@ export const savedFormValue = (name: string): string =>
 export const getSavedFieldValue = (field: Field): string => {
   const form = savedFormScope.current().form;
   if (!form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";
+  if (field.type === "checkbox-group") return form.getAll(field.name).join(",");
   return readSubmittedFieldValue(form, field) ?? "";
 };

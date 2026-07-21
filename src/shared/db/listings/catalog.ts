@@ -40,7 +40,7 @@ const catalogListingProjection = defineTableProjection(rawListingsTable, [
 export const getListingOfferFlags = async (
   id: number,
 ): Promise<ListingOfferFlags | undefined> => {
-  const row = await listingOfferFlagsProjection.queryOneOrNull(
+  const row = await listingOfferFlagsProjection.queryOne(
     `SELECT ${listingOfferFlagsProjection.columnsSql("listing")} FROM listings AS listing WHERE listing.id = ? LIMIT 1`,
     [id],
   );

@@ -21,7 +21,7 @@
  */
 
 import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
-import { executeBatchWithResults, queryOne } from "#shared/db/client.ts";
+import { executeBatchWithResults, requireOne } from "#shared/db/client.ts";
 
 /**
  * Selects the ids of orphaned attendees older than the bound cut-off. Defined
@@ -41,7 +41,7 @@ export const countOrphanedAttendees = async (
   cutoffIso: string,
 ): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.
-  const row = await queryOne<{ count: number }>(
+  const row = await requireOne<{ count: number }>(
     `SELECT COUNT(*) AS count FROM (${ORPHAN_IDS})`,
     [cutoffIso],
   );

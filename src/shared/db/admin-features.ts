@@ -15,6 +15,7 @@ import {
   executeBatchWithResults,
   queryOne,
   queryOnePrimary,
+  requireOnePrimary,
   resultRows,
   type SqlStatement,
 } from "#shared/db/client.ts";
@@ -230,12 +231,11 @@ const saveLogisticsDisable = async (
 };
 
 const validateStoredFeatureSetting = async (): Promise<void> => {
-  const row = v.parse(
-    StoredValueSchema,
-    await queryOnePrimary<unknown>("SELECT value FROM settings WHERE key = ?", [
-      CONFIG_KEYS.ENABLED_FEATURES,
-    ]),
+  const stored = await requireOnePrimary<unknown>(
+    "SELECT value FROM settings WHERE key = ?",
+    [CONFIG_KEYS.ENABLED_FEATURES],
   );
+  const row = v.parse(StoredValueSchema, stored);
   parseEnabledFeatures(row.value);
 };
 

@@ -46,6 +46,7 @@ import {
 import {
   getListingWithCount,
   getStoredListingWithCount,
+  requireListingWithCount,
 } from "#shared/db/listings/records.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -200,7 +201,7 @@ const copyEdgesFromDuplicateSource = async (
     });
   }
   // The copy was just created in this request, so it always loads.
-  const newListing = (await getListingWithCount(newId))!;
+  const newListing = await requireListingWithCount(newId);
   const error = await copyDuplicatedChildEdges(newListing, childIds);
   return error
     ? t("listings_table.duplicate_children_dropped", { reason: error })
@@ -222,7 +223,7 @@ const renderCreateListingError = async (
       // re-renders their selection rather than dropping every group.
       selectedGroupIds: parseGroupIds(form),
       templateId,
-      values: Object.fromEntries(form.entries()),
+      values: form.toRenderValues(),
     },
     400,
   );

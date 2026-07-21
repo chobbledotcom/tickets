@@ -56,6 +56,21 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       expect(await getListingWithCount(1)).toBeNull();
     });
 
+    test("keeps repeated bookable days after a rejected create", async () => {
+      const { response } = await adminMultipartPost("/admin/listing", {
+        bookable_days: ["Monday", "Wednesday"],
+        day_price_1: "10.005",
+        listing_type: "daily",
+        max_attendees: "50",
+        max_quantity: "1",
+        name: "Bad Day Price",
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain('value="Monday" checked');
+      expect(html).toContain('value="Wednesday" checked');
+    });
+
     test("accepts a create with a valid day price and stores it", async () => {
       const { response } = await adminFormPost("/admin/listing", {
         day_price_1: "10.00",

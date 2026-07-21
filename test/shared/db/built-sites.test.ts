@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   assignBuiltSite,
   builtSites,
@@ -11,11 +12,13 @@ import {
   insertBuiltSite,
   isUpdateTier,
   parseSiteDataBlob,
+  providerOrBunny,
   siteAcceptsDeployTier,
   siteBaseUrl,
   UPDATE_TIERS,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
+import { execute } from "#shared/db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const formBlob = async (
@@ -24,6 +27,14 @@ const formBlob = async (
   const values = await builtSitesCrudTable.toDbValues(input);
   return parseSiteDataBlob(values.site_data as string);
 };
+
+describe("providerOrBunny", () => {
+  test("keeps named providers and defaults other values to Bunny", () => {
+    expect(providerOrBunny("deno", "deno")).toBe("deno");
+    expect(providerOrBunny("turso", "turso")).toBe("turso");
+    expect(providerOrBunny("", "deno")).toBe("bunny");
+  });
+});
 
 describe("siteBaseUrl", () => {
   test("prepends https:// to a bare hostname", () => {
@@ -163,16 +174,52 @@ describeWithEnv("built-sites", { db: true }, () => {
     expect(parsed.v).toBe(1);
   });
 
-  test("parseSiteDataBlob handles legacy blobs without db keys", () => {
+  test("parseSiteDataBlob handles legacy blobs without db keys or a version", () => {
     const legacyBlob = JSON.stringify({
       n: "Old Site",
       u: "old.b-cdn.net",
-      v: 1,
     });
     const parsed = parseSiteDataBlob(legacyBlob);
     expect(parsed.d).toBeUndefined();
     expect(parsed.t).toBeUndefined();
     expect(parsed.s).toBeUndefined();
+    expect(parsed.v).toBe(1);
+
+    const providers = parseSiteDataBlob(
+      JSON.stringify({
+        dp: "turso",
+        hp: "deno",
+        n: "Provider Site",
+        u: "provider.b-cdn.net",
+      }),
+    );
+    expect(providers.dp).toBe("turso");
+    expect(providers.hp).toBe("deno");
+  });
+
+  test("parseSiteDataBlob rejects malformed JSON and invalid fields", () => {
+    expect(() => parseSiteDataBlob("{")).toThrow(
+      "Invalid stored JSON in built_sites.site_data",
+    );
+    expect(() =>
+      parseSiteDataBlob(
+        JSON.stringify({ hp: "unknown", n: "Site", u: "site.test", v: 1 }),
+      ),
+    ).toThrow("Invalid stored JSON in built_sites.site_data");
+  });
+
+  test("toDbValues identifies invalid site data", () => {
+    expect(() =>
+      builtSitesCrudTable.toDbValues({
+        assignable: false,
+        dbToken: "",
+        dbUrl: "",
+        hostingId: "",
+        hostingProvider: "invalid" as never,
+        name: "Invalid Provider",
+        siteUrl: "invalid.b-cdn.net",
+      }),
+    ).toThrow("Invalid value for stored JSON in built_sites.site_data");
   });
 
   test("insertBuiltSite creates a row with encrypted site_data", async () => {
@@ -224,9 +271,17 @@ describeWithEnv("built-sites", { db: true }, () => {
   });
 
   test("getAllBuiltSites returns decrypted sites sorted by name", async () => {
-    await insertBuiltSite("Charlie", "charlie.b-cdn.net");
-    await insertBuiltSite("Alpha", "alpha.b-cdn.net");
-    await insertBuiltSite("Bravo", "bravo.b-cdn.net");
+    const charlie = await insertBuiltSite("Charlie", "charlie.b-cdn.net");
+    const alpha = await insertBuiltSite("Alpha", "alpha.b-cdn.net");
+    const bravo = await insertBuiltSite("Bravo", "bravo.b-cdn.net");
+    await execute(
+      `UPDATE built_sites SET created = CASE id
+        WHEN ? THEN '2026-01-03T00:00:00.000Z'
+        WHEN ? THEN '2026-01-02T00:00:00.000Z'
+        WHEN ? THEN '2026-01-01T00:00:00.000Z'
+        ELSE created END`,
+      [charlie.id, alpha.id, bravo.id],
+    );
 
     const sites = await builtSites.getAll();
     expect(sites).toHaveLength(3);
@@ -288,7 +343,17 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(value).toBe("Test");
     });
 
-    test("inputKeyMap exposes form-facing fields", () => {
+    test("raw nullable columns preserve falsy stored values", async () => {
+      expect(await builtSites.table.readColumn("assigned_attendee_id", 0)).toBe(
+        0,
+      );
+      expect(await builtSites.table.readColumn("renewal_token_index", "")).toBe(
+        "",
+      );
+    });
+
+    test("exposes CRUD table metadata", () => {
+      expect(builtSitesCrudTable.name).toBe("built_sites");
       expect(builtSitesCrudTable.inputKeyMap).toEqual({
         assignable: "assignable",
         db_provider: "dbProvider",
@@ -426,8 +491,24 @@ describeWithEnv("built-sites", { db: true }, () => {
     test("toDbValues handles partial input with missing fields", async () => {
       const values = await builtSitesCrudTable.toDbValues({});
       const parsed = parseSiteDataBlob(values.site_data as string);
+      expect(values.assignable).toBe(0);
       expect(parsed.n).toBe("");
       expect(parsed.u).toBe("");
+    });
+
+    test("legacy rows default to Bunny providers", async () => {
+      const row = await builtSites.table.insert({
+        siteData: JSON.stringify({ n: "Legacy", u: "legacy.b-cdn.net" }),
+      });
+      const site = await builtSitesCrudTable.findById(row.id);
+      expect(site!.hostingProvider).toBe("bunny");
+      expect(site!.dbProvider).toBe("bunny");
+    });
+
+    test("cache stats identify the built sites cache", () => {
+      expect(
+        getAllCacheStats().filter(({ name }) => name === "built_sites"),
+      ).toHaveLength(1);
     });
 
     test("toDbValues sets assignable to 1 when true", async () => {

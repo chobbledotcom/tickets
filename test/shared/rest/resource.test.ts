@@ -141,7 +141,7 @@ describe("rest/resource", () => {
 
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.input).toEqual({ name: "Test", value: 42 });
+        expect(result.value).toEqual({ name: "Test", value: 42 });
       }
     });
 

@@ -12,7 +12,11 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
+import {
+  awaitTestRequest,
+  mockFormRequest,
+  mockRequest,
+} from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
@@ -169,6 +173,30 @@ describeWithEnv(
         expect(
           log.some((e) => e.message.includes("added to group 'Assign Group'")),
         ).toBe(true);
+      });
+
+      test("assigns existing listings when another selection was deleted", async () => {
+        const group = await createTestGroup({
+          name: "Stale selection group",
+          slug: "stale-selection-group",
+        });
+        const listing = await createTestListing({ name: "Existing selection" });
+        const body = new URLSearchParams({ csrf_token: await testCsrfToken() });
+        body.append("listing_ids", String(listing.id));
+        body.append("listing_ids", "999999");
+        const response = await handleRequest(
+          mockRequest(`/admin/groups/${group.id}/add-listings`, {
+            body,
+            headers: { cookie: await testCookie() },
+            method: "POST",
+          }),
+        );
+
+        await expectFlashRedirect(
+          `/admin/groups/${group.id}`,
+          "Listings added to group",
+        )(response);
+        expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
       });
 
       test("handles empty selection gracefully", async () => {

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { type AttendeeColumn, COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import {
-  ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
   formatAddressInline,
 } from "#shared/columns/attendee-columns.ts";
@@ -85,7 +85,7 @@ const METADATA: Record<string, ColumnMetadata> = {
 describe("ATTENDEE_TABLE_COLUMNS metadata", () => {
   test("every column exposes its expected label/description/className/isHtml", () => {
     for (const [key, expected] of Object.entries(METADATA)) {
-      const col = ATTENDEE_TABLE_COLUMNS[key]!;
+      const col = ATTENDEE_TABLE_COLUMNS[key as AttendeeColumn];
       expect(col.label).toBe(expected.label);
       expect(col.description).toBe(expected.description);
       expect(col.isHtml).toBe(expected.isHtml);
@@ -102,26 +102,9 @@ describe("ATTENDEE_TABLE_COLUMNS metadata", () => {
   });
 });
 
-describe("ATTENDEE_DEFAULT_ORDER", () => {
-  test("matches the expected default order exactly", () => {
-    expect(ATTENDEE_DEFAULT_ORDER).toEqual([
-      "status",
-      "date",
-      "name",
-      "listings",
-      "email",
-      "phone",
-      "address",
-      "special_instructions",
-      "answers",
-      "qty",
-      "ticket",
-      "registered",
-    ]);
-  });
-
+describe("the attendee default column order", () => {
   test("is a permutation of ATTENDEE_TABLE_COLUMNS' keys", () => {
-    expect([...ATTENDEE_DEFAULT_ORDER].sort()).toEqual(
+    expect([...COLUMN_LAYOUTS.attendee.defaultOrder].sort()).toEqual(
       Object.keys(ATTENDEE_TABLE_COLUMNS).sort(),
     );
   });

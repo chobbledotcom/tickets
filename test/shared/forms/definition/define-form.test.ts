@@ -175,7 +175,7 @@ describe("defineForm", () => {
       id: "test",
     });
 
-    const html = form.field("color").render("blue");
+    const html = form.renderField("color", "blue");
     expect(html).toContain("blue");
   });
 

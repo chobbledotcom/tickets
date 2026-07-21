@@ -8,6 +8,7 @@ import {
   logRequest,
   setSuppressRequestLogs,
 } from "#shared/logger.ts";
+import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 describe("logRequest", () => {
@@ -74,39 +75,29 @@ describe("logRequest", () => {
 });
 
 describe("logDebug", () => {
-  let debugSpy: Spy;
-
-  beforeEach(() => {
-    setSuppressDebugLogs(false);
-    debugSpy = spy(console, "debug");
-  });
-
-  afterEach(() => {
-    debugSpy.restore();
-    setSuppressDebugLogs(null);
-  });
+  const debugSpy = useDebugLogSpy();
 
   test("formats message with category prefix", () => {
     logDebug("Setup", "Validation passed");
-    expect(debugSpy.calls[0]?.args[0]).toBe("[Setup] Validation passed");
+    expect(debugSpy().calls[0]?.args[0]).toBe("[Setup] Validation passed");
   });
 
   test("suppresses output when setSuppressDebugLogs(true)", () => {
     setSuppressDebugLogs(true);
     logDebug("Migration", "Step 1");
-    expect(debugSpy.calls.length).toBe(0);
+    expect(debugSpy().calls.length).toBe(0);
   });
 
   test("falls back to the TEST_SUPPRESS_DEBUG_LOGS env var when no override is set", () => {
     setSuppressDebugLogs(null);
     using _env = withEnv({ TEST_SUPPRESS_DEBUG_LOGS: "1" });
     logDebug("Migration", "Step 1");
-    expect(debugSpy.calls.length).toBe(0);
+    expect(debugSpy().calls.length).toBe(0);
   });
 
   test("emits output when setSuppressDebugLogs(false)", () => {
     logDebug("Migration", "Step 1");
-    expect(debugSpy.calls.length).toBe(1);
+    expect(debugSpy().calls.length).toBe(1);
   });
 });
 

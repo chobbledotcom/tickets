@@ -9,11 +9,13 @@
 import * as v from "valibot";
 import { parseBunnyError } from "#shared/bunny-cdn.ts";
 import { getBunnyApiKey } from "#shared/config.ts";
-import { type ApiResult, fetchText, jsonHeaders } from "#shared/fetch.ts";
+import { fetchText, jsonHeaders } from "#shared/fetch.ts";
 import type {
   CreateDatabaseFn,
   DatabaseProviderApi,
 } from "#shared/provider-types.ts";
+import { databaseCredentialsFromResponse } from "#shared/provider-types.ts";
+import { okResult, type Result } from "#shared/result.ts";
 
 const DB_API_BASE = "https://api.bunny.net/database";
 
@@ -47,16 +49,6 @@ interface GetDbResponse {
   };
 }
 
-interface GenerateTokenResponse {
-  token: string;
-}
-
-export interface CreateDatabaseResult {
-  dbId: string;
-  dbToken: string;
-  dbUrl: string;
-}
-
 /** Headers for all Bunny Database API requests. */
 const dbApiHeaders = (): Record<string, string> =>
   jsonHeaders({ AccessKey: getBunnyApiKey() });
@@ -72,7 +64,7 @@ const regionIds = (regions: RegionConfig[]): string[] =>
  * change needed when Bunny adds a server.
  */
 const getAllRegions = async (): Promise<
-  ApiResult<{ primaryRegions: string[]; replicaRegions: string[] }>
+  Result<{ primaryRegions: string[]; replicaRegions: string[] }>
 > => {
   const res = await fetchText(`${DB_API_BASE}/v1/config`, {
     headers: dbApiHeaders(),
@@ -83,11 +75,10 @@ const getAllRegions = async (): Promise<
   }
 
   const config = v.parse(DbConfigResponseSchema, JSON.parse(res.text));
-  return {
-    ok: true,
+  return okResult({
     primaryRegions: regionIds(config.primary_regions),
     replicaRegions: regionIds(config.replica_regions),
-  };
+  });
 };
 
 /**
@@ -105,8 +96,8 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
   const createRes = await fetchText(`${DB_API_BASE}/v2/databases`, {
     body: JSON.stringify({
       name,
-      primary_regions: regions.primaryRegions,
-      replicas_regions: regions.replicaRegions,
+      primary_regions: regions.value.primaryRegions,
+      replicas_regions: regions.value.replicaRegions,
       storage_region: STORAGE_REGION,
     }),
     headers: dbApiHeaders(),
@@ -147,9 +138,7 @@ const createDatabaseImpl: CreateDatabaseFn = async (name) => {
     return parseBunnyError(tokenRes, "Generate database token");
   }
 
-  const tokenData: GenerateTokenResponse = JSON.parse(tokenRes.text);
-
-  return { dbId, dbToken: tokenData.token, dbUrl, ok: true };
+  return databaseCredentialsFromResponse(dbId, dbUrl, tokenRes.text, "token");
 };
 
 export const bunnyDbProvider: DatabaseProviderApi = {

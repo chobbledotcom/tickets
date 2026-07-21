@@ -9,13 +9,9 @@
 
 import * as v from "valibot";
 import { mapNotNullish } from "#fp";
-import type { ApiResult } from "#shared/fetch.ts";
 import { fetchText, parseApiError } from "#shared/fetch.ts";
-import type {
-  AddressLookupProviderDefinition,
-  AddressLookupResult,
-  AddressMatch,
-} from "./types.ts";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
+import type { AddressLookupProviderDefinition, AddressMatch } from "./types.ts";
 
 const API_BASE = "https://api.easypostcodes.com/addresses/";
 
@@ -87,7 +83,7 @@ export const parseEasypostcodesBody = (body: string): AddressMatch[] | null => {
 export const fetchEasypostcodesAddresses = async (
   search: string,
   apiKey: string,
-): Promise<ApiResult<AddressLookupResult>> => {
+): Promise<Result<AddressMatch[]>> => {
   let response: Awaited<ReturnType<typeof fetchText>>;
   try {
     response = await fetchText(
@@ -95,23 +91,17 @@ export const fetchEasypostcodesAddresses = async (
       { headers: { Key: apiKey } },
     );
   } catch (error) {
-    return {
-      error: `EasyPostcodes lookup failed: ${String(error)}`,
-      ok: false,
-    };
+    return errorResult(`EasyPostcodes lookup failed: ${String(error)}`);
   }
   // An unknown-but-well-formed postcode is a normal "no matches" outcome, not
   // a provider failure — return (and cache) the empty list.
-  if (response.status === 404) return { addresses: [], ok: true };
+  if (response.status === 404) return okResult([]);
   if (!response.ok) return parseApiError(response, "EasyPostcodes lookup");
   const addresses = parseEasypostcodesBody(response.text);
   if (addresses === null) {
-    return {
-      error: "EasyPostcodes lookup returned an unexpected response",
-      ok: false,
-    };
+    return errorResult("EasyPostcodes lookup returned an unexpected response");
   }
-  return { addresses, ok: true };
+  return okResult(addresses);
 };
 
 /** The EasyPostcodes provider definition. */

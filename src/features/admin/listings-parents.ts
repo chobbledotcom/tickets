@@ -22,6 +22,7 @@ import {
   getAllListings,
   getListingsById,
   getListingWithCount,
+  requireListingWithCount,
 } from "#shared/db/listings/records.ts";
 import {
   childOnlyAddOnName,
@@ -293,7 +294,7 @@ const addChildrenToParent = async (
   addChildIds: readonly number[],
 ): Promise<string | null> => {
   // The parent always loads (it is a real listing referenced by an existing edge).
-  const parent = (await getListingWithCount(parentId))!;
+  const parent = await requireListingWithCount(parentId);
   const existing = await listingChildren.getIds(parentId);
   return copyDuplicatedChildEdges(parent, [...existing, ...addChildIds]);
 };
@@ -341,7 +342,7 @@ export const remapDuplicatedGroupEdges = async (
       (childId) => idMap.get(childId) ?? childId,
     );
     // `newId` is a clone just inserted in this request, so it always loads.
-    const newParent = (await getListingWithCount(newId))!;
+    const newParent = await requireListingWithCount(newId);
     const error = await copyDuplicatedChildEdges(newParent, remapped);
     if (error) errors.push(error);
   }

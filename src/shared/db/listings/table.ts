@@ -1,29 +1,31 @@
 /** Listing table schema and stored-value transforms. */
 
+import * as v from "valibot";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
-  defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { defineIdTable } from "#shared/db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#shared/db/encrypted-text.ts";
 import { col, defineTableProjection } from "#shared/db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
+  clampDurationDays,
   type DayPrices,
+  DayPricesSchema,
   type Listing,
   type ListingFields,
   type ListingType,
-  normalizeDurationDays,
-  parseDayPrices,
 } from "#shared/types.ts";
 
 const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];
+const BookableDaysSchema = v.array(v.string());
 
 /** Listing input fields for create/update (camelCase). */
 export type ListingInput = {
@@ -95,9 +97,7 @@ const encryptDatetime = (
 
 const decryptDatetime = async (value: EnvKeyEncrypted): Promise<string> => {
   const decrypted = await decrypt(value);
-  return decrypted === ""
-    ? ""
-    : normalizeUtcDatetime(decrypted, "stored datetime");
+  return normalizeUtcDatetime(decrypted, "stored datetime");
 };
 
 const writeClosesAt = (value: string | null): Promise<EnvKeyEncrypted> =>
@@ -140,19 +140,9 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
     attachment_name: col.encryptedText(encrypt, decrypt),
     attachment_url: col.encryptedText(encrypt, decrypt),
     bookable_alone: col.boolean(false),
-    bookable_days: col.converted<string[]>({
+    bookable_days: col.json(BookableDaysSchema, {
+      context: "listings.bookable_days",
       default: () => [...DEFAULT_BOOKABLE_DAYS],
-      read: (value) => {
-        const parsed: unknown = JSON.parse(value as string);
-        if (
-          !Array.isArray(parsed) ||
-          !parsed.every((day): day is string => typeof day === "string")
-        ) {
-          throw new Error("Stored bookable_days must be a JSON string array");
-        }
-        return parsed;
-      },
-      write: (value) => JSON.stringify(value),
     }),
     can_pay_more: col.boolean(false),
     closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
@@ -162,11 +152,13 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
       default: () => "",
       ...col.encrypted(writeListingDate, decryptDatetime),
     },
-    day_prices: col.projected<DayPrices>((value) =>
-      parseDayPrices(JSON.parse((value as string) ?? "{}")),
-    ),
+    day_prices: col.json(DayPricesSchema, {
+      context: "listings.day_prices",
+      projected: true,
+      whenMissing: () => ({}),
+    }),
     description: col.encryptedText(encrypt, decrypt),
-    duration_days: { default: () => 1, write: normalizeDurationDays },
+    duration_days: { default: () => 1, write: clampDurationDays },
     fields: col.withDefault<ListingFields>(() => "email"),
     hidden: col.boolean(false),
     image_alt_text: col.projected<string>(readProjectedAltText),

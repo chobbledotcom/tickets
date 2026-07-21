@@ -12,7 +12,6 @@ import {
 } from "#shared/db/keyed-cache.ts";
 import { type ColumnDef, col, type Table } from "#shared/db/table.ts";
 
-export { defineIdTable } from "#shared/db/define-id-table.ts";
 // Re-exported for users.ts, which caches a table-less query and so wires the
 // cache by hand rather than through cachedEntityTable.
 export { createKeyedCache, registerCache, registerTableInvalidation };

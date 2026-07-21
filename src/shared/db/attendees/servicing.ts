@@ -37,9 +37,10 @@ import {
   inPlaceholders,
   queryAll,
   queryOne,
+  requireOne,
   withTransaction,
 } from "#shared/db/client.ts";
-import { getListingNamesByIds } from "#shared/db/listings/records.ts";
+import { listingNames } from "#shared/db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -51,7 +52,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
-import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
+import { type Attendee, clampDurationDays } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
 /** An answer chosen for a service event's custom question. Only the `answerId`
@@ -156,7 +157,7 @@ const formatServicingCapacityError = capacityErrorFormatter({
 /** The comma-joined names of the given listing ids, dropping any id whose
  *  listing has since been deleted (a name lookup miss) rather than throwing. */
 const joinedListingNames = async (ids: number[]): Promise<string> => {
-  const names = await getListingNamesByIds(ids);
+  const names = await listingNames.byIds(ids);
   return ids
     .map((id) => names.get(id))
     .filter((name): name is string => Boolean(name))
@@ -195,7 +196,7 @@ const saveServicingAnswers = (
 const durationDaysFromRow = (row: ListingAttendeeRow): number | undefined => {
   if (!row.start_at || !row.end_at) return;
   const ms = new Date(row.end_at).getTime() - new Date(row.start_at).getTime();
-  return normalizeDurationDays(Math.round(ms / 86_400_000));
+  return clampDurationDays(Math.round(ms / 86_400_000));
 };
 
 const bookingFromRow = (row: ListingAttendeeRow): ListingBooking => {
@@ -382,7 +383,7 @@ const desiredLines = (
   );
   return input.bookings.map((booking) => {
     const date = booking.date ?? null;
-    const durationDays = normalizeDurationDays(booking.durationDays ?? 1);
+    const durationDays = clampDurationDays(booking.durationDays ?? 1);
     return {
       ...lineKeyForInput(booking, existingBySlot),
       date,
@@ -701,11 +702,11 @@ export const recordServiceCost = async (
         "SELECT ?, ?, id, ?, ?, ? FROM transfers WHERE reference = ?",
     });
   });
-  const row = await queryOne<{ id: number }>(
+  const row = await requireOne<{ id: number }>(
     "SELECT id FROM transfers WHERE reference = ?",
     [transfer.reference],
   );
-  return row!.id;
+  return row.id;
 };
 
 /** The narrow transfers columns a service-cost read needs: the row's id and

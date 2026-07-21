@@ -71,8 +71,8 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.createApp("my-app");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.appId).toBe("app_abc123");
-      expect(result.slug).toBe("my-app");
+      expect(result.value.appId).toBe("app_abc123");
+      expect(result.value.slug).toBe("my-app");
     }
     expect(captured.url).toContain("/v2/apps");
     expect(captured.body).toEqual({ orgId: "test-org-id", slug: "my-app" });
@@ -153,7 +153,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.hostname).toBe("https://my-app.deno.dev");
+      expect(result.value).toBe("https://my-app.deno.dev");
     }
     expect(captured.url).toContain("/apps/app_dc/deployments");
     expect(
@@ -172,7 +172,7 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.deployCode("app_fb", "code");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.hostname).toBe("https://fallback.deno.dev");
+      expect(result.value).toBe("https://fallback.deno.dev");
     }
   });
 
@@ -217,9 +217,9 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.getEnvVarNames("app_gn");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.names).toContain("DB_URL");
-      expect(result.names).toContain("DB_TOKEN");
-      expect(result.names.length).toBe(2);
+      expect(result.value).toContain("DB_URL");
+      expect(result.value).toContain("DB_TOKEN");
+      expect(result.value.length).toBe(2);
     }
   });
 
@@ -232,18 +232,18 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     const result = await denoDeployApi.getEnvVarNames("app_empty");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.names).toEqual([]);
+      expect(result.value).toEqual([]);
     }
   });
 
-  test("getEnvVarNames returns empty array when env_vars field is absent", async () => {
+  test("getEnvVarNames returns empty when env_vars is omitted", async () => {
     using _fetch = stubFetch(
       new Response(JSON.stringify({ id: "app_no_ev", slug: "no-ev" })),
     );
     const result = await denoDeployApi.getEnvVarNames("app_no_ev");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.names).toEqual([]);
+      expect(result.value).toEqual([]);
     }
   });
 

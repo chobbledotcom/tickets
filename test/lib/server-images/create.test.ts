@@ -6,6 +6,7 @@ import type { ListingWithCount } from "#shared/types.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { PDF_BYTES } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 import { mockMultipartRequest, withStorageMock } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
@@ -14,15 +15,15 @@ import { makeTestPng } from "#test-utils/test-image.ts";
 const newListingFormFields = (
   csrfToken: string,
   name: string,
-): Record<string, string> => ({
-  bookable_days: "Monday,Tuesday,Wednesday,Thursday,Friday",
+): TestFormValues => ({
+  bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
   closes_at_date: "",
   closes_at_time: "",
   csrf_token: csrfToken,
   date_date: "",
   date_time: "",
   description: "",
-  fields: "email",
+  fields: ["email"],
   listing_type: "standard",
   location: "",
   max_attendees: "50",

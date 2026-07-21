@@ -13,21 +13,11 @@ const getDatetimeValue = (form: FormParams, name: string): string | null => {
   return null;
 };
 
-const parseCheckboxGroup = (form: FormParams, name: string): string =>
-  form
-    .getAll(name)
-    .map((value) => value.trim())
-    .filter((value) => value)
-    .join(",");
-
 /** Read one field from submitted form data using the field's input shape. */
 export const readSubmittedFieldValue = (
   form: FormParams,
   field: Field,
 ): string | null => {
-  if (field.type === "checkbox-group") {
-    return parseCheckboxGroup(form, field.name);
-  }
   if (field.type === "datetime") {
     return getDatetimeValue(form, field.name);
   }

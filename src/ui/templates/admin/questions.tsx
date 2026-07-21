@@ -222,7 +222,7 @@ export const adminQuestionPage = (
           action={`/admin/questions/${question.id}/edit`}
           submitLabel={t("questions.edit.update")}
         >
-          <Raw html={questionTextForm.field("text").render(question.text)} />
+          <Raw html={questionTextForm.renderField("text", question.text)} />
           {question.display_type === "free_text" ? (
             // Free-text questions can't become choice questions (it would orphan
             // any stored text answers), so lock the type rather than offering it.

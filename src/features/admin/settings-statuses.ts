@@ -27,9 +27,9 @@ import { flatCollectionSwap } from "#shared/db/ordered-collection.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
-import type { ParseResult } from "#shared/rest/crud-api.ts";
 import type { NamedOperations } from "#shared/rest/resource.ts";
-import { errorResult } from "#shared/result.ts";
+import type { Result } from "#shared/result.ts";
+import { errorResult, okResult } from "#shared/result.ts";
 import { statusPages } from "#templates/admin/settings-statuses.tsx";
 import { attendeeStatusPage } from "./attendee-status-page.ts";
 
@@ -40,7 +40,7 @@ const LIST_PATH = "/admin/settings/statuses";
 /** Parse and validate the status form. */
 const parseStatusForm = (
   form: FormParams,
-): ParseResult<AttendeeStatusWriteInput> => {
+): Result<AttendeeStatusWriteInput> => {
   const isReservation = form.has("is_reservation");
   const input = {
     isPaidDefault: form.has("is_paid_default"),
@@ -58,7 +58,7 @@ const parseStatusForm = (
   const error = isReservation
     ? validateReservationAmount(input.reservationAmount)
     : null;
-  return error ? { error, ok: false } : { input, ok: true };
+  return error ? errorResult(error) : okResult(input);
 };
 
 const SAVE_ERRORS: Record<AttendeeStatusSaveError, string> = {
@@ -77,7 +77,7 @@ const DELETE_ERRORS: Record<AttendeeStatusDeleteError, string> = {
 const saveStatus = async (id: number | null, form: FormParams) => {
   const parsed = parseStatusForm(form);
   if (!parsed.ok) return parsed;
-  const saved = await attendeeStatusWrites.save(id, parsed.input);
+  const saved = await attendeeStatusWrites.save(id, parsed.value);
   if (!saved.ok) return errorResult(SAVE_ERRORS[saved.error]);
   return { ok: true as const, row: saved.value };
 };

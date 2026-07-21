@@ -4,7 +4,7 @@
  * or `username_index`), with a separate ordered view for "all rows" pages.
  *
  * Generalised from the listings cache so listings, groups and users share one
- * implementation. Single-record reads (`getById` / `getByKey` / `getByKeys`)
+ * implementation. Record reads (`getByIds` / `getByKeys`)
  * fetch only the rows they need; `getAll` loads the whole set and warms the
  * dictionaries. Each entry carries its own expiry (`ttlMs`); a whole-list load
  * stamps every entry, a single-record load stamps only what it fetched.
@@ -20,7 +20,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import { lazyRef, ttlCache, unique } from "#fp";
+import { lazyRef, mapNotNullish, ttlCache, unique } from "#fp";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { createPrimaryCacheRefill } from "#shared/db/primary-reads.ts";
 import { nowMs } from "#shared/now.ts";
@@ -31,6 +31,7 @@ import { nowMs } from "#shared/now.ts";
 export type KeyedCache<T> = {
   getAll: () => Promise<T[]>;
   getById: (id: number) => Promise<T | null>;
+  getByIds: (ids: number[]) => Promise<(T | null)[]>;
   getByKey: (key: string) => Promise<T | null>;
   getByKeys: (keys: string[]) => Promise<(T | null)[]>;
   invalidate: (cause?: CacheInvalidation) => void;
@@ -46,14 +47,14 @@ export type KeyedCacheConfig<T> = {
   /** Load every row, in display order. */
   fetchAll: () => Promise<T[]>;
   /**
-   * Load one row by id. Provide it for large tables so a by-id read fetches
-   * (and decrypts) only that row; omit it for small tables, where `getById`
+   * Load rows by id. Provide it for large tables so id reads fetch and decrypt
+   * only those rows; omit it for small tables, where `getByIds`
    * instead scans the whole-set load — fewer queries, no extra single-row SQL.
    */
-  fetchById?: (id: number) => Promise<T | null>;
+  fetchByIds?: (ids: number[]) => Promise<T[]>;
   /**
    * Load rows by secondary key in one query (only those that exist). Provide it
-   * for large tables; omit it for small tables, where `getByKey`/`getByKeys`
+   * for large tables; omit it for small tables, where `getByKeys`
    * scan the whole-set load instead.
    */
   fetchByKeys?: (keys: string[]) => Promise<T[]>;
@@ -66,7 +67,7 @@ export type KeyedCacheConfig<T> = {
 export const createKeyedCache = <T>(
   config: KeyedCacheConfig<T>,
 ): KeyedCache<T> => {
-  const { idOf, keyOf, fetchAll, fetchById, fetchByKeys, ttlMs } = config;
+  const { idOf, keyOf, fetchAll, fetchByIds, fetchByKeys, ttlMs } = config;
   const now = config.now ?? nowMs;
   const byId = ttlCache<number, T>(ttlMs, now);
   const byKey = ttlCache<string, T>(ttlMs, now);
@@ -109,34 +110,45 @@ export const createKeyedCache = <T>(
     return loadFull();
   };
 
-  const getById = async (id: number): Promise<T | null> => {
-    const cached = byId.get(id);
-    if (cached) return cached;
-    if (!fetchById) {
-      await getAll(); // whole-set load warms byId
-      return byId.get(id) ?? null;
+  const resolveMany = async <Key>(
+    keys: Key[],
+    cache: { get: (key: Key) => T | undefined },
+    fetchRows: ((keys: Key[]) => Promise<T[]>) | undefined,
+    keyOfRow: (row: T) => Key,
+  ): Promise<(T | null)[]> => {
+    const uniqueKeys = unique(keys);
+    const loaded = new Map(
+      mapNotNullish((key: Key): [Key, T] | null => {
+        const row = cache.get(key);
+        return row === undefined ? null : [key, row];
+      })(uniqueKeys),
+    );
+    if (fetchRows) {
+      const missing = uniqueKeys.filter((key) => !loaded.has(key));
+      if (missing.length > 0) {
+        const gen = generation;
+        const rows = await primaryRefill.fetch(() => fetchRows(missing));
+        for (const row of rows) {
+          loaded.set(keyOfRow(row), remember(gen, row));
+        }
+      }
+    } else {
+      await getAll();
     }
-    const gen = generation;
-    const row = await primaryRefill.fetch(() => fetchById(id));
-    return row ? remember(gen, row) : null;
+    return keys.map((key) => loaded.get(key) ?? cache.get(key) ?? null);
   };
+
+  const getByIds = (ids: number[]): Promise<(T | null)[]> =>
+    resolveMany(ids, byId, fetchByIds, idOf);
+
+  const getById = async (id: number): Promise<T | null> =>
+    (await getByIds([id]))[0] ?? null;
 
   // Resolve a batch of secondary keys, fetching only the misses in one query,
   // so a caller never loads more rows than it asked for. Small tables omit
   // fetchByKeys and instead resolve against the whole-set load.
-  const getByKeys = async (keys: string[]): Promise<(T | null)[]> => {
-    if (fetchByKeys) {
-      const missing = unique(keys).filter((k) => !byKey.get(k));
-      if (missing.length > 0) {
-        const gen = generation;
-        const rows = await primaryRefill.fetch(() => fetchByKeys(missing));
-        for (const row of rows) remember(gen, row);
-      }
-    } else {
-      await getAll(); // whole-set load warms byKey
-    }
-    return keys.map((k) => byKey.get(k) ?? null);
-  };
+  const getByKeys = (keys: string[]): Promise<(T | null)[]> =>
+    resolveMany(keys, byKey, fetchByKeys, keyOf);
 
   const getByKey = async (key: string): Promise<T | null> =>
     (await getByKeys([key]))[0] ?? null;
@@ -144,6 +156,7 @@ export const createKeyedCache = <T>(
   return {
     getAll,
     getById,
+    getByIds,
     getByKey,
     getByKeys,
     invalidate: (cause = "manual") => {

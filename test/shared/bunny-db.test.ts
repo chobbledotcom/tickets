@@ -89,13 +89,25 @@ describeWithEnv("bunny-db", { env: { BUNNY_API_KEY: "test-api-key" } }, () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.dbUrl).toBe("libsql://my-site.lite.bunnydb.net");
-      expect(result.dbToken).toBe("bny_token_abc");
-      expect(result.dbId).toBe("db_test123");
+      expect(result.value.dbUrl).toBe("libsql://my-site.lite.bunnydb.net");
+      expect(result.value.dbToken).toBe("bny_token_abc");
+      expect(result.value.dbId).toBe("db_test123");
     }
 
     expect(fetchCalls.length).toBe(4);
     expect(fetchCalls[0]).toContain("/v1/config");
+  });
+
+  test("createDatabase rejects a token response with no token", async () => {
+    using _fetch = dbCreateFetch("db_missing_token", (url) =>
+      url.includes("/auth")
+        ? new Response("{}")
+        : getAndAuthResponse(url, "db_missing_token"),
+    );
+
+    await expect(bunnyDbApi.createDatabase("Missing token")).rejects.toThrow(
+      "Database response is missing token",
+    );
   });
 
   test("createDatabase sends every region Bunny reported as primaries and replicas", async () => {

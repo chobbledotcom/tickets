@@ -229,6 +229,37 @@ describe("shared > listing-defaults > parse/serialize round-trip", () => {
     expect(parseListingDefaults(undefined)).toEqual({});
     expect(parseListingDefaults("")).toEqual({});
   });
+
+  test("rejects malformed JSON and invalid stored fields", () => {
+    expect(() => parseListingDefaults("{")).toThrow(
+      /^Invalid stored JSON in settings\.listing_defaults:/,
+    );
+    expect(() => parseListingDefaults('{"bookableDays":["Monday",2]}')).toThrow(
+      "Invalid stored JSON in settings.listing_defaults",
+    );
+    expect(() => parseListingDefaults('{"hidden":"yes"}')).toThrow(
+      "Invalid stored JSON in settings.listing_defaults",
+    );
+    expect(() => parseListingDefaults('{"minimumDaysBefore":-1}')).toThrow();
+    expect(() => parseListingDefaults('{"maximumDaysAfter":-1}')).toThrow();
+  });
+
+  test("allows zero-day booking windows", () => {
+    expect(
+      parseListingDefaults(
+        serializeListingDefaults({
+          maximumDaysAfter: 0,
+          minimumDaysBefore: 0,
+        }),
+      ),
+    ).toEqual({ maximumDaysAfter: 0, minimumDaysBefore: 0 });
+  });
+
+  test("names the setting when serialization rejects invalid defaults", () => {
+    expect(() =>
+      serializeListingDefaults({ hidden: "yes" } as unknown as ListingDefaults),
+    ).toThrow(/^Invalid value for stored JSON in settings\.listing_defaults$/);
+  });
 });
 
 describe("shared > listing-defaults > LISTING_DEFAULT_FIELDS", () => {

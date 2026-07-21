@@ -14,6 +14,7 @@
  *   - Fresh → return conflict error (still being processed)
  */
 
+import * as v from "valibot";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type {
   EnvKeyEncrypted,
@@ -23,6 +24,7 @@ import { execute, insert, queryOne } from "#shared/db/client.ts";
 import { encryptPaymentReference } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 export { STALE_RESERVATION_MS };
 
@@ -68,11 +70,15 @@ export type ProcessedPayment = {
  * clear. Keep this shape free of any field that shouldn't round-trip through the
  * DB encryption key.
  */
-export type StoredPaymentFailure = {
-  error: string;
-  status?: number | undefined;
-  refunded?: boolean | undefined;
-};
+const StoredPaymentFailureSchema = v.strictObject({
+  error: v.string(),
+  refunded: v.optional(v.boolean()),
+  status: v.optional(v.pipe(v.number(), v.safeInteger())),
+});
+export type StoredPaymentFailure = v.InferOutput<
+  typeof StoredPaymentFailureSchema
+>;
+const paymentFailureJson = defineStoredJson(StoredPaymentFailureSchema);
 
 /** Result of session reservation attempt */
 export type ReserveSessionResult =
@@ -249,7 +255,12 @@ export const markSessionFailed = async (
 ): Promise<void> => {
   await execute(
     `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-    [await encrypt(JSON.stringify(failure)), sessionId],
+    [
+      await encrypt(
+        paymentFailureJson.write(failure, "processed_payments.failure_data"),
+      ),
+      sessionId,
+    ],
   );
 };
 
@@ -271,7 +282,10 @@ export const parseSessionFailure = async (
 ): Promise<StoredPaymentFailure | null> => {
   if (!failureData) return null;
   try {
-    return JSON.parse(await decrypt(failureData)) as StoredPaymentFailure;
+    return paymentFailureJson.read(
+      await decrypt(failureData),
+      "processed_payments.failure_data",
+    );
   } catch {
     return CORRUPT_FAILURE;
   }

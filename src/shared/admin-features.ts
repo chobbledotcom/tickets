@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /**
  * The admin features operators can choose to show. This one registry drives the
@@ -81,6 +82,7 @@ const EnabledFeaturesSchema = v.pipe(
     "Every admin feature must have an enabled value",
   ),
 );
+const enabledFeaturesJson = defineStoredJson(EnabledFeaturesSchema);
 
 const DEFAULT_ENABLED_FEATURES = Object.freeze(
   Object.fromEntries(FEATURE_KEYS.map((key) => [key, false])),
@@ -91,10 +93,13 @@ const DEFAULT_ENABLED_FEATURES = Object.freeze(
 export const parseEnabledFeatures = (value: string): EnabledFeatures =>
   value === ""
     ? DEFAULT_ENABLED_FEATURES
-    : (v.parse(EnabledFeaturesSchema, JSON.parse(value)) as EnabledFeatures);
+    : (enabledFeaturesJson.read(
+        value,
+        "settings.enabled_features",
+      ) as EnabledFeatures);
 
 export const serializeEnabledFeatures = (features: EnabledFeatures): string =>
-  JSON.stringify(v.parse(EnabledFeaturesSchema, features));
+  enabledFeaturesJson.write(features, "settings.enabled_features");
 
 export const setFeatureEnabled = (
   features: EnabledFeatures,

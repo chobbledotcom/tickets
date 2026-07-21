@@ -22,8 +22,8 @@ import {
   getGroupDayPricesByGroupIds,
 } from "#shared/db/listing-prices.ts";
 import {
-  getListingNamesByIds,
   getStoredListingWithCount,
+  listingNames,
   listingsTable,
 } from "#shared/db/listings/records.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -167,7 +167,7 @@ export const exportListing = async (
     ),
   }));
 
-  const parentNames = await getListingNamesByIds(parentIds);
+  const parentNames = await listingNames.byIds(parentIds);
   const parents = mapNotNullish((parentId: number) =>
     parentNames.get(parentId),
   )(parentIds);
@@ -198,15 +198,15 @@ export const exportGroup = (
     if (groupData instanceof CatalogExportError) return groupData;
 
     const rows = await getGroupPackagePrices(id);
-    const [listingNames, dayPrices] = await Promise.all([
-      getListingNamesByIds(rows.map((r) => r.listing_id)),
+    const [namesByListing, dayPrices] = await Promise.all([
+      listingNames.byIds(rows.map((r) => r.listing_id)),
       getGroupDayPrices(id),
     ]);
 
-    // Every package row references an existing listing (FK), and `listingNames`
+    // Every package row references an existing listing (FK), and `namesByListing`
     // covers exactly those ids, so the name lookup always resolves.
     const members: GroupMember[] = rows.map((row) => ({
-      listing: listingNames.get(row.listing_id)!,
+      listing: namesByListing.get(row.listing_id)!,
       ...overrideFields(
         row.package_price,
         row.quantity,

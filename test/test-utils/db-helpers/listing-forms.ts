@@ -1,18 +1,22 @@
 import { toMajorUnits } from "#shared/currency.ts";
 import type { ListingInput } from "#shared/db/listings/table.ts";
 import type { DayPrices, ListingWithCount } from "#shared/types.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
 
-const bool = (v: unknown): string => (v ? "1" : "");
+const checked = (name: string, value: unknown): TestFormValues =>
+  value ? { [name]: "1" } : {};
+const flagChoice = (value: unknown): string => (value ? "1" : "");
 const optionalNumber = (v: number | null | undefined): string =>
   v != null ? String(v) : "";
 const optionalPrice = (v: number | null | undefined): string =>
   v != null ? toMajorUnits(v) : "";
-const formatBookableDaysForForm = (days: string[]): string => days.join(",");
+const repeated = (value: string): string[] =>
+  value ? value.split(",").map((part) => part.trim()) : [];
 
 /** Serialize a DayPrices map into the form's `day_price_<n>` fields. */
 const dayPriceFormFields = (
   dayPrices: DayPrices | undefined,
-): Record<string, string> => {
+): TestFormValues => {
   const result: Record<string, string> = {};
   for (const [days, price] of Object.entries(dayPrices ?? {})) {
     result[`day_price_${days}`] = toMajorUnits(price);
@@ -44,30 +48,28 @@ export const priceFormValue = (minorUnits: number): string =>
 
 export const buildCreateListingForm = (
   input: Omit<ListingInput, "slug" | "slugIndex">,
-): Record<string, string> => {
+): TestFormValues => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
   const initialSiteMonths = input.assignBuiltSite
     ? (input.initialSiteMonths ?? 1)
     : (input.initialSiteMonths ?? 0);
   return {
-    assign_built_site: bool(input.assignBuiltSite),
-    bookable_alone: bool(input.bookableAlone),
-    bookable_days: input.bookableDays
-      ? formatBookableDaysForForm(input.bookableDays)
-      : "",
-    can_pay_more: bool(input.canPayMore),
+    ...checked("assign_built_site", input.assignBuiltSite),
+    ...checked("bookable_alone", input.bookableAlone),
+    bookable_days: input.bookableDays ?? [],
+    ...checked("can_pay_more", input.canPayMore),
     closes_at_date: closesAtParts.date,
     closes_at_time: closesAtParts.time,
-    customisable_days: bool(input.customisableDays),
+    ...checked("customisable_days", input.customisableDays),
     date_date: dateParts.date,
     date_time: dateParts.time,
     description: input.description ?? "",
     duration_days: optionalNumber(input.durationDays),
-    uses_logistics: bool(input.usesLogistics),
+    ...checked("uses_logistics", input.usesLogistics),
     ...dayPriceFormFields(input.dayPrices),
-    fields: input.fields ?? "email",
-    hidden: bool(input.hidden),
+    fields: repeated(input.fields ?? "email"),
+    ...checked("hidden", input.hidden),
     initial_site_months: String(initialSiteMonths),
     listing_type: input.listingType ?? "",
     location: input.location ?? "",
@@ -78,11 +80,11 @@ export const buildCreateListingForm = (
     minimum_days_before: optionalNumber(input.minimumDaysBefore),
     months_per_unit: String(input.monthsPerUnit ?? 0),
     name: input.name,
-    non_transferable: bool(input.nonTransferable),
-    purchase_only: bool(input.purchaseOnly),
+    non_transferable: flagChoice(input.nonTransferable),
+    ...checked("purchase_only", input.purchaseOnly),
     thank_you_url: input.thankYouUrl ?? "",
     unit_price: optionalPrice(input.unitPrice),
-    use_defaults: bool(input.useDefaults),
+    ...checked("use_defaults", input.useDefaults),
     webhook_url: input.webhookUrl ?? "",
   };
 };
@@ -90,21 +92,33 @@ export const buildCreateListingForm = (
 const buildUpdateBoolFields = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
-): Record<string, string> => ({
-  assign_built_site: bool(
+): TestFormValues => ({
+  ...checked(
+    "assign_built_site",
     pickField(updates.assignBuiltSite, existing.assign_built_site),
   ),
-  bookable_alone: bool(
+  ...checked(
+    "bookable_alone",
     pickField(updates.bookableAlone, existing.bookable_alone),
   ),
-  can_pay_more: bool(pickField(updates.canPayMore, existing.can_pay_more)),
-  hidden: bool(pickField(updates.hidden, existing.hidden)),
-  non_transferable: bool(
+  ...checked(
+    "can_pay_more",
+    pickField(updates.canPayMore, existing.can_pay_more),
+  ),
+  ...checked("hidden", pickField(updates.hidden, existing.hidden)),
+  non_transferable: flagChoice(
     pickField(updates.nonTransferable, existing.non_transferable),
   ),
-  purchase_only: bool(pickField(updates.purchaseOnly, existing.purchase_only)),
-  use_defaults: bool(pickField(updates.useDefaults, existing.use_defaults)),
-  uses_logistics: bool(
+  ...checked(
+    "purchase_only",
+    pickField(updates.purchaseOnly, existing.purchase_only),
+  ),
+  ...checked(
+    "use_defaults",
+    pickField(updates.useDefaults, existing.use_defaults),
+  ),
+  ...checked(
+    "uses_logistics",
     pickField(updates.usesLogistics, existing.uses_logistics),
   ),
 });
@@ -112,7 +126,7 @@ const buildUpdateBoolFields = (
 const buildUpdateNumericFields = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
-): Record<string, string> => {
+): TestFormValues => {
   const assignsBuiltSite = pickField(
     updates.assignBuiltSite,
     existing.assign_built_site,
@@ -146,12 +160,10 @@ const buildUpdateNumericFields = (
 const buildUpdateStringFields = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
-): Record<string, string> => ({
-  bookable_days: formatBookableDaysForForm(
-    pickField(updates.bookableDays, existing.bookable_days),
-  ),
+): TestFormValues => ({
+  bookable_days: pickField(updates.bookableDays, existing.bookable_days),
   description: pickField(updates.description, existing.description),
-  fields: pickField(updates.fields, existing.fields),
+  fields: repeated(pickField(updates.fields, existing.fields)),
   listing_type: pickField(updates.listingType, existing.listing_type),
   location: pickField(updates.location, existing.location),
   name: pickField(updates.name, existing.name),
@@ -163,7 +175,7 @@ const buildUpdateStringFields = (
 export const buildUpdateListingForm = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
-): Record<string, string> => {
+): TestFormValues => {
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
   const dateParts = splitClosesAt(updates.date, existing.date);
   return {
@@ -173,7 +185,8 @@ export const buildUpdateListingForm = (
     ...dayPriceFormFields(updates.dayPrices ?? existing.day_prices),
     closes_at_date: closesAtParts.date,
     closes_at_time: closesAtParts.time,
-    customisable_days: bool(
+    ...checked(
+      "customisable_days",
       updates.customisableDays ?? existing.customisable_days,
     ),
     date_date: dateParts.date,

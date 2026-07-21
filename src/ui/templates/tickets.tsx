@@ -17,7 +17,7 @@ import {
   namesConcealed,
   packagePrivacyOfDisplay,
 } from "#shared/package-privacy.ts";
-import { normalizeDurationDays } from "#shared/types.ts";
+import { clampDurationDays } from "#shared/types.ts";
 import { headingLayoutPage } from "#templates/components/heading-layout.tsx";
 import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
@@ -77,7 +77,7 @@ const computeBookingDateLabel = (entry: TokenEntry): string =>
   bookedRangeLabel(
     entry.attendee.date,
     entry.attendee.end_date,
-    normalizeDurationDays(entry.listing.duration_days),
+    clampDurationDays(entry.listing.duration_days),
   );
 
 /** Render the "Add to: …" wallet links section, or "" when purchase-only or no

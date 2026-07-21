@@ -197,7 +197,10 @@ const getDbCredentials = async (
   const dbResult = await builderApi.createDatabase(input.siteName, provider);
   if (!dbResult.ok) return dbResult;
   return {
-    credentials: { dbToken: dbResult.dbToken, dbUrl: dbResult.dbUrl },
+    credentials: {
+      dbToken: dbResult.value.dbToken,
+      dbUrl: dbResult.value.dbUrl,
+    },
     dbProvider: provider,
     ok: true,
   };
@@ -230,8 +233,8 @@ const buildSiteOnProvider = async (
     dbProvider,
     dbToken: dbCredentials.dbToken,
     dbUrl: dbCredentials.dbUrl,
-    defaultHostname: result.defaultHostname,
-    hostingId: result.hostingId,
+    defaultHostname: result.value.defaultHostname,
+    hostingId: result.value.hostingId,
     hostingProvider,
     ok: true,
   };

@@ -3,7 +3,7 @@ import { chromium, type Page } from "playwright";
 import sharp from "sharp";
 import { browserLaunchOptions } from "./browser-options.ts";
 import { rethrowUnlessNotFound } from "./not-found.ts";
-import { denoCommand, removeTree, runDeno } from "./process.ts";
+import { denoCommand, removeTree, runDeno, stopProcess } from "./process.ts";
 import {
   isCompactWidth,
   isolateElementCss,
@@ -18,19 +18,30 @@ import {
   loadScreenshotScenario,
   type ScreenshotScenario,
 } from "./screenshots/scenario.ts";
-import { waitForHealthy } from "./screenshots/server.ts";
-import { findAvailablePort } from "./stripe-mock.ts";
+import {
+  type StartupCleanup,
+  startWithFailureCleanup,
+  waitForHealthy,
+} from "./screenshots/server.ts";
+import {
+  findAvailablePort,
+  startStripeMock,
+  stripeMockEnv,
+} from "./stripe-mock.ts";
 
 const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
 const DB_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 const USERNAME = "screenshots";
 const PASSWORD = "screenshots-password";
+const STRIPE_KEY = "sk_test_mock";
 const TIMEOUT_MS = 60_000;
 const RETRY_MS = 200;
+const STOP_TIMEOUT_MS = 2_000;
 const MOBILE_VIEWPORT = { height: 844, width: 390 };
 
 interface AppServer {
   baseUrl: string;
+  enableStripe: () => Promise<void>;
   stop: () => Promise<void>;
 }
 
@@ -111,23 +122,30 @@ const SCENES: Record<ScreenshotName, Scene> = {
   users: { path: at("/admin/users") },
 };
 
-const startServer = async (): Promise<AppServer> => {
-  const build = await runDeno(["task", "build:static"], ROOT);
-  if (!build.success) throw new Error("Could not build static assets.");
+const startAppServer = async ({
+  add,
+  run,
+}: StartupCleanup): Promise<AppServer> => {
+  const stripeMock = await startStripeMock();
+  add(stripeMock.stop);
   const tempDir = await Deno.makeTempDir({ prefix: "tickets-screenshots-" });
+  add(() => removeTree(tempDir));
   const port = findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  const dbUrl = `file:${join(tempDir, "screenshots.db")}`;
   const child = denoCommand(["run", "-A", "src/index.ts"], {
     cwd: ROOT,
     env: {
       ...Deno.env.toObject(),
+      ...stripeMockEnv(stripeMock.port),
       DB_ENCRYPTION_KEY: DB_KEY,
-      DB_URL: `file:${join(tempDir, "screenshots.db")}`,
+      DB_URL: dbUrl,
       PORT: String(port),
     },
     stderr: "inherit",
     stdout: "null",
   }).spawn();
+  add(() => stopProcess(child, STOP_TIMEOUT_MS));
 
   const deadline = Date.now() + TIMEOUT_MS;
   const healthy = await waitForHealthy(
@@ -138,20 +156,26 @@ const startServer = async (): Promise<AppServer> => {
   if (healthy) {
     return {
       baseUrl,
-      stop: async () => {
-        try {
-          child.kill("SIGTERM");
-          await child.status;
-        } finally {
-          await removeTree(tempDir);
-        }
+      enableStripe: async () => {
+        Deno.env.set("DB_ENCRYPTION_KEY", DB_KEY);
+        Deno.env.set("DB_URL", dbUrl);
+        const { settings } = await import("#shared/db/settings.ts");
+        await settings.update.stripe.activate({
+          secretKey: STRIPE_KEY,
+          webhookEndpointId: "we_screenshots",
+          webhookSecret: "whsec_screenshots",
+        });
       },
+      stop: run,
     };
   }
-  child.kill("SIGKILL");
-  await child.status;
-  await removeTree(tempDir);
   throw new Error("The screenshot app did not start within 60 seconds.");
+};
+
+const startServer = async (): Promise<AppServer> => {
+  const build = await runDeno(["task", "build:static"], ROOT);
+  if (!build.success) throw new Error("Could not build static assets.");
+  return await startWithFailureCleanup(startAppServer);
 };
 
 const submit = async (page: Page, formSelector: string): Promise<void> => {
@@ -184,13 +208,15 @@ const setupAdmin = async (
   await page.goto(`${baseUrl}/admin/settings`);
   await page.locator('[name="business_email"]').fill("hello@example.com");
   await submit(page, 'form[action="/admin/settings/business-email"]');
-  await page.goto(`${baseUrl}/admin/settings`);
-  await page.locator('[name="payment_provider"][value="none"]').check();
-  await submit(page, 'form[action="/admin/settings/payment-provider"]');
 };
 
-const setupApp = async (page: Page, baseUrl: string): Promise<SceneContext> => {
+const setupApp = async (
+  page: Page,
+  server: AppServer,
+): Promise<SceneContext> => {
+  const { baseUrl } = server;
   await setupAdmin(page, baseUrl);
+  await server.enableStripe();
   await page.goto(`${baseUrl}/admin/seeds`);
   await page.locator('[name="listing_count"]').fill("5");
   await page.locator('[name="attendees_per_listing"]').fill("8");
@@ -346,10 +372,12 @@ const capturePreparedPage = async (
 const captureScenario = async (
   scenario: ScreenshotScenario,
   page: Page,
-  baseUrl: string,
+  server: AppServer,
   outputDir: string,
 ): Promise<void> => {
+  const { baseUrl } = server;
   await setupAdmin(page, baseUrl, scenario.setupUsername);
+  await server.enableStripe();
   await applyTheme(
     page,
     baseUrl,
@@ -421,10 +449,10 @@ const main = async (): Promise<void> => {
     const page = await context.newPage();
     page.setDefaultTimeout(TIMEOUT_MS);
     if (scenario) {
-      await captureScenario(scenario, page, server.baseUrl, outputDir);
+      await captureScenario(scenario, page, server, outputDir);
       return;
     }
-    const sceneContext = await setupApp(page, server.baseUrl);
+    const sceneContext = await setupApp(page, server);
     for (const theme of options.themes) {
       const themeDir = join(outputDir, theme);
       await Deno.mkdir(themeDir, { recursive: true });

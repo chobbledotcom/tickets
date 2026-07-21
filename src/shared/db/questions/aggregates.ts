@@ -11,6 +11,7 @@ import {
   execute,
   queryAll,
   queryOne,
+  requireOne,
   resetAggregates,
 } from "#shared/db/client.ts";
 import type {
@@ -52,13 +53,13 @@ export const getAnswerSelectionTotals = async (
 export const getAnswerAggregateRecalculation = async (
   answerId: number,
 ): Promise<AnswerAggregateRecalculation> => {
-  const row = (await queryOne<{ current: number; recalculated: number }>(
+  const row = await requireOne<{ current: number; recalculated: number }>(
     `SELECT times_selected AS current,
             (SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id)
               AS recalculated
      FROM answers WHERE id = ?`,
     [answerId],
-  ))!;
+  );
   return {
     times_selected: { current: row.current, recalculated: row.recalculated },
   };
