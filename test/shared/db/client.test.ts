@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import {
+  andConditions,
   deleteByFieldStatement,
   execute,
   executeUpdate,
@@ -14,6 +15,7 @@ import {
   queryAll,
   queryBatch,
   queryOne,
+  queryOnePrimary,
   rawSql,
   requireOne,
   requireOnePrimary,
@@ -220,6 +222,18 @@ describeWithEnv("db > client", { db: true }, () => {
     );
   });
 
+  test("queryOnePrimary returns the single matching row from the primary", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('query_one_primary', 'found')",
+    );
+    const row = await queryOnePrimary<{ value: string }>(
+      "SELECT value FROM settings WHERE key = ?",
+      ["query_one_primary"],
+    );
+    // Exactly one row must surface as that row (not null, not the next one).
+    expect(row?.value).toBe("found");
+  });
+
   test("deleteByFieldStatement builds the DELETE for one table, field and value", () => {
     const stmt = deleteByFieldStatement({
       field: "user_id",
@@ -416,5 +430,36 @@ describeWithEnv("db > client", { db: true }, () => {
         "missing_key",
       ]),
     ).toBe(false);
+  });
+
+  test("queryOne returns the single matching row", async () => {
+    await execute(
+      "INSERT INTO settings (key, value) VALUES ('query_one', 'found')",
+    );
+    const row = await queryOne<{ value: string }>(
+      "SELECT value FROM settings WHERE key = ?",
+      ["query_one"],
+    );
+    // Exactly one row must surface as that row (not null, not the next one).
+    expect(row?.value).toBe("found");
+  });
+
+  test("andConditions joins clauses with AND, preserving argument order", () => {
+    const combined = andConditions([
+      { args: [1], sql: "a = ?" },
+      { args: [2, 3], sql: "b IN (?, ?)" },
+      { args: [], sql: "c IS NULL" },
+    ]);
+    expect(combined.sql).toBe("(a = ?) AND (b IN (?, ?)) AND (c IS NULL)");
+    expect(combined.args).toEqual([1, 2, 3]);
+  });
+
+  test("rawSql brands its value with the raw-sql sentinel symbol", () => {
+    // The sentinel's description is the observable contract that names the
+    // raw-expression marker; insert()/update() branch on the symbol's
+    // identity, and rawSql() exposes it on the returned object.
+    const symbols = Object.getOwnPropertySymbols(rawSql("last_insert_rowid()"));
+    expect(symbols).toHaveLength(1);
+    expect(symbols[0]!.description).toBe("raw-sql");
   });
 });
