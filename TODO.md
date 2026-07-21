@@ -1252,9 +1252,9 @@ possible behavior changes need separate decisions and regression tests:
 *Origin: Codex review of PR #1840.*
 
 Before any runtime path writes `checkout_stages`, include those rows in attendee
-deletion, purge, and merge handling. The table has no foreign key, so leaving the
-current hard-coded dependent-table lists unchanged would keep a stage linked to
-an attendee that no longer exists. Start with
+deletion, purge, and merge handling. The table has no foreign key, so leaving
+the current hard-coded dependent-table lists unchanged would keep a stage linked
+to an attendee that no longer exists. Start with
 `src/shared/db/attendees/delete.ts` and
 `src/shared/merge/attendee-merge.ts`. Add direct regressions proving deletion
 removes a stage and merging repoints it without losing the unique attendee
@@ -1315,3 +1315,47 @@ of scope for #1873, and a starting point.*
   site-token match, or rename the test to drop the unverified claim. Start by
   reading `applyRenewalsForEntries` in `src/shared/webhook.ts` to confirm it
   calls `console.error` (or `logError`) on a missing site-token match.
+
+---
+
+## Admin debug test coverage follow-ups
+
+*Origin: CodeRabbit review of PR #1875 ("Move admin debug tests and add a
+template rendering test"). PR #1875 is test-only: it `git mv`s
+`test/lib/server-debug*.test.ts` into `test/features/admin/debug/`, extracts
+shared state into `test/test-utils/debug.ts`, and adds a direct-rendering test.
+CodeRabbit raised two findings that are valid as code-quality observations but
+out of scope for that PR's brief — recorded here for a follow-up.*
+
+- **Inspect the Sentry test envelope, not only the request count.** In
+  `test/features/admin/debug/sentry.test.ts` (around lines 63-68), the
+  "sends a tagged test error and confirms delivery" test stubs `fetch` with the
+  shared `stubFetch` helper and asserts only that one request was made. It does
+  not prove the emitted event is tagged or carries the intended test-error
+  message. Replace the shared stub with a local fetch recorder inside that test,
+  then assert the captured Sentry envelope body contains the literal message
+  `"Test Sentry notification from the admin debug page."` and the
+  `source=admin-debug` / `test=true` tags (the literal values
+  `src/shared/sentry.ts` `sendSentryTest` writes today — keep them in sync with
+  that source when the follow-up lands). Retain the existing request-count,
+  redirect, and flash assertions. Starting point: read `sendSentryTest` in
+  `src/shared/sentry.ts` (lines ~74-101) to confirm the exact envelope values,
+  then look at `test/test-utils/fetch-stub.ts` to see what the shared stub
+  exposes today.
+- **Assert semantic debug sections, not CSS-class counts.** In
+  `test/ui/templates/admin/debug/rendering.test.tsx` (around lines 38-40), the
+  "keeps the debug navigation and section structure" test asserts the page
+  contains exactly 3 `class="prose"` and 13 `class="table-scroll"` occurrences.
+  Those counts couple the test to presentation wrappers, so a layout change can
+  fail it without changing page behaviour. PR #1875 carried these counts in
+  because the brief explicitly asked for them as the current-main contract; a
+  follow-up can replace them with assertions on the rendered section headings.
+  Keep the `href="/admin/debug"` link assertion. Maintain the expected heading
+  set as an explicit literal list inside the test (`t("debug.section.build")`,
+  `t("debug.section.runtime")`, etc.) — do **not** derive it from
+  `DEBUG_SECTIONS` in `src/ui/templates/admin/debug.tsx`: deriving the oracle
+  from the same source list the template renders against lets a removed or
+  renamed section pass undetected when both the rendering and the oracle shift
+  in lockstep. An independent literal list makes a section addition/removal/rename
+  a deliberate test review, which is the only way the test catches the failure
+  mode it is meant to catch.
