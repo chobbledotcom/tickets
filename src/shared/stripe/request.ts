@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { namedError } from "#shared/named-error.ts";
 import { delay } from "#shared/now.ts";
+import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { encodeStripeForm, type StripeFormValue } from "./form.ts";
 import { parseStripeErrorBody } from "./schemas.ts";
 
@@ -288,6 +289,7 @@ export const createStripeRequest = (
 
     async function attempt(retry: number): Promise<T> {
       let response: Response;
+      countExternalSubrequest("Stripe API request");
       try {
         response = await config.fetch(url, {
           ...(method === "POST" ? { body: encoded } : {}),
