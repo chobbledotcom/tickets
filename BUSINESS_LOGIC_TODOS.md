@@ -265,10 +265,10 @@ The old `capacity-error.ts` string fallback is gone: an
 exhaustive `Record<AttendeeFailureReason, messageBuilder>` now handles every
 known recoverable reason. `BookingResult` no longer has a parallel
 `creation_failed` outcome: an atomic capacity loss is the same `sold_out`
-outcome as the preflight check. A missing encryption key is a broken setup
-invariant, so `encryptAttendeeFields` throws instead of turning it into a
-recoverable reason. Adding a recoverable reason is a compile error until every
-dispatcher handles it.
+outcome as the preflight check. Encryption keys are request/setup invariants,
+so attendee writes use them directly instead of checking for their presence or
+turning their absence into a recoverable reason. Adding a recoverable reason is
+a compile error until every dispatcher handles it.
 
 ---
 

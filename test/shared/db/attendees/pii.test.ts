@@ -25,8 +25,7 @@ import {
   PII_BLOB_VERSION,
   parsePiiBlob,
 } from "#shared/db/attendees/pii.ts";
-import { getDb } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { settings } from "#shared/db/settings.ts";
 import type { Attendee, PiiBlob } from "#shared/types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -182,18 +181,6 @@ describeWithEnv("PII crypto", { db: true }, () => {
     expect(pii.lat).toBe("");
     expect(pii.lng).toBe("");
     expect(pii.payment_id).toBe("pay_pii");
-  });
-
-  test("encryptAttendeeFields throws when the public key is missing", async () => {
-    await getDb().execute({
-      args: [CONFIG_KEYS.PUBLIC_KEY],
-      sql: "DELETE FROM settings WHERE key = ?",
-    });
-    settings.invalidateCache();
-
-    await expect(encryptAttendeeFields(encInput)).rejects.toThrow(
-      "Missing attendee encryption public key",
-    );
   });
 
   test("decryptAttendeeFields defaults to paid, surfacing payment id and refunded", async () => {

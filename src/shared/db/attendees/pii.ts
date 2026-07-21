@@ -178,9 +178,6 @@ export const encryptAttendeeFields = async (
   input: EncryptInput,
   ticketToken = generateTicketToken(),
 ): Promise<EncryptedAttendeeData> => {
-  const publicKeyJwk = settings.publicKey;
-  if (!publicKeyJwk) throw new Error("Missing attendee encryption public key");
-
   // Bookings never carry a pinned location — lat/lng are admin-side only.
   const piiJson = buildPiiBlob({
     ...contactFields(input),
@@ -192,7 +189,7 @@ export const encryptAttendeeFields = async (
 
   const [ticketTokenIndex, encryptedPiiBlob] = await Promise.all([
     hmacHash(ticketToken),
-    encryptPiiBlob(piiJson, publicKeyJwk),
+    encryptPiiBlob(piiJson, settings.publicKey),
   ]);
 
   return {

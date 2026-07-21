@@ -143,24 +143,6 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
     );
   });
 
-  test("a missing attendee encryption key fails loudly", async () => {
-    const { CONFIG_KEYS, settings } = await import("#shared/db/settings.ts");
-    const listing = await createTestListing({ maxAttendees: 10 });
-    await getDb().execute({
-      args: [CONFIG_KEYS.PUBLIC_KEY],
-      sql: "DELETE FROM settings WHERE key = ?",
-    });
-    settings.invalidateCache();
-    await expectRejects(
-      createTestServicingEvent({
-        bookings: [{ listingId: listing.id, quantity: 1 }],
-        name: "Enc Fail",
-      }),
-      /Missing attendee encryption public key/,
-    );
-    expect((await servicingRowsForListing(listing.id)).length).toBe(0);
-  });
-
   test("creating a servicing event rejects a hold that does not fit", async () => {
     const listing = await createDailyTestListing({
       maxAttendees: 1,
