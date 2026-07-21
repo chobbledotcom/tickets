@@ -11,14 +11,14 @@ import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
-import { setupStripe } from "#test-utils/settings.ts";
 import {
   createReserved,
   expectSettled,
   stubBalanceSession,
 } from "#test/lib/server-balance-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 // Stubs the Stripe refund call to report a refund with the given id.
 const stubRefund = (id: string) =>

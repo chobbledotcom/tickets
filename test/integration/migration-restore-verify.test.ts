@@ -14,8 +14,6 @@ import {
   runMigration,
 } from "#shared/db/migrations/schema-sync.ts";
 import { loadMigrations } from "#shared/db/migrations.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { indexExists } from "#test-utils/migrations.ts";
 import {
   additiveMigrations,
   dropOwnedObjects,
@@ -27,6 +25,8 @@ import {
   downgradeListingDomainToLegacyNames,
   tableRowCount,
 } from "#test/lib/db/migration-test-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { indexExists } from "#test-utils/migrations.ts";
 
 const MIGRATIONS = await loadMigrations();
 const RESTORE_TRIGGER: Trigger = {
