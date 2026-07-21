@@ -115,7 +115,7 @@ describe("db > migrations > schema change guard", () => {
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
       latestUpdate:
-        "Add secure local scheduled maintenance and durable task claims.",
+        "Preserve completed activity log backfills without rescanning.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });
