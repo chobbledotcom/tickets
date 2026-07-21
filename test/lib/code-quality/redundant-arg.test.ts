@@ -56,10 +56,13 @@ describe("findRedundantArg", () => {
   });
 
   test("only inspects positions present in every call site", () => {
-    // shared arity is 1, so the differing second arg of the wider sites is
-    // never considered; arg #0 is always "1" and is flagged.
-    const sites = [site(["1", "2"]), site(["1"]), site(["1", "9"])];
-    expect(findRedundantArg("foo", sites)).toContain("arg #0 is always 1");
+    // Shared arity is 1 (the second site stops after arg #0), so the constant
+    // `"9"` at position #1 of the two wider sites is never inspected. Position
+    // #0 varies across all three sites, so nothing is flagged — proving a
+    // position absent from any call site is ignored even when other positions
+    // happen to be constant across the wider ones.
+    const sites = [site(["a", "9"]), site(["b"]), site(["c", "9"])];
+    expect(findRedundantArg("foo", sites)).toBe(null);
   });
 
   test("appends an ellipsis when there are more than four call sites", () => {

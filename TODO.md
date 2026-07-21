@@ -1315,3 +1315,23 @@ of scope for #1873, and a starting point.*
   site-token match, or rename the test to drop the unverified claim. Start by
   reading `applyRenewalsForEntries` in `src/shared/webhook.ts` to confirm it
   calls `console.error` (or `logError`) on a missing site-token match.
+
+- **Extract scanning helpers from `test/lib/code-quality.test.ts` into a
+  focused module.** CodeRabbit suggested (PR #1872 review) pulling
+  `forEachScannedFile`, `collectLineViolations`, `collectFileViolations`,
+  `scanSourceLines`, `scanSourceFiles`, `ensureLoaded`, the `getAll*Files`
+  helpers, `repoRelative`/`getRelativePath`/`isCodeQualityFile`, and the
+  `SRC_DIR`/`TEST_DIR`/`SCRIPTS_DIR`/`CLI_DIR`/`E2E_PAYMENTS_DIR`/`REPO_ROOT`
+  path constants out of the test file — they're file-discovery and scanning
+  plumbing, not test assertions. The file is currently 699 lines (under the
+  Biome 1,000-line hard ceiling but over the 400-line soft target). A
+  `test/lib/code-quality/scan-context.ts` module exporting `ScanContext`,
+  `loadScanContext`, `collectLineViolations`, `collectFileViolations`, and
+  the path constants would let the test file import them and keep only the
+  assertions and per-rule config. Start from the file-discovery helpers
+  already at the top of `code-quality.test.ts` (lines 295–360) and the
+  `ensureLoaded`/`forEachScannedFile`/`collect*Violations`/`scanSource*`
+  helpers inside the `describe("code quality", …)` block (lines 360–540).
+  This is a structural refactor (no behavior change); add a regression test
+  that re-runs the no-`../` rule against a fixture file via the extracted
+  helpers to prove parity with the inline implementation.
