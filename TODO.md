@@ -1260,3 +1260,58 @@ an attendee that no longer exists. Start with
 removes a stage and merging repoints it without losing the unique attendee
 invariant. If both attendees have stages, require an explicit conflict decision
 instead of silently choosing or deleting one.
+
+---
+
+## Test improvements surfaced by PR #1873 (move-only)
+
+*Origin: CodeRabbit review of PR #1873 — "Move eight integration tests to
+test/integration/". PR #1873 was a move-only refactor: files were relocated with
+`git mv` and only relative import paths were updated. The four findings below are
+about pre-existing test code that was already on `origin/main` before the move;
+they are recorded here so a future PR can pick them up without re-reading the
+review. Each item names the file/path, what CodeRabbit proposed, why it was out
+of scope for #1873, and a starting point.*
+
+- **Reuse shared `#test-utils` KEK helpers in `test/integration/kek-v2.test.ts`
+  (lines 46–92).** `unwrapUserKey` and `ownerDataKey` repeat admin unwrap logic
+  that may already live in `test/test-utils/{crypto.ts,session.ts,test-state.ts}`.
+  A future PR should check whether a shared helper for "unwrap a v2 user's
+  DATA_KEY with the per-user-salted password KEK" and "unwrap the shared owner
+  DATA_KEY" already exists or should be extracted, then fold this file's local
+  copies into it. Keep `seedV1User` local (it constructs a legacy-only fixture)
+  and leave `sharesOwnerDataKey` as the spec-specific check. Start by searching
+  `test/test-utils/` for `deriveKEKFromPassword`, `unwrapKey`, and
+  `getUserByUsername` to see what is already shared.
+
+- **Assert the required `LATEST_DB_UPDATE_KEY` row directly in
+  `test/integration/migration-round-trip-budget.test.ts` (line 134).** The test
+  uses `marker.rows[0]?.value` with optional chaining, so a missing marker row
+  would fail with an unhelpful `undefined !== LATEST_UPDATE` rather than naming
+  the missing row. A future PR should replace it with
+  `expect(marker.rows.map(({ value }) => String(value))).toEqual([LATEST_UPDATE])`
+  (or an equivalent that names the missing row) so the assertion fails loudly
+  when the row is absent. This aligns with the offensive-programming rule
+  against `?.` papering over a value that should always exist.
+
+- **Assert the computed cutoff in
+  `test/integration/renewals.test.ts` (lines 187–192).** The test is titled
+  "pushReadOnlyFrom is called exactly once with computed cutoff" but only checks
+  the call count via `expectReadOnlyFromPush(secretStub)`, discarding the
+  returned `{ scriptId, secretValue }`. If the cutoff month math regresses, the
+  test would still pass despite its name. A future PR should capture
+  `secretValue` from `expectReadOnlyFromPush` and assert it equals
+  `addMonthsIso(baseDate, 2)` (the expected quantity-2 cutoff) while keeping the
+  exactly-once assertion. `baseDate` is already destructured from
+  `withRenewalTest` in neighbouring tests.
+
+- **Assert the error log in
+  `test/integration/renewals.test.ts` (lines 204–210).** The test is titled
+  "siteToken present but no matching site logs error, no Bunny call" but only
+  asserts `expectNoBunnyCall(secretStub)` — the "logs error" half of the title is
+  unverified. A future PR should add a `console.error` assertion using the
+  existing error-spy helper (search `test/` for `spy(console, "error"` or an
+  `errorSpy` helper) so the test verifies the error is emitted for the missing
+  site-token match, or rename the test to drop the unverified claim. Start by
+  reading `applyRenewalsForEntries` in `src/shared/webhook.ts` to confirm it
+  calls `console.error` (or `logError`) on a missing site-token match.
