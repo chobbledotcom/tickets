@@ -7,25 +7,26 @@ import {
   soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
+import {
+  type CatalogApiBody,
+  isValidCatalogApiValue,
+  projectCatalogFields,
+} from "#shared/catalog-fields/definition.ts";
+import {
+  type GroupInput,
+  groupCatalogFields,
+  type PackageMemberInput,
+} from "#shared/catalog-fields/fields.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   computeGroupSlugIndex,
-  type GroupInput,
   generateUniqueGroupSlug,
-  getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   groups,
-  type PackageMemberInput,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
+import { getGroupDayPricesByGroupIds } from "#shared/db/listing-prices.ts";
 import {
-  getGroupDayPrices,
-  getGroupDayPricesByGroupIds,
-} from "#shared/db/listing-prices.ts";
-import {
-  bodyBoolean,
-  bodyNumber,
-  bodyString,
   type DeleteBody,
   defineCrudApi,
   parseOptionalArray,
@@ -63,23 +64,14 @@ export type PackageMemberBody = {
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {
   name: string;
-  description?: string;
-  max_attendees?: number;
-  terms_and_conditions?: string;
-  hidden?: boolean;
-  is_package?: boolean;
-  hide_package_listings?: boolean;
   package_members?: PackageMemberBody[];
-};
+} & CatalogApiBody<typeof groupCatalogFields>;
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
 export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
 
 /** JSON body accepted by DELETE /api/admin/groups/:groupId */
 export type DeleteGroupBody = DeleteBody;
-
-/** Strip slug_index from response */
-const STRIP_KEYS = ["slug_index"];
 
 /** Parse one JSON package-member entry, failing closed on anything malformed.
  * `price` is minor units: `null` (or absent) means no override, `0` means free
@@ -193,29 +185,59 @@ const toMember = (
     : {}),
 });
 
+const toGroupInput = async (
+  body: Record<string, unknown>,
+  existing: Group | null,
+): Promise<Result<GroupInput>> => {
+  const name = existing
+    ? parseUpdateName(body, existing.name)
+    : requireStrings(body, ["name"]);
+  if (!name.ok) return name;
+  const invalid = Object.values(groupCatalogFields).find((field) => {
+    const value = body[field[0]];
+    return (
+      (Number(field[3]) & 1) !== 0 &&
+      value != null &&
+      !isValidCatalogApiValue(field, value)
+    );
+  });
+  if (invalid) return errorResult(`${invalid[0]} has an invalid value`);
+  const fields = projectCatalogFields(groupCatalogFields, "api", body);
+
+  const members = parsePackageMembers(body);
+  if (!members.ok) return members;
+  if (!existing && members.value !== undefined) {
+    return errorResult(
+      "package_members cannot be set on create; create the group, assign listings, then update it",
+    );
+  }
+
+  const slug = existing
+    ? await parseUpdateSlug(
+        body,
+        existing.slug,
+        normalizeSlug,
+        computeGroupSlugIndex,
+      )
+    : await generateUniqueGroupSlug();
+  return okResult({
+    ...(existing
+      ? projectCatalogFields(groupCatalogFields, "storedApi", existing)
+      : {}),
+    ...fields,
+    ...slug,
+    maxAttendees: fields.maxAttendees ?? existing?.max_attendees ?? 0,
+    name: typeof name.value === "string" ? name.value : name.value.name,
+    packageMembers: members.value,
+  });
+};
+
 export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   afterWrite: writePackageMembers,
   getAll: () => groups.cache.getAll(),
-  // Hydrate a package group's member overrides onto every response so an API
-  // client can read back the listing_id/price/quantity values it PUT and
-  // round-trip the configuration. Non-package groups carry no members.
-  // get/create/update hydrate the single written group; the list endpoint uses
-  // the batched hydrateList below (one query for every package group).
-  hydrate: async (row) => {
-    if (!row.is_package) return {};
-    const [rows, dayPrices] = await Promise.all([
-      getGroupPackagePrices(row.id),
-      getGroupDayPrices(row.id),
-    ]);
-    return {
-      package_members: rows.map((m) =>
-        toMember(m, dayPrices.get(m.listing_id)),
-      ),
-    };
-  },
-  // Only package groups appear in the map; non-package groups are absent, so the
-  // CRUD list builder hydrates them to no extra fields.
-  hydrateList: async (rows) => {
+  // Only package groups appear in the map; non-package groups hydrate to no
+  // extra fields. Single-row responses use this same batch path with one row.
+  hydrate: async (rows) => {
     const packageGroups = rows.filter((row) => row.is_package);
     const groupIds = packageGroups.map((row) => row.id);
     const [byGroup, dayPricesByGroup] = await Promise.all([
@@ -237,76 +259,11 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   nameField: "name",
   onDelete: deleteGroup,
   singular: "Group",
-  stripKeys: STRIP_KEYS,
+  stripKeys: ["slug_index"],
   table: groups.table,
 
-  toCreateInput: async (body) => {
-    const required = requireStrings(body, ["name"]);
-    if (!required.ok) return required;
-    const { name } = required.value;
-
-    // A brand-new group has no `group_listings` rows yet, so member overrides
-    // have nothing to attach to — `setGroupPackageMembers` would silently drop
-    // them all and return a 201 for an empty package. Reject up front: callers
-    // create the group, assign listings, then PUT the overrides. The malformed
-    // entry is still validated (and rejected) so the error names the field.
-    if (body.package_members !== undefined) {
-      const members = parsePackageMembers(body);
-      if (!members.ok) return members;
-      return errorResult(
-        "package_members cannot be set on create; create the group, assign listings, then update it",
-      );
-    }
-
-    const { slug, slugIndex } = await generateUniqueGroupSlug();
-    return okResult({
-      description: bodyString(body, "description", ""),
-      hidden: bodyBoolean(body, "hidden", false),
-      hidePackageListings: bodyBoolean(body, "hide_package_listings", false),
-      isPackage: bodyBoolean(body, "is_package", false),
-      maxAttendees: bodyNumber(body, "max_attendees", 0),
-      name,
-      slug,
-      slugIndex,
-      termsAndConditions: bodyString(body, "terms_and_conditions", ""),
-    });
-  },
-
-  toUpdateInput: async (body, existing) => {
-    const parsed = parseUpdateName(body, existing.name);
-    if (!parsed.ok) return parsed;
-
-    const members = parsePackageMembers(body);
-    if (!members.ok) return members;
-
-    const { slug, slugIndex } = await parseUpdateSlug(
-      body,
-      existing.slug,
-      normalizeSlug,
-      computeGroupSlugIndex,
-    );
-
-    return okResult({
-      description: bodyString(body, "description", existing.description),
-      hidden: bodyBoolean(body, "hidden", existing.hidden),
-      hidePackageListings: bodyBoolean(
-        body,
-        "hide_package_listings",
-        existing.hide_package_listings,
-      ),
-      isPackage: bodyBoolean(body, "is_package", existing.is_package),
-      maxAttendees: bodyNumber(body, "max_attendees", existing.max_attendees),
-      name: parsed.value,
-      packageMembers: members.value,
-      slug,
-      slugIndex,
-      termsAndConditions: bodyString(
-        body,
-        "terms_and_conditions",
-        existing.terms_and_conditions,
-      ),
-    });
-  },
+  toCreateInput: (body) => toGroupInput(body, null),
+  toUpdateInput: toGroupInput,
   validate: validateGroupWithPackage,
   validateDelete: soldHiddenPackageError,
 });

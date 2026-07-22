@@ -12,6 +12,12 @@ import {
   mapParallel,
   requiredMapValue,
 } from "#fp";
+import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
+import {
+  type GroupInput,
+  groupCatalogFields,
+  type PackageMemberInput,
+} from "#shared/catalog-fields/fields.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
@@ -49,7 +55,6 @@ import { listingProjectionSql } from "#shared/db/listings/sql.ts";
 import { envNameSource, queryAndMap, rowsByIds } from "#shared/db/query.ts";
 import { isSlugTakenAnywhere } from "#shared/db/slug-registry.ts";
 import {
-  col,
   defineTableProjection,
   type StoredTableProjectionRow,
 } from "#shared/db/table.ts";
@@ -61,7 +66,6 @@ import {
 } from "#shared/package-membership.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 import type {
-  DayPrices,
   Group,
   GroupListing,
   ListingType,
@@ -78,44 +82,6 @@ const groupIdsJson = defineStoredJson(
   v.array(v.pipe(v.number(), v.safeInteger(), v.minValue(1))),
 );
 
-/** A package member's per-unit price override and fixed quantity, as parsed from
- * the group edit form / API. `price` is minor units (0 = no override, use the
- * listing's own price); `quantity` is how many of this listing one package unit
- * includes (≥1). */
-export type PackageMemberInput = {
-  listingId: number;
-  /** Per-listing package price in minor units: `null` means no override (charge
-   * the listing's own price), `0` means explicitly free in this package, and a
-   * positive value overrides the listing price. */
-  price: number | null;
-  /** How many of this listing one package unit includes (≥1). Defaults to 1. */
-  quantity?: number;
-  /** A customisable member's per-day overrides (day count → per-unit minor
-   * price): the price this member charges for an n-day booking of THIS package,
-   * consulted before the listing's own day price. Only counts the listing
-   * itself offers ever apply, and a flat `price` override (one price whatever
-   * the span) still wins over both. Stored as `group_day` rows in
-   * `listing_prices`. */
-  dayPrices?: DayPrices | undefined;
-};
-
-/** Group input fields for create/update (camelCase) */
-export type GroupInput = {
-  slug: string;
-  slugIndex: BlindIndex;
-  name: string;
-  description?: string;
-  termsAndConditions?: string;
-  maxAttendees?: number;
-  hidden?: boolean;
-  isPackage?: boolean;
-  hidePackageListings?: boolean;
-  /** Per-listing package overrides (price + quantity). Absent means "leave
-   * existing rows untouched" (partial API update); an empty array clears every
-   * override back to price 0 / quantity 1. */
-  packageMembers?: PackageMemberInput[] | undefined;
-};
-
 /** Compute slug index from slug for blind index lookup */
 export const computeGroupSlugIndex = (slug: string): Promise<BlindIndex> =>
   hmacHash(slug);
@@ -124,12 +90,7 @@ export const computeGroupSlugIndex = (slug: string): Promise<BlindIndex> =>
 const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...encryptedNameSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
-  description: col.encryptedText(encrypt, decrypt),
-  hidden: col.boolean(false),
-  hide_package_listings: col.boolean(false),
-  is_package: col.boolean(false),
-  max_attendees: col.simple<number>(),
-  terms_and_conditions: col.encryptedText(encrypt, decrypt),
+  ...projectCatalogFields(groupCatalogFields, "columns", {}),
 });
 
 const packageDisplayProjection = defineTableProjection(rawGroupsTable, [

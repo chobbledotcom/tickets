@@ -3,6 +3,7 @@
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
 import { mapParallel } from "#fp";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   executeBatch,
   inPlaceholders,
@@ -31,7 +32,6 @@ import type {
 import { LISTING_COUNT_SELECT } from "./sql.ts";
 import {
   computeSlugIndex,
-  type ListingInput,
   type ListingOption,
   listingOptionProjection,
   rawListingsTable,

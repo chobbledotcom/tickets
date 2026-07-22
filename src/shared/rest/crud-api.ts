@@ -91,29 +91,14 @@ export const requireStrings = <K extends string>(
 };
 
 /**
- * Read an optional typed scalar from a JSON body, falling back to `fallback`
- * when the key is absent or holds the wrong type. The create/update parsers use
- * these instead of repeating `typeof body[key] === "…" ? body[key] : fallback`
- * for every field, so a malformed value is consistently ignored (create →
- * default, update → keep existing) rather than coerced.
+ * Read an optional number from a JSON body, falling back to `fallback` when the
+ * key is absent or holds the wrong type.
  */
-export const bodyString = (
-  body: Record<string, unknown>,
-  key: string,
-  fallback: string,
-): string => (typeof body[key] === "string" ? body[key] : fallback);
-
 export const bodyNumber = (
   body: Record<string, unknown>,
   key: string,
   fallback: number,
 ): number => (typeof body[key] === "number" ? body[key] : fallback);
-
-export const bodyBoolean = (
-  body: Record<string, unknown>,
-  key: string,
-  fallback: boolean,
-): boolean => (typeof body[key] === "boolean" ? body[key] : fallback);
 
 /**
  * Parse an optional JSON-array field with partial-update semantics, failing
@@ -245,16 +230,9 @@ export interface CrudApiConfig<
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
   getAll: () => Promise<FullRow[]>;
-  /** Optionally hydrate extra fields onto each response row (list/get/create/
-   * update) that don't live on the main table — e.g. a listing's `group_ids`
-   * from the join table, so API clients can read back what they POST/PUT. */
-  hydrate?: (row: FullRow) => Promise<Record<string, unknown>>;
-  /** Optionally hydrate the WHOLE list in one batched call, keyed by row id, so
-   * the list endpoint avoids running `hydrate` once per row (an N+1 over the
-   * returned rows — costly on remote libsql for large catalogs). When set it is
-   * used only by the list endpoint; get/create/update still use `hydrate`. A row
-   * absent from the returned map hydrates to no extra fields. */
-  hydrateList?: (
+  /** Optionally hydrate response rows in one batched call, keyed by row id. A
+   * single-row response passes an array of one through this same path. */
+  hydrate?: (
     rows: FullRow[],
   ) => Promise<ReadonlyMap<number, Record<string, unknown>>>;
   /** When true, activity log entries for create/update are linked to the row's id as listing_id */
@@ -375,13 +353,19 @@ export const defineCrudApi = <
     // alongside insertStatement/updateStatement).
     ((id) => table.findByIdPrimary!(id) as unknown as Promise<FullRow | null>);
 
-  /** Clean a row for JSON response, hydrating any join-table fields. */
-  const toResponse = async (
+  const responseRow = (
     row: FullRow,
-  ): Promise<Record<string, unknown>> => ({
+    extraById?: ReadonlyMap<number, Record<string, unknown>>,
+  ): Record<string, unknown> => ({
     ...stripRow(row, stripKeys),
-    ...(config.hydrate ? await config.hydrate(row) : {}),
+    ...(extraById?.get(row.id) ?? {}),
   });
+
+  /** Clean one row for a JSON response, hydrating its join-table fields. */
+  const toResponse = async (row: FullRow): Promise<Record<string, unknown>> => {
+    const extraById = await config.hydrate?.([row]);
+    return responseRow(row, extraById);
+  };
 
   /** Log create/update, optionally linking to the row's id as listing_id */
   const logAction = (action: string, row: Row): Promise<unknown> =>
@@ -390,17 +374,12 @@ export const defineCrudApi = <
       config.linkActivityToRow ? row : undefined,
     );
 
-  /** Build list items, using the batched `hydrateList` when provided (one query
-   * for all rows) and falling back to the per-row `hydrate` otherwise. */
+  /** Build list items with one batched hydration call. */
   const listItems = async (
     rows: FullRow[],
   ): Promise<Record<string, unknown>[]> => {
-    if (!config.hydrateList) return Promise.all(rows.map(toResponse));
-    const extraById = await config.hydrateList(rows);
-    return rows.map((row) => ({
-      ...stripRow(row, stripKeys),
-      ...(extraById.get((row as { id: number }).id) ?? {}),
-    }));
+    const extraById = await config.hydrate?.(rows);
+    return rows.map((row) => responseRow(row, extraById));
   };
 
   /** List all */

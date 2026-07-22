@@ -1,4 +1,4 @@
-import type { GroupInput } from "#shared/db/groups.ts";
+import type { GroupInput } from "#shared/catalog-fields/fields.ts";
 import type { Group } from "#shared/types.ts";
 import { doAuthenticatedFormRequest } from "./request.ts";
 
