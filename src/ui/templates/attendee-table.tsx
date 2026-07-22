@@ -126,25 +126,38 @@ const getColumnLayout = (
 // ---------------------------------------------------------------------------
 
 /** Compare attendee rows for deterministic table ordering */
-const compareAttendeeRows = (
+type AttendeeRowComparator = (
   a: AttendeeTableRow,
   b: AttendeeTableRow,
-): number => {
+) => number;
+
+const compareAttendeeDates: AttendeeRowComparator = (a, b) => {
   const dateA = a.attendee.date ?? "";
   const dateB = b.attendee.date ?? "";
-  if (dateA !== "" || dateB !== "") {
-    if (dateA === "") return 1;
-    if (dateB === "") return -1;
-    const dateCmp = dateA.localeCompare(dateB);
-    if (dateCmp !== 0) return dateCmp;
+  if (dateA === dateB) return 0;
+  if (dateA === "") return 1;
+  if (dateB === "") return -1;
+  return dateA.localeCompare(dateB);
+};
+
+const compareTextBy =
+  (getText: (row: AttendeeTableRow) => string): AttendeeRowComparator =>
+  (a, b) =>
+    getText(a).localeCompare(getText(b));
+
+const ATTENDEE_ROW_ORDER: AttendeeRowComparator[] = [
+  compareAttendeeDates,
+  compareTextBy((row) => row.listings[0]?.name ?? ""),
+  compareTextBy((row) => row.attendee.name),
+  (a, b) => a.attendee.id - b.attendee.id,
+];
+
+const compareAttendeeRows: AttendeeRowComparator = (a, b) => {
+  for (const compare of ATTENDEE_ROW_ORDER) {
+    const result = compare(a, b);
+    if (result !== 0) return result;
   }
-  const listingA = a.listings[0]?.name ?? "";
-  const listingB = b.listings[0]?.name ?? "";
-  const nameCmp = listingA.localeCompare(listingB);
-  if (nameCmp !== 0) return nameCmp;
-  const attendeeCmp = a.attendee.name.localeCompare(b.attendee.name);
-  if (attendeeCmp !== 0) return attendeeCmp;
-  return a.attendee.id - b.attendee.id;
+  return 0;
 };
 
 /** Sort attendee rows by date, listing name, attendee name, then id */

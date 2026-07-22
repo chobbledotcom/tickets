@@ -81,6 +81,7 @@ const runClaimedTask = async (
     requestDeadline - MAINTENANCE_RELEASE_HEADROOM_MS,
   );
   let failure: unknown | null = null;
+  let completed = false;
   let needsFollowUp = false;
   let checkpoint = claim.checkpoint;
   try {
@@ -94,6 +95,9 @@ const runClaimedTask = async (
         task.run({
           budget: { remaining: getSubrequestRemaining },
           checkpoint: claim.checkpoint,
+          completeTask: () => {
+            completed = true;
+          },
           deadline,
           requestFollowUp: () => {
             needsFollowUp = true;
@@ -103,11 +107,15 @@ const runClaimedTask = async (
           },
         }),
     );
+    if (completed && needsFollowUp) {
+      throw new Error(`${task.name} cannot complete and request a follow-up`);
+    }
   } catch (error) {
     failure = error;
   }
   await finishMaintenanceTask(claim, {
     checkpoint: failure === null ? checkpoint : claim.checkpoint,
+    completed: failure === null && completed,
     intervalMs:
       failure === null
         ? needsFollowUp
@@ -126,10 +134,14 @@ const runWithinAllowance = async (
     unique(candidates.flatMap((task) => task.check.settingsKeys)),
   );
   const { enabled, disabledNames } = await enabledTasks(candidates);
-  await syncMaintenanceTaskRows(
-    enabled.map((task) => task.name),
-    disabledNames,
-  );
+  try {
+    await syncMaintenanceTaskRows(
+      enabled.map((task) => task.name),
+      disabledNames,
+    );
+  } catch (error) {
+    throw new Error("Maintenance task list update failed", { cause: error });
+  }
   const failures: { error: unknown; name: string }[] = [];
 
   while (Date.now() < requestDeadline - MAINTENANCE_RELEASE_HEADROOM_MS) {

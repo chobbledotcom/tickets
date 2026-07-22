@@ -2,13 +2,17 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
-import type { MaintenanceTaskDeclaration } from "#shared/maintenance/definition.ts";
+import type {
+  MaintenanceTaskContext,
+  MaintenanceTaskDeclaration,
+} from "#shared/maintenance/definition.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import {
@@ -30,17 +34,18 @@ const taskNamed = (name: string): MaintenanceTaskDeclaration => {
 
 const runTask = (
   task: MaintenanceTaskDeclaration,
-  requestFollowUp: () => void = () => {},
-  setCheckpoint: (checkpoint: string | null) => void = () => {},
+  overrides: Partial<MaintenanceTaskContext> = {},
 ): void | Promise<void> =>
   task.run({
     budget: {
       remaining: () => ({ database: 2, external: 0, total: 2 }),
     },
     checkpoint: null,
+    completeTask: () => {},
     deadline: Date.now() + 10_000,
-    requestFollowUp,
-    setCheckpoint,
+    requestFollowUp: () => {},
+    setCheckpoint: () => {},
+    ...overrides,
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
@@ -102,8 +107,10 @@ describeWithEnv("maintenance registry", { db: true }, () => {
 
     let followUps = 0;
 
-    await runTask(taskNamed("database_pruning"), () => {
-      followUps += 1;
+    await runTask(taskNamed("database_pruning"), {
+      requestFollowUp: () => {
+        followUps += 1;
+      },
     });
 
     expect(followUps).toBe(1);
@@ -123,6 +130,34 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(true);
   });
 
+  test("a completed activity checkpoint completes without scanning", async () => {
+    let completed = 0;
+
+    await runTask(taskNamed("activity_log_backfill"), {
+      checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE,
+      completeTask: () => {
+        completed += 1;
+      },
+    });
+
+    expect(completed).toBe(1);
+  });
+
+  test("the final activity batch saves its completed checkpoint", async () => {
+    const checkpoints: (string | null)[] = [];
+    let completed = 0;
+
+    await runTask(taskNamed("activity_log_backfill"), {
+      completeTask: () => {
+        completed += 1;
+      },
+      setCheckpoint: (checkpoint) => checkpoints.push(checkpoint),
+    });
+
+    expect(checkpoints).toEqual([ACTIVITY_LOG_BACKFILL_COMPLETE]);
+    expect(completed).toBe(1);
+  });
+
   test("the activity task requests a follow-up after a full batch", async () => {
     const firstId = await insertLegacyActivity("full registry batch");
     const message = await rawActivityMessage(firstId);
@@ -136,13 +171,12 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     let followUps = 0;
     const checkpoints: (string | null)[] = [];
 
-    await runTask(
-      taskNamed("activity_log_backfill"),
-      () => {
+    await runTask(taskNamed("activity_log_backfill"), {
+      requestFollowUp: () => {
         followUps += 1;
       },
-      (checkpoint) => checkpoints.push(checkpoint),
-    );
+      setCheckpoint: (checkpoint) => checkpoints.push(checkpoint),
+    });
 
     expect(followUps).toBe(1);
     expect(checkpoints).toEqual([]);

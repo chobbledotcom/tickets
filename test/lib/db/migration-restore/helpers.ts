@@ -92,36 +92,21 @@ const indexesReferencingColumn = async (
   return names;
 };
 
-// Drop a migration's owned objects in an order SQLite accepts: triggers and
-// indexes first (a column can't be dropped while a trigger or index
-// references it), then the columns added to existing tables, then the tables
-// the migration created.
-export const dropOwnedObjects = async (
-  req: SchemaRequirement,
-  triggers: readonly Trigger[] = TRIGGERS,
-): Promise<Trigger[]> => {
-  const droppedTables = new Set(req.newTables ?? []);
-  const droppedTriggers = triggers.filter(
-    (trigger) =>
-      (req.triggers ?? []).includes(trigger.name) ||
-      droppedTables.has(trigger.table) ||
-      Object.entries(trigger.uses).some(
-        ([table, columns]) =>
-          droppedTables.has(table) ||
-          columns.some((column) => req.columns?.[table]?.includes(column)),
-      ),
-  );
-  const triggerNames = new Set([
-    ...(req.triggers ?? []),
-    ...droppedTriggers.map(({ name }) => name),
-  ]);
-  for (const trigger of triggerNames) {
-    await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
-  }
-  for (const index of req.indexes ?? []) {
-    await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
-  }
-  for (const [table, cols] of Object.entries(req.columns ?? {})) {
+const triggerIsOwnedBy =
+  (req: SchemaRequirement, droppedTables: ReadonlySet<string>) =>
+  (trigger: Trigger): boolean =>
+    (req.triggers ?? []).includes(trigger.name) ||
+    droppedTables.has(trigger.table) ||
+    Object.entries(trigger.uses).some(
+      ([table, columns]) =>
+        droppedTables.has(table) ||
+        columns.some((column) => req.columns?.[table]?.includes(column)),
+    );
+
+const dropRequiredColumns = async (
+  columns: SchemaRequirement["columns"],
+): Promise<void> => {
+  for (const [table, cols] of Object.entries(columns ?? {})) {
     for (const col of cols) {
       // A later migration may index this column (e.g.
       // idx_listing_attendees_ledger_event_group on ledger_event_group); drop
@@ -132,6 +117,29 @@ export const dropOwnedObjects = async (
       await getDb().execute(`ALTER TABLE ${table} DROP COLUMN ${col}`);
     }
   }
+};
+
+// Drop a migration's owned objects in an order SQLite accepts: triggers and
+// indexes first (a column can't be dropped while a trigger or index
+// references it), then the columns added to existing tables, then the tables
+// the migration created.
+export const dropOwnedObjects = async (
+  req: SchemaRequirement,
+  triggers: readonly Trigger[] = TRIGGERS,
+): Promise<Trigger[]> => {
+  const droppedTables = new Set(req.newTables ?? []);
+  const droppedTriggers = triggers.filter(triggerIsOwnedBy(req, droppedTables));
+  const triggerNames = new Set([
+    ...(req.triggers ?? []),
+    ...droppedTriggers.map(({ name }) => name),
+  ]);
+  for (const trigger of triggerNames) {
+    await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
+  }
+  for (const index of req.indexes ?? []) {
+    await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
+  }
+  await dropRequiredColumns(req.columns);
   for (const table of req.newTables ?? []) {
     await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
   }

@@ -140,27 +140,39 @@ interface BatchCursor {
   next: number;
 }
 
+interface BatchRunContext {
+  controller: AbortController;
+  deps: TestExecutionDeps;
+  env: Record<string, string>;
+  signal: AbortSignal;
+}
+
+const runOneBatch = async (
+  batch: string[],
+  { controller, deps, env, signal }: BatchRunContext,
+): Promise<Outcome | null> => {
+  try {
+    const code = await deps.runBatch(batch, controller.signal, env);
+    if (code === 0) return null;
+    controller.abort();
+    return "failed";
+  } catch (error) {
+    if (signal.aborted) return "timed-out";
+    if (controller.signal.aborted) return null;
+    throw error;
+  }
+};
+
 const runBatchWorker = async (
   cursor: BatchCursor,
-  controller: AbortController,
-  signal: AbortSignal,
-  env: Record<string, string>,
-  deps: TestExecutionDeps,
+  context: BatchRunContext,
 ): Promise<Outcome | null> => {
+  const { controller, signal } = context;
   while (!controller.signal.aborted) {
     const batch = cursor.batches[cursor.next++];
     if (!batch) return null;
-    try {
-      const code = await deps.runBatch(batch, controller.signal, env);
-      if (code !== 0) {
-        controller.abort();
-        return "failed";
-      }
-    } catch (error) {
-      if (signal.aborted) return "timed-out";
-      if (controller.signal.aborted) return null;
-      throw error;
-    }
+    const outcome = await runOneBatch(batch, context);
+    if (outcome) return outcome;
   }
   if (signal.aborted) return "timed-out";
   return null;
@@ -178,14 +190,13 @@ export const runTests = async (
   const startedAt = performance.now();
   try {
     const cursor = { batches: batchTestFiles(testFiles), next: 0 };
+    const context = { controller, deps, env, signal };
     const jobs = Math.min(
       Math.max(1, batchJobs),
       Math.max(1, cursor.batches.length),
     );
     const outcomes = await Promise.all(
-      Array.from({ length: jobs }, () =>
-        runBatchWorker(cursor, controller, signal, env, deps),
-      ),
+      Array.from({ length: jobs }, () => runBatchWorker(cursor, context)),
     );
     const outcome = outcomes.includes("failed")
       ? "failed"

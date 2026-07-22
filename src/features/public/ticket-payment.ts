@@ -734,6 +734,19 @@ export const loadPackageLimitGroupMaps = async (
   };
 };
 
+/** The page header whose gallery is shown: a group takes priority, otherwise a
+ * sole listing supplies the header. A multi-listing page has no one gallery. */
+export const ticketGalleryTarget = (
+  activeListings: readonly TicketListing[],
+  group?: Group,
+): TicketSharedContext["galleryTarget"] => {
+  if (group) return { id: group.id, type: "group" };
+  if (activeListings.length === 1) {
+    return { id: activeListings[0]!.listing.id, type: "listing" };
+  }
+  return null;
+};
+
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
@@ -767,11 +780,7 @@ export const getTicketContext = async (
   // group page, or the sole listing on a single-listing page (a multi-listing
   // combo has no single header). Just the reference here — the images are read
   // lazily on the render path only (renderCtx), so submit/quote/API pay nothing.
-  const galleryTarget: TicketSharedContext["galleryTarget"] = group
-    ? { id: group.id, type: "group" }
-    : activeListings.length === 1
-      ? { id: activeListings[0]!.listing.id, type: "listing" }
-      : null;
+  const galleryTarget = ticketGalleryTarget(activeListings, group);
   // A daily parent's offered dates must intersect the union of its children's
   // bookable dates; the client compatibility script also needs each
   // daily child's serveable dates. Both are holiday-aware, so fetch

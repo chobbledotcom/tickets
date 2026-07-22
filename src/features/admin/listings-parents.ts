@@ -3,7 +3,7 @@
  * section on the listing edit page + its save endpoint).
  */
 
-import { unique } from "#fp";
+import { groupToMap, mapNotNullish, unique } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
@@ -277,21 +277,62 @@ export const copyDuplicatedChildEdges = async (
   return null;
 };
 
-/** Write a parent's full child set (existing ∪ additions) through the validated
- * {@link copyDuplicatedChildEdges} path. `setChildIds` REPLACES a parent's edges,
- * so an external parent gaining a cloned child must keep its current children
- * too — otherwise remapping would clobber the gate it already had. The additions
- * are freshly-cloned ids, always disjoint from the existing children, so a plain
- * concatenation can't collide on the unique edge index. Returns the validation
- * error (propagated for the group-duplicate warning) or null. */
-const addChildrenToParent = async (
-  parentId: number,
-  addChildIds: readonly number[],
-): Promise<string | null> => {
-  // The parent always loads (it is a real listing referenced by an existing edge).
-  const parent = await requireListingWithCount(parentId);
-  const existing = await listingChildren.getIds(parentId);
-  return copyDuplicatedChildEdges(parent, [...existing, ...addChildIds]);
+type ChildEdge = { childId: number; parentId: number };
+
+/** Group parent/child pairs into the child set for each parent. */
+const groupChildEdges = (edges: ChildEdge[]): Map<number, number[]> =>
+  groupToMap(
+    (edge: ChildEdge) => edge.parentId,
+    (edge: ChildEdge) => edge.childId,
+  )(edges);
+
+const groupRemappedEdges = (
+  idMap: ReadonlyMap<number, number>,
+  relatedIdsBySource: ReadonlyMap<number, number[]>,
+  toEdge: (cloneId: number, relatedId: number) => ChildEdge | null,
+): Map<number, number[]> =>
+  groupChildEdges(
+    [...idMap].flatMap(([sourceId, cloneId]) =>
+      mapNotNullish((relatedId: number) => toEdge(cloneId, relatedId))(
+        relatedIdsBySource.get(sourceId)!,
+      ),
+    ),
+  );
+
+interface GroupEdgePlan {
+  existingMode: "keep" | "replace";
+  relatedIdsBySource: ReadonlyMap<number, number[]>;
+  toEdge: (cloneId: number, relatedId: number) => ChildEdge | null;
+}
+
+/** Apply each edge plan in order and collect distinct validation errors.
+ * Existing children are kept when an outside parent gains cloned children;
+ * replacing them would clobber the gate it already had. */
+const copyGroupEdgePlans = async (
+  idMap: ReadonlyMap<number, number>,
+  plans: GroupEdgePlan[],
+): Promise<string[]> => {
+  const errors: string[] = [];
+  for (const plan of plans) {
+    const childrenByParent = groupRemappedEdges(
+      idMap,
+      plan.relatedIdsBySource,
+      plan.toEdge,
+    );
+    for (const [parentId, childIds] of childrenByParent) {
+      const parent = await requireListingWithCount(parentId);
+      const existing =
+        plan.existingMode === "keep"
+          ? await listingChildren.getIds(parentId)
+          : [];
+      const error = await copyDuplicatedChildEdges(parent, [
+        ...existing,
+        ...childIds,
+      ]);
+      if (error) errors.push(error);
+    }
+  }
+  return unique(errors);
 };
 
 /**
@@ -323,45 +364,27 @@ const addChildrenToParent = async (
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
 ): Promise<string[]> => {
-  const errors: string[] = [];
   const sourceIds = [...idMap.keys()];
   const [childrenByParent, parentsByChild] = await Promise.all([
     listingChildren.getIdsByKeys(sourceIds),
     listingParents.getIdsByKeys(sourceIds),
   ]);
-  // Direction 1: outgoing edges of each cloned parent.
-  for (const [sourceId, newId] of idMap) {
-    const sourceChildIds = childrenByParent.get(sourceId)!;
-    if (sourceChildIds.length === 0) continue;
-    const remapped = sourceChildIds.map(
-      (childId) => idMap.get(childId) ?? childId,
-    );
-    // `newId` is a clone just inserted in this request, so it always loads.
-    const newParent = await requireListingWithCount(newId);
-    const error = await copyDuplicatedChildEdges(newParent, remapped);
-    if (error) errors.push(error);
-  }
-  // Direction 2: incoming edges of each cloned child whose parent is OUTSIDE the
-  // group (an inside parent is already handled above). Collect every
-  // (outsideParent, cloneId) pair, then group by parent so one external parent
-  // gaining several cloned children is written once (and its existing children
-  // preserved).
-  const outsidePairs: { parentId: number; cloneId: number }[] = [];
-  for (const [sourceId, cloneId] of idMap) {
-    const parentIds = parentsByChild.get(sourceId)!;
-    for (const parentId of parentIds) {
-      if (!idMap.has(parentId)) outsidePairs.push({ cloneId, parentId });
-    }
-  }
-  const byOutsideParent = Map.groupBy(outsidePairs, (pair) => pair.parentId);
-  for (const [parentId, pairs] of byOutsideParent) {
-    const error = await addChildrenToParent(
-      parentId,
-      pairs.map((pair) => pair.cloneId),
-    );
-    if (error) errors.push(error);
-  }
-  return unique(errors);
+  return copyGroupEdgePlans(idMap, [
+    {
+      existingMode: "replace",
+      relatedIdsBySource: childrenByParent,
+      toEdge: (cloneId, childId) => ({
+        childId: idMap.get(childId) ?? childId,
+        parentId: cloneId,
+      }),
+    },
+    {
+      existingMode: "keep",
+      relatedIdsBySource: parentsByChild,
+      toEdge: (cloneId, parentId) =>
+        idMap.has(parentId) ? null : { childId: cloneId, parentId },
+    },
+  ]);
 };
 
 /** Handle POST /admin/listing/:id/children (set the required child listings). */

@@ -24,6 +24,7 @@ import {
   computeDayOffset,
   shiftUtcIsoByDays,
 } from "#shared/bulk-replace.ts";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
@@ -46,7 +47,6 @@ import {
   getStoredListingsWithCountsByIds,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   isNameTakenAnywhere,
   normalizeEntityName,

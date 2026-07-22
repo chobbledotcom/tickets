@@ -56,6 +56,23 @@ const itemOrder = bySortThen<SitePageItem>(
   (i) => i.item_id,
 );
 
+/** The child → parent map over raw `page`-type edges (first edge wins — the
+ * app guarantees at most one parent). The in-transaction cycle guard's
+ * projection: inside the write transaction the edge set is the app-enforced
+ * single-parent tree with no dangling parents (deletes cascade atomically),
+ * so no page-row filtering or edge ordering is needed. */
+export const pageParentMapFromEdges = (
+  edges: readonly SitePageItem[],
+): ReadonlyMap<number, number> => {
+  const parentByChild = new Map<number, number>();
+  for (const edge of edges) {
+    if (edge.item_type === "page" && !parentByChild.has(edge.item_id)) {
+      parentByChild.set(edge.item_id, edge.page_id);
+    }
+  }
+  return parentByChild;
+};
+
 /**
  * Build the adjacency model from raw rows. Sorts the inputs itself, so it is
  * independent of DB row order (tests feed unordered fixtures). A page is a root
@@ -79,15 +96,11 @@ export const buildForest = (
   // whose parent page is not in `byId` is ignored — the child stays a root —
   // so a dangling edge (reads straddling a delete, or a stale add) degrades
   // gracefully instead of breaking every consumer that dereferences a parent.
-  const parentByChild = new Map<number, number>();
-  for (const [pageId, list] of itemsByPage) {
-    if (!byId.has(pageId)) continue;
-    for (const item of list) {
-      if (item.item_type === "page" && !parentByChild.has(item.item_id)) {
-        parentByChild.set(item.item_id, pageId);
-      }
-    }
-  }
+  const parentByChild = pageParentMapFromEdges(
+    [...itemsByPage]
+      .filter(([pageId]) => byId.has(pageId))
+      .flatMap(([, list]) => list),
+  );
 
   const rootIds = [...byId.values()]
     .filter((p) => !parentByChild.has(p.id))
@@ -100,23 +113,6 @@ export const buildForest = (
 /** The minimal projection the ancestry/cycle walks read — a full {@link Forest}
  * satisfies it, and the in-transaction cycle guard builds just this. */
 export type ParentLinks = Pick<Forest, "parentByChild">;
-
-/** The child → parent map over raw `page`-type edges (first edge wins — the
- * app guarantees at most one parent). The in-transaction cycle guard's
- * projection: inside the write transaction the edge set is the app-enforced
- * single-parent tree with no dangling parents (deletes cascade atomically),
- * so no page-row filtering or edge ordering is needed. */
-export const pageParentMapFromEdges = (
-  edges: readonly SitePageItem[],
-): ReadonlyMap<number, number> => {
-  const parentByChild = new Map<number, number>();
-  for (const edge of edges) {
-    if (edge.item_type === "page" && !parentByChild.has(edge.item_id)) {
-      parentByChild.set(edge.item_id, edge.page_id);
-    }
-  }
-  return parentByChild;
-};
 
 /**
  * The ancestor page ids of `pageId`, root-first, excluding the node itself.

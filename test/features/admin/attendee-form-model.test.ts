@@ -181,6 +181,16 @@ describe("parseAttendeeForm", () => {
     expect(parsed.lines.map((l) => l.listingId)).toEqual([3, 7]);
   });
 
+  test("ignores line fields whose indexes are invalid", () => {
+    const parsed = parseAttendeeForm(
+      new FormParams(
+        "name=X&line_listing_bad=3&qty_bad=1&line_listing_-1=4&qty_-1=1&line_listing_2=5&qty_2=1",
+      ),
+      new Map(),
+    );
+    expect(parsed.lines.map((line) => line.listingId)).toEqual([5]);
+  });
+
   test("two lines may target the SAME listing — one per booking path", () => {
     const parsed = parseAttendeeForm(
       makeForm({

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { TEST_FILE_BATCH_SIZE } from "#scripts/mutation/batch.ts";
 import {
   createStaticGates,
   mutantTestEnv,
@@ -19,16 +20,17 @@ const config = {
   testFiles: ["test/shared/example.test.ts"],
 };
 
+const testFilesAcrossBatches = Array.from(
+  { length: TEST_FILE_BATCH_SIZE * 2 + 1 },
+  (_, index) => `test/${index}.ts`,
+);
+
 const runConcurrentFailure = async (
   firstBatch: (signal: AbortSignal) => Promise<number>,
 ): Promise<{ calls: number; outcome: string }> => {
   let calls = 0;
-  const testFiles = Array.from(
-    { length: 25 },
-    (_, index) => `test/${index}.ts`,
-  );
   const result = await runTests(
-    { ...config, batchJobs: 2, testFiles },
+    { ...config, batchJobs: 2, testFiles: testFilesAcrossBatches },
     new AbortController().signal,
     {
       runBatch: (_batch, signal) => {
@@ -201,21 +203,37 @@ describe("mutation test execution", () => {
 
   test("stops before another batch when the deadline expires", async () => {
     const controller = new AbortController();
-    const result = await runTests(config, controller.signal, {
-      runBatch: () => {
-        controller.abort();
-        return Promise.resolve(0);
+    let calls = 0;
+    const result = await runTests(
+      { ...config, testFiles: testFilesAcrossBatches },
+      controller.signal,
+      {
+        runBatch: () => {
+          calls += 1;
+          controller.abort();
+          return Promise.resolve(0);
+        },
       },
-    });
+    );
     expect(result.outcome).toBe("timed-out");
+    expect(calls).toBe(1);
   });
 
-  test("classifies a non-zero test exit as failed", async () => {
+  test("stops before another batch after a non-zero test exit", async () => {
+    let calls = 0;
     expect(
-      await runTests(config, new AbortController().signal, {
-        runBatch: () => Promise.resolve(1),
-      }),
+      await runTests(
+        { ...config, testFiles: testFilesAcrossBatches },
+        new AbortController().signal,
+        {
+          runBatch: () => {
+            calls += 1;
+            return Promise.resolve(1);
+          },
+        },
+      ),
     ).toEqual({ durationMs: expect.any(Number), outcome: "failed" });
+    expect(calls).toBe(1);
   });
 
   test("stops concurrent batches after the first test failure", async () => {

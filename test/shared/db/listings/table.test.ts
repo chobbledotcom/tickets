@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
@@ -8,7 +9,6 @@ import {
 } from "#shared/db/listings/records.ts";
 import {
   computeSlugIndex,
-  type ListingInput,
   rawListingsTable,
 } from "#shared/db/listings/table.ts";
 import type { DayPrices } from "#shared/types.ts";

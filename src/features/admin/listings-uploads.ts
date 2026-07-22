@@ -13,12 +13,12 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,

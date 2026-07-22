@@ -15,18 +15,22 @@ import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
+import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
+import type {
+  GroupInput,
+  PackageMemberInput,
+} from "#shared/catalog-fields/fields.ts";
+import { groupCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { executeBatch, type TxScope } from "#shared/db/client.ts";
 import {
   assignListingsToGroup,
   computeGroupSlugIndex,
-  type GroupInput,
   generateUniqueGroupSlug,
   getListingsByGroupId,
   groups,
   hasPackageBookings,
   isGroupSlugTaken,
-  type PackageMemberInput,
   packageMembersError,
   resetGroupListings,
   setGroupPackageMembers,
@@ -206,15 +210,8 @@ const parsePackageMembers = (form: FormParams): PackageMemberInput[] => {
 };
 
 /** Shared fields from group form values */
-const sharedGroupFields = (values: GroupCreateFormValues) => ({
-  description: values.description,
-  hidden: values.hidden === "1",
-  hidePackageListings: values.hide_package_listings === "1",
-  isPackage: values.is_package === "1",
-  maxAttendees: values.max_attendees ?? 0,
-  name: values.name,
-  termsAndConditions: values.terms_and_conditions,
-});
+const sharedGroupFields = (values: GroupCreateFormValues) =>
+  projectCatalogFields(groupCatalogFields, "form", values);
 
 /** Extract group input from create form values (auto-generates slug) */
 const extractGroupCreateInput = async (

@@ -627,6 +627,7 @@ describe("code quality", () => {
             srcTsxContents,
             testContents,
             ALLOWED_TEST_HOOKS,
+            [scriptsContents, cliContents, e2eContents],
           ),
         );
       }

@@ -99,8 +99,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-18_drop_built_sites_last_pruned",
         "2026-07-19_maintenance_checkpoint",
         "2026-07-21_activity_backfill_complete",
+        "2026-07-22_maintenance_completion",
       ],
-      schemaHash: "dhpq62",
+      schemaHash: "qxxe41",
     });
   });
 
@@ -114,8 +115,7 @@ describe("db > migrations > schema change guard", () => {
     }).toEqual({
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
-      latestUpdate:
-        "Preserve completed activity log backfills without rescanning.",
+      latestUpdate: "Keep completed maintenance work dormant.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

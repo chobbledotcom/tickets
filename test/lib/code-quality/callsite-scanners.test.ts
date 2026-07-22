@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { skipComment, skipString } from "#scripts/typescript-lex.ts";
 import {
   extractCallSites,
   isConstantLiteral,
   parseArgList,
-  skipComment,
-  skipString,
 } from "./detectors.ts";
 
 /**
@@ -230,12 +229,8 @@ describe("extractCallSites", () => {
   });
 });
 
-/**
- * Direct tokenizer tests. `extractCallSites` is too forgiving to expose these
- * helpers' internal edge cases — it always recovers at the next closing quote —
- * so the index/argument contracts are asserted here. (Same rationale as the
- * codebase's other "internal parser exposed for unit testing only".)
- */
+/** Direct tokenizer tests cover index contracts that call-site extraction does
+ * not expose. */
 describe("skipString", () => {
   test("returns the index just past a simple string", () => {
     expect(skipString('"abc"', 0)).toBe(5);
@@ -245,6 +240,11 @@ describe("skipString", () => {
     // The backslash escapes the next char; without skipping two, the closing
     // quote would be misread (and the index would be wrong).
     expect(skipString('"a\\nb"', 0)).toBe(6);
+  });
+
+  test("ignores an apostrophe inside a double-quoted string", () => {
+    const source = '"doesn\'t regress" after';
+    expect(source.slice(skipString(source, 0))).toBe(" after");
   });
 
   test("skips a template substitution", () => {
@@ -275,6 +275,16 @@ describe("skipString", () => {
     expect(skipString("`${ `}` }`", 0)).toBe(10);
   });
 
+  test("skips a block-comment brace before a nested template", () => {
+    const source = "`${/* } */ `inner`}`after";
+    expect(source.slice(skipString(source, 0))).toBe("after");
+  });
+
+  test("skips a line-comment brace inside a template substitution", () => {
+    const source = "`${// }\n`inner`}`after";
+    expect(source.slice(skipString(source, 0))).toBe("after");
+  });
+
   test("treats a lone $ in a template as literal", () => {
     expect(skipString("`a$b`", 0)).toBe(5);
   });
@@ -299,6 +309,10 @@ describe("skipComment", () => {
 
   test("skips a block comment", () => {
     expect(skipComment("/* x */y", 0)).toBe(7);
+  });
+
+  test("stops at the end of an unterminated block comment", () => {
+    expect(skipComment("/* x", 0)).toBe(4);
   });
 
   test("ends a block comment only at star-slash, not a bare slash", () => {
