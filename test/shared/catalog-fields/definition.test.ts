@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
+import {
+  isValidCatalogApiValue,
+  projectCatalogFields,
+} from "#shared/catalog-fields/definition.ts";
 import {
   groupCatalogFields,
   listingCatalogFields,
@@ -151,6 +154,25 @@ describe("catalog field projection", () => {
         max_attendees: null,
       }),
     ).toEqual({ description: "" });
+  });
+
+  test("validates API limits from catalog field metadata", () => {
+    expect(isValidCatalogApiValue(groupCatalogFields.maxAttendees, 0)).toBe(
+      true,
+    );
+    expect(isValidCatalogApiValue(groupCatalogFields.maxAttendees, -1)).toBe(
+      false,
+    );
+    expect(
+      isValidCatalogApiValue(
+        groupCatalogFields.maxAttendees,
+        Number.MAX_SAFE_INTEGER + 1,
+      ),
+    ).toBe(false);
+    expect(isValidCatalogApiValue(groupCatalogFields.hidden, false)).toBe(true);
+    expect(isValidCatalogApiValue(groupCatalogFields.hidden, "false")).toBe(
+      false,
+    );
   });
 
   test("projects every stored API value and clears null strings", () => {

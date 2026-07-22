@@ -101,6 +101,15 @@ const matchesTransfer = (value: unknown, transfer: TransferName) => {
       : typeof value === kind;
 };
 
+/** Check an API value's type and any limit named by its catalog field. */
+export const isValidCatalogApiValue = (
+  field: CatalogField,
+  value: unknown,
+): boolean =>
+  matchesTransfer(value, field[2] as TransferName) &&
+  (field[2] !== "nonNegativeInt" ||
+    (Number.isSafeInteger(value as number) && (value as number) >= 0));
+
 const projectedValue = (
   mode: ProjectionMode,
   field: CatalogField,

@@ -9,6 +9,7 @@ import {
 } from "#routes/admin/groups.ts";
 import {
   type CatalogApiBody,
+  isValidCatalogApiValue,
   projectCatalogFields,
 } from "#shared/catalog-fields/definition.ts";
 import {
@@ -192,18 +193,16 @@ const toGroupInput = async (
     ? parseUpdateName(body, existing.name)
     : requireStrings(body, ["name"]);
   if (!name.ok) return name;
-  const fields = projectCatalogFields(groupCatalogFields, "api", body);
-  const invalid = Object.entries(groupCatalogFields).find(([key, field]) => {
+  const invalid = Object.values(groupCatalogFields).find((field) => {
     const value = body[field[0]];
     return (
       (Number(field[3]) & 1) !== 0 &&
       value != null &&
-      (!Object.hasOwn(fields, key) ||
-        (key === "maxAttendees" &&
-          (!Number.isSafeInteger(value) || (value as number) < 0)))
+      !isValidCatalogApiValue(field, value)
     );
   });
-  if (invalid) return errorResult(`${invalid[1][0]} has an invalid value`);
+  if (invalid) return errorResult(`${invalid[0]} has an invalid value`);
+  const fields = projectCatalogFields(groupCatalogFields, "api", body);
 
   const members = parsePackageMembers(body);
   if (!members.ok) return members;
