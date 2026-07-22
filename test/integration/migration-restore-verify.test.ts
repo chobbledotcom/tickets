@@ -31,6 +31,7 @@ import { indexExists } from "#test-utils/migrations.ts";
 const MIGRATIONS = await loadMigrations();
 const RESTORE_TRIGGER: Trigger = {
   name: "trg_restore_source_log",
+  restore: "active",
   sql: `CREATE TRIGGER IF NOT EXISTS trg_restore_source_log
 AFTER INSERT ON restore_trigger_source
 FOR EACH ROW

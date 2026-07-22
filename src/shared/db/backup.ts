@@ -22,10 +22,9 @@ import {
 } from "#shared/db/backup-storage.ts";
 import { execute, executeBatch } from "#shared/db/client.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
-import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
 import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import {
-  fullSchemaCreateStatements,
+  declaredIndexes,
   noArgStatements,
 } from "#shared/db/migrations/schema-sync.ts";
 import {
@@ -123,29 +122,28 @@ const restoreBatches = ([first, ...statements]: [
   return result.completed;
 };
 
-/** Remove write-time schema work while rows are loaded. Backup rows already
- * carry stored totals, and rebuilding indexes after a bulk load is much faster
- * than updating every index once per row. */
-const removeIndexesAndTriggers = async (): Promise<void> => {
+const DEFERRED_INDEXES = declaredIndexes().filter(({ unique }) => !unique);
+const DEFERRED_TRIGGERS = TRIGGERS.filter(
+  ({ restore }) => restore === "deferred",
+);
+
+/** Remove derived write-time work while rows are loaded. Unique indexes and
+ * validation triggers stay active so corrupt backup rows fail immediately. */
+const removeDeferredSchemaWork = async (): Promise<void> => {
   const drops = [
-    ...SCHEMA.flatMap(([, table]) =>
-      (table.indexes ?? []).map(({ name }) => `DROP INDEX IF EXISTS ${name}`),
-    ),
-    ...TRIGGERS.map(({ name }) => `DROP TRIGGER IF EXISTS ${name}`),
+    ...DEFERRED_INDEXES.map(({ name }) => `DROP INDEX IF EXISTS ${name}`),
+    ...DEFERRED_TRIGGERS.map(({ name }) => `DROP TRIGGER IF EXISTS ${name}`),
   ];
   await executeBatch(noArgStatements(drops));
 };
 
 /** Rebuild deferred indexes one transaction at a time so indexing a populated
  * database cannot turn into one transaction that exceeds libSQL's deadline. */
-const rebuildIndexesAndTriggers = async (): Promise<void> => {
-  const indexStatements = fullSchemaCreateStatements().filter((sql) =>
-    sql.includes(" INDEX IF NOT EXISTS "),
-  );
-  for (const sql of indexStatements) {
+const rebuildDeferredSchemaWork = async (): Promise<void> => {
+  for (const { sql } of DEFERRED_INDEXES) {
     await executeBatch(noArgStatements([sql]));
   }
-  for (const trigger of TRIGGERS) {
+  for (const trigger of DEFERRED_TRIGGERS) {
     await execute(trigger.sql);
   }
 };
@@ -340,12 +338,13 @@ export const restoreFromSql = async (
     // table: settings").
     report("rebuilding");
     await rebuildWipedSchema();
-    await removeIndexesAndTriggers();
+    await removeDeferredSchemaWork();
 
     // Columns a pending migration has since dropped are re-added before replay
-    // so the migration can consume them on the next boot. Indexes and triggers
-    // stay absent during this load, avoiding per-row maintenance and preserving
-    // aggregate values already stored in the backup.
+    // so the migration can consume them on the next boot. Derived indexes and
+    // triggers stay absent during this load, avoiding per-row maintenance and
+    // preserving aggregate values already stored in the backup. Data checks
+    // remain active.
     report("importing");
     const restoreStatements: [string, ...string[]] = [
       "DELETE FROM settings",
@@ -357,7 +356,7 @@ export const restoreFromSql = async (
     for (const batch of restoreBatches(restoreStatements)) {
       await executeBatch(noArgStatements(batch));
     }
-    await rebuildIndexesAndTriggers();
+    await rebuildDeferredSchemaWork();
 
     // Clear all module-level caches — the backup may carry different data for
     // every table, so any warm cache is now stale. clearAllCaches() covers the
@@ -369,6 +368,10 @@ export const restoreFromSql = async (
     postResetErr = String(err);
   }
   if (postResetErr !== undefined) {
+    // Batches committed before a later failure cannot be rolled back together.
+    // Leave a complete empty schema instead of a partial copy of the backup.
+    await resetDatabase();
+    await rebuildWipedSchema();
     throw new PostResetError(postResetErr);
   }
 };

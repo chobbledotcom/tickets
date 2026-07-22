@@ -2,7 +2,7 @@ import type { InStatement, TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { restoreFromSql } from "#shared/db/backup.ts";
+import { PostResetError, restoreFromSql } from "#shared/db/backup.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -75,12 +75,36 @@ describeWithEnv("backup import batches", { db: true }, () => {
     expect(sizes).toEqual([4, 1]);
   });
 
-  test("defers indexes and triggers until after importing rows", async () => {
+  test("keeps data checks while deferring derived database work", async () => {
     const { schemaObjects } = await restoreAndInspectImport(
       settingsDump(["v"]),
     );
 
-    expect(schemaObjects).toEqual([]);
+    expect(schemaObjects).toContain("idx_listings_slug_index");
+    expect(schemaObjects).toContain("trg_attendee_answers_validate_insert");
+    expect(schemaObjects).not.toContain("idx_maintenance_tasks_due");
+    expect(schemaObjects).not.toContain(
+      "trg_listing_attendees_aggregates_insert",
+    );
+    await verifyCurrentAppSchema();
+  });
+
+  test("clears rows committed before a later import batch fails", async () => {
+    const committedPrefix = settingsDump(
+      Array.from({ length: 47 }, (_, index) => String(index)),
+    );
+    const invalidStatement =
+      "INSERT INTO holidays (id, date, stray_col) VALUES (1, '2026-01-01', 'bad');";
+
+    await expect(
+      restoreFromSql(`${committedPrefix}\n${invalidStatement}`),
+    ).rejects.toThrow(PostResetError);
+
+    expect(
+      await queryAll<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'",
+      ),
+    ).toEqual([{ count: 0 }]);
     await verifyCurrentAppSchema();
   });
 });

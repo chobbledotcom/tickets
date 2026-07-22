@@ -8,6 +8,7 @@ import {
 } from "#shared/db/backup.ts";
 import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -26,6 +27,13 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
   const listingCount = async (): Promise<number> =>
     (await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM listings"))!.n;
+  const listingTotals = (
+    listingId: number,
+  ): Promise<{ booked_quantity: number; tickets_count: number } | null> =>
+    queryOne(
+      "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
+      [listingId],
+    );
 
   const listingColumnNames = async (): Promise<string[]> => {
     const rows = await queryAll<{ name: string }>(
@@ -41,12 +49,10 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
 
     await restoreFromZip(zip);
 
-    expect(
-      await queryOne<{ booked_quantity: number; tickets_count: number }>(
-        "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
-        [listing.id],
-      ),
-    ).toEqual({ booked_quantity: 1, tickets_count: 1 });
+    expect(await listingTotals(listing.id)).toEqual({
+      booked_quantity: 1,
+      tickets_count: 1,
+    });
   });
 
   test("reinstalls listing total triggers after importing rows", async () => {
@@ -61,12 +67,36 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
       sql: "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, ?)",
     });
 
+    expect(await listingTotals(listing.id)).toEqual({
+      booked_quantity: 1,
+      tickets_count: 1,
+    });
+  });
+
+  test("keeps validation triggers active while importing rows", async () => {
+    await expect(
+      restoreFromSql("INSERT INTO attendee_answers (attendee_id) VALUES (1);"),
+    ).rejects.toThrow("invalid attendee answer");
+
     expect(
-      await queryOne<{ booked_quantity: number; tickets_count: number }>(
-        "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
-        [listing.id],
+      await queryOne<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM attendee_answers",
       ),
-    ).toEqual({ booked_quantity: 1, tickets_count: 1 });
+    ).toEqual({ count: 0 });
+    await verifyCurrentAppSchema();
+  });
+
+  test("keeps unique indexes active while importing rows", async () => {
+    const listing =
+      "INSERT INTO listings (created, max_attendees, slug_index) " +
+      "VALUES ('2026-07-22T00:00:00.000Z', 1, 'duplicate');";
+
+    await expect(restoreFromSql(`${listing}\n${listing}`)).rejects.toThrow(
+      "UNIQUE constraint failed: listings.slug_index",
+    );
+
+    expect(await listingCount()).toBe(0);
+    await verifyCurrentAppSchema();
   });
 
   describe("backups taken before a column-dropping migration", () => {

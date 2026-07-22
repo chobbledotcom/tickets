@@ -365,9 +365,9 @@ Optional:
 Restores run out of band because realistic imports exceed Bunny's per-request
 subrequest limit. Put the target database's `DB_URL`, `DB_TOKEN`, and
 `DB_ENCRYPTION_KEY` in `.env`, then run `deno task restore <backup.zip>`. The task checks
-the backup, shows its table, row, statement, and schema details, and asks for a
-typed confirmation before deleting any data. It reports each restore step and
-shows the backup's recorded commit when one is available.
+the backup, shows its available table, row, statement, and schema details, and
+asks for a typed confirmation before deleting any data. It reports each restore
+step and shows the backup's recorded commit when one is available.
 
 **Local SQLite snapshots:** developers can copy a remote database into one complete SQLite file using the same `DB_URL` and `DB_TOKEN` as the app:
 

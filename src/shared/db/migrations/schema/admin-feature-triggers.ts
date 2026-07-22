@@ -138,6 +138,7 @@ const triggerEvent = (source: FeatureWriteSource): string =>
 
 const featureWriteTrigger = (source: FeatureWriteSource): Trigger => ({
   name: source.name,
+  restore: "deferred",
   sql: `CREATE TRIGGER IF NOT EXISTS ${source.name}
 ${triggerEvent(source)} ON ${source.table}
 FOR EACH ROW${source.when ? `\nWHEN ${source.when}` : ""}
