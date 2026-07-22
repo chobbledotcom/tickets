@@ -715,7 +715,9 @@ export const gatedPost =
     withAuth(request, policy, handle);
 
 /** A content-editor POST whose body may include uploaded files. */
-export const contentMultipartRoute = gatedPost(CONTENT_MULTIPART);
+export const contentMultipartRoute: (
+  handle: ResponseHandler<[session: AuthSession, body: FormData]>,
+) => RequestRoute = gatedPost(CONTENT_MULTIPART);
 
 /** A {@link gatedPost} whose handler only needs the parsed form — for POST
  * routes that act on the form alone and never read the session. */

@@ -13,7 +13,7 @@ test("catalog transfer loads while image copy stays unloaded", () =>
       area.load,
     );
 
-    expect(Object.keys(handlers)).toContain("GET /admin/catalog/import");
+    expect(handlers["GET /admin/catalog/import"]).toBeInstanceOf(Function);
     expect(() => t("images.column.thumbnail")).toThrow(
       'Missing translation for key "images.column.thumbnail"',
     );
