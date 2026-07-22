@@ -15,6 +15,8 @@
  * runs the rest in a fresh process — process exit releases every fd it held.
  */
 
+import { chunk } from "#fp";
+
 /**
  * Files per `deno test` process. Small enough that one process's transaction
  * churn stays well under the open-file ceiling on every platform (macOS
@@ -27,10 +29,4 @@ export const TEST_FILE_BATCH_SIZE = 24;
 export const batchTestFiles = (
   testFiles: string[],
   size = TEST_FILE_BATCH_SIZE,
-): string[][] => {
-  const batches: string[][] = [];
-  for (let i = 0; i < testFiles.length; i += size) {
-    batches.push(testFiles.slice(i, i + size));
-  }
-  return batches;
-};
+): string[][] => chunk(size)(testFiles);

@@ -13,14 +13,21 @@
 import { unzipSync, zipSync } from "fflate";
 import * as v from "valibot";
 import { compact, sum } from "#fp";
+import { utf8ByteLength } from "#shared/bytes.ts";
 import { createBackup, type TableBackup } from "#shared/db/backup-snapshot.ts";
 import {
   backupKey,
   backupTimestamp,
   pruneOldBackups,
 } from "#shared/db/backup-storage.ts";
-import { executeBatch } from "#shared/db/client.ts";
+import { execute, executeBatch } from "#shared/db/client.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+import { SCHEMA } from "#shared/db/migrations/schema/index.ts";
+import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
+import {
+  fullSchemaCreateStatements,
+  noArgStatements,
+} from "#shared/db/migrations/schema-sync.ts";
 import {
   clearAllCaches,
   LATEST_UPDATE,
@@ -78,6 +85,62 @@ export interface RestoreProgress {
 export type RestoreProgressHandler = (progress: RestoreProgress) => void;
 
 const ignoreRestoreProgress: RestoreProgressHandler = () => {};
+
+// Each dump statement already contains up to 100 rows. Keep both the work and
+// HTTP body of a remote libSQL transaction bounded while combining enough work
+// to avoid one network round trip per statement.
+const RESTORE_BATCH_STATEMENT_LIMIT = 50;
+const RESTORE_BATCH_BYTE_LIMIT = 512 * 1024;
+
+const restoreBatches = ([first, ...statements]: [
+  string,
+  ...string[],
+]): string[][] => {
+  const batches: string[][] = [];
+  let current = { bytes: utf8ByteLength(first), statements: [first] };
+  for (const statement of statements) {
+    const statementBytes = utf8ByteLength(statement);
+    if (
+      current.statements.length === RESTORE_BATCH_STATEMENT_LIMIT ||
+      current.bytes + statementBytes > RESTORE_BATCH_BYTE_LIMIT
+    ) {
+      batches.push(current.statements);
+      current = { bytes: statementBytes, statements: [statement] };
+      continue;
+    }
+    current.statements.push(statement);
+    current.bytes += statementBytes;
+  }
+  batches.push(current.statements);
+  return batches;
+};
+
+/** Remove write-time schema work while rows are loaded. Backup rows already
+ * carry stored totals, and rebuilding indexes after a bulk load is much faster
+ * than updating every index once per row. */
+const removeIndexesAndTriggers = async (): Promise<void> => {
+  const drops = [
+    ...SCHEMA.flatMap(([, table]) =>
+      (table.indexes ?? []).map(({ name }) => `DROP INDEX IF EXISTS ${name}`),
+    ),
+    ...TRIGGERS.map(({ name }) => `DROP TRIGGER IF EXISTS ${name}`),
+  ];
+  await executeBatch(noArgStatements(drops));
+};
+
+/** Rebuild deferred indexes one transaction at a time so indexing a populated
+ * database cannot turn into one transaction that exceeds libSQL's deadline. */
+const rebuildIndexesAndTriggers = async (): Promise<void> => {
+  const indexStatements = fullSchemaCreateStatements().filter((sql) =>
+    sql.includes(" INDEX IF NOT EXISTS "),
+  );
+  for (const sql of indexStatements) {
+    await executeBatch(noArgStatements([sql]));
+  }
+  for (const trigger of TRIGGERS) {
+    await execute(trigger.sql);
+  }
+};
 
 interface OpenBackup {
   decoder: TextDecoder;
@@ -264,24 +327,24 @@ export const restoreFromSql = async (
     // table: settings").
     report("rebuilding");
     await rebuildWipedSchema();
+    await removeIndexesAndTriggers();
 
     // Columns a pending migration has since dropped are re-added before replay
-    // so the migration can consume them on the next boot. Each exported
-    // statement gets its own transaction: one statement can already contain
-    // 100 rows, and larger groups time out while replaying large attendee sets.
-    // A failed later statement leaves an explicit PostResetError; rerunning
-    // starts by wiping the partial restore again.
+    // so the migration can consume them on the next boot. Indexes and triggers
+    // stay absent during this load, avoiding per-row maintenance and preserving
+    // aggregate values already stored in the backup.
     report("importing");
-    const restoreStatements = [
+    const restoreStatements: [string, ...string[]] = [
       "DELETE FROM settings",
       "DELETE FROM schema_migrations",
       "DELETE FROM attendee_statuses",
       ...(migrations.hasPending ? legacyColumnRestores(statements) : []),
       ...statements,
     ];
-    for (const sql of restoreStatements) {
-      await executeBatch([{ args: [], sql }]);
+    for (const batch of restoreBatches(restoreStatements)) {
+      await executeBatch(noArgStatements(batch));
     }
+    await rebuildIndexesAndTriggers();
 
     // Clear all module-level caches — the backup may carry different data for
     // every table, so any warm cache is now stale. clearAllCaches() covers the

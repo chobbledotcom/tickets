@@ -10,6 +10,7 @@ import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
@@ -32,6 +33,41 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     );
     return rows.map((row) => row.name);
   };
+
+  test("preserves stored listing totals while replaying booking rows", async () => {
+    const listing = await createTestListing({ name: "Stored totals" });
+    await bookTestAttendee([listing.id]);
+    const zip = await createBackupZip();
+
+    await restoreFromZip(zip);
+
+    expect(
+      await queryOne<{ booked_quantity: number; tickets_count: number }>(
+        "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
+        [listing.id],
+      ),
+    ).toEqual({ booked_quantity: 1, tickets_count: 1 });
+  });
+
+  test("reinstalls listing total triggers after importing rows", async () => {
+    const listing = await createTestListing({ name: "Restored triggers" });
+    await restoreFromZip(await createBackupZip());
+
+    const attendee = await getDb().execute(
+      "INSERT INTO attendees (created, pii_blob) VALUES ('2026-07-22T00:00:00.000Z', '')",
+    );
+    await getDb().execute({
+      args: [listing.id, Number(attendee.lastInsertRowid)],
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, ?)",
+    });
+
+    expect(
+      await queryOne<{ booked_quantity: number; tickets_count: number }>(
+        "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
+        [listing.id],
+      ),
+    ).toEqual({ booked_quantity: 1, tickets_count: 1 });
+  });
 
   describe("backups taken before a column-dropping migration", () => {
     const FIRST_CLASS_IMAGES_ID = "2026-07-05_first_class_images";

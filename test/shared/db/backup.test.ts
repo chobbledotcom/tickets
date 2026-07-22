@@ -1,4 +1,4 @@
-import type { InStatement, ResultSet, TransactionMode } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -254,52 +254,6 @@ describeWithEnv("backup", { db: true }, () => {
       expect(error).toBeInstanceOf(PostResetError);
       expect((error as Error).name).toBe("PostResetError");
       expect((error as Error).message).toBe("Error: rebuild stopped");
-    });
-
-    test("imports large backups without one long transaction", async () => {
-      const sql = Array.from(
-        { length: 2 },
-        (_, index) =>
-          `INSERT INTO settings (key, value) VALUES ('large_${index}', '${index}');`,
-      ).join("\n");
-      const client = getDb();
-      const originalBatch = client.batch.bind(client);
-      const importBatchSizes: number[] = [];
-      let importing = false;
-      const batchStub = stub(client, "batch", ((
-        statements: InStatement[],
-        mode?: TransactionMode,
-      ) => {
-        if (
-          statements.some(
-            (statement: string | { sql: string }) =>
-              (typeof statement === "string" ? statement : statement.sql) ===
-              "DELETE FROM settings",
-          )
-        ) {
-          importing = true;
-        }
-        if (importing) {
-          importBatchSizes.push(statements.length);
-          if (statements.length > 1) {
-            return Promise.reject(new Error("TRANSACTION_TIMEOUT"));
-          }
-        }
-        return originalBatch(statements, mode);
-      }) as never);
-
-      try {
-        await restoreFromSql(sql);
-      } finally {
-        batchStub.restore();
-      }
-
-      expect(importBatchSizes).toEqual([1, 1, 1, 1, 1]);
-      expect(
-        await queryAll<{ count: number }>(
-          "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'",
-        ),
-      ).toEqual([{ count: 2 }]);
     });
   });
 
