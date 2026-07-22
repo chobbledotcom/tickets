@@ -212,6 +212,27 @@ describe("Uptime Kuma built-site monitors", () => {
     });
   });
 
+  test("does not treat a GET check as the scheduled maintenance monitor", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([group(), { ...siteMonitor(), method: "GET" }]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
+      kind: "missing",
+    });
+  });
+
+  test("adds a POST monitor when only a GET check exists", async () => {
+    using _env = withEnv(kumaEnv);
+    using fake = connectFake([group(), { ...siteMonitor(), method: "GET" }]);
+
+    expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
+      ok: true,
+      value: { created: true, monitorId: 100 },
+    });
+    expect(fake.added).toHaveLength(1);
+    expect(fake.added[0]).toMatchObject({ method: "POST", parent: 11 });
+  });
+
   test("shows connection failures without leaking credentials", async () => {
     using _env = withEnv(kumaEnv);
     using _connect = stub(uptimeKumaClientApi, "connect", () =>
