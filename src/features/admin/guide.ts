@@ -3,10 +3,10 @@ import { defineRoutes } from "#routes/router.ts";
  * Admin guide route
  */
 
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { contentPage, sessionPage } from "#routes/auth.ts";
 import {
   getBunnyDnsSubdomainSuffix,
+  isBuilderEnabled,
   isBunnyDnsEnabled,
 } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";

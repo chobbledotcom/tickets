@@ -4,7 +4,6 @@
 
 import {
   deleteGroup,
-  generateUniqueGroupSlug,
   soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
@@ -12,6 +11,7 @@ import type { TxScope } from "#shared/db/client.ts";
 import {
   computeGroupSlugIndex,
   type GroupInput,
+  generateUniqueGroupSlug,
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   groups,
