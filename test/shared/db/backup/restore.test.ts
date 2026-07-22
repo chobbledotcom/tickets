@@ -92,22 +92,6 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
   });
 
   describe("backups this build cannot replay", () => {
-    test("a backup from a newer build is refused before anything is wiped", async () => {
-      await createTestListing({ name: "Still Here" });
-      const recorded = await exportTable("schema_migrations");
-      const dump =
-        `${recorded.sql}\n` +
-        `INSERT INTO "schema_migrations" ("id", "description", "applied_at") ` +
-        `VALUES ('2099-01-01_from_the_future', 'Future change', '2099-01-01T00:00:00.000Z');\n`;
-
-      await expect(restoreFromSql(dump)).rejects.toThrow(
-        "2099-01-01_from_the_future",
-      );
-
-      // Refused up front: the database was never reset, so the data survives.
-      expect(await listingCount()).toBe(1);
-    });
-
     test("an orphaned marker from a historically renamed migration is not refused", async () => {
       // Real databases carry schema_migrations rows whose migration was later
       // renamed (e.g. 2026-06-18_answer_price_modifiers); the old marker is

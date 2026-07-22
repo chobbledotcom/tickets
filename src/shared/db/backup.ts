@@ -4,13 +4,15 @@
  *
  * Key design decisions:
  * - Tables are exported/restored in SCHEMA order (FK-dependency safe)
- * - Restore runs all INSERTs in a single transaction via executeBatch
+ * - Restore uses bounded transactions so large imports do not time out
  * - SQL statements are delimited by ";\n" to handle embedded newlines in values
  * - Backups are stored unencrypted (sensitive data is already field-level encrypted)
  * - manifest.json enables preflight schema compatibility checks before restore
  */
 
 import { unzipSync, zipSync } from "fflate";
+import * as v from "valibot";
+import { compact, sum } from "#fp";
 import { createBackup, type TableBackup } from "#shared/db/backup-snapshot.ts";
 import {
   backupKey,
@@ -34,6 +36,7 @@ import {
 import { namedError } from "#shared/named-error.ts";
 import { nowIso } from "#shared/now.ts";
 import { uploadRaw } from "#shared/storage.ts";
+import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** Thrown by restoreFromSql after resetDatabase() runs but a later step fails,
  *  so callers can distinguish a post-reset failure (DB wiped) from a pre-reset
@@ -42,28 +45,76 @@ export class PostResetError extends namedError("PostResetError") {}
 
 // ─── Types ──────────────────────────────────────────────────────
 
-/** Metadata stored in manifest.json inside the backup zip */
-export type BackupManifest = {
-  schemaHash: string;
-  latestUpdate: string;
-  timestamp: string;
-  tables: Record<string, number>;
-};
+/** Metadata stored in manifest.json inside the backup zip. */
+const BackupManifestSchema = v.object({
+  latestUpdate: v.string(),
+  schemaHash: v.string(),
+  tables: v.record(v.string(), integerAtLeast(0)),
+  timestamp: v.string(),
+});
+
+export type BackupManifest = v.InferOutput<typeof BackupManifestSchema>;
+
+export interface BackupInspection {
+  manifest: BackupManifest | null;
+  statementCount: number;
+}
+
+const RESTORE_STAGES = [
+  "checking",
+  "resetting",
+  "rebuilding",
+  "importing",
+  "clearing-caches",
+] as const;
+
+export type RestoreStage = (typeof RESTORE_STAGES)[number];
+
+export interface RestoreProgress {
+  stage: RestoreStage;
+  statementCount: number;
+}
+
+export type RestoreProgressHandler = (progress: RestoreProgress) => void;
+
+const ignoreRestoreProgress: RestoreProgressHandler = () => {};
+
+interface OpenBackup {
+  decoder: TextDecoder;
+  files: Record<string, Uint8Array>;
+}
+
+const openBackup = (zipData: Uint8Array): OpenBackup => ({
+  decoder: new TextDecoder(),
+  files: unzipSync(zipData),
+});
 
 // ─── Helpers ────────────────────────────────────────────────────
 
 /**
  * Split SQL text into individual statements.
- * Splits on ";\n" boundaries, which is the format produced by exportTable.
+ * Quoted values are consumed as whole tokens, so semicolons in multiline text
+ * stay inside their INSERT. Both SQL quote forms escape themselves by doubling.
  */
 export const splitStatements = (sql: string): string[] => {
   if (sql.trim() === "") return [];
-  return sql
-    .replace(/\r\n/g, "\n")
-    .split(/;\s*\n/)
-    .map((s) => s.trim())
-    .filter((s) => s !== "")
-    .map((s) => (s.endsWith(";") ? s : `${s};`));
+  const normalized = sql.replace(/\r\n/g, "\n");
+  const statements: string[] = [];
+  let start = 0;
+  const quoteOrStatementEnd = /'(?:''|[^'])*'|"(?:""|[^"])*"|;/gs;
+
+  for (const token of normalized.matchAll(quoteOrStatementEnd)) {
+    if (token[0] !== ";") continue;
+    const statement = normalized.slice(start, token.index).trim();
+    if (statement !== "") statements.push(`${statement};`);
+    start = token.index + 1;
+  }
+
+  const remainder = normalized.slice(start).trim();
+  if (remainder !== "") {
+    statements.push(`${remainder};`);
+  }
+  return statements;
 };
 
 /** Build the manifest object for a backup */
@@ -108,50 +159,84 @@ export const createAndUploadBackup = async (): Promise<string> => {
 
 // ─── Restore ────────────────────────────────────────────────────
 
-/** Validate that a parsed object has the expected BackupManifest shape */
-const isValidManifest = (v: unknown): v is BackupManifest =>
-  typeof v === "object" &&
-  v !== null &&
-  typeof (v as Record<string, unknown>).schemaHash === "string" &&
-  typeof (v as Record<string, unknown>).latestUpdate === "string" &&
-  typeof (v as Record<string, unknown>).timestamp === "string" &&
-  typeof (v as Record<string, unknown>).tables === "object" &&
-  (v as Record<string, unknown>).tables !== null;
-
-/** Read and parse manifest.json from a backup zip. Returns null if missing or invalid. */
-export const readManifest = (zipData: Uint8Array): BackupManifest | null => {
-  const files = unzipSync(zipData);
+/** Read and validate manifest.json. Older backups without one remain restorable. */
+const readManifest = (
+  files: Record<string, Uint8Array>,
+): BackupManifest | null => {
   const manifestBytes = files["manifest.json"];
   if (!manifestBytes) return null;
   const parsed: unknown = JSON.parse(new TextDecoder().decode(manifestBytes));
-  return isValidManifest(parsed) ? parsed : null;
+  const result = v.safeParse(BackupManifestSchema, parsed);
+  return result.success ? result.output : null;
 };
 
-/** Count SQL statements across all .sql files in a zip archive */
-export const countZipStatements = (zipData: Uint8Array): number => {
-  const files = unzipSync(zipData);
-  const decoder = new TextDecoder();
-  let count = 0;
-  for (const name of Object.keys(files)) {
-    if (!name.endsWith(".sql")) continue;
-    const content = decoder.decode(files[name]!);
-    if (content.trim() === "") continue;
-    count += splitStatements(content).length;
+interface InspectedSqlFile {
+  statementCount: number;
+  table: string;
+}
+
+const inspectSqlFiles = ({ decoder, files }: OpenBackup): InspectedSqlFile[] =>
+  Object.entries(files)
+    .filter(([name]) => name.endsWith(".sql"))
+    .map(([name, content]) => ({
+      statementCount: splitStatements(decoder.decode(content)).length,
+      table: name.slice(0, -4),
+    }));
+
+const inspectOpenBackup = (backup: OpenBackup): BackupInspection => {
+  const sqlFiles = inspectSqlFiles(backup);
+  const unsupported = sqlFiles
+    .filter(
+      ({ statementCount, table }) =>
+        statementCount > 0 && !SCHEMA_TABLE_NAMES.includes(table),
+    )
+    .map(({ table }) => table);
+  if (unsupported.length > 0) {
+    throw new Error(
+      `Backup contains data for tables this app cannot restore: ${unsupported.join(", ")}`,
+    );
   }
-  return count;
+
+  const manifest = readManifest(backup.files);
+  const manifestTables = manifest === null ? {} : manifest.tables;
+  const statementsByTable = new Map(
+    sqlFiles.map(({ statementCount, table }) => [table, statementCount]),
+  );
+  const missing = Object.entries(manifestTables)
+    .filter(
+      ([table, rowCount]) => rowCount > 0 && !statementsByTable.get(table),
+    )
+    .map(([table]) => table);
+  if (missing.length > 0) {
+    throw new Error(`Backup is missing data for tables: ${missing.join(", ")}`);
+  }
+  return {
+    manifest,
+    statementCount: sum(sqlFiles.map((file) => file.statementCount)),
+  };
 };
+
+/** Read the manifest and count SQL statements in one unzip pass. */
+export const inspectBackupZip = (zipData: Uint8Array): BackupInspection =>
+  inspectOpenBackup(openBackup(zipData));
 
 /**
  * Restore the database from SQL content.
  * Drops all tables, reinitializes the schema, then executes all SQL
- * statements in a single transaction via executeBatch.
+ * statements in bounded sequential transactions.
  *
  * Refuses a dump from a newer build BEFORE wiping anything: replaying it here
  * would silently discard newer-schema data (tables this build's schema lacks
  * are skipped), making an accidental rollback look like a successful restore.
  */
-export const restoreFromSql = async (sql: string): Promise<void> => {
+export const restoreFromSql = async (
+  sql: string,
+  onProgress: RestoreProgressHandler = ignoreRestoreProgress,
+): Promise<void> => {
   const statements = splitStatements(sql);
+  const report = (stage: RestoreStage): void =>
+    onProgress({ stage, statementCount: statements.length });
+  report("checking");
   const migrations = dumpMigrationState(statements, MIGRATION_IDS);
   if (migrations.fromNewerBuild.length > 0) {
     throw new Error(
@@ -167,6 +252,7 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   // sessions table already removed) are also routed as post-reset errors.
   let postResetErr: string | undefined;
   try {
+    report("resetting");
     await resetDatabase();
     // The database was just wiped, so rebuild the schema with unconditional
     // IF NOT EXISTS creates. Never consult the database here — neither
@@ -176,31 +262,32 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
     // schema verification against the wiped primary ("missing table
     // settings") or skipped the CREATEs and died at the import ("no such
     // table: settings").
+    report("rebuilding");
     await rebuildWipedSchema();
 
-    // Roll the seed-data deletes into the same executeBatch transaction as the
-    // import so that a failed import rolls the deletes back too, leaving the DB
-    // in the clean post-initDb state rather than a mix of empty seed tables and
-    // partially applied backup rows. Columns the dump writes that a migration
-    // the backup predates has since dropped are re-added first, so the replayed
-    // rows land intact for that pending migration to reshape on the next boot
-    // (see restore-legacy-columns.ts) — but only when the dump actually has
-    // pending migrations to consume them: with none pending, an unknown column
-    // is corruption, and the INSERT must fail loudly instead.
-    await executeBatch(
-      [
-        "DELETE FROM settings",
-        "DELETE FROM schema_migrations",
-        "DELETE FROM attendee_statuses",
-        ...(migrations.hasPending ? legacyColumnRestores(statements) : []),
-        ...statements,
-      ].map((s) => ({ args: [], sql: s })),
-    );
+    // Columns a pending migration has since dropped are re-added before replay
+    // so the migration can consume them on the next boot. Each exported
+    // statement gets its own transaction: one statement can already contain
+    // 100 rows, and larger groups time out while replaying large attendee sets.
+    // A failed later statement leaves an explicit PostResetError; rerunning
+    // starts by wiping the partial restore again.
+    report("importing");
+    const restoreStatements = [
+      "DELETE FROM settings",
+      "DELETE FROM schema_migrations",
+      "DELETE FROM attendee_statuses",
+      ...(migrations.hasPending ? legacyColumnRestores(statements) : []),
+      ...statements,
+    ];
+    for (const sql of restoreStatements) {
+      await executeBatch([{ args: [], sql }]);
+    }
 
     // Clear all module-level caches — the backup may carry different data for
     // every table, so any warm cache is now stale. clearAllCaches() covers the
     // same set as resetDatabase()'s finally block, including caches (holidays,
     // logistics-agents, sessions, settings) that a partial list would miss.
+    report("clearing-caches");
     clearAllCaches();
   } catch (err) {
     postResetErr = String(err);
@@ -214,16 +301,19 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
  * Restore the database from a zip archive.
  * Files are replayed in SCHEMA order (FK-dependency safe), not alphabetically.
  */
-export const restoreFromZip = async (zipData: Uint8Array): Promise<void> => {
-  const files = unzipSync(zipData);
-  const decoder = new TextDecoder();
-  const allSql: string[] = [];
+export const restoreFromZip = async (
+  zipData: Uint8Array,
+  onProgress: RestoreProgressHandler = ignoreRestoreProgress,
+): Promise<void> => {
+  const backup = openBackup(zipData);
+  inspectOpenBackup(backup);
+  const { decoder, files } = backup;
+  // Iterate in SCHEMA order for FK safety.
+  const allSql = compact(
+    SCHEMA_TABLE_NAMES.map((table) => files[`${table}.sql`]),
+  ).map((content) => decoder.decode(content));
 
-  // Iterate in SCHEMA order for FK safety
-  for (const table of SCHEMA_TABLE_NAMES) {
-    const content = files[`${table}.sql`];
-    if (content) allSql.push(decoder.decode(content));
-  }
-
-  await restoreFromSql(allSql.join("\n"));
+  // Every generated table file ends its statements with semicolons, so no
+  // extra separator is needed between files.
+  await restoreFromSql(allSql.join(""), onProgress);
 };

@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --env-file --allow-env --allow-read --allow-write --allow-run --allow-net
 
 import { fromFileUrl } from "@std/path";
+import { runDenoScript } from "#scripts/script-runner.ts";
 import { type FetchTextResult, runDeployEdge } from "./deploy-edge-lib.ts";
 import { runBuildEdge } from "./run-build-edge.ts";
 
@@ -19,16 +20,13 @@ const fetchText = async (
   };
 };
 
-const exitCode = await runDeployEdge({
-  args: Deno.args,
-  bundlePath,
-  cwd: repoRoot,
-  fetchText,
-  getEnv: (key) => Deno.env.get(key),
-  readTextFile: (path) => Deno.readTextFile(path),
-  runBuildEdge,
-  stderr: (line) => console.error(line),
-  stdout: (line) => console.log(line),
-});
-
-Deno.exit(exitCode);
+await runDenoScript((io) =>
+  runDeployEdge({
+    ...io,
+    bundlePath,
+    cwd: repoRoot,
+    fetchText,
+    readTextFile: (path) => Deno.readTextFile(path),
+    runBuildEdge,
+  }),
+);

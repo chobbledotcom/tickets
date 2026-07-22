@@ -108,6 +108,23 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(response.headers.get("location")).toContain("/admin/test-owner");
     });
 
+    test("createActionHandler adds its configured success cookie", async () => {
+      const response = await runActionHandler(
+        {
+          auth: "owner",
+          cookie: () => "restore_session=; Max-Age=0; Path=/",
+          execute: () => Promise.resolve(),
+          message: "Cookie action completed",
+          successRedirect: "/admin/test-cookie",
+        },
+        "/admin/test-cookie",
+      );
+
+      expect(response.headers.get("set-cookie")).toContain(
+        "restore_session=; Max-Age=0; Path=/",
+      );
+    });
+
     test("createActionHandler with multipart body and any auth redirects on success", async () => {
       const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();

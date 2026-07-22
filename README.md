@@ -328,6 +328,7 @@ deno task typecheck      # Type check
 deno task build:edge     # Build for Bunny Edge
 deno task deploy:edge <script-id> # Build, upload, and publish to Bunny Edge using BUNNY_ACCESS_KEY from .env
 deno task backup         # Dump the database out-of-band (uploads to storage; --out <path> for a local .zip)
+deno task restore <backup.zip> # Restore DB_URL from a local backup using DB_TOKEN from .env
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 
@@ -359,6 +360,13 @@ Optional:
 **Database maintenance:** pruning of expired sessions, rate-limit rows, payment records, and optional orphan attendees runs automatically while serving requests. For quiet sites, configure an external monitor to send an authenticated `POST /scheduled` to each site at least every 15 minutes. Each site needs its own key. The builder does not contact child sites for the monitor. See the [scheduled maintenance guide](docs/scheduled-maintenance.md) for setup and CDN rules.
 
 **Backups:** every table is dumped to a single `.zip`, with table reads keyset-paginated so no single response trips libsqld's "Response is too large" payload cap (the server limit behind Bunny's databases). Backups run **out-of-band**, not inside the migration: a full dump of a ~31-table schema can't fit alongside a migration within one edge request's [50-subrequest budget](https://docs.bunny.net/scripting/limits), so migrations just migrate, and a backup is taken by GitHub Actions (or `deno task backup`) beforehand. To enforce that, **`/admin/update` and the per-site update button refuse to deploy unless a backup of that database was taken in the last hour.**
+
+Restores run out of band because realistic imports exceed Bunny's per-request
+subrequest limit. Put the target database's `DB_URL` and
+`DB_TOKEN` in `.env`, then run `deno task restore <backup.zip>`. The task checks
+the backup, shows its table, row, statement, and schema details, and asks for a
+typed confirmation before deleting any data. It reports each restore step and
+shows the backup's recorded commit when one is available.
 
 The deploy workflows back a site up (via `POST /instance/site-credentials`) before deploying to it (the staging push-to-`main` trigger is the one exception — see below):
 

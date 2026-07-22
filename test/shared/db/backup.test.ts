@@ -1,13 +1,13 @@
-import type { ResultSet } from "@libsql/client";
+import type { InStatement, ResultSet, TransactionMode } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { unzipSync, zipSync } from "fflate";
 import {
   type BackupManifest,
-  countZipStatements,
   createBackupZip,
-  readManifest,
+  inspectBackupZip,
+  PostResetError,
   restoreFromSql,
   restoreFromZip,
   splitStatements,
@@ -37,6 +37,12 @@ describeWithEnv("backup", { db: true }, () => {
       expect(stmts[1]).toBe("INSERT INTO b VALUES (2);");
     });
 
+    test("normalizes Windows newlines inside quoted values", () => {
+      expect(
+        splitStatements("INSERT INTO a VALUES ('first\r\nsecond');"),
+      ).toEqual(["INSERT INTO a VALUES ('first\nsecond');"]);
+    });
+
     test("returns empty array for empty input", () => {
       expect(splitStatements("")).toHaveLength(0);
       expect(splitStatements("   ")).toHaveLength(0);
@@ -45,6 +51,31 @@ describeWithEnv("backup", { db: true }, () => {
     test("handles trailing newline", () => {
       const stmts = splitStatements("INSERT INTO a VALUES (1);\n");
       expect(stmts).toHaveLength(1);
+    });
+
+    test("adds a terminator to a final statement that has none", () => {
+      expect(splitStatements("mutated")).toEqual(["mutated;"]);
+    });
+
+    test("keeps a terminator on the final statement", () => {
+      expect(splitStatements("SELECT 1;")).toEqual(["SELECT 1;"]);
+    });
+
+    test("ignores empty statements", () => {
+      expect(splitStatements(";\nSELECT 1;")).toEqual(["SELECT 1;"]);
+    });
+
+    test("keeps semicolon-newlines inside quoted CSS values", () => {
+      const cssInsert =
+        "INSERT INTO settings (key, value) VALUES ('custom_css', '/* 🐸 Splish-Splash — a bright kids'' theme 🐳 */\n" +
+        ":root {\n  --color-bg: #f2fcff;\n  --color-text: #0d3b45;\n}');";
+      const nextInsert =
+        "INSERT INTO settings (key, value) VALUES ('site_name', 'Frog pond');";
+
+      expect(splitStatements(`${cssInsert}\n${nextInsert}`)).toEqual([
+        cssInsert,
+        nextInsert,
+      ]);
     });
   });
 
@@ -70,18 +101,25 @@ describeWithEnv("backup", { db: true }, () => {
         manifest.timestamp,
       );
       expect(manifest.tables.listings).toBe(1);
+      expect(new TextDecoder().decode(files["manifest.json"]!)).toContain(
+        '\n  "latestUpdate"',
+      );
+      // ZIP method 8 is DEFLATE; method 0 would store every entry uncompressed.
+      expect(new DataView(zipData.buffer).getUint16(8, true)).toBe(8);
     });
   });
 
-  describe("readManifest", () => {
+  describe("inspectBackupZip", () => {
     test("reads manifest from backup zip", async () => {
-      const manifest = readManifest(await createBackupZip());
+      const { manifest } = inspectBackupZip(await createBackupZip());
       expect(manifest).not.toBeNull();
       expect(manifest!.schemaHash).toBe(SCHEMA_HASH);
     });
 
     test("returns null for zip without manifest", () => {
-      expect(readManifest(zipSync({ "a.sql": new Uint8Array(0) }))).toBeNull();
+      expect(
+        inspectBackupZip(zipSync({ "a.sql": new Uint8Array(0) })).manifest,
+      ).toBeNull();
     });
 
     test("returns null for manifest with invalid shape", () => {
@@ -89,7 +127,7 @@ describeWithEnv("backup", { db: true }, () => {
       const zip = zipSync({
         "manifest.json": encoder.encode(JSON.stringify({ wrong: "shape" })),
       });
-      expect(readManifest(zip)).toBeNull();
+      expect(inspectBackupZip(zip).manifest).toBeNull();
     });
 
     test("returns null for manifest missing required fields", () => {
@@ -99,19 +137,50 @@ describeWithEnv("backup", { db: true }, () => {
           JSON.stringify({ latestUpdate: "ok", schemaHash: "ok" }),
         ),
       });
-      expect(readManifest(zip)).toBeNull();
+      expect(inspectBackupZip(zip).manifest).toBeNull();
     });
-  });
 
-  describe("countZipStatements", () => {
+    test("lists every populated table whose data is missing", () => {
+      const cases = [
+        [{ listings: 1 }, "listings"],
+        [{ attendees: 2, listings: 1 }, "attendees, listings"],
+      ] as const;
+
+      for (const [tables, names] of cases) {
+        const zip = zipSync({
+          "manifest.json": new TextEncoder().encode(
+            JSON.stringify({
+              latestUpdate: LATEST_UPDATE,
+              schemaHash: SCHEMA_HASH,
+              tables,
+              timestamp: "2026-07-22T00:00:00.000Z",
+            }),
+          ),
+        });
+        expect(() => inspectBackupZip(zip)).toThrow(
+          `Backup is missing data for tables: ${names}`,
+        );
+      }
+    });
+
     test("counts SQL statements across files in zip", async () => {
       await createTestListing({ name: "Count Test" });
-      const count = countZipStatements(await createBackupZip());
-      expect(count).toBeGreaterThanOrEqual(2);
+      const inspection = inspectBackupZip(await createBackupZip());
+      expect(inspection.statementCount).toBeGreaterThanOrEqual(2);
     });
   });
 
   describe("restoreFromSql", () => {
+    const dumpWithFutureMigrations = async (ids: string[]): Promise<string> => {
+      const recorded = await exportTable("schema_migrations");
+      return `${recorded.sql}\n${ids
+        .map(
+          (id) =>
+            `INSERT INTO "schema_migrations" ("id", "description", "applied_at") VALUES ('${id}', 'Future change', '2099-01-01T00:00:00.000Z');`,
+        )
+        .join("\n")}`;
+    };
+
     test("restores data from SQL statements", async () => {
       await createTestListing({ name: "Before Restore" });
       const { sql } = await exportTable("listings");
@@ -147,27 +216,127 @@ describeWithEnv("backup", { db: true }, () => {
       );
       expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
     });
+
+    test("refuses one future migration before wiping existing data", async () => {
+      await createTestListing({ name: "Still here" });
+
+      await expect(
+        restoreFromSql(
+          await dumpWithFutureMigrations(["2099-01-01_from_the_future"]),
+        ),
+      ).rejects.toThrow("2099-01-01_from_the_future");
+      expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
+        "Still here",
+      ]);
+    });
+
+    test("explains every future migration and how to proceed", async () => {
+      const ids = [
+        "2099-01-01_first_future_change",
+        "2099-01-02_second_future_change",
+      ];
+      const error = await restoreFromSql(
+        await dumpWithFutureMigrations(ids),
+      ).catch((caught: unknown) => caught);
+
+      expect((error as Error).message).toBe(
+        "Backup is from a newer version of the app: it records migration(s) " +
+          `newer than this build knows (${ids.join(", ")}). ` +
+          "Update the site to that version or newer, then restore this backup.",
+      );
+    });
+
+    test("marks failures after reset with their exact cause", async () => {
+      const error = await restoreFromSql("", ({ stage }) => {
+        if (stage === "rebuilding") throw new Error("rebuild stopped");
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(PostResetError);
+      expect((error as Error).name).toBe("PostResetError");
+      expect((error as Error).message).toBe("Error: rebuild stopped");
+    });
+
+    test("imports large backups without one long transaction", async () => {
+      const sql = Array.from(
+        { length: 2 },
+        (_, index) =>
+          `INSERT INTO settings (key, value) VALUES ('large_${index}', '${index}');`,
+      ).join("\n");
+      const client = getDb();
+      const originalBatch = client.batch.bind(client);
+      const importBatchSizes: number[] = [];
+      let importing = false;
+      const batchStub = stub(client, "batch", ((
+        statements: InStatement[],
+        mode?: TransactionMode,
+      ) => {
+        if (
+          statements.some(
+            (statement: string | { sql: string }) =>
+              (typeof statement === "string" ? statement : statement.sql) ===
+              "DELETE FROM settings",
+          )
+        ) {
+          importing = true;
+        }
+        if (importing) {
+          importBatchSizes.push(statements.length);
+          if (statements.length > 1) {
+            return Promise.reject(new Error("TRANSACTION_TIMEOUT"));
+          }
+        }
+        return originalBatch(statements, mode);
+      }) as never);
+
+      try {
+        await restoreFromSql(sql);
+      } finally {
+        batchStub.restore();
+      }
+
+      expect(importBatchSizes).toEqual([1, 1, 1, 1, 1]);
+      expect(
+        await queryAll<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'",
+        ),
+      ).toEqual([{ count: 2 }]);
+    });
   });
 
   describe("restoreFromZip", () => {
     test("round-trips backup and restore", async () => {
       await createTestListing({ name: "Zip Restore Test" });
-      await restoreFromZip(await createBackupZip());
+      const zip = await createBackupZip();
+      const progress: Array<{ stage: string; statementCount: number }> = [];
+      await restoreFromZip(zip, (event) => progress.push(event));
       const listings = await listingsTable.findAll();
       expect(listings.length).toBe(1);
       expect(listings[0]!.name).toBe("Zip Restore Test");
+      expect(progress.map(({ stage }) => stage)).toEqual([
+        "checking",
+        "resetting",
+        "rebuilding",
+        "importing",
+        "clearing-caches",
+      ]);
+      expect(progress.map(({ statementCount }) => statementCount)).toEqual(
+        Array(5).fill(inspectBackupZip(zip).statementCount),
+      );
     });
 
-    test("preserves newlines in values through roundtrip", async () => {
-      await createTestListing({
-        description: "first\nsecond\nthird",
-        name: "Newline Zip",
+    test("preserves CSS with emojis and semicolon-newlines through roundtrip", async () => {
+      const css =
+        "/* 🐸 Splish-Splash — a bright kids' theme 🐳 */\n\n" +
+        ":root {\n  --color-bg: #f2fcff;\n  --color-text: #0d3b45;\n}";
+      await getDb().execute({
+        args: ["custom_css", css],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
       });
       await restoreFromZip(await createBackupZip());
-      const listings = await listingsTable.findAll();
-      expect(listings[0]!.description.replace(/\r\n/g, "\n")).toBe(
-        "first\nsecond\nthird",
+      const restored = await queryAll<{ value: string }>(
+        "SELECT value FROM settings WHERE key = 'custom_css'",
       );
+      expect(restored).toEqual([{ value: css }]);
     });
 
     test("handles zip with missing table files", async () => {
@@ -181,6 +350,33 @@ describeWithEnv("backup", { db: true }, () => {
         "SELECT value FROM settings WHERE key = 'k'",
       );
       expect(rows[0]!.value).toBe("v");
+    });
+
+    test("lists unsupported table data before wiping the database", async () => {
+      await createTestListing({ name: "Still here" });
+      const cases = [
+        [["events"], "events"],
+        [["event_attendees", "events"], "event_attendees, events"],
+      ] as const;
+
+      for (const [tables, names] of cases) {
+        const unsupported = zipSync(
+          Object.fromEntries(
+            tables.map((table) => [
+              `${table}.sql`,
+              new TextEncoder().encode(
+                `INSERT INTO "${table}" ("id") VALUES (1);`,
+              ),
+            ]),
+          ),
+        );
+        await expect(restoreFromZip(unsupported)).rejects.toThrow(
+          `Backup contains data for tables this app cannot restore: ${names}`,
+        );
+      }
+      expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
+        "Still here",
+      ]);
     });
 
     const sqlOf = (stmt: string | { sql: string }): string =>

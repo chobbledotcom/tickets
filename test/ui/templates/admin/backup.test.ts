@@ -2,9 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
   adminBackupPage,
-  adminRestoreConfirmPage,
   type BackupPageState,
-  RESTORE_CONFIRM_PHRASE,
 } from "#templates/admin/backup.tsx";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -26,12 +24,14 @@ const baseState: BackupPageState = {
 describeWithEnv("backup template", { encryptionKey: true }, () => {
   test("renders page title", () => {
     const html = adminBackupPage(mockSession, baseState);
-    expect(html).toContain("Database Backup");
+    expect(html).toContain("Database backup");
+    expect(html).toContain('class="active" href="/admin/backup"');
   });
 
   test("displays encryption key", () => {
     const html = adminBackupPage(mockSession, baseState);
     expect(html).toContain(baseState.encryptionKey);
+    expect(html).toContain('<section><div class="prose"><h2>Encryption key');
   });
 
   test("shows local database warning when not remote", () => {
@@ -57,17 +57,20 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
 
   test("shows create backup form when storage enabled", () => {
     const html = adminBackupPage(mockSession, baseState);
-    expect(html).toContain("Create Backup Now");
+    expect(html).toContain("Create backup now");
     expect(html).toContain("/admin/backup/create");
+    expect(html).toContain('class="no-bg"');
+    expect(html).toContain('id="backup-create"');
+    expect(html).toContain('<section><div class="prose"><h2>Create backup');
   });
 
-  test("hides backup forms when storage disabled", () => {
+  test("hides the create form when storage is disabled", () => {
     const html = adminBackupPage(mockSession, {
       ...baseState,
       storageEnabled: false,
     });
-    expect(html).not.toContain("Create Backup Now");
-    expect(html).not.toContain("Restore from Backup");
+    expect(html).not.toContain("Create backup now");
+    expect(html).toContain("Restore from backup");
   });
 
   test("shows no backups message when list is empty", () => {
@@ -110,12 +113,29 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
       ],
       maxBackups: 30,
     });
-    expect(html).toContain('class="prose"');
+    expect(html).toContain('<div class="prose"><p>There is 1 backup');
     expect(html).toContain("There is 1 backup");
     expect(html).toContain("Up to 30 are kept");
     expect(html).toContain(
       "29 more can be created before the oldest is purged",
     );
+  });
+
+  test("retention keeps the last available backup slot", () => {
+    const html = adminBackupPage(mockSession, {
+      ...baseState,
+      backups: [
+        {
+          filename: "backup-2024-01-15T12-00-00-000Z.zip",
+          label: "Monday 15 January 2024 at 12:00 UTC",
+          sizeLabel: "1MB",
+          timestamp: "2024-01-15T12-00-00-000Z",
+        },
+      ],
+      maxBackups: 2,
+    });
+    expect(html).toContain("1 more can be created before the oldest is purged");
+    expect(html).not.toContain("the next will purge the oldest");
   });
 
   test("retention note warns the oldest is purged next when at capacity", () => {
@@ -138,11 +158,15 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
     expect(html).toContain("the next will purge the oldest (backup 1)");
   });
 
-  test("renders restore form with file upload for .zip", () => {
+  test("shows the out-of-band restore command without a web form", () => {
     const html = adminBackupPage(mockSession, baseState);
-    expect(html).toContain("Restore from Backup");
-    expect(html).toContain('type="file"');
-    expect(html).toContain('accept=".zip"');
+    expect(html).toContain("deno task restore &lt;backup.zip&gt;");
+    expect(html).toContain("large restore exceeds the edge request limit");
+    expect(html).not.toContain("/admin/backup/restore");
+    expect(html).toContain(
+      '<section><div class="prose"><h2>Restore from backup',
+    );
+    expect(html).toContain('href="/admin/guide#backups"');
   });
 
   test("shows error message when provided", () => {
@@ -164,65 +188,5 @@ describeWithEnv("backup template", { encryptionKey: true }, () => {
     );
     expect(html).toContain("Backup created");
     expect(html).toContain("success");
-  });
-
-  test("restore confirm page shows statement count", () => {
-    const html = adminRestoreConfirmPage(mockSession, "test.zip", 42);
-    expect(html).toContain("42");
-    expect(html).toContain("SQL statements");
-  });
-
-  test("restore confirm page shows confirmation phrase", () => {
-    const html = adminRestoreConfirmPage(mockSession, "test.zip", 10);
-    expect(html).toContain(RESTORE_CONFIRM_PHRASE);
-  });
-
-  test("restore confirm page includes hidden backup filename", () => {
-    const html = adminRestoreConfirmPage(
-      mockSession,
-      "restore-pending-abc.zip",
-      5,
-    );
-    expect(html).toContain("restore-pending-abc.zip");
-    expect(html).toContain('name="backup_filename"');
-  });
-
-  test("restore confirm page renders error as HTML not escaped text", () => {
-    const html = adminRestoreConfirmPage(
-      mockSession,
-      "test.zip",
-      10,
-      "Phrase mismatch",
-    );
-    expect(html).toContain("Phrase mismatch");
-    // Should be rendered as HTML div, not escaped
-    expect(html).toContain('class="error"');
-  });
-
-  test("restore confirm page shows schema mismatch warning", () => {
-    const html = adminRestoreConfirmPage(
-      mockSession,
-      "test.zip",
-      10,
-      undefined,
-      true,
-    );
-    expect(html).toContain("Schema mismatch");
-    expect(html).toContain("different database schema version");
-  });
-
-  test("restore confirm page hides schema warning when schemas match", () => {
-    const html = adminRestoreConfirmPage(
-      mockSession,
-      "test.zip",
-      10,
-      undefined,
-      false,
-    );
-    expect(html).not.toContain("Schema mismatch");
-  });
-
-  test("RESTORE_CONFIRM_PHRASE describes the danger", () => {
-    expect(RESTORE_CONFIRM_PHRASE).toContain("dangerous");
   });
 });

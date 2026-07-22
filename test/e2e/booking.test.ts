@@ -14,7 +14,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
+import { restoreFromZip } from "#shared/db/backup.ts";
 import {
   invalidateAllCaches,
   setupAndLogin,
@@ -204,10 +204,10 @@ describe("e2e: full booking flow", () => {
     await withLocalStorageEnabled(async () => {
       // 14. Navigate to backup page and create a backup
       await browser.visit("/admin/backup");
-      expect(browser.containsText("Database Backup")).toBe(true);
-      expect(browser.containsText("Encryption Key")).toBe(true);
+      expect(browser.containsText("Database backup")).toBe(true);
+      expect(browser.containsText("Encryption key")).toBe(true);
 
-      await browser.submitForm({}, "Create Backup Now");
+      await browser.submitForm({}, "Create backup now");
       expect(browser.containsText("Database backup created")).toBe(true);
 
       // 15. Download the backup zip for later restore
@@ -234,31 +234,12 @@ describe("e2e: full booking flow", () => {
       // 20. Verify the listing and attendee are gone after reset
       expect(browser.containsText("Summer Concert")).toBe(false);
 
-      // 21. Navigate to backup page and restore from the saved zip
-      await browser.visit("/admin/backup");
-      await browser.submitFormWithFile(
-        "backup_file",
-        "backup.zip",
-        backupZip,
-        {},
-        "Upload",
-      );
-      // Should show the restore confirmation page
-      expect(browser.containsText("Confirm Database Restore")).toBe(true);
-      expect(browser.containsText("SQL statements")).toBe(true);
-
-      // 22. Confirm the restore
-      await browser.submitForm(
-        { confirm_identifier: RESTORE_CONFIRM_PHRASE },
-        "Restore Database",
-      );
-      // The restore handler clears the session cookie and redirects to
-      // /admin/login, so the flash appears on the login page even though the
-      // operator's post-reset session is no longer valid.
-      expect(browser.containsText("Database restored from backup")).toBe(true);
+      // 21. Restore out of band, as the Deno task does. A realistic restore
+      // cannot fit within Bunny's per-request subrequest budget.
+      await restoreFromZip(backupZip);
       invalidateAllCaches();
 
-      // 23. Log in again (restore wiped sessions)
+      // 22. Log in again (restore wiped sessions)
       await browser.visit("/admin/");
       if (browser.currentHtml.includes("Login")) {
         await browser.submitForm(
@@ -270,7 +251,7 @@ describe("e2e: full booking flow", () => {
         await browser.clickLink("Back to dashboard");
       }
 
-      // 24. Verify the listing and attendee are back
+      // 23. Verify the listing and attendee are back
       expect(browser.containsText("Summer Concert")).toBe(true);
       await browser.clickLink("Summer Concert");
       const backId = browser.currentUrl.match(/\/admin\/listing\/(\d+)/)?.[1];
