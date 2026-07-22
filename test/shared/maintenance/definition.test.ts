@@ -20,7 +20,7 @@ const task = (
   });
 
 describe("maintenance task declarations", () => {
-  test("totals every startup call and the shared settings and sync reads", () => {
+  test("totals every startup call and the shared settings and sync calls", () => {
     expect(maintenanceStartupCalls([])).toEqual({
       database: 0,
       external: 0,
