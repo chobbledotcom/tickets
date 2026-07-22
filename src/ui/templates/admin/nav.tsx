@@ -10,7 +10,6 @@
  */
 
 import { t } from "#i18n";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import {
   type NavLink,
   type NavSection,
@@ -18,6 +17,7 @@ import {
   visibleTopLevel,
 } from "#shared/admin-pages.ts";
 import type { AdminSurfaceContext } from "#shared/admin-surface/definitions.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getReadOnlyCutoffIso,

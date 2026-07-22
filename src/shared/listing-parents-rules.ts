@@ -29,6 +29,10 @@ export type EdgeListing = {
   day_prices: DayPrices;
 };
 
+/** Explain that a child would hide an opt-in add-on reachable only through it. */
+export const childAddOnError = (addOn: string, name: string): string =>
+  t("listings_table.children_err_child_addon", { addon: addOn, name });
+
 /** A fixed-duration parent's single resolved booking span (days): its own
  * `duration_days` for a daily listing, otherwise 1. Only meaningful for a
  * non-`customisable_days` parent (a customisable parent has a *range*, via

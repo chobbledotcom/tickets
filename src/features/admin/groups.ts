@@ -21,6 +21,7 @@ import {
   assignListingsToGroup,
   computeGroupSlugIndex,
   type GroupInput,
+  generateUniqueGroupSlug,
   getListingsByGroupId,
   groups,
   hasPackageBookings,
@@ -42,7 +43,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
+import { normalizeSlug } from "#shared/slug.ts";
 import type {
   AdminSession,
   DayPrices,
@@ -63,11 +64,8 @@ import { withEntityLoader } from "./entity-handlers.ts";
 import { withGroupOrNull } from "./find-group.ts";
 import { groupPage } from "./group-page.ts";
 import { createItemImageHandlers } from "./item-images.ts";
-/* jscpd:ignore-end */
 
-/** Generate a unique group slug, retrying on collision */
-export const generateUniqueGroupSlug = () =>
-  generateUniqueSlug(computeGroupSlugIndex, isGroupSlugTaken);
+/* jscpd:ignore-end */
 
 /** Shared shape of the group validators: an error message, or null when valid.
  * `id` is the group being edited (absent on create). */

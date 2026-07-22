@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";

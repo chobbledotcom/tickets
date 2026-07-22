@@ -31,18 +31,13 @@ import {
   toListingGroupMembership,
 } from "#shared/db/modifier-resolve.ts";
 import {
+  childAddOnError,
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
 import { packageChildEdgeError } from "#shared/package-membership.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import type { ListingParentsSection } from "#templates/admin/listings/types.ts";
-
-/** Error shown when a child (named `name`) would hide an opt-in add-on that is
- * only reachable through it — named after the add-on. Shared by the edge editor
- * and the catalog import's would-be check. */
-export const childAddOnError = (addOn: string, name: string): string =>
-  t("listings_table.children_err_child_addon", { addon: addOn, name });
 
 /** Error shown when the parent is itself offered as a child: single-level
  * nesting means it can't also gate children. */

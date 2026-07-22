@@ -14,12 +14,11 @@
 import * as v from "valibot";
 import { identity, mapById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
-import { childAddOnError } from "#routes/admin/listings-parents.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
   type GroupInput,
+  generateUniqueGroupSlug,
   getGroupsById,
   groups,
   listingGroups,
@@ -50,6 +49,7 @@ import {
 } from "#shared/db/name-registry.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  childAddOnError,
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
