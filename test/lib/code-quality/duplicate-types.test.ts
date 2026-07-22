@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { blankSpans } from "#scripts/typescript-lex.ts";
 import {
-  blankSpans,
   extractTypeShapes,
   findDuplicateTypeShapes,
   type NamedTypeShape,

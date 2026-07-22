@@ -60,6 +60,23 @@ describe("ticket quantity required", () => {
     expect(form.querySelector("[role=alert]")).toBeNull();
   });
 
+  test("blocks malformed ticket quantities", () => {
+    const { form, submit, window } = setupForm(`
+      <form>
+        <input name="quantity_1" value="1invalid">
+        <input name="quantity_2" value="9007199254740992">
+      </form>
+    `);
+    window.HTMLElement.prototype.scrollIntoView = () => {};
+
+    const event = submit();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(form.querySelector("[role=alert]")?.textContent).toBe(
+      "Please select at least one ticket",
+    );
+  });
+
   test("blocks submission and shows one error when no tickets are selected", () => {
     const { form, submit, window } = setupForm(`
       <form>

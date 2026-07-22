@@ -2,6 +2,7 @@
 
 import { relative } from "node:path";
 import { lineColumnAt } from "./line-column.ts";
+import { blankSpans, skipCommentOrString } from "./typescript-lex.ts";
 import { collectFiles } from "./walk-files.ts";
 
 type Finding = {
@@ -41,6 +42,11 @@ const testBlockEnd = (content: string, start: number): number | null => {
   let depth = 0;
   let seenOpen = false;
   for (let index = start; index < content.length; index += 1) {
+    const skipped = skipCommentOrString(content, index);
+    if (skipped !== index) {
+      index = skipped - 1;
+      continue;
+    }
     const char = content[index];
     if (char === "(") {
       depth += 1;
@@ -58,7 +64,8 @@ const testBlockRanges = (content: string): { end: number; start: number }[] => {
   // calls such as `someRegex.test(value)` (the lookbehind rejects a leading
   // `.`/identifier char) which would otherwise be flagged as assertionless.
   const startPattern = /\bDeno\.test\s*\(|(?<![.\w$])(?:test|it)\s*\(/g;
-  for (const match of content.matchAll(startPattern)) {
+  const code = blankSpans(content, true);
+  for (const match of code.matchAll(startPattern)) {
     const start = match.index ?? 0;
     const end = testBlockEnd(content, start);
     if (end !== null) ranges.push({ end, start });
@@ -66,7 +73,10 @@ const testBlockRanges = (content: string): { end: number; start: number }[] => {
   return ranges;
 };
 
-const findAssertionlessTests = (path: string, content: string): Finding[] =>
+export const findAssertionlessTests = (
+  path: string,
+  content: string,
+): Finding[] =>
   testBlockRanges(content)
     .filter(({ end, start }) => !EXPECT_PATTERN.test(content.slice(start, end)))
     .map(({ start }) => ({

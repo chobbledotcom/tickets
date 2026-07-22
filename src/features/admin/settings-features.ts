@@ -1,4 +1,6 @@
 /* jscpd:ignore-start -- imports */
+
+import * as v from "valibot";
 import { t } from "#i18n";
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -25,6 +27,8 @@ import { adminFeaturePage } from "#templates/admin/features.tsx";
 
 /* jscpd:ignore-end */
 
+const FeatureChoiceSchema = v.picklist(["true", "false"]);
+
 const withAdminFeature = (
   slug: string,
   use: (feature: AdminFeatureDefinition) => Promise<Response>,
@@ -39,11 +43,11 @@ const saveFeatureChoice = async (
   form: FormParams,
 ): Promise<Response> => {
   const path = `/admin/features/${feature.slug}`;
-  const value = form.getString("enabled");
-  if (value !== "true" && value !== "false") {
+  const choice = v.safeParse(FeatureChoiceSchema, form.getString("enabled"));
+  if (!choice.success) {
     return errorRedirect(path, t("features.invalid_value"));
   }
-  const enabled = value === "true";
+  const enabled = choice.output === "true";
   if (!enabled && (await getAdminFeatureUsage())[feature.key]) {
     return errorRedirect(path, t("features.in_use_help"));
   }

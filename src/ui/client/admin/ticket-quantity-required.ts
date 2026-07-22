@@ -12,8 +12,9 @@ type QuantityInput = HTMLSelectElement | HTMLInputElement;
 const selectedTicketQuantity = (inputs: NodeListOf<QuantityInput>): number => {
   let total = 0;
   for (const input of inputs) {
-    const value = Number.parseInt(input.value, 10);
-    if (!Number.isNaN(value) && value > 0) total += value;
+    const raw = input.value.trim();
+    const value = /^\d+$/.test(raw) ? Number(raw) : 0;
+    if (Number.isSafeInteger(value) && value > 0) total += value;
   }
   return total;
 };

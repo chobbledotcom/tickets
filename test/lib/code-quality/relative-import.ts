@@ -3,7 +3,7 @@ import {
   skipComment,
   skipCommentOrString,
   skipString,
-} from "./detectors.ts";
+} from "#scripts/typescript-lex.ts";
 
 /**
  * No relative "../" imports — use a `#` alias instead.

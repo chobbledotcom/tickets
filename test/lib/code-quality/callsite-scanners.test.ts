@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { skipComment, skipString } from "#scripts/typescript-lex.ts";
 import {
   extractCallSites,
   isConstantLiteral,
   parseArgList,
-  skipComment,
-  skipString,
 } from "./detectors.ts";
 
 /**
@@ -299,6 +298,10 @@ describe("skipComment", () => {
 
   test("skips a block comment", () => {
     expect(skipComment("/* x */y", 0)).toBe(7);
+  });
+
+  test("stops at the end of an unterminated block comment", () => {
+    expect(skipComment("/* x", 0)).toBe(4);
   });
 
   test("ends a block comment only at star-slash, not a bare slash", () => {

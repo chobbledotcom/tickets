@@ -3,7 +3,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   NO_QUANTITY_PREFIX,
   QTY_PREFIX,
-} from "#routes/admin/attendee-form-model.ts";
+} from "#routes/admin/attendee-form-lines.ts";
 import { COLUMN_LAYOUTS } from "#shared/column-layout.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
