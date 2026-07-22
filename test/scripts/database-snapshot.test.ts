@@ -66,6 +66,18 @@ const directoryNames = async (path: string): Promise<string[]> => {
   return names.sort();
 };
 
+const expectExistingFilePreserved = async (
+  outputPath: string,
+  existingPath: string,
+  content: string,
+  factory: SnapshotClientFactory,
+): Promise<void> => {
+  await expect(
+    createDatabaseSnapshot(request(outputPath), factory),
+  ).rejects.toThrow(`Output already exists: ${existingPath}`);
+  expect(await Deno.readTextFile(existingPath)).toBe(content);
+};
+
 describe("database snapshot", () => {
   test("publishes a complete SQLite database", () =>
     withTempDir(async (dir) => {
@@ -171,15 +183,39 @@ describe("database snapshot", () => {
       await Deno.writeTextFile(outputPath, "keep me");
       let clientCreated = false;
 
-      await expect(
-        createDatabaseSnapshot(request(outputPath), () => {
+      await expectExistingFilePreserved(
+        outputPath,
+        outputPath,
+        "keep me",
+        () => {
           clientCreated = true;
           return replicaClient(unusedSync);
-        }),
-      ).rejects.toThrow(`Output already exists: ${outputPath}`);
+        },
+      );
 
       expect(clientCreated).toBe(false);
-      expect(await Deno.readTextFile(outputPath)).toBe("keep me");
+    }));
+
+  test("refuses existing SQLite sidecars before syncing", () =>
+    withTempDir(async (dir) => {
+      for (const suffix of ["-wal", "-shm"]) {
+        const outputPath = join(dir, `snapshot${suffix}.sqlite`);
+        const sidecarPath = `${outputPath}${suffix}`;
+        await Deno.writeTextFile(sidecarPath, "keep me");
+        let clientCreated = false;
+
+        await expectExistingFilePreserved(
+          outputPath,
+          sidecarPath,
+          "keep me",
+          () => {
+            clientCreated = true;
+            return replicaClient(unusedSync);
+          },
+        );
+
+        expect(clientCreated).toBe(false);
+      }
     }));
 
   test("rejects a missing output directory before syncing", () =>
@@ -228,11 +264,58 @@ describe("database snapshot", () => {
         [[checkpointOk], [integrityOk]],
       );
 
-      await expect(
-        createDatabaseSnapshot(request(outputPath), factory),
-      ).rejects.toThrow(`Output already exists: ${outputPath}`);
+      await expectExistingFilePreserved(
+        outputPath,
+        outputPath,
+        "racing output",
+        factory,
+      );
 
-      expect(await Deno.readTextFile(outputPath)).toBe("racing output");
+      expect(await directoryNames(dir)).toEqual(["snapshot.sqlite"]);
+    }));
+
+  test("does not publish beside a sidecar created while syncing", () =>
+    withTempDir(async (dir) => {
+      const outputPath = join(dir, "snapshot.sqlite");
+      const sidecarPath = `${outputPath}-wal`;
+      const factory = fakeDatabaseFactory(
+        async (path) => {
+          await Deno.writeTextFile(path, "new snapshot");
+          await Deno.writeTextFile(sidecarPath, "racing WAL");
+        },
+        [[checkpointOk], [integrityOk]],
+      );
+
+      await expectExistingFilePreserved(
+        outputPath,
+        sidecarPath,
+        "racing WAL",
+        factory,
+      );
+
+      expect(await pathExists(outputPath)).toBe(false);
+    }));
+
+  test("does not overwrite an output created during atomic publication", () =>
+    withTempDir(async (dir) => {
+      const outputPath = join(dir, "snapshot.sqlite");
+      const factory = fakeDatabaseFactory(
+        (path) => Deno.writeTextFile(path, "new snapshot"),
+        [[checkpointOk], [integrityOk]],
+      );
+      const link = Deno.link;
+      using _link = stub(Deno, "link", async (oldPath, newPath) => {
+        await Deno.writeTextFile(newPath, "racing output");
+        await link(oldPath, newPath);
+      });
+
+      await expectExistingFilePreserved(
+        outputPath,
+        outputPath,
+        "racing output",
+        factory,
+      );
+
       expect(await directoryNames(dir)).toEqual(["snapshot.sqlite"]);
     }));
 

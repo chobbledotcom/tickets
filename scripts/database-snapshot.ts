@@ -4,7 +4,7 @@ import { createClient } from "@libsql/client";
 import {
   createDatabaseSnapshot,
   parseSnapshotArgs,
-  readSnapshotRequest,
+  readSnapshotRequestFromEnvFile,
   SNAPSHOT_USAGE,
 } from "#scripts/database-snapshot-lib.ts";
 
@@ -13,7 +13,7 @@ if (options === null) {
   console.log(SNAPSHOT_USAGE);
 } else {
   const outputPath = await createDatabaseSnapshot(
-    readSnapshotRequest(options),
+    await readSnapshotRequestFromEnvFile(options),
     createClient,
   );
   console.log(`Database snapshot written to ${outputPath}`);

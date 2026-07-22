@@ -1,5 +1,6 @@
 import type { Config } from "@libsql/client";
 import { parseArgs } from "@std/cli/parse-args";
+import { load } from "@std/dotenv";
 import { basename, dirname, join, resolve, toFileUrl } from "@std/path";
 import * as v from "valibot";
 import { withCleanup } from "#scripts/cleanup.ts";
@@ -28,6 +29,9 @@ export interface SnapshotClient {
 
 export type SnapshotClientFactory = (config: Config) => SnapshotClient;
 export type SnapshotEnvReader = (key: string) => string | undefined;
+export type SnapshotEnvFileLoader = (
+  path: string,
+) => Promise<Record<string, string>>;
 
 const OutputValuesSchema = v.strictTuple([
   v.pipe(
@@ -122,6 +126,19 @@ export const readSnapshotRequest = (
   outputPath: options.outputPath,
 });
 
+const loadSnapshotEnvFile: SnapshotEnvFileLoader = (path) =>
+  load({ envPath: path });
+
+export const readSnapshotRequestFromEnvFile = async (
+  options: SnapshotOptions,
+  path = ".env",
+  readEnv: SnapshotEnvReader = getEnv,
+  loadFile: SnapshotEnvFileLoader = loadSnapshotEnvFile,
+): Promise<SnapshotRequest> => {
+  const fileEnv = await loadFile(path);
+  return readSnapshotRequest(options, (key) => fileEnv[key] ?? readEnv(key));
+};
+
 const outputAlreadyExists = (path: string): Error =>
   new Error(`Output already exists: ${path}`);
 
@@ -152,9 +169,21 @@ const requireOutputDirectory = async (path: string): Promise<void> => {
     throw new Error(`Output directory is not a directory: ${path}`);
 };
 
-const requireMissingOutput = async (path: string): Promise<void> => {
-  const info = await lstatOrNull(path);
-  if (info !== null) throw outputAlreadyExists(path);
+const outputFiles = (path: string): string[] => [
+  path,
+  `${path}-wal`,
+  `${path}-shm`,
+];
+
+const requireMissingOutputFiles = async (path: string): Promise<void> => {
+  const existingPath = (
+    await Promise.all(
+      outputFiles(path).map(async (filePath) =>
+        (await lstatOrNull(filePath)) === null ? null : filePath,
+      ),
+    )
+  ).find((filePath) => filePath !== null);
+  if (existingPath !== undefined) throw outputAlreadyExists(existingPath);
 };
 
 const withSnapshotClient = <Result>(
@@ -223,6 +252,7 @@ const publishSnapshot = async (
   temporaryPath: string,
   outputPath: string,
 ): Promise<void> => {
+  await requireMissingOutputFiles(outputPath);
   try {
     await Deno.link(temporaryPath, outputPath);
   } catch (error) {
@@ -240,7 +270,7 @@ export const createDatabaseSnapshot = async (
   const outputPath = resolve(request.outputPath);
   const outputDirectory = dirname(outputPath);
   await requireOutputDirectory(outputDirectory);
-  await requireMissingOutput(outputPath);
+  await requireMissingOutputFiles(outputPath);
   const temporaryDirectory = await Deno.makeTempDir({
     dir: outputDirectory,
     prefix: `.${basename(outputPath)}-snapshot-`,

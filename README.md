@@ -367,7 +367,7 @@ Optional:
 deno task snapshot --out backups/site.sqlite
 ```
 
-The task uses libSQL page-level sync, moves all WAL data into the main file, and checks the finished database before publishing it. It refuses to replace an existing file. The temporary replica is created beside the output and removed on success or failure. Run this only on a development machine; it needs a local filesystem and the native libSQL client. The file contains the database exactly as stored, including encrypted personal data, but it does not include environment secrets or files held in Bunny Storage.
+The task reads `DB_URL` and `DB_TOKEN` from `.env`. Values in that file take priority over existing shell variables. It then uses libSQL page-level sync, moves all WAL data into the main file, and checks the finished database before publishing it. It refuses to replace an existing file. The temporary replica is created beside the output and removed on success or failure. Run this only on a development machine; it needs a local filesystem and the native libSQL client. The file contains the database exactly as stored, including encrypted personal data, but it does not include environment secrets or files held in Bunny Storage.
 
 The deploy workflows back a site up (via `POST /instance/site-credentials`) before deploying to it (the staging push-to-`main` trigger is the one exception — see below):
 

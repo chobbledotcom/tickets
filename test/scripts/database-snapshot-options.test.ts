@@ -1,11 +1,14 @@
 import { expect } from "@std/expect";
+import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   parseSnapshotArgs,
   readSnapshotRequest,
+  readSnapshotRequestFromEnvFile,
   SNAPSHOT_USAGE,
 } from "#scripts/database-snapshot-lib.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { withTempDir } from "#test-utils/files.ts";
 
 const envReader =
   (values: Record<string, string | undefined>) =>
@@ -51,6 +54,46 @@ describe("database snapshot options", () => {
       outputPath: "site.sqlite",
     });
   });
+
+  test("prefers database credentials from .env over shell values", () =>
+    withTempDir(async (dir) => {
+      const envPath = join(dir, ".env");
+      await Deno.writeTextFile(
+        envPath,
+        'DB_URL="libsql://file.example.com"\nDB_TOKEN="file-token"\n',
+      );
+
+      await expect(
+        readSnapshotRequestFromEnvFile(
+          { outputPath: "site.sqlite" },
+          envPath,
+          envReader({ DB_TOKEN: "shell-token", DB_URL: ":memory:" }),
+        ),
+      ).resolves.toEqual({
+        dbToken: "file-token",
+        dbUrl: "libsql://file.example.com",
+        outputPath: "site.sqlite",
+      });
+    }));
+
+  test("uses shell credentials when .env is absent", () =>
+    withTempDir(
+      async (dir) =>
+        await expect(
+          readSnapshotRequestFromEnvFile(
+            { outputPath: "site.sqlite" },
+            join(dir, ".env"),
+            envReader({
+              DB_TOKEN: "shell-token",
+              DB_URL: "libsql://shell.example.com",
+            }),
+          ),
+        ).resolves.toEqual({
+          dbToken: "shell-token",
+          dbUrl: "libsql://shell.example.com",
+          outputPath: "site.sqlite",
+        }),
+    ));
 
   test("rejects missing database credentials", () => {
     expect(() =>
