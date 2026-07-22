@@ -65,6 +65,7 @@ const siteMonitor = (
     (monitor) =>
       monitor.type === "http" &&
       monitor.parent === groupId &&
+      monitor.method === "POST" &&
       monitor.url === url,
   );
   if (matches.length > 1) {
