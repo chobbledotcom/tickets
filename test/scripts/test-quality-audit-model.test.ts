@@ -23,13 +23,47 @@ describe("test quality audit model", () => {
       'const template = `test("template", () => {})`;',
       '// test("line comment", () => {});',
       '/* test("block comment", () => {}); */',
-      `const weak = 'expect(value).toBeDefined()';`,
-      "// expect(value).toBeTruthy();",
-      "/* expect(left && right).toBe(true); */",
       'test("real", () => expect(1).toBe(1));',
     ].join("\n");
 
     expect(auditTestContent("fixture.test.ts", content)).toEqual([]);
+  });
+
+  test("ignores weak assertions inside lexical text", () => {
+    const content = [
+      `const quoted = 'expect(value).toBeDefined()';`,
+      "const template = `expect(value).toBeFalsy()`;",
+      "// expect(value).toBeTruthy();",
+      "/* expect(left && right).toBe(true); */",
+    ].join("\n");
+
+    expect(auditTestContent("fixture.test.ts", content)).toEqual([]);
+  });
+
+  test("reports tests whose assertion text is only lexical", () => {
+    const content = [
+      'test("comment", () => {',
+      "  // TODO: expect(value).toBe(value);",
+      "});",
+      'test("string", () => {',
+      '  const reminder = "assertEquals(value, expected)";',
+      "});",
+    ].join("\n");
+
+    expect(auditTestContent("fixture.test.ts", content)).toEqual([
+      {
+        column: 1,
+        line: 1,
+        message: "test has no visible assertion",
+        path: "fixture.test.ts",
+      },
+      {
+        column: 1,
+        line: 4,
+        message: "test has no visible assertion",
+        path: "fixture.test.ts",
+      },
+    ]);
   });
 
   test("reports an assertionless test at its declaration", () => {
@@ -52,6 +86,44 @@ describe("test quality audit model", () => {
     expect(
       auditTestContent("fixture.test.ts", 'test("unfinished", () => {'),
     ).toEqual([]);
+  });
+
+  test("keeps scanning after an apostrophe in JSX text", () => {
+    const content = [
+      'test("renders", () => {',
+      "  const node = <p>don't regress</p>;",
+      '  expect(String(node)).toContain("regress");',
+      "});",
+      'test("missing", () => doSomething());',
+    ].join("\n");
+
+    expect(auditTestContent("fixture.test.tsx", content)).toEqual([
+      {
+        column: 1,
+        line: 5,
+        message: "test has no visible assertion",
+        path: "fixture.test.tsx",
+      },
+    ]);
+  });
+
+  test("keeps scanning after comments in a template test title", () => {
+    const title = ["test(`handles $", "{/* } */ `inner )`}`, () => {"].join("");
+    const content = [
+      title,
+      "  expect(1).toBe(1);",
+      "});",
+      'test("missing", () => doSomething());',
+    ].join("\n");
+
+    expect(auditTestContent("fixture.test.ts", content)).toEqual([
+      {
+        column: 1,
+        line: 4,
+        message: "test has no visible assertion",
+        path: "fixture.test.ts",
+      },
+    ]);
   });
 
   test("reports each weak assertion kind", () => {

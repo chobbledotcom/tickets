@@ -60,6 +60,17 @@ describe("ticket quantity required", () => {
     expect(form.querySelector("[role=alert]")).toBeNull();
   });
 
+  test("allows leading-zero quantities accepted by the server", () => {
+    const { form, submit } = setupForm(`
+      <form><input name="quantity_1" value="01"></form>
+    `);
+
+    const event = submit();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(form.querySelector("[role=alert]")).toBeNull();
+  });
+
   test("blocks malformed ticket quantities", () => {
     const { form, submit, window } = setupForm(`
       <form>

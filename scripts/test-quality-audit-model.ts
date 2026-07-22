@@ -68,14 +68,16 @@ const testBlockRanges = (content: string): { end: number; start: number }[] => {
 const findAssertionlessTests = (
   path: string,
   content: string,
-): TestQualityFinding[] =>
-  testBlockRanges(content)
-    .filter(({ end, start }) => !EXPECT_PATTERN.test(content.slice(start, end)))
+): TestQualityFinding[] => {
+  const code = blankSpans(content, true);
+  return testBlockRanges(content)
+    .filter(({ end, start }) => !EXPECT_PATTERN.test(code.slice(start, end)))
     .map(({ start }) => ({
       ...lineColumnAt(content, start),
       message: "test has no visible assertion",
       path,
     }));
+};
 
 const findWeakAssertions = (
   path: string,

@@ -1,5 +1,31 @@
 const isQuote = (char: string | undefined): boolean =>
   char === '"' || char === "'" || char === "`";
+const isIdentifierChar = (char: string | undefined): boolean =>
+  char !== undefined && /[\w$]/.test(char);
+/** In TSX text, a word's apostrophe is punctuation, not a string delimiter. */
+const isQuoteAt = (content: string, index: number): boolean =>
+  isQuote(content[index]) &&
+  !(content[index] === "'" && isIdentifierChar(content[index - 1]));
+
+/** Skip a comment at `start`, or return `start` when there is no comment. */
+export const skipComment = (content: string, start: number): number => {
+  if (content[start] === "/" && content[start + 1] === "/") {
+    let index = start;
+    while (index < content.length && content[index] !== "\n") index += 1;
+    return index;
+  }
+  if (content[start] === "/" && content[start + 1] === "*") {
+    let index = start + 2;
+    while (
+      index < content.length &&
+      !(content[index] === "*" && content[index + 1] === "/")
+    ) {
+      index += 1;
+    }
+    return Math.min(index + 2, content.length);
+  }
+  return start;
+};
 
 type ScanStep = number | "end" | null;
 
@@ -17,7 +43,12 @@ const scanText = (
       index = step;
       continue;
     }
-    index = isQuote(content[index]) ? skipString(content, index) : index + 1;
+    const pastComment = skipComment(content, index);
+    if (pastComment !== index) {
+      index = pastComment;
+      continue;
+    }
+    index = isQuoteAt(content, index) ? skipString(content, index) : index + 1;
   }
   return index;
 };
@@ -49,31 +80,11 @@ export const skipString = (content: string, start: number): number => {
   });
 };
 
-/** Skip a comment at `start`, or return `start` when there is no comment. */
-export const skipComment = (content: string, start: number): number => {
-  if (content[start] === "/" && content[start + 1] === "/") {
-    let index = start;
-    while (index < content.length && content[index] !== "\n") index += 1;
-    return index;
-  }
-  if (content[start] === "/" && content[start + 1] === "*") {
-    let index = start + 2;
-    while (
-      index < content.length &&
-      !(content[index] === "*" && content[index + 1] === "/")
-    ) {
-      index += 1;
-    }
-    return Math.min(index + 2, content.length);
-  }
-  return start;
-};
-
 /** Skip lexical text at `start`, or return `start` for executable code. */
 export const skipCommentOrString = (content: string, start: number): number => {
   const pastComment = skipComment(content, start);
   if (pastComment !== start) return pastComment;
-  return isQuote(content[start]) ? skipString(content, start) : start;
+  return isQuoteAt(content, start) ? skipString(content, start) : start;
 };
 
 /** Replace comments and optionally strings with spaces while keeping offsets. */
@@ -92,7 +103,7 @@ export const blankSpans = (content: string, blankStrings: boolean): string => {
       index = pastComment;
       continue;
     }
-    if (isQuote(content[index])) {
+    if (isQuoteAt(content, index)) {
       const end = skipString(content, index);
       if (blankStrings) blank(index, end);
       index = end;

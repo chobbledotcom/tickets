@@ -229,12 +229,8 @@ describe("extractCallSites", () => {
   });
 });
 
-/**
- * Direct tokenizer tests. `extractCallSites` is too forgiving to expose these
- * helpers' internal edge cases — it always recovers at the next closing quote —
- * so the index/argument contracts are asserted here. (Same rationale as the
- * codebase's other "internal parser exposed for unit testing only".)
- */
+/** Direct tokenizer tests cover index contracts that call-site extraction does
+ * not expose. */
 describe("skipString", () => {
   test("returns the index just past a simple string", () => {
     expect(skipString('"abc"', 0)).toBe(5);
@@ -244,6 +240,11 @@ describe("skipString", () => {
     // The backslash escapes the next char; without skipping two, the closing
     // quote would be misread (and the index would be wrong).
     expect(skipString('"a\\nb"', 0)).toBe(6);
+  });
+
+  test("ignores an apostrophe inside a double-quoted string", () => {
+    const source = '"doesn\'t regress" after';
+    expect(source.slice(skipString(source, 0))).toBe(" after");
   });
 
   test("skips a template substitution", () => {
@@ -272,6 +273,16 @@ describe("skipString", () => {
 
   test("skips a backtick nested string inside a substitution", () => {
     expect(skipString("`${ `}` }`", 0)).toBe(10);
+  });
+
+  test("skips a block-comment brace before a nested template", () => {
+    const source = "`${/* } */ `inner`}`after";
+    expect(source.slice(skipString(source, 0))).toBe("after");
+  });
+
+  test("skips a line-comment brace inside a template substitution", () => {
+    const source = "`${// }\n`inner`}`after";
+    expect(source.slice(skipString(source, 0))).toBe("after");
   });
 
   test("treats a lone $ in a template as literal", () => {
