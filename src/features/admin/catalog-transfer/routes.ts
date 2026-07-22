@@ -9,9 +9,9 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 import { t } from "#i18n";
-import { contentMultipartRoute } from "#routes/admin/listings-edit.ts";
 import {
   type AuthSession,
+  contentMultipartRoute,
   contentPage,
   requireContentOr,
 } from "#routes/auth.ts";

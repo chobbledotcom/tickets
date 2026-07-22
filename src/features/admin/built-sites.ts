@@ -6,7 +6,6 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -14,6 +13,7 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/builder.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup-storage.ts";
 import {

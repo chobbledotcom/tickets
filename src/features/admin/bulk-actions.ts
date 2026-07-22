@@ -15,11 +15,7 @@ import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
-import {
-  generateUniqueGroupSlug,
-  groupFormPost,
-  withGroup,
-} from "#routes/admin/groups.ts";
+import { groupFormPost, withGroup } from "#routes/admin/groups.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -32,6 +28,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
   cloneGroupMembershipStatement,
+  generateUniqueGroupSlug,
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,

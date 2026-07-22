@@ -329,6 +329,7 @@ deno task build:edge     # Build for Bunny Edge
 deno task deploy:edge <script-id> # Build, upload, and publish to Bunny Edge using BUNNY_ACCESS_KEY from .env
 deno task backup         # Dump the database out-of-band (uploads to storage; --out <path> for a local .zip)
 deno task restore <backup.zip> # Restore the database at DB_URL from a local backup using DB_TOKEN from .env
+deno task snapshot --out <path.sqlite> # Copy the complete remote database to a local SQLite file
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 
@@ -367,6 +368,15 @@ subrequest limit. Put the target database's `DB_URL`, `DB_TOKEN`, and
 the backup, shows its table, row, statement, and schema details, and asks for a
 typed confirmation before deleting any data. It reports each restore step and
 shows the backup's recorded commit when one is available.
+
+**Local SQLite snapshots:** developers can copy a remote database into one complete SQLite file using the same `DB_URL` and `DB_TOKEN` as the app:
+
+```bash
+mkdir -p .local-data
+deno task snapshot --out .local-data/site.sqlite
+```
+
+The task reads `DB_URL` and `DB_TOKEN` from `.env`. Values in that file take priority over existing shell variables. It then uses libSQL page-level sync, moves all WAL data into the main file, and checks the finished database before publishing it. It refuses to replace an existing file. The temporary replica is created beside the output and removed on success or failure. Local `.sqlite` files and `.local-data/` are ignored by Git. Run this only on a development machine; it needs a local filesystem and the native libSQL client. The file contains the database exactly as stored, including encrypted personal data, but it does not include environment secrets or files held in Bunny Storage.
 
 The deploy workflows back a site up (via `POST /instance/site-credentials`) before deploying to it (the staging push-to-`main` trigger is the one exception — see below):
 

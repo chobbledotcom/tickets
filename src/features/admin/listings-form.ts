@@ -7,7 +7,7 @@
  */
 
 /* jscpd:ignore-start */
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { listingAttributeOptions } from "#shared/db/attributes.ts";
