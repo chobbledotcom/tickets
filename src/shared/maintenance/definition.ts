@@ -47,6 +47,7 @@ export const maintenanceStartupCalls = (
   const settingsRead = tasks.some((task) => task.check.settingsKeys.length > 0)
     ? 1
     : 0;
+  // Task sync can issue one idempotent insert and one guarded delete.
   const database =
     2 +
     settingsRead +
