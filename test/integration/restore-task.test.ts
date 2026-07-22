@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
 import {
-  applyRestoreFileEnv,
   RESTORE_CONFIRMATION,
   RESTORE_USAGE,
   type RestoreCliDeps,
@@ -88,23 +87,6 @@ const cliState = (overrides: Partial<RestoreCliDeps> = {}): CliState => {
 };
 
 describe("restore task", () => {
-  test("uses database values from .env instead of inherited values", () => {
-    const env = { DB_TOKEN: "ambient", DB_URL: ":memory:" };
-
-    applyRestoreFileEnv(
-      {
-        DB_TOKEN: "file-token",
-        DB_URL: "libsql://tickets.example.com",
-      },
-      (key, value) => Reflect.set(env, key, value),
-    );
-
-    expect(env).toEqual({
-      DB_TOKEN: "file-token",
-      DB_URL: "libsql://tickets.example.com",
-    });
-  });
-
   test("requires one backup path", async () => {
     const state = cliState({ args: [] });
 

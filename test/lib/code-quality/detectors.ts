@@ -318,14 +318,15 @@ export const importedSymbolsOf = (
 /**
  * Whether `symbolName` (exported from `sourceFile`) is used anywhere in
  * production code: within the same file, imported by another `.ts` source, or
- * imported by a `.tsx` template. `srcContents`/`tsxContents` map an absolute
- * path to its contents.
+ * imported by a `.tsx` template, or imported by another production entry point
+ * such as a console task. Each content map uses absolute paths as keys.
  */
 export const isUsedInProductionCode = (
   symbolName: string,
   sourceFile: string,
   srcContents: Map<string, string>,
   tsxContents: Map<string, string>,
+  productionEntryContents: Map<string, string>[] = [],
 ): boolean => {
   // Check if it's used within the same file
   const sourceContent = srcContents.get(sourceFile)!;
@@ -338,7 +339,10 @@ export const isUsedInProductionCode = (
   // index never wrongly credits `sourceFile` itself as an importer.
   return (
     importedSymbolsOf(srcContents).has(symbolName) ||
-    importedSymbolsOf(tsxContents).has(symbolName)
+    importedSymbolsOf(tsxContents).has(symbolName) ||
+    productionEntryContents.some((contents) =>
+      importedSymbolsOf(contents).has(symbolName),
+    )
   );
 };
 
@@ -372,6 +376,7 @@ export const findTestOnlyExportViolations = (
   tsxContents: Map<string, string>,
   testContents: Map<string, string>,
   allowedHooks: string[],
+  productionEntryContents: Map<string, string>[] = [],
 ): string[] => {
   const violations: string[] = [];
 
@@ -389,6 +394,7 @@ export const findTestOnlyExportViolations = (
       sourceFile,
       srcContents,
       tsxContents,
+      productionEntryContents,
     );
 
     if (!usedInProduction && isUsedInTests(exportName, testContents)) {

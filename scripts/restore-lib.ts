@@ -13,20 +13,8 @@ import { formatBytes } from "#shared/limits.ts";
 
 export const RESTORE_CONFIRMATION = "RESTORE";
 export const RESTORE_USAGE = "Usage: deno task restore <backup.zip>";
-const RESTORE_ENV_KEYS = ["DB_URL", "DB_TOKEN"] as const;
 const isFullCommitSha = (commit: string): boolean =>
   /^[0-9a-f]{40}$/.test(commit);
-
-/** Make database values from .env authoritative over inherited shell values. */
-export const applyRestoreFileEnv = (
-  fileEnv: Record<string, string>,
-  setEnv: (key: string, value: string) => void,
-): void => {
-  for (const key of RESTORE_ENV_KEYS) {
-    const value = fileEnv[key];
-    if (value !== undefined) setEnv(key, value);
-  }
-};
 
 export interface RestoreCliDeps extends ScriptIo {
   inspectBackupZip: (data: Uint8Array) => {
