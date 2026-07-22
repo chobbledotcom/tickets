@@ -14,7 +14,6 @@ import {
   ADMIN_AREA_LOADERS,
   type AdminAreaLoader,
 } from "#routes/admin/area-loaders.ts";
-import { routeMapForArea } from "#routes/admin/handlers.ts";
 import { isJsonApiPath } from "#routes/middleware.ts";
 import { createRouter } from "#routes/router.ts";
 import type { PathMethodRoute } from "#routes/types.ts";
@@ -34,16 +33,13 @@ type AdminSegment = {
 
 /** Build one lazy router per segment without importing any area handlers. */
 const buildSegmentRouters = (): Record<string, AdminSegment> => {
-  const areasBySegment: Record<
-    string,
-    Array<{ id: AdminAreaId; loader: AdminAreaLoader }>
-  > = {};
+  const areasBySegment: Record<string, AdminAreaLoader[]> = {};
   for (const [id, segments] of Object.entries(ADMIN_SURFACE.areas)) {
     const areaId = id as AdminAreaId;
     const loader = ADMIN_AREA_LOADERS[areaId];
     for (const segment of segments) {
       const areas = areasBySegment[segment] ?? [];
-      areas.push({ id: areaId, loader });
+      areas.push(loader);
       areasBySegment[segment] = areas;
     }
   }
@@ -52,17 +48,13 @@ const buildSegmentRouters = (): Record<string, AdminSegment> => {
   for (const [segment, areas] of Object.entries(areasBySegment)) {
     routers[segment] = {
       load: once(async () => {
-        const maps = await Promise.all(
-          areas.map(async ({ id, loader }) =>
-            routeMapForArea(id, await loader.load()),
-          ),
-        );
+        const maps = await Promise.all(areas.map((loader) => loader.load()));
         return createRouter(Object.assign({}, ...maps));
       }),
       messageGroups: [
         ...new Set([
           ...ADMIN_SHELL_MESSAGE_GROUPS,
-          ...areas.flatMap(({ loader }) => loader.messageGroupsFor(segment)),
+          ...areas.flatMap((loader) => loader.messageGroupsFor(segment)),
         ]),
       ],
     };

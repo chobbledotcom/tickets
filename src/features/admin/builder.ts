@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin builder routes — create new Tickets instances via Bunny API
  * Owner-only access, gated behind CAN_BUILD_SITES=true env var
@@ -209,8 +209,8 @@ const builderPost = createAuthedFormRoute({
   },
 });
 
-export const adminHandlers = handlersFor("builder")({
-  getBuilder: handleBuilderGet,
-  postBuilder: (r: Request) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/builder": handleBuilderGet,
+  "POST /admin/builder": (r: Request) =>
     isBuilderEnabled() ? builderPost(r, {}) : notFoundResponse(),
 });

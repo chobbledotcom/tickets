@@ -10,12 +10,12 @@ import {
   defineEditEntityPage,
   type EditEntityPage,
 } from "#routes/admin/entity-write-tab.ts";
-import { handlersFor } from "#routes/admin/handlers.ts";
 import { loadAccountLedger } from "#routes/admin/ledger/statements.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { errorRedirect, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { modifierAccount } from "#shared/accounting/accounts.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
@@ -503,20 +503,21 @@ const handleAnswerLinks: TypedRouteHandler<
   );
 
 /** Modifier routes */
-export const adminHandlers = handlersFor("modifiers")({
-  getModifiers: crud.listGet,
-  getModifiersById: (request, { id }) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/modifiers": crud.listGet,
+  "GET /admin/modifiers/:id": (request, { id }) =>
     modifierPage.renderTab(request, id, ""),
-  getModifiersByIdByTab: (request, { id, tab }) =>
+  "GET /admin/modifiers/:id/:tab": (request, { id, tab }) =>
     modifierPage.renderTab(request, id, tab),
-  getModifiersByIdDelete: crud.deleteGet,
-  getModifiersNew: crud.newGet,
-  getModifiersRecalculateByModifierId: handleModifierRecalculateGet,
-  postModifiers: crud.createPost,
-  postModifiersByIdAnswers: handleAnswerLinks,
-  postModifiersByIdDelete: crud.deletePost,
-  postModifiersByIdEdit: handleEditPost,
-  postModifiersByIdLinks: handleScopeLinks,
-  postModifiersByIdRevenue: handleRevenueAdjust,
-  postModifiersRecalculateByModifierId: handleModifierRecalculatePost,
+  "GET /admin/modifiers/:id/delete": crud.deleteGet,
+  "GET /admin/modifiers/new": crud.newGet,
+  "GET /admin/modifiers/recalculate/:modifierId": handleModifierRecalculateGet,
+  "POST /admin/modifiers": crud.createPost,
+  "POST /admin/modifiers/:id/answers": handleAnswerLinks,
+  "POST /admin/modifiers/:id/delete": crud.deletePost,
+  "POST /admin/modifiers/:id/edit": handleEditPost,
+  "POST /admin/modifiers/:id/links": handleScopeLinks,
+  "POST /admin/modifiers/:id/revenue": handleRevenueAdjust,
+  "POST /admin/modifiers/recalculate/:modifierId":
+    handleModifierRecalculatePost,
 });

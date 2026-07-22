@@ -4,7 +4,7 @@ import type { AdminAreaId } from "#shared/admin-surface/definitions.ts";
 
 type HandlerMap = Record<string, (...args: never[]) => unknown>;
 
-/** One admin area's lazy route-ID handlers and message ownership. */
+/** One admin area's lazy routes and message ownership. */
 export type AdminAreaLoader = {
   load: () => Promise<HandlerMap>;
   messageGroupsFor: (segment: string) => readonly MessageGroup[];
@@ -28,7 +28,7 @@ const messageGroupsBySegment =
     return groups[segment]!;
   };
 
-/** Declare an area without importing its handlers until that area is requested. */
+/** Declare an area without importing its routes until that area is requested. */
 const area = <M extends { adminHandlers: HandlerMap }>(
   load: () => Promise<M>,
   messageGroups: readonly MessageGroup[] = [],

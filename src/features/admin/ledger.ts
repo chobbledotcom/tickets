@@ -1,4 +1,3 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
 import {
   handleLedgerEntryAddGet,
   handleLedgerEntryAddPost,
@@ -8,13 +7,14 @@ import {
 } from "#routes/admin/ledger/entries.ts";
 import { handleLedgerGet } from "#routes/admin/ledger/page.ts";
 import { handleAccountStatementGet } from "#routes/admin/ledger/statements.ts";
+import { defineRoutes } from "#routes/router.ts";
 
-export const adminHandlers = handlersFor("ledger")({
-  getLedger: handleLedgerGet,
-  getLedgerByTypeByRef: handleAccountStatementGet,
-  getLedgerByTypeByRefAdd: handleLedgerEntryAddGet,
-  getLedgerEntriesByIdEdit: handleLedgerEntryEditGet,
-  postLedgerByTypeByRefAdd: handleLedgerEntryAddPost,
-  postLedgerEntriesByIdDelete: handleLedgerEntryDeletePost,
-  postLedgerEntriesByIdEdit: handleLedgerEntryEditPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/ledger": handleLedgerGet,
+  "GET /admin/ledger/:type/:ref": handleAccountStatementGet,
+  "GET /admin/ledger/:type/:ref/add": handleLedgerEntryAddGet,
+  "GET /admin/ledger/entries/:id/edit": handleLedgerEntryEditGet,
+  "POST /admin/ledger/:type/:ref/add": handleLedgerEntryAddPost,
+  "POST /admin/ledger/entries/:id/delete": handleLedgerEntryDeletePost,
+  "POST /admin/ledger/entries/:id/edit": handleLedgerEntryEditPost,
 });

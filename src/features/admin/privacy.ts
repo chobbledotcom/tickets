@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Privacy page routes (owner-only).
  *
@@ -96,8 +96,8 @@ const handleErasePost = ownerFormHandler(async ({ form }) => {
 });
 
 /** Privacy routes */
-export const adminHandlers = handlersFor("privacy")({
-  getPrivacy: handlePrivacyGet,
-  postPrivacyErase: handleErasePost,
-  postPrivacyOrphans: handleOrphansPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/privacy": handlePrivacyGet,
+  "POST /admin/privacy/erase": handleErasePost,
+  "POST /admin/privacy/orphans": handleOrphansPost,
 });

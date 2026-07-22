@@ -26,15 +26,6 @@ describe("admin surface paths", () => {
     );
   });
 
-  test("fills parameters for server action routes", () => {
-    expect(
-      adminPath("postAttributesByIdOptionsByOptionIdMoveDown", {
-        id: 1,
-        optionId: 10,
-      }),
-    ).toBe("/admin/attributes/1/options/10/move-down");
-  });
-
   test("allows write forms only for their audience while writable", () => {
     expect(adminDestinationAllowed("modifierEdit", "manager", false)).toBe(
       true,
@@ -47,30 +38,6 @@ describe("admin surface paths", () => {
 
   test("allows view routes in read-only mode", () => {
     expect(adminDestinationAllowed("modifiers", "manager", true)).toBe(true);
-  });
-
-  test("marks ordinary GET routes readable", () => {
-    expect(
-      ADMIN_SURFACE.routes.find((route) => route.id === "getSettings"),
-    ).toEqual({
-      area: "settings",
-      id: "getSettings",
-      method: "GET",
-      pattern: "/admin/settings",
-      readOnly: "allow",
-    });
-  });
-
-  test("marks ordinary mutations blocked", () => {
-    expect(
-      ADMIN_SURFACE.routes.find((route) => route.id === "postSettingsEmail"),
-    ).toEqual({
-      area: "settings",
-      id: "postSettingsEmail",
-      method: "POST",
-      pattern: "/admin/settings/email",
-      readOnly: "block",
-    });
   });
 
   test("keeps the complete top-level section order", () => {
