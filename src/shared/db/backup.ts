@@ -90,6 +90,11 @@ const ignoreRestoreProgress: RestoreProgressHandler = () => {};
 // to avoid one network round trip per statement.
 const RESTORE_BATCH_STATEMENT_LIMIT = 50;
 const RESTORE_BATCH_BYTE_LIMIT = 512 * 1024;
+const RESTORE_CORE_TABLES = [
+  "settings",
+  "schema_migrations",
+  "attendee_statuses",
+] as const;
 
 type RestoreBatchState = {
   completed: string[][];
@@ -299,20 +304,28 @@ const inspectOpenBackup = (backup: OpenBackup): BackupInspection => {
     );
   }
 
+  const statementCount = sum(sqlFiles.map((file) => file.statementCount));
   const manifest = readManifestOrNull(backup.files);
-  const manifestTables = manifest === null ? {} : manifest.tables;
   const statementsByTable = new Map(
     sqlFiles.map(({ statementCount, table }) => [table, statementCount]),
   );
-  const missing = Object.entries(manifestTables)
-    .filter(
-      ([table, rowCount]) => rowCount > 0 && !statementsByTable.get(table),
-    )
-    .map(([table]) => table);
+  const legacyRequiredTables = statementCount === 0 ? [] : RESTORE_CORE_TABLES;
+  const requiredTables =
+    manifest === null
+      ? legacyRequiredTables
+      : Object.entries(manifest.tables)
+          .filter(([, rowCount]) => rowCount > 0)
+          .map(([table]) => table);
+  const missing = requiredTables.filter(
+    (table) => !statementsByTable.get(table),
+  );
   if (missing.length > 0) {
-    throw new Error(`Backup is missing data for tables: ${missing.join(", ")}`);
+    const reason =
+      manifest === null
+        ? "Backup without a manifest is missing required data for tables"
+        : "Backup is missing data for tables";
+    throw new Error(`${reason}: ${missing.join(", ")}`);
   }
-  const statementCount = sum(sqlFiles.map((file) => file.statementCount));
   if (statementCount === 0) {
     throw new Error("Backup contains no restorable SQL statements");
   }
@@ -379,9 +392,8 @@ export const restoreFromSql = async (
     // remain active.
     report("importing");
     const restoreStatements: [string, ...string[]] = [
-      "DELETE FROM settings",
-      "DELETE FROM schema_migrations",
-      "DELETE FROM attendee_statuses",
+      `DELETE FROM ${RESTORE_CORE_TABLES[0]}`,
+      ...RESTORE_CORE_TABLES.slice(1).map((table) => `DELETE FROM ${table}`),
       ...(migrations.hasPending ? legacyColumnRestores(statements) : []),
       ...statements,
     ];

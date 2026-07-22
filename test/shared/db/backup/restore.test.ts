@@ -141,6 +141,21 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     expect(await listingCount()).toBe(1);
   });
 
+  test("rejects a partial backup without a manifest before wiping existing data", async () => {
+    await createTestListing({ name: "From partial backup" });
+    const { sql } = await exportTable("listings");
+    await createTestListing({ name: "Must stay" });
+
+    await expect(restoreFromZip(zipSql("listings.sql", sql))).rejects.toThrow(
+      "Backup without a manifest is missing required data for tables: settings, schema_migrations, attendee_statuses",
+    );
+
+    expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
+      "From partial backup",
+      "Must stay",
+    ]);
+  });
+
   test("keeps restored data when the final progress callback fails", async () => {
     await createTestListing({ name: "From backup" });
     const zip = await createBackupZip();

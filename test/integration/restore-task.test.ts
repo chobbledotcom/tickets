@@ -35,7 +35,14 @@ const backupZip = (
 ): Uint8Array =>
   zipSync({
     ...(manifest === null
-      ? {}
+      ? {
+          "attendee_statuses.sql": encoder.encode(
+            "INSERT INTO attendee_statuses (id) VALUES (1);",
+          ),
+          "schema_migrations.sql": encoder.encode(
+            "INSERT INTO schema_migrations (id) VALUES ('initial');",
+          ),
+        }
       : { "manifest.json": encoder.encode(JSON.stringify(manifest)) }),
     "settings.sql": encoder.encode(
       "INSERT INTO settings (key, value) VALUES ('one', '1');\n" +

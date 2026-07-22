@@ -120,6 +120,12 @@ describeWithEnv("backup", { db: true }, () => {
       expect(
         inspectBackupZip(
           zipSync({
+            "attendee_statuses.sql": new TextEncoder().encode(
+              "INSERT INTO attendee_statuses (id) VALUES (1);",
+            ),
+            "schema_migrations.sql": new TextEncoder().encode(
+              "INSERT INTO schema_migrations (id) VALUES ('initial');",
+            ),
             "settings.sql": new TextEncoder().encode(
               "INSERT INTO settings (key, value) VALUES ('k', 'v');",
             ),
@@ -305,9 +311,18 @@ describeWithEnv("backup", { db: true }, () => {
       expect(restored).toEqual([{ value: css }]);
     });
 
-    test("handles zip with missing table files", async () => {
+    test("allows a manifest backup to omit empty table files", async () => {
+      const encoder = new TextEncoder();
       const partial = zipSync({
-        "settings.sql": new TextEncoder().encode(
+        "manifest.json": encoder.encode(
+          JSON.stringify({
+            latestUpdate: LATEST_UPDATE,
+            schemaHash: SCHEMA_HASH,
+            tables: { settings: 1 },
+            timestamp: "2026-07-22T00:00:00.000Z",
+          }),
+        ),
+        "settings.sql": encoder.encode(
           "INSERT INTO settings (key, value) VALUES ('k', 'v');",
         ),
       });
