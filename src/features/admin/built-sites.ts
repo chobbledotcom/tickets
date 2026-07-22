@@ -43,6 +43,7 @@ import {
   deployLatestReleaseToDeno,
   deployLatestReleaseToScript,
 } from "#shared/update.ts";
+import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   adminBuiltSiteDeletePage,
@@ -119,6 +120,25 @@ const handleProvisionSiteScheduler = builtSiteAction(async (_site, _form, id) =>
     await provisionSiteScheduler(id),
   ),
 );
+
+const handleAddUptimeMonitor = builtSiteAction(async (site, _form, id) => {
+  const result = await uptimeKumaMonitorService.add(site);
+  if (!result.ok) {
+    return builtSiteTabError(id, "maintenance", result.error);
+  }
+  if (result.value.created) {
+    await logActivity(`Added Uptime Kuma monitor for '${site.name}'`);
+  }
+  return builtSiteTabSuccess(
+    id,
+    "maintenance",
+    t(
+      result.value.created
+        ? "built_sites.kuma_added"
+        : "built_sites.kuma_already_exists",
+    ),
+  );
+});
 
 const editPushOk = (
   id: number,
@@ -361,6 +381,7 @@ export const adminHandlers = gateOnBuilder(
     "GET /admin/built-sites/new": crud.newGet,
     "POST /admin/built-sites": crud.createPost,
     "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
+    "POST /admin/built-sites/:id/add-uptime-monitor": handleAddUptimeMonitor,
     "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
     "POST /admin/built-sites/:id/delete": crud.deletePost,
     "POST /admin/built-sites/:id/edit": crud.editPost,

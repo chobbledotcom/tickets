@@ -8,6 +8,7 @@ import { utf8ByteLength } from "#shared/bytes.ts";
 import { validateEncryptionKey } from "#shared/crypto/encryption.ts";
 import { getEnv } from "#shared/env.ts";
 import { validateScheduledTaskKey } from "#shared/scheduled-keys.ts";
+import { validateUptimeKumaConfig } from "#shared/uptime-kuma/config.ts";
 
 export type BootCheck = {
   name: string;
@@ -36,6 +37,7 @@ export const BOOT_CHECKS: readonly BootCheck[] = [
   { name: "DB_ENCRYPTION_KEY", run: validateEncryptionKey },
   { name: "MAIN_INSTANCE_KEY", run: validateOptionalMainInstanceKey },
   { name: "SCHEDULED_TASK_KEY", run: validateScheduledTaskKey },
+  { name: "UPTIME_KUMA", run: validateUptimeKumaConfig },
 ];
 
 export const validateBootChecks = (): void => {

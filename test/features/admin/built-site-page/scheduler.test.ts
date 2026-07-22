@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   insertScheduledTestSite,
@@ -70,6 +72,34 @@ describeWithEnv(
       );
 
       expect(await response.text()).toContain("provision-scheduler");
+    });
+
+    test("shows monitor details returned by Uptime Kuma", async () => {
+      const site = await insertScheduledTestSite();
+      using _load = stub(uptimeKumaMonitorService, "load", () =>
+        Promise.resolve({
+          kind: "found",
+          monitor: {
+            active: true,
+            group: "Chobble Tickets",
+            id: 51,
+            intervalSeconds: 900,
+            method: "POST",
+            name: "Live child monitor",
+            url: "https://child.example.test/scheduled",
+          },
+        }),
+      );
+
+      const response = await adminGet(
+        `/admin/built-sites/${site.id}/maintenance`,
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("Live child monitor");
+      expect(html).toContain("Every 15 minutes");
+      expect(html).not.toContain("add-uptime-monitor");
     });
   },
 );
