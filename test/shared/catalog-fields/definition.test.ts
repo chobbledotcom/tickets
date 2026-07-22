@@ -117,6 +117,16 @@ describe("catalog field projection", () => {
     ).toEqual({});
   });
 
+  test("only clears string API fields when their value is null", () => {
+    expect(
+      projectCatalogFields(groupCatalogFields, "api", {
+        description: null,
+        is_package: null,
+        max_attendees: null,
+      }),
+    ).toEqual({ description: "" });
+  });
+
   test("projects every stored API value and clears null strings", () => {
     expect(
       projectCatalogFields(groupCatalogFields, "storedApi", {

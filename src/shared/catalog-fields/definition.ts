@@ -107,7 +107,11 @@ const projectedValue = (
     case "storedApi":
       return value ?? "";
     case "api":
-      if (value === null) return "";
+      if (value === null) {
+        return matchesTransfer(String(value), field[2] as string)
+          ? ""
+          : undefined;
+      }
       return matchesTransfer(value, field[2] as string) ? value : undefined;
     case "transfer":
       return field[2] === "dayPrices" &&
