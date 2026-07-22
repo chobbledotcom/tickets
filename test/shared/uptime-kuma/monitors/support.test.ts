@@ -184,6 +184,20 @@ export const addRaceCases: AddRaceCase[] = [
     ],
   },
   {
+    addedCount: 2,
+    addedParent: 99,
+    created: true,
+    deleted: [],
+    monitorId: 101,
+    name: "does not delete a group Kuma no longer returns",
+    reads: [
+      [],
+      [group(99)],
+      [group(99)],
+      [group(99), { ...siteMonitor(99), id: 101 }],
+    ],
+  },
+  {
     addedCount: 1,
     created: false,
     deleted: [100],
@@ -219,6 +233,18 @@ export const addRaceCases: AddRaceCase[] = [
     monitorId: 99,
     name: "keeps its group when another request adds the monitor there",
     reads: [[], [group(100)], [group(100), { ...siteMonitor(100), id: 99 }]],
+  },
+  {
+    addedCount: 1,
+    created: false,
+    deleted: [],
+    monitorId: 101,
+    name: "keeps its new group when another request already uses it",
+    reads: [
+      [],
+      [group(99), group(100), { ...siteMonitor(100), id: 101 }],
+      [group(99), group(100), { ...siteMonitor(100), id: 101 }],
+    ],
   },
   {
     addedCount: 1,
