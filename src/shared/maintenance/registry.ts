@@ -50,14 +50,23 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     maxDatabaseCalls: 2,
     maxExternalCalls: 0,
     name: "activity_log_backfill",
-    run: async ({ checkpoint, requestFollowUp, setCheckpoint }) => {
-      if (checkpoint === ACTIVITY_LOG_BACKFILL_COMPLETE) return;
+    run: async ({
+      checkpoint,
+      completeTask,
+      requestFollowUp,
+      setCheckpoint,
+    }) => {
+      if (checkpoint === ACTIVITY_LOG_BACKFILL_COMPLETE) {
+        completeTask();
+        return;
+      }
       const { runActivityLogBackfill } = await import(
         "#shared/db/activity-log-backfill.ts"
       );
       const converted = await runActivityLogBackfill(settings.publicKey);
       if (converted < ACTIVITY_LOG_BACKFILL_BATCH) {
         setCheckpoint(ACTIVITY_LOG_BACKFILL_COMPLETE);
+        completeTask();
       } else {
         requestFollowUp();
       }
