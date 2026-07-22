@@ -5,10 +5,8 @@ import type {
   UptimeKumaMonitor,
 } from "#shared/uptime-kuma/client.ts";
 import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
-import {
-  UPTIME_KUMA_GROUP_NAME,
-  uptimeKumaMonitorService,
-} from "#shared/uptime-kuma/monitors.ts";
+import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
+import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -22,6 +20,7 @@ export const kumaEnv = {
 
 export const group = (id = 11): UptimeKumaMonitor => ({
   active: true,
+  headers: null,
   id,
   interval: 60,
   method: "GET",
@@ -33,6 +32,9 @@ export const group = (id = 11): UptimeKumaMonitor => ({
 
 export const siteMonitor = (parent = 11): UptimeKumaMonitor => ({
   active: true,
+  headers: JSON.stringify({
+    Authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
+  }),
   id: 22,
   interval: 900,
   method: "POST",
@@ -43,38 +45,6 @@ export const siteMonitor = (parent = 11): UptimeKumaMonitor => ({
 });
 
 type AddedMonitor = Record<string, unknown>;
-
-export const expectedMonitorDefaults: AddedMonitor = {
-  accepted_statuscodes: ["200-299"],
-  authMethod: "",
-  body: null,
-  databaseConnectionString: null,
-  description: null,
-  dns_resolve_server: "1.1.1.1",
-  dns_resolve_type: "A",
-  expiryNotification: false,
-  headers: null,
-  hostname: null,
-  httpBodyEncoding: "json",
-  ignoreTls: false,
-  interval: 60,
-  maxredirects: 10,
-  maxretries: 1,
-  method: "GET",
-  mqttPassword: "",
-  mqttSuccessMessage: "",
-  mqttTopic: "",
-  mqttUsername: "",
-  notificationIDList: {},
-  packetSize: 56,
-  port: null,
-  proxyId: null,
-  resendInterval: 0,
-  retryInterval: 60,
-  timeout: 48,
-  upsideDown: false,
-  url: null,
-};
 
 type FakeClient = {
   added: AddedMonitor[];
@@ -97,6 +67,7 @@ const fakeClient = (monitors: UptimeKumaMonitor[]): FakeClient => {
       added.push(monitor);
       currentMonitors.push({
         active: true,
+        headers: typeof monitor.headers === "string" ? monitor.headers : null,
         id,
         interval: typeof monitor.interval === "number" ? monitor.interval : 60,
         method: typeof monitor.method === "string" ? monitor.method : "GET",
@@ -158,6 +129,24 @@ type ChangingAddOutcome = {
   added: AddedMonitor[];
   deleted: number[];
   result: AddResult;
+};
+
+type KeylessSiteOutcome<Value> = {
+  connections: number;
+  result: Value;
+};
+
+export const runWithKeylessSite = async <Value>(
+  use: (site: BuiltSite) => Promise<Value>,
+): Promise<KeylessSiteOutcome<Value>> => {
+  using _env = withEnv(kumaEnv);
+  let connections = 0;
+  using _connect = stub(uptimeKumaClientApi, "connect", () => {
+    connections += 1;
+    return Promise.reject(new Error("must not connect"));
+  });
+  const result = await use(testBuiltSite({ scheduledTaskKey: null }));
+  return { connections, result };
 };
 
 export const runChangingAdd = async (

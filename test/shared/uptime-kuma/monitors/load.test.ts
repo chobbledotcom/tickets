@@ -3,16 +3,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
-import {
-  UPTIME_KUMA_GROUP_NAME,
-  uptimeKumaMonitorService,
-} from "#shared/uptime-kuma/monitors.ts";
+import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
+import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 import {
   configuredSite,
   connectFake,
   group,
   kumaEnv,
+  runWithKeylessSite,
   siteMonitor,
 } from "./support.test.ts";
 
@@ -49,6 +49,15 @@ describe("Uptime Kuma built-site monitor state", () => {
     expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
       kind: "missing",
     });
+  });
+
+  test("shows a missing monitor without a retained key", async () => {
+    const outcome = await runWithKeylessSite((site) =>
+      uptimeKumaMonitorService.load(site),
+    );
+
+    expect(outcome.result).toEqual({ kind: "missing" });
+    expect(outcome.connections).toBe(0);
   });
 
   test("shows a matching monitor from the shared group", async () => {
@@ -106,6 +115,41 @@ describe("Uptime Kuma built-site monitor state", () => {
     expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
       kind: "missing",
     });
+  });
+
+  for (const [label, headers] of [
+    ["no bearer header", null],
+    ["the wrong bearer header", '{"Authorization":"Bearer wrong"}'],
+    ["malformed headers", "not json"],
+  ] as const) {
+    test(`does not treat a POST check with ${label} as the monitor`, async () => {
+      using _env = withEnv(kumaEnv);
+      using _fake = connectFake([group(), { ...siteMonitor(), headers }]);
+
+      expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
+        kind: "missing",
+      });
+    });
+  }
+
+  test("matches the bearer header without case sensitivity", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([
+      group(),
+      {
+        ...siteMonitor(),
+        headers: JSON.stringify({
+          authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
+        }),
+      },
+    ]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
+      {
+        kind: "found",
+        monitor: { id: 22 },
+      },
+    );
   });
 
   test("shows connection failures without leaking credentials", async () => {

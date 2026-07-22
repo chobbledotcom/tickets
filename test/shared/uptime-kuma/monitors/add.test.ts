@@ -1,23 +1,18 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
-import {
-  UPTIME_KUMA_GROUP_NAME,
-  uptimeKumaMonitorService,
-} from "#shared/uptime-kuma/monitors.ts";
+import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
+import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { testBuiltSite } from "#test-utils/factories.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 import {
   addRaceCases,
   configuredSite,
   connectFake,
-  expectedMonitorDefaults,
   group,
   kumaEnv,
   runChangingAdd,
+  runWithKeylessSite,
   siteMonitor,
 } from "./support.test.ts";
 
@@ -48,6 +43,35 @@ describe("adding Uptime Kuma built-site monitors", () => {
     });
     expect(fake.added).toHaveLength(1);
     expect(fake.added[0]).toMatchObject({ method: "POST", parent: 11 });
+  });
+
+  test("adds an authenticated monitor when a POST check has no header", async () => {
+    using _env = withEnv(kumaEnv);
+    using fake = connectFake([group(), { ...siteMonitor(), headers: null }]);
+
+    expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
+      ok: true,
+      value: { created: true, monitorId: 100 },
+    });
+    expect(fake.added[0]).toMatchObject({
+      headers: JSON.stringify({
+        Authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
+      }),
+    });
+  });
+
+  test("includes the Uptime Kuma 2 JSON defaults", async () => {
+    using _env = withEnv(kumaEnv);
+    using fake = connectFake([group()]);
+
+    await uptimeKumaMonitorService.add(configuredSite());
+
+    expect(fake.added[0]).toMatchObject({
+      conditions: [],
+      kafkaProducerBrokers: [],
+      kafkaProducerSaslOptions: { mechanism: "None" },
+      rabbitmqNodes: [],
+    });
   });
 
   for (const scenario of addRaceCases) {
@@ -115,14 +139,12 @@ describe("adding Uptime Kuma built-site monitors", () => {
       value: { created: true, monitorId: 101 },
     });
     expect(fake.added).toHaveLength(2);
-    expect(fake.added[0]).toEqual({
-      ...expectedMonitorDefaults,
+    expect(fake.added[0]).toMatchObject({
       name: UPTIME_KUMA_GROUP_NAME,
       parent: null,
       type: "group",
     });
-    expect(fake.added[1]).toEqual({
-      ...expectedMonitorDefaults,
+    expect(fake.added[1]).toMatchObject({
       headers: JSON.stringify({
         Authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
       }),
@@ -162,22 +184,15 @@ describe("adding Uptime Kuma built-site monitors", () => {
   });
 
   test("requires the retained scheduled task key before connecting", async () => {
-    using _env = withEnv(kumaEnv);
-    let connections = 0;
-    using _connect = stub(uptimeKumaClientApi, "connect", () => {
-      connections += 1;
-      return Promise.reject(new Error("must not connect"));
-    });
+    const outcome = await runWithKeylessSite((site) =>
+      uptimeKumaMonitorService.add(site),
+    );
 
-    expect(
-      await uptimeKumaMonitorService.add(
-        testBuiltSite({ scheduledTaskKey: null }),
-      ),
-    ).toEqual({
+    expect(outcome.result).toEqual({
       error: "Set up scheduled maintenance before adding this monitor.",
       ok: false,
     });
-    expect(connections).toBe(0);
+    expect(outcome.connections).toBe(0);
   });
 
   test("reports add failures and still disconnects", async () => {
