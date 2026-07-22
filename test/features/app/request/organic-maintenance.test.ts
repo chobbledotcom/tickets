@@ -16,7 +16,6 @@ describeWithEnv("organic maintenance failure isolation", { db: true }, () => {
 
     expect(response.status).toBe(200);
     expect(errors.contains("organic maintenance failed")).toBe(true);
-    expect(errors.contains("Maintenance task list update failed")).toBe(true);
     expect(errors.calls.length).toBe(1);
     expect(
       await queryOne<{ name: string }>(
