@@ -90,7 +90,7 @@ const def: EntityPageDef<Fixture> = {
           load: (entity, ctx) =>
             Promise.resolve(
               Raw({
-                html: `<p>${entity.name} @ ${ctx.returnUrl} from ${ctx.baseUrl}</p>`,
+                html: `<p data-from="${ctx.query.get("from") ?? ""}">${entity.name} @ ${ctx.returnUrl} from ${ctx.baseUrl}</p>`,
               }),
             ),
         },
@@ -168,7 +168,9 @@ describe("defineEntityPage", () => {
     expect(html).toContain('href="/admin/widgets/7/delete"');
     expect(html).toContain("entity-danger-zone");
     // The custom section received the tab's canonical URL as returnUrl.
-    expect(html).toContain("<p>Widget @ /admin/widgets/7/actions from </p>");
+    expect(html).toContain(
+      '<p data-from="">Widget @ /admin/widgets/7/actions from </p>',
+    );
   });
 
   test("read-only mode hides write-form tabs and actions", async () => {
@@ -197,14 +199,16 @@ describe("defineEntityPage", () => {
     ).rejects.toThrow();
   });
 
-  test("renderTab authenticates, then renders the requested tab with the request's query", async () => {
+  test("renderTab passes the request origin and query to the active section", async () => {
     const response = await page.renderTab(
-      new Request("http://localhost/admin/widgets/7"),
+      new Request("https://tickets.example/admin/widgets/7/actions?from=queue"),
       7,
-      "",
+      "actions",
     );
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("<h1>Widget: Widget</h1>");
+    expect(await response.text()).toContain(
+      '<p data-from="queue">Widget @ /admin/widgets/7/actions from https://tickets.example</p>',
+    );
   });
 
   test("tab labels render translated, never as raw locale keys", async () => {
@@ -229,6 +233,9 @@ describe("defineEntityPage", () => {
     expect(html).toContain('href="/admin/widgets/7/delete"');
     expect(html).toContain("Delete");
     expect(html).toContain("entity-danger-zone");
+    expect((await deletePage.renderPage(SESSION, 7, "actions")).status).toBe(
+      200,
+    );
 
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     expect((await deletePage.renderPage(SESSION, 7, "")).status).toBe(404);

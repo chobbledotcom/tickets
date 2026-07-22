@@ -6,6 +6,7 @@ import {
   clearSavedFormData,
   setSavedFormData,
 } from "#shared/forms/saved-data.ts";
+import { detectIframeMode } from "#shared/iframe.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
 import {
   bigAndSmallListings,
@@ -17,6 +18,7 @@ import {
   ticketListing,
 } from "#test/templates/public/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { hasInputWithValue } from "#test-utils/csrf.ts";
 
 const attributeWithOptions = (
   id: number,
@@ -32,6 +34,102 @@ const attributeWithOptions = (
 describe("ticketPage — packages", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
+
+  test("uses group header details before the single listing details", () => {
+    const html = ticketPage({
+      attributesByListing: new Map([
+        [1, [attributeWithOptions(3, "Format", "Outdoor")]],
+      ]),
+      baseUrl: "https://tickets.example",
+      groupDescription: "Group description",
+      groupImage: {
+        image_alt_text: "Group image",
+        image_thumb_url: "group-thumb.webp",
+        image_url: "group.webp",
+      },
+      groupName: "Group heading",
+      listings: [
+        ticketListing({
+          description: "Listing description",
+          id: 1,
+          image_url: "listing.webp",
+          name: "Listing heading",
+          slug: "listing",
+        }),
+      ],
+      slugs: ["group-page"],
+    });
+    expect(html).toContain("<title>Group heading</title>");
+    expect(html).toContain("<h1>Group heading</h1>");
+    expect(html).toContain("<p>Group description</p>");
+    expect(html).not.toContain("Listing description");
+    expect(html).toContain("/image/group.webp");
+    expect(html).not.toContain("/image/listing.webp");
+    expect(html).toContain("Format");
+    expect(html).toContain("Outdoor");
+    expect(html).toContain(
+      'property="og:url" content="https://tickets.example/ticket/group-page"',
+    );
+  });
+
+  test("keeps an intentionally empty group description", () => {
+    const html = ticketPage({
+      groupDescription: "",
+      groupName: "Group heading",
+      listings: [
+        ticketListing({ description: "Listing description", name: "Listing" }),
+      ],
+      slugs: ["group-page"],
+    });
+    expect(html).not.toContain("Listing description");
+  });
+
+  test("keeps an intentionally empty group name", () => {
+    const html = ticketPage({
+      groupName: "",
+      listings: [ticketListing({ name: "Listing heading" })],
+      slugs: ["group-page"],
+    });
+    expect(html).toContain("<title>Reserve Tickets</title>");
+    expect(html).not.toContain("<h1>Listing heading</h1>");
+  });
+
+  test("hides the header and marks the layout in iframe mode", () => {
+    detectIframeMode(new URL("https://example.com/?iframe=true"));
+    const html = ticketPage({
+      groupName: "Iframe-only heading",
+      listings: [ticketListing({ name: "Listing" })],
+      slugs: ["group-page"],
+    });
+    expect(html).toContain('<body class="iframe">');
+    expect(html).toContain('class="page-regions public-page"');
+    expect(html).not.toContain("<h1>Iframe-only heading</h1>");
+  });
+
+  test("hides quantity when exactly one open listing allows one ticket", () => {
+    const html = ticketPage({
+      listings: [
+        ticketListing({ id: 1, max_quantity: 1, name: "Available" }),
+        listingB(),
+      ],
+      slugs: ["available", "sold-out"],
+    });
+    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
+    expect(html).not.toContain('class="ticket-listings"');
+  });
+
+  test("groups two open one-ticket listings", () => {
+    const html = ticketPage({
+      listings: [
+        ticketListing({ id: 1, max_quantity: 1, name: "First" }),
+        ticketListing({ id: 2, max_quantity: 1, name: "Second" }),
+      ],
+      slugs: ["first", "second"],
+    });
+    expect(html).toContain(
+      '<fieldset class="ticket-listings"><legend>Select Tickets</legend>',
+    );
+  });
 
   test("shows all sold out message when every listing is sold out", () => {
     const listings = [
@@ -52,17 +150,12 @@ describe("ticketPage — packages", () => {
   test("renders a package quantity selector and member rows with fixed quantities", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
         id: 1,
-        max_attendees: 100,
         name: "Tent",
         slug: "tent1",
       }),
       ticketListing({
-        attendee_count: 0,
         id: 2,
-        max_attendees: 100,
-        // ×4 per package, so its per-order limit must admit at least 4.
         max_quantity: 10,
         name: "Chair",
         slug: "chr12",
@@ -71,7 +164,6 @@ describe("ticketPage — packages", () => {
     const html = ticketPage({
       groupName: "Camp Kit",
       listings,
-      // Only listing 2 has a quantity row; listing 1 falls back to ×1.
       packages: [pagePackage(5, [1, 2], { quantities: new Map([[2, 4]]) })],
       slugs: [PKG_SLUG],
     });
@@ -81,8 +173,44 @@ describe("ticketPage — packages", () => {
     expect(html).toContain("&times;1");
     expect(html).toContain("Chair");
     expect(html).toContain("&times;4");
-    // No per-member quantity selectors on a package page.
     expect(html).not.toContain('name="quantity_1"');
+  });
+
+  test("limits package day counts to the days its required child supports", () => {
+    const parentA = ticketListing({
+      customisable_days: true,
+      day_prices: { 1: 1000, 2: 1800 },
+      duration_days: 2,
+      id: 1,
+      max_quantity: 10,
+      name: "Stay",
+      slug: "stay1",
+    });
+    const parentB = ticketListing({
+      customisable_days: true,
+      day_prices: { 1: 1200, 2: 2000 },
+      duration_days: 2,
+      id: 2,
+      max_quantity: 10,
+      name: "Meals",
+      slug: "meal1",
+    });
+    const child = ticketListing({
+      duration_days: 1,
+      id: 3,
+      listing_type: "daily",
+      max_quantity: 10,
+      name: "Required child",
+      slug: "child",
+    });
+    const html = ticketPage({
+      childrenByParentId: new Map([[1, [child]]]),
+      listings: [parentA, parentB, child],
+      packages: [pagePackage(5, [1, 2])],
+      slugs: [PKG_SLUG],
+    });
+    expect(html).toContain('<option value="1">1 day');
+    expect(html).not.toContain('<option value="2">2 days');
   });
 
   test("restores the submitted package quantity after a validation error", () => {
@@ -90,9 +218,7 @@ describe("ticketPage — packages", () => {
     try {
       const listings = [
         ticketListing({
-          attendee_count: 0,
           id: 1,
-          max_attendees: 100,
           max_quantity: 10,
           name: "Tent",
           slug: "tent1",
@@ -104,7 +230,6 @@ describe("ticketPage — packages", () => {
         packages: [pagePackage(5, [1], { quantities: new Map([[1, 1]]) })],
         slugs: [PKG_SLUG],
       });
-      // The selector pre-selects the just-submitted count, not a reset 1.
       expect(html).toContain('value="3" selected');
     } finally {
       clearSavedFormData();
@@ -116,45 +241,32 @@ describe("ticketPage — packages", () => {
     const html = ticketPage({
       groupName: "Pool Pkg",
       listings,
-      // Both members sit in the capped package group 7 (pool of 4). Member 1 is
-      // also in group 8, which is uncapped (absent from the remaining map) and so
-      // contributes no constraint.
       packageGroupRemainingByGroupId: new Map([[7, 4]]),
       packageMemberGroupIds: new Map([
         [1, [7, 8]],
         [2, [7]],
       ]),
-      // Listing 1 takes 2 per package; listing 2 is omitted → defaults to 1, so
-      // one package consumes 3 of the pool of 4 → floor(4 / 3) = 1 package fits.
       packages: [pagePackage(7, [1, 2], { quantities: new Map([[1, 2]]) })],
       slugs: [PKG_SLUG],
     });
     expect(html).toContain('name="package_quantity_7"');
     expect(html).toContain('<option value="1"');
-    // The shared pool caps the count at 1, so no "2 packages" option is offered.
     expect(html).not.toContain('<option value="2"');
   });
 
   test("renders a package as sold out when its cap is zero", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
         id: 1,
-        max_attendees: 100,
         name: "Big",
         slug: "big01",
       }),
       ticketListing({
-        attendee_count: 0,
         id: 2,
-        max_attendees: 100,
         name: "Small",
         slug: "sml01",
       }),
     ];
-    // Both members still have individual capacity, but one package consumes 2
-    // units (1 each) from a shared pool with only 1 left → floor(1 / 2) = 0
-    // packages fit. The page must show sold out, not a 0-only selector.
     const html = ticketPage({
       groupName: "Drained Pkg",
       listings,
@@ -166,18 +278,11 @@ describe("ticketPage — packages", () => {
       packages: evenSplitPackages(),
       slugs: [PKG_SLUG],
     });
-    // No count selector for any package on the page.
     expect(html).not.toContain('name="package_quantity');
     expect(html).toContain("Sorry, all listings are sold out.");
   });
 
   test("keeps a standalone parent's child selector when its package is sold out", () => {
-    // Listing 1 is a bookable standalone row AND a member of a package whose
-    // OTHER member (listing 2) is full, so the whole bundle is sold out and its
-    // section renders no member rows. Its child selector must still render on
-    // the standalone row — otherwise a buyer can't satisfy the parent's child
-    // requirement. Regression: the suppression set used to include members of
-    // packages that render no member rows (sold-out or hide-listings).
     const parent = ticketListing({
       attendee_count: 0,
       id: 1,
@@ -208,19 +313,13 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1, 2], { name: "Camp Kit" })],
       slugs: [PKG_SLUG, "tent1"],
     });
-    // The bundle is sold out (its sibling member is full)…
     expect(html).toContain('class="ticket-package sold-out"');
-    // …but the standalone parent keeps its own row and its child selector.
     expect(html).toContain('name="quantity_1"');
     expect(html).toContain('data-parent-id="1"');
   });
 
   test("caps the package by a SECOND capped group the members share", () => {
     const listings = bigAndSmallListings();
-    // The package group (7) is roomy — floor(10 / 2) = 5 packages fit — but both
-    // members ALSO belong to a second capped group (9) with only 2 spots, and one
-    // package consumes 2 (1 each) from it → floor(2 / 2) = 1. The tighter shared
-    // pool must bind, so only "1" is offered, never "2".
     const html = ticketPage({
       groupName: "Shared Pool Pkg",
       listings,
@@ -243,14 +342,11 @@ describe("ticketPage — packages", () => {
   test("hides member rows when the package hides its listings", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
         id: 1,
-        max_attendees: 100,
         name: "SecretItem",
         slug: "sec12",
       }),
     ];
-    // quantities left empty exercises the defensive ×1 fallback.
     const html = ticketPage({
       groupName: "Hidden Bundle",
       listings,

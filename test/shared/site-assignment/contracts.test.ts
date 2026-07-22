@@ -10,6 +10,9 @@ import {
 } from "#shared/email.ts";
 import {
   assignAndNotifyBuiltSites,
+  isQualifyingTierListing,
+  parseReadOnlyFromMs,
+  pickTierListing,
   renewalDeadlineBaseMs,
   rotateRenewalToken,
   syncReadOnlyFrom,
@@ -44,6 +47,33 @@ const assignmentEntry = (quantity: number) => ({
   },
 });
 
+const tierFields = (
+  overrides: Partial<Parameters<typeof isQualifyingTierListing>[0]> = {},
+) => ({
+  active: true,
+  hidden: true,
+  months_per_unit: 1,
+  purchase_only: true,
+  ...overrides,
+});
+
+const expectBlockedNotification = async (
+  entry: ReturnType<typeof configEntry>,
+  notification: string,
+): Promise<void> => {
+  using _env = withEnv({ NTFY_URL: "https://ntfy.test/site-assignment" });
+  using fetchStub = stubFetch(new Response());
+  using _error = stub(console, "error", () => {});
+
+  await assignAndNotifyBuiltSites([
+    { attendee: { email: "buyer@example.com", id: 81, quantity: 1 }, ...entry },
+  ]);
+
+  expect(fetchStub.calls.map(({ args }) => args[1].body)).toEqual([
+    notification,
+  ]);
+};
+
 const sendSetupEmail = async (siteNames: readonly string[]) => {
   using fetchStub = stubFetch(new Response());
   using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
@@ -66,6 +96,16 @@ const sendSetupEmail = async (siteNames: readonly string[]) => {
 };
 
 describe("site assignment configuration contracts", () => {
+  test("requires every renewal-tier condition", () => {
+    expect([
+      isQualifyingTierListing(tierFields()),
+      isQualifyingTierListing(tierFields({ purchase_only: false })),
+      isQualifyingTierListing(tierFields({ hidden: false })),
+      isQualifyingTierListing(tierFields({ months_per_unit: 0 })),
+      isQualifyingTierListing(tierFields({ active: false })),
+    ]).toEqual([true, false, false, false, false]);
+  });
+
   test("returns the complete builder-disabled error", async () => {
     using _env = withEnv({ CAN_BUILD_SITES: undefined });
 
@@ -80,6 +120,13 @@ describe("site assignment configuration contracts", () => {
     using _time = new FakeTime(0);
 
     expect(renewalDeadlineBaseMs({ readOnlyFrom: "" })).toBe(0);
+  });
+
+  test("parses a stored read-only deadline", () => {
+    const deadline = "2035-06-07T08:09:10.000Z";
+    expect(parseReadOnlyFromMs({ readOnlyFrom: deadline })).toBe(
+      Date.parse(deadline),
+    );
   });
 
   test("returns an exact missing-hosting-id error", async () => {
@@ -105,6 +152,10 @@ describeWithEnv(
       });
     });
 
+    test("reports invalid initial months after checkout", async () => {
+      await expectBlockedNotification(configEntry(0), "DATA_INVALID");
+    });
+
     test("accepts an initial term of one month", async () => {
       await createTestListing({
         hidden: true,
@@ -124,6 +175,29 @@ describeWithEnv(
         reason: "missing_tier",
       });
     });
+
+    test("reports a missing renewal tier after checkout", async () => {
+      await expectBlockedNotification(configEntry(), "CONFIG_MISSING");
+    });
+
+    test("picks the cheapest qualifying tier regardless of insert order", async () => {
+      const cheap = await createTestListing({
+        hidden: true,
+        monthsPerUnit: 1,
+        name: "Cheap Tier",
+        purchaseOnly: true,
+        unitPrice: 300,
+      });
+      await createTestListing({
+        hidden: true,
+        monthsPerUnit: 1,
+        name: "Expensive Tier",
+        purchaseOnly: true,
+        unitPrice: 900,
+      });
+
+      expect((await pickTierListing())?.id).toBe(cheap.id);
+    });
   },
 );
 
@@ -136,6 +210,7 @@ describeWithEnv(
         Promise.resolve({ ok: true as const }),
       );
       const cutoff = "2099-04-05T06:07:08.000Z";
+      const renewalUrl = "https://example.test/renew/?t=renewal-token";
       await insertBuiltSite(
         "Persistent cutoff",
         "cutoff.test",
@@ -148,11 +223,47 @@ describeWithEnv(
         ({ name }) => name === "Persistent cutoff",
       )!;
 
-      expect(await syncReadOnlyFrom(site, cutoff)).toEqual({ ok: true });
+      expect(await syncReadOnlyFrom(site, cutoff, renewalUrl)).toEqual({
+        ok: true,
+      });
+      expect(_secret.calls.map(({ args }) => [args[1], args[2]])).toEqual([
+        ["RENEWAL_URL", renewalUrl],
+        ["READ_ONLY_FROM", cutoff],
+      ]);
       const stored = (await builtSites.getAll()).find(
         ({ name }) => name === "Persistent cutoff",
       )!;
       expect(stored.readOnlyFrom).toBe(cutoff);
+    });
+
+    test("provisions renewal state when assigning a site", async () => {
+      using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ ok: true as const }),
+      );
+      await createTestListing({
+        hidden: true,
+        monthsPerUnit: 1,
+        purchaseOnly: true,
+      });
+      await insertBuiltSite(
+        "Renewable site",
+        "renewable.test",
+        "",
+        "",
+        true,
+        "43",
+      );
+
+      await assignAndNotifyBuiltSites([assignmentEntry(1)]);
+
+      const site = (await builtSites.getAll()).find(
+        ({ name }) => name === "Renewable site",
+      )!;
+      expect(site.assignedAttendeeId).toBe(81);
+      expect(site.assignedListingId).toBe(71);
+      expect(site.readOnlyFrom).not.toBe("");
+      expect(site.renewalToken).not.toBeNull();
+      expect(site.renewalTokenIndex).not.toBeNull();
     });
 
     test("reports a failed renewal push to ntfy", async () => {
