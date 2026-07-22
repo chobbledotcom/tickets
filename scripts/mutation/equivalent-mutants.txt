@@ -1040,8 +1040,8 @@ src/shared/cache-registry.ts:126:47  ?? → ||   # get(): Set|undefined — a Se
 
 # Stripe request null checks: both values are typed as string|null, never undefined,
 # so strict and loose null equality agree for every possible input.
-src/shared/stripe/request.ts:89:17  === → ==   # retryAfter is string|null; both comparisons are true only for null
-src/shared/stripe/request.ts:151:15  === → ==   # Headers.get returns string|null; both comparisons are true only for null
+src/shared/stripe/request.ts:90:17  === → ==   # retryAfter is string|null; both comparisons are true only for null
+src/shared/stripe/request.ts:152:15  === → ==   # Headers.get returns string|null; both comparisons are true only for null
 
 # A header part without "=" has no value. Its key cannot affect timestamp or
 # signature state: a timestamp assignment remains undefined and a v1 signature

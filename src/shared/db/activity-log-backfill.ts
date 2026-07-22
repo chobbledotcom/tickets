@@ -7,21 +7,16 @@
  * with the env key, re-encrypt under the owner's public key, write it back.
  * Only the public key is needed (no password), so it runs unattended.
  *
- * It is resumable without a cursor: a converted row no longer matches the
- * `enc:` prefix, so each batch shrinks the remaining set. A batch that finds
- * nothing leaves the task disabled until more legacy data exists.
+ * It is resumable without a row cursor: a converted row no longer matches the
+ * `enc:` prefix, so each batch shrinks the remaining set. The maintenance task
+ * stores a completion checkpoint after the final batch, avoiding future scans.
  */
 
 /* jscpd:ignore-start */
 import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
-import {
-  executeBatch,
-  queryAll,
-  rowExists,
-  update,
-} from "#shared/db/client.ts";
+import { executeBatch, queryAll, update } from "#shared/db/client.ts";
 import { ACTIVITY_LOG_BACKFILL_BATCH } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 
@@ -31,6 +26,8 @@ import { logDebug } from "#shared/logger.ts";
 // The batch query filters on the env-key prefix, so every fetched message is
 // legacy env-key ciphertext.
 type LegacyRow = { id: number; message: EnvKeyEncrypted };
+
+export const ACTIVITY_LOG_BACKFILL_COMPLETE = "complete";
 
 /**
  * Re-encrypt one batch of legacy env-key rows to the owner key. Returns the
@@ -64,16 +61,12 @@ export const backfillActivityLogBatch = async (
   return rows.length;
 };
 
-export const hasLegacyActivityLog = (): Promise<boolean> =>
-  rowExists("SELECT 1 FROM activity_log WHERE message LIKE ? LIMIT 1", [
-    `${ENCRYPTION_PREFIX}%`,
-  ]);
-
 export const runActivityLogBackfill = async (
   publicKey: string,
-): Promise<void> => {
+): Promise<number> => {
   const converted = await backfillActivityLogBatch(publicKey);
   if (converted > 0) {
     logDebug("Backfill", `activity_log: re-encrypted ${converted} rows`);
   }
+  return converted;
 };

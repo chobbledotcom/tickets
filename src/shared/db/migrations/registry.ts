@@ -372,6 +372,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-19_maintenance_checkpoint",
     () => import("./2026-07-19_maintenance_checkpoint.ts"),
   ),
+  // Preserve the old migration's missing-row signal as a completed checkpoint.
+  entry(
+    "2026-07-21_activity_backfill_complete",
+    () => import("./2026-07-21_activity_backfill_complete.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

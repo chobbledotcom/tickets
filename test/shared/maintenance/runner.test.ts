@@ -168,6 +168,31 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     expect(calls).toEqual([]);
   });
 
+  test("a disabled task is removed without running", async () => {
+    await execute(
+      "INSERT INTO maintenance_tasks (name, next_run_at) VALUES ('disabled', 0)",
+    );
+    const tasks = defineMaintenanceTasks([
+      declaration(
+        "disabled",
+        () => {
+          throw new Error("disabled task ran");
+        },
+        {
+          check: { enabled: () => false },
+        },
+      ),
+    ]);
+
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+
+    expect(
+      await queryOne(
+        "SELECT name FROM maintenance_tasks WHERE name = 'disabled'",
+      ),
+    ).toBeNull();
+  });
+
   test("the default scheduled wake includes scheduled-only work", async () => {
     const calls: string[] = [];
     const tasks = defineMaintenanceTasks([

@@ -12,6 +12,11 @@ import {
   StripeConnectionError,
   StripeProtocolError,
 } from "#shared/stripe/request.ts";
+import {
+  getSubrequestUsage,
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
 import { stripeCheckoutSession } from "#test/lib/stripe/fixtures.ts";
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
@@ -73,7 +78,7 @@ const unreadableResponse = (error: unknown, status = 200): Response =>
   );
 
 const recordingCheckout = (
-  responses: Response[],
+  responses: (Error | Response)[],
   maxNetworkRetries: number,
 ) => {
   const requests: RequestInit[] = [];
@@ -83,6 +88,7 @@ const recordingCheckout = (
       requests.push(init);
       const response = responses.shift();
       if (!response) throw new Error("No Stripe response left");
+      if (response instanceof Error) return Promise.reject(response);
       return Promise.resolve(response);
     },
     maxNetworkRetries,
@@ -93,6 +99,24 @@ const recordingCheckout = (
     },
   });
   return { client, requests, waits };
+};
+
+const expectTwoCountedCheckoutAttempts = async (
+  firstAttempt: Error | Response,
+): Promise<void> => {
+  const { client } = recordingCheckout(
+    [firstAttempt, Response.json(stripeCheckoutSession())],
+    1,
+  );
+
+  await runWithSubrequestBudget(async () => {
+    await client.checkout.sessions.create(checkoutParams());
+    expect(getSubrequestUsage()).toEqual({
+      database: 0,
+      external: 2,
+      total: 2,
+    });
+  });
 };
 
 const oneCallErrorClient = (response: Response) => {
@@ -187,6 +211,37 @@ describe("Stripe request transport", () => {
       new Headers(requests[1]!.headers).get("idempotency-key"),
     );
     expect(waits).toEqual([500]);
+  });
+
+  test("counts every Stripe retry against the shared request budget", async () => {
+    await expectTwoCountedCheckoutAttempts(
+      new Response("busy", { status: 500 }),
+    );
+  });
+
+  test("counts a rejected Stripe transport before retrying", async () => {
+    await expectTwoCountedCheckoutAttempts(
+      new TypeError("network unavailable"),
+    );
+  });
+
+  test("blocks Stripe before transport when no external allowance remains", async () => {
+    let fetches = 0;
+    const client = createStripeClient("sk_test_secret", {
+      fetch: () => {
+        fetches += 1;
+        return Promise.resolve(Response.json({ livemode: false }));
+      },
+    });
+
+    await expect(
+      runWithSubrequestBudget(() =>
+        withSubrequestAllowance({ database: 0, external: 0, total: 0 }, () =>
+          client.balance.retrieve(),
+        ),
+      ),
+    ).rejects.toThrow("Blocked external operation: Stripe API request");
+    expect(fetches).toBe(0);
   });
 
   test("reuses the POST body and idempotency key after a response body read failure", async () => {
