@@ -64,6 +64,7 @@ import {
   packageMemberBlock,
   packageMemberBlockError,
 } from "#shared/package-membership.ts";
+import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 import type {
   Group,
   GroupListing,
@@ -173,6 +174,10 @@ export const isGroupSlugTaken = (
     slug,
     excludeGroupId ? { id: excludeGroupId, table: "groups" } : undefined,
   );
+
+/** Generate a unique group slug, retrying on collision. */
+export const generateUniqueGroupSlug = (): Promise<SlugWithIndex<BlindIndex>> =>
+  generateUniqueSlug(computeGroupSlugIndex, isGroupSlugTaken);
 
 /**
  * Members of SEVERAL groups at once, keyed by group id — the batched form of the

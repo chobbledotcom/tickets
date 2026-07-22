@@ -14,14 +14,14 @@
 import * as v from "valibot";
 import { identity, mapById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
 import type {
   GroupInput,
   ListingInput,
 } from "#shared/catalog-fields/fields.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
+  generateUniqueGroupSlug,
   getGroupsById,
   groups,
   listingGroups,
@@ -51,6 +51,7 @@ import {
 } from "#shared/db/name-registry.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  childAddOnError,
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
@@ -73,7 +74,6 @@ import {
   type ListingWithCount,
   parseDayPrices,
 } from "#shared/types.ts";
-import { childAddOnError } from "../listings-parents.ts";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
 import {
   CatalogTransferSchema,

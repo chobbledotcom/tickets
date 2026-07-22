@@ -22,7 +22,7 @@
 
 import { parseSync } from "npm:oxc-parser@0.132.0";
 import { flatMap, unique } from "#fp";
-import { lineColumnAt } from "../line-column.ts";
+import { lineColumnAt } from "#scripts/line-column.ts";
 import {
   assignmentOperators,
   assignmentOperatorsExhaustive,

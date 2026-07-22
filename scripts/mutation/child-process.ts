@@ -1,5 +1,5 @@
 import { extendedBy } from "#fp";
-import { commandExitCode } from "../deno-command.ts";
+import { commandExitCode } from "#scripts/deno-command.ts";
 
 /** Run `deno <args>` to completion and return its exit code. An explicit env
  * is the child's complete environment, so removing a parent variable works. */

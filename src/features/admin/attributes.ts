@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin routes for listing attributes.
  */
@@ -357,23 +357,23 @@ const handleListingAttributesPost = createListingChoicePost({
   tab: "attributes",
 });
 
-export const adminHandlers = handlersFor("attributes")({
-  getAttributes: handleAttributesGet,
-  getAttributesById: handleAttributeGet,
-  getAttributesByIdDelete: (request, { id }) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/attributes": handleAttributesGet,
+  "GET /admin/attributes/:id": handleAttributeGet,
+  "GET /admin/attributes/:id/delete": (request, { id }) =>
     attributeDelete.get(request, id),
-  getAttributesByIdOptionsByOptionIdDelete: handleDeleteOptionGet,
-  getAttributesByIdOptionsByOptionIdEdit: handleEditOptionGet,
-  postAttributes: handleAttributesPost,
-  postAttributesByIdDelete: (request, { id }) =>
+  "GET /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionGet,
+  "GET /admin/attributes/:id/options/:optionId/edit": handleEditOptionGet,
+  "POST /admin/attributes": handleAttributesPost,
+  "POST /admin/attributes/:id/delete": (request, { id }) =>
     attributeDelete.post(request, id),
-  postAttributesByIdEdit: handleAttributeEdit,
-  postAttributesByIdMoveDown: attributeOrder.down,
-  postAttributesByIdMoveUp: attributeOrder.up,
-  postAttributesByIdOptions: handleAddOption,
-  postAttributesByIdOptionsByOptionIdDelete: handleDeleteOptionPost,
-  postAttributesByIdOptionsByOptionIdEdit: handleEditOptionPost,
-  postAttributesByIdOptionsByOptionIdMoveDown: optionOrder.down,
-  postAttributesByIdOptionsByOptionIdMoveUp: optionOrder.up,
-  postListingByIdAttributes: handleListingAttributesPost,
+  "POST /admin/attributes/:id/edit": handleAttributeEdit,
+  "POST /admin/attributes/:id/move-down": attributeOrder.down,
+  "POST /admin/attributes/:id/move-up": attributeOrder.up,
+  "POST /admin/attributes/:id/options": handleAddOption,
+  "POST /admin/attributes/:id/options/:optionId/delete": handleDeleteOptionPost,
+  "POST /admin/attributes/:id/options/:optionId/edit": handleEditOptionPost,
+  "POST /admin/attributes/:id/options/:optionId/move-down": optionOrder.down,
+  "POST /admin/attributes/:id/options/:optionId/move-up": optionOrder.up,
+  "POST /admin/listing/:id/attributes": handleListingAttributesPost,
 });

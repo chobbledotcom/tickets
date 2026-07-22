@@ -9,6 +9,7 @@ import {
   isEmbeddablePath,
   isValidContentType,
 } from "#routes/middleware.ts";
+import { requestScopedHandler } from "#routes/request-scopes.ts";
 import {
   databaseBusyResponse,
   migrationInProgressResponse,
@@ -56,7 +57,6 @@ import {
 } from "#shared/logger.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
-import { requestScopedHandler } from "../request-scopes.ts";
 import { defineAppRoute, routeMainApp } from "./routes.ts";
 import {
   bufferRequestIfNeeded,

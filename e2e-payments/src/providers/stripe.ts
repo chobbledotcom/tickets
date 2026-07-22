@@ -1,8 +1,8 @@
 /* jscpd:ignore-start */
-import { type BrowserSession, requirePageText } from "../browser.ts";
-import { config } from "../config.ts";
-import { BOOKER_NAME } from "../flow.ts";
-import { log, warn } from "../log.ts";
+import { type BrowserSession, requirePageText } from "#e2e/browser.ts";
+import { config } from "#e2e/config.ts";
+import { BOOKER_NAME } from "#e2e/flow.ts";
+import { log, warn } from "#e2e/log.ts";
 import { clickFirst, fillFirst } from "./card.ts";
 import { configureProvider, hostedCheckout } from "./shared.ts";
 import type { PaymentProvider } from "./types.ts";
@@ -96,6 +96,27 @@ const exerciseStripeRefund = async (session: BrowserSession): Promise<void> => {
 };
 
 /**
+ * Whether `url` points at a cloudflared quick-tunnel host
+ * (`trycloudflare.com` or any `*.trycloudflare.com` subdomain). Substring
+ * matching also catches a URL that just happens to mention the tunnel domain
+ * in its query string, which would delete an unrelated webhook endpoint, so
+ * the hostname is parsed and matched explicitly. Invalid or missing URLs are
+ * left alone.
+ */
+const isTrycloudflareTunnelUrl = (raw: string | undefined): boolean => {
+  if (!raw) return false;
+  try {
+    const { hostname } = new URL(raw);
+    return (
+      hostname === "trycloudflare.com" ||
+      hostname.endsWith(".trycloudflare.com")
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Stripe. Configuring the key registers a webhook endpoint against the site's
  * public HTTPS URL, so this provider REQUIRES the cloudflared tunnel.
  *
@@ -130,14 +151,26 @@ export const stripe: PaymentProvider = {
         data?: { id: string; url?: string }[];
       };
       const stale = (body.data ?? []).filter((e) =>
-        e.url?.includes("trycloudflare.com"),
+        isTrycloudflareTunnelUrl(e.url),
       );
       for (const endpoint of stale) {
-        await fetch(
-          `https://api.stripe.com/v1/webhook_endpoints/${endpoint.id}`,
-          { headers, method: "DELETE" },
-        ).catch(() => {});
-        log(`  deleted stale Stripe webhook endpoint ${endpoint.id}`);
+        try {
+          const del = await fetch(
+            `https://api.stripe.com/v1/webhook_endpoints/${endpoint.id}`,
+            { headers, method: "DELETE" },
+          );
+          if (del.ok) {
+            log(`  deleted stale Stripe webhook endpoint ${endpoint.id}`);
+          } else {
+            warn(
+              `  failed to delete stale Stripe webhook endpoint ${endpoint.id} (HTTP ${del.status})`,
+            );
+          }
+        } catch (err) {
+          warn(
+            `  failed to delete stale Stripe webhook endpoint ${endpoint.id}: ${String(err)}`,
+          );
+        }
       }
       if (stale.length === 0) {
         log("  no stale Stripe webhook endpoints to clean");

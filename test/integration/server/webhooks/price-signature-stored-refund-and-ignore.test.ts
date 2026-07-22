@@ -7,12 +7,6 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import { assertJson } from "#test-utils/assertions.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { singleItem, webhookMeta } from "#test-utils/factories.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 import {
   expectAcknowledgedIgnore,
   expectNoAttendees,
@@ -25,7 +19,13 @@ import {
   signedMeta,
   stubRefundOk,
   webhookRequest,
-} from "../../../lib/webhook-price-signature/helpers.ts";
+} from "#test/lib/webhook-price-signature/helpers.ts";
+import { assertJson } from "#test-utils/assertions.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { singleItem, webhookMeta } from "#test-utils/factories.ts";
+import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 describeWithEnv(
   "webhook signed price oracle — stored refunds & ignores",

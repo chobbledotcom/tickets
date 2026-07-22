@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
 /**
  * Admin routes for managing attendee statuses (owner-only).
@@ -125,17 +125,17 @@ const statusOrder = createOrderedCollectionHandlers({
   target: ({ context }) => context.id,
 });
 
-export const adminHandlers = handlersFor("settingsStatuses")({
-  getSettingsStatuses: crud.listGet,
-  getSettingsStatusesById: (request, { id }) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/settings/statuses": crud.listGet,
+  "GET /admin/settings/statuses/:id": (request, { id }) =>
     attendeeStatusPage.renderTab(request, id, ""),
-  getSettingsStatusesByIdByTab: (request, { id, tab }) =>
+  "GET /admin/settings/statuses/:id/:tab": (request, { id, tab }) =>
     attendeeStatusPage.renderTab(request, id, tab),
-  getSettingsStatusesByIdDelete: crud.deleteGet,
-  getSettingsStatusesNew: crud.newGet,
-  postSettingsStatuses: crud.createPost,
-  postSettingsStatusesByIdDelete: crud.deletePost,
-  postSettingsStatusesByIdEdit: crud.editPost,
-  postSettingsStatusesByIdMoveDown: statusOrder.down,
-  postSettingsStatusesByIdMoveUp: statusOrder.up,
+  "GET /admin/settings/statuses/:id/delete": crud.deleteGet,
+  "GET /admin/settings/statuses/new": crud.newGet,
+  "POST /admin/settings/statuses": crud.createPost,
+  "POST /admin/settings/statuses/:id/delete": crud.deletePost,
+  "POST /admin/settings/statuses/:id/edit": crud.editPost,
+  "POST /admin/settings/statuses/:id/move-down": statusOrder.down,
+  "POST /admin/settings/statuses/:id/move-up": statusOrder.up,
 });

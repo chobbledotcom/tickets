@@ -6,15 +6,15 @@ import { pricePaidFromLedger } from "#shared/db/attendees/select.ts";
 import { getDb } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { bookPaidReservation } from "#test/lib/server-reservation/_shared-setup.ts";
+import {
+  setPublicReservation,
+  stubPaidSession,
+} from "#test/lib/server-reservation/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { bookPaidReservation } from "../../../lib/server-reservation/_shared-setup.ts";
-import {
-  setPublicReservation,
-  stubPaidSession,
-} from "../../../lib/server-reservation/helpers.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",

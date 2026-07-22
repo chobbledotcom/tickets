@@ -5,9 +5,8 @@
  */
 
 import { sort } from "#fp";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { resolveHostingProvider } from "#shared/builder.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
+import { getEffectiveDomain, isBuilderEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { addMonthsIso, parseDateMs } from "#shared/dates.ts";

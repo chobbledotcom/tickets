@@ -1,10 +1,10 @@
 /* jscpd:ignore-start */
 import { join } from "node:path";
+import { withFileLock } from "#scripts/lock-file.ts";
+import { rethrowUnlessNotFound } from "#scripts/not-found.ts";
+import { removeTree } from "#scripts/process.ts";
+import { projectRoot } from "#scripts/project-root.ts";
 import { delay } from "#shared/now.ts";
-import { withFileLock } from "../lock-file.ts";
-import { rethrowUnlessNotFound } from "../not-found.ts";
-import { removeTree } from "../process.ts";
-import { projectRoot } from "../project-root.ts";
 
 /* jscpd:ignore-end */
 

@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin seed data routes - populate database with sample listings and attendees
  */
@@ -79,7 +79,7 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = (request) =>
   });
 
 /** Seeds routes */
-export const adminHandlers = handlersFor("seeds")({
-  getSeeds: handleSeedsGet,
-  postSeeds: handleSeedsPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/seeds": handleSeedsGet,
+  "POST /admin/seeds": handleSeedsPost,
 });

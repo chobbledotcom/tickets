@@ -19,7 +19,7 @@ import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
-import { ASSETS } from "../src/shared/images/wasm-assets.ts";
+import { ASSETS } from "#src/shared/images/wasm-assets.ts";
 import { buildStaticAssets } from "./build-static-assets.ts";
 import { minifyCss } from "./css-minify.ts";
 import {

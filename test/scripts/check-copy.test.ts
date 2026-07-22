@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type TempPath, tempDir } from "#test-utils/files.ts";
 import {
   type CopyEntry,
   findIssues,
   formatIssue,
   RULES,
-} from "../../scripts/check-copy/rules.ts";
-import { readCatalog, runCopyCheck } from "../../scripts/check-copy/run.ts";
+} from "#scripts/check-copy/rules.ts";
+import { readCatalog, runCopyCheck } from "#scripts/check-copy/run.ts";
+import { type TempPath, tempDir } from "#test-utils/files.ts";
 
 const entry = (value: string): CopyEntry => ({
   file: "test.json",

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { renderReport } from "../../../scripts/pr-queue/render.ts";
-import type { Bucket, PrSummary } from "../../../scripts/pr-queue/types.ts";
+import { renderReport } from "#scripts/pr-queue/render.ts";
+import type { Bucket, PrSummary } from "#scripts/pr-queue/types.ts";
 
 /** A frozen clock so `ago`/stale output is deterministic. 2026-07-10T13:00:00Z. */
 const NOW = Date.UTC(2026, 6, 10, 13); // month is 0-indexed (6 = July)

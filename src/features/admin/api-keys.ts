@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin API key management routes
  */
@@ -172,16 +172,16 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
     ),
   );
 
-export const adminHandlers = handlersFor("apiKeys")({
-  getApiKeys: handleApiKeysGet,
-  getApiKeysByApiKeyId: (request, { apiKeyId }) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/api-keys": handleApiKeysGet,
+  "GET /admin/api-keys/:apiKeyId": (request, { apiKeyId }) =>
     apiKeyPage.renderTab(request, apiKeyId, ""),
-  getApiKeysByApiKeyIdByTab: (request, { apiKeyId, tab }) =>
+  "GET /admin/api-keys/:apiKeyId/:tab": (request, { apiKeyId, tab }) =>
     apiKeyPage.renderTab(request, apiKeyId, tab),
-  getApiKeysByApiKeyIdDelete: (request, { apiKeyId }) =>
+  "GET /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>
     apiKeyDelete.get(request, apiKeyId),
-  getApiKeysDocs: handleApiDocsGet,
-  postApiKeys: handleApiKeysPost,
-  postApiKeysByApiKeyIdDelete: (request, { apiKeyId }) =>
+  "GET /admin/api-keys/docs": handleApiDocsGet,
+  "POST /admin/api-keys": handleApiKeysPost,
+  "POST /admin/api-keys/:apiKeyId/delete": (request, { apiKeyId }) =>
     apiKeyDelete.post(request, apiKeyId),
 });

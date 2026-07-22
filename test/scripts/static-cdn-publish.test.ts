@@ -4,7 +4,7 @@ import { FakeTime } from "@std/testing/time";
 import {
   publishStaticCdnAssets,
   type StaticCdnAsset,
-} from "../../scripts/static-cdn.ts";
+} from "#scripts/static-cdn.ts";
 import {
   assetResponse,
   CONFIG,

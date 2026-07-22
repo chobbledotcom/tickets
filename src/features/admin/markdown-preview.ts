@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Markdown preview endpoint.
  *
@@ -28,6 +28,6 @@ const handleMarkdownPreviewPost = (request: Request): Promise<Response> =>
   });
 
 /** Markdown preview routes */
-export const adminHandlers = handlersFor("markdownPreview")({
-  postMarkdownPreview: handleMarkdownPreviewPost,
+export const adminHandlers = defineRoutes({
+  "POST /admin/markdown-preview": handleMarkdownPreviewPost,
 });

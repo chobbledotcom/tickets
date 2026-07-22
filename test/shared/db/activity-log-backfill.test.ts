@@ -5,11 +5,10 @@ import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import {
   backfillActivityLogBatch,
-  hasLegacyActivityLog,
   runActivityLogBackfill,
 } from "#shared/db/activity-log-backfill.ts";
 import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
-import { execute } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
@@ -20,10 +19,11 @@ import {
   rawActivityMessage,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { recordQueries } from "#test-utils/record-queries.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 const captureBackfillLogs = async (
-  operation: () => Promise<void>,
+  operation: () => Promise<unknown>,
 ): Promise<string[]> => {
   setSuppressDebugLogs(false);
   const debugStub = stub(console, "debug");
@@ -116,12 +116,11 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     expect(logs).toEqual([]);
   });
 
-  test("reports whether legacy work remains", async () => {
-    expect(await hasLegacyActivityLog()).toBe(false);
+  test("returns the size of each remaining batch", async () => {
+    expect(await runActivityLogBackfill(settings.publicKey)).toBe(0);
     await insertLegacyActivity("legacy");
-    expect(await hasLegacyActivityLog()).toBe(true);
-    await runActivityLogBackfill(settings.publicKey);
-    expect(await hasLegacyActivityLog()).toBe(false);
+    expect(await runActivityLogBackfill(settings.publicKey)).toBe(1);
+    expect(await runActivityLogBackfill(settings.publicKey)).toBe(0);
   });
 
   test("runs the legacy backfill through the maintenance registry", async () => {
@@ -130,6 +129,31 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
     await maintenance.run(MAINTENANCE_TASKS);
 
     expect((await rawActivityMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
+  });
+
+  test("a completed task does not scan the activity log again", async () => {
+    await maintenance.run(MAINTENANCE_TASKS);
+    expect(
+      await queryOne<{ checkpoint: string }>(
+        "SELECT checkpoint FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
+      ),
+    ).toEqual({ checkpoint: "complete" });
+    await execute(
+      "UPDATE maintenance_tasks SET next_run_at = 0 WHERE name = 'activity_log_backfill'",
+    );
+    const queries: string[] = [];
+    const restore = recordQueries(queries);
+    try {
+      await maintenance.run(MAINTENANCE_TASKS);
+    } finally {
+      restore();
+    }
+
+    expect(
+      queries.filter((sql) =>
+        sql.includes("FROM activity_log WHERE message LIKE"),
+      ),
+    ).toEqual([]);
   });
 
   test("surfaces a corrupt legacy message to the task runner", async () => {

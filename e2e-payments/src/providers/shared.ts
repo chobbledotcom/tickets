@@ -1,8 +1,8 @@
 /* jscpd:ignore-start */
-import type { BrowserSession } from "../browser.ts";
-import type { ProviderName } from "../config.ts";
-import { config } from "../config.ts";
-import { log } from "../log.ts";
+import type { BrowserSession } from "#e2e/browser.ts";
+import type { ProviderName } from "#e2e/config.ts";
+import { config } from "#e2e/config.ts";
+import { log } from "#e2e/log.ts";
 import type { ConfigureProvider, PayHostedCheckout } from "./types.ts";
 
 /* jscpd:ignore-end */

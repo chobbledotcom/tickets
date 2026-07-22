@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -17,6 +17,7 @@ import {
   type NamedTypeShape,
   type Site,
 } from "#test/lib/code-quality/detectors.ts";
+import { detectRelativeImport } from "#test/lib/code-quality/relative-import.ts";
 
 /**
  * Integration guard for the code-quality rules: it scans the real `src/`+`test/`
@@ -32,6 +33,9 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(currentDir, "../..");
 const SRC_DIR = join(currentDir, "../../src");
 const TEST_DIR = join(currentDir, "../../test");
+const SCRIPTS_DIR = join(currentDir, "../../scripts");
+const CLI_DIR = join(currentDir, "../../cli");
+const E2E_PAYMENTS_DIR = join(currentDir, "../../e2e-payments");
 
 /**
  * src/ files allowed to hold module-level Map/Set state (the in-memory-state
@@ -286,6 +290,42 @@ const ALLOWED_TEST_HOOKS: string[] = [
 const getAllTsFiles = (dir: string): Promise<string[]> =>
   getAllFilesWithExt(dir, ".ts");
 
+/** `.js`/`.jsx` files in every in-scope tree (src, test, scripts, cli,
+ *  e2e-payments) — hand-written browser source like
+ *  `src/ui/client/scanner.js`, distinct from build artifacts. The
+ *  parent-import rule scans these so a script entry can't bypass it just by
+ *  sitting in a `.js` file. {@link isBuildArtifactPath} filters out the
+ *  `src/ui/static/` esbuild output and `dist/` edge bundle. */
+const getAllJsFiles = async (): Promise<string[]> => {
+  const dirs = [SRC_DIR, TEST_DIR, SCRIPTS_DIR, CLI_DIR, E2E_PAYMENTS_DIR];
+  const exts = [".js", ".jsx"];
+  const perDirExt = await Promise.all(
+    dirs.flatMap((dir) => exts.map((ext) => getAllFilesWithExt(dir, ext))),
+  );
+  return perDirExt.flat().filter((f) => !isBuildArtifactPath(f));
+};
+
+/** `.tsx` files across every in-scope tree. The template-aware rules
+ *  (parent-import is the first one) scan these in addition to the `.ts`
+ *  lists so a `.tsx` file can't bypass the rule by sitting outside `src/`. */
+const getAllTsxFiles = async (): Promise<string[]> => {
+  const dirs = [SRC_DIR, TEST_DIR, SCRIPTS_DIR, CLI_DIR, E2E_PAYMENTS_DIR];
+  const perDir = await Promise.all(
+    dirs.map((dir) => getAllFilesWithExt(dir, ".tsx")),
+  );
+  return perDir.flat();
+};
+
+/** Whether `fullPath` is a generated/build-output path (skipped by every
+ *  source-scanning rule). `src/ui/static/` holds esbuild's bundled `.js`
+ *  output (rebuilt from `.ts` by `scripts/build-static-assets.ts`) and
+ *  `dist/` holds the bundled edge script, so neither is source. */
+const isBuildArtifactPath = (fullPath: string): boolean =>
+  fullPath.includes(`${sep}ui${sep}static${sep}`) ||
+  fullPath.includes("/ui/static/") ||
+  fullPath.includes(`${sep}dist${sep}`) ||
+  fullPath.includes("/dist/");
+
 const getRelativePath = (fullPath: string): string =>
   fullPath.replace(`${SRC_DIR}/`, "");
 
@@ -320,27 +360,66 @@ describe("code quality", () => {
   let srcContents: Map<string, string>;
   let testFiles: string[];
   let testContents: Map<string, string>;
-  let tsxFiles: string[];
-  let tsxContents: Map<string, string>;
+  /** Production `.tsx` templates — the templates the app actually renders.
+   *  Passed to the production-only rules (test-only-exports, redundant-args)
+   *  as additional production source. Stays scoped to `src/` so `.test.tsx`
+   *  files under `test/` are never credited as production use. */
+  let srcTsxFiles: string[];
+  let srcTsxContents: Map<string, string>;
+  /** Every `.tsx` file in every in-scope tree. Used by the parent-import rule
+   *  (and any other rule that wants every template regardless of whether it's
+   *  production code or a test). */
+  let allTsxFiles: string[];
+  let allTsxContents: Map<string, string>;
+  /** Hand-written `.js`/`.jsx` files in every in-scope tree. Scanned by the
+   *  parent-import rule so a script entry in `.js` can't bypass it. */
+  let jsFiles: string[];
+  let jsContents: Map<string, string>;
+  let scriptsFiles: string[];
+  let scriptsContents: Map<string, string>;
+  let cliFiles: string[];
+  let cliContents: Map<string, string>;
+  let e2eFiles: string[];
+  let e2eContents: Map<string, string>;
 
   const ensureLoaded = async (): Promise<void> => {
     if (srcContents) return;
-    const [sf, tf, txf] = await Promise.all([
+    const [sf, tf, srcTxf, allTxf, jsf, scf, cf, ef] = await Promise.all([
       getAllTsFiles(SRC_DIR),
       getAllTsFiles(TEST_DIR),
       getAllFilesWithExt(SRC_DIR, ".tsx"),
+      getAllTsxFiles(),
+      getAllJsFiles(),
+      getAllTsFiles(SCRIPTS_DIR),
+      getAllTsFiles(CLI_DIR),
+      getAllTsFiles(E2E_PAYMENTS_DIR),
     ]);
     srcFiles = sf;
     testFiles = tf;
-    tsxFiles = txf;
-    const [sc, tc, txc] = await Promise.all([
+    srcTsxFiles = srcTxf;
+    allTsxFiles = allTxf;
+    jsFiles = jsf;
+    scriptsFiles = scf;
+    cliFiles = cf;
+    e2eFiles = ef;
+    const [sc, tc, srcTxc, allTxc, jsc, scc, cc, ec] = await Promise.all([
       readAllFiles(srcFiles),
       readAllFiles(testFiles),
-      readAllFiles(tsxFiles),
+      readAllFiles(srcTsxFiles),
+      readAllFiles(allTsxFiles),
+      readAllFiles(jsFiles),
+      readAllFiles(scriptsFiles),
+      readAllFiles(cliFiles),
+      readAllFiles(e2eFiles),
     ]);
     srcContents = sc;
     testContents = tc;
-    tsxContents = txc;
+    srcTsxContents = srcTxc;
+    allTsxContents = allTxc;
+    jsContents = jsc;
+    scriptsContents = scc;
+    cliContents = cc;
+    e2eContents = ec;
   };
 
   describe("no in-memory state", () => {
@@ -381,6 +460,22 @@ describe("code quality", () => {
     });
   });
 
+  /** Iterate the in-scope files, skipping the code-quality folder's own
+   *  fixtures (which legitimately use the patterns the rules forbid, e.g.
+   *  `'import "../x.ts"'` as detector input). Each surviving file is handed to
+   *  the caller alongside its repo-relative path and contents. */
+  const forEachScannedFile = (
+    files: string[],
+    contents: Map<string, string>,
+    fn: (file: string, relativePath: string, fileContents: string) => void,
+  ): void => {
+    for (const file of files) {
+      const relativePath = repoRelative(file);
+      if (isCodeQualityFile(relativePath)) continue;
+      fn(file, relativePath, contents.get(file)!);
+    }
+  };
+
   /**
    * Scan one file set line by line, collecting violations via a detector.
    * Skips code-quality's own files so its rule literals never self-flag.
@@ -395,19 +490,15 @@ describe("code quality", () => {
     ) => string | null,
   ): string[] => {
     const violations: string[] = [];
-    for (const file of files) {
-      const relativePath = repoRelative(file);
-      if (isCodeQualityFile(relativePath)) continue;
-      // ensureLoaded() populates `contents` from this same `files` list, so
-      // every file requested here is guaranteed present.
-      const lines = contents.get(file)!.split("\n");
+    forEachScannedFile(files, contents, (_file, relativePath, fileContents) => {
+      const lines = fileContents.split("\n");
       let lineNum = 0;
       for (const line of lines) {
         lineNum++;
         const v = detect(relativePath, line, lineNum);
         if (v) violations.push(v);
       }
-    }
+    });
     return violations;
   };
 
@@ -430,6 +521,42 @@ describe("code quality", () => {
     ];
   };
 
+  /** Run a whole-file detector (one call per file, receiving the full
+   *  contents) over every in-scope tree. The detector returns every
+   *  violation it finds in the file, so one call surfaces every form the
+   *  rule forbids — single-line, multi-line, with comments in the gap —
+   *  and a returned empty array means the file is clean. */
+  const collectFileViolations = (
+    files: string[],
+    contents: Map<string, string>,
+    detect: (relativePath: string, contents: string) => string[],
+  ): string[] => {
+    const violations: string[] = [];
+    // Whole-file detectors (like detectRelativeImport) skip comments and
+    // string literals themselves, so code-quality's own files don't need the
+    // blanket skip the line-level detectors use — they can't self-flag.
+    for (const file of files) {
+      const relativePath = repoRelative(file);
+      violations.push(...detect(relativePath, contents.get(file)!));
+    }
+    return violations;
+  };
+
+  const scanSourceFiles = async (
+    detect: (relativePath: string, contents: string) => string[],
+  ): Promise<string[]> => {
+    await ensureLoaded();
+    return [
+      ...collectFileViolations(srcFiles, srcContents, detect),
+      ...collectFileViolations(testFiles, testContents, detect),
+      ...collectFileViolations(allTsxFiles, allTsxContents, detect),
+      ...collectFileViolations(jsFiles, jsContents, detect),
+      ...collectFileViolations(scriptsFiles, scriptsContents, detect),
+      ...collectFileViolations(cliFiles, cliContents, detect),
+      ...collectFileViolations(e2eFiles, e2eContents, detect),
+    ];
+  };
+
   describe("no aliasing", () => {
     test("should not alias functions or variables at module level", async () => {
       const violations = await scanSourceLines(detectAliasing);
@@ -447,6 +574,28 @@ describe("code quality", () => {
   describe("no .then() usage", () => {
     test("should use async/await instead of .then()", async () => {
       const violations = await scanSourceLines(detectThenUsage);
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no ../ relative imports", () => {
+    /**
+     * Parent-walking relative imports tie a file to its location in the tree.
+     * The `#` aliases in deno.json map every top-level dir (src, test, scripts,
+     * cli, e2e-payments) to a stable prefix, so a file can name what it imports
+     * without caring where it sits — and a moved file keeps working. The rule
+     * scans tsx templates and the hand-written `.js` browser source too, since
+     * UI templates were the worst offender for `../`-walking to sibling files
+     * and `src/ui/client/scanner.js` is the only hand-written non-ts entry.
+     *
+     * One token-aware whole-file walk covers every form the rule has to
+     * catch — side-effect, dynamic, static, same-line, split-across-lines,
+     * and `import(/* note *\/ "../x")` with comments in the gap. Walking
+     * past comments and string literals also keeps a test fixture that
+     * quotes `'import "../x"'` as data from falsely flagging.
+     */
+    test("imports should use a # alias, not ../", async () => {
+      const violations = await scanSourceFiles(detectRelativeImport);
       expect(violations).toEqual([]);
     });
   });
@@ -475,7 +624,7 @@ describe("code quality", () => {
             file,
             relativePath,
             srcContents,
-            tsxContents,
+            srcTsxContents,
             testContents,
             ALLOWED_TEST_HOOKS,
           ),
@@ -504,7 +653,7 @@ describe("code quality", () => {
         }
       };
       for (const file of srcFiles) record(file, srcContents.get(file)!);
-      for (const file of tsxFiles) record(file, tsxContents.get(file)!);
+      for (const file of srcTsxFiles) record(file, srcTsxContents.get(file)!);
       return byName;
     };
 
@@ -536,7 +685,7 @@ describe("code quality", () => {
         }
       };
       for (const file of srcFiles) record(file, srcContents.get(file)!);
-      for (const file of tsxFiles) record(file, tsxContents.get(file)!);
+      for (const file of srcTsxFiles) record(file, srcTsxContents.get(file)!);
       return defs;
     };
 

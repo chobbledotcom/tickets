@@ -12,6 +12,7 @@
 /* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { mapNotNullish } from "#fp";
+import { withGroupOrNull } from "#routes/admin/find-group.ts";
 import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
   groupCatalogFields,
@@ -29,7 +30,6 @@ import {
 } from "#shared/db/listings/records.ts";
 import { namedError } from "#shared/named-error.ts";
 import type { AdminLevel } from "#shared/types.ts";
-import { withGroupOrNull } from "../find-group.ts";
 import { getListingGroupMemberships } from "./membership.ts";
 import {
   CATALOG_TRANSFER_VERSION,

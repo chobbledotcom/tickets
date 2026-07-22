@@ -158,6 +158,10 @@ export const isBunnyDnsEnabled = (): boolean =>
 /** Check if the Bunny hosted database provider is enabled (requires BUNNY_API_KEY). */
 export const isBunnyDbEnabled = (): boolean => !!getEnv("BUNNY_API_KEY");
 
+/** Check if this instance can build other sites. */
+export const isBuilderEnabled = (): boolean =>
+  getEnv("CAN_BUILD_SITES") === "true";
+
 /** Get the Bunny DNS zone ID from environment */
 export const getBunnyDnsZoneId = (): string => requireEnv("BUNNY_DNS_ZONE_ID");
 

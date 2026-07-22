@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { resolve } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { createFilePlan } from "../../scripts/mutation/evaluate.ts";
+import { createFilePlan } from "#scripts/mutation/evaluate.ts";
 import type {
   StaticAssetBuild,
   StaticBundle,
-} from "../../scripts/static-assets/session.ts";
+} from "#scripts/static-assets/session.ts";
 
 describe("mutation file plan", () => {
   test("includes browser and state dependencies", async () => {

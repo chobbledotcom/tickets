@@ -7,7 +7,7 @@ import {
   freshState,
   gitDiffArgs,
   tallyDiff,
-} from "../../scripts/diff-code-lines-lib.ts";
+} from "#scripts/diff-code-lines-lib.ts";
 
 test("requests a raw unified diff that external Git tools cannot replace", () => {
   expect(gitDiffArgs("origin/main")).toEqual([

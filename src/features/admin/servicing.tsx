@@ -2,7 +2,6 @@
 
 import { identity, map, mapById, unique } from "#fp";
 import { t } from "#i18n";
-import { handlersFor } from "#routes/admin/handlers.ts";
 import {
   normalizeServicingForSave,
   parseServicingForm,
@@ -25,6 +24,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { createEntityHandler, createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   costBelongsToServicing,
   createServicingEvent,
@@ -277,13 +277,13 @@ const handleServicingCostPost: TypedRouteHandler<"POST /admin/servicing/:id/cost
     },
   );
 
-export const adminHandlers = handlersFor("servicing")({
-  getServicing: handleServicingListGet,
-  getServicingById: handleServicingGet,
-  getServicingNew: handleServicingNewGet,
-  postServicingById: handleServicingPost,
-  postServicingByIdCostByCostId: handleServicingCostPost,
-  postServicingByIdDelete: handleServicingDeletePost,
-  postServicingByIdDuplicate: handleServicingDuplicatePost,
-  postServicingNew: handleServicingNewPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/servicing": handleServicingListGet,
+  "GET /admin/servicing/:id": handleServicingGet,
+  "GET /admin/servicing/new": handleServicingNewGet,
+  "POST /admin/servicing/:id": handleServicingPost,
+  "POST /admin/servicing/:id/cost/:costId": handleServicingCostPost,
+  "POST /admin/servicing/:id/delete": handleServicingDeletePost,
+  "POST /admin/servicing/:id/duplicate": handleServicingDuplicatePost,
+  "POST /admin/servicing/new": handleServicingNewPost,
 });

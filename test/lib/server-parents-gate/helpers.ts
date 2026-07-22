@@ -15,13 +15,13 @@ import { it as test } from "@std/testing/bdd";
 import { DAY_NAMES } from "#shared/day-names.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
+import { weekdayOf } from "#test/lib/booking-model-fixtures.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   bookableStartDates,
   createDailyTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { bookingPageHtml, makeParent } from "#test-utils/parents.ts";
-import { weekdayOf } from "../booking-model-fixtures.ts";
 
 /** The first date a listing can be booked for — the common single-date need.
  *  Delegates to the shared {@link bookableStartDates} (from `#test-utils`) and

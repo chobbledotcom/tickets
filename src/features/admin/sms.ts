@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin SMS page — text an attendee via the gateway queue.
  *
@@ -168,7 +168,7 @@ const sendSms = (
 const handleSmsPost = (request: Request): Promise<Response> =>
   withAuth(request, AUTH_FORM, sendSms);
 
-export const adminHandlers = handlersFor("sms")({
-  getSms: handleSmsGet,
-  postSms: handleSmsPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/sms": handleSmsGet,
+  "POST /admin/sms": handleSmsPost,
 });

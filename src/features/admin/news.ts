@@ -8,7 +8,7 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   createNewsPost,
@@ -96,15 +96,15 @@ const content = defineSiteContent("/admin/site/news", (paths) => ({
 
 // ─── Routes ─────────────────────────────────────────────────────
 
-export const adminHandlers = handlersFor("news")({
-  getSiteNews: content.list,
-  getSiteNewsById: content.entity,
-  getSiteNewsByIdByTab: content.entityTab,
-  getSiteNewsByIdDelete: content.deletePage,
-  getSiteNewsNew: content.newPage,
-  postSiteNews: content.create,
-  postSiteNewsByIdDelete: content.delete,
-  postSiteNewsByIdEdit: content.update,
-  postSiteNewsByIdImages: content.images.set,
-  postSiteNewsByIdImagesUpload: content.images.upload,
+export const adminHandlers = defineRoutes({
+  "GET /admin/site/news": content.list,
+  "GET /admin/site/news/:id": content.entity,
+  "GET /admin/site/news/:id/:tab": content.entityTab,
+  "GET /admin/site/news/:id/delete": content.deletePage,
+  "GET /admin/site/news/new": content.newPage,
+  "POST /admin/site/news": content.create,
+  "POST /admin/site/news/:id/delete": content.delete,
+  "POST /admin/site/news/:id/edit": content.update,
+  "POST /admin/site/news/:id/images": content.images.set,
+  "POST /admin/site/news/:id/images/upload": content.images.upload,
 });

@@ -7,8 +7,6 @@ import {
   renameEventsToListings,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   columnNames,
   downgradeListingDomainToLegacyNames,
@@ -19,7 +17,9 @@ import {
   tableExists,
   tableNames,
   tableRowCount,
-} from "../migration-test-helpers.ts";
+} from "#test/lib/db/migration-test-helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
   "db > migrations > 2026-06-14_rename_events_to_listings",

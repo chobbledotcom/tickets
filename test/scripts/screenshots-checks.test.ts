@@ -4,7 +4,7 @@ import {
   isCompactWidth,
   isolateElementCss,
   wasImageTrimmed,
-} from "../../scripts/screenshots/checks.ts";
+} from "#scripts/screenshots/checks.ts";
 
 describe("screenshot checks", () => {
   it("accepts a money table that uses no more than three quarters of its section", () => {

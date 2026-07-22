@@ -2,7 +2,6 @@ import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { pathExists } from "#test-utils/files.ts";
 import {
   copyMutationSnapshot,
   createRunId,
@@ -25,7 +24,8 @@ import {
   withMutationRunLock,
   workRoot,
   writeRunRecord,
-} from "../../scripts/mutation/isolation-state.ts";
+} from "#scripts/mutation/isolation-state.ts";
+import { pathExists } from "#test-utils/files.ts";
 import {
   captureMutationCommand,
   runQuietMutationCommand,

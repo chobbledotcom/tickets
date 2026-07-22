@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { twoListingsAttendees } from "#test/lib/attendee-read-helpers.ts";
 import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import {
   bookOneEachViaTicketForm,
@@ -12,7 +13,6 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { twoListingsAttendees } from "../../../lib/attendee-read-helpers.ts";
 
 // jscpd:ignore-end
 

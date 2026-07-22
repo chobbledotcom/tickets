@@ -27,11 +27,23 @@ describe("read-only request guard", () => {
     expect(readOnlyBlock("/admin/listings", "GET")).toBeNull();
   });
 
-  test("blocks admin writes unless the route schema allows them", () => {
+  test("allows only the admin operations that must work in read-only mode", () => {
     expect(readOnlyBlock("/admin", "POST")).toBe("page");
     expect(readOnlyBlock("/admin/settings/email", "POST")).toBe("page");
-    expect(readOnlyBlock("/admin/logout", "POST")).toBeNull();
-    expect(readOnlyBlock("/admin/backup/create", "POST")).toBeNull();
+    for (const path of [
+      "/admin/attendees/99/refresh-payment",
+      "/admin/backup/create",
+      "/admin/debug/sentry",
+      "/admin/deliveries/mark",
+      "/admin/listing/42/scan",
+      "/admin/listing/42/attendee/99/checkin",
+      "/admin/login",
+      "/admin/logout",
+      "/admin/support",
+    ]) {
+      expect(readOnlyBlock(path, "POST"), path).toBeNull();
+    }
+    expect(readOnlyBlock("/admin/logout", "PUT")).toBe("page");
   });
 
   test("allows public operations that must continue in read-only mode", () => {

@@ -4,7 +4,7 @@ import {
   buildReport,
   formatRatio,
   formatReport,
-} from "../../scripts/unit-tests-report-lib.ts";
+} from "#scripts/unit-tests-report-lib.ts";
 import { options, src, tst } from "./unit-tests-report-fixtures.ts";
 
 describe("formatRatio", () => {

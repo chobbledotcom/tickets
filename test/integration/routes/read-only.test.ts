@@ -259,6 +259,7 @@ describeWithEnv(
       "/join/some-code",
       "/unsubscribe",
       "/contact",
+      "/admin/debug/sentry",
       "/admin/support",
       "/instance/site-credentials",
       "/admin/backup/create",

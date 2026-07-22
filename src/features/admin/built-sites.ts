@@ -1,12 +1,11 @@
 import { mapValues } from "@std/collections";
 import { t } from "#i18n";
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin built site management routes - owner only
  */
 
 /* jscpd:ignore-start */
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -14,6 +13,7 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 /* jscpd:ignore-end */
 import { siteHostingAccess } from "#shared/builder.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup-storage.ts";
 import {
@@ -351,24 +351,25 @@ const gateOnBuilder = <Key extends string>(
 
 /** Built site routes (all gated on CAN_BUILD_SITES via gateOnBuilder). */
 export const adminHandlers = gateOnBuilder(
-  handlersFor("builtSites")({
-    getBuiltSites: handleBuiltSitesListGet,
-    getBuiltSitesById: (request, { id }) =>
+  defineRoutes({
+    "GET /admin/built-sites": handleBuiltSitesListGet,
+    "GET /admin/built-sites/:id": (request, { id }) =>
       builtSitePage.renderTab(request, id, ""),
-    getBuiltSitesByIdByTab: (request, { id, tab }) =>
+    "GET /admin/built-sites/:id/:tab": (request, { id, tab }) =>
       builtSitePage.renderTab(request, id, tab),
-    getBuiltSitesByIdDelete: crud.deleteGet,
-    getBuiltSitesNew: crud.newGet,
-    postBuiltSites: crud.createPost,
-    postBuiltSitesByIdAddSecrets: handleAddSecrets,
-    postBuiltSitesByIdBumpDeadline: handleBumpDeadline,
-    postBuiltSitesByIdDelete: crud.deletePost,
-    postBuiltSitesByIdEdit: crud.editPost,
-    postBuiltSitesByIdOverrideDeadline: handleOverrideDeadline,
-    postBuiltSitesByIdProvisionRenewal: handleProvisionRenewal,
-    postBuiltSitesByIdProvisionScheduler: handleProvisionSiteScheduler,
-    postBuiltSitesByIdReSyncDeadline: handleReSyncDeadline,
-    postBuiltSitesByIdRotateRenewalToken: handleRotateToken,
-    postBuiltSitesByIdUpdate: handleUpdateSite,
+    "GET /admin/built-sites/:id/delete": crud.deleteGet,
+    "GET /admin/built-sites/new": crud.newGet,
+    "POST /admin/built-sites": crud.createPost,
+    "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
+    "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
+    "POST /admin/built-sites/:id/delete": crud.deletePost,
+    "POST /admin/built-sites/:id/edit": crud.editPost,
+    "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
+    "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
+    "POST /admin/built-sites/:id/provision-scheduler":
+      handleProvisionSiteScheduler,
+    "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
+    "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+    "POST /admin/built-sites/:id/update": handleUpdateSite,
   }),
 );

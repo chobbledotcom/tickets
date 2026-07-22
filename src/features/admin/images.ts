@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * First-class image library admin routes.
  */
@@ -275,12 +275,12 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     return redirect("/admin/images", t("images.deleted"), true);
   });
 
-export const adminHandlers = handlersFor("images")({
-  getImages: handleImagesListGet,
-  getImagesByIdDelete: handleImageDeleteGet,
-  getImagesByIdEdit: handleImageEditGet,
-  getImagesNew: handleImageNewGet,
-  postImages: handleImageCreatePost,
-  postImagesByIdDelete: handleImageDeletePost,
-  postImagesByIdEdit: handleImageEditPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/images": handleImagesListGet,
+  "GET /admin/images/:id/delete": handleImageDeleteGet,
+  "GET /admin/images/:id/edit": handleImageEditGet,
+  "GET /admin/images/new": handleImageNewGet,
+  "POST /admin/images": handleImageCreatePost,
+  "POST /admin/images/:id/delete": handleImageDeletePost,
+  "POST /admin/images/:id/edit": handleImageEditPost,
 });
