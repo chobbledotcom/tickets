@@ -9,9 +9,21 @@ import {
 } from "#scripts/restore-lib.ts";
 import { inspectBackupZip, PostResetError } from "#shared/db/backup.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
+import { TEST_ENCRYPTION_KEY } from "#test-utils/internal.ts";
 
 const encoder = new TextEncoder();
 const FULL_COMMIT = "0123456789abcdef0123456789abcdef01234567";
+
+const cliEnv = (
+  overrides: Record<string, string> = {},
+): ((key: string) => string | undefined) => {
+  const values: Record<string, string> = {
+    DB_ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
+    DB_URL: "file:target.db",
+    ...overrides,
+  };
+  return (key) => values[key];
+};
 
 const backupZip = (
   manifest: Record<string, unknown> | null = {
@@ -50,7 +62,7 @@ const cliState = (overrides: Partial<RestoreCliDeps> = {}): CliState => {
   return {
     deps: {
       args: ["backup.zip"],
-      getEnv: (key) => (key === "DB_URL" ? "file:target.db" : undefined),
+      getEnv: cliEnv(),
       inspectBackupZip,
       prompt: (message) => {
         promptMessages.push(message);
@@ -103,21 +115,46 @@ describe("restore task", () => {
     expect(state.readPaths).toEqual([]);
   });
 
-  test("requires DB_TOKEN for a remote database", async () => {
+  test("requires DB_TOKEN for every remote database URL", async () => {
+    for (const dbUrl of [
+      "libsql://tickets.example.com",
+      "https://tickets.example.com",
+    ]) {
+      const state = cliState({ getEnv: cliEnv({ DB_URL: dbUrl }) });
+
+      expect(await runRestoreCli(state.deps)).toBe(1);
+      expect(state.stderr).toEqual([
+        "DB_TOKEN is required in .env for a remote database.",
+      ]);
+      expect(state.readPaths).toEqual([]);
+    }
+  });
+
+  test("requires DB_ENCRYPTION_KEY before reading the backup", async () => {
     const state = cliState({
-      getEnv: (key) =>
-        key === "DB_URL" ? "libsql://tickets.example.com" : undefined,
+      getEnv: (key) => (key === "DB_URL" ? "file:target.db" : undefined),
+    });
+
+    expect(await runRestoreCli(state.deps)).toBe(1);
+    expect(state.stderr).toEqual(["DB_ENCRYPTION_KEY is required in .env."]);
+    expect(state.readPaths).toEqual([]);
+  });
+
+  test("validates DB_ENCRYPTION_KEY before reading the backup", async () => {
+    const state = cliState({
+      getEnv: cliEnv({ DB_ENCRYPTION_KEY: "c2hvcnQ=" }),
     });
 
     expect(await runRestoreCli(state.deps)).toBe(1);
     expect(state.stderr).toEqual([
-      "DB_TOKEN is required in .env for a remote database.",
+      "DB_ENCRYPTION_KEY must be 32 bytes (256 bits), got 5 bytes",
     ]);
+    expect(state.readPaths).toEqual([]);
   });
 
   test("refuses an in-memory restore target", async () => {
     const state = cliState({
-      getEnv: (key) => (key === "DB_URL" ? ":memory:" : undefined),
+      getEnv: cliEnv({ DB_URL: ":memory:" }),
     });
 
     expect(await runRestoreCli(state.deps)).toBe(1);
@@ -160,12 +197,10 @@ describe("restore task", () => {
 
   test("shows backup details and every restore phase", async () => {
     const state = cliState({
-      getEnv: (key) =>
-        key === "DB_URL"
-          ? "libsql://tickets.example.com"
-          : key === "DB_TOKEN"
-            ? "secret"
-            : undefined,
+      getEnv: cliEnv({
+        DB_TOKEN: "secret",
+        DB_URL: "libsql://tickets.example.com",
+      }),
       readRecordedScriptCommit: () => Promise.resolve(FULL_COMMIT),
     });
 

@@ -1,5 +1,6 @@
 import { sum } from "#fp";
 import type { ScriptIo } from "#scripts/script-runner.ts";
+import { decodeKeyBytes } from "#shared/crypto/encryption.ts";
 import {
   type BackupManifest,
   PostResetError,
@@ -15,6 +16,7 @@ export const RESTORE_CONFIRMATION = "RESTORE";
 export const RESTORE_USAGE = "Usage: deno task restore <backup.zip>";
 const isFullCommitSha = (commit: string): boolean =>
   /^[0-9a-f]{40}$/.test(commit);
+const REMOTE_DB_URL_PREFIXES = ["https://", "libsql://"];
 
 export interface RestoreCliDeps extends ScriptIo {
   inspectBackupZip: (data: Uint8Array) => {
@@ -45,6 +47,39 @@ const progressMessages: Record<
 
 const countLabel = (count: number, name: string): string =>
   `${count} ${name}${count === 1 ? "" : "s"}`;
+
+const readRestoreDbUrlOrNull = (deps: RestoreCliDeps): string | null => {
+  const dbUrl = deps.getEnv("DB_URL");
+  if (!dbUrl?.trim()) {
+    deps.stderr("DB_URL is required in .env.");
+    return null;
+  }
+  if (dbUrl === ":memory:") {
+    deps.stderr(
+      "DB_URL cannot be :memory: for a restore. Set it to the target database in .env.",
+    );
+    return null;
+  }
+  if (
+    REMOTE_DB_URL_PREFIXES.some((prefix) => dbUrl.startsWith(prefix)) &&
+    !deps.getEnv("DB_TOKEN")?.trim()
+  ) {
+    deps.stderr("DB_TOKEN is required in .env for a remote database.");
+    return null;
+  }
+  const encryptionKey = deps.getEnv("DB_ENCRYPTION_KEY");
+  if (!encryptionKey?.trim()) {
+    deps.stderr("DB_ENCRYPTION_KEY is required in .env.");
+    return null;
+  }
+  try {
+    decodeKeyBytes(encryptionKey);
+  } catch (error) {
+    deps.stderr(errorMessage(error));
+    return null;
+  }
+  return dbUrl;
+};
 
 const writeManifestSummary = (
   manifest: BackupManifest | null,
@@ -81,21 +116,8 @@ export const runRestoreCli = async (deps: RestoreCliDeps): Promise<number> => {
   }
 
   const path = deps.args[0];
-  const dbUrl = deps.getEnv("DB_URL");
-  if (!dbUrl?.trim()) {
-    deps.stderr("DB_URL is required in .env.");
-    return 1;
-  }
-  if (dbUrl === ":memory:") {
-    deps.stderr(
-      "DB_URL cannot be :memory: for a restore. Set it to the target database in .env.",
-    );
-    return 1;
-  }
-  if (dbUrl.startsWith("libsql://") && !deps.getEnv("DB_TOKEN")?.trim()) {
-    deps.stderr("DB_TOKEN is required in .env for a remote database.");
-    return 1;
-  }
+  const dbUrl = readRestoreDbUrlOrNull(deps);
+  if (dbUrl === null) return 1;
 
   deps.stdout(`Reading ${path}...`);
   let data: Uint8Array;

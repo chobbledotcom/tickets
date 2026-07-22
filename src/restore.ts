@@ -7,7 +7,7 @@ type RestoreTaskDeps = Omit<RestoreCliDeps, keyof ScriptIo>;
 type ScriptRunner = (
   run: (io: ScriptIo) => Promise<number>,
 ) => Promise<unknown>;
-const RESTORE_ENV_KEYS = ["DB_URL", "DB_TOKEN"] as const;
+const RESTORE_ENV_KEYS = ["DB_ENCRYPTION_KEY", "DB_TOKEN", "DB_URL"] as const;
 
 const productionRestoreDeps = (): RestoreTaskDeps => ({
   inspectBackupZip,
@@ -19,13 +19,12 @@ const productionRestoreDeps = (): RestoreTaskDeps => ({
 
 export const runRestoreTask = async (
   fileEnv: Record<string, string>,
-  setEnv: (key: string, value: string) => void,
+  setEnv: (key: string, value: string | undefined) => void,
   runScript: ScriptRunner,
   deps: RestoreTaskDeps = productionRestoreDeps(),
 ): Promise<void> => {
   for (const key of RESTORE_ENV_KEYS) {
-    const value = fileEnv[key];
-    if (value !== undefined) setEnv(key, value);
+    setEnv(key, fileEnv[key]);
   }
   await runScript((io) => runRestoreCli({ ...deps, ...io }));
 };

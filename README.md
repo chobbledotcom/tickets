@@ -328,7 +328,7 @@ deno task typecheck      # Type check
 deno task build:edge     # Build for Bunny Edge
 deno task deploy:edge <script-id> # Build, upload, and publish to Bunny Edge using BUNNY_ACCESS_KEY from .env
 deno task backup         # Dump the database out-of-band (uploads to storage; --out <path> for a local .zip)
-deno task restore <backup.zip> # Restore DB_URL from a local backup using DB_TOKEN from .env
+deno task restore <backup.zip> # Restore the database at DB_URL from a local backup using DB_TOKEN from .env
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 
@@ -362,8 +362,8 @@ Optional:
 **Backups:** every table is dumped to a single `.zip`, with table reads keyset-paginated so no single response trips libsqld's "Response is too large" payload cap (the server limit behind Bunny's databases). Backups run **out-of-band**, not inside the migration: a full dump of a ~31-table schema can't fit alongside a migration within one edge request's [50-subrequest budget](https://docs.bunny.net/scripting/limits), so migrations just migrate, and a backup is taken by GitHub Actions (or `deno task backup`) beforehand. To enforce that, **`/admin/update` and the per-site update button refuse to deploy unless a backup of that database was taken in the last hour.**
 
 Restores run out of band because realistic imports exceed Bunny's per-request
-subrequest limit. Put the target database's `DB_URL` and
-`DB_TOKEN` in `.env`, then run `deno task restore <backup.zip>`. The task checks
+subrequest limit. Put the target database's `DB_URL`, `DB_TOKEN`, and
+`DB_ENCRYPTION_KEY` in `.env`, then run `deno task restore <backup.zip>`. The task checks
 the backup, shows its table, row, statement, and schema details, and asks for a
 typed confirmation before deleting any data. It reports each restore step and
 shows the backup's recorded commit when one is available.

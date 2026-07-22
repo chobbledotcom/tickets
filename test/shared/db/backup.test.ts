@@ -118,26 +118,38 @@ describeWithEnv("backup", { db: true }, () => {
 
     test("returns null for zip without manifest", () => {
       expect(
-        inspectBackupZip(zipSync({ "a.sql": new Uint8Array(0) })).manifest,
+        inspectBackupZip(
+          zipSync({
+            "settings.sql": new TextEncoder().encode(
+              "INSERT INTO settings (key, value) VALUES ('k', 'v');",
+            ),
+          }),
+        ).manifest,
       ).toBeNull();
     });
 
-    test("returns null for manifest with invalid shape", () => {
+    test("rejects a manifest with an invalid shape", () => {
       const encoder = new TextEncoder();
       const zip = zipSync({
         "manifest.json": encoder.encode(JSON.stringify({ wrong: "shape" })),
       });
-      expect(inspectBackupZip(zip).manifest).toBeNull();
+      expect(() => inspectBackupZip(zip)).toThrow("Backup manifest is invalid");
     });
 
-    test("returns null for manifest missing required fields", () => {
+    test("rejects a manifest missing required fields", () => {
       const encoder = new TextEncoder();
       const zip = zipSync({
         "manifest.json": encoder.encode(
           JSON.stringify({ latestUpdate: "ok", schemaHash: "ok" }),
         ),
       });
-      expect(inspectBackupZip(zip).manifest).toBeNull();
+      expect(() => inspectBackupZip(zip)).toThrow("Backup manifest is invalid");
+    });
+
+    test("rejects an archive with no restorable SQL", () => {
+      expect(() => inspectBackupZip(zipSync({}))).toThrow(
+        "Backup contains no restorable SQL statements",
+      );
     });
 
     test("lists every populated table whose data is missing", () => {

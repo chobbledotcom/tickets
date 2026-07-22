@@ -6,6 +6,7 @@ import { runRestoreTask } from "#src/restore.ts";
 
 await runRestoreTask(
   await load(),
-  (key, value) => Deno.env.set(key, value),
+  (key, value) =>
+    value === undefined ? Deno.env.delete(key) : Deno.env.set(key, value),
   runDenoScript,
 );

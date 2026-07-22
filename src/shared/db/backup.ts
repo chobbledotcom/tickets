@@ -5,7 +5,7 @@
  * Key design decisions:
  * - Tables are exported/restored in SCHEMA order (FK-dependency safe)
  * - Restore uses bounded transactions so large imports do not time out
- * - SQL statements are delimited by ";\n" to handle embedded newlines in values
+ * - SQL splitting preserves semicolons inside quoted multiline values
  * - Backups are stored unencrypted (sensitive data is already field-level encrypted)
  * - manifest.json enables preflight schema compatibility checks before restore
  */
@@ -238,7 +238,8 @@ const readManifest = (
   if (!manifestBytes) return null;
   const parsed: unknown = JSON.parse(new TextDecoder().decode(manifestBytes));
   const result = v.safeParse(BackupManifestSchema, parsed);
-  return result.success ? result.output : null;
+  if (!result.success) throw new Error("Backup manifest is invalid");
+  return result.output;
 };
 
 interface InspectedSqlFile {
@@ -281,9 +282,13 @@ const inspectOpenBackup = (backup: OpenBackup): BackupInspection => {
   if (missing.length > 0) {
     throw new Error(`Backup is missing data for tables: ${missing.join(", ")}`);
   }
+  const statementCount = sum(sqlFiles.map((file) => file.statementCount));
+  if (statementCount === 0) {
+    throw new Error("Backup contains no restorable SQL statements");
+  }
   return {
     manifest,
-    statementCount: sum(sqlFiles.map((file) => file.statementCount)),
+    statementCount,
   };
 };
 
