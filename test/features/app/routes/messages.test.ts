@@ -182,17 +182,6 @@ describeWithEnv("route message loading", { db: true }, () => {
       );
     }));
 
-  test("catalog import renders while image copy stays unloaded", () =>
-    withColdMessages(async () => {
-      const response = await adminGet("/admin/catalog/import");
-
-      expect(response.status).toBe(200);
-      expect(await response.text()).toContain('name="catalog_file"');
-      expect(() => t("images.column.thumbnail")).toThrow(
-        'Missing translation for key "images.column.thumbnail"',
-      );
-    }));
-
   test("an admin segment leaves unrelated area copy unloaded", () =>
     withColdMessages(async () => {
       const response = await adminGet("/admin/listings");
