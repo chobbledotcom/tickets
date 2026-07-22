@@ -148,6 +148,7 @@ describe("Uptime Kuma Socket.IO client", () => {
         },
         "8": {
           active: 0,
+          headers: null,
           id: 8,
           interval: 60,
           method: "GET",
@@ -158,6 +159,7 @@ describe("Uptime Kuma Socket.IO client", () => {
         },
         "9": {
           active: true,
+          headers: null,
           id: 9,
           interval: 120,
           method: "GET",
@@ -173,6 +175,7 @@ describe("Uptime Kuma Socket.IO client", () => {
     expect(await createUptimeKumaClient(socket).getMonitors()).toEqual([
       {
         active: true,
+        headers: "must not cross the gateway",
         id: 7,
         interval: 900,
         method: "POST",
@@ -183,6 +186,7 @@ describe("Uptime Kuma Socket.IO client", () => {
       },
       {
         active: false,
+        headers: null,
         id: 8,
         interval: 60,
         method: "GET",
@@ -193,6 +197,7 @@ describe("Uptime Kuma Socket.IO client", () => {
       },
       {
         active: true,
+        headers: null,
         id: 9,
         interval: 120,
         method: "GET",
@@ -253,6 +258,7 @@ describe("Uptime Kuma Socket.IO client", () => {
         socket.emitEvent("monitorList", {
           bad: {
             active: true,
+            headers: null,
             id: 1,
             interval: 60,
             method: "POST",

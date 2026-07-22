@@ -20,6 +20,7 @@ export type UptimeKumaMonitorInput = Record<string, unknown>;
 
 export interface UptimeKumaMonitor {
   active: boolean;
+  headers: string | null;
   id: number;
   interval: number;
   method: string;
@@ -44,6 +45,7 @@ const ActiveSchema = v.pipe(
 
 const MonitorSchema = v.object({
   active: ActiveSchema,
+  headers: v.nullable(v.string()),
   id: integerAtLeast(1),
   interval: integerAtLeast(1),
   method: v.string(),
