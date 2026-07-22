@@ -23,8 +23,6 @@ export type Table = {
  */
 export type Trigger = {
   name: string;
-  /** Whether restore imports keep this data check active or rebuild derived data later. */
-  restore: "active" | "deferred";
   table: string;
   sql: string;
   /** Tables and columns this trigger reads or writes. */

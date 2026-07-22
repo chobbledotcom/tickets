@@ -22,7 +22,7 @@ import {
 } from "#shared/db/backup-storage.ts";
 import { execute, executeBatch } from "#shared/db/client.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
-import { TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
+import { RESTORE_DEFERRED_TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import {
   declaredIndexes,
   noArgStatements,
@@ -123,16 +123,15 @@ const restoreBatches = ([first, ...statements]: [
 };
 
 const DEFERRED_INDEXES = declaredIndexes().filter(({ unique }) => !unique);
-const DEFERRED_TRIGGERS = TRIGGERS.filter(
-  ({ restore }) => restore === "deferred",
-);
 
 /** Remove derived write-time work while rows are loaded. Unique indexes and
  * validation triggers stay active so corrupt backup rows fail immediately. */
 const removeDeferredSchemaWork = async (): Promise<void> => {
   const drops = [
     ...DEFERRED_INDEXES.map(({ name }) => `DROP INDEX IF EXISTS ${name}`),
-    ...DEFERRED_TRIGGERS.map(({ name }) => `DROP TRIGGER IF EXISTS ${name}`),
+    ...RESTORE_DEFERRED_TRIGGERS.map(
+      ({ name }) => `DROP TRIGGER IF EXISTS ${name}`,
+    ),
   ];
   await executeBatch(noArgStatements(drops));
 };
@@ -143,7 +142,7 @@ const rebuildDeferredSchemaWork = async (): Promise<void> => {
   for (const { sql } of DEFERRED_INDEXES) {
     await executeBatch(noArgStatements([sql]));
   }
-  for (const trigger of DEFERRED_TRIGGERS) {
+  for (const trigger of RESTORE_DEFERRED_TRIGGERS) {
     await execute(trigger.sql);
   }
 };

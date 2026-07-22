@@ -47,7 +47,6 @@ const LISTING_AGGREGATE_USES = {
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_listing_attendees_aggregates_insert",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_insert
 AFTER INSERT ON listing_attendees
 FOR EACH ROW
@@ -62,7 +61,6 @@ END`,
   },
   {
     name: "trg_listing_attendees_aggregates_delete",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_delete
 AFTER DELETE ON listing_attendees
 FOR EACH ROW
@@ -77,7 +75,6 @@ END`,
   },
   {
     name: "trg_listing_attendees_aggregates_update",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
 AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(
       ", ",
@@ -120,7 +117,6 @@ const MODIFIER_AGGREGATE_USES = {
 const MODIFIER_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_modifier_usages_aggregates_insert",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_insert
 AFTER INSERT ON modifier_usages
 FOR EACH ROW
@@ -135,7 +131,6 @@ END`,
   },
   {
     name: "trg_modifier_usages_aggregates_delete",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_delete
 AFTER DELETE ON modifier_usages
 FOR EACH ROW
@@ -150,7 +145,6 @@ END`,
   },
   {
     name: "trg_modifier_usages_aggregates_update",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_update
 AFTER UPDATE OF quantity, modifier_id ON modifier_usages
 FOR EACH ROW
@@ -188,7 +182,6 @@ const ANSWER_AGGREGATE_USES = {
 const ANSWER_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_aggregates_insert",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_insert
 AFTER INSERT ON attendee_answers
 FOR EACH ROW
@@ -202,7 +195,6 @@ END`,
   },
   {
     name: "trg_attendee_answers_aggregates_delete",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_delete
 AFTER DELETE ON attendee_answers
 FOR EACH ROW
@@ -216,7 +208,6 @@ END`,
   },
   {
     name: "trg_attendee_answers_aggregates_update",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_update
 AFTER UPDATE OF answer_id ON attendee_answers
 FOR EACH ROW
@@ -239,7 +230,6 @@ const ATTENDEE_ANSWER_VALIDATION_USES = {
 const ATTENDEE_ANSWER_VALIDATION_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_validate_insert",
-    restore: "active",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_validate_insert
 BEFORE INSERT ON attendee_answers
 WHEN NOT (
@@ -254,7 +244,6 @@ END`,
   },
   {
     name: "trg_attendee_answers_validate_update",
-    restore: "active",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_validate_update
 BEFORE UPDATE ON attendee_answers
 WHEN NOT (
@@ -282,7 +271,6 @@ const ATTENDEE_STATUS_VALIDATION_USES = {
 const ATTENDEE_STATUS_VALIDATION_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendees_validate_status_insert",
-    restore: "active",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_insert
 BEFORE INSERT ON attendees
 WHEN NEW.status_id IS NOT NULL AND NOT EXISTS (
@@ -296,7 +284,6 @@ END`,
   },
   {
     name: "trg_attendees_validate_status_update",
-    restore: "active",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendees_validate_status_update
 BEFORE UPDATE OF status_id ON attendees
 WHEN NEW.status_id IS NOT NULL AND NOT EXISTS (
@@ -313,7 +300,6 @@ END`,
 const STRING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
     name: "trg_attendee_answers_strings_insert",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_insert
 AFTER INSERT ON attendee_answers
 WHEN NEW.string_id IS NOT NULL
@@ -325,7 +311,6 @@ END`,
   },
   {
     name: "trg_attendee_answers_strings_delete",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_delete
 AFTER DELETE ON attendee_answers
 WHEN OLD.string_id IS NOT NULL
@@ -337,7 +322,6 @@ END`,
   },
   {
     name: "trg_attendee_answers_strings_update",
-    restore: "deferred",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_strings_update
 AFTER UPDATE OF string_id ON attendee_answers
 WHEN OLD.string_id IS NOT NEW.string_id
@@ -350,13 +334,22 @@ END`,
   },
 ];
 
+const TRIGGER_GROUPS = [
+  { restore: "deferred", triggers: ADMIN_FEATURE_TRIGGERS },
+  { restore: "deferred", triggers: LISTING_AGGREGATE_TRIGGERS },
+  { restore: "deferred", triggers: MODIFIER_AGGREGATE_TRIGGERS },
+  { restore: "deferred", triggers: ANSWER_AGGREGATE_TRIGGERS },
+  { restore: "active", triggers: ATTENDEE_ANSWER_VALIDATION_TRIGGERS },
+  { restore: "active", triggers: ATTENDEE_STATUS_VALIDATION_TRIGGERS },
+  { restore: "deferred", triggers: STRING_AGGREGATE_TRIGGERS },
+] as const;
+
 /** Every declared aggregate and validation trigger. */
-export const TRIGGERS: Trigger[] = [
-  ...ADMIN_FEATURE_TRIGGERS,
-  ...LISTING_AGGREGATE_TRIGGERS,
-  ...MODIFIER_AGGREGATE_TRIGGERS,
-  ...ANSWER_AGGREGATE_TRIGGERS,
-  ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
-  ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
-  ...STRING_AGGREGATE_TRIGGERS,
-];
+export const TRIGGERS: Trigger[] = TRIGGER_GROUPS.flatMap(
+  ({ triggers }) => triggers,
+);
+
+/** Derived-state triggers omitted while stored backup values are imported. */
+export const RESTORE_DEFERRED_TRIGGERS: Trigger[] = TRIGGER_GROUPS.filter(
+  ({ restore }) => restore === "deferred",
+).flatMap(({ triggers }) => triggers);

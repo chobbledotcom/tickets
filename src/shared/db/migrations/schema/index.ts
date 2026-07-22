@@ -37,13 +37,7 @@ const djb2 = (str: string): string => {
 export const APP_SCHEMA = SCHEMA.filter(
   ([name]) => name !== SCHEMA_MIGRATIONS_TABLE,
 );
-const STORED_SCHEMA_TRIGGERS = TRIGGERS.map(
-  ({ restore: _restore, ...trigger }) => trigger,
-);
 
 // Triggers join the hash input so changing a trigger's SQL re-runs migrations
 // even if no column/index changed (the same safety net columns already have).
-// Restore timing is runtime metadata, not part of the stored database schema.
-export const SCHEMA_HASH = djb2(
-  JSON.stringify([APP_SCHEMA, STORED_SCHEMA_TRIGGERS]),
-);
+export const SCHEMA_HASH = djb2(JSON.stringify([APP_SCHEMA, TRIGGERS]));
