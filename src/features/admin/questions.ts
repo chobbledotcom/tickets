@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin routes for custom questions management (owner-only)
  */
@@ -548,25 +548,28 @@ const handleListingQuestionsPost = createListingChoicePost({
 });
 
 /** Questions routes */
-export const adminHandlers = handlersFor("questions")({
-  getQuestions: handleQuestionsGet,
-  getQuestionsById: handleQuestionGet,
-  getQuestionsByIdAnswersByAnswerIdDelete: handleDeleteAnswerGet,
-  getQuestionsByIdAnswersByAnswerIdEdit: handleEditAnswerGet,
-  getQuestionsByIdAnswersByAnswerIdRecalculate: handleAnswerRecalculateGet,
-  getQuestionsByIdDelete: (request, { id }) => questionDelete.get(request, id),
-  postListingByIdQuestions: handleListingQuestionsPost,
-  postQuestions: handleQuestionsPost,
-  postQuestionsByIdAnswers: handleAddAnswer,
-  postQuestionsByIdAnswersByAnswerIdDelete: handleDeleteAnswerPost,
-  postQuestionsByIdAnswersByAnswerIdEdit: handleEditAnswerPost,
-  postQuestionsByIdAnswersByAnswerIdMoveDown: answerOrder.down,
-  postQuestionsByIdAnswersByAnswerIdMoveUp: answerOrder.up,
-  postQuestionsByIdAnswersByAnswerIdRecalculate: handleAnswerRecalculatePost,
-  postQuestionsByIdDelete: (request, { id }) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/questions": handleQuestionsGet,
+  "GET /admin/questions/:id": handleQuestionGet,
+  "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
+  "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
+  "GET /admin/questions/:id/answers/:answerId/recalculate":
+    handleAnswerRecalculateGet,
+  "GET /admin/questions/:id/delete": (request, { id }) =>
+    questionDelete.get(request, id),
+  "POST /admin/listing/:id/questions": handleListingQuestionsPost,
+  "POST /admin/questions": handleQuestionsPost,
+  "POST /admin/questions/:id/answers": handleAddAnswer,
+  "POST /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerPost,
+  "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
+  "POST /admin/questions/:id/answers/:answerId/move-down": answerOrder.down,
+  "POST /admin/questions/:id/answers/:answerId/move-up": answerOrder.up,
+  "POST /admin/questions/:id/answers/:answerId/recalculate":
+    handleAnswerRecalculatePost,
+  "POST /admin/questions/:id/delete": (request, { id }) =>
     questionDelete.post(request, id),
-  postQuestionsByIdEdit: handleQuestionEdit,
-  postQuestionsByIdListings: handleQuestionListings,
-  postQuestionsByIdMoveDown: questionOrder.down,
-  postQuestionsByIdMoveUp: questionOrder.up,
+  "POST /admin/questions/:id/edit": handleQuestionEdit,
+  "POST /admin/questions/:id/listings": handleQuestionListings,
+  "POST /admin/questions/:id/move-down": questionOrder.down,
+  "POST /admin/questions/:id/move-up": questionOrder.up,
 });

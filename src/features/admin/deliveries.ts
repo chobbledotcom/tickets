@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Delivery run sheet routes.
  *
@@ -276,7 +276,7 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
   });
 
 /** Delivery agent routes. */
-export const adminHandlers = handlersFor("deliveries")({
-  getDeliveries: handleDeliveriesGet,
-  postDeliveriesMark: handleDeliveriesMark,
+export const adminHandlers = defineRoutes({
+  "GET /admin/deliveries": handleDeliveriesGet,
+  "POST /admin/deliveries/mark": handleDeliveriesMark,
 });

@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin routes for per-attendee operator notes.
  *
@@ -170,9 +170,9 @@ const handleDeleteNotePost: TypedRouteHandler<"POST /admin/attendee/:attendeeId/
     );
   });
 
-export const adminHandlers = handlersFor("attendeeNotes")({
-  getAttendeeByAttendeeIdNote: handleAddNoteGet,
-  getAttendeeByAttendeeIdNoteByNoteIdDelete: handleDeleteNoteGet,
-  postAttendeeByAttendeeIdNote: handleAddNotePost,
-  postAttendeeByAttendeeIdNoteByNoteIdDelete: handleDeleteNotePost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/attendee/:attendeeId/note": handleAddNoteGet,
+  "GET /admin/attendee/:attendeeId/note/:noteId/delete": handleDeleteNoteGet,
+  "POST /admin/attendee/:attendeeId/note": handleAddNotePost,
+  "POST /admin/attendee/:attendeeId/note/:noteId/delete": handleDeleteNotePost,
 });

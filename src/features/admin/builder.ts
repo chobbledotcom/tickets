@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin builder routes — create new Tickets instances via Bunny API
  * Owner-only access, gated behind CAN_BUILD_SITES=true env var
@@ -17,6 +17,7 @@ import {
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 import { builderApi } from "#shared/builder.ts";
 import {
+  isBuilderEnabled,
   isBunnyDbEnabled,
   isDenoDeployEnabled,
   isTursoEnabled,
@@ -29,7 +30,6 @@ import {
   insertBuiltSite,
 } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getEnv } from "#shared/env.ts";
 import { defineForm } from "#shared/forms/definition.ts";
 import {
   adminBuilderPage,
@@ -37,10 +37,6 @@ import {
 } from "#templates/admin/builder.tsx";
 
 const BUILDER_PATH = "/admin/builder";
-
-/** Check if the builder feature is enabled */
-export const isBuilderEnabled = (): boolean =>
-  getEnv("CAN_BUILD_SITES") === "true";
 
 /** Convert built sites to display format */
 const toDisplay = (
@@ -209,8 +205,8 @@ const builderPost = createAuthedFormRoute({
   },
 });
 
-export const adminHandlers = handlersFor("builder")({
-  getBuilder: handleBuilderGet,
-  postBuilder: (r: Request) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/builder": handleBuilderGet,
+  "POST /admin/builder": (r: Request) =>
     isBuilderEnabled() ? builderPost(r, {}) : notFoundResponse(),
 });

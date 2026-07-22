@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin update routes — check for and apply software updates
  * Owner-only access
@@ -95,8 +95,9 @@ const deployUpdate = async (): Promise<Response> => {
   });
 };
 
-export const adminHandlers = handlersFor("update")({
-  getUpdate: handleUpdateGet,
-  postUpdate: (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
-  postUpdateCheck: (r: Request) => withAuth(r, OWNER_FORM, checkForUpdate),
+export const adminHandlers = defineRoutes({
+  "GET /admin/update": handleUpdateGet,
+  "POST /admin/update": (r: Request) => withAuth(r, OWNER_FORM, deployUpdate),
+  "POST /admin/update/check": (r: Request) =>
+    withAuth(r, OWNER_FORM, checkForUpdate),
 });

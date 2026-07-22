@@ -1,20 +1,25 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { hasLegacyActivityLog } from "#shared/db/activity-log-backfill.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import {
+  ACTIVITY_LOG_BACKFILL_BATCH,
   MAINTENANCE_PRUNE_BATCH,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
 import type { MaintenanceTaskDeclaration } from "#shared/maintenance/definition.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
-import { nowMs } from "#shared/now.ts";
+import { nowIso, nowMs } from "#shared/now.ts";
 import {
   insertLoginAttempt,
   insertStrings,
   loginAttemptExists,
 } from "#test/shared/db/prune/helpers.ts";
-import { insertLegacyActivity } from "#test-utils/activity-log.ts";
+import {
+  insertLegacyActivity,
+  rawActivityMessage,
+} from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
@@ -26,6 +31,7 @@ const taskNamed = (name: string): MaintenanceTaskDeclaration => {
 const runTask = (
   task: MaintenanceTaskDeclaration,
   requestFollowUp: () => void = () => {},
+  setCheckpoint: (checkpoint: string | null) => void = () => {},
 ): void | Promise<void> =>
   task.run({
     budget: {
@@ -34,7 +40,7 @@ const runTask = (
     checkpoint: null,
     deadline: Date.now() + 10_000,
     requestFollowUp,
-    setCheckpoint: () => {},
+    setCheckpoint,
   });
 
 describeWithEnv("maintenance registry", { db: true }, () => {
@@ -63,7 +69,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
       {
         check: {
           enabled: undefined,
-          maxDatabaseCalls: 1,
+          maxDatabaseCalls: 0,
           maxExternalCalls: 0,
           settingsKeys: ["public_key"],
         },
@@ -104,27 +110,41 @@ describeWithEnv("maintenance registry", { db: true }, () => {
   });
 
   test("the activity task enables and drains legacy rows", async () => {
-    await insertLegacyActivity("registry legacy");
+    const id = await insertLegacyActivity("registry legacy");
     const task = taskNamed("activity_log_backfill");
 
     expect(await task.check.enabled()).toBe(true);
     await runTask(task);
 
-    expect(await hasLegacyActivityLog()).toBe(false);
+    expect((await rawActivityMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
   });
 
-  test("the activity task stays disabled when no legacy rows remain", async () => {
-    expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(
-      false,
-    );
+  test("the activity task stays available to preserve its checkpoint", async () => {
+    expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(true);
   });
 
-  test("the activity task stays disabled without an owner public key", async () => {
-    await insertLegacyActivity("legacy without owner key");
-    settings.setForTest({ public_key: "" });
-
-    expect(await taskNamed("activity_log_backfill").check.enabled()).toBe(
-      false,
+  test("the activity task requests a follow-up after a full batch", async () => {
+    const firstId = await insertLegacyActivity("full registry batch");
+    const message = await rawActivityMessage(firstId);
+    expect(message.startsWith(ENCRYPTION_PREFIX)).toBe(true);
+    await executeBatch(
+      Array.from({ length: ACTIVITY_LOG_BACKFILL_BATCH - 1 }, () => ({
+        args: [message, nowIso()],
+        sql: "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
+      })),
     );
+    let followUps = 0;
+    const checkpoints: (string | null)[] = [];
+
+    await runTask(
+      taskNamed("activity_log_backfill"),
+      () => {
+        followUps += 1;
+      },
+      (checkpoint) => checkpoints.push(checkpoint),
+    );
+
+    expect(followUps).toBe(1);
+    expect(checkpoints).toEqual([]);
   });
 });

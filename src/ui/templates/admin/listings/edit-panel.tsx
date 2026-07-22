@@ -1,8 +1,8 @@
 /* jscpd:ignore-start */
 import { map } from "#fp";
 import { t } from "#i18n";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { adminPath } from "#shared/admin-surface.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
   countDatabaseRoundTrip,
@@ -245,7 +245,10 @@ describe("query-log", () => {
   });
 
   describe("N+1 read guard", () => {
-    // Reset to the default (throw) after any test that switches modes.
+    // A file that boots the app switches the guard to notify-only for the
+    // rest of the shared isolate; pin the default throw mode before each
+    // test, and reset to it after any test that switches modes.
+    beforeEach(() => setN1GuardNotifyOnly(null));
     afterEach(() => setN1GuardNotifyOnly(null));
 
     const readSelectOne = async (count: number): Promise<unknown> => {
@@ -390,6 +393,9 @@ describe("query-log", () => {
   });
 
   describe("transaction round-trip guard", () => {
+    // Same pin as the N+1 read guard: an app-booting file in the shared
+    // isolate leaves the guard in notify-only mode.
+    beforeEach(() => setN1GuardNotifyOnly(null));
     afterEach(() => setN1GuardNotifyOnly(null));
 
     test("allows up to the threshold of statements in a transaction", async () => {

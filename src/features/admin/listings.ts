@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin listing management routes — assembled from per-feature modules:
  *   - listings-form.ts        form parsing + create/update resources
@@ -50,32 +50,34 @@ const listingImageHandlers = createItemImageHandlers({
  * literal segments over the `:tab` param, so the remaining literal sub-routes
  * below (duplicate, export, new, …) and those in the scanner / qr.json / refund
  * bundles keep resolving to their own handlers. */
-export const adminHandlers = handlersFor("listings")({
-  deleteListingByIdDelete: handleAdminListingDelete,
-  getListingById: (request, { id }) => listingPage.renderTab(request, id, ""),
-  getListingByIdAttendeesCsv: handleAdminListingExport,
-  getListingByIdByTab: (request, { id, tab }) =>
+export const adminHandlers = defineRoutes({
+  "DELETE /admin/listing/:id/delete": handleAdminListingDelete,
+  "GET /admin/listing/:id": (request, { id }) =>
+    listingPage.renderTab(request, id, ""),
+  "GET /admin/listing/:id/:tab": (request, { id, tab }) =>
     listingPage.renderTab(request, id, tab),
-  getListingByIdDeactivate: (request, { id }) =>
+  "GET /admin/listing/:id/attendees.csv": handleAdminListingExport,
+  "GET /admin/listing/:id/deactivate": (request, { id }) =>
     listingDeactivate.get(request, id),
-  getListingByIdDelete: (request, { id }) => listingDelete.get(request, id),
-  getListingByIdDuplicate: handleAdminListingDuplicateGet,
-  getListingByIdExport: handleAdminListingExport,
-  getListingByIdReactivate: (request, { id }) =>
+  "GET /admin/listing/:id/delete": (request, { id }) =>
+    listingDelete.get(request, id),
+  "GET /admin/listing/:id/duplicate": handleAdminListingDuplicateGet,
+  "GET /admin/listing/:id/export": handleAdminListingExport,
+  "GET /admin/listing/:id/reactivate": (request, { id }) =>
     listingReactivate.get(request, id),
-  getListingNew: handleNewListingGet,
-  getListingsRecalculateByListingId: handleListingRecalculateGet,
-  postListing: handleCreateListing,
-  postListingByIdAttachmentDelete: handleAttachmentDelete,
-  postListingByIdChildren: handleAdminListingChildren,
-  postListingByIdDeactivate: (request, { id }) =>
+  "GET /admin/listing/new": handleNewListingGet,
+  "GET /admin/listings/recalculate/:listingId": handleListingRecalculateGet,
+  "POST /admin/listing": handleCreateListing,
+  "POST /admin/listing/:id/attachment/delete": handleAttachmentDelete,
+  "POST /admin/listing/:id/children": handleAdminListingChildren,
+  "POST /admin/listing/:id/deactivate": (request, { id }) =>
     listingDeactivate.post(request, id),
-  postListingByIdDelete: handleAdminListingDelete,
-  postListingByIdEdit: handleAdminListingEditPost,
-  postListingByIdImages: listingImageHandlers.set,
-  postListingByIdImagesUpload: listingImageHandlers.upload,
-  postListingByIdIncome: handleAdminListingIncomePost,
-  postListingByIdReactivate: (request, { id }) =>
+  "POST /admin/listing/:id/delete": handleAdminListingDelete,
+  "POST /admin/listing/:id/edit": handleAdminListingEditPost,
+  "POST /admin/listing/:id/images": listingImageHandlers.set,
+  "POST /admin/listing/:id/images/upload": listingImageHandlers.upload,
+  "POST /admin/listing/:id/income": handleAdminListingIncomePost,
+  "POST /admin/listing/:id/reactivate": (request, { id }) =>
     listingReactivate.post(request, id),
-  postListingsRecalculateByListingId: handleListingRecalculatePost,
+  "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
 });

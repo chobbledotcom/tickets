@@ -1,6 +1,6 @@
 /* jscpd:ignore-start */
 import { identity, mapById, requiredMapValue } from "#fp";
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
 /**
  * Bulk actions for groups.
@@ -15,11 +15,7 @@ import { handlersFor } from "#routes/admin/handlers.ts";
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
-import {
-  generateUniqueGroupSlug,
-  groupFormPost,
-  withGroup,
-} from "#routes/admin/groups.ts";
+import { groupFormPost, withGroup } from "#routes/admin/groups.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -32,6 +28,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
   cloneGroupMembershipStatement,
+  generateUniqueGroupSlug,
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
@@ -350,12 +347,12 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
 });
 
 /** Bulk actions routes */
-export const adminHandlers = handlersFor("bulkActions")({
-  getGroupsByIdBulkActions: handleBulkActionsGet,
-  getGroupsByIdBulkActionsDeactivate: handleDeactivateGroupGet,
-  getGroupsByIdBulkActionsDuplicate: handleDuplicateGroupGet,
-  getGroupsByIdBulkActionsReactivate: handleReactivateGroupGet,
-  postGroupsByIdBulkActionsDeactivate: handleDeactivateGroupPost,
-  postGroupsByIdBulkActionsDuplicate: handleDuplicateGroupPost,
-  postGroupsByIdBulkActionsReactivate: handleReactivateGroupPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/groups/:id/bulk-actions": handleBulkActionsGet,
+  "GET /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupGet,
+  "GET /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupGet,
+  "GET /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupGet,
+  "POST /admin/groups/:id/bulk-actions/deactivate": handleDeactivateGroupPost,
+  "POST /admin/groups/:id/bulk-actions/duplicate": handleDuplicateGroupPost,
+  "POST /admin/groups/:id/bulk-actions/reactivate": handleReactivateGroupPost,
 });

@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner + editor
  * (SITE_FORM / requireSiteOr), hand-wired because create must assign a root
@@ -289,21 +289,23 @@ const pageItemOrder = createOrderedCollectionHandlers({
 
 // ─── Routes ─────────────────────────────────────────────────────
 
-export const adminHandlers = handlersFor("sitePages")({
-  getSitePages: content.list,
-  getSitePagesById: content.entity,
-  getSitePagesByIdByTab: content.entityTab,
-  getSitePagesByIdDelete: content.deletePage,
-  getSitePagesNew: content.newPage,
-  postSitePages: content.create,
-  postSitePagesByIdDelete: content.delete,
-  postSitePagesByIdEdit: content.update,
-  postSitePagesByIdImages: content.images.set,
-  postSitePagesByIdImagesUpload: content.images.upload,
-  postSitePagesByIdItems: handleAddItem,
-  postSitePagesByIdItemsByItemTypeByItemIdMoveDown: pageItemOrder.down,
-  postSitePagesByIdItemsByItemTypeByItemIdMoveUp: pageItemOrder.up,
-  postSitePagesByIdItemsByItemTypeByItemIdRemove: handleRemoveItem,
-  postSitePagesByIdMoveDown: rootPageOrder.down,
-  postSitePagesByIdMoveUp: rootPageOrder.up,
+export const adminHandlers = defineRoutes({
+  "GET /admin/site/pages": content.list,
+  "GET /admin/site/pages/:id": content.entity,
+  "GET /admin/site/pages/:id/:tab": content.entityTab,
+  "GET /admin/site/pages/:id/delete": content.deletePage,
+  "GET /admin/site/pages/new": content.newPage,
+  "POST /admin/site/pages": content.create,
+  "POST /admin/site/pages/:id/delete": content.delete,
+  "POST /admin/site/pages/:id/edit": content.update,
+  "POST /admin/site/pages/:id/images": content.images.set,
+  "POST /admin/site/pages/:id/images/upload": content.images.upload,
+  "POST /admin/site/pages/:id/items": handleAddItem,
+  "POST /admin/site/pages/:id/items/:itemType/:itemId/move-down":
+    pageItemOrder.down,
+  "POST /admin/site/pages/:id/items/:itemType/:itemId/move-up":
+    pageItemOrder.up,
+  "POST /admin/site/pages/:id/items/:itemType/:itemId/remove": handleRemoveItem,
+  "POST /admin/site/pages/:id/move-down": rootPageOrder.down,
+  "POST /admin/site/pages/:id/move-up": rootPageOrder.up,
 });
