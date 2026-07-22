@@ -19,6 +19,7 @@ export const kumaEnv = {
 };
 
 export const group = (id = 11): UptimeKumaMonitor => ({
+  acceptedStatusCodes: ["200-299"],
   active: true,
   headers: null,
   id,
@@ -30,7 +31,11 @@ export const group = (id = 11): UptimeKumaMonitor => ({
   url: null,
 });
 
-export const siteMonitor = (parent = 11): UptimeKumaMonitor => ({
+export const siteMonitor = (
+  parent = 11,
+  acceptedStatusCodes = ["200-299"],
+): UptimeKumaMonitor => ({
+  acceptedStatusCodes,
   active: true,
   headers: JSON.stringify({
     Authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
@@ -53,11 +58,30 @@ type FakeClient = {
   disconnected: () => boolean;
 };
 
+const listedMonitor = (
+  id: number,
+  monitor: AddedMonitor,
+): UptimeKumaMonitor => ({
+  acceptedStatusCodes: Array.isArray(monitor.accepted_statuscodes)
+    ? monitor.accepted_statuscodes.map(String)
+    : [],
+  active: true,
+  headers: typeof monitor.headers === "string" ? monitor.headers : null,
+  id,
+  interval: typeof monitor.interval === "number" ? monitor.interval : 60,
+  method: typeof monitor.method === "string" ? monitor.method : "GET",
+  name: typeof monitor.name === "string" ? monitor.name : "",
+  parent: typeof monitor.parent === "number" ? monitor.parent : null,
+  type: typeof monitor.type === "string" ? monitor.type : "",
+  url: typeof monitor.url === "string" ? monitor.url : null,
+});
+
 type ConnectedFake = FakeClient & Disposable;
 
 const fakeClient = (
   monitors: UptimeKumaMonitor[],
   beforeDelete?: (id: number) => void,
+  majorVersion = 2,
 ): FakeClient => {
   const added: AddedMonitor[] = [];
   const deleted: number[] = [];
@@ -68,17 +92,7 @@ const fakeClient = (
     addMonitor: (monitor) => {
       const id = nextId++;
       added.push(monitor);
-      currentMonitors.push({
-        active: true,
-        headers: typeof monitor.headers === "string" ? monitor.headers : null,
-        id,
-        interval: typeof monitor.interval === "number" ? monitor.interval : 60,
-        method: typeof monitor.method === "string" ? monitor.method : "GET",
-        name: typeof monitor.name === "string" ? monitor.name : "",
-        parent: typeof monitor.parent === "number" ? monitor.parent : null,
-        type: typeof monitor.type === "string" ? monitor.type : "",
-        url: typeof monitor.url === "string" ? monitor.url : null,
-      });
+      currentMonitors.push(listedMonitor(id, monitor));
       return Promise.resolve(id);
     },
     deleteMonitor: (id) => {
@@ -90,6 +104,7 @@ const fakeClient = (
     disconnect: () => {
       disconnected = true;
     },
+    getMajorVersion: () => Promise.resolve(majorVersion),
     getMonitors: () => Promise.resolve(currentMonitors),
     login: () => Promise.resolve(),
   };
@@ -106,8 +121,11 @@ const connectClient = (fake: FakeClient): ConnectedFake => {
   };
 };
 
-export const connectFake = (monitors: UptimeKumaMonitor[]): ConnectedFake =>
-  connectClient(fakeClient(monitors));
+export const connectFake = (
+  monitors: UptimeKumaMonitor[],
+  majorVersion = 2,
+): ConnectedFake =>
+  connectClient(fakeClient(monitors, undefined, majorVersion));
 
 const connectChangingFake = (
   reads: UptimeKumaMonitor[][],

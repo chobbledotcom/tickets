@@ -53,7 +53,7 @@ const site = testBuiltSite({
 
 describe("Uptime Kuma monitor input", () => {
   test("builds the shared group with Uptime Kuma 2 defaults", () => {
-    expect(groupMonitorInput()).toEqual({
+    expect(groupMonitorInput(2)).toEqual({
       ...monitorDefaults,
       name: "Chobble Tickets",
       parent: null,
@@ -74,6 +74,7 @@ describe("Uptime Kuma monitor input", () => {
         },
         11,
         TEST_SCHEDULED_KEY,
+        2,
       ),
     ).toEqual({
       ...monitorDefaults,
@@ -86,6 +87,20 @@ describe("Uptime Kuma monitor input", () => {
       parent: 11,
       type: "http",
       url: scheduledUrl(site),
+    });
+  });
+
+  test("omits Uptime Kuma 2 fields for a 1.x server", () => {
+    const {
+      conditions: _conditions,
+      rabbitmqNodes: _rabbitmqNodes,
+      ...versionOneDefaults
+    } = monitorDefaults;
+    expect(groupMonitorInput(1)).toEqual({
+      ...versionOneDefaults,
+      name: "Chobble Tickets",
+      parent: null,
+      type: "group",
     });
   });
 });

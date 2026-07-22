@@ -9,6 +9,7 @@ type Reply = unknown | ((...args: unknown[]) => unknown);
 export class FakeSocket implements UptimeKumaSocket {
   calls: Array<{ args: unknown[]; event: string }> = [];
   connectError: unknown = null;
+  connectInfo: unknown = null;
   disconnected = false;
   timeoutMs = 0;
   #listeners = new Map<string, Set<Listener>>();
@@ -19,6 +20,9 @@ export class FakeSocket implements UptimeKumaSocket {
       this.connectError === null ? "connect" : "connect_error",
       this.connectError,
     );
+    if (this.connectError === null && this.connectInfo !== null) {
+      this.emitEvent("info", this.connectInfo);
+    }
   }
 
   disconnect(): void {
@@ -26,10 +30,11 @@ export class FakeSocket implements UptimeKumaSocket {
   }
 
   emitEvent(event: string, ...args: unknown[]): void {
-    for (const listener of this.#listeners.get(event) ?? []) {
+    const listeners = this.#listeners.get(event) ?? [];
+    this.#listeners.delete(event);
+    for (const listener of listeners) {
       listener(...args);
     }
-    this.#listeners.delete(event);
   }
 
   emitWithAck(event: string, ...args: unknown[]): Promise<unknown> {
