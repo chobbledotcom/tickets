@@ -31,6 +31,7 @@ export interface UptimeKumaMonitor {
 
 export interface UptimeKumaClient {
   addMonitor(monitor: UptimeKumaMonitorInput): Promise<number>;
+  deleteMonitor(id: number): Promise<void>;
   disconnect(): void;
   getMonitors(): Promise<UptimeKumaMonitor[]>;
   login(username: string, password: string): Promise<void>;
@@ -117,6 +118,9 @@ export const createUptimeKumaClient = (
     );
     if (!response.ok) throw new Error(response.msg);
     return response.monitorID;
+  },
+  deleteMonitor: async (id): Promise<void> => {
+    requireOk(await call(socket, "deleteMonitor", id));
   },
   disconnect: (): void => {
     socket.disconnect();

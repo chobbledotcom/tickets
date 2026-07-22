@@ -1,0 +1,273 @@
+import { stub } from "@std/testing/mock";
+import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import type {
+  UptimeKumaClient,
+  UptimeKumaMonitor,
+} from "#shared/uptime-kuma/client.ts";
+import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
+import {
+  UPTIME_KUMA_GROUP_NAME,
+  uptimeKumaMonitorService,
+} from "#shared/uptime-kuma/monitors.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { testBuiltSite } from "#test-utils/factories.ts";
+import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
+
+export const kumaEnv = {
+  CAN_BUILD_SITES: "true",
+  UPTIME_KUMA_PASSWORD: "password",
+  UPTIME_KUMA_URL: "https://kuma.example.test",
+  UPTIME_KUMA_USERNAME: "owner",
+};
+
+export const group = (id = 11): UptimeKumaMonitor => ({
+  active: true,
+  id,
+  interval: 60,
+  method: "GET",
+  name: UPTIME_KUMA_GROUP_NAME,
+  parent: null,
+  type: "group",
+  url: null,
+});
+
+export const siteMonitor = (parent = 11): UptimeKumaMonitor => ({
+  active: true,
+  id: 22,
+  interval: 900,
+  method: "POST",
+  name: "Child site",
+  parent,
+  type: "http",
+  url: "https://child.example.test/scheduled",
+});
+
+type AddedMonitor = Record<string, unknown>;
+
+export const expectedMonitorDefaults: AddedMonitor = {
+  accepted_statuscodes: ["200-299"],
+  authMethod: "",
+  body: null,
+  databaseConnectionString: null,
+  description: null,
+  dns_resolve_server: "1.1.1.1",
+  dns_resolve_type: "A",
+  expiryNotification: false,
+  headers: null,
+  hostname: null,
+  httpBodyEncoding: "json",
+  ignoreTls: false,
+  interval: 60,
+  maxredirects: 10,
+  maxretries: 1,
+  method: "GET",
+  mqttPassword: "",
+  mqttSuccessMessage: "",
+  mqttTopic: "",
+  mqttUsername: "",
+  notificationIDList: {},
+  packetSize: 56,
+  port: null,
+  proxyId: null,
+  resendInterval: 0,
+  retryInterval: 60,
+  timeout: 48,
+  upsideDown: false,
+  url: null,
+};
+
+type FakeClient = {
+  added: AddedMonitor[];
+  client: UptimeKumaClient;
+  deleted: number[];
+  disconnected: () => boolean;
+};
+
+type ConnectedFake = FakeClient & Disposable;
+
+const fakeClient = (monitors: UptimeKumaMonitor[]): FakeClient => {
+  const added: AddedMonitor[] = [];
+  const deleted: number[] = [];
+  let currentMonitors = [...monitors];
+  let disconnected = false;
+  let nextId = 100;
+  const client: UptimeKumaClient = {
+    addMonitor: (monitor) => {
+      const id = nextId++;
+      added.push(monitor);
+      currentMonitors.push({
+        active: true,
+        id,
+        interval: typeof monitor.interval === "number" ? monitor.interval : 60,
+        method: typeof monitor.method === "string" ? monitor.method : "GET",
+        name: typeof monitor.name === "string" ? monitor.name : "",
+        parent: typeof monitor.parent === "number" ? monitor.parent : null,
+        type: typeof monitor.type === "string" ? monitor.type : "",
+        url: typeof monitor.url === "string" ? monitor.url : null,
+      });
+      return Promise.resolve(id);
+    },
+    deleteMonitor: (id) => {
+      deleted.push(id);
+      currentMonitors = currentMonitors.filter((monitor) => monitor.id !== id);
+      return Promise.resolve();
+    },
+    disconnect: () => {
+      disconnected = true;
+    },
+    getMonitors: () => Promise.resolve(currentMonitors),
+    login: () => Promise.resolve(),
+  };
+  return { added, client, deleted, disconnected: () => disconnected };
+};
+
+const connectClient = (fake: FakeClient): ConnectedFake => {
+  const connection = stub(uptimeKumaClientApi, "connect", () =>
+    Promise.resolve(fake.client),
+  );
+  return {
+    ...fake,
+    [Symbol.dispose]: () => connection.restore(),
+  };
+};
+
+export const connectFake = (monitors: UptimeKumaMonitor[]): ConnectedFake =>
+  connectClient(fakeClient(monitors));
+
+const connectChangingFake = (reads: UptimeKumaMonitor[][]): ConnectedFake => {
+  const fake = fakeClient([]);
+  let readIndex = 0;
+  fake.client.getMonitors = () => {
+    const monitors = reads[readIndex++];
+    if (monitors === undefined) throw new Error("No monitor-list reply queued");
+    return Promise.resolve(monitors);
+  };
+  return connectClient(fake);
+};
+
+export const configuredSite = (): BuiltSite =>
+  testBuiltSite({
+    name: "Child site",
+    scheduledTaskKey: TEST_SCHEDULED_KEY,
+    siteUrl: "https://child.example.test/ignored/path",
+  });
+
+type AddResult = Awaited<ReturnType<typeof uptimeKumaMonitorService.add>>;
+
+type ChangingAddOutcome = {
+  added: AddedMonitor[];
+  deleted: number[];
+  result: AddResult;
+};
+
+export const runChangingAdd = async (
+  reads: UptimeKumaMonitor[][],
+): Promise<ChangingAddOutcome> => {
+  using _env = withEnv(kumaEnv);
+  using fake = connectChangingFake(reads);
+  const result = await uptimeKumaMonitorService.add(configuredSite());
+  return { added: fake.added, deleted: fake.deleted, result };
+};
+
+type AddRaceCase = {
+  addedCount: number;
+  addedParent?: number;
+  created: boolean;
+  deleted: number[];
+  monitorId: number;
+  name: string;
+  reads: UptimeKumaMonitor[][];
+};
+
+export const addRaceCases: AddRaceCase[] = [
+  {
+    addedCount: 2,
+    addedParent: 99,
+    created: true,
+    deleted: [100],
+    monitorId: 101,
+    name: "reuses a group created by a concurrent request",
+    reads: [
+      [],
+      [group(100), group(99)],
+      [group(99)],
+      [group(99), { ...siteMonitor(99), id: 101 }],
+    ],
+  },
+  {
+    addedCount: 1,
+    created: false,
+    deleted: [100],
+    monitorId: 99,
+    name: "removes its duplicate monitor after losing an add race",
+    reads: [
+      [group()],
+      [group()],
+      [group(), { ...siteMonitor(), id: 100 }, { ...siteMonitor(), id: 99 }],
+    ],
+  },
+  {
+    addedCount: 1,
+    created: false,
+    deleted: [100],
+    monitorId: 97,
+    name: "removes its empty group when other requests add the monitor",
+    reads: [
+      [],
+      [group(100)],
+      [
+        group(100),
+        group(99),
+        { ...siteMonitor(99), id: 98 },
+        { ...siteMonitor(99), id: 97 },
+      ],
+    ],
+  },
+  {
+    addedCount: 1,
+    created: false,
+    deleted: [],
+    monitorId: 99,
+    name: "keeps its group when another request adds the monitor there",
+    reads: [[], [group(100)], [group(100), { ...siteMonitor(100), id: 99 }]],
+  },
+  {
+    addedCount: 1,
+    created: false,
+    deleted: [],
+    monitorId: 98,
+    name: "keeps an owned group that another monitor uses",
+    reads: [
+      [],
+      [group(100)],
+      [
+        group(100),
+        group(99),
+        { ...siteMonitor(99), id: 98 },
+        {
+          ...siteMonitor(100),
+          id: 97,
+          url: "https://other.example.test/scheduled",
+        },
+      ],
+    ],
+  },
+  {
+    addedCount: 2,
+    created: false,
+    deleted: [101, 100],
+    monitorId: 99,
+    name: "removes its group after removing its losing monitor",
+    reads: [
+      [],
+      [group(100)],
+      [group(100)],
+      [
+        group(100),
+        group(99),
+        { ...siteMonitor(99), id: 99 },
+        { ...siteMonitor(100), id: 101 },
+      ],
+    ],
+  },
+];
