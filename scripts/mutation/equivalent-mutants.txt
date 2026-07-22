@@ -173,6 +173,16 @@ src/shared/db/groups.ts:267:35  ?? → ||   # entriesByGroup.get(id): readonly e
 src/shared/db/groups.ts:460:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
 src/shared/db/groups.ts:719:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
 src/shared/db/groups.ts:852:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
+src/features/admin/api-groups.ts:126:31  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
+src/features/admin/api-groups.ts:252:48  ?? → ||   # package rows are an array or undefined; every array, including [], is truthy
+
+# CRUD configuration values are functions or objects when present, and hydrated
+# map values are records, so none can be falsy-but-non-null.
+src/shared/rest/crud-api.ts:340:31  ?? → ||   # policy is an AuthPolicy object or undefined
+src/shared/rest/crud-api.ts:344:18  ?? → ||   # lookup is a function or undefined
+src/shared/rest/crud-api.ts:351:28  ?? → ||   # lookupAfterWrite is a function or undefined
+src/shared/rest/crud-api.ts:361:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
+src/shared/rest/crud-api.ts:570:27  ?? → ||   # extraRoutes is a route object or undefined
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is

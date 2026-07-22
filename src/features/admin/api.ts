@@ -491,8 +491,7 @@ const listingApiRoutes = defineCrudApi<
   // and must be able to read them back to round-trip listing group state.
   // get/create/update hydrate the single written row; the list endpoint uses
   // the batched hydrateList below to avoid an N+1 over the returned listings.
-  hydrate: async (row) => ({ group_ids: await listingGroups.getIds(row.id) }),
-  hydrateList: hydrateListingGroupIds,
+  hydrate: hydrateListingGroupIds,
   linkActivityToRow: true,
   listExtras: (session) => ({ admin_level: session.adminLevel }),
   lookup: getListingWithCount,
