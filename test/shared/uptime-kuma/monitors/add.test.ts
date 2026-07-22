@@ -74,6 +74,16 @@ describe("adding Uptime Kuma built-site monitors", () => {
     });
   });
 
+  test("omits Uptime Kuma 2 fields when adding to a 1.x server", async () => {
+    using _env = withEnv(kumaEnv);
+    using fake = connectFake([group()], 1);
+
+    await uptimeKumaMonitorService.add(configuredSite());
+
+    expect(fake.added[0]).not.toHaveProperty("conditions");
+    expect(fake.added[0]).not.toHaveProperty("rabbitmqNodes");
+  });
+
   for (const scenario of addRaceCases) {
     test(scenario.name, async () => {
       const outcome = await runChangingAdd(scenario.reads);

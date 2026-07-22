@@ -15,6 +15,7 @@ type SocketListener = (...args: unknown[]) => void;
 export type UptimeKumaMonitorInput = Record<string, unknown>;
 
 export interface UptimeKumaMonitor {
+  acceptedStatusCodes: string[];
   active: boolean;
   headers: string | null;
   id: number;
@@ -30,6 +31,7 @@ export interface UptimeKumaClient {
   addMonitor(monitor: UptimeKumaMonitorInput): Promise<number>;
   deleteMonitor(id: number): Promise<void>;
   disconnect(): void;
+  getMajorVersion(): Promise<number>;
   getMonitors(): Promise<UptimeKumaMonitor[]>;
   login(username: string, password: string): Promise<void>;
 }
@@ -39,7 +41,8 @@ const ActiveSchema = v.pipe(
   v.transform((value) => value === true || value === 1),
 );
 
-const MonitorSchema = v.object({
+const RawMonitorSchema = v.object({
+  accepted_statuscodes: v.array(v.string()),
   active: ActiveSchema,
   headers: v.nullable(v.string()),
   id: integerAtLeast(1),
@@ -50,8 +53,22 @@ const MonitorSchema = v.object({
   type: v.string(),
   url: v.nullable(v.string()),
 });
+const MonitorSchema = v.pipe(
+  RawMonitorSchema,
+  v.transform(({ accepted_statuscodes, ...monitor }) => ({
+    ...monitor,
+    acceptedStatusCodes: accepted_statuscodes,
+  })),
+);
 
 const MonitorListSchema = v.record(v.string(), MonitorSchema);
+const VersionSchema = v.pipe(
+  v.string(),
+  v.regex(/^[1-9]\d*(?:\.|$)/),
+  v.transform((version) => Number(version.split(".")[0])),
+  v.safeInteger(),
+);
+const InfoSchema = v.object({ version: v.optional(VersionSchema) });
 const FailedResponseSchema = v.object({
   msg: v.string(),
   ok: v.literal(false),
@@ -75,6 +92,57 @@ const requireOk = (value: unknown): void => {
 type EventWaiter = {
   cancel: () => void;
   promise: Promise<unknown>;
+};
+
+type VersionOutcome =
+  | { error: unknown; ok: false }
+  | { majorVersion: number; ok: true };
+
+type VersionCapture = {
+  cancel: () => void;
+  read: () => Promise<number>;
+};
+
+const withEventTimeout = async <Value>(
+  promise: Promise<Value>,
+  event: string,
+): Promise<Value> => {
+  const timeout = Promise.withResolvers<never>();
+  const timer = setTimeout(() => {
+    timeout.reject(new Error(`Uptime Kuma did not send ${event}.`));
+  }, SOCKET_TIMEOUT_MS);
+  try {
+    return await Promise.race([promise, timeout.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
+  let listener: SocketListener;
+  const promise = new Promise<VersionOutcome>((resolve) => {
+    listener = (value) => {
+      try {
+        const info = v.parse(InfoSchema, value);
+        if (info.version === undefined) {
+          socket.once("info", listener);
+          return;
+        }
+        resolve({ majorVersion: info.version, ok: true });
+      } catch (error) {
+        resolve({ error, ok: false });
+      }
+    };
+    socket.once("info", listener);
+  });
+  return {
+    cancel: () => socket.off("info", listener),
+    read: async (): Promise<number> => {
+      const outcome = await withEventTimeout(promise, "info");
+      if (!outcome.ok) throw outcome.error;
+      return outcome.majorVersion;
+    },
+  };
 };
 
 const waitForEvent = (socket: UptimeKumaSocket, event: string): EventWaiter => {
@@ -105,45 +173,50 @@ const call = (
 
 export const createUptimeKumaClient = (
   socket: UptimeKumaSocket,
-): UptimeKumaClient => ({
-  addMonitor: async (monitor): Promise<number> => {
-    const response = v.parse(
-      AddResponseSchema,
-      await call(socket, "add", monitor),
-    );
-    if (!response.ok) throw new Error(response.msg);
-    return response.monitorID;
-  },
-  deleteMonitor: async (id): Promise<void> => {
-    requireOk(await call(socket, "deleteMonitor", id));
-  },
-  disconnect: (): void => {
-    socket.disconnect();
-  },
-  getMonitors: async (): Promise<UptimeKumaMonitor[]> => {
-    const list = waitForEvent(socket, "monitorList");
-    try {
-      const [response, monitorList] = await Promise.all([
-        call(socket, "getMonitorList"),
-        list.promise,
-      ]);
-      requireOk(response);
-      return Object.values(v.parse(MonitorListSchema, monitorList));
-    } finally {
-      list.cancel();
-    }
-  },
-  login: async (username, password): Promise<void> => {
-    const response = v.parse(
-      LoginResponseSchema,
-      await call(socket, "login", { password, token: "", username }),
-    );
-    if ("tokenRequired" in response) {
-      throw new Error("Uptime Kuma two-factor login is not supported.");
-    }
-    if (!response.ok) throw new Error(response.msg);
-  },
-});
+): UptimeKumaClient => {
+  const version = captureVersion(socket);
+  return {
+    addMonitor: async (monitor): Promise<number> => {
+      const response = v.parse(
+        AddResponseSchema,
+        await call(socket, "add", monitor),
+      );
+      if (!response.ok) throw new Error(response.msg);
+      return response.monitorID;
+    },
+    deleteMonitor: async (id): Promise<void> => {
+      requireOk(await call(socket, "deleteMonitor", id));
+    },
+    disconnect: (): void => {
+      version.cancel();
+      socket.disconnect();
+    },
+    getMajorVersion: (): Promise<number> => version.read(),
+    getMonitors: async (): Promise<UptimeKumaMonitor[]> => {
+      const list = waitForEvent(socket, "monitorList");
+      try {
+        const [response, monitorList] = await Promise.all([
+          call(socket, "getMonitorList"),
+          list.promise,
+        ]);
+        requireOk(response);
+        return Object.values(v.parse(MonitorListSchema, monitorList));
+      } finally {
+        list.cancel();
+      }
+    },
+    login: async (username, password): Promise<void> => {
+      const response = v.parse(
+        LoginResponseSchema,
+        await call(socket, "login", { password, token: "", username }),
+      );
+      if ("tokenRequired" in response) {
+        throw new Error("Uptime Kuma two-factor login is not supported.");
+      }
+      if (!response.ok) throw new Error(response.msg);
+    },
+  };
+};
 
 const socketPath = (url: URL): string => {
   const basePath = url.pathname === "/" ? "" : url.pathname;
@@ -169,6 +242,7 @@ export const uptimeKumaSocketFactory = {
 
 const connect = async (config: UptimeKumaConfig): Promise<UptimeKumaClient> => {
   const socket = await uptimeKumaSocketFactory.create(config);
+  const client = createUptimeKumaClient(socket);
   try {
     await new Promise<void>((resolve, reject) => {
       const connected: SocketListener = () => {
@@ -183,9 +257,9 @@ const connect = async (config: UptimeKumaConfig): Promise<UptimeKumaClient> => {
       socket.once("connect_error", failed);
       socket.connect();
     });
-    return createUptimeKumaClient(socket);
+    return client;
   } catch (error) {
-    socket.disconnect();
+    client.disconnect();
     throw error;
   }
 };

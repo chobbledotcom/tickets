@@ -29,6 +29,17 @@ describe("Uptime Kuma Socket.IO connection", () => {
     expectDisconnected(socket);
   });
 
+  test("captures the Kuma version sent during connection", async () => {
+    const socket = new FakeSocket();
+    socket.connectInfo = { version: "2.0.0-beta.4" };
+    using _factory = useSocketFactory(socket);
+
+    const client = await uptimeKumaClientApi.connect(config);
+
+    expect(await client.getMajorVersion()).toBe(2);
+    client.disconnect();
+  });
+
   test("disconnects after a connection error", async () => {
     const socket = new FakeSocket();
     socket.connectError = new Error("socket refused");

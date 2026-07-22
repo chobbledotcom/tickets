@@ -117,6 +117,24 @@ describe("Uptime Kuma built-site monitor state", () => {
     });
   });
 
+  test("does not reuse a monitor that rejects the scheduled 204 response", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([group(), siteMonitor(11, ["200"])]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
+      kind: "missing",
+    });
+  });
+
+  test("matches a monitor that accepts exactly the scheduled 204 response", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([group(), siteMonitor(11, ["204"])]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
+      { kind: "found", monitor: { id: 22 } },
+    );
+  });
+
   for (const [label, headers] of [
     ["no bearer header", null],
     ["the wrong bearer header", '{"Authorization":"Bearer wrong"}'],
