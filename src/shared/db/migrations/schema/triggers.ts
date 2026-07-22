@@ -334,22 +334,13 @@ END`,
   },
 ];
 
-const TRIGGER_GROUPS = [
-  { restore: "deferred", triggers: ADMIN_FEATURE_TRIGGERS },
-  { restore: "deferred", triggers: LISTING_AGGREGATE_TRIGGERS },
-  { restore: "deferred", triggers: MODIFIER_AGGREGATE_TRIGGERS },
-  { restore: "deferred", triggers: ANSWER_AGGREGATE_TRIGGERS },
-  { restore: "active", triggers: ATTENDEE_ANSWER_VALIDATION_TRIGGERS },
-  { restore: "active", triggers: ATTENDEE_STATUS_VALIDATION_TRIGGERS },
-  { restore: "deferred", triggers: STRING_AGGREGATE_TRIGGERS },
-] as const;
-
 /** Every declared aggregate and validation trigger. */
-export const TRIGGERS: Trigger[] = TRIGGER_GROUPS.flatMap(
-  ({ triggers }) => triggers,
-);
-
-/** Derived-state triggers omitted while stored backup values are imported. */
-export const RESTORE_DEFERRED_TRIGGERS: Trigger[] = TRIGGER_GROUPS.filter(
-  ({ restore }) => restore === "deferred",
-).flatMap(({ triggers }) => triggers);
+export const TRIGGERS: Trigger[] = [
+  ...ADMIN_FEATURE_TRIGGERS,
+  ...LISTING_AGGREGATE_TRIGGERS,
+  ...MODIFIER_AGGREGATE_TRIGGERS,
+  ...ANSWER_AGGREGATE_TRIGGERS,
+  ...ATTENDEE_ANSWER_VALIDATION_TRIGGERS,
+  ...ATTENDEE_STATUS_VALIDATION_TRIGGERS,
+  ...STRING_AGGREGATE_TRIGGERS,
+];

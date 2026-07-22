@@ -22,11 +22,11 @@ import {
 } from "#shared/db/backup-storage.ts";
 import { execute, executeBatch } from "#shared/db/client.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
-import { RESTORE_DEFERRED_TRIGGERS } from "#shared/db/migrations/schema/triggers.ts";
 import {
-  declaredIndexes,
-  noArgStatements,
-} from "#shared/db/migrations/schema-sync.ts";
+  RESTORE_DEFERRED_INDEXES,
+  RESTORE_DEFERRED_TRIGGERS,
+} from "#shared/db/migrations/schema/restore-work.ts";
+import { noArgStatements } from "#shared/db/migrations/schema-sync.ts";
 import {
   clearAllCaches,
   LATEST_UPDATE,
@@ -122,13 +122,13 @@ const restoreBatches = ([first, ...statements]: [
   return result.completed;
 };
 
-const DEFERRED_INDEXES = declaredIndexes().filter(({ unique }) => !unique);
-
 /** Remove derived write-time work while rows are loaded. Unique indexes and
  * validation triggers stay active so corrupt backup rows fail immediately. */
 const removeDeferredSchemaWork = async (): Promise<void> => {
   const drops = [
-    ...DEFERRED_INDEXES.map(({ name }) => `DROP INDEX IF EXISTS ${name}`),
+    ...RESTORE_DEFERRED_INDEXES.map(
+      ({ name }) => `DROP INDEX IF EXISTS ${name}`,
+    ),
     ...RESTORE_DEFERRED_TRIGGERS.map(
       ({ name }) => `DROP TRIGGER IF EXISTS ${name}`,
     ),
@@ -139,7 +139,7 @@ const removeDeferredSchemaWork = async (): Promise<void> => {
 /** Rebuild deferred indexes one transaction at a time so indexing a populated
  * database cannot turn into one transaction that exceeds libSQL's deadline. */
 const rebuildDeferredSchemaWork = async (): Promise<void> => {
-  for (const { sql } of DEFERRED_INDEXES) {
+  for (const { sql } of RESTORE_DEFERRED_INDEXES) {
     await executeBatch(noArgStatements([sql]));
   }
   for (const trigger of RESTORE_DEFERRED_TRIGGERS) {

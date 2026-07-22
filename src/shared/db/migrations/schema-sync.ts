@@ -138,21 +138,6 @@ const createIndexSql = (tableName: string, idx: Index): string => {
   )})`;
 };
 
-export interface SchemaIndex extends Index {
-  sql: string;
-  tableName: string;
-}
-
-/** Every index declared by the current schema, with its create statement. */
-export const declaredIndexes = (): SchemaIndex[] =>
-  SCHEMA.flatMap(([tableName, table]) =>
-    (table.indexes ?? []).map((index) => ({
-      ...index,
-      sql: createIndexSql(tableName, index),
-      tableName,
-    })),
-  );
-
 const currentSchemaTable = (tableName: string): Table => {
   const table = SCHEMA.find(([name]) => name === tableName)?.[1];
   if (!table) throw new Error(`Unknown schema table ${tableName}`);
@@ -477,7 +462,14 @@ export const applySchemaChanges: () => Promise<void> = fromLiveSchema(
 
 /** Create missing indexes and drop legacy ones */
 export const syncIndexes: () => Promise<void> = fromLiveSchema(async (live) => {
-  const declared = declaredIndexes();
+  const declared = SCHEMA.flatMap(([tableName, table]) =>
+    (table.indexes ?? []).map((idx) => ({
+      columns: idx.columns,
+      name: idx.name,
+      sql: createIndexSql(tableName, idx),
+      tableName,
+    })),
+  );
   const declaredNames = new Set(declared.map((d) => d.name));
 
   // Only create an index whose table+columns the snapshot already shows. This
