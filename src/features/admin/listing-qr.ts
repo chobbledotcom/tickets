@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin route for generating pre-filled booking QR codes for an listing.
  *
@@ -319,7 +319,7 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
 /** Exported admin routes for the QR generator. The GET form is the listing
  * entity page's QR tab now; the POST (result render) + qr.json refresh stay
  * here. */
-export const adminHandlers = handlersFor("listingQr")({
-  getListingByIdQrJson: handleJsonGet,
-  postListingByIdQr: handlePost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/listing/:id/qr.json": handleJsonGet,
+  "POST /admin/listing/:id/qr": handlePost,
 });

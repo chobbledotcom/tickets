@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { namedError } from "#shared/named-error.ts";
 /**
  * Admin backup/restore routes — owner only
@@ -315,10 +315,10 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
   });
 
 /** Backup routes */
-export const adminHandlers = handlersFor("backup")({
-  getBackup: handleBackupGet,
-  getBackupDownloadByFilename: handleBackupDownload,
-  postBackupCreate: handleBackupCreate,
-  postBackupRestore: handleBackupRestore,
-  postBackupRestoreConfirm: handleBackupRestoreConfirm,
+export const adminHandlers = defineRoutes({
+  "GET /admin/backup": handleBackupGet,
+  "GET /admin/backup/download/:filename": handleBackupDownload,
+  "POST /admin/backup/create": handleBackupCreate,
+  "POST /admin/backup/restore": handleBackupRestore,
+  "POST /admin/backup/restore/confirm": handleBackupRestoreConfirm,
 });

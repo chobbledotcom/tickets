@@ -7,7 +7,7 @@ import {
   attributeNameForm,
   attributeOptionForm,
 } from "#routes/admin/attributes.ts";
-import { type AdminRouteId, adminPath } from "#shared/admin-surface.ts";
+import { adminPath } from "#shared/admin-surface.ts";
 import type {
   AttributeOption,
   AttributeWithOptions,
@@ -22,7 +22,6 @@ import {
   IdCheckboxLabel,
 } from "#templates/components/aggregate-sections.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import type { ReorderDirection } from "#templates/components/reorder.tsx";
 import {
   itemsOrEmptyNote,
   reorderableListPage,
@@ -38,11 +37,6 @@ import { WritableDangerLink, WritableOnly } from "./writable-only.tsx";
 
 export const attributeNameFlat = (name: string): string =>
   name.replace(/\r?\n/g, " / ");
-
-const ATTRIBUTE_OPTION_MOVE_ROUTES = {
-  down: "postAttributesByIdOptionsByOptionIdMoveDown",
-  up: "postAttributesByIdOptionsByOptionIdMoveUp",
-} satisfies Record<ReorderDirection, AdminRouteId>;
 
 export const adminAttributesPage = (
   attributes: AttributeWithOptions[],
@@ -167,10 +161,7 @@ export const adminAttributePage = (
         label: (option) => option.text,
         labelHeader: t("attributes.option_column"),
         moveAction: (option) => (direction) =>
-          adminPath(ATTRIBUTE_OPTION_MOVE_ROUTES[direction], {
-            id: attribute.id,
-            optionId: option.id,
-          }),
+          `/admin/attributes/${attribute.id}/options/${option.id}/move-${direction}`,
         orderLabel: t("attributes.order_column"),
       })}
 

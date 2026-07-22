@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 
 /**
  * Admin group management routes - accessible to owners and managers
@@ -410,8 +410,8 @@ const groupImageHandlers = createItemImageHandlers({
 });
 
 /** Group routes */
-export const adminHandlers = handlersFor("groups")({
-  getGroups: content.listGet,
+export const adminHandlers = defineRoutes({
+  "GET /admin/groups": content.listGet,
 
   // The detail + edit pages are one tabbed entity page now: `/admin/groups/:id`
   // is its Overview, `/admin/groups/:id/:tab` its other tabs (attendees, edit,
@@ -420,16 +420,17 @@ export const adminHandlers = handlersFor("groups")({
   // their own files) are matched ahead of the `:tab` wildcard. The edit POST is
   // still the generic CRUD route — groupsResource handles package prices + the
   // invariant via validate/afterWrite.
-  getGroupsById: (request, { id }) => groupPage.renderTab(request, id, ""),
-  getGroupsByIdByTab: (request, { id, tab }) =>
+  "GET /admin/groups/:id": (request, { id }) =>
+    groupPage.renderTab(request, id, ""),
+  "GET /admin/groups/:id/:tab": (request, { id, tab }) =>
     groupPage.renderTab(request, id, tab),
-  getGroupsByIdDelete: staffCrud.deleteGet,
+  "GET /admin/groups/:id/delete": staffCrud.deleteGet,
   // Create uses the auto-generated-slug resource.
-  getGroupsNew: contentCreate.newGet,
-  postGroups: contentCreate.createPost,
-  postGroupsByIdAddListings: handleAddListingsToGroup,
-  postGroupsByIdDelete: staffCrud.deletePost,
-  postGroupsByIdEdit: content.editPost,
-  postGroupsByIdImages: groupImageHandlers.set,
-  postGroupsByIdImagesUpload: groupImageHandlers.upload,
+  "GET /admin/groups/new": contentCreate.newGet,
+  "POST /admin/groups": contentCreate.createPost,
+  "POST /admin/groups/:id/add-listings": handleAddListingsToGroup,
+  "POST /admin/groups/:id/delete": staffCrud.deletePost,
+  "POST /admin/groups/:id/edit": content.editPost,
+  "POST /admin/groups/:id/images": groupImageHandlers.set,
+  "POST /admin/groups/:id/images/upload": groupImageHandlers.upload,
 });

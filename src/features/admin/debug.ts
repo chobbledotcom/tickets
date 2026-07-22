@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
 /**
  * Admin debug route - shows configuration status for troubleshooting
@@ -311,7 +311,7 @@ const handleSentryTestPost: TypedRouteHandler<"POST /admin/debug/sentry"> =
   });
 
 /** Debug routes */
-export const adminHandlers = handlersFor("debug")({
-  getDebug: handleAdminDebugGet,
-  postSentryTest: handleSentryTestPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/debug": handleAdminDebugGet,
+  "POST /admin/debug/sentry": handleSentryTestPost,
 });

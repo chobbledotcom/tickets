@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin routes for catalog import/export.
  *
@@ -149,9 +149,9 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
   });
 
 /** Catalog import/export routes. */
-export const adminHandlers = handlersFor("catalogTransfer")({
-  getCatalogImport: handleImportGet,
-  getGroupsByIdExportJson: handleGroupExport,
-  getListingByIdExportJson: handleListingExport,
-  postCatalogImport: handleImportPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/catalog/import": handleImportGet,
+  "GET /admin/groups/:id/export.json": handleGroupExport,
+  "GET /admin/listing/:id/export.json": handleListingExport,
+  "POST /admin/catalog/import": handleImportPost,
 });

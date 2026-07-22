@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin dashboard route
  */
@@ -238,9 +238,9 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
 );
 
 /** Dashboard routes */
-export const adminHandlers = handlersFor("dashboard")({
-  getAdmin: handleAdminGet,
-  getListings: handleAdminListingsGet,
-  getListingsCsv: handleListingsCsvExport,
-  getLog: handleAdminLog,
+export const adminHandlers = defineRoutes({
+  "GET /admin": handleAdminGet,
+  "GET /admin/listings": handleAdminListingsGet,
+  "GET /admin/listings/csv": handleListingsCsvExport,
+  "GET /admin/log": handleAdminLog,
 });
