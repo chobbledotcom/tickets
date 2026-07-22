@@ -96,6 +96,25 @@ describe("adding Uptime Kuma built-site monitors", () => {
     });
   }
 
+  test("does not delete a group after another request can attach a monitor", async () => {
+    const outcome = await runChangingAdd(
+      [
+        [],
+        [group(99), group(100)],
+        [group(99), group(100), { ...siteMonitor(99), id: 101 }],
+      ],
+      () => {
+        throw new Error("Another request attached a monitor before deletion.");
+      },
+    );
+
+    expect(outcome.result).toEqual({
+      ok: true,
+      value: { created: false, monitorId: 101 },
+    });
+    expect(outcome.deleted).toEqual([]);
+  });
+
   test("reports a created group that Kuma omits from its list", async () => {
     const outcome = await runChangingAdd([[], []]);
 
@@ -170,6 +189,16 @@ describe("adding Uptime Kuma built-site monitors", () => {
     );
     expect(fake.added).toHaveLength(1);
     expect(fake.added[0]).toMatchObject({ interval: 180, parent: 44 });
+  });
+
+  test("uses the lowest duplicate shared group without deleting either", async () => {
+    using _env = withEnv(kumaEnv);
+    using fake = connectFake([group(100), group(99)]);
+
+    await uptimeKumaMonitorService.add(configuredSite());
+
+    expect(fake.added[0]).toMatchObject({ parent: 99, type: "http" });
+    expect(fake.deleted).toEqual([]);
   });
 
   test("reuses a monitor that was added by another request", async () => {

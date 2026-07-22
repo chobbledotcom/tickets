@@ -72,7 +72,6 @@
     "@std/http": "jsr:@std/http@^1.1.1",
     "@sentry/core": "npm:@sentry/core@^10.60.0",
     "@sentry/deno": "npm:@sentry/deno@^10.60.0",
-    "socket.io-client": "npm:socket.io-client@^4.8.3",
     "stripe": "npm:stripe@^22.0.1",
     "@sumup/sdk": "npm:@sumup/sdk@^0.1.6",
     "esbuild": "npm:esbuild@^0.28.0",

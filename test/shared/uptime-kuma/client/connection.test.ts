@@ -9,6 +9,7 @@ import {
   uptimeKumaClientApi,
   uptimeKumaSocketFactory,
 } from "#shared/uptime-kuma/client.ts";
+import { configuredSocketUrl } from "#test/shared/uptime-kuma/socket/support.test.ts";
 import { config, FakeSocket, useSocketFactory } from "./support.test.ts";
 
 const expectDisconnected = (socket: FakeSocket): void => {
@@ -49,42 +50,25 @@ describe("Uptime Kuma Socket.IO connection", () => {
     );
   });
 
-  test("places the Socket.IO endpoint under the configured base path", async () => {
+  test("uses the configured base path and native WebSocket transport", async () => {
     await runWithSubrequestBudget(async () => {
-      const socket = await uptimeKumaSocketFactory.create(config);
-      const manager = socket as unknown as {
-        io: {
-          opts: {
-            autoConnect: boolean;
-            path: string;
-            reconnection: boolean;
-            timeout: number;
-            transports: unknown[];
-          };
-        };
-      };
-
-      expect(manager.io.opts).toMatchObject({
-        autoConnect: false,
-        path: "/status/socket.io",
-        reconnection: false,
-        timeout: 10_000,
-        transports: ["websocket"],
-      });
+      expect(await configuredSocketUrl(config.url)).toBe(
+        "wss://kuma.example.test/status/socket.io/?EIO=4&transport=websocket",
+      );
       expect(getSubrequestUsage().external).toBe(1);
-      socket.disconnect();
     });
   });
 
-  test("places a root Kuma server at the root Socket.IO path", async () => {
-    const socket = await uptimeKumaSocketFactory.create({
-      ...config,
-      url: "https://kuma.example.test",
-    });
-    const manager = socket as unknown as { io: { opts: { path: string } } };
+  test("uses the root Socket.IO path for a root Kuma URL", async () => {
+    expect(await configuredSocketUrl("https://kuma.example.test")).toBe(
+      "wss://kuma.example.test/socket.io/?EIO=4&transport=websocket",
+    );
+  });
 
-    expect(manager.io.opts.path).toBe("/socket.io");
-    socket.disconnect();
+  test("uses an unencrypted WebSocket for a local HTTP Kuma URL", async () => {
+    expect(await configuredSocketUrl("http://localhost:3001")).toBe(
+      "ws://localhost:3001/socket.io/?EIO=4&transport=websocket",
+    );
   });
 
   test("names a blocked Kuma connection in the subrequest error", async () => {
