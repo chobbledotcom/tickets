@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { BlindIndex } from "#shared/crypto/sealed.ts";
 import { groups } from "#shared/db/groups.ts";
 import { listingChildren } from "#shared/db/listing-parents.ts";
@@ -8,7 +9,6 @@ import {
   getListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   listingInputToEdge,
   performListingDelete,

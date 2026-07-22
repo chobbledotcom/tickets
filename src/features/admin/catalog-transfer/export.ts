@@ -9,14 +9,16 @@
  * not exported separately.
  */
 
+/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { mapNotNullish } from "#fp";
 import { withGroupOrNull } from "#routes/admin/find-group.ts";
+import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
 import {
-  getAllGroupNames,
-  getGroupPackagePrices,
-  groups,
-} from "#shared/db/groups.ts";
+  groupCatalogFields,
+  listingCatalogFields,
+} from "#shared/catalog-fields/fields.ts";
+import { getAllGroupNames, getGroupPackagePrices } from "#shared/db/groups.ts";
 import { listingParents } from "#shared/db/listing-parents.ts";
 import {
   getGroupDayPrices,
@@ -25,7 +27,6 @@ import {
 import {
   getStoredListingWithCount,
   listingNames,
-  listingsTable,
 } from "#shared/db/listings/records.ts";
 import { namedError } from "#shared/named-error.ts";
 import type { AdminLevel } from "#shared/types.ts";
@@ -40,6 +41,7 @@ import {
   type ListingMembership,
   type ListingTransfer,
 } from "./schema.ts";
+/* jscpd:ignore-end */
 
 /** Returned (not thrown) when a stored row holds a value the transfer format
  * can't represent — e.g. a bookable-day name or contact field the admin JSON API
@@ -61,36 +63,13 @@ const parseExport = <TSchema extends v.GenericSchema>(
   );
 };
 
-/** Listing columns that never travel: the id/slug/timestamp columns (an import
- * mints fresh ones) and attachment columns (deliberately out of scope). Named
- * in snake_case for {@link listingsTable.rowToInput}. */
-const LISTING_EXPORT_EXCLUDED = [
-  "created",
-  "slug",
-  "slug_index",
-  "attachment_url",
-  "attachment_name",
-] as const;
-
-/** `webhook_url` receives attendee PII, so — like the edit form — it is hidden
- * from an editor; an editor's export must not reveal a URL they can't read. */
-const EDITOR_EXPORT_EXCLUDED = [
-  ...LISTING_EXPORT_EXCLUDED,
-  "webhook_url",
-] as const;
-
-/** Group columns that never travel — the slug pair (regenerated on import). */
-const GROUP_EXPORT_EXCLUDED = ["slug", "slug_index"] as const;
-
 /** Convert a per-day override map to the JSON record shape, or undefined when
  * there are no overrides (so an empty map is omitted from the blob). */
 const dayPricesToRecord = (
   dayPrices: ReadonlyMap<number, number> | undefined,
 ): Record<string, number> | undefined => {
   if (!dayPrices || dayPrices.size === 0) return;
-  const record: Record<string, number> = {};
-  for (const [day, price] of dayPrices) record[String(day)] = price;
-  return record;
+  return Object.fromEntries(dayPrices);
 };
 
 /** The package-override fields shared by both membership views, each omitted at
@@ -125,24 +104,14 @@ export const exportListing = async (
   const listing = await getStoredListingWithCount(id);
   if (!listing) return null;
 
-  // `day_prices` is a projected column (its source rows live in `listing_prices`
-  // now that the `listings.day_prices` column is retired), so `rowToInput` omits
-  // it — carry it explicitly when the listing actually has per-day prices.
-  const dayPrices =
-    Object.keys(listing.day_prices).length > 0
-      ? { dayPrices: listing.day_prices }
-      : {};
   const listingData = parseExport(
     ListingDataSchema,
-    {
-      ...listingsTable.rowToInput(
-        listing,
-        adminLevel === "editor"
-          ? EDITOR_EXPORT_EXCLUDED
-          : LISTING_EXPORT_EXCLUDED,
-      ),
-      ...dayPrices,
-    },
+    projectCatalogFields(
+      listingCatalogFields,
+      "transfer",
+      listing,
+      adminLevel === "editor" ? ["webhookUrl"] : [],
+    ),
     "listing",
   );
   if (listingData instanceof CatalogExportError) return listingData;
@@ -192,7 +161,7 @@ export const exportGroup = (
   withGroupOrNull(id, async (group) => {
     const groupData = parseExport(
       GroupDataSchema,
-      groups.table.rowToInput(group, GROUP_EXPORT_EXCLUDED),
+      projectCatalogFields(groupCatalogFields, "transfer", group),
       "group",
     );
     if (groupData instanceof CatalogExportError) return groupData;

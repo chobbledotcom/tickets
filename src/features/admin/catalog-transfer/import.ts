@@ -14,10 +14,13 @@
 import * as v from "valibot";
 import { identity, mapById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
+import type {
+  GroupInput,
+  ListingInput,
+} from "#shared/catalog-fields/fields.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
-  type GroupInput,
   generateUniqueGroupSlug,
   getGroupsById,
   groups,
@@ -34,7 +37,6 @@ import {
   listingsTable,
   requireListingsWithCountsByIds,
 } from "#shared/db/listings/records.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   childOnlyAddOnCheckerForListings,
   type ListingGroupMembership,
@@ -484,9 +486,7 @@ const importGroup = async (
   }
 
   const { slug, slugIndex } = await generateUniqueGroupSlug();
-  // Cast bridges valibot's `T | undefined` optionals to GroupInput's exact
-  // optionals; members are written separately (not via GroupInput.packageMembers).
-  const input = { ...group, slug, slugIndex } as GroupInput;
+  const input: GroupInput = { ...group, slug, slugIndex };
   // Package overrides only apply to a package group; a non-package group clears
   // them (matching the normal group save).
   const isPackage = group.isPackage ?? false;

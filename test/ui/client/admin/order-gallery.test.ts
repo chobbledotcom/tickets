@@ -9,9 +9,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { Window } from "happy-dom";
 import { initOrderGallery } from "#src/ui/client/admin/order-gallery.ts";
-import { createGlobalStash } from "#test-utils/happy-dom.ts";
+import {
+  createDomInstaller,
+  createGlobalStash,
+} from "#test-utils/happy-dom.ts";
 
 type CardState = { state: string; label: string };
 type AvailabilityBody = {
@@ -39,6 +41,7 @@ const GALLERY_HTML = `
   </form>`;
 
 const stash = createGlobalStash();
+const dom = createDomInstaller(["FormData", "HTMLInputElement"]);
 
 // The availability refresh debounces on a real 200ms setTimeout; run every
 // test on a virtual clock so settle() skips past it instantly instead of each
@@ -54,13 +57,9 @@ const getClock = (): FakeTime => {
  * script. `responses` are consumed one per request; when empty the endpoint
  * answers "everything fine, no states". */
 const harness = (html = GALLERY_HTML) => {
-  const window = new Window({ url: "https://tickets.test/order" });
-  window.document.body.innerHTML = html;
+  const window = dom.installDom(html);
   const requests: string[] = [];
   const responses: Array<{ ok: boolean; body: AvailabilityBody }> = [];
-  stash.set("document", window.document);
-  stash.set("FormData", window.FormData);
-  stash.set("HTMLInputElement", window.HTMLInputElement);
   stash.set("fetch", (input: unknown): Promise<unknown> => {
     requests.push(String(input));
     const next = responses.shift() ?? { body: { states: {} }, ok: true };
@@ -122,17 +121,16 @@ describe("initOrderGallery", () => {
   beforeEach(() => {
     clock.time = new FakeTime();
   });
-  afterEach(() => {
+  afterEach(async () => {
+    stash.restore();
+    await dom.cleanup();
     // beforeEach always installs the clock; teardown must fail if that changes.
     getClock().restore();
     clock.time = null;
-    stash.restore();
   });
 
   test("does nothing on a page without the gallery form", () => {
-    const window = new Window({ url: "https://tickets.test/" });
-    window.document.body.innerHTML = "<p>No gallery here</p>";
-    stash.set("document", window.document);
+    dom.installDom("<p>No gallery here</p>");
     expect(() => initOrderGallery()).not.toThrow();
   });
 

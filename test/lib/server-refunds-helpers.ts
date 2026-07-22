@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import type { ListingInput } from "#shared/db/listings/table.ts";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import { expectFlash, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
