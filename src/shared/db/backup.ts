@@ -12,7 +12,7 @@
 
 import { unzipSync, zipSync } from "fflate";
 import * as v from "valibot";
-import { compact, sum } from "#fp";
+import { compact, reduce, sum } from "#fp";
 import { utf8ByteLength } from "#shared/bytes.ts";
 import { createBackup, type TableBackup } from "#shared/db/backup-snapshot.ts";
 import {
@@ -92,27 +92,35 @@ const ignoreRestoreProgress: RestoreProgressHandler = () => {};
 const RESTORE_BATCH_STATEMENT_LIMIT = 50;
 const RESTORE_BATCH_BYTE_LIMIT = 512 * 1024;
 
+type RestoreBatchState = {
+  completed: string[][];
+  current: { bytes: number; statements: string[] };
+};
+
 const restoreBatches = ([first, ...statements]: [
   string,
   ...string[],
 ]): string[][] => {
-  const batches: string[][] = [];
-  let current = { bytes: utf8ByteLength(first), statements: [first] };
-  for (const statement of statements) {
+  const initial: RestoreBatchState = {
+    completed: [],
+    current: { bytes: utf8ByteLength(first), statements: [first] },
+  };
+  const result = reduce((state: RestoreBatchState, statement: string) => {
     const statementBytes = utf8ByteLength(statement);
     if (
-      current.statements.length === RESTORE_BATCH_STATEMENT_LIMIT ||
-      current.bytes + statementBytes > RESTORE_BATCH_BYTE_LIMIT
+      state.current.statements.length === RESTORE_BATCH_STATEMENT_LIMIT ||
+      state.current.bytes + statementBytes > RESTORE_BATCH_BYTE_LIMIT
     ) {
-      batches.push(current.statements);
-      current = { bytes: statementBytes, statements: [statement] };
-      continue;
+      state.completed.push(state.current.statements);
+      state.current = { bytes: statementBytes, statements: [statement] };
+    } else {
+      state.current.statements.push(statement);
+      state.current.bytes += statementBytes;
     }
-    current.statements.push(statement);
-    current.bytes += statementBytes;
-  }
-  batches.push(current.statements);
-  return batches;
+    return state;
+  }, initial)(statements);
+  result.completed.push(result.current.statements);
+  return result.completed;
 };
 
 /** Remove write-time schema work while rows are loaded. Backup rows already

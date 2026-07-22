@@ -1051,4 +1051,4 @@ src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arm
 src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
 
 # Schema indexes are an array when present, and arrays are always truthy.
-src/shared/db/backup.ts:124:21  ?? → ||   # table.indexes is Index[]|undefined, so every present value uses the left side and undefined uses [] with either operator
+src/shared/db/backup.ts:132:21  ?? → ||   # table.indexes is Index[]|undefined, so every present value uses the left side and undefined uses [] with either operator

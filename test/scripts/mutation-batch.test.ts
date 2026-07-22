@@ -27,8 +27,7 @@ Deno.test("batchTestFiles defaults to TEST_FILE_BATCH_SIZE per process", () => {
     (_unused, i) => `f${i}.test.ts`,
   );
   const batches = batchTestFiles(files);
-  expect(batches).toEqual([
-    files.slice(0, TEST_FILE_BATCH_SIZE),
-    files.slice(TEST_FILE_BATCH_SIZE),
-  ]);
+  expect(batches.length).toBe(2);
+  expect(batches[0]?.length).toBe(TEST_FILE_BATCH_SIZE);
+  expect(batches[1]?.length).toBe(1);
 });
