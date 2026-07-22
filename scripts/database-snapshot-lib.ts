@@ -258,6 +258,7 @@ const publishSnapshot = async (
   temporaryPath: string,
   outputPath: string,
 ): Promise<void> => {
+  await Deno.chmod(temporaryPath, 0o600);
   await requireMissingOutputFiles(outputPath);
   try {
     await Deno.link(temporaryPath, outputPath);
