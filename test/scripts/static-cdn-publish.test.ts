@@ -25,6 +25,27 @@ const styleOrWasm =
   (url: string): StaticCdnAsset =>
     url.endsWith(STYLE_ASSET.filename) ? style : WASM_ASSET;
 
+const completeRequest = successfulFetcher(() => STYLE_ASSET);
+
+const rejectWhenAborted = (signal: AbortSignal): Promise<Response> =>
+  new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(signal.reason), {
+      once: true,
+    });
+  });
+
+const stalledFetcher =
+  (stalledMethod: string, onStart: () => void): typeof fetch =>
+  (input, init) => {
+    const method = init?.method ?? "GET";
+    if (method !== stalledMethod) return completeRequest(input, init);
+    const signal = init?.signal;
+    if (!signal) throw new Error("Expected bounded Bunny request");
+    const stalled = rejectWhenAborted(signal);
+    onStart();
+    return stalled;
+  };
+
 describe("publishStaticCdnAssets", () => {
   test("uploads one immutable release and returns its public URLs", async () => {
     const requests: Request[] = [];
@@ -282,25 +303,7 @@ describe("publishStaticCdnAssets", () => {
       const publishing = publishStaticCdnAssets(
         CONFIG,
         [STYLE_ASSET],
-        (_input, init) => {
-          const method = init?.method ?? "GET";
-          if (method !== stalledMethod) {
-            return Promise.resolve(
-              method === "GET"
-                ? assetResponse(STYLE_ASSET)
-                : new Response(null, { status: 201 }),
-            );
-          }
-          const signal = init?.signal;
-          if (!signal) throw new Error("Expected bounded Bunny request");
-          const stalled = new Promise<Response>((_resolve, reject) => {
-            signal.addEventListener("abort", () => reject(signal.reason), {
-              once: true,
-            });
-          });
-          started.resolve();
-          return stalled;
-        },
+        stalledFetcher(stalledMethod, () => started.resolve()),
       );
       const observed = publishing
         .catch((caught: unknown) => {

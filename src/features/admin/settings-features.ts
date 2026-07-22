@@ -1,4 +1,6 @@
 /* jscpd:ignore-start -- imports */
+
+import * as v from "valibot";
 import { t } from "#i18n";
 import { OWNER_FORM, requireOwnerOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -20,9 +22,12 @@ import {
   setAdminFeatureEnabled,
 } from "#shared/db/admin-features.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import { adminFeaturePage } from "#templates/admin/features.tsx";
 
 /* jscpd:ignore-end */
+
+const FeatureChoiceSchema = v.picklist(["true", "false"]);
 
 const withAdminFeature = (
   slug: string,
@@ -30,6 +35,31 @@ const withAdminFeature = (
 ): Promise<Response> => {
   const feature = featureBySlug(slug);
   return feature ? use(feature) : Promise.resolve(notFoundResponse());
+};
+
+/** Validate and save one feature choice from its detail form. */
+const saveFeatureChoice = async (
+  feature: AdminFeatureDefinition,
+  form: FormParams,
+): Promise<Response> => {
+  const path = `/admin/features/${feature.slug}`;
+  const choice = v.safeParse(FeatureChoiceSchema, form.getString("enabled"));
+  if (!choice.success) {
+    return errorRedirect(path, t("features.invalid_value"));
+  }
+  const enabled = choice.output === "true";
+  if (!enabled && (await getAdminFeatureUsage())[feature.key]) {
+    return errorRedirect(path, t("features.in_use_help"));
+  }
+  if (!(await setAdminFeatureEnabled(feature.key, enabled))) {
+    return errorRedirect(path, t("features.in_use_help"));
+  }
+  const message = t(
+    enabled ? "features.enabled_success" : "features.disabled_success",
+    { feature: t(feature.labelKey) },
+  );
+  await logActivity(message);
+  return redirect(path, message, true);
 };
 
 export const handleFeatureGet: TypedRouteHandler<
@@ -60,24 +90,5 @@ export const handleFeaturePost: TypedRouteHandler<
   "POST /admin/features/:slug"
 > = (request, { slug }) =>
   withAuth(request, OWNER_FORM, (_session, form) =>
-    withAdminFeature(slug, async (feature) => {
-      const path = `/admin/features/${feature.slug}`;
-      const value = form.getString("enabled");
-      if (value !== "true" && value !== "false") {
-        return errorRedirect(path, t("features.invalid_value"));
-      }
-      const enabled = value === "true";
-      if (!enabled && (await getAdminFeatureUsage())[feature.key]) {
-        return errorRedirect(path, t("features.in_use_help"));
-      }
-      if (!(await setAdminFeatureEnabled(feature.key, enabled))) {
-        return errorRedirect(path, t("features.in_use_help"));
-      }
-      const message = t(
-        enabled ? "features.enabled_success" : "features.disabled_success",
-        { feature: t(feature.labelKey) },
-      );
-      await logActivity(message);
-      return redirect(path, message, true);
-    }),
+    withAdminFeature(slug, (feature) => saveFeatureChoice(feature, form)),
   );

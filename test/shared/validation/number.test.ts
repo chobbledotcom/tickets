@@ -57,9 +57,10 @@ describe("parsePositiveIntId", () => {
 });
 
 describe("parseNonNegativeInt", () => {
-  test("accepts zero and positive plain decimal integers", () => {
+  test("accepts zero and positive decimal integers, including leading zeros", () => {
     expect(parseNonNegativeInt("0")).toBe(0);
     expect(parseNonNegativeInt("12")).toBe(12);
+    expect(parseNonNegativeInt("007")).toBe(7);
     expect(parseNonNegativeInt(" 12 ")).toBe(12);
   });
 

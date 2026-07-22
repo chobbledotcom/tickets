@@ -17,6 +17,12 @@
 
 import { join } from "node:path";
 import { compact } from "#fp";
+import {
+  blankSpans,
+  skipComment,
+  skipCommentOrString,
+  skipString,
+} from "#scripts/typescript-lex.ts";
 
 /* -------------------------------------------------------------------------- *
  * File discovery                                                             *
@@ -412,9 +418,8 @@ export const findTestOnlyExportViolations = (
  * check). A small hand-written lexer rather than a full AST parser, matching  *
  * the regex-driven style of the rest of this file. It skips comments and      *
  * string/template literals so callee names and argument text are never        *
- * matched inside them. The tokenizer helpers (skipString/skipComment/         *
- * parseArgList) are exported so their index/argument contracts can be unit-   *
- * tested directly — `extractCallSites` alone hides their internal edge cases. *
+ * matched inside them. The tokenizer helpers and parseArgList are tested      *
+ * directly so their index/argument contracts stay explicit.                  *
  * -------------------------------------------------------------------------- */
 
 /** A single call expression discovered in a source file. */
@@ -446,89 +451,14 @@ const NON_CALL_KEYWORDS = new Set([
 const isIdentChar = (c: string): boolean => /[\w$]/.test(c);
 const isIdentStart = (c: string): boolean => /[A-Za-z_$]/.test(c);
 const isWhitespace = (c: string): boolean => /\s/.test(c);
-const isQuote = (c: string | undefined): boolean =>
-  c === '"' || c === "'" || c === "`";
 const isOpenBracket = (c: string | undefined): boolean =>
   c === "(" || c === "[" || c === "{";
 const isCloseBracket = (c: string | undefined): boolean =>
   c === ")" || c === "]" || c === "}";
-
-/**
- * Skip a string or template literal starting at the opening quote `start`.
- * Returns the index immediately after the closing quote. Template `${...}`
- * substitutions are skipped wholesale (including nested strings) so a `)` or
- * `,` inside them never leaks into argument parsing.
- */
-/**
- * Skip a template `${…}` substitution whose `$` is at `start` (so `content[start]`
- * is `$` and `content[start + 1]` is `{`). Returns the index just past the
- * matching `}`, skipping nested strings so their braces don't unbalance the count.
- */
-const skipTemplateSubstitution = (content: string, start: number): number => {
-  let depth = 1;
-  let j = start + 2;
-  while (j < content.length && depth > 0) {
-    const d = content[j];
-    if (d === "{") depth++;
-    else if (d === "}") depth--;
-    else if (d === '"' || d === "'" || d === "`") {
-      j = skipString(content, j);
-      continue;
-    }
-    j++;
-  }
-  return j;
-};
-
-export const skipString = (content: string, start: number): number => {
-  const quote = content[start];
-  let j = start + 1;
-  while (j < content.length) {
-    const c = content[j];
-    if (c === "\\") {
-      j += 2;
-      continue;
-    }
-    if (c === quote) return j + 1;
-    if (quote === "`" && c === "$" && content[j + 1] === "{") {
-      j = skipTemplateSubstitution(content, j);
-      continue;
-    }
-    j++;
-  }
-  return j;
-};
-
-/** If `i` points at the start of a comment, return the index past it, else i. */
-export const skipComment = (content: string, i: number): number => {
-  if (content[i] === "/" && content[i + 1] === "/") {
-    let j = i;
-    while (j < content.length && content[j] !== "\n") j++;
-    return j;
-  }
-  if (content[i] === "/" && content[i + 1] === "*") {
-    let j = i + 2;
-    while (
-      j < content.length &&
-      !(content[j] === "*" && content[j + 1] === "/")
-    ) {
-      j++;
-    }
-    return j + 2;
-  }
-  return i;
-};
-
-/**
- * If a comment or a string/template literal begins at `i`, return the index just
- * past it; otherwise return `i` unchanged. Comments are checked before strings,
- * matching the tokenizer order used elsewhere in this file.
- */
-const skipCommentOrString = (content: string, i: number): number => {
-  const pastComment = skipComment(content, i);
-  if (pastComment !== i) return pastComment;
-  if (isQuote(content[i])) return skipString(content, i);
-  return i;
+const bracketDepthDelta = (c: string | undefined): number => {
+  if (isOpenBracket(c)) return 1;
+  if (isCloseBracket(c)) return -1;
+  return 0;
 };
 
 /**
@@ -552,14 +482,12 @@ export const parseArgList = (
       continue;
     }
     const d = content[p];
-    if (isOpenBracket(d)) depth++;
-    else if (isCloseBracket(d)) {
-      depth--;
-      if (depth === 0) {
-        args.push(content.slice(cur, p).trim());
-        break;
-      }
-    } else if (d === "," && depth === 1) {
+    depth += bracketDepthDelta(d);
+    if (depth === 0) {
+      args.push(content.slice(cur, p).trim());
+      break;
+    }
+    if (d === "," && depth === 1) {
       args.push(content.slice(cur, p).trim());
       cur = p + 1;
     }
@@ -733,41 +661,6 @@ export type NamedTypeShape = {
  * params and rows, and forcing them to share a type hurts readability. */
 export const MIN_TYPE_SHAPE_MEMBERS = 2;
 
-/**
- * Return a length-preserving copy of `content` with every comment — and, when
- * `blankStrings` is set, every string/template literal — replaced by spaces
- * (newlines kept, so offsets and line anchoring are unchanged). The all-blanked
- * form is used for structural decisions (finding declarations, matching braces,
- * splitting members) so a `{`, `}`, `;` or `,` inside a string or comment never
- * leaks into them; the comments-only form supplies the real member text (string
- * literal members like `kind: "listing"` stay intact, so distinct discriminated
- * unions are never mistaken for one shape).
- */
-export const blankSpans = (content: string, blankStrings: boolean): string => {
-  const out = content.split("");
-  const blank = (from: number, to: number): void => {
-    for (let k = from; k < to; k++) if (out[k] !== "\n") out[k] = " ";
-  };
-  let i = 0;
-  while (i < content.length) {
-    const pastComment = skipComment(content, i);
-    if (pastComment !== i) {
-      blank(i, pastComment);
-      i = pastComment;
-      continue;
-    }
-    const c = content[i];
-    if (c === '"' || c === "'" || c === "`") {
-      const end = skipString(content, i);
-      if (blankStrings) blank(i, end);
-      i = end;
-      continue;
-    }
-    i++;
-  }
-  return out.join("");
-};
-
 /** Index of the `}` that closes the `{` at `open` in already-blanked `code`
  * (no strings/comments to skip), or -1 if unbalanced. */
 const matchBrace = (code: string, open: number): number => {
@@ -822,8 +715,8 @@ const skipTypeParams = (code: string, i: number): number => {
   let depth = 0;
   let j = i;
   for (; j < code.length; j++) {
-    if (code[j] === "<") depth++;
-    else if (code[j] === ">" && --depth === 0) {
+    depth += angleDepthDelta(code, j);
+    if (depth === 0) {
       j++;
       break;
     }
@@ -889,11 +782,8 @@ export const splitTypeMembers = (
   };
   for (let i = innerStart; i < innerEnd; i++) {
     const c = code[i];
-    if (isOpenBracket(c) || c === "<") depth++;
-    else if (isCloseBracket(c)) depth--;
-    else if (c === ">") {
-      if (code[i - 1] !== "=") depth--;
-    } else if (depth === 0 && (c === ";" || c === ",")) push(i);
+    depth += bracketDepthDelta(c) + angleDepthDelta(code, i);
+    if (depth === 0 && (c === ";" || c === ",")) push(i);
   }
   push(innerEnd);
   return members;

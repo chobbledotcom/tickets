@@ -379,29 +379,46 @@ const NON_RUNTIME_FIELDS = new Set([
   "typeParameters",
 ]);
 
+interface AstChild {
+  inNonRuntime: boolean;
+  node: object;
+}
+
+/** Enumerate child AST objects while carrying the runtime context of the field
+ * that contains each child. Primitive parser metadata is not part of the tree. */
+function* childrenOf(
+  record: Record<string, unknown>,
+  inNonRuntime: boolean,
+): Generator<AstChild> {
+  for (const [key, value] of Object.entries(record)) {
+    const childInNonRuntime = inNonRuntime || NON_RUNTIME_FIELDS.has(key);
+    const children = Array.isArray(value) ? value : [value];
+    for (const child of children) {
+      if (child && typeof child === "object") {
+        yield { inNonRuntime: childInNonRuntime, node: child };
+      }
+    }
+  }
+}
+
 /**
  * Depth-first stream of every typed node, tagged with whether it sits inside a
  * non-runtime context. Types are erased at runtime, module specifiers are load
  * wiring rather than application behavior, and `declare` statements are
  * ambient (erased) declarations, so those nodes are skipped. Array elisions
- * (`const [, year] = parts`) appear as `null` children, hence the guard.
+ * (`const [, year] = parts`) appear as `null` children, which `childrenOf`
+ * drops before recursion.
  */
 function* walk(
-  node: unknown,
+  node: object,
   inNonRuntime = false,
 ): Generator<{ inNonRuntime: boolean; node: AstNode }> {
-  if (!node || typeof node !== "object") return;
   const record = node as Record<string, unknown>;
   const nonRuntime = inNonRuntime || record.declare === true;
   if (typeof record.type === "string")
     yield { inNonRuntime: nonRuntime, node: record as AstNode };
-  for (const [key, value] of Object.entries(record)) {
-    const childInNonRuntime = nonRuntime || NON_RUNTIME_FIELDS.has(key);
-    if (Array.isArray(value)) {
-      for (const child of value) yield* walk(child, childInNonRuntime);
-    } else if (value && typeof value === "object") {
-      yield* walk(value, childInNonRuntime);
-    }
+  for (const child of childrenOf(record, nonRuntime)) {
+    yield* walk(child.node, child.inNonRuntime);
   }
 }
 

@@ -91,6 +91,32 @@ import {
 /** A parsed-and-priced order (the ok branch of {@link prepareOrder}). */
 type PreparedOrder = Extract<PrepareResult, { ok: true }>;
 
+type PaidBookingMetadata = {
+  allocations: PreparedOrder["allocations"];
+  foldedListingCount: number;
+  pageListingCount: number;
+  thankYouUrl: string | null;
+};
+
+/** Add metadata needed after a paid booking returns from the provider. Child
+ * allocations always travel with the payment. A single parent's redirect only
+ * needs an explicit override when folding added a child listing. */
+export const withPaidBookingMetadata = (
+  intent: CheckoutIntent,
+  {
+    allocations,
+    foldedListingCount,
+    pageListingCount,
+    thankYouUrl,
+  }: PaidBookingMetadata,
+): CheckoutIntent => ({
+  ...intent,
+  ...(thankYouUrl && foldedListingCount > pageListingCount
+    ? { thankYouUrl }
+    : {}),
+  ...(allocations.length > 0 ? { allocations } : {}),
+});
+
 /** Parse-and-price the submitted form, or map its failure message to a response
  *  via `onError` (a flash redirect for submit, an HTML fragment for the quote).
  *  Returns the priced order on success, or the already-formed error Response. */
@@ -158,25 +184,17 @@ const processSubmission = async (
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
 
   if (finalRequiresPayment) {
-    // Carry a single parent's configured thank-you URL through the paid round-trip.
-    // Folding a required child makes the booking multi-listing, so the webhook's
-    // single-unique-listing-id derivation would otherwise drop the parent's URL.
-    // Setting it explicitly on the
-    // intent lets the success page prefer it over that derivation. Only needed
-    // once a child was actually folded (the order gained a listing); a genuine
-    // single-listing order still resolves the same URL by the default rule.
-    if (thankYouUrl && foldedCtx.listings.length > ctx.listings.length) {
-      intent.thankYouUrl = thankYouUrl;
-    }
-    if (allocations.length > 0) {
-      intent.allocations = allocations;
-    }
     return handlePaidPath(request, {
       ctx: foldedCtx,
       date,
       dayCount,
       info,
-      intent,
+      intent: withPaidBookingMetadata(intent, {
+        allocations,
+        foldedListingCount: foldedCtx.listings.length,
+        pageListingCount: ctx.listings.length,
+        thankYouUrl,
+      }),
       quantities,
     });
   }

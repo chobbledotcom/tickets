@@ -25,6 +25,7 @@ import {
   getAttendeeNamesByIds,
 } from "#shared/db/attendees/queries.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings/attendees.ts";
+import { errorMessage } from "#shared/error-message.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -167,6 +168,25 @@ export type ActionHandlerConfig<TSession = AuthSession> = {
   redactedSecret?: SessionFormOptionalString<TSession>;
 };
 
+/** Run the configured action and turn only its failure into the route's error
+ * response. Later message and activity-log failures still propagate. */
+const executeActionOrError = async <TSession>(
+  execute: ActionHandlerConfig<TSession>["execute"],
+  onError: ErrorMapper | undefined,
+  session: TSession,
+  form: FormParams,
+  redirectUrl: string,
+): Promise<Response | null> => {
+  try {
+    await execute(session, form);
+    return null;
+  } catch (caught) {
+    const error =
+      caught instanceof Error ? caught : new Error(errorMessage(caught));
+    return onError ? onError(error) : errorRedirect(redirectUrl, error.message);
+  }
+};
+
 /**
  * Composable factory for POST action handlers.
  * Encapsulates the common lifecycle: auth + CSRF, execute, log activity, redirect.
@@ -238,14 +258,14 @@ export const createActionHandler = <TSession = AuthSession>(
         session as TSession,
         form,
       );
-      try {
-        await config.execute(session as TSession, form);
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        return config.onError
-          ? config.onError(error)
-          : errorRedirect(redirectUrl, error.message);
-      }
+      const errorResponse = await executeActionOrError(
+        config.execute,
+        config.onError,
+        session as TSession,
+        form,
+        redirectUrl,
+      );
+      if (errorResponse) return errorResponse;
 
       const msg = await resolveString(
         config.message,
