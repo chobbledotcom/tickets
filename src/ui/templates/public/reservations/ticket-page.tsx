@@ -19,6 +19,7 @@ import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
+import type { ItemImageProjection, ListingWithCount } from "#shared/types.ts";
 import { ErrorNote } from "#templates/components/error.tsx";
 import { Layout } from "#templates/layout.tsx";
 import {
@@ -41,7 +42,64 @@ import { TicketPageForm, TicketPageHeader } from "./form.tsx";
 import { buildPageListingRows } from "./listing-rows.ts";
 import { ticketPageHeadExtra } from "./og-tags.ts";
 import type { TicketPageOptions } from "./types.ts";
+
 /* jscpd:ignore-end */
+
+type TicketHeaderInput = {
+  attributesByListing: NonNullable<TicketPageOptions["attributesByListing"]>;
+  baseUrl: string | undefined;
+  groupDescription: string | undefined;
+  groupImage: ItemImageProjection | undefined;
+  groupName: string | undefined;
+  singleListing: ListingWithCount | null;
+  slugs: string[];
+};
+
+interface TicketHeaderData {
+  headExtra: string | undefined;
+  headerDescription: string | null | undefined;
+  headerImage: ItemImageProjection | null;
+  headerName: string | undefined;
+  listingAttributes: ReturnType<
+    TicketHeaderInput["attributesByListing"]["get"]
+  >;
+  pastDays: number | null;
+  title: string;
+}
+
+/** Resolve group-first header details and the single-listing fallback once. */
+const resolveTicketHeader = ({
+  attributesByListing,
+  baseUrl,
+  groupDescription,
+  groupImage,
+  groupName,
+  singleListing,
+  slugs,
+}: TicketHeaderInput): TicketHeaderData => {
+  // Caller-supplied group metadata takes priority because the caller knows the
+  // page the customer landed on. Plain listing pages fall back to the listing.
+  const headerName = groupName ?? singleListing?.name;
+  const headerDescription = groupDescription ?? singleListing?.description;
+  const headerImage = groupImage?.image_url ? groupImage : singleListing;
+  return {
+    headExtra: ticketPageHeadExtra(
+      headerImage,
+      headerName,
+      headerDescription,
+      slugs,
+      baseUrl,
+    ),
+    headerDescription,
+    headerImage,
+    headerName,
+    listingAttributes: singleListing
+      ? attributesByListing.get(singleListing.id)
+      : undefined,
+    pastDays: singleListing?.date ? daysAgo(singleListing.date) : null,
+    title: headerName || t("public.multi.title"),
+  };
+};
 
 /**
  * Ticket page - register for one or more listings
@@ -116,7 +174,6 @@ export const ticketPage = ({
 
   const singleListing = headerListing(listings, packages);
   const isSingleListing = singleListing !== null;
-  const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
 
   const dayCfg = dayConfig(
     listings,
@@ -166,21 +223,23 @@ export const ticketPage = ({
     standaloneRowIds,
   });
 
-  // Caller-supplied group metadata (groups, renewals) takes priority over
-  // single-listing details — the caller knows what page the customer landed on.
-  // Plain single-listing pages set no group metadata and fall back to listing
-  // name/description.
-  const headerName = groupName ?? singleListing?.name;
-  const headerDescription = groupDescription ?? singleListing?.description;
-  const headerImage = groupImage?.image_url ? groupImage : singleListing;
-  const title = headerName || t("public.multi.title");
-  const headExtra = ticketPageHeadExtra(
+  const {
+    headExtra,
+    headerDescription,
     headerImage,
     headerName,
-    headerDescription,
-    slugs,
+    listingAttributes,
+    pastDays,
+    title,
+  } = resolveTicketHeader({
+    attributesByListing,
     baseUrl,
-  );
+    groupDescription,
+    groupImage,
+    groupName,
+    singleListing,
+    slugs,
+  });
 
   return String(
     <Layout
@@ -195,11 +254,7 @@ export const ticketPage = ({
           headerDescription={headerDescription}
           headerImage={headerImage}
           headerName={headerName}
-          listingAttributes={
-            singleListing
-              ? attributesByListing.get(singleListing.id)
-              : undefined
-          }
+          listingAttributes={listingAttributes}
           pastDays={pastDays}
           singleListing={singleListing}
         />

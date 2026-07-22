@@ -244,6 +244,50 @@ const resolveSlot = <E>(
 ): Promise<JSX.Element | null> =>
   loader ? loader(entity, ctx) : Promise.resolve(null);
 
+type ResolvedPageTab<E> = {
+  active: TabDef<E>;
+  activeSlug: string;
+  states: TabState[];
+};
+
+/** Resolve the visible tab strip and the requested active tab together. */
+const resolvePageTab = <E>(
+  tabs: readonly TabDef<E>[],
+  entity: E,
+  session: AuthSession,
+  requestedTab: string,
+): ResolvedPageTab<E> | null => {
+  const states: TabState[] = tabs.map((tab) => ({
+    labelKey: tab.labelKey,
+    slug: tab.slug,
+    visible:
+      !(isReadOnly() && tab.intent === "write-form") &&
+      tab.visible?.(entity, session) !== false,
+  }));
+  const activeSlug = resolveTabSlug(states, requestedTab);
+  if (activeSlug === null) return null;
+  return {
+    active: tabs.find((tab) => tab.slug === activeSlug)!,
+    activeSlug,
+    states,
+  };
+};
+
+/** Load either the rejected form panel or every section in the active tab. */
+const loadPageSections = async <E>(
+  active: TabDef<E>,
+  entity: E,
+  ctx: PageCtx,
+  panel: SlotLoader<E> | undefined,
+): Promise<LoadedSection[]> => {
+  if (panel) return [{ html: await panel(entity, ctx), kind: "custom" }];
+  const sections: LoadedSection[] = [];
+  for (const section of active.sections) {
+    sections.push(await loadSection(section, entity, ctx));
+  }
+  return sections;
+};
+
 /** Turn one page definition into its handlers + path helper. */
 export const defineEntityPage = <E, Id extends EntityId = number>(
   def: EntityPageDef<E, Id>,
@@ -258,31 +302,21 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
   ): Promise<Response> => {
     const entity = await def.load(id, session);
     if (!entity) return notFoundResponse();
-    const tabStates: TabState[] = def.tabs.map((tab) => ({
-      labelKey: tab.labelKey,
-      slug: tab.slug,
-      visible:
-        !(isReadOnly() && tab.intent === "write-form") &&
-        tab.visible?.(entity, session) !== false,
-    }));
-    const activeSlug = resolveTabSlug(tabStates, requestedTab);
-    if (activeSlug === null) return notFoundResponse();
-    const active = def.tabs.find((tab) => tab.slug === activeSlug)!;
+    const tab = resolvePageTab(def.tabs, entity, session, requestedTab);
+    if (!tab) return notFoundResponse();
     const ctx: PageCtx = {
       baseUrl: opts.baseUrl ?? "",
       query: opts.query ?? new URLSearchParams(),
-      returnUrl: path(id, activeSlug),
+      returnUrl: path(id, tab.activeSlug),
       session,
       tabHref: (slug) => path(id, slug),
     };
-    const sections: LoadedSection[] = [];
-    if (opts.panel) {
-      sections.push({ html: await opts.panel(entity, ctx), kind: "custom" });
-    } else {
-      for (const section of active.sections) {
-        sections.push(await loadSection(section, entity, ctx));
-      }
-    }
+    const sections = await loadPageSections(
+      tab.active,
+      entity,
+      ctx,
+      opts.panel,
+    );
     const [banner, guideFooter, proseExtra] = await Promise.all([
       resolveSlot(def.banner, entity, ctx),
       resolveSlot(def.guideFooter, entity, ctx),
@@ -296,7 +330,7 @@ export const defineEntityPage = <E, Id extends EntityId = number>(
         proseExtra,
         sections,
         session,
-        tabs: tabLinks(tabStates, def.basePath(id), activeSlug),
+        tabs: tabLinks(tab.states, def.basePath(id), tab.activeSlug),
         title: def.titleOf(entity),
       }),
       opts.status ?? 200,

@@ -111,6 +111,101 @@ export const recomputeListingBookingRanges = async (
  * every writer stores midnight-anchored ranges). */
 type DayInterval = { start: string; end: string; quantity: number };
 
+type GroupBookingRow = {
+  listing_id: number;
+  listing_type: ListingType;
+  start_at: string | null;
+  end_at: string | null;
+  quantity: number;
+};
+
+type GroupBookingRangeRow = GroupBookingRow & {
+  start_at: string;
+  end_at: string;
+};
+
+const isDailyWithRange = (row: GroupBookingRow): row is GroupBookingRangeRow =>
+  countsPerDate(row.listing_type) &&
+  row.start_at !== null &&
+  row.end_at !== null;
+
+const toDayInterval = (row: GroupBookingRangeRow): DayInterval => ({
+  end: row.end_at.slice(0, 10),
+  quantity: row.quantity,
+  start: row.start_at.slice(0, 10),
+});
+
+/** Daily occupancy after each start/end boundary. */
+const loadsAtBoundaries = (intervals: DayInterval[]): Map<string, number> => {
+  const deltas = reduce((acc: Map<string, number>, interval: DayInterval) => {
+    acc.set(interval.start, (acc.get(interval.start) ?? 0) + interval.quantity);
+    acc.set(interval.end, (acc.get(interval.end) ?? 0) - interval.quantity);
+    return acc;
+  }, new Map<string, number>())(intervals);
+  const loads = new Map<string, number>();
+  let running = 0;
+  for (const day of [...deltas.keys()].sort()) {
+    running += deltas.get(day)!;
+    loads.set(day, running);
+  }
+  return loads;
+};
+
+/** Earliest over-capacity boundary covered by one of the changed listing's
+ * ranges, or null when every covered day fits. */
+const firstOverCapacityDay = (
+  intervals: DayInterval[],
+  listingRanges: DayInterval[],
+  base: number,
+  groupLimit: number,
+): string | null => {
+  const loads = loadsAtBoundaries(intervals);
+  // The comparator is a single-line, branchless `localeCompare` on purpose:
+  // a multi-line arrow body or a `? :` here is mis-attributed by deno's
+  // coverage when the function is exercised across `--parallel` workers.
+  const sortedRanges = [...listingRanges].sort((a, b) =>
+    a.start.localeCompare(b.start),
+  );
+  const startDays = unique(
+    map((interval: DayInterval) => interval.start)(intervals),
+  ).sort();
+  let rangeIdx = 0;
+  let maxEnd = "";
+  for (const day of startDays) {
+    while (
+      rangeIdx < sortedRanges.length &&
+      sortedRanges[rangeIdx]!.start <= day
+    ) {
+      const end = sortedRanges[rangeIdx]!.end;
+      if (end > maxEnd) maxEnd = end;
+      rangeIdx++;
+    }
+    if (day >= maxEnd) continue;
+    if (base + loads.get(day)! > groupLimit) return day;
+  }
+  return null;
+};
+
+/** Pure group-cap sweep over already-loaded booking rows. */
+const groupCapOverflowDay = (
+  rows: GroupBookingRow[],
+  listingId: number,
+  groupLimit: number,
+): string | null => {
+  // Non-daily rows count on every day. Daily rows count only over their stored
+  // [start, end) range; legacy daily rows without a full range never count.
+  const base = pipe(
+    filter((row: GroupBookingRow) => !countsPerDate(row.listing_type)),
+    sumOf((row) => row.quantity),
+  )(rows);
+  const intervals = rows.filter(isDailyWithRange).map(toDayInterval);
+  const listingRanges = rows
+    .filter((row) => row.listing_id === listingId)
+    .filter(isDailyWithRange)
+    .map(toDayInterval);
+  return firstOverCapacityDay(intervals, listingRanges, base, groupLimit);
+};
+
 /**
  * After a duration change on a grouped listing, check whether any day in any
  * existing booking's new range now exceeds the group cap. Returns the
@@ -134,13 +229,7 @@ export const checkGroupCapAfterDurationChange = async (
   const groupLimit = cap[0]!.max_attendees;
   if (groupLimit <= 0) return null;
 
-  const rows = await queryAll<{
-    listing_id: number;
-    listing_type: ListingType;
-    start_at: string | null;
-    end_at: string | null;
-    quantity: number;
-  }>(
+  const rows = await queryAll<GroupBookingRow>(
     `SELECT listingAttendee.listing_id, listing.listing_type, listingAttendee.start_at, listingAttendee.end_at, listingAttendee.quantity
      FROM listing_attendees AS listingAttendee
      JOIN listings AS listing ON listing.id = listingAttendee.listing_id
@@ -148,73 +237,5 @@ export const checkGroupCapAfterDurationChange = async (
     [groupId],
   );
 
-  // Rows on `dateLessCap` listings count on every day; `perDateCap` rows count
-  // on the days of their [start, end) range. NULL-range rows on per-date
-  // listings never count (pre-daily legacy bookings), mirroring the SQL
-  // overlap predicate.
-  type GroupRow = (typeof rows)[number];
-  const isDailyWithRange = (row: GroupRow): boolean =>
-    countsPerDate(row.listing_type) &&
-    row.start_at !== null &&
-    row.end_at !== null;
-  const toDayInterval = (row: GroupRow): DayInterval => ({
-    end: row.end_at!.slice(0, 10),
-    quantity: row.quantity,
-    start: row.start_at!.slice(0, 10),
-  });
-  const base = pipe(
-    filter((row: GroupRow) => !countsPerDate(row.listing_type)),
-    sumOf((row) => row.quantity),
-  )(rows);
-  const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);
-  const listingRanges = pipe(
-    filter((row: GroupRow) => row.listing_id === listingId),
-    filter(isDailyWithRange),
-    map(toDayInterval),
-  )(rows);
-
-  // Boundary sweep: running occupancy at each day where any interval starts
-  // or ends. loadAt(day) = total daily quantity covering that day.
-  const deltas = reduce((acc: Map<string, number>, itv: DayInterval) => {
-    acc.set(itv.start, (acc.get(itv.start) ?? 0) + itv.quantity);
-    acc.set(itv.end, (acc.get(itv.end) ?? 0) - itv.quantity);
-    return acc;
-  }, new Map<string, number>())(intervals);
-  const boundaries = [...deltas.keys()].sort();
-  const loadAt = new Map<string, number>();
-  let running = 0;
-  for (const day of boundaries) {
-    running += deltas.get(day)!;
-    loadAt.set(day, running);
-  }
-
-  // Walk candidate days (interval starts) in ascending order, tracking the
-  // max end of this listing's ranges that start at or before the candidate —
-  // the candidate is inside this listing's booked days iff that end is later.
-  // The comparator is a single-line, branchless `localeCompare` on purpose:
-  // a multi-line arrow body or a `? :` here is mis-attributed by deno's
-  // coverage when the function is exercised across `--parallel` workers,
-  // producing a phantom uncovered branch. Date strings sort lexically, so
-  // localeCompare gives the same ascending order with no branch to mis-merge.
-  const sortedRanges = [...listingRanges].sort((a, b) =>
-    a.start.localeCompare(b.start),
-  );
-  const startDays = unique(
-    map((interval: DayInterval) => interval.start)(intervals),
-  ).sort();
-  let rangeIdx = 0;
-  let maxEnd = "";
-  for (const day of startDays) {
-    while (
-      rangeIdx < sortedRanges.length &&
-      sortedRanges[rangeIdx]!.start <= day
-    ) {
-      const end = sortedRanges[rangeIdx]!.end;
-      if (end > maxEnd) maxEnd = end;
-      rangeIdx++;
-    }
-    if (day >= maxEnd) continue;
-    if (base + loadAt.get(day)! > groupLimit) return day;
-  }
-  return null;
+  return groupCapOverflowDay(rows, listingId, groupLimit);
 };
