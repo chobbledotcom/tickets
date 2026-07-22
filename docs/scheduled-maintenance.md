@@ -29,12 +29,29 @@ The built-site manager creates a different key for every child. It stores the
 key in the child's native secret and in the builder's encrypted site data. Use
 the child's **Scheduled maintenance** tab to set up an older child.
 
+## Uptime Kuma
+
+Set all three credentials on the builder to manage monitors from each built
+site's **Scheduled maintenance** tab:
+
+- `UPTIME_KUMA_URL`
+- `UPTIME_KUMA_USERNAME`
+- `UPTIME_KUMA_PASSWORD`
+
+You can also set `UPTIME_KUMA_INTERVAL_MINUTES`. It must be a positive whole
+number and defaults to `15`.
+
+The tab connects to Uptime Kuma only while you view it or add a monitor. It
+shows a monitor that already checks the site's `/scheduled` URL under the
+**Chobble Tickets** group. If no monitor exists, set up the child's scheduled
+task key first, then select **Add Uptime Kuma monitor**. The builder creates the
+group when needed and adds an active `POST` monitor with the child's bearer key.
+The key is sent in the request header, never in the monitor name or URL.
+
 ## Change A Child Key
 
-Coordinated one-click key rotation is intentionally deferred to the upcoming
-Uptime Kuma integration, which will update the child and its monitor together.
-Until then, a host operator can manually replace a compromised key on the child
-and in the monitor.
+Key rotation is not automatic. A host operator must replace a compromised key
+on the child and in its Uptime Kuma monitor together.
 
 ## CDN Rules
 

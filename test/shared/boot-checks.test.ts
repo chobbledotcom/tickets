@@ -14,6 +14,7 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
       "DB_ENCRYPTION_KEY",
       "MAIN_INSTANCE_KEY",
       "SCHEDULED_TASK_KEY",
+      "UPTIME_KUMA",
     ]);
   });
 
@@ -73,6 +74,13 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
     using _env = withEnv({ SCHEDULED_TASK_KEY: "invalid" });
     expect(() => validateBootChecks()).toThrow(
       "SCHEDULED_TASK_KEY must be canonical unpadded base64url for exactly 32 bytes",
+    );
+  });
+
+  test("runs Uptime Kuma validation during boot checks", () => {
+    using _env = withEnv({ UPTIME_KUMA_URL: "https://kuma.example.test" });
+    expect(() => validateBootChecks()).toThrow(
+      "UPTIME_KUMA_URL, UPTIME_KUMA_USERNAME and UPTIME_KUMA_PASSWORD must all be set",
     );
   });
 });

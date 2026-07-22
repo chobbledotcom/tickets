@@ -13,6 +13,7 @@ import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { builtSitesCrudTable } from "#shared/db/built-sites.ts";
 import { loadSiteSecretsStatus } from "#shared/site-secrets.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
+import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { BuiltSitesGuideFooter } from "#templates/admin/built-sites/list-parts.tsx";
 import {
   MaintenancePanel,
@@ -51,7 +52,12 @@ const updateTab = panelTab<BuiltSite>(
 const maintenanceTab = panelTab<BuiltSite>(
   "maintenance",
   "built_sites.maintenance_title",
-  (site) => Promise.resolve(<MaintenancePanel site={site} />),
+  async (site) => (
+    <MaintenancePanel
+      monitor={await uptimeKumaMonitorService.load(site)}
+      site={site}
+    />
+  ),
 );
 
 export const builtSitePage: EditEntityPage<BuiltSite> = defineEditEntityPage({
