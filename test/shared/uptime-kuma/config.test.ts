@@ -28,6 +28,23 @@ describe("Uptime Kuma configuration", () => {
     expect(getEnabledUptimeKumaConfigOrNull()).toBeNull();
   });
 
+  test("rejects an interval without Kuma credentials", () => {
+    using _env = withEnv({
+      CAN_BUILD_SITES: "true",
+      UPTIME_KUMA_INTERVAL_MINUTES: "7",
+      UPTIME_KUMA_PASSWORD: undefined,
+      UPTIME_KUMA_URL: undefined,
+      UPTIME_KUMA_USERNAME: undefined,
+    });
+
+    expect(getUptimeKumaConfigOrNull).toThrow(
+      "UPTIME_KUMA_URL, UPTIME_KUMA_USERNAME and UPTIME_KUMA_PASSWORD must all be set",
+    );
+    expect(getEnabledUptimeKumaConfigOrNull).toThrow(
+      "UPTIME_KUMA_URL, UPTIME_KUMA_USERNAME and UPTIME_KUMA_PASSWORD must all be set",
+    );
+  });
+
   test("uses a 15 minute default and normalizes the base URL", () => {
     using _env = withEnv(configuredEnv);
 

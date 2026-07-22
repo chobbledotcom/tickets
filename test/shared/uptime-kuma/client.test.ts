@@ -290,6 +290,24 @@ describe("Uptime Kuma Socket.IO client", () => {
     );
   });
 
+  test("deletes a monitor by number", async () => {
+    const socket = new FakeSocket();
+    socket.reply("deleteMonitor", { msg: "Deleted.", ok: true });
+
+    await createUptimeKumaClient(socket).deleteMonitor(41);
+
+    expect(socket.calls[0]).toEqual({ args: [41], event: "deleteMonitor" });
+  });
+
+  test("reports a rejected monitor deletion", async () => {
+    const socket = new FakeSocket();
+    socket.reply("deleteMonitor", { msg: "Monitor not found.", ok: false });
+
+    await expect(
+      createUptimeKumaClient(socket).deleteMonitor(41),
+    ).rejects.toThrow("Monitor not found.");
+  });
+
   test("rejects a zero monitor number from an add acknowledgement", async () => {
     const socket = new FakeSocket();
     socket.reply("add", { monitorID: 0, ok: true });

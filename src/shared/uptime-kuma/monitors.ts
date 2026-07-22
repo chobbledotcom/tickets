@@ -40,13 +40,16 @@ const errorMessage = (error: unknown): string => {
 const targetUrl = (site: BuiltSite): string =>
   `${siteBaseUrl(site.siteUrl)}/scheduled`;
 
-const sharedGroup = (
-  monitors: UptimeKumaMonitor[],
-): UptimeKumaMonitor | null => {
-  const groups = monitors.filter(
+const sharedGroups = (monitors: UptimeKumaMonitor[]): UptimeKumaMonitor[] =>
+  monitors.filter(
     (monitor) =>
       monitor.type === "group" && monitor.name === UPTIME_KUMA_GROUP_NAME,
   );
+
+const sharedGroup = (
+  monitors: UptimeKumaMonitor[],
+): UptimeKumaMonitor | null => {
+  const groups = sharedGroups(monitors);
   if (groups.length > 1) {
     throw new Error(
       `More than one Uptime Kuma group is named "${UPTIME_KUMA_GROUP_NAME}".`,
@@ -56,23 +59,91 @@ const sharedGroup = (
   return group === undefined ? null : group;
 };
 
-const siteMonitor = (
+const matchingSiteMonitors = (
   monitors: UptimeKumaMonitor[],
-  groupId: number,
+  groupIds: number[],
   url: string,
-): UptimeKumaMonitor | null => {
-  const matches = monitors.filter(
+): UptimeKumaMonitor[] =>
+  monitors.filter(
     (monitor) =>
       monitor.type === "http" &&
-      monitor.parent === groupId &&
+      monitor.parent !== null &&
+      groupIds.includes(monitor.parent) &&
       monitor.method === "POST" &&
       monitor.url === url,
   );
-  if (matches.length > 1) {
+
+const firstById = (
+  monitors: UptimeKumaMonitor[],
+  missingMessage: string,
+): UptimeKumaMonitor => {
+  const [first] = monitors.toSorted((left, right) => left.id - right.id);
+  if (first === undefined) throw new Error(missingMessage);
+  return first;
+};
+
+const siteMonitor = (
+  monitors: UptimeKumaMonitor[],
+  groupIds: number[],
+  url: string,
+  allowRaceDuplicates: boolean,
+): UptimeKumaMonitor | null => {
+  const matches = matchingSiteMonitors(monitors, groupIds, url);
+  if (!allowRaceDuplicates && matches.length > 1) {
     throw new Error(`More than one Uptime Kuma monitor checks ${url}.`);
   }
-  const [match] = matches;
-  return match === undefined ? null : match;
+  return matches.length === 0
+    ? null
+    : firstById(matches, `Uptime Kuma did not return a monitor for ${url}.`);
+};
+
+type GroupForAdd = {
+  group: UptimeKumaMonitor;
+  ownedGroupId: number | null;
+};
+
+const groupForAdd = async (
+  client: UptimeKumaClient,
+  existingGroup: UptimeKumaMonitor | null,
+): Promise<GroupForAdd> => {
+  if (existingGroup !== null) {
+    return { group: existingGroup, ownedGroupId: null };
+  }
+  const createdGroupId = await client.addMonitor(groupInput());
+  const groups = sharedGroups(await client.getMonitors());
+  const group = firstById(
+    groups,
+    `Uptime Kuma did not return the new "${UPTIME_KUMA_GROUP_NAME}" group.`,
+  );
+  const createdGroupStillExists = groups.some(
+    (candidate) => candidate.id === createdGroupId,
+  );
+  if (group.id !== createdGroupId && createdGroupStillExists) {
+    await client.deleteMonitor(createdGroupId);
+  }
+  return {
+    group,
+    ownedGroupId: group.id === createdGroupId ? createdGroupId : null,
+  };
+};
+
+const deleteOwnedGroupIfEmpty = async (
+  client: UptimeKumaClient,
+  monitors: UptimeKumaMonitor[],
+  ownedGroupId: number | null,
+  keptGroupId: number | null,
+  ignoredMonitorId?: number,
+): Promise<void> => {
+  if (
+    ownedGroupId !== null &&
+    ownedGroupId !== keptGroupId &&
+    !monitors.some(
+      (monitor) =>
+        monitor.parent === ownedGroupId && monitor.id !== ignoredMonitorId,
+    )
+  ) {
+    await client.deleteMonitor(ownedGroupId);
+  }
 };
 
 const monitorDetails = (
@@ -185,6 +256,95 @@ const siteInput = (
   url: targetUrl(site),
 });
 
+const finishMonitorAdd = async (
+  client: UptimeKumaClient,
+  monitors: UptimeKumaMonitor[],
+  url: string,
+  monitorId: number,
+  ownedGroupId: number | null,
+): Promise<AddedMonitor> => {
+  const winner = siteMonitor(
+    monitors,
+    sharedGroups(monitors).map((group) => group.id),
+    url,
+    true,
+  );
+  if (winner === null) {
+    throw new Error(`Uptime Kuma did not return the new monitor for ${url}.`);
+  }
+  const created = winner.id === monitorId;
+  if (created) return { created, monitorId };
+  const createdMonitorExists = monitors.some(
+    (monitor) => monitor.id === monitorId,
+  );
+  if (createdMonitorExists) await client.deleteMonitor(monitorId);
+  await deleteOwnedGroupIfEmpty(
+    client,
+    monitors,
+    ownedGroupId,
+    winner.parent,
+    monitorId,
+  );
+  return { created, monitorId: winner.id };
+};
+
+const addToGroup = async (
+  client: UptimeKumaClient,
+  site: BuiltSite,
+  config: UptimeKumaConfig,
+  scheduledTaskKey: string,
+  group: GroupForAdd,
+  url: string,
+): Promise<AddedMonitor> => {
+  const currentMonitors = await client.getMonitors();
+  const raceWinner = siteMonitor(
+    currentMonitors,
+    sharedGroups(currentMonitors).map((candidate) => candidate.id),
+    url,
+    true,
+  );
+  if (raceWinner !== null) {
+    await deleteOwnedGroupIfEmpty(
+      client,
+      currentMonitors,
+      group.ownedGroupId,
+      raceWinner.parent,
+    );
+    return { created: false, monitorId: raceWinner.id };
+  }
+  const monitorId = await client.addMonitor(
+    siteInput(site, config, group.group.id, scheduledTaskKey),
+  );
+  return await finishMonitorAdd(
+    client,
+    await client.getMonitors(),
+    url,
+    monitorId,
+    group.ownedGroupId,
+  );
+};
+
+const addFromMonitors = async (
+  client: UptimeKumaClient,
+  monitors: UptimeKumaMonitor[],
+  existingGroup: UptimeKumaMonitor | null,
+  site: BuiltSite,
+  config: UptimeKumaConfig,
+  scheduledTaskKey: string,
+): Promise<Result<AddedMonitor>> => {
+  const url = targetUrl(site);
+  const existing = existingGroup
+    ? siteMonitor(monitors, [existingGroup.id], url, false)
+    : null;
+  if (existing) {
+    return okResult({ created: false, monitorId: existing.id });
+  }
+  const group = await groupForAdd(client, existingGroup);
+  return okResult(
+    await addToGroup(client, site, config, scheduledTaskKey, group, url),
+  );
+};
+
 const load = (site: BuiltSite): Promise<UptimeKumaMonitorState> =>
   withConfiguredKuma<UptimeKumaMonitorState>(
     () => ({ kind: "unconfigured" }),
@@ -193,7 +353,7 @@ const load = (site: BuiltSite): Promise<UptimeKumaMonitorState> =>
       withMonitors(config, (_client, monitors, group) => {
         if (group === null) return { kind: "missing" };
         const url = targetUrl(site);
-        const monitor = siteMonitor(monitors, group.id, url);
+        const monitor = siteMonitor(monitors, [group.id], url, false);
         return monitor === null
           ? { kind: "missing" }
           : { kind: "found", monitor: monitorDetails(monitor, url) };
@@ -213,22 +373,16 @@ const add = (site: BuiltSite): Promise<Result<AddedMonitor>> =>
           ),
         );
       }
-      return withMonitors(config, async (client, monitors, existingGroup) => {
-        const existing = existingGroup
-          ? siteMonitor(monitors, existingGroup.id, targetUrl(site))
-          : null;
-        if (existing) {
-          return okResult({ created: false, monitorId: existing.id });
-        }
-        const groupId =
-          existingGroup === null
-            ? await client.addMonitor(groupInput())
-            : existingGroup.id;
-        const monitorId = await client.addMonitor(
-          siteInput(site, config, groupId, scheduledTaskKey),
-        );
-        return okResult({ created: true, monitorId });
-      });
+      return withMonitors(config, (client, monitors, existingGroup) =>
+        addFromMonitors(
+          client,
+          monitors,
+          existingGroup,
+          site,
+          config,
+          scheduledTaskKey,
+        ),
+      );
     },
   );
 
