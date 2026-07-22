@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { zipSync } from "fflate";
 import {
   createBackupZip,
   PostResetError,
@@ -8,6 +9,7 @@ import {
 } from "#shared/db/backup.ts";
 import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
 import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,6 +29,8 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
   const listingCount = async (): Promise<number> =>
     (await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM listings"))!.n;
+  const zipSql = (file: string, sql: string): Uint8Array =>
+    zipSync({ [file]: new TextEncoder().encode(sql) });
   const listingTotals = (
     listingId: number,
   ): Promise<{ booked_quantity: number; tickets_count: number } | null> =>
@@ -97,6 +101,59 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
 
     expect(await listingCount()).toBe(0);
     await verifyCurrentAppSchema();
+  });
+
+  test("rejects one oversized statement before wiping existing data", async () => {
+    await createTestListing({ name: "Still here" });
+    const statement = `INSERT INTO "settings" ("key", "value") VALUES ('oversized', '${"x".repeat(
+      600_000,
+    )}');`;
+
+    await expect(
+      restoreFromZip(zipSql("settings.sql", statement)),
+    ).rejects.toThrow("Backup SQL statement is larger than 524288 bytes");
+
+    expect(await listingCount()).toBe(1);
+  });
+
+  test("rejects a statement for the wrong table before wiping existing data", async () => {
+    await createTestListing({ name: "Still here" });
+    const statement = 'INSERT INTO "events" ("id") VALUES (1);';
+
+    await expect(
+      restoreFromZip(zipSql("settings.sql", statement)),
+    ).rejects.toThrow(
+      "Backup file settings.sql contains SQL for events instead of settings",
+    );
+
+    expect(await listingCount()).toBe(1);
+  });
+
+  test("rejects non-insert SQL before wiping existing data", async () => {
+    await createTestListing({ name: "Still here" });
+
+    await expect(
+      restoreFromZip(zipSql("settings.sql", "DELETE FROM settings;")),
+    ).rejects.toThrow(
+      "Backup file settings.sql contains a statement that is not an INSERT",
+    );
+
+    expect(await listingCount()).toBe(1);
+  });
+
+  test("keeps restored data when the final progress callback fails", async () => {
+    await createTestListing({ name: "From backup" });
+    const zip = await createBackupZip();
+    await createTestListing({ name: "Not in backup" });
+
+    const error = await restoreFromZip(zip, ({ stage }) => {
+      if (stage === "clearing-caches") throw new Error("progress stopped");
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toEqual(new Error("progress stopped"));
+    expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
+      "From backup",
+    ]);
   });
 
   describe("backups taken before a column-dropping migration", () => {

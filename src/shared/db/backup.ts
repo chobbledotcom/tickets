@@ -244,13 +244,46 @@ interface InspectedSqlFile {
   table: string;
 }
 
+const insertTable = (statement: string, file: string): string => {
+  const match = /^INSERT\s+INTO\s+(?<table>"?[A-Za-z_]\w*"?)\s*\(/i.exec(
+    statement,
+  );
+  const table = match?.groups?.table;
+  if (table === undefined) {
+    throw new Error(
+      `Backup file ${file} contains a statement that is not an INSERT`,
+    );
+  }
+  return table.replaceAll('"', "");
+};
+
 const inspectSqlFiles = ({ decoder, files }: OpenBackup): InspectedSqlFile[] =>
   Object.entries(files)
     .filter(([name]) => name.endsWith(".sql"))
-    .map(([name, content]) => ({
-      statementCount: splitStatements(decoder.decode(content)).length,
-      table: name.slice(0, -4),
-    }));
+    .map(([name, content]) => {
+      const statements = splitStatements(decoder.decode(content));
+      if (
+        statements.some(
+          (statement) => utf8ByteLength(statement) > RESTORE_BATCH_BYTE_LIMIT,
+        )
+      ) {
+        throw new Error(
+          `Backup SQL statement is larger than ${RESTORE_BATCH_BYTE_LIMIT} bytes: ${name}`,
+        );
+      }
+      const table = name.slice(0, -4);
+      if (SCHEMA_TABLE_NAMES.includes(table)) {
+        const wrongTable = statements
+          .map((statement) => insertTable(statement, name))
+          .find((target) => target !== table);
+        if (wrongTable !== undefined) {
+          throw new Error(
+            `Backup file ${name} contains SQL for ${wrongTable} instead of ${table}`,
+          );
+        }
+      }
+      return { statementCount: statements.length, table };
+    });
 
 const inspectOpenBackup = (backup: OpenBackup): BackupInspection => {
   const sqlFiles = inspectSqlFiles(backup);
@@ -356,13 +389,6 @@ export const restoreFromSql = async (
       await executeBatch(noArgStatements(batch));
     }
     await rebuildDeferredSchemaWork();
-
-    // Clear all module-level caches — the backup may carry different data for
-    // every table, so any warm cache is now stale. clearAllCaches() covers the
-    // same set as resetDatabase()'s finally block, including caches (holidays,
-    // logistics-agents, sessions, settings) that a partial list would miss.
-    report("clearing-caches");
-    clearAllCaches();
   } catch (err) {
     postResetErr = String(err);
   }
@@ -373,6 +399,11 @@ export const restoreFromSql = async (
     await rebuildWipedSchema();
     throw new PostResetError(postResetErr);
   }
+
+  // The database restore is complete. Cache or progress failures must surface,
+  // but must not enter the partial-restore cleanup and erase restored rows.
+  clearAllCaches();
+  report("clearing-caches");
 };
 
 /**
