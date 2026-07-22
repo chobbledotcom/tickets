@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  directoryNames,
   pathExists,
   tempDir,
   withTempDir,
@@ -8,6 +9,14 @@ import {
 } from "#test-utils/files.ts";
 
 describe("temporary paths", () => {
+  test("lists directory entry names in order", () =>
+    withTempDir(async (path) => {
+      await Deno.writeTextFile(`${path}/second.txt`, "second");
+      await Deno.mkdir(`${path}/first`);
+
+      expect(await directoryNames(path)).toEqual(["first", "second.txt"]);
+    }));
+
   test("removes a directory and everything inside it on disposal", async () => {
     const dir = tempDir({ prefix: "tickets-files-test-" });
     const path = dir.path;
