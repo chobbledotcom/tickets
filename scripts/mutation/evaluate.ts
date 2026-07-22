@@ -52,6 +52,13 @@ export interface EvaluationDeps {
 
 type FailedTestState = Exclude<MutantTestStateResult, { status: "ready" }>;
 
+interface MutantRunContext {
+  deps: EvaluationDeps;
+  plan: FileMutationPlan;
+  run: TestRunConfig;
+  signal: AbortSignal;
+}
+
 const realDeps: EvaluationDeps = {
   createState: createMutantTestState,
   runTests,
@@ -76,11 +83,8 @@ const testStatus = (
 };
 
 const confirmStateMutation = async (
-  plan: FileMutationPlan,
-  run: TestRunConfig,
-  signal: AbortSignal,
+  { deps, plan, run, signal }: MutantRunContext,
   failed: FailedTestState,
-  deps: EvaluationDeps,
 ): Promise<Status> => {
   if (failed.status === "timed-out") return "timed-out";
   await deps.write(plan.file, plan.original);
@@ -97,10 +101,8 @@ const confirmStateMutation = async (
 };
 
 const confirmAssetMutation = async (
-  plan: FileMutationPlan,
+  { deps, plan, signal }: MutantRunContext,
   assets: MutantAssetHooks,
-  signal: AbortSignal,
-  deps: EvaluationDeps,
 ): Promise<Status> => {
   if (signal.aborted) return "timed-out";
   await deps.write(plan.file, plan.original);
@@ -112,6 +114,89 @@ const confirmAssetMutation = async (
   return "killed";
 };
 
+const runStaticGates = async (
+  { plan, signal }: MutantRunContext,
+  gates: StaticGate[],
+  timings: PhaseTiming[],
+): Promise<MutantEvaluation | null> => {
+  for (const gate of gates) {
+    const measured = await measurePhase(gate.phase, () =>
+      gate.exit(plan.file, signal),
+    );
+    timings.push(measured.timing);
+    if (measured.value !== 0) {
+      return { detectedBy: gate.phase, status: "killed", timings };
+    }
+  }
+  return null;
+};
+
+const runTestFiles = async (
+  { deps, run, signal }: MutantRunContext,
+  phase: "direct-tests" | "integration-tests",
+  testFiles: string[],
+  env: Record<string, string>,
+): Promise<TestStageResult> =>
+  testStatus(phase, await deps.runTests({ ...run, env, testFiles }, signal));
+
+const runIntegrationTestStage = async (
+  context: MutantRunContext,
+  testFiles: string[],
+): Promise<TestStageResult> => {
+  const { deps, plan, run, signal } = context;
+  let state: MutantTestStateResult | null = null;
+  let env = mutantTestEnv(run.env, plan.rebuildTestState);
+  const timings: PhaseTiming[] = [];
+  if (plan.rebuildTestState) {
+    const measured = await measurePhase("test-state", () =>
+      deps.createState(run.env, signal),
+    );
+    timings.push(measured.timing);
+    state = measured.value;
+    if (state.status !== "ready") {
+      const status = await confirmStateMutation(context, state);
+      return {
+        detectedBy: detectedByKill("test-state", status),
+        status,
+        timings,
+      };
+    }
+    env = state.state.env;
+  }
+  try {
+    const tested = await runTestFiles(
+      context,
+      "integration-tests",
+      testFiles,
+      env,
+    );
+    return {
+      detectedBy: tested.detectedBy,
+      status: tested.status,
+      timings: [...timings, ...tested.timings],
+    };
+  } finally {
+    if (state?.status === "ready") await state.state.cleanup();
+  }
+};
+
+const runTestStage =
+  (context: MutantRunContext) =>
+  async (
+    phase: "direct-tests" | "integration-tests",
+    testFiles: string[],
+  ): Promise<TestStageResult> => {
+    if (phase === "direct-tests") {
+      return runTestFiles(
+        context,
+        phase,
+        testFiles,
+        mutantTestEnv(context.run.env, context.plan.rebuildTestState),
+      );
+    }
+    return runIntegrationTestStage(context, testFiles);
+  };
+
 export const evaluateMutant = async (
   plan: FileMutationPlan,
   mutant: Mutant,
@@ -121,25 +206,18 @@ export const evaluateMutant = async (
   signal: AbortSignal,
   deps: EvaluationDeps = realDeps,
 ): Promise<MutantEvaluation> => {
-  const { assets, directTestFiles, file, original, rebuildTestState } = plan;
+  await deps.write(plan.file, applyMutant(plan.original, mutant));
+  const context = { deps, plan, run, signal };
   const timings: PhaseTiming[] = [];
-  await deps.write(file, applyMutant(original, mutant));
   return withCleanup(async () => {
     try {
-      for (const gate of gates) {
-        const measured = await measurePhase(gate.phase, () =>
-          gate.exit(file, signal),
-        );
-        timings.push(measured.timing);
-        if (measured.value !== 0) {
-          return { detectedBy: gate.phase, status: "killed", timings };
-        }
-      }
-      if (assets) {
-        const measured = await measurePhase("asset-build", assets.rebuild);
+      const gateResult = await runStaticGates(context, gates, timings);
+      if (gateResult) return gateResult;
+      if (plan.assets) {
+        const measured = await measurePhase("asset-build", plan.assets.rebuild);
         timings.push(measured.timing);
         if (!measured.value) {
-          const status = await confirmAssetMutation(plan, assets, signal, deps);
+          const status = await confirmAssetMutation(context, plan.assets);
           return {
             detectedBy: detectedByKill("asset-build", status),
             status,
@@ -148,61 +226,9 @@ export const evaluateMutant = async (
         }
       }
       const stages = await runTestStages(
-        directTestFiles,
+        plan.directTestFiles,
         integrationTestFiles,
-        async (phase, testFiles) => {
-          if (phase === "direct-tests") {
-            return testStatus(
-              phase,
-              await deps.runTests(
-                {
-                  ...run,
-                  env: mutantTestEnv(run.env, rebuildTestState),
-                  testFiles,
-                },
-                signal,
-              ),
-            );
-          }
-          let state: MutantTestStateResult | null = null;
-          let env = mutantTestEnv(run.env, rebuildTestState);
-          const stageTimings: PhaseTiming[] = [];
-          if (rebuildTestState) {
-            const measured = await measurePhase("test-state", () =>
-              deps.createState(run.env, signal),
-            );
-            stageTimings.push(measured.timing);
-            state = measured.value;
-            if (state.status !== "ready") {
-              const status = await confirmStateMutation(
-                plan,
-                run,
-                signal,
-                state,
-                deps,
-              );
-              return {
-                detectedBy: detectedByKill("test-state", status),
-                status,
-                timings: stageTimings,
-              };
-            }
-            env = state.state.env;
-          }
-          try {
-            const tested = testStatus(
-              phase,
-              await deps.runTests({ ...run, env, testFiles }, signal),
-            );
-            return {
-              detectedBy: tested.detectedBy,
-              status: tested.status,
-              timings: [...stageTimings, ...tested.timings],
-            };
-          } finally {
-            if (state?.status === "ready") await state.state.cleanup();
-          }
-        },
+        runTestStage(context),
       );
       timings.push(...stages.timings);
       return {
@@ -216,7 +242,10 @@ export const evaluateMutant = async (
       }
       throw error;
     }
-  }, [() => deps.write(file, original), ...(assets ? [assets.restore] : [])]);
+  }, [
+    () => deps.write(plan.file, plan.original),
+    ...(plan.assets ? [plan.assets.restore] : []),
+  ]);
 };
 
 const logFilePlan = (plan: FileMutationPlan, affectedCount: number): void => {

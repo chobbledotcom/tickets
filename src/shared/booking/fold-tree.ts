@@ -141,6 +141,23 @@ const childQtyField = (
     form.getString(childQuantityFieldName(parentId, childId)),
   ) ?? 0;
 
+/** Whether the submitted form chooses a child outside the parent's current
+ * bookable set. Unknown, removed, closed, and sold-out child ids all fail. */
+const hasUnavailableChildSelection = (
+  parentId: number,
+  bookableIds: ReadonlySet<number>,
+  form: FormParams,
+): boolean => {
+  const prefix = `child_qty_${parentId}_`;
+  return [...form.keys()].some((key) => {
+    if (!key.startsWith(prefix)) return false;
+    const childId = Number.parseInt(key.slice(prefix.length), 10);
+    return (
+      childQtyField(parentId, childId, form) > 0 && !bookableIds.has(childId)
+    );
+  });
+};
+
 /** Resolve the per-unit child selection for one in-cart parent: read each bookable
  * child's `child_qty_<parentId>_<childId>`, auto-assign the whole parent quantity
  * to a sole bookable child when NOTHING was submitted, and require the chosen
@@ -164,14 +181,8 @@ export const resolveChildSelections = (
   // Reject a positive quantity for a child not currently bookable under this
   // parent (unknown id, stranger listing, or a sibling that sold out/closed
   // between render and submit) — never silently swap in a still-bookable sibling.
-  const prefix = `child_qty_${parentId}_`;
-  for (const key of form.keys()) {
-    if (!key.startsWith(prefix)) continue;
-    const childId = Number.parseInt(key.slice(prefix.length), 10);
-    const qty = childQtyField(parentId, childId, form);
-    if (qty > 0 && !bookableIds.has(childId)) {
-      return { error: t("public.ticket.child_required", { name }) };
-    }
+  if (hasUnavailableChildSelection(parentId, bookableIds, form)) {
+    return { error: t("public.ticket.child_required", { name }) };
   }
   const selections: ChildSelection[] = [];
   let total = 0;

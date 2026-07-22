@@ -29,6 +29,33 @@ const hasInvalidReversesId = (t: TransferInput): boolean =>
   t.reversesId !== undefined &&
   (!Number.isSafeInteger(t.reversesId) || t.reversesId <= 0);
 
+type TransferCheck = (transfer: TransferInput) => LedgerError | null;
+
+/** Every transfer rule in the order its error is reported. Each rule owns one
+ * error code, so adding a rule cannot change the validation control flow. */
+const transferChecks: readonly TransferCheck[] = [
+  (t) => (t.amount <= 0 ? { code: "non_positive_amount" } : null),
+  (t) => (Number.isInteger(t.amount) ? null : { code: "non_integer_amount" }),
+  (t) =>
+    Number.isInteger(t.amount) && !Number.isSafeInteger(t.amount)
+      ? { code: "unsafe_amount" }
+      : null,
+  (t) => (isInstant(t.occurredAt) ? null : { code: "invalid_occurred_at" }),
+  (t) => (hasInvalidReversesId(t) ? { code: "invalid_reverses_id" } : null),
+  (t) =>
+    sameAccount(t.source, t.destination) ? { code: "self_transfer" } : null,
+  (t) =>
+    isEmptyAccount(t.source) || isEmptyAccount(t.destination)
+      ? { code: "empty_account" }
+      : null,
+  (t) =>
+    hasReservedChar(t.source) || hasReservedChar(t.destination)
+      ? { code: "reserved_char_in_account" }
+      : null,
+  (t) => (t.reference ? null : { code: "empty_reference" }),
+  (t) => (t.eventGroup ? null : { code: "empty_event_group" }),
+];
+
 /**
  * Validate a {@link TransferInput}. Returns `ok` with the value, or every reason
  * it was rejected (so the caller sees all problems at once, not just the first).
@@ -45,28 +72,7 @@ const hasInvalidReversesId = (t: TransferInput): boolean =>
 export const validateTransfer = (
   t: TransferInput,
 ): Result<TransferInput, LedgerError[]> => {
-  const errors: LedgerError[] = compact([
-    t.amount <= 0 ? ({ code: "non_positive_amount" } as const) : null,
-    Number.isInteger(t.amount)
-      ? null
-      : ({ code: "non_integer_amount" } as const),
-    Number.isInteger(t.amount) && !Number.isSafeInteger(t.amount)
-      ? ({ code: "unsafe_amount" } as const)
-      : null,
-    isInstant(t.occurredAt) ? null : ({ code: "invalid_occurred_at" } as const),
-    hasInvalidReversesId(t) ? ({ code: "invalid_reverses_id" } as const) : null,
-    sameAccount(t.source, t.destination)
-      ? ({ code: "self_transfer" } as const)
-      : null,
-    isEmptyAccount(t.source) || isEmptyAccount(t.destination)
-      ? ({ code: "empty_account" } as const)
-      : null,
-    hasReservedChar(t.source) || hasReservedChar(t.destination)
-      ? ({ code: "reserved_char_in_account" } as const)
-      : null,
-    t.reference ? null : ({ code: "empty_reference" } as const),
-    t.eventGroup ? null : ({ code: "empty_event_group" } as const),
-  ]);
+  const errors = compact(transferChecks.map((check) => check(t)));
   return errors.length > 0
     ? { error: errors, ok: false }
     : { ok: true, value: t };

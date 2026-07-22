@@ -589,22 +589,7 @@ valid but bigger than that PR's rename-only remit, so they're recorded here:
 complexity-only refactor (which had to preserve behavior). All of these are
 pre-existing behaviors carried over unchanged from `main`, not regressions.*
 
-### 1. `skipTypeParams` should not treat the `>` in `=>` as a closing angle bracket
-
-`test/lib/code-quality/detectors.ts` — `skipTypeParams` counts every `>` as a
-type-parameter close, so a type alias whose params contain an arrow default,
-e.g. `type A<T = () => void> = { ... }`, is parsed as ending at the arrow and
-`parseTypeAliasBody` silently ignores the (valid) alias. The sibling helper
-`angleDepthDelta` already handles this token correctly (it ignores a `>`
-preceded by `=`).
-
-Fix direction: reuse `angleDepthDelta` in `skipTypeParams`. Note the naive
-rewrite reintroduces an unreachable `return i` fall-through that fails the
-repo's 100% line/branch coverage gate — so the fix must be paired with a
-covering test that exercises an arrow-in-type-param alias (and keep the
-fall-through on the covered path, as the current loop-with-`break` form does).
-
-### 2. `skipTemplateSubstitution` should skip comment contents
+### 1. `skipTemplateSubstitution` should skip comment contents
 
 `test/lib/code-quality/detectors.ts` — the template-substitution scanner tracks
 brace depth but does not skip comments, so a `}` inside a comment inside a

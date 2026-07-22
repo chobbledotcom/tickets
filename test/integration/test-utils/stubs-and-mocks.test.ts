@@ -31,6 +31,14 @@ import {
   invalidateTestDbCache,
 } from "#test-utils/test-state.ts";
 
+const removeIfPresent = async (path: string): Promise<void> => {
+  try {
+    await Deno.remove(path);
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) throw error;
+  }
+};
+
 describe("test-utils — stubs, caches & request mocks", () => {
   afterEach(() => {
     resetDb();
@@ -189,25 +197,14 @@ describe("test-utils — stubs, caches & request mocks", () => {
           throw new Error("already closed");
         },
       } as unknown as Client);
-      let cleanupError: unknown;
 
       try {
         using _env = withEnv({ DB_URL: `file:${path}` });
         expect(() => resetDb()).not.toThrow();
-        try {
-          await Deno.stat(path);
-          throw new Error("temp database still exists");
-        } catch (error) {
-          expect(error).toBeInstanceOf(Deno.errors.NotFound);
-        }
+        await expect(Deno.stat(path)).rejects.toThrow(Deno.errors.NotFound);
       } finally {
-        try {
-          await Deno.remove(path);
-        } catch (error) {
-          if (!(error instanceof Deno.errors.NotFound)) cleanupError = error;
-        }
+        await removeIfPresent(path);
       }
-      if (cleanupError) throw cleanupError;
     });
 
     test("removes SQLite sidecar files for the active temp database", async () => {

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { blankSpans } from "#scripts/typescript-lex.ts";
 import {
-  blankSpans,
   extractTypeShapes,
   findDuplicateTypeShapes,
   type NamedTypeShape,
@@ -106,6 +106,16 @@ describe("extractTypeShapes", () => {
   test("handles type parameters on the alias name", () => {
     expect(
       extractTypeShapes("type Box<T> = { value: T; label: string };"),
+    ).toEqual([
+      { kind: "type", members: ["value: T", "label: string"], name: "Box" },
+    ]);
+  });
+
+  test("handles arrow defaults inside alias type parameters", () => {
+    expect(
+      extractTypeShapes(
+        "type Box<T = () => void> = { value: T; label: string };",
+      ),
     ).toEqual([
       { kind: "type", members: ["value: T", "label: string"], name: "Box" },
     ]);

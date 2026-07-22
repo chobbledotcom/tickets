@@ -19,6 +19,13 @@
 /* jscpd:ignore-start */
 import { compact } from "#fp";
 import { t } from "#i18n";
+import {
+  LINE_KEY_PREFIX,
+  LINE_LISTING_PREFIX,
+  LINE_PACKAGE_PREFIX,
+  NO_QUANTITY_PREFIX,
+  QTY_PREFIX,
+} from "#routes/admin/attendee-form-lines.ts";
 import type { BalanceNotice } from "#routes/admin/attendee-form-model.ts";
 import {
   ATTENDEE_FORM_ID,
@@ -26,12 +33,7 @@ import {
   DAY_COUNT_FIELD,
   isPaymentLockedLine,
   isRetainedLine,
-  LINE_KEY_PREFIX,
-  LINE_LISTING_PREFIX,
-  LINE_PACKAGE_PREFIX,
-  NO_QUANTITY_PREFIX,
   type ParsedAttendeeForm,
-  QTY_PREFIX,
   resolveStatusId,
   SHOW_ALL_FIELD,
   SHOW_PACKAGE_PATHS_FIELD,

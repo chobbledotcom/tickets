@@ -132,17 +132,41 @@ const matchesSelector = (el: FakeElement, selector: string): boolean => {
 const datasetKey = (attr: string): string =>
   attr.replace(/^data-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 
-const makeElement = (spec: ElementSpec): FakeElement => {
-  const listeners = new Map<string, ((event?: unknown) => void)[]>();
+const makeAttributeToggle =
+  (
+    attrs: Map<string, string>,
+    dataset: Record<string, string>,
+  ): FakeElement["toggleAttribute"] =>
+  (name, force) => {
+    if (force) {
+      attrs.set(name, "");
+      if (name.startsWith("data-")) dataset[datasetKey(name)] = "";
+      return;
+    }
+    attrs.delete(name);
+    if (name.startsWith("data-")) delete dataset[datasetKey(name)];
+  };
+
+const makeElementData = (
+  spec: ElementSpec,
+): { attrs: Map<string, string>; dataset: Record<string, string> } => {
   const attrs = new Map<string, string>();
   if (spec.name !== undefined) attrs.set("name", spec.name);
-  for (const [k, v] of Object.entries(spec.data ?? {})) {
-    attrs.set(`data-${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`, v);
-  }
   const dataset: Record<string, string> = {};
-  for (const [attr, val] of attrs) {
-    if (attr.startsWith("data-")) dataset[datasetKey(attr)] = val;
+  for (const [key, value] of Object.entries(spec.data ?? {})) {
+    const attr = `data-${key.replace(
+      /[A-Z]/g,
+      (letter) => `-${letter.toLowerCase()}`,
+    )}`;
+    attrs.set(attr, value);
+    dataset[datasetKey(attr)] = value;
   }
+  return { attrs, dataset };
+};
+
+const makeElement = (spec: ElementSpec): FakeElement => {
+  const listeners = new Map<string, ((event?: unknown) => void)[]>();
+  const { attrs, dataset } = makeElementData(spec);
   const children = (spec.children ?? []).map(makeElement);
   const el: FakeElement = {
     addEventListener: (event, listener) => {
@@ -178,15 +202,7 @@ const makeElement = (spec: ElementSpec): FakeElement => {
     required: spec.required ?? false,
     tag: spec.tag ?? "input",
     textContent: "",
-    toggleAttribute: (name, force) => {
-      if (force) {
-        attrs.set(name, "");
-        if (name.startsWith("data-")) dataset[datasetKey(name)] = "";
-      } else {
-        attrs.delete(name);
-        if (name.startsWith("data-")) delete dataset[datasetKey(name)];
-      }
-    },
+    toggleAttribute: makeAttributeToggle(attrs, dataset),
     type: spec.type,
     value: spec.value ?? "",
   };

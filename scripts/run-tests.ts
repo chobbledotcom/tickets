@@ -161,6 +161,19 @@ const snippetLineNumbers = (failure: CoverageFailure): number[] =>
     ...(failure.branches?.uncovered ?? []),
   ]);
 
+const sourceLineNumbersForSnippet = (
+  failure: CoverageFailure,
+  sourceLineCount: number,
+): number[] => {
+  const wanted = new Set<number>();
+  for (const line of snippetLineNumbers(failure)) {
+    const first = Math.max(1, line - SNIPPET_CONTEXT_LINES);
+    const last = Math.min(sourceLineCount, line + SNIPPET_CONTEXT_LINES);
+    for (let next = first; next <= last; next++) wanted.add(next);
+  }
+  return [...wanted].sort((a, b) => a - b);
+};
+
 const readSourceSnippet = async (
   failure: CoverageFailure,
 ): Promise<string[]> => {
@@ -168,18 +181,7 @@ const readSourceSnippet = async (
   if (!text) return [];
 
   const sourceLines = text.split(/\r?\n/);
-  const wanted = new Set<number>();
-  for (const line of snippetLineNumbers(failure)) {
-    for (
-      let next = line - SNIPPET_CONTEXT_LINES;
-      next <= line + SNIPPET_CONTEXT_LINES;
-      next++
-    ) {
-      if (next >= 1 && next <= sourceLines.length) wanted.add(next);
-    }
-  }
-
-  const lines = [...wanted].sort((a, b) => a - b);
+  const lines = sourceLineNumbersForSnippet(failure, sourceLines.length);
   const visible = lines.slice(0, MAX_SNIPPET_LINES_PER_FILE);
   const width = String(visible.at(-1) ?? 1).length;
   const snippets: string[] = [];

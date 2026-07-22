@@ -2,12 +2,14 @@
 
 import { t } from "#i18n";
 import {
+  LINE_LISTING_PREFIX,
+  QTY_PREFIX,
+} from "#routes/admin/attendee-form-lines.ts";
+import {
   DAY_COUNT_FIELD,
   isBookedLine,
-  LINE_LISTING_PREFIX,
   type ParsedAttendeeForm,
   parseAttendeeForm,
-  QTY_PREFIX,
   START_DATE_FIELD,
   toCreateInput,
 } from "#routes/admin/attendee-form-model.ts";
