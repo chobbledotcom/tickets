@@ -122,6 +122,8 @@ describe("database snapshot options", () => {
       "file:site.sqlite",
       "http://site.example.com",
       "http://localhost.example.com",
+      "libsql://site.example.com:8080?tls=0",
+      "libsql://site.example.com:8080?tls=1&tls=0",
       "not a URL",
     ]) {
       expect(() =>
@@ -130,7 +132,7 @@ describe("database snapshot options", () => {
           envReader({ DB_TOKEN: "token", DB_URL: dbUrl }),
         ),
       ).toThrow(
-        "DB_URL must use libsql or HTTPS. HTTP is allowed only for loopback.",
+        "DB_URL must use TLS. Plain connections are allowed only for loopback.",
       );
     }
   });
@@ -138,10 +140,14 @@ describe("database snapshot options", () => {
   test("accepts each supported remote database protocol", () => {
     for (const dbUrl of [
       "libsql://site.example.com",
+      "libsql://site.example.com:8080?tls=0&tls=1",
       "https://site.example.com",
       "http://localhost:8080",
       "http://127.0.0.1:8080",
       "http://[::1]:8080",
+      "libsql://localhost:8080?tls=0",
+      "libsql://127.0.0.1:8080?tls=0",
+      "libsql://[::1]:8080?tls=0",
     ]) {
       expect(
         readSnapshotRequest(

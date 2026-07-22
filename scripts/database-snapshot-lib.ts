@@ -110,16 +110,23 @@ const requireRemoteDatabaseUrl = (value: string): string => {
   try {
     const url = new URL(value);
     const secure = SECURE_DATABASE_PROTOCOLS.has(url.protocol);
-    const loopbackHttp =
-      url.protocol === "http:" && HTTP_LOOPBACK_HOSTNAMES.has(url.hostname);
-    if (url.hostname && (secure || loopbackHttp)) {
+    const loopback = HTTP_LOOPBACK_HOSTNAMES.has(url.hostname);
+    const plaintext =
+      url.protocol === "http:" ||
+      (url.protocol === "libsql:" &&
+        url.searchParams.getAll("tls").at(-1) === "0");
+    if (
+      url.hostname &&
+      (secure || url.protocol === "http:") &&
+      (!plaintext || loopback)
+    ) {
       return value;
     }
   } catch {
     // Invalid URLs share the same clear configuration error as local URLs.
   }
   throw new Error(
-    "DB_URL must use libsql or HTTPS. HTTP is allowed only for loopback.",
+    "DB_URL must use TLS. Plain connections are allowed only for loopback.",
   );
 };
 
