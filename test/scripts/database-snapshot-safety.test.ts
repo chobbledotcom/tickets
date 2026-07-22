@@ -311,4 +311,26 @@ describe("database snapshot safety", () => {
       if (mode === null) throw new Error("File mode is unavailable");
       expect(mode & 0o777).toBe(0o600);
     }));
+
+  test("reports each snapshot stage in order", () =>
+    withTempDir(async (dir) => {
+      const progress: string[] = [];
+      const factory = fakeDatabaseFactory(
+        (path) => Deno.writeTextFile(path, "complete"),
+        [[checkpointOk], [integrityOk]],
+      );
+
+      await createDatabaseSnapshot(
+        request(join(dir, "snapshot.sqlite")),
+        factory,
+        (message: string) => progress.push(message),
+      );
+
+      expect(progress).toEqual([
+        "[1/4] Checking destination",
+        "[2/4] Syncing remote database",
+        "[3/4] Checkpointing and checking integrity",
+        "[4/4] Publishing standalone SQLite file",
+      ]);
+    }));
 });

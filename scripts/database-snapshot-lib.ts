@@ -33,6 +33,19 @@ export type SnapshotEnvFileLoader = (
   path: string,
 ) => Promise<Record<string, string>>;
 
+export const SNAPSHOT_PROGRESS = {
+  checking: "[1/4] Checking destination",
+  publishing: "[4/4] Publishing standalone SQLite file",
+  syncing: "[2/4] Syncing remote database",
+  verifying: "[3/4] Checkpointing and checking integrity",
+} as const;
+
+export type SnapshotProgress =
+  (typeof SNAPSHOT_PROGRESS)[keyof typeof SNAPSHOT_PROGRESS];
+export type SnapshotProgressWriter = (message: SnapshotProgress) => void;
+
+const ignoreSnapshotProgress: SnapshotProgressWriter = () => {};
+
 const OutputValuesSchema = v.strictTuple([
   v.pipe(
     v.string(),
@@ -280,9 +293,11 @@ const publishSnapshot = async (
 export const createDatabaseSnapshot = async (
   request: SnapshotRequest,
   factory: SnapshotClientFactory,
+  writeProgress: SnapshotProgressWriter = ignoreSnapshotProgress,
 ): Promise<string> => {
   const outputPath = resolve(request.outputPath);
   const outputDirectory = dirname(outputPath);
+  writeProgress(SNAPSHOT_PROGRESS.checking);
   await requireOutputDirectory(outputDirectory);
   await requireMissingOutputFiles(outputPath);
   const temporaryDirectory = await Deno.makeTempDir({
@@ -292,9 +307,12 @@ export const createDatabaseSnapshot = async (
 
   return await withCleanup(async () => {
     const temporaryPath = join(temporaryDirectory, "snapshot.sqlite");
+    writeProgress(SNAPSHOT_PROGRESS.syncing);
     await syncReplica(temporaryPath, request, factory);
+    writeProgress(SNAPSHOT_PROGRESS.verifying);
     await checkpointAndVerify(temporaryPath, factory);
     await requireEmptyWal(temporaryPath);
+    writeProgress(SNAPSHOT_PROGRESS.publishing);
     await publishSnapshot(temporaryPath, outputPath);
     return outputPath;
   }, [() => Deno.remove(temporaryDirectory, { recursive: true })]);
