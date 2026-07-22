@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import {
   batchTestFiles,
   TEST_FILE_BATCH_SIZE,
-} from "../../scripts/mutation/batch.ts";
+} from "#scripts/mutation/batch.ts";
 
 Deno.test("batchTestFiles returns no batches for an empty list", () => {
   expect(batchTestFiles([])).toEqual([]);

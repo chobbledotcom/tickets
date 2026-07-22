@@ -1,10 +1,9 @@
 import { expect } from "@std/expect";
-import { afterEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { paymentsApi } from "#shared/payments.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   expectHtmlResponse,
@@ -35,7 +34,6 @@ import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
  *  resetting the Stripe client between tests. */
 export const describeAccounting = (fn: () => void): void =>
   describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
-    afterEach(() => resetStripeClient());
     fn();
   });
 

@@ -5,7 +5,7 @@ import {
   denoExitCode,
   offTerminationSignals,
   onTerminationSignals,
-} from "../../scripts/mutation/child-process.ts";
+} from "#scripts/mutation/child-process.ts";
 
 const PARENT_KEY = "TICKETS_MUTATION_PARENT_ONLY";
 

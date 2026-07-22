@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { queryAll } from "#shared/db/client.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
@@ -17,8 +17,6 @@ import {
 } from "#test-utils/staged-payments.ts";
 
 describeWithEnv("test staged payment fixtures", { db: true }, () => {
-  afterEach(() => resetStripeClient());
-
   test("does not stage a balance payment as a new attendee", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     const metadata = signedMeta(

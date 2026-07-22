@@ -10,6 +10,7 @@ import {
   isJsonApiPath,
   isValidContentType,
   isWebhookPath,
+  lowerContentType,
 } from "#routes/middleware.ts";
 import {
   resetEffectiveDomain,
@@ -121,17 +122,27 @@ describe("isEmbeddablePath", () => {
 });
 
 describe("isValidContentType", () => {
+  test("normalizes a missing content type to an empty string", () => {
+    expect(lowerContentType(requestWithType("POST"))).toBe("");
+  });
+
   test("non-POST requests need no content type", () => {
     expect(isValidContentType(requestWithType("PATCH"), "/admin/login")).toBe(
       true,
     );
   });
 
-  for (const path of ["/scheduled", "/instance/site-credentials"]) {
-    test(`${path} accepts a bodyless POST`, () => {
-      expect(isValidContentType(requestWithType("POST"), path)).toBe(true);
-    });
-  }
+  test("normal middleware does not exempt the specialized scheduled route", () => {
+    expect(isValidContentType(requestWithType("POST"), "/scheduled")).toBe(
+      false,
+    );
+  });
+
+  test("/instance/site-credentials accepts a bodyless POST", () => {
+    expect(
+      isValidContentType(requestWithType("POST"), "/instance/site-credentials"),
+    ).toBe(true);
+  });
 
   for (const path of [
     "/payment/webhook",

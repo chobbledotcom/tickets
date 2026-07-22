@@ -7,16 +7,17 @@
 
 /* jscpd:ignore-start */
 import type { Locator } from "playwright";
-import { type BrowserSession, hrefOf } from "./browser.ts";
+import { type BrowserSession, hrefOf, requirePageText } from "./browser.ts";
 import { config } from "./config.ts";
 import { log, step } from "./log.ts";
+import { pollUntil } from "./util.ts";
 /* jscpd:ignore-end */
 
-const LISTING_NAME = "E2E Payment Concert";
+export const LISTING_NAME = "E2E Payment Concert";
 // Not example.com: some processors (Square) reject that reserved domain as an
 // invalid email before redirecting, failing the booking pre-checkout.
 const BOOKER_EMAIL = config.bookerEmail;
-const BOOKER_NAME = "E2E Booker";
+export const BOOKER_NAME = "E2E Booker";
 const LOGIN_FIELDS_SELECTOR = '[name="username"], [name="password"]';
 
 /** Run the first-run setup wizard for a fresh install. */
@@ -104,12 +105,13 @@ export const waitForAppReturn = async (
   dumpLabel: string,
 ): Promise<void> => {
   const { page } = session;
-  const deadline = Date.now() + config.paymentConfirmTimeoutMs;
-  while (Date.now() < deadline) {
+  const returned = await pollUntil(config.paymentConfirmTimeoutMs, async () => {
     const here = page.url().startsWith(session.baseUrl);
-    if (here && success.test(page.url() + (await session.bodyText()))) return;
-    await page.waitForTimeout(1_000);
-  }
+    return here && success.test(page.url() + (await session.bodyText()))
+      ? true
+      : null;
+  });
+  if (returned) return;
   await session.dumpPage(dumpLabel);
   throw new Error(
     `did not land on a page matching ${success} (at ${page.url()})`,
@@ -207,11 +209,12 @@ export const assertRedirectedToCheckout = async (
 export const assertFreeThankYou = async (
   session: BrowserSession,
 ): Promise<void> => {
-  const body = await session.bodyText();
-  if (!/thank you|your order|your ticket/i.test(body)) {
-    await session.screenshot("free-booking-no-thankyou");
-    throw new Error(`expected a thank-you page, got:\n${body.slice(0, 800)}`);
-  }
+  await requirePageText(
+    session,
+    /thank you|your order|your ticket/i,
+    "free-booking-no-thankyou",
+    "Expected a thank-you page, got:",
+  );
   log("  ✔ free booking reached the thank-you page");
 };
 
@@ -256,7 +259,6 @@ const collectHostedErrors = async (
  */
 export const assertPaidBookingConfirmed = async (
   session: BrowserSession,
-  _ticketPath: string,
 ): Promise<void> => {
   step("Confirming the paid booking");
   const { page } = session;
@@ -283,7 +285,7 @@ export const assertPaidBookingConfirmed = async (
           : appBody.slice(0, 400)),
     );
   }
-  log(`  ✔ customer saw the success page (${page.url()})`);
+  log(`  ✔ browser reached the app return (${page.url()})`);
 
   // 2. Cross-check in admin: the listing's Overview tab shows the captured
   // income, and its Attendees tab shows the booker — the listing detail page
@@ -299,7 +301,15 @@ export const assertPaidBookingConfirmed = async (
   // (price_paid = 0) records no income and the ledger section does not render.
   // Do NOT fall back to scanning the whole page: the listing detail also shows
   // the configured ticket price, which would give a false pass with no payment.
-  const paidRegion = await incomeLedgerText(session);
+  const paidRegion = await pollUntil(
+    config.paymentConfirmTimeoutMs,
+    async () => {
+      const text = await incomeLedgerText(session);
+      if (text !== null) return text;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      return null;
+    },
+  );
   if (paidRegion === null) {
     await session.screenshot("paid-admin-no-income-ledger");
     throw new Error(

@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
 /**
  * Admin debug route - shows configuration status for troubleshooting
@@ -272,13 +272,6 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       provider: showOrEmpty(paymentProvider),
       webhookConfigured: webhookConfiguredFor(paymentProvider),
     },
-    prune: {
-      addresses: formatLastPruned(settings.lastPrunedAddresses),
-      logins: formatLastPruned(settings.lastPrunedLogins),
-      payments: formatLastPruned(settings.lastPrunedPayments),
-      sessions: formatLastPruned(settings.lastPrunedSessions),
-      strings: formatLastPruned(settings.lastPrunedStrings),
-    },
     runtime: getRuntimeInfo(),
     site: {
       bookingFee: settings.bookingFee,
@@ -293,13 +286,6 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
     theme: settings.theme,
   };
 };
-
-/** Format a stored last-pruned ms-epoch string as ISO.
- * `raw` is always a positive ms-epoch string by the time we render: every
- * incoming request triggers maybeRunPrunes() as pending work, which writes a
- * fresh timestamp before the /admin/debug handler reads the snapshot. */
-const formatLastPruned = (raw: string): string =>
-  new Date(Number(raw)).toISOString();
 
 /**
  * Handle GET /admin/debug - owner only
@@ -325,7 +311,7 @@ const handleSentryTestPost: TypedRouteHandler<"POST /admin/debug/sentry"> =
   });
 
 /** Debug routes */
-export const adminHandlers = handlersFor("debug")({
-  getDebug: handleAdminDebugGet,
-  postSentryTest: handleSentryTestPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/debug": handleAdminDebugGet,
+  "POST /admin/debug/sentry": handleSentryTestPost,
 });

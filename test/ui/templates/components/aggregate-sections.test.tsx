@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   CheckboxesFieldset,
   CheckboxForm,
@@ -9,12 +8,7 @@ import {
   SectionFieldset,
   StackDetails,
 } from "#templates/components/aggregate-sections.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
-
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 describe("SectionFieldset", () => {
   test("puts its children directly in a legend fieldset", () => {
@@ -78,6 +72,8 @@ describe("StackDetails", () => {
 });
 
 describe("CheckboxForm", () => {
+  beforeAll(setupAdminPageTest);
+
   test("wraps its children in a checkboxes fieldset with a save submit", () => {
     const html = String(
       CheckboxForm({ action: "/x", children: "kids", submitLabel: "Save it" }),

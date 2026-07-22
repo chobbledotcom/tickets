@@ -1,6 +1,5 @@
 // jscpd:ignore-start
-import { afterEach, it as test } from "@std/testing/bdd";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
@@ -19,10 +18,6 @@ describeWithEnv(
   "server webhooks > can_pay_more (single-ticket)",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("single-ticket can_pay_more accepts amount above minimum price", async () => {
       await setupStripe();
 

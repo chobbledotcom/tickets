@@ -5,7 +5,7 @@ import {
   medianAbsoluteDeviation,
   stripBase64Payloads,
   strippedChars,
-} from "../../scripts/bench/cold-start/strip-lib.ts";
+} from "#scripts/bench/cold-start/strip-lib.ts";
 
 describe("cold-start bench string stripping", () => {
   test("stripBase64Payloads empties long blobs and keeps short ones", () => {

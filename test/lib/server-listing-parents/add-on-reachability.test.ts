@@ -173,7 +173,7 @@ describeWithEnv(
       // "no groups", which still orphans the group-scoped add-on.
       const input = listingsTable.rowToInput(row, [
         "created",
-      ]) as import("#shared/db/listings/table.ts").ListingInput;
+      ]) as import("#shared/catalog-fields/fields.ts").ListingInput;
       const error = await validateListingInput(input, parent.id);
       expect(error).toContain("Group extra");
     });

@@ -1,10 +1,9 @@
 import { beforeAll, describe } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import type {
   AttendeeTableOptions,
   AttendeeTableRow,
 } from "#templates/attendee-table.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
 export const ALLOWED_DOMAIN = "example.com";
@@ -39,10 +38,7 @@ export const zaraAliceRows = (): AttendeeTableRow[] => [
 
 export const attendeeTableSuite = (defineTests: () => void): void => {
   describe("AttendeeTable", () => {
-    beforeAll(async () => {
-      setupTestEncryptionKey();
-      await signCsrfToken();
-    });
+    beforeAll(setupAdminPageTest);
     defineTests();
   });
 };

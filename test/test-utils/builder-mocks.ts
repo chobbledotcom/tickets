@@ -176,9 +176,7 @@ export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
     ),
   ),
   deployStub: stub(denoDeployApi, "deployCode", () =>
-    Promise.resolve(
-      opts.deployResult ?? okResult("https://tickets-test.deno.dev"),
-    ),
+    Promise.resolve(opts.deployResult ?? okResult(undefined)),
   ),
   encKeyStub: stub(
     builderApi,

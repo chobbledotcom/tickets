@@ -3,13 +3,13 @@ import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { activateStagedAttendeeImpl } from "#shared/db/attendees/activate.ts";
 import { getDb } from "#shared/db/client.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   activationBooking,
   setupActivationStage,
-} from "../activate-staged.helpers.ts";
+} from "#test/shared/db/attendees/activate-staged.helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("staged activation edge behavior", { db: true }, () => {
   test("matches the same three staged lines in a different input order", async () => {

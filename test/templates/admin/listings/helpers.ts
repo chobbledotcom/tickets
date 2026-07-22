@@ -1,6 +1,5 @@
 import { afterEach, beforeAll } from "@std/testing/bdd";
 import { fieldById } from "#fp";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { listingLedgerHref } from "#shared/ledger-links.ts";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
@@ -9,9 +8,11 @@ import {
   overviewStatsFromAttendees,
 } from "#templates/admin/listings/overview.tsx";
 import { ListingRosterPanel } from "#templates/admin/listings/roster.tsx";
-import { setupTestEncryptionKey, withEnv } from "#test-utils/env.ts";
-
-export const TEST_SESSION = { adminLevel: "owner" as const };
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import { withEnv } from "#test-utils/env.ts";
 
 /** Run fn with CAN_BUILD_SITES pinned to `value` in this worker's env overlay
  *  — never the real process env, which every parallel test worker shares. */
@@ -77,7 +78,7 @@ export const editPanelHtml = (
   extra: Partial<Parameters<typeof ListingEditPanel>[0]> = {},
 ): string =>
   String(
-    ListingEditPanel({ groups: [], listing, session: TEST_SESSION, ...extra }),
+    ListingEditPanel({ groups: [], listing, session: OWNER_SESSION, ...extra }),
   );
 
 /** Register the beforeAll/afterEach hooks every listing-template test shares.
@@ -86,10 +87,7 @@ export const editPanelHtml = (
  * other module's tests exist (files share an isolate under the grouped
  * runner). */
 export const registerListingTemplateHooks = (): void => {
-  beforeAll(async () => {
-    setupTestEncryptionKey();
-    await signCsrfToken();
-  });
+  beforeAll(setupAdminPageTest);
   afterEach(() => {
     detectIframeMode(new URL("https://example.com/"));
   });

@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import {
   checkoutPopupPage,
@@ -9,19 +8,12 @@ import {
   paymentPage,
   successPage,
 } from "#templates/payment.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { testAttendee, testListing } from "#test-utils/factories.ts";
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
-
-afterEach(() => {
-  detectIframeMode(new URL("https://example.com/"));
-});
-
 describe("paymentPage", () => {
+  beforeAll(setupAdminPageTest);
+
   const listing = testListing({ unit_price: 1000 });
   const attendee = testAttendee();
 
@@ -62,6 +54,11 @@ describe("paymentPage", () => {
 });
 
 describe("successPage", () => {
+  beforeAll(setupAdminPageTest);
+  afterEach(() => {
+    detectIframeMode(new URL("https://example.com/"));
+  });
+
   test("renders order success message when paid", () => {
     const html = successPage({
       paid: true,
@@ -174,23 +171,24 @@ describe("successPage", () => {
     const html = successPage({ paid: true, ticketUrl: "/t/abc123" });
     expect(html).not.toContain("Junk/Spam");
   });
-});
-
-test("shows email notice for reservation when fromEmail is provided", () => {
-  const html = successPage({
-    fromEmail: "tickets@example.com",
-    ticketUrl: "/t/abc123",
+  test("shows email notice for reservation when fromEmail is provided", () => {
+    const html = successPage({
+      fromEmail: "tickets@example.com",
+      ticketUrl: "/t/abc123",
+    });
+    expect(html).toContain("tickets@example.com");
+    expect(html).toContain("Junk/Spam");
   });
-  expect(html).toContain("tickets@example.com");
-  expect(html).toContain("Junk/Spam");
-});
 
-test("does not show email notice for reservation when fromEmail is empty", () => {
-  const html = successPage({ ticketUrl: "/t/abc123" });
-  expect(html).not.toContain("Junk/Spam");
+  test("does not show email notice for reservation when fromEmail is empty", () => {
+    const html = successPage({ ticketUrl: "/t/abc123" });
+    expect(html).not.toContain("Junk/Spam");
+  });
 });
 
 describe("paymentCancelPage", () => {
+  beforeAll(setupAdminPageTest);
+
   const listing = testListing({ unit_price: 1000 });
 
   test("renders cancel message", () => {
@@ -218,6 +216,8 @@ describe("paymentCancelPage", () => {
 });
 
 describe("checkoutPopupPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders checkout URL in data attribute", () => {
     const html = checkoutPopupPage("https://checkout.stripe.com/session123");
     expect(html).toContain(
@@ -260,6 +260,8 @@ describe("checkoutPopupPage", () => {
 });
 
 describe("paymentErrorPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders error message", () => {
     const html = paymentErrorPage("Payment verification failed");
     expect(html).toContain("Payment Error");

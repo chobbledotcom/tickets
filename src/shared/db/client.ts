@@ -11,6 +11,7 @@ import {
   createClient,
   type InStatement,
   type InValue,
+  LibsqlError,
   type ResultSet,
   type Transaction,
   type TransactionMode,
@@ -41,8 +42,14 @@ import { retryWithBackoff } from "#shared/retry.ts";
 const WRITE_TABLE_RE =
   /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
 
-/** A CTE-led UPDATE's mutating statement, without its leading read expression. */
-const CTE_UPDATE_RE = /^\s*WITH\b[\s\S]*?\)\s*(UPDATE[\s\S]*)$/i;
+/** A CTE-led statement's mutating (or read) tail, without its leading
+ *  `WITH ... AS (...)` read expression — so a `WITH x AS (...) INSERT INTO ...`
+ *  or `WITH ... DELETE FROM ...` is classified by its real verb, not misread
+ *  as a bare SELECT and (for writes) silently skipped by the write gates.
+ *  Every CTE statement closes with `) <verb> ...`, so the alternation captures
+ *  the tail regardless of which write verb (or SELECT) follows. */
+const CTE_PREFIX_RE =
+  /^\s*WITH\b[\s\S]*?\)\s*((?:INSERT|UPDATE|DELETE|REPLACE|SELECT)[\s\S]*)$/i;
 
 /**
  * Parse the column names assigned by an UPDATE SET clause.
@@ -87,6 +94,23 @@ export const extractUpdateColumns = (
 };
 
 /**
+ * The statement at the heart of a (possibly CTE-led) SQL string: a
+ * `WITH ... AS (...) <verb> ...` is stripped to its `<verb> ...` tail so the
+ * write regexes can anchor on the real verb — a CTE-led INSERT/UPDATE/DELETE/
+ * REPLACE is a write, a CTE-led SELECT stays a read. Shared by
+ * {@link isReadSql} (the read/write split the upstream retry hinges on) and
+ * {@link invalidateForSql} (table/verb classification) so the two never drift
+ * on what counts as a write.
+ */
+const writeSqlOf = (sql: string): string => CTE_PREFIX_RE.exec(sql)?.[1] ?? sql;
+
+/** The SQL text of a libsql statement, which may be a bare string or a
+ *  `{ sql, args }` object. Shared by the batch/transaction scopes and the
+ *  batch retry gate so the InStatement shape is unwrapped in one place. */
+const sqlOf = (stmt: InStatement): string =>
+  typeof stmt === "string" ? stmt : stmt.sql;
+
+/**
  * After a successful write, invalidate every cache that declared a dependency
  * on the mutated table. A no-op for reads (the regex doesn't match) and for
  * tables no cache depends on. For UPDATEs, the SET-clause columns are
@@ -96,7 +120,7 @@ export const extractUpdateColumns = (
  * fails the write is treated as unconditional — safe over stale.
  */
 const invalidateForSql = (sql: string): void => {
-  const writeSql = CTE_UPDATE_RE.exec(sql)?.[1] ?? sql;
+  const writeSql = writeSqlOf(sql);
   const match = WRITE_TABLE_RE.exec(writeSql);
   if (!match) return;
   const table = match[1]!.toLowerCase();
@@ -217,9 +241,10 @@ export class DatabaseBusyError extends namedError("DatabaseBusyError") {
   }
 }
 
-/** Backoff before each retry of a contended database lock; its length is the
- *  number of retries, so four attempts in total. */
-const WRITE_LOCK_RETRY_BACKOFF_MS = [50, 150, 350] as const;
+/** Backoff before each retry of a transient database failure — a contended
+ *  write lock on any statement, or a fleeting upstream gateway error on a read;
+ *  its length is the number of retries, so four attempts in total. */
+const TRANSIENT_ERROR_BACKOFF_MS = [50, 150, 350] as const;
 
 /** SQLite has a single writer, so a contended write surfaces as SQLITE_BUSY —
  *  thrown immediately by the local driver as "database is locked" when a bare
@@ -230,14 +255,55 @@ const isDatabaseLocked = (error: unknown): boolean =>
   error instanceof Error &&
   /SQLITE_BUSY|database is locked/i.test(error.message);
 
+/** The libsql server's own gateway briefly failing — it timed out (504) or was
+ *  momentarily unreachable (502/503), which the client surfaces as a
+ *  SERVER_ERROR LibsqlError naming the HTTP status. Worth a retry on a read;
+ *  a genuine client or server fault (400/500) would only be replayed by one. */
+const TRANSIENT_UPSTREAM_STATUS_RE =
+  /Server returned HTTP status (?:502|503|504)\b/;
+
+const isTransientUpstreamError = (error: unknown): boolean =>
+  error instanceof LibsqlError &&
+  error.code === "SERVER_ERROR" &&
+  TRANSIENT_UPSTREAM_STATUS_RE.test(error.message);
+
+/** The one statement shape the upstream retry may replay: a SELECT, possibly
+ *  CTE-led. Anything else — a write, DDL (CREATE/ALTER/DROP), a PRAGMA — may
+ *  have side effects that landed before the gateway timed out, so the gate
+ *  fails closed: only a positively recognized read retries. */
+const READ_SQL_RE = /^\s*select\b/i;
+
 /**
- * Retry `run` while it loses a contended write lock, backing off between attempts
- * so a brief overlap with another writer resolves itself rather than failing the
- * loser. A lock that outlasts the retries surfaces as {@link DatabaseBusyError}
- * (the request layer's friendly busy page); every other error propagates at once.
+ * Whether a statement is a read the upstream retry may replay — the CTE prefix
+ * stripped first so a `WITH ... SELECT` is detected as a read, not misread as
+ * an unknown statement. Shares the strip with {@link invalidateForSql} so the
+ * read/write split the upstream retry hinges on stays in lockstep with cache
+ * invalidation.
  */
-const retryOnDatabaseLock = <T>(run: () => Promise<T>): Promise<T> =>
-  retryWithBackoff(run, WRITE_LOCK_RETRY_BACKOFF_MS, (error, { willRetry }) => {
+const isReadSql = (sql: string): boolean => READ_SQL_RE.test(writeSqlOf(sql));
+
+/**
+ * Retry `run` while it hits a transient failure, backing off between attempts
+ * so a brief overlap or gateway hiccup resolves itself rather than failing the
+ * request:
+ *   - a contended write lock (SQLITE_BUSY) is always retried — the lock was
+ *     never taken, so nothing ran; a lock that outlasts the retries surfaces as
+ *     {@link DatabaseBusyError} (the request layer's friendly busy page);
+ *   - a fleeting upstream gateway error (502/503/504) is retried only on reads
+ *     (`retryUpstream`): a 5xx on a write may have landed server-side before the
+ *     gateway timed out, and replaying it would double-apply, so writes and the
+ *     transactions that hold them never retry upstream errors. A hiccup that
+ *     outlasts the retries rethrows its original error, so a sustained outage
+ *     still reaches the error log as itself.
+ *
+ * Every other error propagates at once.
+ */
+const retryOnTransientDatabaseError = <T>(
+  run: () => Promise<T>,
+  { retryUpstream }: { retryUpstream: boolean },
+): Promise<T> =>
+  retryWithBackoff(run, TRANSIENT_ERROR_BACKOFF_MS, (error, { willRetry }) => {
+    if (retryUpstream && isTransientUpstreamError(error)) return;
     if (!isDatabaseLocked(error)) throw error;
     if (!willRetry) throw new DatabaseBusyError();
   });
@@ -248,8 +314,11 @@ type StatementRunner<T> = (sql: string, args?: InValue[]) => Promise<T>;
 
 const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
   trackSql(sql, () =>
-    retryOnDatabaseLock(() =>
-      args ? getDb().execute({ args, sql }) : getDb().execute(sql),
+    retryOnTransientDatabaseError(
+      () => (args ? getDb().execute({ args, sql }) : getDb().execute(sql)),
+      // A 5xx on anything but a read may have side effects that committed
+      // before the gateway timed out, so only reads retry upstream errors.
+      { retryUpstream: isReadSql(sql) },
     ),
   );
 
@@ -474,13 +543,13 @@ const runBatch = async (
   statements: SqlStatement[],
   mode: TransactionMode,
   invalidate: boolean,
+  retryUpstream: boolean,
 ): Promise<ResultSet[]> => {
   const sqls = statements.map(({ sql }) => sql);
-  // Batch writes serialize against the single SQLite writer like any other write,
-  // so a contended batch waits and retries (then surfaces DatabaseBusyError)
-  // rather than throwing raw SQLITE_BUSY — matching execute() and withTransaction.
   const results = await trackSql(sqls, () =>
-    retryOnDatabaseLock(() => getDb().batch(statements, mode)),
+    retryOnTransientDatabaseError(() => getDb().batch(statements, mode), {
+      retryUpstream,
+    }),
   );
   for (const stmt of statements) {
     if (invalidate) invalidateForSql(stmt.sql);
@@ -497,17 +566,44 @@ const runBatch = async (
 export const executeBatchWithoutCacheInvalidation = async (
   statements: SqlStatement[],
 ): Promise<void> => {
-  await runBatch(statements, "write", false);
+  await runBatch(statements, "write", false, false);
 };
 
 /** A read/write batch with a fixed mode, or one chosen when it runs. */
 type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
 
-/** Create a batch executor for a fixed or per-call transaction mode. */
+/** The read batch executors retry a fleeting upstream 5xx on the strength of
+ *  every statement being a side-effect-free SELECT, so a write smuggled into
+ *  one is rejected loudly here rather than risk a double-apply on a retry. */
+const requireReadStatements = (statements: SqlStatement[]): void => {
+  for (const { sql } of statements) {
+    if (!isReadSql(sql)) {
+      throw new Error(
+        `Read-only batch executors accept only SELECT statements: ${sql}`,
+      );
+    }
+  }
+};
+
+/** Create a batch executor for a fixed or per-call transaction mode. `retryUpstream`
+ *  is a property of the executor, not re-derived from each statement: the read
+ *  executors ({@link queryBatch}, {@link queryBatchPrimary}) always retry a
+ *  fleeting upstream 5xx (their statements are validated SELECTs — no side
+ *  effects to double-apply); the write executors never do. */
 const batchFor =
-  (mode: TransactionMode | (() => TransactionMode)): BatchExecutor =>
-  (statements) =>
-    runBatch(statements, typeof mode === "function" ? mode() : mode, true);
+  (
+    mode: TransactionMode | (() => TransactionMode),
+    retryUpstream: boolean,
+  ): BatchExecutor =>
+  async (statements) => {
+    if (retryUpstream) requireReadStatements(statements);
+    return runBatch(
+      statements,
+      typeof mode === "function" ? mode() : mode,
+      true,
+      retryUpstream,
+    );
+  };
 
 /** Local SQLite has no replica and write mode would only take a needless lock. */
 const primaryReadMode = (): TransactionMode => {
@@ -516,8 +612,9 @@ const primaryReadMode = (): TransactionMode => {
 };
 
 /** Execute multiple read queries in a single round-trip using Turso batch API. */
-export const queryBatch = batchFor(() =>
-  mustReadFromPrimary() ? primaryReadMode() : "read",
+export const queryBatch = batchFor(
+  () => (mustReadFromPrimary() ? primaryReadMode() : "read"),
+  true,
 );
 
 /**
@@ -529,14 +626,14 @@ export const queryBatch = batchFor(() =>
  * always serves from the primary. A write-mode transaction may contain only
  * SELECTs — it just guarantees the primary, read-your-writes connection.
  */
-export const queryBatchPrimary = batchFor("write");
+export const queryBatchPrimary = batchFor("write", true);
 
 /**
  * Execute multiple write statements and return their ResultSets.
  * Statements run in order within a single transaction (Turso batch API).
  * Ideal for cascading deletes and multi-step writes.
  */
-export const executeBatchWithResults = batchFor("write");
+export const executeBatchWithResults = batchFor("write", false);
 
 /** Execute multiple write statements, discarding results. */
 export const executeBatch = async (
@@ -562,7 +659,9 @@ type TransactionWork<T> = (tx: TxScope) => Promise<T>;
  * success and rolling back on any error. Cache invalidations fire once after a
  * successful commit (a rollback fires none). A write lock lost while beginning or
  * committing throws SQLITE_BUSY, which {@link withTransaction} treats as
- * retryable; every other error propagates.
+ * retryable; a fleeting upstream gateway error is not retried here (a 5xx at
+ * begin or commit may have landed, and replaying the writes would double-apply),
+ * so every such error propagates.
  */
 const runWriteTransactionOnce = async <T>(
   work: TransactionWork<T>,
@@ -572,16 +671,14 @@ const runWriteTransactionOnce = async <T>(
   let statementCount = 0;
   const scope: TxScope = {
     batch: (statements) => {
-      const sqls = statements.map((statement) =>
-        typeof statement === "string" ? statement : statement.sql,
-      );
+      const sqls = statements.map(sqlOf);
       writtenSql.push(...sqls);
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
       return trackSql(sqls, () => tx.batch(statements));
     },
     execute: (stmt) => {
-      const sql = typeof stmt === "string" ? stmt : stmt.sql;
+      const sql = sqlOf(stmt);
       writtenSql.push(sql);
       // Guard against a transaction that holds the write lock open for too many
       // sequential round-trips (the "Transaction timed-out" shape); chatty writes
@@ -628,7 +725,9 @@ const writeQueue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
  * the loser"). A genuinely contended lock — e.g. a non-transactional read racing
  * the commit — is still retried a few times with backoff (each retry re-runs
  * `work` on a fresh transaction, the prior attempt having rolled back), and a
- * database that stays locked surfaces as {@link DatabaseBusyError}. Statements run
+ * database that stays locked surfaces as {@link DatabaseBusyError}. A fleeting
+ * upstream gateway error is not retried here — see {@link runWriteTransactionOnce}
+ * — so it surfaces as itself. Statements run
  * through the provided `execute` are tracked, and their table-scoped cache
  * invalidations fire once after the commit succeeds — so callers get the same
  * automatic invalidation as the single-statement `execute`, driven by the writes
@@ -642,7 +741,12 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   // own caller's concern), then run, retrying a contended lock on a fresh tx.
   const run = (async (): Promise<T> => {
     await writeQueue.tail.catch(() => undefined);
-    return retryOnDatabaseLock(() => runWriteTransactionOnce(work));
+    return retryOnTransientDatabaseError(() => runWriteTransactionOnce(work), {
+      // A transaction holds writes: a 5xx at begin or commit may have landed,
+      // so a retried transaction would replay its writes. Don't retry upstream
+      // errors here — only lock contention (which never ran anything).
+      retryUpstream: false,
+    });
   })();
   writeQueue.tail = run;
   return run;

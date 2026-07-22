@@ -1,4 +1,4 @@
-import { INHERIT_STDIO } from "../process.ts";
+import { INHERIT_STDIO } from "#scripts/process.ts";
 
 export interface CommandResult {
   code: number;

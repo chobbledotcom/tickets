@@ -35,11 +35,11 @@ import { defineRoutes } from "#routes/router.ts";
 import { getMainInstanceKey, isInstanceApiEnabled } from "#shared/config.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import {
-  builtSites,
   DEFAULT_UPDATE_TIER,
   isUpdateTier,
   siteAcceptsDeployTier,
-} from "#shared/db/built-sites.ts";
+} from "#shared/db/built-sites/types.ts";
+import { builtSites } from "#shared/db/built-sites.ts";
 
 /** Extract the bearer token from the Authorization header (empty if absent). */
 const bearerToken = (request: Request): string => {

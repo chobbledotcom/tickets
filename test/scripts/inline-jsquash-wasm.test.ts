@@ -9,15 +9,15 @@ import type {
   OnResolveResult,
   PluginBuild,
 } from "esbuild";
-import { ASSETS } from "#shared/images/wasm-assets.ts";
-import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   buildModule,
   buildPackageModule,
   buildRemoteModule,
   createPlugin,
   isBytesImport,
-} from "../../scripts/inline-jsquash-wasm.ts";
+} from "#scripts/inline-jsquash-wasm.ts";
+import { ASSETS } from "#shared/images/wasm-assets.ts";
+import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 type ResolveCallback = Parameters<PluginBuild["onResolve"]>[1];
 type LoadCallback = Parameters<PluginBuild["onLoad"]>[1];

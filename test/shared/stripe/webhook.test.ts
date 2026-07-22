@@ -1,20 +1,55 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import type { StripeWebhookEvent } from "#shared/stripe.ts";
+import { FakeTime } from "@std/testing/time";
 import {
-  constructTestWebhookEvent,
+  type StripeWebhookEvent,
   verifyWebhookSignature,
-} from "#shared/stripe.ts";
-import { signedHeader } from "#test/lib/stripe/fixtures.ts";
+} from "#shared/stripe/webhook.ts";
+import { signedHeader, signedWebhook } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 
 describeStripe("stripe", () => {
+  test("logs when the webhook secret is missing", async () => {
+    const errorSpy = spy(console, "error");
+    try {
+      const result = await verifyWebhookSignature("{}", "t=1,v1=abc");
+      expect(result).toEqual({
+        error: "Webhook secret not configured",
+        valid: false,
+      });
+      expect(errorSpy.calls[0]?.args[0]).toContain(
+        'E_CONFIG_MISSING detail="webhook secret"',
+      );
+    } finally {
+      errorSpy.restore();
+    }
+  });
+
   describe("verifyWebhookSignature - timestamp parsing", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
+    const expectInvalidHeader = async (
+      payload: string,
+      signature: string,
+      reason: string,
+    ): Promise<void> => {
+      const errorSpy = spy(console, "error");
+      try {
+        expect(await verifyWebhookSignature(payload, signature)).toEqual({
+          error: "Invalid signature header format",
+          valid: false,
+        });
+        expect(errorSpy.calls).toHaveLength(1);
+        expect(errorSpy.calls[0]!.args[0]).toContain(
+          `detail="invalid header: ${reason}"`,
+        );
+      } finally {
+        errorSpy.restore();
+      }
+    };
 
-    test("handles timestamp value that needs parseInt", async () => {
+    test("accepts a generated event timestamp", async () => {
       await activateStripe(TEST_SECRET, "we_test_ts");
 
       // Create listing with proper signature
@@ -24,19 +59,15 @@ describeStripe("stripe", () => {
         type: "checkout.session.completed",
       };
 
-      const { payload, signature } = await constructTestWebhookEvent(
-        listing,
-        TEST_SECRET,
-      );
+      const { payload, signature } = await signedWebhook(listing, TEST_SECRET);
 
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
     });
 
-    test("parses timestamp with parseInt when t key has value", async () => {
+    test("accepts a decimal timestamp in the header", async () => {
       await activateStripe(TEST_SECRET, "we_test_parse");
 
-      // A valid number-string timestamp, exercising Number.parseInt
       const payload = '{"id": "evt_parse", "type": "test"}';
       const result = await verifyWebhookSignature(
         payload,
@@ -45,33 +76,126 @@ describeStripe("stripe", () => {
       expect(result.valid).toBe(true);
     });
 
-    test("treats t key without equals as zero timestamp via parseInt fallback", async () => {
+    test("rejects a timestamp key without a value", async () => {
       await activateStripe(TEST_SECRET, "we_test_nullish");
-
-      // Header "t,v1=abc123" - split("=") on "t" gives ["t"], so value is undefined
-      // value ?? "0" gives "0", parseInt("0", 10) gives 0
-      // timestamp === 0, so parseSignatureHeader returns null => "Invalid signature header format"
-      const result = await verifyWebhookSignature(
+      await expectInvalidHeader(
         '{"test": true}',
         "t,v1=abc123",
+        "missing timestamp",
       );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid signature header format");
-      }
     });
 
-    test("keeps an empty timestamp distinct from a missing timestamp", async () => {
-      await activateStripe(TEST_SECRET, "we_test_empty_timestamp");
-      const result = await verifyWebhookSignature(
-        '{"test":true}',
-        "t=,v1=abc123",
-      );
+    test("rejects a signature key without a value", async () => {
+      await activateStripe(TEST_SECRET, "we_test_signature_without_value");
+      await expectInvalidHeader("{}", "t=123,v1", "missing signature");
+    });
+
+    test("ignores a bare signature key", async () => {
+      await activateStripe(TEST_SECRET, "we_test_bare_signature");
+      await expectInvalidHeader("{}", "v1", "missing timestamp and signature");
+    });
+
+    test("parses timestamps as decimal numbers", async () => {
+      await activateStripe(TEST_SECRET, "we_test_decimal");
+      const result = await verifyWebhookSignature("{}", "t=0x10,v1=abc");
       expect(result).toEqual({
-        error: "Signature verification failed",
+        error: "Invalid signature header format",
         valid: false,
       });
     });
+
+    test("rejects a signed timestamp with a suffix", async () => {
+      await activateStripe(TEST_SECRET, "we_test_timestamp_suffix");
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload);
+      await expectInvalidHeader(
+        payload,
+        signed.replace(",", "junk,"),
+        "invalid timestamp",
+      );
+    });
+
+    test("rejects a signed timestamp with an extra delimiter", async () => {
+      await activateStripe(TEST_SECRET, "we_test_timestamp_delimiter");
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload);
+      await expectInvalidHeader(
+        payload,
+        signed.replace(",", "=junk,"),
+        "invalid timestamp",
+      );
+    });
+
+    test("rejects a signature with an extra delimiter", async () => {
+      await activateStripe(TEST_SECRET, "we_test_signature_delimiter");
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload);
+      await expectInvalidHeader(payload, `${signed}=junk`, "invalid signature");
+    });
+
+    test("rejects a timestamp outside the safe integer range", async () => {
+      await activateStripe(TEST_SECRET, "we_test_unsafe_timestamp");
+      await expectInvalidHeader(
+        "{}",
+        "t=9007199254740992,v1=abc",
+        "invalid timestamp",
+      );
+    });
+
+    test("rejects a zero timestamp", async () => {
+      await activateStripe(TEST_SECRET, "we_test_zero_timestamp");
+      await expectInvalidHeader("{}", "t=0,v1=abc", "invalid timestamp");
+    });
+
+    test("uses the last timestamp in the header", async () => {
+      await activateStripe(TEST_SECRET, "we_test_last_timestamp");
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload);
+      const result = await verifyWebhookSignature(payload, `t=1,${signed}`);
+      expect(result.valid).toBe(true);
+    });
+
+    test("accepts the first of multiple v1 signatures", async () => {
+      await activateStripe(TEST_SECRET, "we_test_first_signature");
+      using _time = new FakeTime(1_700_000_000_000);
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload, 1_700_000_000);
+      const result = await verifyWebhookSignature(
+        payload,
+        `${signed},v1=wrong`,
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("accepts the second of multiple v1 signatures", async () => {
+      await activateStripe(TEST_SECRET, "we_test_second_signature");
+      using _time = new FakeTime(1_700_000_000_000);
+      const payload = "{}";
+      const signed = await signedHeader(TEST_SECRET, payload, 1_700_000_000);
+      const result = await verifyWebhookSignature(
+        payload,
+        signed.replace("v1=", "v1=wrong,v1="),
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    for (const [delta, valid] of [
+      [-301, false],
+      [-300, true],
+      [300, true],
+      [301, false],
+    ] as const) {
+      test(`${delta >= 0 ? "+" : ""}${delta} seconds is ${valid ? "inside" : "outside"} the tolerance`, async () => {
+        await activateStripe(TEST_SECRET, `we_test_tolerance_${delta}`);
+        using _time = new FakeTime(1_700_000_000_000);
+        const payload = "{}";
+        const timestamp = 1_700_000_000 + delta;
+        const signature = await signedHeader(TEST_SECRET, payload, timestamp);
+        expect((await verifyWebhookSignature(payload, signature)).valid).toBe(
+          valid,
+        );
+      });
+    }
 
     test("secureCompare handles strings of different lengths", async () => {
       await activateStripe(TEST_SECRET, "we_test_len");
@@ -139,7 +263,11 @@ describeStripe("stripe", () => {
       const header = await signedHeader(TEST_SECRET, payload, oldTimestamp);
 
       try {
-        await verifyWebhookSignature(payload, header);
+        const result = await verifyWebhookSignature(payload, header);
+        expect(result).toEqual({
+          error: "Timestamp outside tolerance window",
+          valid: false,
+        });
         const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain("timestamp out of tolerance delta=");
         expect(callArg).toContain("tolerance=300s");
@@ -157,6 +285,26 @@ describeStripe("stripe", () => {
         await verifyWebhookSignature(payload, header);
         const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid JSON:');
+      } finally {
+        errorSpy.restore();
+      }
+    });
+
+    test("logs a signature mismatch", async () => {
+      const errorSpy = spy(console, "error");
+      const timestamp = Math.floor(Date.now() / 1000);
+      try {
+        const result = await verifyWebhookSignature(
+          "{}",
+          `t=${timestamp},v1=wrong`,
+        );
+        expect(result).toEqual({
+          error: "Signature verification failed",
+          valid: false,
+        });
+        expect(errorSpy.calls[0]?.args[0]).toContain(
+          'E_STRIPE_SIGNATURE detail="mismatch"',
+        );
       } finally {
         errorSpy.restore();
       }

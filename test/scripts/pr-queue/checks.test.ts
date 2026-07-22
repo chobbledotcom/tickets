@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { summarizePr } from "../../../scripts/pr-queue/summary.ts";
+import { summarizePr } from "#scripts/pr-queue/summary.ts";
 import { checkRun, makePr } from "./fixtures.ts";
 
 describe("summarizePr CI check classification", () => {

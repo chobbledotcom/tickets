@@ -7,7 +7,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type Browser, chromium, type Locator, type Page } from "playwright";
-import { browserLaunchOptions } from "../../scripts/browser-options.ts";
+import { browserLaunchOptions } from "#scripts/browser-options.ts";
 import { config } from "./config.ts";
 import { log } from "./log.ts";
 import { repoRoot } from "./server.ts";
@@ -31,6 +31,24 @@ export interface BrowserSession {
   /** Robustly submit the form owning an arbitrary button locator. */
   submitLocator: (locator: Locator) => Promise<void>;
 }
+
+/** Require the current page body to contain text (or match a pattern), saving
+ * the page before raising a concise failure. */
+export const requirePageText = async (
+  session: BrowserSession,
+  expected: string | RegExp,
+  artifact: string,
+  message: string,
+): Promise<void> => {
+  const body = await session.bodyText();
+  const matches =
+    typeof expected === "string"
+      ? body.includes(expected)
+      : expected.test(body);
+  if (matches) return;
+  await session.dumpPage(artifact);
+  throw new Error(`${message}\n${body.slice(0, 800)}`);
+};
 
 /** Read a link's href, failing loudly (with `whatFor`) when the link isn't
  *  there — so a missing nav target stops the run at the cause, not later. */

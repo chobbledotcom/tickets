@@ -9,16 +9,16 @@ import {
 } from "#shared/db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#shared/db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#shared/db/questions/queries.ts";
-import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
-import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addAnswer,
   createAttendee,
   createQuestion,
   saveTextAnswers,
-} from "../helpers.ts";
+} from "#test/shared/db/questions/helpers.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendee answer reads", { db: true }, () => {
   test("loads choice and text answers together", async () => {

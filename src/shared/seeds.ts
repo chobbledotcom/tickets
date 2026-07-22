@@ -133,7 +133,7 @@ const prepareAttendee = async (
   const pricePaid = unitPrice * quantity;
   const paymentId =
     unitPrice > 0 ? `seed_${listingId}_${quantity}_${pricePaid}` : "";
-  const enc = (await encryptAttendeeFields(
+  const enc = await encryptAttendeeFields(
     {
       address: randomChoice(DEMO_ADDRESSES),
       email: randomChoice(DEMO_EMAILS),
@@ -144,7 +144,7 @@ const prepareAttendee = async (
       special_instructions: randomChoice(DEMO_SPECIAL_INSTRUCTIONS),
     },
     generateTicketToken(),
-  ))!;
+  );
 
   return [
     buildAttendeeInsert(enc, { statusId: null }),

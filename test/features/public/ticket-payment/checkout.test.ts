@@ -6,7 +6,6 @@ import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { paymentsApi } from "#shared/payments.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -39,7 +38,6 @@ const intentFor = (
 
 describeWithEnv("ticket payment checkout", { db: true }, () => {
   afterEach(() => {
-    resetStripeClient();
     setSuppressDebugLogs(null);
   });
 

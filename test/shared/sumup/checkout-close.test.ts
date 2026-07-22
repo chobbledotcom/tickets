@@ -1,1 +1,1 @@
-import "../sumup-checkout-close.test.ts";
+import "#test/shared/sumup-checkout-close.test.ts";

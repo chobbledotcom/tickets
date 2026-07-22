@@ -4,232 +4,45 @@
  */
 
 import type { InValue } from "@libsql/client";
-import * as v from "valibot";
 /* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { queryAll, queryOne, rowExistsForIdList } from "#shared/db/client.ts";
-import type { ColumnDef, Table, TableSchema } from "#shared/db/table.ts";
+import { retryWrite } from "#shared/db/retry-write.ts";
+import type { Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
-import { nowIso } from "#shared/now.ts";
-import { guardFor } from "#shared/validation/guard.ts";
-import { defineStoredJson } from "#shared/validation/stored-json.ts";
-import { OptionalStringSchema } from "#shared/validation/string.ts";
+import {
+  blobToSiteFields,
+  buildSiteDataBlobFromInput,
+  parseSiteDataBlob,
+} from "./built-sites/blob.ts";
+import {
+  builtSiteCrudBlobSchema,
+  builtSiteCrudPlainSchema,
+  builtSiteFormMappings,
+  builtSiteInputKeyMap,
+  builtSitePlainColumns,
+  builtSitePlainSchema,
+  createdCol,
+  emptyBuiltSiteFormInput,
+  idCol,
+  mapPlainFields,
+  plainSiteInput,
+} from "./built-sites/fields.ts";
+import {
+  type BuiltSite,
+  type BuiltSiteBlobInput,
+  type BuiltSiteFormInput,
+  type BuiltSiteInput,
+  type BuiltSitePlainFields,
+  type BuiltSiteRow,
+  type BuiltSiteUpdate,
+  type DbProvider,
+  DEFAULT_UPDATE_TIER,
+  type HostingProvider,
+  type UpdateTier,
+} from "./built-sites/types.ts";
+
 /* jscpd:ignore-end */
-
-/**
- * The release channels a built site can opt into, ordered most- to
- * least-eager. The array order IS the rank (its index): an alpha site takes
- * every deploy, a beta site takes beta + release, a release site only stable
- * releases. So a site on tier S accepts a deploy published at tier T exactly
- * when `indexOf(S) <= indexOf(T)` — see {@link siteAcceptsDeployTier}.
- */
-export const UPDATE_TIERS = ["alpha", "beta", "release"] as const;
-export const UpdateTierSchema = v.picklist(UPDATE_TIERS);
-
-/** One of the {@link UPDATE_TIERS} release channels. */
-export type UpdateTier = v.InferOutput<typeof UpdateTierSchema>;
-
-/** Default channel for a new built site — the most conservative (stable only). */
-export const DEFAULT_UPDATE_TIER: UpdateTier = "release";
-
-/** Narrow an arbitrary string to an {@link UpdateTier}. */
-export const isUpdateTier = guardFor(UpdateTierSchema);
-
-/**
- * True when a site on `siteTier` should receive a deploy published at
- * `deployTier`. A release deploy reaches every site, a beta deploy reaches beta
- * + alpha sites, an alpha deploy only alpha sites — i.e. the site's channel must
- * be at the deploy's tier or more eager.
- */
-export const siteAcceptsDeployTier = (
-  siteTier: UpdateTier,
-  deployTier: UpdateTier,
-): boolean =>
-  UPDATE_TIERS.indexOf(siteTier) <= UPDATE_TIERS.indexOf(deployTier);
-
-/** Encrypted site-data blob version */
-const SITE_DATA_BLOB_VERSION = 1;
-
-/** Hosting provider for a built site. */
-export type HostingProvider = "bunny" | "deno";
-
-/** Database provider for a built site. */
-export type DbProvider = "bunny" | "turso";
-
-/** Use the named provider when selected, otherwise use Bunny. */
-export const providerOrBunny = <
-  TProvider extends Exclude<HostingProvider | DbProvider, "bunny">,
->(
-  value: string | null | undefined,
-  provider: TProvider,
-): "bunny" | TProvider => (value === provider ? provider : "bunny");
-
-/** Encrypted site data blob shape, including fields absent from older blobs. */
-const SiteDataBlobSchema = v.strictObject({
-  d: OptionalStringSchema,
-  dp: v.optional(v.picklist(["bunny", "turso"])),
-  hp: v.optional(v.picklist(["bunny", "deno"])),
-  n: v.string(),
-  rt: OptionalStringSchema,
-  s: OptionalStringSchema,
-  t: OptionalStringSchema,
-  u: v.string(),
-  v: v.optional(v.literal(SITE_DATA_BLOB_VERSION), SITE_DATA_BLOB_VERSION),
-});
-export type SiteDataBlob = v.InferOutput<typeof SiteDataBlobSchema>;
-const siteDataJson = defineStoredJson(SiteDataBlobSchema);
-
-/** Built site row as stored in the database */
-export interface BuiltSiteRow {
-  assignable: number;
-  assigned_attendee_id: number | null;
-  assigned_listing_id: number | null;
-  created: string;
-  id: number;
-  read_only_from: string;
-  renewal_token_index: string | null;
-  site_data: string;
-  /** Release channel — a CHECK constraint keeps this a valid UpdateTier. */
-  updates: UpdateTier;
-}
-
-type BuiltSitePlainInput = {
-  assignable?: number;
-  assignedAttendeeId?: number | null;
-  assignedListingId?: number | null;
-  renewalTokenIndex?: string | null;
-  readOnlyFrom?: string;
-  updates?: UpdateTier;
-};
-
-/** Built site input for creating a new row */
-export type BuiltSiteInput = BuiltSitePlainInput & {
-  siteData: string;
-};
-
-/** Decrypted built site for display */
-export interface BuiltSite {
-  assignable: boolean;
-  assignedAttendeeId: number | null;
-  assignedListingId: number | null;
-  created: string;
-  dbProvider: DbProvider;
-  dbToken: string;
-  dbUrl: string;
-  hostingId: string;
-  hostingProvider: HostingProvider;
-  id: number;
-  name: string;
-  readOnlyFrom: string;
-  /** Plain renewal token from the site-data blob when renewal access exists. Null when not provisioned. */
-  renewalToken: string | null;
-  renewalTokenIndex: string | null;
-  /** Site URL (default hostname for this site). */
-  siteUrl: string;
-  /** Release channel this site opts into (see {@link UPDATE_TIERS}). */
-  updates: UpdateTier;
-}
-
-/** Form input for CRUD operations. `updates` is optional — programmatic
- * inserts (e.g. auto-assignment) omit it and fall back to DEFAULT_UPDATE_TIER. */
-export type BuiltSiteFormInput = Pick<
-  BuiltSite,
-  "name" | "siteUrl" | "dbUrl" | "dbToken" | "hostingId" | "assignable"
-> & {
-  updates?: UpdateTier;
-  hostingProvider?: HostingProvider;
-  dbProvider?: DbProvider;
-};
-
-const idCol = col.generated<number>();
-const createdCol = col.withDefault(() => nowIso());
-
-const assignableCol = {} as ColumnDef<number>;
-const nullCol = col.withDefault<number | null>(() => null);
-const nullStrCol = col.withDefault<string | null>(() => null);
-
-type BuiltSitePlainFields = Pick<
-  BuiltSite,
-  | "assignable"
-  | "assignedAttendeeId"
-  | "assignedListingId"
-  | "readOnlyFrom"
-  | "renewalTokenIndex"
-  | "updates"
->;
-
-const passthrough = <T>(value: T): T => value;
-const nullable = <T>(value: T | null): T | null => value ?? null;
-
-const builtSitePlainColumns = [
-  {
-    dbKey: "assignable",
-    formDefault: false,
-    fromRow: (value: number): boolean => Boolean(value),
-    inputKey: "assignable",
-    schema: assignableCol,
-    siteKey: "assignable",
-    toInput: (value: boolean): number => (value ? 1 : 0),
-  },
-  {
-    dbKey: "assigned_attendee_id",
-    fromRow: nullable<number>,
-    inputKey: "assignedAttendeeId",
-    schema: nullCol,
-    siteKey: "assignedAttendeeId",
-    toInput: nullable<number>,
-  },
-  {
-    dbKey: "assigned_listing_id",
-    fromRow: nullable<number>,
-    inputKey: "assignedListingId",
-    schema: nullCol,
-    siteKey: "assignedListingId",
-    toInput: nullable<number>,
-  },
-  {
-    dbKey: "read_only_from",
-    fromRow: passthrough<string>,
-    inputKey: "readOnlyFrom",
-    schema: col.withDefault(() => ""),
-    siteKey: "readOnlyFrom",
-    toInput: passthrough<string>,
-  },
-  {
-    dbKey: "renewal_token_index",
-    fromRow: nullable<string>,
-    inputKey: "renewalTokenIndex",
-    schema: nullStrCol,
-    siteKey: "renewalTokenIndex",
-    toInput: nullable<string>,
-  },
-  {
-    dbKey: "updates",
-    formDefault: DEFAULT_UPDATE_TIER,
-    fromRow: passthrough<UpdateTier>,
-    inputKey: "updates",
-    schema: col.withDefault<UpdateTier>(() => DEFAULT_UPDATE_TIER),
-    siteKey: "updates",
-    toInput: passthrough<UpdateTier>,
-  },
-] as const;
-
-type BuiltSitePlainColumn = (typeof builtSitePlainColumns)[number];
-
-const crudSchemaFor = <Column extends { siteKey: keyof BuiltSite }>(
-  columns: readonly Column[],
-): Pick<TableSchema<BuiltSite>, Column["siteKey"]> =>
-  Object.fromEntries(columns.map(({ siteKey }) => [siteKey, {}])) as Pick<
-    TableSchema<BuiltSite>,
-    Column["siteKey"]
-  >;
-
-const builtSitePlainSchema = Object.fromEntries(
-  builtSitePlainColumns.map(({ dbKey, schema }) => [dbKey, schema]),
-) as Pick<TableSchema<BuiltSiteRow>, BuiltSitePlainColumn["dbKey"]>;
-
-const builtSiteCrudPlainSchema = crudSchemaFor(builtSitePlainColumns);
 
 const rawBuiltSiteSchema = {
   ...builtSitePlainSchema,
@@ -246,169 +59,11 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
   schema: rawBuiltSiteSchema,
 });
 
-type BuiltSiteBlobFields = Pick<
-  BuiltSite,
-  | "hostingId"
-  | "siteUrl"
-  | "dbToken"
-  | "dbUrl"
-  | "name"
-  | "renewalToken"
-  | "hostingProvider"
-  | "dbProvider"
->;
-
-type BuiltSiteBlobInput = Omit<BuiltSiteBlobFields, "renewalToken"> & {
-  renewalToken?: string | null | undefined;
-};
-
-const builtSiteBlobColumns = [
-  {
-    blobKey: "n",
-    defaultValue: "",
-    formDbKey: "name",
-    required: true,
-    siteKey: "name",
-  },
-  {
-    blobKey: "u",
-    defaultValue: "",
-    formDbKey: "site_url",
-    required: true,
-    siteKey: "siteUrl",
-  },
-  {
-    blobKey: "d",
-    defaultValue: "",
-    formDbKey: "db_url",
-    required: false,
-    siteKey: "dbUrl",
-  },
-  {
-    blobKey: "t",
-    defaultValue: "",
-    formDbKey: "db_token",
-    required: false,
-    siteKey: "dbToken",
-  },
-  {
-    blobKey: "s",
-    defaultValue: "",
-    formDbKey: "hosting_id",
-    required: false,
-    siteKey: "hostingId",
-  },
-  {
-    blobKey: "hp",
-    defaultValue: "bunny" as HostingProvider,
-    formDbKey: "hosting_provider",
-    required: false,
-    siteKey: "hostingProvider",
-  },
-  {
-    blobKey: "dp",
-    defaultValue: "bunny" as DbProvider,
-    formDbKey: "db_provider",
-    required: false,
-    siteKey: "dbProvider",
-  },
-  {
-    blobKey: "rt",
-    defaultValue: null,
-    required: false,
-    siteKey: "renewalToken",
-  },
-] as const;
-
-type BuiltSiteBlobColumn = (typeof builtSiteBlobColumns)[number];
-
-const builtSiteCrudBlobSchema =
-  crudSchemaFor<BuiltSiteBlobColumn>(builtSiteBlobColumns);
-
-type BuiltSiteFormMapping = {
-  dbKey: string;
-  defaultValue: boolean | string;
-  siteKey: keyof BuiltSiteFormInput;
-};
-
-const builtSiteFormMappings: BuiltSiteFormMapping[] = [
-  ...builtSitePlainColumns.flatMap((column) =>
-    "formDefault" in column
-      ? [
-          {
-            dbKey: column.dbKey,
-            defaultValue: column.formDefault,
-            siteKey: column.siteKey,
-          },
-        ]
-      : [],
-  ),
-  ...builtSiteBlobColumns.flatMap((column) =>
-    "formDbKey" in column
-      ? [
-          {
-            dbKey: column.formDbKey,
-            defaultValue: column.defaultValue,
-            siteKey: column.siteKey,
-          },
-        ]
-      : [],
-  ),
-];
-
-const builtSiteInputKeyMap = Object.fromEntries(
-  builtSiteFormMappings.map(({ dbKey, siteKey }) => [dbKey, siteKey]),
-) as Record<string, string>;
-
-const emptyBuiltSiteFormInput = (): BuiltSiteFormInput =>
-  Object.fromEntries(
-    builtSiteFormMappings.map(({ defaultValue, siteKey }) => [
-      siteKey,
-      defaultValue,
-    ]),
-  ) as BuiltSiteFormInput;
-
-const buildSiteDataBlobFromInput = (
-  input: Partial<BuiltSiteBlobInput>,
-): string => {
-  const blob = Object.fromEntries([
-    ["v", SITE_DATA_BLOB_VERSION],
-    ...builtSiteBlobColumns.flatMap((column) => {
-      const value = (input[column.siteKey as keyof BuiltSiteBlobInput] ??
-        column.defaultValue) as string | null;
-      return column.required || value ? [[column.blobKey, value]] : [];
-    }),
-  ]);
-  return siteDataJson.write(blob, "built_sites.site_data");
-};
-
-const blobToSiteFields = (blob: SiteDataBlob): BuiltSiteBlobFields =>
-  Object.fromEntries(
-    builtSiteBlobColumns.map((column) => [
-      column.siteKey,
-      column.required
-        ? blob[column.blobKey as keyof SiteDataBlob]
-        : (blob[column.blobKey as keyof SiteDataBlob] ?? column.defaultValue),
-    ]),
-  ) as BuiltSiteBlobFields;
-
-const mapPlainFields = <Key extends "dbKey" | "inputKey">(
-  input: Partial<BuiltSitePlainFields>,
-  key: Key,
-): Partial<Record<BuiltSitePlainColumn[Key], InValue>> =>
-  Object.fromEntries(
-    builtSitePlainColumns.flatMap((column) => {
-      if (!Object.hasOwn(input, column.siteKey)) return [];
-      const value = input[column.siteKey] as never;
-      return [[column[key], column.toInput(value)]];
-    }),
-  ) as Partial<Record<BuiltSitePlainColumn[Key], InValue>>;
-
 /** Build raw table input from site-shaped fields */
 const toRawInput = (
   input: Partial<BuiltSitePlainFields> & Partial<BuiltSiteBlobInput>,
 ): BuiltSiteInput => ({
-  ...(mapPlainFields(input, "inputKey") as Partial<BuiltSitePlainInput>),
+  ...plainSiteInput(input),
   siteData: buildSiteDataBlobFromInput(input),
 });
 
@@ -418,10 +73,6 @@ const toDbColumnValues = (
   ...mapPlainFields(input, "dbKey"),
   site_data: buildSiteDataBlobFromInput(input),
 });
-
-/** Parse a decrypted site data blob */
-export const parseSiteDataBlob = (json: string): SiteDataBlob =>
-  siteDataJson.read(json, "built_sites.site_data");
 
 /** Convert a raw DB row (after decryption) to a BuiltSite */
 const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
@@ -459,6 +110,47 @@ const queryAndDecrypt = async (sql: string): Promise<BuiltSite[]> => {
   return sites;
 };
 
+const findBuiltSiteById = async (id: InValue): Promise<BuiltSite | null> => {
+  const row = await rawBuiltSitesTable.findById(id);
+  return row ? rowToBuiltSite(row) : null;
+};
+
+export const findBuiltSiteByIdPrimary = async (
+  id: InValue,
+): Promise<BuiltSite | null> => {
+  const row = await rawBuiltSitesTable.findByIdPrimary!(id);
+  return row ? rowToBuiltSite(row) : null;
+};
+
+/** Update a whole built-site record without overwriting a concurrent blob write. */
+export const updateBuiltSite = (
+  id: InValue,
+  changesFor: (existing: BuiltSite) => BuiltSiteUpdate | null,
+): Promise<BuiltSite | null> => {
+  const updateStatement = rawBuiltSitesTable.updateStatement!;
+  return retryWrite(`Could not update built site ${String(id)}`, async () => {
+    const existing = await findBuiltSiteByIdPrimary(id);
+    if (!existing) return { value: null };
+    const changes = changesFor(existing);
+    if (!changes) return { value: existing };
+    const nextRevision = existing.siteDataRevision + 1;
+    const statement = await updateStatement(
+      id,
+      toRawInput({
+        ...existing,
+        ...changes,
+        siteDataRevision: nextRevision,
+      }),
+      { args: [existing.siteDataRevision], sql: "site_data_revision = ?" },
+    );
+    const stored = await queryOne<BuiltSiteRow>(statement.sql, statement.args);
+    if (stored) {
+      return { value: rowToBuiltSite(await rawBuiltSitesTable.fromDb(stored)) };
+    }
+    return null;
+  });
+};
+
 /**
  * CRUD-compatible table adapter that presents BuiltSite (with individual fields)
  * while storing data as an encrypted blob underneath.
@@ -469,11 +161,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
 
   findAll: (): Promise<BuiltSite[]> => builtSites.getAll(),
 
-  findById: async (id: InValue): Promise<BuiltSite | null> => {
-    const row = await rawBuiltSitesTable.findById(id);
-    if (!row) return null;
-    return rowToBuiltSite(row);
-  },
+  findById: findBuiltSiteById,
 
   findByIds: async (ids: InValue[]): Promise<(BuiltSite | null)[]> =>
     (await rawBuiltSitesTable.findByIds(ids)).map((row) =>
@@ -527,15 +215,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   update: async (
     id: InValue,
     input: Partial<BuiltSiteFormInput>,
-  ): Promise<BuiltSite | null> => {
-    const existing = await builtSitesCrudTable.findById(id);
-    if (!existing) return null;
-    const row = (await builtSites.table.update(
-      id,
-      toRawInput({ ...existing, ...input }),
-    )) as BuiltSiteRow;
-    return rowToBuiltSite(row);
-  },
+  ): Promise<BuiltSite | null> => updateBuiltSite(id, () => input),
 };
 
 /** Normalize a site's bunny URL to its absolute origin — scheme + host only,
@@ -551,41 +231,8 @@ export const siteBaseUrl = (siteUrl: string): string => {
   return new URL(withScheme).origin;
 };
 
-/**
- * Atomically claim the least-recently-poked built site and return its id and
- * bunny URL — the scheduler pokes it to trigger its prune. A single UPDATE picks
- * the row via its WHERE subquery and stamps `last_pruned` in the same statement,
- * so two overlapping cron pokes can't both grab the same site: SQLite serialises
- * the writes and the second claim sees the first's fresh stamp, stepping on to
- * the next site. `last_pruned` empty ('') sorts first, so never-poked sites go
- * before any dated one and the master walks every site in round-robin order.
- * The stamp lands before the caller pokes the site, so a slow or failing site
- * doesn't stall the rotation. Returns null when there are no built sites.
- */
-export const claimNextBuiltSiteForPrune = async (): Promise<{
-  id: number;
-  siteUrl: string;
-} | null> => {
-  const row = await queryOne<{
-    id: number;
-    site_data: EnvKeyEncrypted;
-  }>(
-    `UPDATE built_sites AS builtSite SET last_pruned = ?
-     WHERE builtSite.id = (
-       SELECT candidate.id FROM built_sites AS candidate
-       ORDER BY candidate.last_pruned ASC, candidate.id ASC
-       LIMIT 1
-     )
-     RETURNING id, site_data`,
-    [nowIso()],
-  );
-  if (!row) return null;
-  const siteUrl = parseSiteDataBlob(await decrypt(row.site_data)).u;
-  return { id: row.id, siteUrl };
-};
-
 /** Insert a new built site record */
-export const insertBuiltSite = (
+export const insertBuiltSite = async (
   name: string,
   siteUrl: string,
   dbUrl = "",
@@ -595,8 +242,9 @@ export const insertBuiltSite = (
   updates: UpdateTier = DEFAULT_UPDATE_TIER,
   hostingProvider: HostingProvider = "bunny",
   dbProvider: DbProvider = "bunny",
+  scheduledTaskKey: string | null = null,
 ): Promise<BuiltSiteRow> =>
-  builtSites.table.insert(
+  await builtSites.table.insert(
     toRawInput({
       assignable,
       dbProvider,
@@ -605,6 +253,7 @@ export const insertBuiltSite = (
       hostingId,
       hostingProvider,
       name,
+      scheduledTaskKey,
       siteUrl,
       updates,
     }),
@@ -630,28 +279,17 @@ export const hasAssignedBuiltSite = rowExistsForIdList(
        AND assigned_listing_id IN (${listingIdPlaceholders}) LIMIT 1`,
 );
 
-const withBuiltSiteForUpdate = async <T>(
-  siteId: number,
-  update: (existing: BuiltSite) => Promise<T>,
-): Promise<T | null> => {
-  const existing = await builtSitesCrudTable.findById(siteId);
-  return existing ? update(existing) : null;
-};
-
 /** Assign a built site to an attendee/listing — sets assignable=0 and stores IDs */
 export const assignBuiltSite = (
   siteId: number,
   attendeeId: number,
   listingId: number,
 ): Promise<BuiltSite | null> =>
-  withBuiltSiteForUpdate(siteId, async () => {
-    const row = (await builtSites.table.update(siteId, {
-      assignable: 0,
-      assignedAttendeeId: attendeeId,
-      assignedListingId: listingId,
-    })) as BuiltSiteRow;
-    return rowToBuiltSite(row);
-  });
+  updateBuiltSite(siteId, () => ({
+    assignable: false,
+    assignedAttendeeId: attendeeId,
+    assignedListingId: listingId,
+  }));
 
 /** Look up a built site by renewal token index (HMAC blind index) */
 export const getBuiltSiteByRenewalTokenIndex = async (
@@ -675,19 +313,12 @@ export const updateBuiltSiteRenewalState = (
     renewalToken?: string;
   },
 ): Promise<BuiltSite | null> =>
-  withBuiltSiteForUpdate(siteId, async (existing) => {
-    const token = updates.renewalToken ?? existing.renewalToken ?? undefined;
-    const row = (await builtSites.table.update(siteId, {
-      siteData: buildSiteDataBlobFromInput({
-        ...existing,
-        renewalToken: token,
-      }),
-      ...(updates.renewalTokenIndex !== undefined
-        ? { renewalTokenIndex: updates.renewalTokenIndex }
-        : {}),
-      ...(updates.readOnlyFrom !== undefined
-        ? { readOnlyFrom: updates.readOnlyFrom }
-        : {}),
-    })) as BuiltSiteRow;
-    return rowToBuiltSite(row);
-  });
+  updateBuiltSite(siteId, (existing) => ({
+    renewalToken: updates.renewalToken ?? existing.renewalToken,
+    ...(updates.renewalTokenIndex !== undefined
+      ? { renewalTokenIndex: updates.renewalTokenIndex }
+      : {}),
+    ...(updates.readOnlyFrom !== undefined
+      ? { readOnlyFrom: updates.readOnlyFrom }
+      : {}),
+  }));

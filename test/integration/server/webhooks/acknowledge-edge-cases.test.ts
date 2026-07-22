@@ -1,6 +1,7 @@
 // jscpd:ignore-start
-import { afterEach, it as test } from "@std/testing/bdd";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleItem, webhookMeta } from "#test-utils/factories.ts";
@@ -17,10 +18,6 @@ describeWithEnv(
   "server webhooks > acknowledging edge-case sessions",
   { db: true },
   () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
     test("acknowledges non-checkout listings", async () => {
       await setupStripe();
 
@@ -33,6 +30,9 @@ describeWithEnv(
 
     test("acknowledges webhook with unrecognized session metadata", async () => {
       await setupStripe();
+      using _retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve(null),
+      );
 
       // Returns 200 to prevent provider retries
       await expectWebhookIgnored(
@@ -40,6 +40,7 @@ describeWithEnv(
           amountTotal: 0,
           eventId: "evt_test",
           metadata: {}, // Missing required fields — not our session
+          paymentIntent: "pi_test",
           sessionId: "cs_test",
         }),
       );

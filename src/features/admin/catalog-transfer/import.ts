@@ -14,11 +14,14 @@
 import * as v from "valibot";
 import { identity, mapById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
-import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { generateUniqueGroupSlug } from "#routes/admin/groups.ts";
+import type {
+  GroupInput,
+  ListingInput,
+} from "#shared/catalog-fields/fields.ts";
+import { isBuilderEnabled } from "#shared/config.ts";
 import { writeRowInTransaction } from "#shared/db/client.ts";
 import {
-  type GroupInput,
+  generateUniqueGroupSlug,
   getGroupsById,
   groups,
   listingGroups,
@@ -34,7 +37,6 @@ import {
   listingsTable,
   requireListingsWithCountsByIds,
 } from "#shared/db/listings/records.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   childOnlyAddOnCheckerForListings,
   type ListingGroupMembership,
@@ -49,6 +51,7 @@ import {
 } from "#shared/db/name-registry.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  childAddOnError,
   type EdgeListing,
   edgeFieldError,
 } from "#shared/listing-parents-rules.ts";
@@ -71,7 +74,6 @@ import {
   type ListingWithCount,
   parseDayPrices,
 } from "#shared/types.ts";
-import { childAddOnError } from "../listings-parents.ts";
 import { type ImportedMembership, writeMembershipsTx } from "./membership.ts";
 import {
   CatalogTransferSchema,
@@ -484,9 +486,7 @@ const importGroup = async (
   }
 
   const { slug, slugIndex } = await generateUniqueGroupSlug();
-  // Cast bridges valibot's `T | undefined` optionals to GroupInput's exact
-  // optionals; members are written separately (not via GroupInput.packageMembers).
-  const input = { ...group, slug, slugIndex } as GroupInput;
+  const input: GroupInput = { ...group, slug, slugIndex };
   // Package overrides only apply to a package group; a non-package group clears
   // them (matching the normal group save).
   const isPackage = group.isPackage ?? false;

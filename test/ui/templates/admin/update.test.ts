@@ -1,15 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import type { AdminSession } from "#shared/types.ts";
 import { GITHUB_RELEASES_URL } from "#shared/update.ts";
 import {
   adminUpdatePage,
   type UpdatePageState,
 } from "#templates/admin/update.tsx";
-
-const SESSION: AdminSession = {
-  adminLevel: "owner",
-};
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 
 const baseState = (): UpdatePageState => ({
   buildCommit: "",
@@ -23,13 +19,13 @@ const baseState = (): UpdatePageState => ({
 describe("adminUpdatePage", () => {
   test("renders build commit when present", () => {
     const state = { ...baseState(), buildCommit: "abc123def456" };
-    const html = adminUpdatePage(SESSION, state);
+    const html = adminUpdatePage(OWNER_SESSION, state);
     expect(html).toContain("abc123def456");
     expect(html).toContain("<code>");
   });
 
   test("hides commit section when buildCommit is empty", () => {
-    const html = adminUpdatePage(SESSION, baseState());
+    const html = adminUpdatePage(OWNER_SESSION, baseState());
     expect(html).not.toContain("<code>");
   });
 
@@ -41,7 +37,7 @@ describe("adminUpdatePage", () => {
       providerConfigured: true,
       updateAvailable: true,
     };
-    const html = adminUpdatePage(SESSION, state);
+    const html = adminUpdatePage(OWNER_SESSION, state);
     expect(html).toContain("Update Now");
     expect(html).not.toContain("Cannot update automatically");
   });
@@ -54,7 +50,7 @@ describe("adminUpdatePage", () => {
       providerConfigured: false,
       updateAvailable: true,
     };
-    const html = adminUpdatePage(SESSION, state);
+    const html = adminUpdatePage(OWNER_SESSION, state);
     expect(html).toContain("Cannot update automatically");
     expect(html).not.toContain("Update Now");
   });
@@ -64,19 +60,19 @@ describe("adminUpdatePage", () => {
       ...baseState(),
       latestVersion: "v2026-01-01-000000",
     };
-    const html = adminUpdatePage(SESSION, state);
+    const html = adminUpdatePage(OWNER_SESSION, state);
     expect(html).toContain("No Update Available");
     expect(html).toContain("v2026-01-01-000000");
   });
 
   test("does not show update sections when no check performed", () => {
-    const html = adminUpdatePage(SESSION, baseState());
+    const html = adminUpdatePage(OWNER_SESSION, baseState());
     expect(html).not.toContain("No Update Available");
     expect(html).not.toContain("Update Available");
   });
 
   test("includes release notes link", () => {
-    const html = adminUpdatePage(SESSION, baseState());
+    const html = adminUpdatePage(OWNER_SESSION, baseState());
     expect(html).toContain(
       `<a href="${GITHUB_RELEASES_URL}">Read the release notes</a>`,
     );

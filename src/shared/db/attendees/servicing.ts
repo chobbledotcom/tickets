@@ -5,7 +5,7 @@ import { KIND } from "#shared/accounting/kinds.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import type { TransferEndpoints } from "#shared/accounting/rows.ts";
 import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
-import { capacityErrorFormatter } from "#shared/capacity-error.ts";
+import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -146,9 +146,8 @@ const assertServicingEditInput = servicingInputAsserter(false);
 
 /** Admin-facing message for a servicing event that couldn't hold every
  *  requested capacity slot — names the SPECIFIC listing(s) that were sold
- *  out instead of surfacing the bare "capacity_exceeded"/"encryption_error"
- *  reason string. */
-const formatServicingCapacityError = capacityErrorFormatter({
+ *  out instead of surfacing the bare "capacity_exceeded" reason string. */
+const formatServicingCapacityError = attendeeFailureFormatter({
   fallback: "Failed to save the service event. Please try again.",
   generic: "Not enough spots available.",
   withName: (name) => `Not enough spots available for: ${name}`,
@@ -270,12 +269,9 @@ export const createServicingEvent = async (
     normalizedCreateInput(input, name),
   );
   if (!createResult.success) {
-    const names =
-      createResult.reason === "capacity_exceeded"
-        ? await joinedListingNames(
-            unique(input.bookings.map((booking) => booking.listingId)),
-          )
-        : "";
+    const names = await joinedListingNames(
+      unique(input.bookings.map((booking) => booking.listingId)),
+    );
     throw new Error(formatServicingCapacityError(createResult.reason, names));
   }
   const id = createResult.attendees[0]!.id;

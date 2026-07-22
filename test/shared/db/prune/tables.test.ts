@@ -1,20 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
-import {
-  pruneAddressCache,
-  pruneContacts,
-  pruneLoginAttempts,
-  pruneOrphanAttendees,
-  pruneSessions,
-  pruneSumupCheckouts,
-  pruneTokenAttempts,
-  pruneUnusedStrings,
-} from "#shared/db/prune.ts";
+import { stub } from "@std/testing/mock";
+import { runDatabasePruning } from "#shared/db/prune.ts";
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  ADDRESS_CACHE_MS,
+  MAINTENANCE_PRUNE_BATCH,
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_SESSIONS_RETENTION_MS,
@@ -22,6 +13,7 @@ import {
   PRUNE_TOKENS_RETENTION_MS,
   PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
+import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -31,6 +23,7 @@ import {
   insertLoginAttempt,
   insertOrphanAttendee,
   insertString,
+  insertStrings,
   insertSumupCheckout,
   insertTokenAttempt,
   loginAttemptExists,
@@ -41,26 +34,47 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("db > table pruning", { db: true }, () => {
-  describe("pruneAddressCache", () => {
-    test("deletes only address rows older than retention", async () => {
-      await getDb().execute({
-        args: [
-          "old-address",
-          new Date(nowMs() - ADDRESS_CACHE_MS - 60_000).toISOString(),
-        ],
-        sql: "INSERT INTO address_cache (search_index, results, created) VALUES (?, 'encrypted', ?)",
-      });
-      await getDb().execute({
-        args: ["recent-address", new Date(nowMs() - 1_000).toISOString()],
-        sql: "INSERT INTO address_cache (search_index, results, created) VALUES (?, 'encrypted', ?)",
-      });
-
-      expect(await pruneAddressCache()).toBe(1);
-      const remaining = await getDb().execute(
-        "SELECT search_index FROM address_cache ORDER BY search_index",
-      );
-      expect(remaining.rows).toEqual([{ search_index: "recent-address" }]);
+  test("reports a drained pruning run", async () => {
+    expect(await runDatabasePruning()).toEqual({
+      checkpoint: null,
+      fullBatch: false,
     });
+  });
+
+  test("reports a full bounded batch when stale rows remain", async () => {
+    const old = new Date(
+      nowMs() - PRUNE_UNUSED_STRINGS_RETENTION_MS - 60_000,
+    ).toISOString();
+    await insertStrings("prune-backlog", old, MAINTENANCE_PRUNE_BATCH + 1);
+
+    const result = await runDatabasePruning();
+
+    expect(result).toEqual({ checkpoint: null, fullBatch: true });
+    expect(await stringExists(`prune-backlog-${MAINTENANCE_PRUNE_BATCH}`)).toBe(
+      true,
+    );
+  });
+
+  test("logs the exact total number of deleted rows", async () => {
+    setSuppressDebugLogs(false);
+    const debugStub = stub(console, "debug");
+    try {
+      const old = new Date(
+        nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertSumupCheckout("idx_only", old);
+
+      await runDatabasePruning();
+
+      const pruneLogs = debugStub.calls
+        .map((call) => String(call.args[0]))
+        .filter((line) => line.includes("[Prune]"));
+      expect(pruneLogs).toHaveLength(1);
+      expect(pruneLogs[0]).toMatch(/\[Prune\] deleted 1 expired rows$/);
+    } finally {
+      debugStub.restore();
+      setSuppressDebugLogs(null);
+    }
   });
 
   describe("pruneSumupCheckouts", () => {
@@ -70,7 +84,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       ).toISOString();
       await insertSumupCheckout("idx_old", old);
 
-      await pruneSumupCheckouts();
+      await runDatabasePruning();
 
       expect(await sumupCheckoutExists("idx_old")).toBe(false);
     });
@@ -79,7 +93,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const recent = new Date(nowMs() - 1000).toISOString();
       await insertSumupCheckout("idx_recent", recent);
 
-      await pruneSumupCheckouts();
+      await runDatabasePruning();
 
       expect(await sumupCheckoutExists("idx_recent")).toBe(true);
     });
@@ -92,7 +106,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       ).toISOString();
       await insertString("string_old_unused", old, 0);
 
-      await pruneUnusedStrings();
+      await runDatabasePruning();
 
       expect(await stringExists("string_old_unused")).toBe(false);
     });
@@ -101,7 +115,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const recent = new Date(nowMs() - 1000).toISOString();
       await insertString("string_recent_unused", recent, 0);
 
-      await pruneUnusedStrings();
+      await runDatabasePruning();
 
       expect(await stringExists("string_recent_unused")).toBe(true);
     });
@@ -112,7 +126,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       ).toISOString();
       await insertString("string_old_used", old, 1);
 
-      await pruneUnusedStrings();
+      await runDatabasePruning();
 
       expect(await stringExists("string_old_used")).toBe(true);
     });
@@ -123,7 +137,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const expiredMs = nowMs() - PRUNE_SESSIONS_RETENTION_MS - 60_000;
       await createSession("stale-tok", "csrf-stale", expiredMs, null, 1);
 
-      await pruneSessions();
+      await runDatabasePruning();
 
       const remaining = await getAllSessions();
       expect(remaining.map((session) => session.csrf_token)).not.toContain(
@@ -140,7 +154,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         1,
       );
 
-      await pruneSessions();
+      await runDatabasePruning();
 
       const remaining = await getAllSessions();
       expect(remaining.map((session) => session.csrf_token)).toContain(
@@ -157,7 +171,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         1,
       );
 
-      await pruneSessions();
+      await runDatabasePruning();
 
       const remaining = await getAllSessions();
       expect(remaining.map((session) => session.csrf_token)).toContain(
@@ -174,7 +188,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         nowMs() - PRUNE_LOGINS_RETENTION_MS - 60_000,
       );
 
-      await pruneLoginAttempts();
+      await runDatabasePruning();
 
       expect(await loginAttemptExists(ipHash)).toBe(false);
     });
@@ -182,7 +196,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
     test("keeps counter-only rows (locked_until IS NULL)", async () => {
       const ipHash = await insertLoginAttempt("5.6.7.8", 2, null);
 
-      await pruneLoginAttempts();
+      await runDatabasePruning();
 
       expect(await loginAttemptExists(ipHash)).toBe(true);
     });
@@ -194,7 +208,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         nowMs() + 60_000,
       );
 
-      await pruneLoginAttempts();
+      await runDatabasePruning();
 
       expect(await loginAttemptExists(ipHash)).toBe(true);
     });
@@ -205,7 +219,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const stale = nowMs() - PRUNE_TOKENS_RETENTION_MS - 60_000;
       const ipHash = await insertTokenAttempt("13.14.15.16", null, stale);
 
-      await pruneTokenAttempts();
+      await runDatabasePruning();
 
       expect(await tokenAttemptExists(ipHash)).toBe(false);
     });
@@ -213,7 +227,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
     test("keeps rows with a recent last_attempt", async () => {
       const ipHash = await insertTokenAttempt("17.18.19.20", null, nowMs());
 
-      await pruneTokenAttempts();
+      await runDatabasePruning();
 
       expect(await tokenAttemptExists(ipHash)).toBe(true);
     });
@@ -226,7 +240,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
         stale,
       );
 
-      await pruneTokenAttempts();
+      await runDatabasePruning();
 
       expect(await tokenAttemptExists(ipHash)).toBe(false);
     });
@@ -237,7 +251,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const stale = nowMs() - PRUNE_CONTACTS_RETENTION_MS - 60_000;
       await insertContactPreference("contact_old", 0, stale);
 
-      await pruneContacts();
+      await runDatabasePruning();
 
       expect(await contactPreferenceExists("contact_old")).toBe(false);
     });
@@ -245,7 +259,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
     test("keeps subscribed rows within the retention window", async () => {
       await insertContactPreference("contact_recent", 0, nowMs());
 
-      await pruneContacts();
+      await runDatabasePruning();
 
       expect(await contactPreferenceExists("contact_recent")).toBe(true);
     });
@@ -254,18 +268,27 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       const stale = nowMs() - PRUNE_CONTACTS_RETENTION_MS - 60_000;
       await insertContactPreference("contact_opt_out", 1, stale);
 
-      await pruneContacts();
+      await runDatabasePruning();
 
       expect(await contactPreferenceExists("contact_opt_out")).toBe(true);
     });
   });
 
   describe("pruneOrphanAttendees", () => {
+    test("keeps old orphans while automatic purging is off", async () => {
+      await settings.update.autoPurgeOrphans(false);
+      const id = await insertOrphanAttendee(oldOrphanIso());
+
+      await runDatabasePruning();
+
+      expect(await attendeeExists(id)).toBe(true);
+    });
+
     test("deletes orphans older than the configured retention", async () => {
       await settings.update.orphanPurgeRetention("182");
       const id = await insertOrphanAttendee(oldOrphanIso());
 
-      await pruneOrphanAttendees();
+      await runDatabasePruning();
 
       expect(await attendeeExists(id)).toBe(false);
     });
@@ -274,7 +297,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await settings.update.orphanPurgeRetention("1825");
       const id = await insertOrphanAttendee(oldOrphanIso());
 
-      await pruneOrphanAttendees();
+      await runDatabasePruning();
 
       expect(await attendeeExists(id)).toBe(true);
     });

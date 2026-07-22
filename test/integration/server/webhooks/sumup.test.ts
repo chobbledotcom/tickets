@@ -1,0 +1,193 @@
+// jscpd:ignore-start
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { getDb } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  setSumupCheckoutId,
+  storeSumupCheckout,
+} from "#shared/db/sumup-checkouts.ts";
+import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
+import { sumupApi } from "#shared/sumup.ts";
+import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
+
+// jscpd:ignore-end
+
+describeWithEnv("server webhooks > SumUp", { db: true }, () => {
+  /** Configure SumUp and stage a real checkout for the given listing:
+   * production assembleCheckoutMetadata output, encrypted store, id mapping. */
+  const stageSumupCheckout = async (listing: {
+    id: number;
+    name: string;
+    slug: string;
+  }) => {
+    await settings.update.paymentProvider("sumup");
+    await settings.update.sumup.apiKey("sk_test_x");
+    await settings.update.sumup.merchantCode("MC1");
+    setEffectiveDomainForTest("localhost");
+    const reference = crypto.randomUUID();
+    const intent: CheckoutIntent = {
+      address: "",
+      date: null,
+      email: "alice@example.com",
+      items: [
+        {
+          listingId: listing.id,
+          name: listing.name,
+          quantity: 1,
+          slug: listing.slug,
+          unitPrice: 1000,
+        },
+      ],
+      name: "Alice",
+      phone: "",
+      special_instructions: "",
+    };
+    // Price once and sign that total, exactly as production checkout does.
+    const metadata = await assembleCheckoutMetadata(
+      "sumup",
+      intent,
+      priceCheckout(intent).total,
+    );
+    await storeSumupCheckout(reference, metadata);
+    await setSumupCheckoutId(reference, "co_e2e");
+    const { stagePaymentCallback } = await import(
+      "#test-utils/staged-payments.ts"
+    );
+    await stagePaymentCallback({
+      amountTotal: 1000,
+      metadata,
+      paymentReference: "",
+      provider: "sumup",
+      providerCheckoutId: "co_e2e",
+      sessionId: reference,
+    });
+    return reference;
+  };
+
+  /** Unsigned SumUp webhook listing for the staged checkout. */
+  const sumupWebhookEvent = {
+    event_type: "CHECKOUT_STATUS_CHANGED",
+    id: "co_e2e",
+  };
+
+  /** Stub SumUp's checkout lookup for the staged `reference` with the given
+   *  outcome — the end-to-end and cancel-page tests share everything but the
+   *  status/transactionId. */
+  const stubRetrieveCheckoutById = (
+    reference: string,
+    status: "FAILED" | "PAID" | "PENDING",
+    transactionId: string,
+  ) =>
+    stub(sumupApi, "retrieveCheckoutById", () =>
+      Promise.resolve({ amountMinor: 1000, reference, status, transactionId }),
+    );
+
+  test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    const restore = stubRetrieveCheckoutById(reference, "PAID", "txn_e2e");
+    try {
+      const response = await handleRequest(
+        mockWebhookRequest(sumupWebhookEvent),
+      );
+      expect(response.status).toBe(200);
+      expect((await response.json()).processed).toBe(true);
+
+      // A retried webhook resolves to the already-created attendee
+      const retry = await handleRequest(mockWebhookRequest(sumupWebhookEvent));
+      expect((await retry.json()).processed).toBe(true);
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("acknowledges unknown SumUp checkout ids without fetching from the API", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    await stageSumupCheckout(listing);
+    const fetchStub = stub(sumupApi, "retrieveCheckoutById", () =>
+      Promise.resolve(null),
+    );
+    try {
+      const response = await handleRequest(
+        mockWebhookRequest({
+          event_type: "CHECKOUT_STATUS_CHANGED",
+          id: "co_spam",
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect((await response.json()).received).toBe(true);
+      expect(fetchStub.calls.length).toBe(0);
+    } finally {
+      fetchStub.restore();
+    }
+  });
+
+  test("shows the cancel page when a SumUp payment fails", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    const restore = stubRetrieveCheckoutById(reference, "FAILED", "");
+    try {
+      const response = await handleRequest(
+        mockRequest(`/payment/success?session_id=${reference}`),
+      );
+      await expectHtmlResponse(response, 200, "Payment Cancelled");
+    } finally {
+      restore.restore();
+    }
+  });
+
+  test("purges a failed staged checkout from an authoritative webhook", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    const retrieve = stubRetrieveCheckoutById(reference, "FAILED", "");
+    const close = stub(sumupApi, "closeCheckoutById", () =>
+      Promise.resolve("closed" as const),
+    );
+    try {
+      const response = await handleRequest(
+        mockWebhookRequest(sumupWebhookEvent),
+      );
+      expect(await response.json()).toMatchObject({ status: "closed" });
+      expect(close.calls.length).toBe(1);
+      const stage = await getDb().execute({
+        args: [reference],
+        sql: "SELECT 1 FROM checkout_stages WHERE payment_session_id = ?",
+      });
+      expect(stage.rows).toEqual([]);
+    } finally {
+      retrieve.restore();
+      close.restore();
+    }
+  });
+
+  test("keeps a pending staged checkout from an ambiguous webhook", async () => {
+    const listing = await createTestListing({ unitPrice: 1000 });
+    const reference = await stageSumupCheckout(listing);
+    const retrieve = stubRetrieveCheckoutById(reference, "PENDING", "");
+    const close = stub(sumupApi, "closeCheckoutById");
+    try {
+      const response = await handleRequest(
+        mockWebhookRequest(sumupWebhookEvent),
+      );
+      expect(await response.json()).toMatchObject({ status: "pending" });
+      expect(close.calls.length).toBe(0);
+      const stage = await getDb().execute({
+        args: [reference],
+        sql: "SELECT 1 FROM checkout_stages WHERE payment_session_id = ?",
+      });
+      expect(stage.rows.length).toBe(1);
+    } finally {
+      retrieve.restore();
+      close.restore();
+    }
+  });
+});

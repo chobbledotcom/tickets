@@ -13,6 +13,7 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
     expect(BOOT_CHECKS.map((check) => check.name)).toEqual([
       "DB_ENCRYPTION_KEY",
       "MAIN_INSTANCE_KEY",
+      "SCHEDULED_TASK_KEY",
     ]);
   });
 
@@ -65,6 +66,13 @@ describeWithEnv("boot checks", { encryptionKey: true }, () => {
     using _env = withEnv({ MAIN_INSTANCE_KEY: "short-key" });
     expect(() => validateBootChecks()).toThrow(
       "MAIN_INSTANCE_KEY must be at least 32 bytes when set, got 9 bytes",
+    );
+  });
+
+  test("runs scheduled key validation during boot checks", () => {
+    using _env = withEnv({ SCHEDULED_TASK_KEY: "invalid" });
+    expect(() => validateBootChecks()).toThrow(
+      "SCHEDULED_TASK_KEY must be canonical unpadded base64url for exactly 32 bytes",
     );
   });
 });

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { buildTicketListing } from "#shared/booking/model.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
@@ -7,6 +7,7 @@ import { detectIframeMode } from "#shared/iframe.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { fieldsApi } from "#templates/fields/ticket.ts";
 import { ticketPage } from "#templates/public/reservations/ticket-page.tsx";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { hasInputWithValue } from "#test-utils/csrf.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import {
@@ -16,6 +17,7 @@ import {
 } from "./helpers.ts";
 
 describe("ticketPage (single listing)", () => {
+  beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
   const listing = testListingWithCount({ attendee_count: 50 });

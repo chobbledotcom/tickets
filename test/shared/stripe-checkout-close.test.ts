@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
@@ -27,7 +28,7 @@ describe("Stripe hosted checkout closing", () => {
     };
     return withMocks(
       () =>
-        stub(stripeApi, "getStripeClient", () =>
+        stub(stripeClientRuntime, "get", () =>
           Promise.resolve(client as never),
         ),
       () =>
@@ -179,7 +180,7 @@ describe("Stripe hosted checkout closing", () => {
 
   test("throws when Stripe is not configured", () =>
     withMocks(
-      () => stub(stripeApi, "getStripeClient", () => Promise.resolve(null)),
+      () => stub(stripeClientRuntime, "get", () => Promise.resolve(null)),
       async () => {
         await expect(stripeApi.closeCheckoutSession("cs_none")).rejects.toThrow(
           "No Stripe client configured",

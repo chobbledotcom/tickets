@@ -26,6 +26,9 @@ const BUILD_INPUT = {
   siteName: "Test",
 } as const;
 
+const buildSite = (input: Parameters<typeof builderApi.buildSite>[0]) =>
+  builderApi.buildSite(input, () => Promise.resolve());
+
 type Restorable = { restore(): void };
 
 /** Each error path: install mocks, call buildSite, expect a matching failure. */
@@ -122,6 +125,7 @@ describeWithEnv(
     db: true,
     env: {
       ADMIN_EMAIL_ADDRESS: "admin@example.com",
+      DENO_DEPLOY_ORG_SLUG: "test-org",
       NTFY_URL: "https://ntfy.example.com/test",
       SENTRY_URL: "https://k@bugs.example.com/2",
     },
@@ -152,7 +156,7 @@ describeWithEnv(
     for (const { name, mocks, input, error } of ERROR_CASES) {
       test(name, async () => {
         await withMocks(mocks, async () => {
-          const result = await builderApi.buildSite(input);
+          const result = await buildSite(input);
           expectBuildError(result, error);
         });
       });
@@ -160,7 +164,7 @@ describeWithEnv(
 
     test("buildSite copies host secrets when env vars are set", () =>
       withBuildSiteMocks(async ({ secretStub }) => {
-        const result = await builderApi.buildSite(BUILD_INPUT);
+        const result = await buildSite(BUILD_INPUT);
         expect(result.ok).toBe(true);
 
         const secretsSet = secretsFrom(secretStub);
@@ -172,7 +176,7 @@ describeWithEnv(
     test("buildSite succeeds with all steps", () =>
       withBuildSiteMocks(
         async ({ createStub, updatePzStub, publishStub, secretStub }) => {
-          const result = await builderApi.buildSite({
+          const result = await buildSite({
             ...BUILD_INPUT,
             siteName: "My Site",
           });
@@ -208,7 +212,7 @@ describeWithEnv(
 
     test("buildSite auto-creates database when dbUrl is not provided", () =>
       withBuildSiteMocks(async ({ createDbStub, secretStub }) => {
-        const result = await builderApi.buildSite({ siteName: "Auto Site" });
+        const result = await buildSite({ siteName: "Auto Site" });
 
         expect(result.ok).toBe(true);
         expect(createDbStub.calls.length).toBe(1);
@@ -226,7 +230,7 @@ describeWithEnv(
 
     test("buildSite uses provided dbUrl and dbToken without calling createDatabase", () =>
       withBuildSiteMocks(async ({ createDbStub }) => {
-        await builderApi.buildSite({
+        await buildSite({
           dbToken: "provided-token",
           dbUrl: "libsql://provided.io",
           siteName: "Provided",
@@ -236,7 +240,7 @@ describeWithEnv(
 
     test("buildSite uses provided code without fetching from GitHub", () =>
       withBuildSiteMocks(async ({ createStub, fetchStub }) => {
-        const result = await builderApi.buildSite({
+        const result = await buildSite({
           code: "console.log('local-bundle')",
           siteName: "Local",
         });
@@ -251,7 +255,7 @@ describeWithEnv(
 
     test("buildSite uses empty string dbToken when dbUrl provided without dbToken", () =>
       withBuildSiteMocks(async ({ createDbStub, secretStub }) => {
-        await builderApi.buildSite({
+        await buildSite({
           dbUrl: "libsql://provided.io",
           siteName: "NoToken",
         });
@@ -263,7 +267,7 @@ describeWithEnv(
       withMocks(
         () => stubDenoBuilderApis(),
         async ({ deployStub }) => {
-          const result = await builderApi.buildSite({
+          const result = await buildSite({
             dbToken: "tok",
             dbUrl: "libsql://test.turso.io",
             hostingProvider: "deno",
@@ -274,7 +278,7 @@ describeWithEnv(
             expect(result.hostingProvider).toBe("deno");
             expect(result.hostingId).toBe("app_abc123");
             expect(result.defaultHostname).toBe(
-              "https://tickets-test.deno.dev",
+              "https://tickets-test.test-org.deno.net",
             );
           }
           expect(deployStub.calls).toHaveLength(1);
@@ -323,7 +327,7 @@ describeWithEnv(
     for (const { name, mocks, error } of DENO_ERROR_CASES) {
       test(name, () =>
         withMocks(mocks, async () => {
-          const result = await builderApi.buildSite({
+          const result = await buildSite({
             dbToken: "tok",
             dbUrl: "libsql://test.io",
             hostingProvider: "deno",
@@ -389,7 +393,7 @@ describeWithEnv(
           ),
         }),
         async ({ tursoStub }) => {
-          const result = await builderApi.buildSite({
+          const result = await buildSite({
             dbProvider: "turso",
             siteName: "Turso Auto",
           });
@@ -411,7 +415,7 @@ describeWithEnv(
       await withMocks(
         () => stubDenoBuilderApis(),
         async ({ setEnvStub }) => {
-          const result = await builderApi.buildSite({
+          const result = await buildSite({
             dbToken: "tok",
             dbUrl: "libsql://test.turso.io",
             hostingProvider: "deno",

@@ -79,12 +79,9 @@
   "debug.field.effective_domain": "Effective domain",
   "debug.field.schema_status": "Schema status",
   "debug.field.schema_hash": "Schema hash",
-  "debug.field.table": "Table",
-  "debug.field.last_pruned_utc": "Last pruned (UTC)",
   "debug.section.runtime": "Runtime",
   "debug.section.site": "Site",
   "debug.section.availability": "Availability",
   "debug.section.bunny": "Bunny",
-  "debug.section.database_pruning": "Database pruning",
   "debug.section.database_domain": "Database & Domain"
 }

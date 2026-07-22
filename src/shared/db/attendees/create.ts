@@ -128,12 +128,6 @@ const prepareAttendeeWrite = async (
     },
     input.ticketToken ?? generateTicketToken(),
   );
-  if (!enc) {
-    return {
-      failure: { reason: "encryption_error", success: false },
-      ok: false,
-    };
-  }
 
   const bookingStatements = bookings.map((booking) => {
     const statement = buildCapacityCheckedInsert(

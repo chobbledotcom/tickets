@@ -5,38 +5,32 @@
  * provider-agnostic PaymentProvider contract.
  */
 
-import { asString } from "#fp";
+import * as v from "valibot";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
   validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
-import {
-  isPaymentStatus,
-  type PaymentProvider,
-  type PaymentRefundResult,
-  type PaymentStatus,
-  type ValidatedPaymentSession,
-  type WebhookEvent,
-  type WebhookSessionResolution,
-  type WebhookVerifyResult,
+import type {
+  PaymentProvider,
+  PaymentRefundResult,
+  PaymentStatus,
+  ValidatedPaymentSession,
+  WebhookEvent,
+  WebhookSessionResolution,
+  WebhookVerifyResult,
 } from "#shared/payments.ts";
 import {
-  closeCheckoutSession,
-  createCheckoutSession,
+  type StripeCheckoutSession,
+  StripeCheckoutSessionSchema,
+} from "#shared/stripe/schemas.ts";
+import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
+import {
   isoFromUnixSeconds,
-  retrieveCheckoutSession,
-  retrievePaymentIntent,
-  STRIPE_CHECKOUT_WEBHOOK_EVENTS,
-  setupWebhookEndpoint,
-  refundPayment as stripeRefund,
-  verifyWebhookSignature,
+  type StripeApi,
+  stripeApi,
 } from "#shared/stripe.ts";
-
-/** Stripe's payment_status string, or "unpaid" when it isn't one we know. */
-const toPaymentStatus = (status: string): PaymentStatus =>
-  isPaymentStatus(status) ? status : "unpaid";
 
 /** A paid Stripe checkout must identify the payment that can be refunded. */
 const hasExpectedPaymentReference = (
@@ -52,10 +46,31 @@ const hasExpectedPaymentReference = (
   return false;
 };
 
+const toValidatedSession = (
+  session: StripeCheckoutSession,
+): ValidatedPaymentSession | null => {
+  const { amount_total, id, metadata, payment_intent, payment_status } =
+    session;
+  if (!hasRequiredSessionMetadata(metadata) || amount_total === null)
+    return null;
+  const paymentReference = payment_intent ?? "";
+  if (!hasExpectedPaymentReference(id, payment_status, paymentReference)) {
+    return null;
+  }
+  return validatedPaymentSession({
+    amountTotal: amount_total,
+    createdAt: isoFromUnixSeconds(session.created),
+    id,
+    metadata,
+    paymentReference,
+    paymentStatus: payment_status,
+  });
+};
+
 /** Stripe's checkout-session builder (see {@link makeCreateCheckoutSession}). */
 const createStripeCheckoutSession = makeCreateCheckoutSession(
   "Stripe",
-  createCheckoutSession,
+  (...args) => stripeApi.createCheckoutSession(...args),
   (session) => ({
     id: session?.id,
     providerCheckoutId: session?.id,
@@ -65,18 +80,21 @@ const createStripeCheckoutSession = makeCreateCheckoutSession(
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
-  checkoutWebhookEvents: STRIPE_CHECKOUT_WEBHOOK_EVENTS,
+  checkoutWebhookEvents: {
+    completed: "checkout.session.completed",
+    expired: "checkout.session.expired",
+  },
   closeCheckout: ({ providerCheckoutId }) =>
-    closeCheckoutSession(providerCheckoutId),
+    stripeApi.closeCheckoutSession(providerCheckoutId),
   createCheckoutSession: createStripeCheckoutSession,
 
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    const intent = await retrievePaymentIntent(paymentReference);
-    return intent?.latest_charge?.refunded ?? false;
+    const intent = await stripeApi.retrievePaymentIntent(paymentReference);
+    return intent?.latest_charge?.refunded === true;
   },
 
   async refundPayment(paymentReference: string): Promise<PaymentRefundResult> {
-    const result = await stripeRefund(paymentReference);
+    const result = await stripeApi.refundPayment(paymentReference);
     if (result?.status === "succeeded") return "refunded";
     return result?.status === "pending" || result?.status === "requires_action"
       ? "pending"
@@ -84,83 +102,31 @@ export const stripePaymentProvider: PaymentProvider = {
   },
   requiresWebhookSignature: true,
 
-  resolveWebhookSession({
+  async resolveWebhookSession({
     data: { object: obj },
   }: WebhookEvent): Promise<WebhookSessionResolution> {
-    const metadata = obj.metadata as
-      | Record<string, string | undefined>
-      | undefined;
+    const id = obj.id;
+    if (typeof id !== "string" || id.length === 0) return null;
 
-    const id = asString(obj.id);
-    const paymentStatus = asString(obj.payment_status);
-    const amountTotal = obj.amount_total;
-
-    // Stripe includes the full session in the listing — extract directly
-    if (
-      id &&
-      paymentStatus &&
-      typeof amountTotal === "number" &&
-      hasRequiredSessionMetadata(metadata)
-    ) {
-      const normalizedStatus = toPaymentStatus(paymentStatus);
-      const paymentReference = asString(obj.payment_intent);
-      if (
-        !hasExpectedPaymentReference(id, normalizedStatus, paymentReference)
-      ) {
-        return Promise.resolve("retry");
-      }
-      return Promise.resolve(
-        validatedPaymentSession({
-          amountTotal,
-          createdAt: isoFromUnixSeconds(obj.created),
-          id,
-          metadata,
-          paymentReference,
-          paymentStatus: normalizedStatus,
-        }),
-      );
+    const session = v.parse(StripeCheckoutSessionSchema, obj);
+    if (session.payment_status === "paid" && !session.payment_intent) {
+      hasExpectedPaymentReference(session.id, "paid", "");
+      return "retry";
     }
-
-    // Fallback: retrieve session by ID from listing data
-    if (id) {
-      return this.retrieveSession(id);
-    }
-
-    return Promise.resolve(null);
+    const validated = toValidatedSession(session);
+    return validated === null ? await this.retrieveSession(id) : validated;
   },
 
   async retrieveSession(
     sessionId: string,
   ): Promise<ValidatedPaymentSession | null> {
-    const session = await retrieveCheckoutSession(sessionId);
+    const session = await stripeApi.retrieveCheckoutSession(sessionId);
     if (!session) return null;
-
-    const { id, payment_status, payment_intent, metadata, amount_total } =
-      session;
-
-    if (!hasRequiredSessionMetadata(metadata)) {
-      return null;
-    }
-
-    if (amount_total === null) return null;
-
-    const paymentStatus = toPaymentStatus(payment_status);
-    const paymentReference = payment_intent ?? "";
-    if (!hasExpectedPaymentReference(id, paymentStatus, paymentReference)) {
-      return null;
-    }
-    return validatedPaymentSession({
-      amountTotal: amount_total,
-      createdAt: isoFromUnixSeconds(session.created),
-      id,
-      metadata,
-      paymentReference,
-      paymentStatus,
-    });
+    return toValidatedSession(session);
   },
 
-  setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
-    return setupWebhookEndpoint(...args);
+  setupWebhookEndpoint(...args: Parameters<StripeApi["setupWebhookEndpoint"]>) {
+    return stripeApi.setupWebhookEndpoint(...args);
   },
   type: "stripe",
 

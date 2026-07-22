@@ -310,7 +310,7 @@ describeWithEnv("staged checkout", { db: true }, () => {
       Promise.resolve("closed" as const),
     );
     const stage = stub(attendeesApi, "createStagedCheckoutAtomic", () =>
-      Promise.resolve({ reason: "encryption_error" as const, success: false }),
+      Promise.resolve({ reason: "capacity_exceeded" as const, success: false }),
     );
     try {
       expect(await checkout.run()).toEqual({ type: "checkout_failed" });

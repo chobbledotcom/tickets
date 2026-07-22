@@ -1,11 +1,8 @@
-import { expect } from "@std/expect";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb, insert } from "#shared/db/client.ts";
-import { maybeRunPrunes } from "#shared/db/prune.ts";
-import { settings } from "#shared/db/settings.ts";
+import { executeBatch, getDb, insert } from "#shared/db/client.ts";
 import { nowMs } from "#shared/now.ts";
 
 export const insertFinalizedPayment = async (
@@ -112,6 +109,22 @@ export const insertString = async (
   );
 };
 
+export const insertStrings = (
+  prefix: string,
+  created: string,
+  count: number,
+): Promise<void> =>
+  executeBatch(
+    Array.from({ length: count }, (_, index) =>
+      insert("strings", {
+        created,
+        encrypted_text: "ciphertext",
+        text_index: `${prefix}-${index}`,
+        used_count: 0,
+      }),
+    ),
+  );
+
 export const stringExists = async (textIndex: string): Promise<boolean> => {
   const { rows } = await getDb().execute({
     args: [textIndex],
@@ -206,37 +219,3 @@ export const attendeeExists = async (id: number): Promise<boolean> => {
 
 export const oldOrphanIso = (): string =>
   new Date(nowMs() - 365 * 24 * 60 * 60 * 1000).toISOString();
-
-/** Every last-pruned stamp the scheduler tracks, one setter per table. */
-const LAST_PRUNED_SETTERS = [
-  settings.update.lastPrunedPayments,
-  settings.update.lastPrunedSessions,
-  settings.update.lastPrunedLogins,
-  settings.update.lastPrunedTokens,
-  settings.update.lastPrunedSumup,
-  settings.update.lastPrunedStrings,
-  settings.update.lastPrunedContacts,
-  settings.update.lastPrunedAddresses,
-  settings.update.lastPrunedInvites,
-  settings.update.lastPrunedOrphans,
-];
-
-export const setAllLastPruned = async (value: string): Promise<void> => {
-  for (const setStamp of LAST_PRUNED_SETTERS) {
-    await setStamp(value);
-  }
-};
-
-export const clearAllLastPruned = (): Promise<void> => setAllLastPruned("");
-
-export const expectFreshPrunedTimestampAfterRun = async (
-  getLastPruned: () => string,
-): Promise<void> => {
-  const before = nowMs();
-
-  await maybeRunPrunes();
-
-  const ts = Number.parseInt(getLastPruned(), 10);
-  expect(ts).toBeGreaterThanOrEqual(before);
-  expect(ts).toBeLessThanOrEqual(nowMs());
-};

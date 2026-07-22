@@ -5,6 +5,10 @@ import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import type { Listing } from "#shared/types.ts";
 import { renderChildBlock } from "#templates/public/reservations/child-block.ts";
+import {
+  selectOptionsFromHtml,
+  selectOptionsHtml,
+} from "#test/lib/server-parents-gate/helpers.ts";
 import { ticketListing } from "#test/templates/public/helpers.ts";
 import { followRedirectWithFlash } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
@@ -21,10 +25,6 @@ import {
   makeTwoDefaultChildren,
   parentField,
 } from "#test-utils/parents.ts";
-import {
-  selectOptionsFromHtml,
-  selectOptionsHtml,
-} from "../../../../lib/server-parents-gate/helpers.ts";
 
 // jscpd:ignore-end
 

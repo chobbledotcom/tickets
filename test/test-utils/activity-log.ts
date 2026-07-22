@@ -16,6 +16,7 @@
  * path, should import the real readers from `#shared/db/activityLog.ts`.
  */
 
+import { encrypt } from "#shared/crypto/encryption.ts";
 import type {
   ActivityLogEntry,
   ListingWithActivityLog,
@@ -26,9 +27,32 @@ import {
   getListingActivityLog as realGetListingActivityLog,
   getListingWithActivityLogOrNull as realGetListingWithActivityLogOrNull,
 } from "#shared/db/activityLog.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
+import { nowIso } from "#shared/now.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 export { logActivity } from "#shared/db/activityLog.ts";
+
+/** Insert a row encrypted with DB_ENCRYPTION_KEY (the pre-migration format). */
+export const insertLegacyActivity = async (
+  message: string,
+): Promise<number> => {
+  const result = await execute(
+    "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
+    [await encrypt(message), nowIso()],
+  );
+  return Number(result.lastInsertRowid);
+};
+
+/** Raw (still-encrypted) stored message for an activity-log row. */
+export const rawActivityMessage = async (id: number): Promise<string> => {
+  const row = await queryOne<{ message: string }>(
+    "SELECT message FROM activity_log WHERE id = ?",
+    [id],
+  );
+  if (!row) throw new Error(`Activity log entry not found: ${id}`);
+  return row.message;
+};
 
 export const getAllActivityLog = (
   limit?: number,

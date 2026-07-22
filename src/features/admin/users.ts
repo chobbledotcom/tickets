@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 
 import { fieldById } from "#fp";
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin user management routes - owner only
  */
@@ -393,15 +393,17 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
 });
 
 /** User management routes */
-export const adminHandlers = handlersFor("users")({
-  getUserNew: handleUserNewGet,
-  getUsers: handleUsersGet,
-  getUsersById: handleUserManageGet,
-  getUsersByIdAgents: handleUserAgentsGet,
-  getUsersByIdByTab: (request, { id, tab }) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/user/new": handleUserNewGet,
+  "GET /admin/users": handleUsersGet,
+  "GET /admin/users/:id": handleUserManageGet,
+  "GET /admin/users/:id/:tab": (request, { id, tab }) =>
     userPage.renderTab(request, id, tab),
-  getUsersByIdDelete: (request, { id }) => userDelete.get(request, id),
-  postUsers: handleUsersPost,
-  postUsersByIdAgents: handleUserAgentsPost,
-  postUsersByIdDelete: (request, { id }) => userDelete.post(request, id),
+  "GET /admin/users/:id/agents": handleUserAgentsGet,
+  "GET /admin/users/:id/delete": (request, { id }) =>
+    userDelete.get(request, id),
+  "POST /admin/users": handleUsersPost,
+  "POST /admin/users/:id/agents": handleUserAgentsPost,
+  "POST /admin/users/:id/delete": (request, { id }) =>
+    userDelete.post(request, id),
 });

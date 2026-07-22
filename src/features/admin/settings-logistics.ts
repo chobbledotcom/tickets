@@ -1,6 +1,7 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+
 import { ownerFormById } from "#routes/entity.ts";
+import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-end */
 /**
  * Admin logistics settings + logistics-agent management — owner only.
@@ -107,15 +108,15 @@ const handleAgentEditPost: IdRouteHandler = ownerFormById(
 );
 
 /** Logistics settings + agent routes. */
-export const adminHandlers = handlersFor("settingsLogistics")({
-  getLogistics: crud.listGet,
-  getLogisticsById: (request, { id }) =>
+export const adminHandlers = defineRoutes({
+  "GET /admin/logistics": crud.listGet,
+  "GET /admin/logistics/:id": (request, { id }) =>
     logisticsAgentPage.renderTab(request, id, ""),
-  getLogisticsByIdByTab: (request, { id, tab }) =>
+  "GET /admin/logistics/:id/:tab": (request, { id, tab }) =>
     logisticsAgentPage.renderTab(request, id, tab),
-  getLogisticsByIdDelete: crud.deleteGet,
-  getLogisticsNew: crud.newGet,
-  postLogistics: crud.createPost,
-  postLogisticsByIdDelete: crud.deletePost,
-  postLogisticsByIdEdit: handleAgentEditPost,
+  "GET /admin/logistics/:id/delete": crud.deleteGet,
+  "GET /admin/logistics/new": crud.newGet,
+  "POST /admin/logistics": crud.createPost,
+  "POST /admin/logistics/:id/delete": crud.deletePost,
+  "POST /admin/logistics/:id/edit": handleAgentEditPost,
 });

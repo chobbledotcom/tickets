@@ -20,8 +20,8 @@ export type RetryContext = {
  * retries are exhausted and `onError` did not throw, the last error is rethrown
  * unchanged.
  *
- * Shared by the database write-lock retry ({@link retryOnDatabaseLock}) and the
- * migration verify retry ({@link verifyMigrationWithRetry}).
+ * Shared by the database transient-failure retry ({@link retryOnTransientDatabaseError})
+ * and the migration verify retry ({@link verifyMigrationWithRetry}).
  */
 export const retryWithBackoff = <T>(
   fn: () => Promise<T>,

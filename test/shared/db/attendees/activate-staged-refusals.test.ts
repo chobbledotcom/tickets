@@ -8,7 +8,6 @@ import {
 } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -192,21 +191,6 @@ describeWithEnv(
           missing.plan,
         ),
       ).toEqual({ reason: "capacity_exceeded", success: false });
-    });
-
-    test("fails loudly when attendee encryption is unavailable", async () => {
-      const listing = await createTestListing();
-      const setup = await setupActivationStage("activate_encryption", [
-        activationBooking(listing.id),
-      ]);
-      await getDb().execute("DELETE FROM settings WHERE key = ?", [
-        CONFIG_KEYS.PUBLIC_KEY,
-      ]);
-      settings.invalidateCache();
-
-      await expect(
-        activateStagedAttendee(setup.stage, setup.input, setup.plan),
-      ).rejects.toThrow("Could not encrypt staged attendee");
     });
 
     test("propagates an unexpected write failure and rolls back", async () => {

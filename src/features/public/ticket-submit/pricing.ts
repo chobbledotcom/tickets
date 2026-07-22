@@ -6,6 +6,8 @@
  * passes judge modifiers identically.
  */
 
+import type { AnswerInfo, extractContact } from "#routes/public/ticket-form.ts";
+import type { TicketCtx } from "#routes/public/types.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import {
   buyerVisits,
@@ -16,8 +18,6 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent, CheckoutItem } from "#shared/payments.ts";
 import type { TicketFormValues } from "#templates/fields/ticket.ts";
-import type { AnswerInfo, extractContact } from "../ticket-form.ts";
-import type { TicketCtx } from "../types.ts";
 import { computeListingAnswerMap, validateTicketFields } from "./parse.ts";
 export const emptyContact = {
   address: "",

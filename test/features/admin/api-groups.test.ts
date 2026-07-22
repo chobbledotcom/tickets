@@ -230,6 +230,19 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
     });
 
+    test("creates a group with an explicit zero capacity", async () => {
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: { max_attendees: 0, name: "Unlimited Group" },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.group.max_attendees).toBe(0);
+        },
+      );
+    });
+
     test("creates group without description defaults to empty string", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
@@ -268,6 +281,28 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
           expect(body.group.hidden).toBe(false);
         },
       );
+    });
+
+    test("rejects malformed catalog fields", async () => {
+      for (const { body, field } of [
+        {
+          body: { max_attendees: "10", name: "Bad capacity type" },
+          field: "max_attendees",
+        },
+        {
+          body: { max_attendees: -1, name: "Bad capacity value" },
+          field: "max_attendees",
+        },
+        { body: { hidden: "true", name: "Bad visibility" }, field: "hidden" },
+      ]) {
+        await assertJson(
+          apiRequest("/api/admin/groups", { body, method: "POST" }),
+          400,
+          (response) => {
+            expect(response.error).toBe(`${field} has an invalid value`);
+          },
+        );
+      }
     });
 
     test("returns error when name is missing", async () => {
@@ -445,6 +480,23 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
     });
 
+    test("rejects a malformed catalog field without changing the group", async () => {
+      const group = await createTestGroup({ maxAttendees: 12 });
+
+      await assertJson(
+        apiRequest(`/api/admin/groups/${group.id}`, {
+          body: { max_attendees: "20" },
+          method: "PUT",
+        }),
+        400,
+        (body) => {
+          expect(body.error).toBe("max_attendees has an invalid value");
+        },
+      );
+
+      expect((await groups.table.findById(group.id))?.max_attendees).toBe(12);
+    });
+
     test("returns 404 for non-existent group", async () => {
       await assertJson(
         apiRequest("/api/admin/groups/99999", {
@@ -599,19 +651,19 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
     });
 
-    test("POST rejects a malformed package member", async () => {
+    test("POST rejects package_members that is not an array", async () => {
       await assertJson(
         apiRequest("/api/admin/groups", {
           body: {
             is_package: true,
             name: "BadCreate",
-            package_members: [null],
+            package_members: {},
           },
           method: "POST",
         }),
         400,
         (body) => {
-          expect(body.error).toContain("package_members");
+          expect(body.error).toBe("package_members must be an array");
         },
       );
     });
@@ -663,14 +715,14 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       const { group, listing } = await groupWithMember("RoundTrip");
       await putGroup(group.id, {
         is_package: true,
-        package_members: [{ listing_id: listing.id, price: 1234, quantity: 2 }],
+        package_members: [{ listing_id: listing.id, price: 0, quantity: 2 }],
       });
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`),
         200,
         (body) => {
           expect(body.group.package_members).toEqual([
-            { listing_id: listing.id, price: 1234, quantity: 2 },
+            { listing_id: listing.id, price: 0, quantity: 2 },
           ]);
         },
       );
@@ -685,7 +737,11 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         putGroup(group.id, {
           is_package: true,
           package_members: [
-            { day_prices: { "2": 1500 }, listing_id: listing.id, price: null },
+            {
+              day_prices: { "2": 1500, "3": 0 },
+              listing_id: listing.id,
+              price: null,
+            },
           ],
         }),
         200,
@@ -696,13 +752,16 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       expect((await getGroupDayPrices(group.id)).get(listing.id)?.get(2)).toBe(
         1500,
       );
+      expect((await getGroupDayPrices(group.id)).get(listing.id)?.get(3)).toBe(
+        0,
+      );
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`),
         200,
         (body) => {
           expect(body.group.package_members).toEqual([
             {
-              day_prices: { "2": 1500 },
+              day_prices: { "2": 1500, "3": 0 },
               listing_id: listing.id,
               price: null,
               quantity: 1,
@@ -717,6 +776,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       const cases: Record<string, unknown>[] = [
         { day_prices: [1500], listing_id: listing.id, price: null },
         { day_prices: { "0": 1500 }, listing_id: listing.id, price: null },
+        { day_prices: { "2e0": 1500 }, listing_id: listing.id, price: null },
         { day_prices: { "2": -1 }, listing_id: listing.id, price: null },
       ];
       for (const member of cases) {

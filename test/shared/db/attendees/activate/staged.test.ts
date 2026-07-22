@@ -1,2 +1,2 @@
-import "../activate-staged.test.ts";
-import "../activate-staged-refusals.test.ts";
+import "#test/shared/db/attendees/activate-staged.test.ts";
+import "#test/shared/db/attendees/activate-staged-refusals.test.ts";

@@ -2,14 +2,14 @@
 /* jscpd:ignore-start */
 
 import { expect } from "@std/expect";
-import { afterEach, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { DatabaseBusyError, getDb, queryAll } from "#shared/db/client.ts";
-import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
+import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -45,8 +45,6 @@ const completeRefund = async (
 
 export const registerStagedRefundTests = (): void =>
   describeWithEnv("payment processing > staged refunds", { db: true }, () => {
-    afterEach(() => resetStripeClient());
-
     test("enters refunding before provider IO and atomically removes the staged attendee", async () => {
       await setupStripe();
       const listing = await createTestListing({ unitPrice: 1000 });

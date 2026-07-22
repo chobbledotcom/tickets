@@ -4,14 +4,14 @@ import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { getDb } from "#shared/db/client.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setupStripe } from "#test-utils/settings.ts";
 import {
   intentFor,
   paidSession,
   stageSession,
-} from "../staged-runtime.helpers.ts";
+} from "#test/features/api/payment-processing/staged-runtime.helpers.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 describeWithEnv("payment processing deleted listing", { db: true }, () => {
   test("stores a listing-removed refund when the signed listing was deleted", async () => {

@@ -61,8 +61,11 @@ export const stubCompletedSession = async (object: {
         data: {
           object: {
             ...object,
+            created: 1_700_000_000,
             payment_intent: `pi_${object.id}`,
             payment_status: "paid",
+            status: "complete",
+            url: null,
           },
         },
         id: `evt_${object.id}`,

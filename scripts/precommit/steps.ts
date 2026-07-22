@@ -1,4 +1,4 @@
-import { readSlowTestsReport } from "../test-durations.ts";
+import { readSlowTestsReport } from "#scripts/test-durations.ts";
 import { filterTestOutput, testProgressFromLine } from "./output.ts";
 
 /**

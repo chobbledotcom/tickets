@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin attendee management routes
  */
@@ -29,7 +29,6 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms/validation.ts";
 import { isIncompletePayment } from "#shared/incomplete-payment.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   availableDayCounts,
@@ -232,27 +231,6 @@ const buildCreateAttendeeInput = (
   };
 };
 
-/** Convert a failed createAttendeeAtomic result into a redirect response */
-const handleCreateAttendeeFailure = (
-  result: { success: false; reason: string },
-  listingId: number,
-): Response => {
-  if (result.reason === "encryption_error") {
-    logError({
-      code: ErrorCode.ENCRYPT_FAILED,
-      detail: "manual add attendee",
-      listingId,
-    });
-  }
-  const errorMsg =
-    result.reason === "capacity_exceeded"
-      ? t("error.not_enough_spots")
-      : t("error.encryption_error");
-  // Back to the roster (Attendees tab), where the quick-add form is, so the
-  // operator can correct the submission in context.
-  return redirect(`/admin/listing/${listingId}/attendees`, errorMsg, false);
-};
-
 /** Handle POST /admin/listing/:listingId/attendee (add attendee manually) */
 const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/attendee"> =
   createAuthedFormRoute<
@@ -281,7 +259,13 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
         buildCreateAttendeeInput(values, listing),
       );
       if (!createResult.success) {
-        return handleCreateAttendeeFailure(createResult, params.listingId);
+        // Back to the roster, where the quick-add form is, so the operator can
+        // correct the quantity in context.
+        return redirect(
+          `/admin/listing/${params.listingId}/attendees`,
+          t("error.not_enough_spots"),
+          false,
+        );
       }
       await logActivity(
         `Attendee '${values.name}' added manually`,
@@ -375,26 +359,29 @@ const handleResendNotification = verifiedAttendeeAction(
  * Merge: attendees-merge.ts
  * Refunds: attendee-refunds.ts
  */
-export const adminHandlers = handlersFor("attendees")({
-  deleteAttendeesByAttendeeIdDelete: handleAttendeeDelete,
-  getAttendees: handleAttendeesListGet,
-  getAttendeesByAttendeeId: (request, { attendeeId }) =>
+export const adminHandlers = defineRoutes({
+  "DELETE /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
+  "GET /admin/attendees": handleAttendeesListGet,
+  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
     attendeePage.renderTab(request, attendeeId, ""),
-  getAttendeesByAttendeeIdByTab: (request, { attendeeId, tab }) =>
+  "GET /admin/attendees/:attendeeId/:tab": (request, { attendeeId, tab }) =>
     attendeePage.renderTab(request, attendeeId, tab),
-  getAttendeesByAttendeeIdDelete: handleAdminAttendeeDeleteGet,
-  getAttendeesByAttendeeIdResendNotification: handleAdminResendNotificationGet,
-  getAttendeesCsv: handleAttendeesCsvExport,
-  getAttendeesNew: handleAttendeeNewGet,
-  postAttendeesByAttendeeId: handleAttendeeEditPost,
-  postAttendeesByAttendeeIdDelete: handleAttendeeDelete,
-  postAttendeesByAttendeeIdLogistics: handleAttendeeLogisticsPost,
-  postAttendeesByAttendeeIdMerge: handleMergePost,
-  postAttendeesByAttendeeIdRefreshPayment: handleRefreshPayment,
-  postAttendeesByAttendeeIdResendNotification: handleResendNotification,
-  postAttendeesNew: handleAttendeeNewPost,
-  postListingByListingIdAttendee: handleAddAttendee,
-  postListingByListingIdAttendeeByAttendeeIdCheckin: handleAttendeeCheckin,
-  postListingByListingIdAttendeeByAttendeeIdDeleteIncomplete:
+  "GET /admin/attendees/:attendeeId/delete": handleAdminAttendeeDeleteGet,
+  "GET /admin/attendees/:attendeeId/resend-notification":
+    handleAdminResendNotificationGet,
+  "GET /admin/attendees/csv": handleAttendeesCsvExport,
+  "GET /admin/attendees/new": handleAttendeeNewGet,
+  "POST /admin/attendees/:attendeeId": handleAttendeeEditPost,
+  "POST /admin/attendees/:attendeeId/delete": handleAttendeeDelete,
+  "POST /admin/attendees/:attendeeId/logistics": handleAttendeeLogisticsPost,
+  "POST /admin/attendees/:attendeeId/merge": handleMergePost,
+  "POST /admin/attendees/:attendeeId/refresh-payment": handleRefreshPayment,
+  "POST /admin/attendees/:attendeeId/resend-notification":
+    handleResendNotification,
+  "POST /admin/attendees/new": handleAttendeeNewPost,
+  "POST /admin/listing/:listingId/attendee": handleAddAttendee,
+  "POST /admin/listing/:listingId/attendee/:attendeeId/checkin":
+    handleAttendeeCheckin,
+  "POST /admin/listing/:listingId/attendee/:attendeeId/delete-incomplete":
     handleDeleteIncomplete,
 });

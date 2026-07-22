@@ -4,21 +4,21 @@ import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import {
   editPanelHtml,
   registerListingTemplateHooks,
-  TEST_SESSION,
 } from "#test/templates/admin/listings/helpers.ts";
+import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("adminListingNewPage Advanced section", () => {
   registerListingTemplateHooks();
 
   test("renders collapsed by default", () => {
-    const html = adminListingNewPage([], TEST_SESSION);
+    const html = adminListingNewPage([], OWNER_SESSION);
     expect(html).toContain('<details class="listing-advanced">');
     expect(html).not.toContain('<details class="listing-advanced" open>');
   });
 
   test("opens when re-rendered with an error", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       error: "Something went wrong",
     });
     expect(html).toContain('<details class="listing-advanced" open>');
@@ -29,7 +29,7 @@ describe("adminListingNewPage", () => {
   registerListingTemplateHooks();
 
   test("renders create listing form fields", () => {
-    const html = adminListingNewPage([], TEST_SESSION);
+    const html = adminListingNewPage([], OWNER_SESSION);
     expect(html).toContain("Add Listing");
     expect(html).toContain('name="name"');
     expect(html).toContain('name="max_attendees"');
@@ -39,35 +39,35 @@ describe("adminListingNewPage", () => {
   });
 
   test("renders breadcrumb back link", () => {
-    const html = adminListingNewPage([], TEST_SESSION);
+    const html = adminListingNewPage([], OWNER_SESSION);
     expect(html).toContain('href="/admin/"');
     expect(html).toContain("Listings");
   });
 
   test("renders group checkboxes when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "My Group" })];
-    const html = adminListingNewPage(groups, TEST_SESSION);
+    const html = adminListingNewPage(groups, OWNER_SESSION);
     expect(html).toContain('name="group_ids"');
     expect(html).toContain('value="2"');
     expect(html).toContain("My Group");
   });
 
   test("renders error when provided", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       error: "Something went wrong",
     });
     expect(html).toContain("Something went wrong");
   });
 
   test("applies listing-form--hide-type class for templates with a fixed listing_type", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "weekly-event",
     });
     expect(html).toContain("listing-form--hide-type");
   });
 
   test("does not apply listing-form--hide-type for templates with no fixed listing_type", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "hireable-item",
     });
     expect(html).not.toContain("listing-form--hide-type");
@@ -75,7 +75,7 @@ describe("adminListingNewPage", () => {
   });
 
   test("seeds the hireable-item contact fields with phone for delivery contact", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "hireable-item",
     });
     expect(html).toContain('name="fields" value="email" checked');
@@ -84,7 +84,7 @@ describe("adminListingNewPage", () => {
   });
 
   test("seeds every weekday into the hireable-item bookable_days", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "hireable-item",
     });
     for (const day of [
@@ -101,14 +101,14 @@ describe("adminListingNewPage", () => {
   });
 
   test("applies listing-form--no-daily class for non-daily templates", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "one-off-event",
     });
     expect(html).toContain("listing-form--no-daily");
   });
 
   test("does not apply listing-form--no-daily for templates without a fixed non-daily type", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "hireable-item",
     });
     expect(html).not.toContain("listing-form--no-daily");
@@ -116,7 +116,7 @@ describe("adminListingNewPage", () => {
 
   test("preserves selected groups on error re-render", () => {
     const groups = [testGroup({ id: 3, name: "Group Three" })];
-    const html = adminListingNewPage(groups, TEST_SESSION, {
+    const html = adminListingNewPage(groups, OWNER_SESSION, {
       selectedGroupIds: [3],
     });
     expect(html).toContain('value="3"');
@@ -124,7 +124,7 @@ describe("adminListingNewPage", () => {
   });
 
   test("carries custom sentinel through as template_id hidden input", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       templateId: "custom",
     });
     expect(html).toContain('name="template_id"');
@@ -132,7 +132,7 @@ describe("adminListingNewPage", () => {
   });
 
   test("carries duplicated_from hidden input when present in submitted values", () => {
-    const html = adminListingNewPage([], TEST_SESSION, {
+    const html = adminListingNewPage([], OWNER_SESSION, {
       values: { duplicated_from: "42" },
     });
     expect(html).toContain('name="duplicated_from"');
@@ -140,7 +140,7 @@ describe("adminListingNewPage", () => {
   });
 
   test("does not render duplicated_from input when not in submitted values", () => {
-    const html = adminListingNewPage([], TEST_SESSION, { values: {} });
+    const html = adminListingNewPage([], OWNER_SESSION, { values: {} });
     expect(html).not.toContain('name="duplicated_from"');
   });
 });

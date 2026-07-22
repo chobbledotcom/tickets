@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * QR scanner routes for admin check-in
  * GET /admin/listing/:id/scanner - Scanner page with camera UI
@@ -188,7 +188,7 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
   });
 
 /** Scanner routes */
-export const adminHandlers = handlersFor("scanner")({
-  getListingByIdScanner: handleScannerGet,
-  postListingByIdScan: handleScanPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/listing/:id/scanner": handleScannerGet,
+  "POST /admin/listing/:id/scan": handleScanPost,
 });

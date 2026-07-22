@@ -1,5 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
-
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin attendee refund routes (single + bulk)
  */
@@ -312,9 +311,9 @@ const handleAdminRefundAllPost = createAuthedHandler<ListingRouteParams>({
 });
 
 /** Attendee refund routes */
-export const adminHandlers = handlersFor("attendeeRefunds")({
-  getAttendeesByAttendeeIdRefund: handleAdminAttendeeRefundGet,
-  getListingByIdRefundAll: handleAdminRefundAllGet,
-  postAttendeesByAttendeeIdRefund: handleAttendeeRefund,
-  postListingByIdRefundAll: handleAdminRefundAllPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/attendees/:attendeeId/refund": handleAdminAttendeeRefundGet,
+  "GET /admin/listing/:id/refund-all": handleAdminRefundAllGet,
+  "POST /admin/attendees/:attendeeId/refund": handleAttendeeRefund,
+  "POST /admin/listing/:id/refund-all": handleAdminRefundAllPost,
 });

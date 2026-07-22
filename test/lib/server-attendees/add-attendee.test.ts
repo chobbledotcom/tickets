@@ -1,8 +1,6 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { spy, stub } from "@std/testing/mock";
-import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   assertAdminHtml,
@@ -17,7 +15,6 @@ import {
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { withMocks } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
   adminGet,
@@ -246,47 +243,6 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("spots"), false);
-    });
-
-    test("redirects with error on encryption failure", async () => {
-      const { listing, cookie, csrfToken } = await setupListingAndLogin({
-        maxAttendees: 100,
-      });
-
-      await withMocks(
-        () =>
-          stub(attendeesApi, "createAttendeeAtomic", () =>
-            Promise.resolve({
-              reason: "encryption_error",
-              success: false,
-            }),
-          ),
-        async () => {
-          const errorSpy = spy(console, "error");
-          try {
-            const response = await submitAddAttendee(
-              listing.id,
-              cookie,
-              csrfToken,
-              {
-                email: "enc@example.com",
-                name: "Enc Fail",
-                quantity: "1",
-              },
-            );
-            expect(response.status).toBe(302);
-            expectFlash(response, expect.stringContaining("Encryption"), false);
-            // An encryption failure (and only that reason) is logged to the
-            // error log — a capacity failure is a normal outcome and isn't.
-            const logged = errorSpy.calls.map((c) => String(c.args[0]));
-            expect(logged.some((s) => s.includes("manual add attendee"))).toBe(
-              true,
-            );
-          } finally {
-            errorSpy.restore();
-          }
-        },
-      );
     });
 
     test("adds attendee to daily listing with date", async () => {

@@ -1,7 +1,7 @@
 import type {
   FileLines,
   ReportOptions,
-} from "../../scripts/unit-tests-report-lib.ts";
+} from "#scripts/unit-tests-report-lib.ts";
 
 /** Report options for tests, with small explicit exempt lists so the exemption
  *  behaviour is easy to assert without depending on the real defaults. */

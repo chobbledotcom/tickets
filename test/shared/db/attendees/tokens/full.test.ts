@@ -1,1 +1,1 @@
-import "../../../../lib/db/attendees/get-attendees-by-tokens.test.ts";
+import "#test/lib/db/attendees/get-attendees-by-tokens.test.ts";

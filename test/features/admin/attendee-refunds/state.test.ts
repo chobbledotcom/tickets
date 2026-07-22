@@ -1,6 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  createPaidListing,
+  markAsRefunded,
+  setupRefundTest,
+} from "#test/lib/server-refunds-helpers.ts";
+import {
   expectFlashRedirect,
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
@@ -14,11 +19,6 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie } from "#test-utils/session.ts";
-import {
-  createPaidListing,
-  markAsRefunded,
-  setupRefundTest,
-} from "../../../lib/server-refunds-helpers.ts";
 
 describeWithEnv("server (admin refund state)", { db: true }, () => {
   describe("already-refunded guard", () => {

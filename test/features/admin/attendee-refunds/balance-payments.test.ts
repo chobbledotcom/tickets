@@ -6,6 +6,7 @@ import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
+import type { RefundCtx } from "#test/lib/server-refunds-helpers.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -23,7 +24,6 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
-import type { RefundCtx } from "../../../lib/server-refunds-helpers.ts";
 
 const SETTLED_RESERVATION_REFERENCES = [
   "pi_reservation_balance",

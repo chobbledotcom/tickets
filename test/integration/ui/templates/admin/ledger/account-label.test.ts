@@ -1,16 +1,15 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
-
 import {
   names,
   renderLedger,
-  setUpLedgerPageCrypto,
   transfer,
 } from "#test/ui/templates/admin/ledger/helpers.ts";
+import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 
 describe("money account labels", () => {
-  beforeAll(setUpLedgerPageCrypto);
+  beforeAll(setupAdminPageTest);
 
   test("names singleton accounts without linking them", () => {
     const html = renderLedger(

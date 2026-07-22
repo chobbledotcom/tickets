@@ -14,9 +14,9 @@ import type {
   BookingIntent,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
+import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
 import { bookingsForOrder } from "#shared/booking-lines.ts";
-import { capacityErrorFormatter } from "#shared/capacity-error.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
   ModifierApplication,
@@ -111,7 +111,7 @@ export const pairEntriesByListing = <A extends { listing_id: number }>(
 };
 
 /** Format error for post-payment attendee creation failure */
-const formatPostPaymentError = capacityErrorFormatter({
+const formatPostPaymentError = attendeeFailureFormatter({
   fallback: "Registration failed.",
   generic: "Sorry, this listing sold out while you were completing payment.",
   withName: (name) =>
@@ -142,7 +142,6 @@ export type HonourResult =
       reason:
         | "sold_out"
         | "capacity_exceeded"
-        | "encryption_error"
         | "stage_mismatch"
         | "unexpected_error";
       detail: string;

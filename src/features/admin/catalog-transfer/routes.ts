@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin routes for catalog import/export.
  *
@@ -9,9 +9,9 @@ import { handlersFor } from "#routes/admin/handlers.ts";
  */
 
 import { t } from "#i18n";
-import { contentMultipartRoute } from "#routes/admin/listings-edit.ts";
 import {
   type AuthSession,
+  contentMultipartRoute,
   contentPage,
   requireContentOr,
 } from "#routes/auth.ts";
@@ -149,9 +149,9 @@ const handleImportPost: TypedRouteHandler<"POST /admin/catalog/import"> =
   });
 
 /** Catalog import/export routes. */
-export const adminHandlers = handlersFor("catalogTransfer")({
-  getCatalogImport: handleImportGet,
-  getGroupsByIdExportJson: handleGroupExport,
-  getListingByIdExportJson: handleListingExport,
-  postCatalogImport: handleImportPost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/catalog/import": handleImportGet,
+  "GET /admin/groups/:id/export.json": handleGroupExport,
+  "GET /admin/listing/:id/export.json": handleListingExport,
+  "POST /admin/catalog/import": handleImportPost,
 });

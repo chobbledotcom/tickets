@@ -2,6 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
+  createPaidListing,
+  type RefundCtx,
+  setBookingLineQuantity,
+  setupRefundTest,
+} from "#test/lib/server-refunds-helpers.ts";
+import {
   assertAdminHtml,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -23,12 +29,6 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
-import {
-  createPaidListing,
-  type RefundCtx,
-  setBookingLineQuantity,
-  setupRefundTest,
-} from "../../../lib/server-refunds-helpers.ts";
 
 // -- Tests ---------------------------------------------------------------- //
 

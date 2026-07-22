@@ -181,15 +181,12 @@ export const refundStagedBooking = async (
   };
 };
 
-/** The refund reason code for each way a booking we tried can fail: a sold-out
- *  extra reads differently from a full event, and the broken-system
- *  encryption_error we don't special-case is treated as "the event filled up". */
+/** The refund reason code for each way a booking we tried can fail. */
 const FAILURE_REFUND_CODES: Record<
   Extract<HonourResult, { ok: false }>["reason"],
   RefundCode
 > = {
   capacity_exceeded: "capacity_full",
-  encryption_error: "capacity_full",
   sold_out: "sold_out",
   stage_mismatch: "unexpected_error",
   unexpected_error: "unexpected_error",

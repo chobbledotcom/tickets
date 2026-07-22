@@ -1,473 +1,19 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { parseEnabledFeatures } from "#shared/admin-features.ts";
-import { signCsrfToken } from "#shared/csrf.ts";
 import { MASK_SENTINEL } from "#shared/db/settings/mask.ts";
-import { PAYMENT_PROVIDER_IDS } from "#shared/payment-providers.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
-import type { SettingsPageState } from "#templates/admin/settings.tsx";
-import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
-import { hasCheckedInput } from "#test-utils/csrf.ts";
-import { validEmail } from "#test-utils/email.ts";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
-const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
-
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
-
-const defaultState = (): SettingsPageState => ({
-  bookingFee: "0",
-  businessEmail: "",
-  calendarFeedsEnabled: false,
-  calendarFeedsGroupBy: "attendees",
-  embedHosts: "",
-  enabledFeatures: DEFAULT_ENABLED_FEATURES,
-  headerImageUrl: "",
-  paymentProvider: "",
-  squareSandbox: false,
-  squareTokenConfigured: false,
-  squareWebhookConfigured: false,
-  storageEnabled: false,
-  stripeKeyConfigured: false,
-  stripeKeyMode: null,
-  sumupKeyConfigured: false,
-  sumupKeyMode: null,
-  superuser: { available: false, reason: "missing-env" },
-  termsAndConditions: "",
-  theme: "light",
-  underlineLinks: false,
-  webhookUrl: "https://example.com/payment/webhook",
-});
-
-type AvailableSuperuser = Extract<
-  SettingsPageState["superuser"],
-  { available: true }
->;
-
-/** An available (recovery-enabled) superuser state; override per test. */
-const availableSuperuser = (
-  overrides: Partial<AvailableSuperuser> = {},
-): AvailableSuperuser => ({
-  activated: false,
-  available: true,
-  choice: "",
-  email: validEmail("admin@example.com"),
-  userExists: false,
-  username: "admin",
-  ...overrides,
-});
-
-/** Render adminSettingsPage with the given superuser state, defaults otherwise. */
-const renderSuperuser = (superuser: SettingsPageState["superuser"]): string =>
-  adminSettingsPage(TEST_SESSION, { ...defaultState(), superuser });
-
-/** The `id="settings-superuser"` form section of a rendered settings page. */
-const superuserFormHtml = (html: string): string => {
-  const start = html.indexOf('id="settings-superuser"');
-  const end = html.indexOf("</form>", start) + 7;
-  return html.slice(start, end);
-};
-
-describe("adminSettingsPage", () => {
-  test("omits the key-mode notice for a configured key with an unknown mode", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      paymentProvider: "sumup",
-      sumupKeyConfigured: true,
-      sumupKeyMode: null,
-    });
-    expect(html).toContain("A SumUp API key is currently configured");
-    expect(html).not.toContain("Test mode");
-    expect(html).not.toContain("Live mode");
-  });
-
-  test("renders the underline-links checkbox, unchecked by default", () => {
-    const html = adminSettingsPage(TEST_SESSION, defaultState());
-    expect(html).toContain("Underline links");
-    const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
-    expect(checkbox?.[0]).toContain('type="checkbox"');
-    expect(checkbox?.[0]).not.toContain("checked");
-  });
-
-  test("checks the underline-links checkbox when enabled", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      underlineLinks: true,
-    });
-    const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
-    expect(checkbox?.[0]).toContain("checked");
-  });
-
-  test("shows square webhook configured message when key is set", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      paymentProvider: "square",
-      squareTokenConfigured: true,
-      squareWebhookConfigured: true,
-    });
-    expect(html).toContain("A webhook signature key is currently configured");
-    expect(html).toContain("Enter a new key below to replace it");
-  });
-
-  test("shows square webhook not configured message when key is not set", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      paymentProvider: "square",
-      squareTokenConfigured: true,
-    });
-    expect(html).toContain("No webhook signature key is configured");
-    expect(html).toContain("Follow the steps above to set one up");
-  });
-
-  test("shows sandbox checkbox checked when sandbox mode enabled", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      paymentProvider: "square",
-      squareSandbox: true,
-      squareTokenConfigured: true,
-    });
-    expect(html).toContain("Sandbox mode");
-    expect(html).toContain('name="square_sandbox"');
-  });
-
-  test("shows settings sub-navigation", () => {
-    const html = adminSettingsPage(TEST_SESSION, defaultState());
-    expect(html).toContain('href="/admin/settings-advanced"');
-    expect(html).toContain('href="/admin/backup"');
-    expect(html).toContain('href="/admin/debug"');
-  });
-
-  test("renders the calendar feeds form as markup, not escaped HTML", () => {
-    const html = adminSettingsPage(TEST_SESSION, defaultState());
-    expect(html).toContain('action="/admin/settings/calendar-feeds"');
-    expect(html).toContain('name="calendar_feeds_enabled"');
-    expect(html).toContain('name="calendar_feeds_group_by"');
-    // The form is real markup, not an escaped string rendered as text.
-    expect(html).not.toContain("&lt;form");
-  });
-
-  test("checks the calendar feeds toggle when enabled", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      calendarFeedsEnabled: true,
-    });
-    expect(hasCheckedInput(html, "calendar_feeds_enabled", "true")).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// SuperuserForm availability
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm", () => {
-  test("renders 'Superuser Recovery' heading when superuser.available is true", () => {
-    const html = renderSuperuser(availableSuperuser());
-    expect(html).toContain("Superuser Recovery");
-  });
-
-  test("does not render form section when superuser.available is false", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: { available: false, reason: "missing-env" },
-    });
-    expect(html).not.toContain("Superuser Recovery");
-    expect(html).not.toContain("superuser_choice");
-  });
-
-  test("does not render form section when available is false with reason 'invalid-env'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: { available: false, reason: "invalid-env" },
-    });
-    expect(html).not.toContain("Superuser Recovery");
-    expect(html).not.toContain("superuser_choice");
-  });
-
-  test("does not render form section when available is false with reason 'invalid-username'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: { available: false, reason: "invalid-username" },
-    });
-    expect(html).not.toContain("Superuser Recovery");
-    expect(html).not.toContain("superuser_choice");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Radio labels — correctness
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm radio labels", () => {
-  test("renders self-managed radio label with exact grammatically-correct text", () => {
-    const html = renderSuperuser(availableSuperuser());
-    expect(html).toContain(
-      "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
-    );
-    expect(html).toContain("responsible");
-    expect(html).not.toContain("responsiblity");
-  });
-
-  test("renders enable-superuser radio label with the admin email address interpolated", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "",
-        email: validEmail("myadmin@example.com"),
-        userExists: false,
-        username: "myadmin",
-      },
-    });
-    expect(html).toContain(
-      "I wish to enable a &quot;super user&quot; account on this platform for my admin, myadmin@example.com.",
-    );
-    expect(html).toContain(
-      "This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access.",
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Radio input values and form structure
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm form structure", () => {
-  const baseSuperuser = {
-    activated: false,
-    available: true,
-    choice: "",
-    email: validEmail("admin@example.com"),
-    userExists: false,
-    username: "admin",
-  } as const;
-
-  test("radio inputs have correct name='superuser_choice'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    const matches = html.match(/name="superuser_choice"/g);
-    expect(matches).not.toBeNull();
-    expect(matches!.length).toBe(2);
-  });
-
-  test("first radio has value='self-managed'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('value="self-managed"');
-  });
-
-  test("second radio has value='enable-superuser'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('value="enable-superuser"');
-  });
-
-  test("form action is '/admin/settings/superuser'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('action="/admin/settings/superuser"');
-  });
-
-  test("form has id='settings-superuser' for anchor linking", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('id="settings-superuser"');
-  });
-
-  test("form includes a CSRF token field", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: baseSuperuser,
-    });
-    expect(html).toContain('type="hidden"');
-    expect(html).toContain('name="csrf_token"');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Radio pre-selection (checked state reflects persisted choice)
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm radio checked state", () => {
-  test("self-managed radio is checked when choice is 'self-managed'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "self-managed",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
-    expect(hasCheckedInput(html, "superuser_choice", "self-managed")).toBe(
-      true,
-    );
-    expect(hasCheckedInput(html, "superuser_choice", "enable-superuser")).toBe(
-      false,
-    );
-  });
-
-  test("enable-superuser radio is checked when choice is 'enabled'", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "enabled",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
-    expect(hasCheckedInput(html, "superuser_choice", "self-managed")).toBe(
-      false,
-    );
-    expect(hasCheckedInput(html, "superuser_choice", "enable-superuser")).toBe(
-      true,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Existing-superuser state
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm existing-superuser state", () => {
-  test("shows already-exists message with interpolated username", () => {
-    const html = renderSuperuser(
-      availableSuperuser({
-        activated: true,
-        userExists: true,
-        username: "myadmin",
-      }),
-    );
-    expect(html).toContain("Superuser myadmin is already activated.");
-  });
-
-  test("already-exists message links 'users page' to /admin/users", () => {
-    const html = renderSuperuser(
-      availableSuperuser({
-        activated: true,
-        userExists: true,
-        username: "myadmin",
-      }),
-    );
-    expect(html).toContain('<a href="/admin/users">users page</a>');
-  });
-
-  test("already-exists message ends with a period after the link", () => {
-    const html = renderSuperuser(
-      availableSuperuser({
-        activated: true,
-        userExists: true,
-        username: "myadmin",
-      }),
-    );
-    expect(html).toContain("users page</a>.");
-  });
-
-  test("does not render radio inputs when user exists", () => {
-    const html = renderSuperuser(
-      availableSuperuser({ activated: true, userExists: true }),
-    );
-    // Extract just the superuser form section
-    const superuserHtml = superuserFormHtml(html);
-    expect(superuserHtml).not.toContain('type="radio"');
-  });
-
-  test("submit button is NOT rendered in superuser form when user exists", () => {
-    const html = renderSuperuser(
-      availableSuperuser({ activated: true, userExists: true }),
-    );
-    const superuserHtml = superuserFormHtml(html);
-    expect(superuserHtml).not.toContain('type="submit"');
-    expect(superuserHtml).not.toContain("<button");
-  });
-
-  test("submit button IS rendered in superuser form when activated is false", () => {
-    const html = renderSuperuser(availableSuperuser());
-    const superuserHtml = superuserFormHtml(html);
-    expect(superuserHtml).toContain('type="submit"');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Placement
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > SuperuserForm placement", () => {
-  test("SuperuserForm is placed immediately before ChangePasswordForm in DOM order", () => {
-    const html = renderSuperuser(availableSuperuser());
-    const superuserIndex = html.indexOf("Superuser Recovery");
-    const changePasswordIndex = html.indexOf("Change Password");
-    expect(superuserIndex).toBeGreaterThan(-1);
-    expect(changePasswordIndex).toBeGreaterThan(-1);
-    expect(superuserIndex).toBeLessThan(changePasswordIndex);
-  });
-});
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
+import { advancedDefaultState } from "./state.ts";
 
 describe("adminAdvancedSettingsPage", () => {
-  const advancedDefaultState: AdvancedSettingsPageState = {
-    addressLookupApiKeyConfigured: false,
-    addressLookupProvider: "none",
-    adminTemplates: { html: "", subject: "", text: "" },
-    appleWalletConfigured: false,
-    appleWalletPassTypeId: "",
-    appleWalletTeamId: "",
-    attendeeColumnOrder: "",
-    bunnyCdnEnabled: false,
-    bunnyDnsEnabled: false,
-    bunnyDnsSubdomainSuffix: "",
-    bunnySubdomain: "",
-    businessEmail: "",
-    cdnHostname: "",
-    confirmationTemplates: { html: "", subject: "", text: "" },
-    customCss: "",
-    customDomain: "",
-    customDomainLastValidated: "",
-    emailApiKeyConfigured: false,
-    emailFromAddress: "",
-    emailProvider: "",
-    externalOrderEnabled: false,
-    googleWalletConfigured: false,
-    googleWalletIssuerId: "",
-    googleWalletServiceAccountEmail: "",
-    hostAppleWalletLabel: "",
-    hostEmailLabel: "",
-    hostGoogleWalletLabel: "",
-    listingColumnOrder: "",
-    paymentProvider: "",
-    showPublicApi: false,
-    smsGatewayBaseUrl: "",
-    smsGatewayPassphraseConfigured: false,
-    smsGatewayPasswordConfigured: false,
-    smsGatewayUsername: "",
-    smsGatewayWebhookConfigured: false,
-    subdomainPreview: "",
-    subdomainPreviewFullDomain: "",
-    theme: "light",
-  };
+  beforeAll(setupAdminPageTest);
 
   test("renders the SMS gateway card with current values", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       smsGatewayBaseUrl: "https://sms.example.com",
       smsGatewayUsername: "myuser",
@@ -480,7 +26,7 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("masks the SMS gateway secrets when configured", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       smsGatewayPassphraseConfigured: true,
       smsGatewayPasswordConfigured: true,
@@ -493,7 +39,7 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("shows email provider selection when configured", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       emailFromAddress: "from@test.com",
       emailProvider: "resend",
@@ -504,12 +50,12 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("hides test button when no email provider configured", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
     expect(html).not.toContain("Send Test Email");
   });
 
   test("uses business email as from address placeholder", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       businessEmail: "biz@example.com",
     });
@@ -517,12 +63,12 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("uses default placeholder when no business email", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
     expect(html).toContain('placeholder="tickets@yourdomain.com"');
   });
 
   test("shows host email label when hostEmailLabel is set", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       hostEmailLabel: "Host Resend (noreply@example.com)",
     });
@@ -530,22 +76,22 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("shows None disabled when no hostEmailLabel set", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
     expect(html).toContain("None (disabled)");
   });
 
   test("shows warning about careful changes", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
     expect(html).toContain("Be careful changing settings on this page");
   });
 
   test("shows breadcrumb back to settings", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, advancedDefaultState);
     expect(html).toContain('href="/admin/settings"');
   });
 
   test("shows subdomain preview confirmation when subdomainPreview is set", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       bunnyDnsEnabled: true,
       bunnyDnsSubdomainSuffix: ".tickets.example.com",
@@ -560,7 +106,7 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("custom domain form warns Square users about the webhook URL", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       bunnyCdnEnabled: true,
       paymentProvider: "square",
@@ -570,7 +116,7 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("subdomain form warns Stripe users about the webhook URL", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       bunnyDnsEnabled: true,
       paymentProvider: "stripe",
@@ -580,7 +126,7 @@ describe("adminAdvancedSettingsPage", () => {
   });
 
   test("does not warn about webhooks for providers without webhooks", () => {
-    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+    const html = adminAdvancedSettingsPage(OWNER_SESSION, {
       ...advancedDefaultState,
       bunnyCdnEnabled: true,
       bunnyDnsEnabled: true,
@@ -589,52 +135,5 @@ describe("adminAdvancedSettingsPage", () => {
     expect(html).not.toContain(
       "Changing your domain changes your payment webhook",
     );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Payment provider radio — labels come from the PAYMENT_PROVIDERS registry
-// ---------------------------------------------------------------------------
-
-describe("adminSettingsPage > PaymentProviderForm radio labels", () => {
-  /** The visible label text attached to the radio option with this value, or
-   * null if none. Scoped to the single <label> so a label attached to the
-   * wrong option isn't mistaken for a match. */
-  const labelForValue = (html: string, value: string): string | null => {
-    const m = html.match(
-      new RegExp(
-        `<input\\b[^>]*value="${value}"[^>]*>\\s*([^<]*?)\\s*</label>`,
-      ),
-    );
-    return m?.[1] ?? null;
-  };
-
-  test("attaches each registry label to its own radio value", () => {
-    const html = adminSettingsPage(TEST_SESSION, defaultState());
-    // The label must sit inside the SAME option as its value, so a swap (e.g.
-    // the "Stripe" label on the square radio) is caught — a page-wide toContain
-    // would miss it.
-    expect(labelForValue(html, "stripe")).toBe("Stripe");
-    expect(labelForValue(html, "square")).toBe("Square");
-    expect(labelForValue(html, "sumup")).toBe("SumUp");
-  });
-
-  test("checks exactly the radio matching the persisted provider", () => {
-    // "" is the persisted value for the "none" option; the rest come from the
-    // registry so this stays exhaustive as providers are added.
-    const values = ["none", ...PAYMENT_PROVIDER_IDS];
-    for (const selected of values) {
-      const html = adminSettingsPage(TEST_SESSION, {
-        ...defaultState(),
-        paymentProvider: selected === "none" ? "" : selected,
-      });
-      // Exactly the selected radio is checked; every other one is not. This
-      // fails an implementation that hard-codes one provider as checked.
-      for (const value of values) {
-        expect(hasCheckedInput(html, "payment_provider", value)).toBe(
-          value === selected,
-        );
-      }
-    }
   });
 });

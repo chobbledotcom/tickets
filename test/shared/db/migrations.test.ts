@@ -7,6 +7,7 @@ import {
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
 import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
@@ -280,6 +281,29 @@ describeWithEnv("db > migrations", { db: true }, () => {
       // ...the migration is recorded, and the marker is the current release's.
       expect(await appliedMigrationIds()).toContain(
         "2026-07-12_remove_broken_image_records",
+      );
+      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+    });
+
+    test("runs the completed activity backfill migration on an old completed site", async () => {
+      await getDb().execute(
+        "DELETE FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
+      );
+      await simulateUpgradeFromRelease(
+        "Add secure local scheduled maintenance and durable task claims.",
+        "2026-07-21_activity_backfill_complete",
+      );
+
+      await initDb();
+
+      const task = await getDb().execute(
+        "SELECT checkpoint FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
+      );
+      expect(task.rows).toEqual([
+        { checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE },
+      ]);
+      expect(await appliedMigrationIds()).toContain(
+        "2026-07-21_activity_backfill_complete",
       );
       expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
     });

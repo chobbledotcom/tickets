@@ -7,6 +7,7 @@
  */
 
 import { mapBooking } from "#shared/accounting/mappers.ts";
+import { planBookingPayment } from "#shared/booking/payment-plan.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
@@ -62,11 +63,7 @@ export const listingHasSpots = (
 /** Booking result — callers map this to their response format */
 export type BookingResult =
   | PaidCheckoutResult
-  | { type: "success"; attendee: Attendee }
-  | {
-      type: "creation_failed";
-      reason: "capacity_exceeded" | "encryption_error";
-    };
+  | { type: "success"; attendee: Attendee };
 
 const processPaidBooking = async (input: {
   listing: ListingWithCount;
@@ -95,9 +92,9 @@ const processPaidBooking = async (input: {
 /**
  * Process a single-listing booking.
  *
- * Determines whether payment is needed, then either:
+ * Resolves the payment plan, then either:
  * - Creates a checkout session (paid) or
- * - Atomically creates an attendee (free)
+ * - Atomically creates an attendee (free or payment provider disabled)
  */
 export const processBooking = async (
   listing: ListingWithCount,
@@ -109,10 +106,14 @@ export const processBooking = async (
   answerIds?: number[],
 ): Promise<BookingResult> => {
   const paymentsEnabled = isPaymentsEnabled();
-  const unitPrice = customUnitPrice ?? listing.unit_price;
-  const needsPayment = paymentsEnabled && unitPrice > 0;
+  const payment = planBookingPayment({
+    customUnitPrice,
+    paymentsEnabled,
+    quantity,
+    unitPrice: listing.unit_price,
+  });
 
-  if (needsPayment) {
+  if (payment.kind === "checkout") {
     return processPaidBooking({
       answerIds,
       baseUrl,
@@ -120,7 +121,7 @@ export const processBooking = async (
       date,
       listing,
       quantity,
-      unitPrice,
+      unitPrice: payment.unitPrice,
     });
   }
 
@@ -130,7 +131,7 @@ export const processBooking = async (
   // reservation — so nothing is collected up front but the balance is tracked.
   // The attendee starts in the public-default status, matching the web free
   // path so a balance-carrying booking is never left status-less.
-  const remainingBalance = paymentsEnabled ? 0 : unitPrice * quantity;
+  const remainingBalance = payment.remainingBalance;
   const result = await attendeesApi.createAttendeeAtomic(
     {
       ...contact,
@@ -156,7 +157,7 @@ export const processBooking = async (
   );
 
   if (!result.success) {
-    return { reason: result.reason, type: "creation_failed" };
+    return { type: "sold_out" };
   }
 
   await logAndNotifyRegistration([{ attendee: result.attendees[0]!, listing }]);

@@ -1,6 +1,9 @@
 node_modules/
 tickets.db
 *.db
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 .db-key
 .env
 .db-key

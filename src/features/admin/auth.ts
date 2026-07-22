@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin authentication routes - login and logout
  */
@@ -192,9 +192,9 @@ const handleLoginGet = (request: Request): Promise<Response> =>
 const handleLogoutGet = anyUserPage((session) => adminLogoutPage(session));
 
 /** Authentication routes */
-export const adminHandlers = handlersFor("auth")({
-  getLogin: handleLoginGet,
-  getLogout: handleLogoutGet,
-  postLogin: handleAdminLogin,
-  postLogout: handleAdminLogout,
+export const adminHandlers = defineRoutes({
+  "GET /admin/login": handleLoginGet,
+  "GET /admin/logout": handleLogoutGet,
+  "POST /admin/login": handleAdminLogin,
+  "POST /admin/logout": handleAdminLogout,
 });

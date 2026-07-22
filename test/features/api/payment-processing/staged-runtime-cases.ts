@@ -1,11 +1,10 @@
 /* jscpd:ignore-start */
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { BookingIntent } from "#shared/payments.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
@@ -19,8 +18,6 @@ import {
 
 export const registerStagedRuntimeTests = (): void =>
   describeWithEnv("payment processing > staged runtime", { db: true }, () => {
-    afterEach(() => resetStripeClient());
-
     describe("ordinary paid bookings", () => {
       test("releases an incompatible paid session without a stage", async () => {
         const listing = await createTestListing({ unitPrice: 1000 });

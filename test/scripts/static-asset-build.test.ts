@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { join } from "@std/path";
 import { describe, it as test } from "@std/testing/bdd";
-import { withGeneratedOutputRollback } from "../../scripts/static-assets/output-rollback.ts";
+import { withGeneratedOutputRollback } from "#scripts/static-assets/output-rollback.ts";
 import {
   type BuiltStaticBundle,
   createStaticAssetBuild,
   fileExists,
   type StaticAssetFiles,
   type StaticBundle,
-} from "../../scripts/static-assets/session.ts";
+} from "#scripts/static-assets/session.ts";
 
 interface FakeContext {
   disposeCalls: number;

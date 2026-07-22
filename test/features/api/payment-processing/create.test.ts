@@ -94,22 +94,24 @@ test("builds session success with default and explicit ticket tokens", () => {
   });
 });
 
-test("replays encrypted ticket tokens from a processed payment", async () => {
-  expect(
-    await alreadyProcessedResult(7, {
-      attendee_id: 2,
-      failure_data: "",
-      payment_reference: "",
-      payment_session_id: "session",
-      processed_at: "2026-07-18T00:00:00.000Z",
-      provider_refunded_at: "",
-      ticket_tokens: await encrypt("one+two"),
-    }),
-  ).toEqual({
-    attendee: { id: 2 },
-    listingId: 7,
-    success: true,
-    ticketTokens: ["one", "two"],
+describeWithEnv("processed payment replay", { encryptionKey: true }, () => {
+  test("replays encrypted ticket tokens from a processed payment", async () => {
+    expect(
+      await alreadyProcessedResult(7, {
+        attendee_id: 2,
+        failure_data: "",
+        payment_reference: "",
+        payment_session_id: "session",
+        processed_at: "2026-07-18T00:00:00.000Z",
+        provider_refunded_at: "",
+        ticket_tokens: await encrypt("one+two"),
+      }),
+    ).toEqual({
+      attendee: { id: 2 },
+      listingId: 7,
+      success: true,
+      ticketTokens: ["one", "two"],
+    });
   });
 });
 
@@ -203,28 +205,29 @@ test("reports a preparation error when a paid amount was not loaded", async () =
   });
 });
 
-for (const [reason, detail] of [
-  ["sold_out", "a chosen add-on or extra sold out during payment"],
-  [
-    "capacity_exceeded",
-    "Sorry, Test Listing sold out while you were completing payment.",
-  ],
-  ["encryption_error", "Registration failed."],
-  ["unexpected_error", "Registration failed."],
-] as const) {
-  test(`reports the exact ${reason} activation failure`, async () => {
-    using _activate = stub(attendeesApi, "activateStagedAttendee", () =>
-      Promise.resolve({ reason, success: false } as never),
-    );
-    expect(
-      await preparationResult({
-        matchingPricedItem: true,
-        sessionId: `cs_${reason}`,
-        total: 1000,
-      }),
-    ).toMatchObject({ detail, ok: false, reason });
-  });
-}
+describeWithEnv("activation failures", { encryptionKey: true }, () => {
+  for (const [reason, detail] of [
+    ["sold_out", "a chosen add-on or extra sold out during payment"],
+    [
+      "capacity_exceeded",
+      "Sorry, Test Listing sold out while you were completing payment.",
+    ],
+    ["stage_mismatch", "Staged order did not match session cs_stage_mismatch"],
+  ] as const) {
+    test(`reports the exact ${reason} activation failure`, async () => {
+      using _activate = stub(attendeesApi, "activateStagedAttendee", () =>
+        Promise.resolve({ reason, success: false } as never),
+      );
+      expect(
+        await preparationResult({
+          matchingPricedItem: true,
+          sessionId: `cs_${reason}`,
+          total: 1000,
+        }),
+      ).toMatchObject({ detail, ok: false, reason });
+    });
+  }
+});
 
 describeWithEnv("payment creation details", { db: true }, () => {
   test("saves a resolved text answer and skips a corrupt unresolved ref", async () => {

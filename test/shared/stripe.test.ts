@@ -1,10 +1,17 @@
-// The Stripe SDK suites stay split by concern while this mirror entry gives
-// targeted mutation one direct test for src/shared/stripe.ts.
-import "../lib/stripe/config.test.ts";
-import "../lib/stripe/connection.test.ts";
-import "../lib/stripe/core.test.ts";
-import "./stripe-provider.test.ts";
-import "./stripe/webhook-cleanup.test.ts";
-import "../lib/stripe/webhook-setup.test.ts";
-import "./stripe/webhook.test.ts";
 import "./stripe-checkout-close.test.ts";
+import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { detectStripeKeyMode, isoFromUnixSeconds } from "#shared/stripe.ts";
+
+describe("Stripe payment operations", () => {
+  test("detects test and live secret keys", () => {
+    expect(detectStripeKeyMode("sk_test_example")).toBe("test");
+    expect(detectStripeKeyMode("sk_live_example")).toBe("live");
+    expect(detectStripeKeyMode("rk_test_example")).toBeNull();
+  });
+
+  test("converts Unix seconds to an ISO timestamp", () => {
+    expect(isoFromUnixSeconds(1)).toBe("1970-01-01T00:00:01.000Z");
+    expect(isoFromUnixSeconds("1")).toBe(undefined);
+  });
+});

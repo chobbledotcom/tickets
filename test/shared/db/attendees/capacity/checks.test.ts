@@ -7,7 +7,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-import "../../../../lib/db/attendees/availability-consistency.test.ts";
+import "#test/lib/db/attendees/availability-consistency.test.ts";
 import "./checks/batch.test.ts";
 import "./checks/availability.test.ts";
 

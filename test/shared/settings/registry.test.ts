@@ -6,12 +6,11 @@ import {
   EMAIL_BODY_KEYS,
   ENCRYPTED_KEYS,
   PLAINTEXT_KEYS,
-  PRUNE_KEYS,
   STRING_ACCESSORS,
   STRING_SETTING_DEFINITIONS,
 } from "#shared/settings/registry.ts";
 
-type ExpectedSettingFlag = "emailBody" | "prune" | "readOnly";
+type ExpectedSettingFlag = "emailBody" | "readOnly";
 type ExpectedSettingRow = readonly [
   keyof typeof CONFIG_KEYS,
   "plaintext" | "encrypted",
@@ -26,7 +25,6 @@ const lines = (text: string): string[] =>
     .map((line) => line.trim());
 
 const EXPECTED_CONFIG_KEY_NAMES = lines(`
-  ACTIVITY_LOG_BACKFILL_DONE
   ADDRESS_LOOKUP_API_KEY
   ADDRESS_LOOKUP_PROVIDER
   APPLE_WALLET_PASS_TYPE_ID
@@ -66,17 +64,6 @@ const EXPECTED_CONFIG_KEY_NAMES = lines(`
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY
   HEADER_IMAGE_URL
   HOMEPAGE_TEXT
-  LAST_ACTIVITY_LOG_BACKFILL
-  LAST_PRUNED_ADDRESSES
-  LAST_PRUNED_CONTACTS
-  LAST_PRUNED_INVITES
-  LAST_PRUNED_LOGINS
-  LAST_PRUNED_ORPHANS
-  LAST_PRUNED_PAYMENTS
-  LAST_PRUNED_SESSIONS
-  LAST_PRUNED_STRINGS
-  LAST_PRUNED_SUMUP
-  LAST_PRUNED_TOKENS
   LATEST_SCRIPT_VERSION
   LATEST_SCRIPT_VERSION_NAME
   LISTING_COLUMN_ORDER
@@ -145,19 +132,7 @@ const EXPECTED_SETTING_ROWS = [
   ],
   ["LISTING_COLUMN_ORDER", "plaintext", "listingColumnOrder"],
   ["ATTENDEE_COLUMN_ORDER", "plaintext", "attendeeColumnOrder"],
-  ["LAST_PRUNED_PAYMENTS", "plaintext", "lastPrunedPayments"],
-  ["LAST_PRUNED_SESSIONS", "plaintext", "lastPrunedSessions"],
-  ["LAST_PRUNED_SUMUP", "plaintext", "lastPrunedSumup"],
-  ["LAST_PRUNED_STRINGS", "plaintext", "lastPrunedStrings", "prune"],
-  ["LAST_PRUNED_LOGINS", "plaintext", "lastPrunedLogins", "prune"],
-  ["LAST_PRUNED_TOKENS", "plaintext", "lastPrunedTokens", "prune"],
-  ["LAST_PRUNED_CONTACTS", "plaintext", "lastPrunedContacts", "prune"],
-  ["LAST_PRUNED_ADDRESSES", "plaintext", "lastPrunedAddresses", "prune"],
-  ["LAST_PRUNED_INVITES", "plaintext", "lastPrunedInvites", "prune"],
-  ["LAST_PRUNED_ORPHANS", "plaintext", "lastPrunedOrphans", "prune"],
   ["SMS_GATEWAY_BASE_URL", "plaintext", "smsGatewayBaseUrl"],
-  ["ACTIVITY_LOG_BACKFILL_DONE", "plaintext", "activityLogBackfillDone"],
-  ["LAST_ACTIVITY_LOG_BACKFILL", "plaintext", "lastActivityLogBackfill"],
   ["BUSINESS_EMAIL", "encrypted", "businessEmail"],
   ["HEADER_IMAGE_URL", "encrypted", "headerImageUrl"],
   ["WEBSITE_TITLE", "encrypted", "websiteTitle"],
@@ -195,7 +170,7 @@ const EXPECTED_SETTING_ROWS = [
 
 const sorted = (values: readonly string[]): string[] => [...values].sort();
 
-const taggedKeys = (tag: "emailBody" | "prune"): string[] =>
+const taggedKeys = (tag: "emailBody"): string[] =>
   STRING_SETTING_DEFINITIONS.filter(
     (definition) =>
       "tags" in definition &&
@@ -208,7 +183,7 @@ const accessorKeys = (): string[] =>
   ).map((definition) => definition.key);
 
 const settingTags = (flags: readonly ExpectedSettingFlag[]) =>
-  flags.filter((flag): flag is "emailBody" | "prune" => flag !== "readOnly");
+  flags.filter((flag): flag is "emailBody" => flag !== "readOnly");
 
 const settingRow = ([
   keyName,
@@ -289,7 +264,6 @@ describe("settings registry", () => {
   });
 
   test("derives tagged bundles from the same setting entries", () => {
-    expect(PRUNE_KEYS).toEqual(taggedKeys("prune"));
     expect(EMAIL_BODY_KEYS).toEqual(taggedKeys("emailBody"));
   });
 

@@ -156,11 +156,7 @@ export const questionTables: [name: string, table: Table][] = [
         createdColumn,
         ["renewal_token_index", "TEXT DEFAULT NULL"],
         ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
-        // ISO timestamp of the last time the master poked this site to trigger
-        // its prune; '' (never) sorts first so the master walks every site in
-        // round-robin order. Operational metadata, not PII, so it lives outside
-        // the encrypted site_data blob.
-        ["last_pruned", "TEXT NOT NULL DEFAULT ''"],
+        ["site_data_revision", "INTEGER NOT NULL DEFAULT 0"],
         // Release channel this site opts into: 'alpha' takes every deploy,
         // 'beta' takes beta + release, 'release' only stable releases. The
         // upgrade workflow passes the tier it is publishing and the master

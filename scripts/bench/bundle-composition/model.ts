@@ -1,5 +1,5 @@
 import { decode } from "@jridgewell/sourcemap-codec";
-import { utf8ByteLength } from "../../../src/shared/bytes.ts";
+import { utf8ByteLength } from "#src/shared/bytes.ts";
 
 export interface BundleSourceMap {
   mappings: string;

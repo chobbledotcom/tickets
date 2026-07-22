@@ -50,17 +50,18 @@ src/shared/sumup.ts:262:18  ?? → ||    # withClient returns true|null here; th
 src/shared/sumup.ts:301:37  ?? → ||    # keyMode is "live", "test", or null; present values are always truthy
 src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
-src/shared/config.ts:150:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts:163:61  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts:170:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
-src/shared/config.ts:177:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:166:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:36:5  ?? → ||    # providerValue returns boolean or null, and false stays false with either fallback operator
+src/shared/config.ts:179:61  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:186:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
+src/shared/config.ts:193:33  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/qr-token.ts:60:18  ?? → ||    # input.date?: string, only falsy string "" === fallback ""
 src/shared/qr-token.ts:62:18  ?? → ||    # input.name?: string, only falsy string "" === fallback ""
 src/shared/app-forms.ts:71:18  ?? → ||    # config.auth is an AuthPolicy object when present, so it is always truthy
-src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
-src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
-src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
-src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/site-assignment.ts:161:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
+src/shared/site-assignment.ts:332:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
+src/shared/site-assignment.ts:354:34  ?? → ||    # getEmailConfig(): EmailConfig|null
+src/shared/site-assignment.ts:378:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
 src/shared/ledger/project.ts:20:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
 src/shared/listing-parents-rules.ts:124:4  ?? → ||    # find()?.error(): an i18n message is never "", so only undefined reaches the fallback either way
 src/shared/ledger/project.ts:38:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
@@ -77,7 +78,21 @@ src/shared/accounting/store.ts:223:42  ?? → ||    # planGroup originalsById.ge
 src/shared/accounting/store.ts:221:23  || → &&    # planGroup: for id in {undefined,null} both ternary branches yield null (Map<number,_>.get(undefined|null) === undefined, then ?? null === null), so || and && coincide
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
-src/features/settings-bundles.ts:264:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
+src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
+src/shared/maintenance/runner.ts:181:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:201:44  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
+src/shared/builder.ts:202:35  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:207:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/shared/builder.ts:287:26  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
+src/features/url.ts:58:35  ?? → ||   # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
+src/shared/storage.ts:376:18  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
+src/shared/site-build.ts:39:21  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
+src/shared/db/built-site-scheduler.ts:11:36  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
+src/shared/deno-deploy-api.ts:139:30  ?? → ||   # failure_reason is null or a non-empty picklist value, so both use the status only for null
+src/shared/bunny-cdn.ts:477:42  ?? → ||   # DefaultHostname is string|undefined; its only falsy string is already the same empty fallback
+src/shared/bunny-cdn.ts:529:50  ?? → ||   # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
+src/shared/subrequest-budget.ts:38:40  ?? → ||   # scoped counts is an object when present, and every object is truthy
 src/shared/db/attendees/balance.ts:223:22  ?? → ||   # attendee status ids are positive integers when present, so the value is always truthy or nullish
 src/shared/accounting/queries.ts:162:26  || → &&   # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts:121:58  ?? → ||   # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
@@ -122,6 +137,12 @@ src/shared/db/table.ts:721:6  === → ==   # wrapNullable constrains T to exclud
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
 src/shared/db/login-attempts.ts:46:39  ?? → ||
+src/shared/db/users.ts:263:62  ?? → ||   # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
+src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
+src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
+src/shared/update.ts:131:45  ?? → ||   # the stored marker is a string or undefined and the fallback is empty, so both operators return the same string
+src/shared/update.ts:156:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
@@ -148,6 +169,16 @@ src/shared/db/groups.ts:267:35  ?? → ||   # entriesByGroup.get(id): readonly e
 src/shared/db/groups.ts:460:20  ?? → ||   # blocked[0]: { listing, block }|undefined — the present object is always truthy
 src/shared/db/groups.ts:719:66  ?? → ||   # package rows: GroupListing[]|undefined — an array is always truthy
 src/shared/db/groups.ts:852:34  ?? → ||   # quantity is undefined or at least 1 by PackageMemberInput's contract, so every present value is truthy
+src/features/admin/api-groups.ts:127:31  ?? → ||   # parseMemberDayPrices returns a DayPrices object or undefined; every object, including {}, is truthy
+src/features/admin/api-groups.ts:251:48  ?? → ||   # package rows are an array or undefined; every array, including [], is truthy
+
+# CRUD configuration values are functions or objects when present, and hydrated
+# map values are records, so none can be falsy-but-non-null.
+src/shared/rest/crud-api.ts:340:31  ?? → ||   # policy is an AuthPolicy object or undefined
+src/shared/rest/crud-api.ts:344:18  ?? → ||   # lookup is a function or undefined
+src/shared/rest/crud-api.ts:351:28  ?? → ||   # lookupAfterWrite is a function or undefined
+src/shared/rest/crud-api.ts:361:31  ?? → ||   # hydrated map values are records or undefined; records are truthy
+src/shared/rest/crud-api.ts:570:27  ?? → ||   # extraRoutes is a route object or undefined
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -265,11 +296,6 @@ src/features/admin/api.ts:499:30  1 → 0   # the mutation changes sentinel -1 t
 src/features/admin/api.ts:541:19  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
 src/features/admin/api.ts:554:42  ?? → ||   # an existing listing id is positive and truthy, otherwise optional access yields undefined
 src/features/admin/api.ts:556:37  ?? → ||   # groupIds is an array or undefined; every array, including [], is truthy
-
-# Settings registry: readOnly is optional but can only be true when present, so
-# `"readOnly" in accessor && accessor.readOnly` and `... || accessor.readOnly`
-# make the same if-condition decision for every valid accessor.
-src/shared/settings/registry.ts:345:40  && → ||   # readOnly?: true; absent is falsy either way, present is true either way
 
 # --- External order widget (src/ui/client/order.ts) ----------------------------
 # URL matches and catalog entries are either non-empty strings/objects or absent,
@@ -412,14 +438,11 @@ src/shared/images/resize.ts:75:19  = → +=    # out[o+1] = G into fresh-zeroed 
 src/shared/images/resize.ts:76:19  = → +=    # out[o+2] = B into fresh-zeroed array; written once
 src/shared/images/resize.ts:78:17  = → +=    # out[o+3] = A into fresh-zeroed array; written once
 
-# middleware.ts's missing Content-Type fallback is fed only to startsWith checks,
-# so neither "" nor "mutated" can match an accepted MIME prefix. Once a tracking
-# key is found, assigning true with `=` or `+=` is the same (`false + true` is 1,
-# which is truthy), and continuing instead of breaking can only rediscover more
-# tracking keys without changing the final boolean.
-src/features/middleware.ts:163:63   → "mutated"    # neither fallback matches an accepted Content-Type
-src/features/middleware.ts:213:18  = → +=    # false + true is truthy, matching true
-src/features/middleware.ts:214:7  break; → (removed)    # later keys cannot reverse hasTracking
+# middleware.ts's Content-Type fallback already equals the only falsy string.
+# Once a tracking key is found, continuing instead of breaking can only
+# rediscover more tracking keys without changing the final boolean.
+src/features/middleware.ts:155:39  ?? → ||    # Content-Type is string|null; the only falsy non-null string is "", which is also the fallback
+src/features/middleware.ts:217:7  break; → (removed)    # later keys cannot reverse hasTracking
 
 # bundle-loader.ts assigns query/style/script values onto freshly-created URLs
 # and elements. Each left-hand value is empty (or false for defer), so `=` and
@@ -779,7 +802,7 @@ src/shared/db/attendees/update.ts:188:43  ?? → ||   # Map<string,number>.get d
 src/shared/db/attendees/update.ts:189:39  ?? → ||   # Map<string,number>.get delta; 0 ?? 0 === 0 || 0
 
 # DB client (client.ts) — extractUpdateColumns assignment guard.
-src/shared/db/client.ts:63:16  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
+src/shared/db/client.ts:71:17  0 → 1   # eqIdx===0 means the fragment starts with "="; slice(0,0) is always "" so the column is dropped by the `if (col)` guard either way — early return and fall-through agree on every input
 
 # DB client (client.ts) — write-verb classification. The WriteVerb produced by
 # invalidateForSql is consumed ONLY by invalidateCachesForWrite, whose single
@@ -787,13 +810,17 @@ src/shared/db/client.ts:63:16  0 → 1   # eqIdx===0 means the fragment starts w
 # `verb === "update"` check happens before these sites take effect. Any two
 # non-"update" verb values are therefore indistinguishable by every possible
 # test, so mutants that only reclassify/rename a non-update verb are equivalent.
-src/shared/db/client.ts:103:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
-src/shared/db/client.ts:103:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
-src/shared/db/client.ts:105:9  insert → ""   # non-delete/update/replace statements get verb "" instead of "insert": both non-"update", identical invalidation
-src/shared/db/client.ts:110:67  insert → ""   # unparseable-UPDATE fallback fires with verb "" instead of "insert": both non-"update", identical (unconditional) invalidation
+src/shared/db/client.ts:129:19  delete → ""   # DELETEs classify as "insert" instead of "delete": both are non-"update", so every invalidator (gated or not) still fires identically
+src/shared/db/client.ts:129:71  replace → ""   # REPLACEs classify as "insert" instead of "replace": both non-"update", identical invalidation
 
-# DB client (client.ts) — rawSql sentinel symbol.
-src/shared/db/client.ts:645:24  raw-sql → ""   # Symbol("raw-sql") description is debug-only metadata; the symbol's identity (not its description) is what insert()/update() branch on, and RAW_SQL is module-private so no test can observe the description
+# DB client (client.ts) — nullish-coalescing fallbacks whose left side can never
+# be a falsy non-null value, so `??` and `||` pick the same branch on every input.
+src/shared/db/client.ts:105:73  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
+src/shared/db/client.ts:364:57  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
+src/shared/db/client.ts:374:36  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
+
+# DB client (client.ts) — sentinel symbol descriptions.
+src/shared/db/client.ts:160:31  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
 
 # Payment references (payment-references.ts) — `getRefundPaymentReferences`
 # consolidates rows for the same reference into a single entry by folding
@@ -962,8 +989,8 @@ src/features/admin/index.ts:28:21  ?? → ||   # `path.split("/")[2] ?? ""`: the
 src/features/admin/index.ts:45:43  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
 
 # App prefix dispatch (app/routes.ts) — two provably-equivalent survivors.
-src/features/app/routes.ts:239:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
-src/features/app/routes.ts:444:59  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
+src/features/app/routes.ts:235:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
+src/features/app/routes.ts:439:59  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
 
 # Logger (logger.ts) — two provably-equivalent survivors from the run over the
 # logger suites.
@@ -975,10 +1002,10 @@ src/shared/logger.ts:77:70  ?? → ||   # getRequestId's `getStore() ?? ""`: the
 # the packByReferenceCount run.
 src/features/admin/refunds/waves.ts:17:24  0 → 1   # packByReferenceCount's `currentCount` init: the first iteration always hits `!wave` (waves is empty, so waves[-1] is undefined), which short-circuits the `|| currentCount + refs > budget` before currentCount is read; every later iteration reassigns it first, so the initial value is never observed
 
-# Attendee PII (db/attendees/pii.ts) — two provably-equivalent survivors from
-# the decryptPiiBlob run.
-src/shared/db/attendees/pii.ts:72:17  ?? → ||   # decryptPiiBlob's `blob.la ?? ""`: buildPiiBlob stores `info.lat || undefined`, so blob.la is a non-empty string or undefined — never "". The only falsy value is undefined, so `x ?? ""` and `x || ""` agree on every possible input
-src/shared/db/attendees/pii.ts:73:17  ?? → ||   # decryptPiiBlob's `blob.lo ?? ""`: same as la above — blob.lo is a non-empty string or undefined (buildPiiBlob stores `info.lng || undefined`), so `?? ""` and `|| ""` agree on every input
+# Attendee PII (db/attendees/pii.ts) — three provably-equivalent survivors.
+src/shared/db/attendees/pii.ts:64:5  attendees.pii_blob → ""   # buildPiiBlob receives AttendeePii: every field is already a string, and it supplies the only literal/version fields itself, so the stored-JSON writer cannot reject any contract input; its error label is never observed
+src/shared/db/attendees/pii.ts:88:17  ?? → ||   # decryptPiiBlob's `blob.la` is string|undefined and the fallback is "": truthy strings pass through, while both undefined and the only falsy string ("") produce "", so `??` and `||` agree on every input
+src/shared/db/attendees/pii.ts:89:17  ?? → ||   # decryptPiiBlob's `blob.lo` has the same string|undefined domain and "" fallback as latitude, so `??` and `||` agree on every input
 
 # Unit-tests-report import attribution (unit-tests-report-imports.ts) — the
 # stem() dir-strip replacement value is unobservable.
@@ -1079,3 +1106,15 @@ src/features/api/payment-processing/pricing.ts:75:40  ?? → ||   # running char
 src/features/api/payment-processing/store-refund.ts:146:22  ?? → ||   # spec.error is undefined or a required non-empty message
 src/features/api/payment-processing/store-refund.ts:148:24  ?? → ||   # spec.status is undefined or a positive HTTP status
 src/features/api/payment-processing/store-refund.ts:165:27  ?? → ||   # stage.refund is a truthy object or null
+
+# Stripe request null checks: both values are typed as string|null, never undefined,
+# so strict and loose null equality agree for every possible input.
+src/shared/stripe/request.ts:90:17  === → ==   # retryAfter is string|null; both comparisons are true only for null
+src/shared/stripe/request.ts:152:15  === → ==   # Headers.get returns string|null; both comparisons are true only for null
+
+# A header part without "=" has no value. Its key cannot affect timestamp or
+# signature state: a timestamp assignment remains undefined and a v1 signature
+# is added only when its value is truthy. These alternate key expressions differ
+# only for that value-less case, so every parsed result is identical.
+src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
+src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored

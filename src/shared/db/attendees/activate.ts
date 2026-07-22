@@ -321,7 +321,6 @@ export const activateStagedAttendeeImpl = async (
     },
     stage.ticketToken,
   );
-  if (!enc) throw new Error("Could not encrypt staged attendee");
   assertPostable(plan.legs);
   const activity = await orderActivityStatements(
     input.email,

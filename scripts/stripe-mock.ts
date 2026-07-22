@@ -9,6 +9,7 @@
 
 import { join } from "node:path";
 import { delay } from "#shared/now.ts";
+import { stripeMock } from "#src/shared/stripe/mock.ts";
 import { withFileLock } from "./lock-file.ts";
 import { stopProcess, stopProcessNow } from "./process.ts";
 import {
@@ -22,7 +23,7 @@ import {
 } from "./stripe-mock/install.ts";
 
 const STRIPE_MOCK_HOST = "localhost";
-export const DEFAULT_STRIPE_MOCK_PORT = 12111;
+
 export const STRIPE_MOCK_FAILED_TO_START = "stripe-mock failed to start";
 const START_CONFIRM_DELAY_MS = 50;
 const START_ATTEMPTS = 5;
@@ -33,19 +34,11 @@ type StripeMockEnvSource = {
   get: (key: string) => string | undefined;
 };
 
-const parsePort = (value: string): number => {
-  const port = Number.parseInt(value, 10);
-  if (String(port) !== value || port < 1 || port > 65_535) {
-    throw new Error("STRIPE_MOCK_PORT must be a number from 1 to 65535");
-  }
-  return port;
-};
-
 export const stripeMockPortFromEnv = (
   env: StripeMockEnvSource = Deno.env,
 ): number => {
   const port = env.get("STRIPE_MOCK_PORT");
-  return port ? parsePort(port) : DEFAULT_STRIPE_MOCK_PORT;
+  return stripeMock.port(port);
 };
 
 type StripeMockEnv = {

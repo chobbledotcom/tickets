@@ -16,16 +16,16 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { setupStripe } from "#test-utils/settings.ts";
 import {
   attendeeIds,
   intentFor,
   paidSession,
   stageSession,
-} from "../staged-runtime.helpers.ts";
+} from "#test/features/api/payment-processing/staged-runtime.helpers.ts";
+import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { setupStripe } from "#test-utils/settings.ts";
 
 /* jscpd:ignore-end */
 

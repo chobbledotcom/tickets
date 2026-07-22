@@ -67,6 +67,72 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       }
     });
 
+    test("maps every supported scalar without changing neutral values", async () => {
+      const result = await bodyToCreateInput({
+        active: false,
+        bookable_alone: true,
+        bookable_days: [],
+        can_pay_more: false,
+        closes_at: null,
+        customisable_days: true,
+        date: null,
+        day_prices: { 1: 0, 2: 2500 },
+        description: "Description",
+        duration_days: 2,
+        fields: "",
+        group_ids: [3, 4],
+        hidden: true,
+        listing_type: "daily",
+        location: "Location",
+        max_attendees: 25,
+        max_price: 0,
+        max_quantity: 1,
+        maximum_days_after: 0,
+        minimum_days_before: 0,
+        name: "  Full listing  ",
+        non_transferable: true,
+        thank_you_url: "",
+        unit_price: 0,
+        use_defaults: false,
+        webhook_url: "",
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const { slug, slugIndex, ...input } = result.value;
+        expect(input).toEqual({
+          active: false,
+          bookableAlone: true,
+          bookableDays: [],
+          canPayMore: false,
+          closesAt: "",
+          customisableDays: true,
+          date: "",
+          dayPrices: { 1: 0, 2: 2500 },
+          description: "Description",
+          durationDays: 2,
+          fields: "",
+          groupIds: [3, 4],
+          hidden: true,
+          listingType: "daily",
+          location: "Location",
+          maxAttendees: 25,
+          maximumDaysAfter: 0,
+          maxPrice: 0,
+          maxQuantity: 1,
+          minimumDaysBefore: 0,
+          name: "Full listing",
+          nonTransferable: true,
+          thankYouUrl: "",
+          unitPrice: 0,
+          useDefaults: false,
+          webhookUrl: "",
+        });
+        expect(slug).toMatch(/^[0-9a-h]{5}$/);
+        expect(slugIndex).toHaveLength(44);
+      }
+    });
+
     test("defaults max_price to zero", async () => {
       const result = await bodyToCreateInput({
         max_attendees: 10,

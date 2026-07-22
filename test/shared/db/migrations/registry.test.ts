@@ -29,4 +29,13 @@ describe("db > migration registry", () => {
   test("MIGRATION_IDS lists the registry ids in run order", () => {
     expect(MIGRATION_IDS).toEqual(MIGRATION_REGISTRY.map((entry) => entry.id));
   });
+
+  test("orders every scheduled-maintenance schema change", () => {
+    expect(MIGRATION_IDS.slice(-4)).toEqual([
+      "2026-07-18_maintenance_tasks",
+      "2026-07-18_drop_built_sites_last_pruned",
+      "2026-07-19_maintenance_checkpoint",
+      "2026-07-21_activity_backfill_complete",
+    ]);
+  });
 });

@@ -1,7 +1,7 @@
 /* jscpd:ignore-start */
 import type { Page } from "playwright";
-import type { BrowserSession } from "../browser.ts";
-import type { ProviderName } from "../config.ts";
+import type { BrowserSession } from "#e2e/browser.ts";
+import type { ProviderName } from "#e2e/config.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -40,6 +40,15 @@ export interface HostedCheckoutContext {
 
 export interface PaymentProvider {
   /**
+   * Optional provider-specific checks after the first paid journey. This is
+   * where a sandbox can exercise live API paths beyond checkout without making
+   * every provider implement actions it does not support in this harness.
+   */
+  afterPaidBooking?: (
+    session: BrowserSession,
+    context: HostedCheckoutContext,
+  ) => Promise<void>;
+  /**
    * Optional teardown against the provider's own account (not the app), run in
    * `finally` after each run. Used to remove ephemeral resources the run
    * created in the sandbox — e.g. the per-tunnel Stripe webhook endpoint.
@@ -50,6 +59,8 @@ export interface PaymentProvider {
    * payment provider, then save its credentials. Throws on failure.
    */
   configure: ConfigureProvider;
+  /** How the first paid booking must reach the app before it is accepted. */
+  readonly firstBookingConfirmation: "return" | "webhook";
   name: ProviderName;
   /**
    * Drive the provider's *hosted* checkout page: enter the sandbox test card

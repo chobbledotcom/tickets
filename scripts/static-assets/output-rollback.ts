@@ -2,7 +2,7 @@ import {
   type CleanupTask,
   failAfterCleanups,
   removeIfPresent,
-} from "../cleanup.ts";
+} from "#scripts/cleanup.ts";
 import { fileExists } from "./session.ts";
 
 export const withGeneratedOutputRollback = async <Result>(

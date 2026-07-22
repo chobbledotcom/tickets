@@ -367,6 +367,26 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-18_checkout_stage_refund_spec",
     () => import("./2026-07-18_checkout_stage_refund_spec.ts"),
   ),
+  // Move local background work onto durable, token-fenced task claims.
+  entry(
+    "2026-07-18_maintenance_tasks",
+    () => import("./2026-07-18_maintenance_tasks.ts"),
+  ),
+  // Fleet fan-out is gone, so built sites no longer need a rotation marker.
+  entry(
+    "2026-07-18_drop_built_sites_last_pruned",
+    () => import("./2026-07-18_drop_built_sites_last_pruned.ts"),
+  ),
+  // Let bounded maintenance scans continue without rescanning earlier rows.
+  entry(
+    "2026-07-19_maintenance_checkpoint",
+    () => import("./2026-07-19_maintenance_checkpoint.ts"),
+  ),
+  // Preserve the old migration's missing-row signal as a completed checkpoint.
+  entry(
+    "2026-07-21_activity_backfill_complete",
+    () => import("./2026-07-21_activity_backfill_complete.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

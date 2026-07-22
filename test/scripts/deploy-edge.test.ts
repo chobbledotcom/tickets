@@ -14,7 +14,7 @@ import {
   runDeployEdge,
   USAGE,
   uploadScriptCode,
-} from "../../scripts/deploy-edge-lib.ts";
+} from "#scripts/deploy-edge-lib.ts";
 
 interface FetchCall {
   init: RequestInit;

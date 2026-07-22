@@ -1,7 +1,4 @@
-import type {
-  StaticCdnAsset,
-  StaticCdnConfig,
-} from "../../scripts/static-cdn.ts";
+import type { StaticCdnAsset, StaticCdnConfig } from "#scripts/static-cdn.ts";
 
 export const CONFIG = {
   accountKey: "account-secret",

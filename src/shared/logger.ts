@@ -101,8 +101,6 @@ const ERROR_DEFS = {
     "E_EMAIL_TEMPLATE_RENDER",
     "Email template render failed",
   ],
-  ENCRYPT_FAILED: ["E_ENCRYPT_FAILED", "Encryption failed"],
-
   // Broken image records/files (fallback red pixel served instead)
   IMAGE_BROKEN: ["E_IMAGE_BROKEN", "Broken image"],
   KEY_DERIVATION: ["E_KEY_DERIVATION", "Key derivation failed"],

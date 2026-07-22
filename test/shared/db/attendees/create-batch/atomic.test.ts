@@ -1,3 +1,3 @@
-import "../create.test.ts";
-import "../create-rollback.test.ts";
-import "../../../../lib/db/attendees/create-attendee-ledger.test.ts";
+import "#test/lib/db/attendees/create-attendee-ledger.test.ts";
+import "#test/shared/db/attendees/create-rollback.test.ts";
+import "#test/shared/db/attendees/create.test.ts";

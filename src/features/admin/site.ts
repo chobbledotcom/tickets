@@ -1,4 +1,4 @@
-import { handlersFor } from "#routes/admin/handlers.ts";
+import { defineRoutes } from "#routes/router.ts";
 /**
  * Admin site page editor routes - manage public site content.
  * Access: owner + editor (managers stay excluded — see SITE_ADMIN_LEVELS).
@@ -217,13 +217,13 @@ const handleSiteOrderPost = settingsHandler({
 });
 
 /** Site editor routes */
-export const adminHandlers = handlersFor("site")({
-  getSite: siteGetRoute(renderHomePage),
-  getSiteContact: siteGetRoute(renderContactPage),
-  getSiteOrder: handleSiteOrderGet,
-  postSite: handleSiteHomePost,
-  postSiteContact: handleSiteContactPost,
-  postSiteContactForm: handleSiteContactFormTogglePost,
-  postSiteOrder: handleSiteOrderPost,
-  postSiteOrderToggle: handleSiteOrderTogglePost,
+export const adminHandlers = defineRoutes({
+  "GET /admin/site": siteGetRoute(renderHomePage),
+  "GET /admin/site/contact": siteGetRoute(renderContactPage),
+  "GET /admin/site/order": handleSiteOrderGet,
+  "POST /admin/site": handleSiteHomePost,
+  "POST /admin/site/contact": handleSiteContactPost,
+  "POST /admin/site/contact/form": handleSiteContactFormTogglePost,
+  "POST /admin/site/order": handleSiteOrderPost,
+  "POST /admin/site/order/toggle": handleSiteOrderTogglePost,
 });

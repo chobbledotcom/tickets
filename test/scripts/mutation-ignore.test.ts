@@ -1,16 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { tempFile } from "#test-utils/files.ts";
-import type { Mutant } from "../../scripts/mutation/generate.ts";
+import type { Mutant } from "#scripts/mutation/generate.ts";
 import {
   type IgnoreList,
   ignoreListProblems,
   isIgnored,
   loadIgnoreList,
   mutantKey,
-} from "../../scripts/mutation/ignore.ts";
-import type { MutantResult } from "../../scripts/mutation/summary.ts";
-import { projectRoot } from "../../scripts/project-root.ts";
+} from "#scripts/mutation/ignore.ts";
+import type { MutantResult } from "#scripts/mutation/summary.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import { tempFile } from "#test-utils/files.ts";
 
 const file = `${projectRoot}/src/example.ts`;
 

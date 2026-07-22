@@ -30,9 +30,9 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
+import { seedPreDropLedgerColumns } from "#test/lib/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
-import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
 
 const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
@@ -341,6 +341,9 @@ export const ownsSchemaObjects = (req: SchemaRequirement): boolean =>
 const columnsRemovedByMigration: Partial<Record<string, string[]>> = {
   "2026-07-05_first_class_images": [
     "ALTER TABLE listings ADD COLUMN image_url TEXT NOT NULL DEFAULT ''",
+  ],
+  "2026-07-18_drop_built_sites_last_pruned": [
+    "ALTER TABLE built_sites ADD COLUMN last_pruned TEXT NOT NULL DEFAULT ''",
   ],
 };
 

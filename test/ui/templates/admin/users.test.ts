@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   adminUserDeletePage,
   adminUsersPage,
   type DisplayUser,
 } from "#templates/admin/users.tsx";
-import { setupTestEncryptionKey } from "#test-utils/env.ts";
-
-const TEST_SESSION = { adminLevel: "owner" as const };
+import {
+  OWNER_SESSION,
+  setupAdminPageTest,
+} from "#test-utils/admin-page-test.ts";
 
 /** Factory for a {@link DisplayUser} with common defaults. */
 const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
@@ -20,12 +20,9 @@ const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
   ...overrides,
 });
 
-beforeAll(async () => {
-  setupTestEncryptionKey();
-  await signCsrfToken();
-});
-
 describe("adminUsersPage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders statuses and links each username to its manage page", () => {
     const users: DisplayUser[] = [
       displayUser(),
@@ -42,7 +39,7 @@ describe("adminUsersPage", () => {
         username: "invited",
       }),
     ];
-    const html = adminUsersPage(users, TEST_SESSION, {
+    const html = adminUsersPage(users, OWNER_SESSION, {
       currentUserId: 1,
       error: "",
       inviteLink: "",
@@ -70,7 +67,7 @@ describe("adminUsersPage", () => {
         username: "expired-user",
       }),
     ];
-    const html = adminUsersPage(users, TEST_SESSION, {
+    const html = adminUsersPage(users, OWNER_SESSION, {
       currentUserId: 1,
       error: "",
       inviteLink: "",
@@ -89,7 +86,7 @@ describe("adminUsersPage", () => {
         username: "owner",
       },
     ];
-    const html = adminUsersPage(users, TEST_SESSION, {
+    const html = adminUsersPage(users, OWNER_SESSION, {
       currentUserId: 1,
       error: "Something went wrong",
       inviteLink: "https://example.com/join/abc123",
@@ -103,6 +100,8 @@ describe("adminUsersPage", () => {
 });
 
 describe("adminUserDeletePage", () => {
+  beforeAll(setupAdminPageTest);
+
   test("renders delete confirmation form with username", () => {
     const user: DisplayUser = {
       activated: true,
@@ -111,7 +110,7 @@ describe("adminUserDeletePage", () => {
       inviteExpired: false,
       username: "targetuser",
     };
-    const html = adminUserDeletePage(user, TEST_SESSION);
+    const html = adminUserDeletePage(user, OWNER_SESSION);
     expect(html).toContain("Delete User");
     expect(html).toContain("targetuser");
     expect(html).toContain('name="confirm_identifier"');
@@ -129,7 +128,7 @@ describe("adminUserDeletePage", () => {
     };
     const html = adminUserDeletePage(
       user,
-      TEST_SESSION,
+      OWNER_SESSION,
       "Username does not match",
     );
     expect(html).toContain("Username does not match");

@@ -1,7 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { withEnv } from "#test-utils/env.ts";
-import { tempFile } from "#test-utils/files.ts";
 import {
   formatProgressLine,
   formatSummaryLines,
@@ -9,8 +7,10 @@ import {
   rel,
   summarize,
   writeStepSummary,
-} from "../../scripts/mutation/summary.ts";
-import { projectRoot } from "../../scripts/project-root.ts";
+} from "#scripts/mutation/summary.ts";
+import { projectRoot } from "#scripts/project-root.ts";
+import { withEnv } from "#test-utils/env.ts";
+import { tempFile } from "#test-utils/files.ts";
 
 const fakeResult = (
   status: MutantResult["status"],
