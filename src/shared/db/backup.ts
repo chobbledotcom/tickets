@@ -228,7 +228,7 @@ export const createAndUploadBackup = async (): Promise<string> => {
 // ─── Restore ────────────────────────────────────────────────────
 
 /** Read and validate manifest.json. Older backups without one remain restorable. */
-const readManifest = (
+const readManifestOrNull = (
   files: Record<string, Uint8Array>,
 ): BackupManifest | null => {
   const manifestBytes = files["manifest.json"];
@@ -299,7 +299,7 @@ const inspectOpenBackup = (backup: OpenBackup): BackupInspection => {
     );
   }
 
-  const manifest = readManifest(backup.files);
+  const manifest = readManifestOrNull(backup.files);
   const manifestTables = manifest === null ? {} : manifest.tables;
   const statementsByTable = new Map(
     sqlFiles.map(({ statementCount, table }) => [table, statementCount]),
