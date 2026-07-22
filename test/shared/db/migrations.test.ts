@@ -285,25 +285,27 @@ describeWithEnv("db > migrations", { db: true }, () => {
       expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
 
-    test("runs the completed activity backfill migration on an old completed site", async () => {
-      await getDb().execute(
-        "DELETE FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
-      );
+    test("keeps an old completed activity backfill dormant after upgrade", async () => {
+      await getDb().execute({
+        args: ["activity_log_backfill", ACTIVITY_LOG_BACKFILL_COMPLETE],
+        sql: `INSERT OR REPLACE INTO maintenance_tasks
+                (name, checkpoint, completed_at, next_run_at)
+              VALUES (?, ?, NULL, 0)`,
+      });
       await simulateUpgradeFromRelease(
-        "Add secure local scheduled maintenance and durable task claims.",
-        "2026-07-21_activity_backfill_complete",
+        "Preserve completed activity log backfills without rescanning.",
+        "2026-07-22_maintenance_completion",
       );
 
       await initDb();
 
       const task = await getDb().execute(
-        "SELECT checkpoint FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
+        "SELECT checkpoint, completed_at FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
       );
-      expect(task.rows).toEqual([
-        { checkpoint: ACTIVITY_LOG_BACKFILL_COMPLETE },
-      ]);
+      expect(task.rows[0]?.checkpoint).toBe(ACTIVITY_LOG_BACKFILL_COMPLETE);
+      expect(Number(task.rows[0]?.completed_at)).toBeGreaterThan(0);
       expect(await appliedMigrationIds()).toContain(
-        "2026-07-21_activity_backfill_complete",
+        "2026-07-22_maintenance_completion",
       );
       expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
     });
