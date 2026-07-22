@@ -55,7 +55,10 @@ type FakeClient = {
 
 type ConnectedFake = FakeClient & Disposable;
 
-const fakeClient = (monitors: UptimeKumaMonitor[]): FakeClient => {
+const fakeClient = (
+  monitors: UptimeKumaMonitor[],
+  beforeDelete?: (id: number) => void,
+): FakeClient => {
   const added: AddedMonitor[] = [];
   const deleted: number[] = [];
   let currentMonitors = [...monitors];
@@ -79,6 +82,7 @@ const fakeClient = (monitors: UptimeKumaMonitor[]): FakeClient => {
       return Promise.resolve(id);
     },
     deleteMonitor: (id) => {
+      beforeDelete?.(id);
       deleted.push(id);
       currentMonitors = currentMonitors.filter((monitor) => monitor.id !== id);
       return Promise.resolve();
@@ -105,8 +109,11 @@ const connectClient = (fake: FakeClient): ConnectedFake => {
 export const connectFake = (monitors: UptimeKumaMonitor[]): ConnectedFake =>
   connectClient(fakeClient(monitors));
 
-const connectChangingFake = (reads: UptimeKumaMonitor[][]): ConnectedFake => {
-  const fake = fakeClient([]);
+const connectChangingFake = (
+  reads: UptimeKumaMonitor[][],
+  beforeDelete?: (id: number) => void,
+): ConnectedFake => {
+  const fake = fakeClient([], beforeDelete);
   let readIndex = 0;
   fake.client.getMonitors = () => {
     const monitors = reads[readIndex++];
@@ -151,9 +158,10 @@ export const runWithKeylessSite = async <Value>(
 
 export const runChangingAdd = async (
   reads: UptimeKumaMonitor[][],
+  beforeDelete?: (id: number) => void,
 ): Promise<ChangingAddOutcome> => {
   using _env = withEnv(kumaEnv);
-  using fake = connectChangingFake(reads);
+  using fake = connectChangingFake(reads, beforeDelete);
   const result = await uptimeKumaMonitorService.add(configuredSite());
   return { added: fake.added, deleted: fake.deleted, result };
 };
@@ -173,7 +181,7 @@ export const addRaceCases: AddRaceCase[] = [
     addedCount: 2,
     addedParent: 99,
     created: true,
-    deleted: [100],
+    deleted: [],
     monitorId: 101,
     name: "reuses a group created by a concurrent request",
     reads: [
@@ -212,9 +220,9 @@ export const addRaceCases: AddRaceCase[] = [
   {
     addedCount: 1,
     created: false,
-    deleted: [100],
+    deleted: [],
     monitorId: 97,
-    name: "removes its empty group when other requests add the monitor",
+    name: "reuses a concurrent monitor without deleting either group",
     reads: [
       [],
       [group(100)],
@@ -270,9 +278,9 @@ export const addRaceCases: AddRaceCase[] = [
   {
     addedCount: 2,
     created: false,
-    deleted: [101, 100],
+    deleted: [101],
     monitorId: 99,
-    name: "removes its group after removing its losing monitor",
+    name: "removes only its losing monitor",
     reads: [
       [],
       [group(100)],

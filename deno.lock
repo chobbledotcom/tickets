@@ -90,7 +90,6 @@
     "npm:resend@*": "6.12.4",
     "npm:sass@^1.101.0": "1.101.0",
     "npm:sharp@~0.34.5": "0.34.5",
-    "npm:socket.io-client@^4.8.3": "4.8.3",
     "npm:stripe@^22.0.1": "22.1.0_@types+node@24.2.0",
     "npm:temporal-polyfill@0.3": "0.3.2",
     "npm:typescript@*": "5.9.3",
@@ -1052,9 +1051,6 @@
         "magic-string"
       ]
     },
-    "@socket.io/component-emitter@3.1.2": {
-      "integrity": "sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA=="
-    },
     "@stablelib/base64@1.0.1": {
       "integrity": "sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ=="
     },
@@ -1206,19 +1202,6 @@
         "es-errors",
         "gopd"
       ]
-    },
-    "engine.io-client@6.6.6": {
-      "integrity": "sha512-iY6QdftLQ9pyiPoX082bpf/u1UewnOaJrtJIF9T0++QB34lZrj0uP+Q/bj8AlUsAxqhnkTV2BS8SBZSxOmoV5Q==",
-      "dependencies": [
-        "@socket.io/component-emitter",
-        "debug",
-        "engine.io-parser",
-        "ws",
-        "xmlhttprequest-ssl"
-      ]
-    },
-    "engine.io-parser@5.2.3": {
-      "integrity": "sha512-HqD3yTBfnBxIrbnM1DoD6Pcq8NECnh8d4As1Qgh0z5Gg3jRRIqijury0CL3ghu/edArpUYiYqQiDUQBIs4np3Q=="
     },
     "entities@4.5.0": {
       "integrity": "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="
@@ -1795,22 +1778,6 @@
       ],
       "scripts": true
     },
-    "socket.io-client@4.8.3": {
-      "integrity": "sha512-uP0bpjWrjQmUt5DTHq9RuoCBdFJF10cdX9X+a368j/Ft0wmaVgxlrjvK3kjvgCODOMMOz9lcaRzxmso0bTWZ/g==",
-      "dependencies": [
-        "@socket.io/component-emitter",
-        "debug",
-        "engine.io-client",
-        "socket.io-parser"
-      ]
-    },
-    "socket.io-parser@4.2.7": {
-      "integrity": "sha512-IH/iSeO9T6gz1KkFleGDWkG9N3dl4jXVYUtMhIqH10Md0ttMer8nUNWiP1DKuNrybD2xBrixLJdCC9J6ECoYkg==",
-      "dependencies": [
-        "@socket.io/component-emitter",
-        "debug"
-      ]
-    },
     "source-map-js@1.2.1": {
       "integrity": "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA=="
     },
@@ -1904,9 +1871,6 @@
     "ws@8.21.0": {
       "integrity": "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="
     },
-    "xmlhttprequest-ssl@2.1.2": {
-      "integrity": "sha512-TEU+nJVUUnA4CYJFLvK5X9AOeH4KvDvhIfm0vV1GaQRtchnG0hgK5p8hw/xjv8cunWYCsiPCSDzObPyhEwq3KQ=="
-    },
     "zod@3.25.76": {
       "integrity": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="
     }
@@ -1990,7 +1954,6 @@
       "npm:prosemirror-view@^1.42.0",
       "npm:sass@^1.101.0",
       "npm:sharp@~0.34.5",
-      "npm:socket.io-client@^4.8.3",
       "npm:stripe@^22.0.1",
       "npm:temporal-polyfill@0.3",
       "npm:uqr@~0.1.3",

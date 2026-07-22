@@ -164,14 +164,13 @@ describe("Uptime Kuma built-site monitor state", () => {
     });
   });
 
-  test("reports duplicate shared groups as an ambiguous setup", async () => {
+  test("finds a monitor across duplicate shared groups", async () => {
     using _env = withEnv(kumaEnv);
-    using _fake = connectFake([group(11), group(12)]);
+    using _fake = connectFake([group(11), group(12), siteMonitor(12)]);
 
-    expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
-      error: `More than one Uptime Kuma group is named "${UPTIME_KUMA_GROUP_NAME}".`,
-      kind: "error",
-    });
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
+      { kind: "found", monitor: { id: 22 } },
+    );
   });
 
   test("reports duplicate monitors as an ambiguous setup", async () => {

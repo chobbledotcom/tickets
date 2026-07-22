@@ -2,19 +2,15 @@ import * as v from "valibot";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import type { UptimeKumaConfig } from "./config.ts";
+import {
+  createUptimeKumaSocket,
+  type UptimeKumaSocket,
+  uptimeKumaConnectionError,
+} from "./socket.ts";
 
 const SOCKET_TIMEOUT_MS = 10_000;
 
 type SocketListener = (...args: unknown[]) => void;
-
-export interface UptimeKumaSocket {
-  connect(): unknown;
-  disconnect(): unknown;
-  emitWithAck(event: string, ...args: unknown[]): Promise<unknown>;
-  off(event: string, listener: SocketListener): unknown;
-  once(event: string, listener: SocketListener): unknown;
-  timeout(milliseconds: number): UptimeKumaSocket;
-}
 
 export type UptimeKumaMonitorInput = Record<string, unknown>;
 
@@ -70,9 +66,6 @@ const AddResponseSchema = v.union([
   v.object({ monitorID: integerAtLeast(1), ok: v.literal(true) }),
   FailedResponseSchema,
 ]);
-
-const responseError = (value: unknown): Error =>
-  value instanceof Error ? value : new Error("Uptime Kuma connection failed.");
 
 const requireOk = (value: unknown): void => {
   const response = v.parse(BasicResponseSchema, value);
@@ -157,18 +150,20 @@ const socketPath = (url: URL): string => {
   return `${basePath}/socket.io`;
 };
 
+const socketUrl = (url: URL): string => {
+  const socket = new URL(url.origin);
+  socket.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  socket.pathname = `${socketPath(url)}/`;
+  socket.searchParams.set("EIO", "4");
+  socket.searchParams.set("transport", "websocket");
+  return socket.href;
+};
+
 export const uptimeKumaSocketFactory = {
   create: async (config: UptimeKumaConfig): Promise<UptimeKumaSocket> => {
     countExternalSubrequest("Uptime Kuma socket connection");
-    const { io } = await import("socket.io-client");
     const url = new URL(config.url);
-    return io(url.origin, {
-      autoConnect: false,
-      path: socketPath(url),
-      reconnection: false,
-      timeout: SOCKET_TIMEOUT_MS,
-      transports: ["websocket"],
-    });
+    return createUptimeKumaSocket(socketUrl(url), SOCKET_TIMEOUT_MS);
   },
 };
 
@@ -182,7 +177,7 @@ const connect = async (config: UptimeKumaConfig): Promise<UptimeKumaClient> => {
       };
       const failed: SocketListener = (error) => {
         socket.off("connect", connected);
-        reject(responseError(error));
+        reject(uptimeKumaConnectionError(error));
       };
       socket.once("connect", connected);
       socket.once("connect_error", failed);

@@ -1,7 +1,7 @@
 import { stub } from "@std/testing/mock";
-import type { UptimeKumaSocket } from "#shared/uptime-kuma/client.ts";
 import { uptimeKumaSocketFactory } from "#shared/uptime-kuma/client.ts";
 import type { UptimeKumaConfig } from "#shared/uptime-kuma/config.ts";
+import type { UptimeKumaSocket } from "#shared/uptime-kuma/socket.ts";
 
 type Listener = (...args: unknown[]) => void;
 type Reply = unknown | ((...args: unknown[]) => unknown);
