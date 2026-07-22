@@ -18,6 +18,11 @@
  */
 
 import * as v from "valibot";
+import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
+import {
+  groupCatalogFields,
+  listingCatalogFields,
+} from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   isContactField,
@@ -146,6 +151,24 @@ const optBoolean = v.optional(v.boolean());
 const optNonNegInt = v.optional(NonNegativeIntSchema);
 const optPositiveInt = v.optional(PositiveIntSchema);
 
+const TRANSFER_FIELD_SCHEMAS = {
+  bookableDays: v.optional(v.array(BookableDaySchema)),
+  boolean: optBoolean,
+  datetime: v.optional(DatetimeSchema),
+  dayPrices: v.optional(DayPricesSchema),
+  durationDays: v.optional(DurationDaysSchema),
+  fields: v.optional(FieldsSchema),
+  listingType: v.optional(ListingTypeSchema),
+  maxPrice: v.optional(PriceSchema, 0),
+  name: NameRefSchema,
+  nonNegativeInt: optNonNegInt,
+  nullableDatetime: v.optional(v.nullable(DatetimeSchema)),
+  positiveInt: optPositiveInt,
+  price: v.optional(PriceSchema),
+  requiredPositiveInt: PositiveIntSchema,
+  string: optString,
+} as const;
+
 /**
  * The transferable columns of a listing, keyed in camelCase to match
  * `ListingInput`. Excludes the id/slug/timestamp columns (regenerated on
@@ -159,43 +182,9 @@ const optPositiveInt = v.optional(PositiveIntSchema);
  * rejected with a field error rather than silently dropped, which would
  * otherwise import a listing missing that column or its whole parent/group set.
  */
-const ListingFieldsSchema = v.strictObject({
-  active: optBoolean,
-  assignBuiltSite: optBoolean,
-  // A child listing that keeps its own standalone `/ticket` page. Carried so an
-  // export/import round-trip preserves it (otherwise a re-imported child defaults
-  // to `false`, losing its page, catalog/API eligibility, and add-on reach).
-  bookableAlone: optBoolean,
-  bookableDays: v.optional(v.array(BookableDaySchema)),
-  canPayMore: optBoolean,
-  closesAt: v.optional(v.nullable(DatetimeSchema)),
-  customisableDays: optBoolean,
-  date: v.optional(DatetimeSchema),
-  dayPrices: v.optional(DayPricesSchema),
-  description: optString,
-  durationDays: v.optional(DurationDaysSchema),
-  fields: v.optional(FieldsSchema),
-  hidden: optBoolean,
-  initialSiteMonths: optNonNegInt,
-  listingType: v.optional(ListingTypeSchema),
-  location: optString,
-  // A listing's capacity must be at least 1, matching the form/API create paths
-  // (a 0-capacity listing can never accept a booking).
-  maxAttendees: PositiveIntSchema,
-  maximumDaysAfter: optNonNegInt,
-  maxPrice: v.optional(PriceSchema, 0),
-  maxQuantity: optPositiveInt,
-  minimumDaysBefore: optNonNegInt,
-  monthsPerUnit: optNonNegInt,
-  name: NameRefSchema,
-  nonTransferable: optBoolean,
-  purchaseOnly: optBoolean,
-  thankYouUrl: optString,
-  unitPrice: v.optional(PriceSchema),
-  useDefaults: optBoolean,
-  usesLogistics: optBoolean,
-  webhookUrl: optString,
-});
+const ListingFieldsSchema = v.strictObject(
+  projectCatalogFields(listingCatalogFields, "schema", TRANSFER_FIELD_SCHEMAS),
+);
 
 /** Drop day-price keys beyond the listing's own duration: the form only reads
  * `day_price_1..durationDays`, so a stored/blob entry above that (e.g. duration 2
@@ -221,15 +210,9 @@ export type ListingData = v.InferOutput<typeof ListingDataSchema>;
 
 /** The transferable columns of a group, keyed to match `GroupInput` (members
  * live on the envelope, not here). */
-export const GroupDataSchema = v.strictObject({
-  description: optString,
-  hidden: optBoolean,
-  hidePackageListings: optBoolean,
-  isPackage: optBoolean,
-  maxAttendees: optNonNegInt,
-  name: NameRefSchema,
-  termsAndConditions: optString,
-});
+export const GroupDataSchema = v.strictObject(
+  projectCatalogFields(groupCatalogFields, "schema", TRANSFER_FIELD_SCHEMAS),
+);
 export type GroupData = v.InferOutput<typeof GroupDataSchema>;
 
 /** The package-override fields a membership carries, from either side. `null`

@@ -6,6 +6,7 @@
  */
 
 import { t } from "#i18n";
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -29,10 +30,7 @@ import {
   isSlugTaken,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import {
-  computeSlugIndex,
-  type ListingInput,
-} from "#shared/db/listings/table.ts";
+import { computeSlugIndex } from "#shared/db/listings/table.ts";
 import {
   childOnlyAddOnNameForListings,
   firstChildUnreachableAddOnForListings,

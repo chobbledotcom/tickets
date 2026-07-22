@@ -8,6 +8,11 @@
 
 /* jscpd:ignore-start */
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
+import {
+  type ListingInput,
+  listingCatalogFields,
+} from "#shared/catalog-fields/fields.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { listingAttributeOptions } from "#shared/db/attributes.ts";
@@ -22,10 +27,7 @@ import {
 } from "#shared/db/listing-prices.ts";
 import type { ListingAggregateValues } from "#shared/db/listings/aggregates.ts";
 import { listingsTable } from "#shared/db/listings/records.ts";
-import {
-  computeSlugIndex,
-  type ListingInput,
-} from "#shared/db/listings/table.ts";
+import { computeSlugIndex } from "#shared/db/listings/table.ts";
 import { settings } from "#shared/db/settings.ts";
 import { isDemoMode } from "#shared/demo/mode.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -164,35 +166,18 @@ const extractCommonFields = (
   );
   const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
   return {
+    ...projectCatalogFields(listingCatalogFields, "form", values),
     assignBuiltSite: enabledChoice(
       isBuilderEnabled(),
       values.assign_built_site,
     ),
-    bookableAlone: values.bookable_alone === "1",
     bookableDays,
-    canPayMore: values.can_pay_more === "1",
     closesAt: closesAt === "" ? null : closesAt,
-    customisableDays: values.customisable_days === "1",
     date: normalizeOptionalDatetime(values.date, "date"),
     dayPrices: parseDayPricesFromForm(form, durationDays),
-    description: values.description,
-    durationDays,
-    fields: values.fields,
     groupIds: parseGroupIds(form),
-    hidden: values.hidden === "1",
-    initialSiteMonths: values.initial_site_months ?? 0,
     listingType,
-    location: values.location,
-    maxAttendees: values.max_attendees,
-    maximumDaysAfter: values.maximum_days_after ?? 90,
     maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
-    maxQuantity: values.max_quantity,
-    minimumDaysBefore: values.minimum_days_before ?? 1,
-    monthsPerUnit: values.months_per_unit ?? 0,
-    name: values.name,
-    nonTransferable: values.non_transferable === "1",
-    purchaseOnly: values.purchase_only === "1",
-    thankYouUrl: values.thank_you_url,
     unitPrice,
     useDefaults: form.getFlag("use_defaults"),
     usesLogistics: enabledChoice(

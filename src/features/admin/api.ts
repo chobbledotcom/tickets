@@ -16,6 +16,14 @@ import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import {
+  type CatalogApiBody,
+  projectCatalogFields,
+} from "#shared/catalog-fields/definition.ts";
+import {
+  type ListingInput,
+  listingCatalogFields,
+} from "#shared/catalog-fields/fields.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   listingGroups,
@@ -34,7 +42,6 @@ import {
   getStoredListingWithCount,
   listingsTable,
 } from "#shared/db/listings/records.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import {
   deleteOrphanedAddOnError,
   generateUniqueListingSlug,
@@ -54,51 +61,26 @@ import {
   withApiEntity,
 } from "#shared/rest/crud-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import type {
-  AdminListing,
-  Listing,
-  ListingType,
-  ListingWithCount,
-} from "#shared/types.ts";
+import type { AdminListing, Listing, ListingWithCount } from "#shared/types.ts";
 import { validateChildEdges } from "./listings-parents.ts";
+
 /* jscpd:ignore-end */
 
 // =============================================================================
 // Published API types — the contract for callers
 // =============================================================================
 
-/** JSON body accepted by POST /api/admin/listings */
-export type CreateListingBody = {
+/** JSON body accepted by POST /api/admin/listings. */
+export type CreateListingBody = Omit<
+  CatalogApiBody<typeof listingCatalogFields>,
+  "date"
+> & {
+  date?: string | null;
   name: string;
   max_attendees: number;
-  max_price?: number;
-  description?: string;
-  date?: string | null;
-  location?: string;
   group_ids?: number[];
-  unit_price?: number;
-  max_quantity?: number;
-  thank_you_url?: string;
-  webhook_url?: string;
-  active?: boolean;
-  fields?: string;
-  closes_at?: string | null;
-  listing_type?: ListingType;
-  bookable_days?: string[];
-  minimum_days_before?: number;
-  maximum_days_after?: number;
-  duration_days?: number;
-  non_transferable?: boolean;
-  can_pay_more?: boolean;
-  customisable_days?: boolean;
   /** Day count → price (minor units), e.g. { "1": 1000, "2": 1800 }. */
   day_prices?: Record<number, number>;
-  hidden?: boolean;
-  /** Inherit the operator's listing defaults (live) for the defaulted fields. */
-  use_defaults?: boolean;
-  /** Keep this listing's own standalone booking page/catalog entry while it is
-   * also offered under one or more parents (only meaningful for a child). */
-  bookable_alone?: boolean;
   /** Listing ids the buyer must choose one of when this listing is booked (the
    * required-child gate). Only honoured when the parents feature is enabled;
    * self-edges and unknown ids are dropped, and the same nesting/field/add-on
@@ -116,69 +98,20 @@ export type DeleteListingBody = DeleteBody;
 // Schema-driven field extraction
 // =============================================================================
 
-/** Field type tag for runtime checking */
-type FieldType = "string" | "number" | "boolean" | "string[]";
-
-/** The possible value types for listing fields */
-type FieldValue = string | number | boolean | string[];
-
-/** Partial ListingInput fields keyed by camelCase name */
-type FieldRecord = Record<string, FieldValue>;
-
-/**
- * Field mapping: [apiKey, listingInputKey, type]
- *
- * Single source of truth for the snake_case → camelCase mapping.
- * Drives both bodyToCreateInput (extract from JSON body) and
- * bodyToUpdateInput (defaults from existing listing).
- */
-type FieldMapping = readonly [string, string, FieldType];
-
-const optionalFields: FieldMapping[] = [
-  ["description", "description", "string"],
-  ["date", "date", "string"],
-  ["location", "location", "string"],
-  ["unit_price", "unitPrice", "number"],
-  ["max_quantity", "maxQuantity", "number"],
-  ["thank_you_url", "thankYouUrl", "string"],
-  ["webhook_url", "webhookUrl", "string"],
-  ["active", "active", "boolean"],
-  ["fields", "fields", "string"],
-  ["closes_at", "closesAt", "string"],
-  ["listing_type", "listingType", "string"],
-  ["bookable_days", "bookableDays", "string[]"],
-  ["minimum_days_before", "minimumDaysBefore", "number"],
-  ["maximum_days_after", "maximumDaysAfter", "number"],
-  ["duration_days", "durationDays", "number"],
-  ["non_transferable", "nonTransferable", "boolean"],
-  ["can_pay_more", "canPayMore", "boolean"],
-  ["customisable_days", "customisableDays", "boolean"],
-  ["hidden", "hidden", "boolean"],
-  ["use_defaults", "useDefaults", "boolean"],
-  ["bookable_alone", "bookableAlone", "boolean"],
-];
-
-interface ApiBodyFieldRule {
-  apiKey: string;
-  error: string;
-  schema: v.GenericSchema;
-}
-
-const API_BODY_FIELD_RULES: ApiBodyFieldRule[] = [
-  {
-    apiKey: "bookable_days",
-    error: "bookable_days must contain only text",
-    schema: v.array(v.string()),
-  },
-  {
-    apiKey: "duration_days",
-    error: "duration_days must be a safe integer",
-    schema: v.pipe(v.number(), v.safeInteger()),
-  },
-  {
-    apiKey: "day_prices",
-    error: "day_prices numeric values must be safe integers",
-    schema: v.pipe(
+const API_BODY_FIELD_RULES = [
+  [
+    "bookable_days",
+    v.array(v.string()),
+    "bookable_days must contain only text",
+  ],
+  [
+    "duration_days",
+    v.pipe(v.number(), v.safeInteger()),
+    "duration_days must be a safe integer",
+  ],
+  [
+    "day_prices",
+    v.pipe(
       v.unknown(),
       v.check(
         (raw) =>
@@ -189,19 +122,9 @@ const API_BODY_FIELD_RULES: ApiBodyFieldRule[] = [
           ),
       ),
     ),
-  },
-];
-
-/** Reject malformed mapped values before they can reach domain or storage code. */
-const validateApiBodyFields = (
-  body: Record<string, unknown>,
-): Result<undefined> => {
-  const invalid = API_BODY_FIELD_RULES.find(
-    ({ apiKey, schema }) =>
-      body[apiKey] !== undefined && !v.is(schema, body[apiKey]),
-  );
-  return invalid ? errorResult(invalid.error) : okResult(undefined);
-};
+    "day_prices numeric values must be safe integers",
+  ],
+] as const;
 
 /**
  * Parse a day_prices object from a JSON body into DayPrices. Keeps only
@@ -235,62 +158,6 @@ const parseGroupIds = (raw: unknown): Result<number[] | undefined> =>
       : errorResult("group_ids must contain only positive integer ids"),
   );
 
-/** Check whether a value matches the expected field type */
-const matchesType = (val: unknown, type: FieldType): val is FieldValue =>
-  type === "string"
-    ? typeof val === "string"
-    : type === "number"
-      ? typeof val === "number"
-      : type === "boolean"
-        ? typeof val === "boolean"
-        : Array.isArray(val);
-
-/** Build a FieldRecord over the field mappings: `fieldValue` gives each mapped
- * field's value, and returning undefined leaves that field out. Shared by the
- * body extractor and the existing-listing defaults so the mapping loop exists
- * once. */
-const fieldRecordFrom = (
-  fields: FieldMapping[],
-  fieldValue: (mapping: FieldMapping) => FieldValue | undefined,
-): FieldRecord => {
-  const result: FieldRecord = {};
-  for (const mapping of fields) {
-    const val = fieldValue(mapping);
-    if (val !== undefined) result[mapping[1]] = val;
-  }
-  return result;
-};
-
-/**
- * Extract typed fields from a JSON body using field mappings.
- * Skips fields that are missing or have the wrong type.
- * Null values are included as empty strings (explicit clear).
- */
-const pickTypedFields = (
-  body: Record<string, unknown>,
-  fields: FieldMapping[],
-): FieldRecord =>
-  fieldRecordFrom(fields, ([apiKey, _outKey, type]) => {
-    const val = body[apiKey];
-    if (val === null) return "";
-    return val !== undefined && matchesType(val, type) ? val : undefined;
-  });
-
-/**
- * Build ListingInput defaults from an existing listing (for updates).
- * Maps snake_case Listing fields to camelCase ListingInput keys.
- */
-const existingToDefaults = (existing: ListingWithCount): FieldRecord =>
-  fieldRecordFrom(
-    optionalFields,
-    ([apiKey]) =>
-      // optionalFields only names scalar/array columns, so the value is always a
-      // FieldValue at runtime; the cast narrows away object columns (e.g.
-      // day_prices) that the indexed-access type otherwise admits. A stored
-      // null is an empty string, matching the form layer's "cleared" value.
-      (existing[apiKey as keyof ListingWithCount] as FieldValue | null) ?? "",
-  );
-
 // =============================================================================
 // Body → ListingInput converters
 // =============================================================================
@@ -300,8 +167,11 @@ const withParsedGroupIds = (
   body: Record<string, unknown>,
   build: (groupIds: number[] | undefined) => Promise<Result<ListingInput>>,
 ): Promise<Result<ListingInput>> => {
-  const fields = validateApiBodyFields(body);
-  if (!fields.ok) return Promise.resolve(fields);
+  const invalid = API_BODY_FIELD_RULES.find(
+    ([apiKey, schema]) =>
+      body[apiKey] !== undefined && !v.is(schema, body[apiKey]),
+  );
+  if (invalid) return Promise.resolve(errorResult(invalid[2]));
   const groups = parseGroupIds(body.group_ids);
   return groups.ok ? build(groups.value) : Promise.resolve(groups);
 };
@@ -325,7 +195,7 @@ export const bodyToCreateInput = (
   return withParsedGroupIds(body, async (groupIds) => {
     const { slug, slugIndex } = await generateUniqueListingSlug();
     return okResult({
-      ...pickTypedFields(body, optionalFields),
+      ...projectCatalogFields(listingCatalogFields, "api", body),
       dayPrices: parseDayPrices(body.day_prices),
       groupIds,
       maxAttendees,
@@ -367,8 +237,8 @@ export const bodyToUpdateInput = async (
     );
 
     return okResult({
-      ...existingToDefaults(existing),
-      ...pickTypedFields(body, optionalFields),
+      ...projectCatalogFields(listingCatalogFields, "storedApi", existing),
+      ...projectCatalogFields(listingCatalogFields, "api", body),
       dayPrices:
         body.day_prices !== undefined
           ? parseDayPrices(body.day_prices)

@@ -1,5 +1,5 @@
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import type { Listing, ListingWithCount } from "#shared/types.ts";
 import {
   resolveTestGroupIds,

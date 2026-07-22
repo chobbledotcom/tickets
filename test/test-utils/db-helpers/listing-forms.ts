@@ -1,5 +1,5 @@
+import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { toMajorUnits } from "#shared/currency.ts";
-import type { ListingInput } from "#shared/db/listings/table.ts";
 import type { DayPrices, ListingWithCount } from "#shared/types.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 

@@ -8,14 +8,21 @@ import {
   soldHiddenPackageError,
   validateGroupWithPackage,
 } from "#routes/admin/groups.ts";
+import {
+  type CatalogApiBody,
+  projectCatalogFields,
+} from "#shared/catalog-fields/definition.ts";
+import {
+  type GroupInput,
+  groupCatalogFields,
+  type PackageMemberInput,
+} from "#shared/catalog-fields/fields.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   computeGroupSlugIndex,
-  type GroupInput,
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   groups,
-  type PackageMemberInput,
   setGroupPackageMembers,
 } from "#shared/db/groups.ts";
 import {
@@ -23,9 +30,6 @@ import {
   getGroupDayPricesByGroupIds,
 } from "#shared/db/listing-prices.ts";
 import {
-  bodyBoolean,
-  bodyNumber,
-  bodyString,
   type DeleteBody,
   defineCrudApi,
   parseOptionalArray,
@@ -63,23 +67,14 @@ export type PackageMemberBody = {
 /** JSON body accepted by POST /api/admin/groups */
 export type CreateGroupBody = {
   name: string;
-  description?: string;
-  max_attendees?: number;
-  terms_and_conditions?: string;
-  hidden?: boolean;
-  is_package?: boolean;
-  hide_package_listings?: boolean;
   package_members?: PackageMemberBody[];
-};
+} & CatalogApiBody<typeof groupCatalogFields>;
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
 export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
 
 /** JSON body accepted by DELETE /api/admin/groups/:groupId */
 export type DeleteGroupBody = DeleteBody;
-
-/** Strip slug_index from response */
-const STRIP_KEYS = ["slug_index"];
 
 /** Parse one JSON package-member entry, failing closed on anything malformed.
  * `price` is minor units: `null` (or absent) means no override, `0` means free
@@ -237,7 +232,7 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
   nameField: "name",
   onDelete: deleteGroup,
   singular: "Group",
-  stripKeys: STRIP_KEYS,
+  stripKeys: ["slug_index"],
   table: groups.table,
 
   toCreateInput: async (body) => {
@@ -260,15 +255,10 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
 
     const { slug, slugIndex } = await generateUniqueGroupSlug();
     return okResult({
-      description: bodyString(body, "description", ""),
-      hidden: bodyBoolean(body, "hidden", false),
-      hidePackageListings: bodyBoolean(body, "hide_package_listings", false),
-      isPackage: bodyBoolean(body, "is_package", false),
-      maxAttendees: bodyNumber(body, "max_attendees", 0),
+      ...projectCatalogFields(groupCatalogFields, "api", body),
       name,
       slug,
       slugIndex,
-      termsAndConditions: bodyString(body, "terms_and_conditions", ""),
     });
   },
 
@@ -287,24 +277,12 @@ export const groupApiRoutes = defineCrudApi<Group, GroupInput>({
     );
 
     return okResult({
-      description: bodyString(body, "description", existing.description),
-      hidden: bodyBoolean(body, "hidden", existing.hidden),
-      hidePackageListings: bodyBoolean(
-        body,
-        "hide_package_listings",
-        existing.hide_package_listings,
-      ),
-      isPackage: bodyBoolean(body, "is_package", existing.is_package),
-      maxAttendees: bodyNumber(body, "max_attendees", existing.max_attendees),
+      ...projectCatalogFields(groupCatalogFields, "storedApi", existing),
+      ...projectCatalogFields(groupCatalogFields, "api", body),
       name: parsed.value,
       packageMembers: members.value,
       slug,
       slugIndex,
-      termsAndConditions: bodyString(
-        body,
-        "terms_and_conditions",
-        existing.terms_and_conditions,
-      ),
     });
   },
   validate: validateGroupWithPackage,
