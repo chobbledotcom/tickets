@@ -70,8 +70,13 @@ describe("expectedItemPrice (package revalidation)", () => {
     expect(price(pkg, 3, new Set(), item(1, 3), 5000)).toBe(4500);
   });
 
-  test("a member with no override falls back to the base price", () => {
-    expect(price(pkg, 3, new Set(), item(2), 5000)).toBe(5000);
+  test("a member with no override uses the base price for every unit", () => {
+    expect(price(pkg, 3, new Set(), item(2, 3), 5000)).toBe(15000);
+  });
+
+  test("an explicit free override stays free for every unit", () => {
+    const free = { ...pkg, priceMap: new Map([[1, 0]]) };
+    expect(price(free, 3, new Set(), item(1, 3), 5000)).toBe(0);
   });
 
   test("a package line that is no longer a member fails closed", () => {

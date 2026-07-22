@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { builtSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import {
   resetHostEmailConfig,
@@ -253,17 +254,22 @@ describeWithEnv(
         true,
         "43",
       );
+      using _time = new FakeTime("2030-01-15T12:00:00.000Z");
 
       await assignAndNotifyBuiltSites([assignmentEntry(1)]);
 
       const site = (await builtSites.getAll()).find(
         ({ name }) => name === "Renewable site",
       )!;
-      expect(site.assignedAttendeeId).toBe(81);
-      expect(site.assignedListingId).toBe(71);
-      expect(site.readOnlyFrom).not.toBe("");
-      expect(site.renewalToken).not.toBeNull();
-      expect(site.renewalTokenIndex).not.toBeNull();
+      expect(site).toMatchObject({
+        assignedAttendeeId: 81,
+        assignedListingId: 71,
+        readOnlyFrom: "2030-04-15T12:00:00.000Z",
+      });
+      const token = site.renewalToken;
+      if (token === null) throw new Error("renewal token was not saved");
+      expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(site.renewalTokenIndex).toBe(await hmacHash(token));
     });
 
     test("reports a failed renewal push to ntfy", async () => {
@@ -283,12 +289,10 @@ describeWithEnv(
       );
 
       expect(result.pushOk).toBe(false);
-      expect(
-        fetchStub.calls.some(
-          ({ args }) =>
-            (args[1] as RequestInit | undefined)?.body === "CDN_REQUEST",
-        ),
-      ).toBe(true);
+      expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(fetchStub.calls.map(({ args }) => args[1].body)).toEqual([
+        "CDN_REQUEST",
+      ]);
     });
   },
 );

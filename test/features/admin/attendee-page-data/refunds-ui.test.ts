@@ -83,6 +83,19 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
       return { booking, key: `${booking.listing_id}||0|0` };
     };
 
+    const expectCannotRefund = async (
+      attendeeId: number,
+      refunded: boolean,
+    ): Promise<void> => {
+      const loaded = await withTestSession(() =>
+        loadAttendeeForEdit(attendeeId),
+      );
+      expect(loaded).toMatchObject({
+        attendee: { id: attendeeId, refunded },
+        canRefund: false,
+      });
+    };
+
     test("does not show Refund All for free listings", async () => {
       const listing = await createTestListing({ maxAttendees: 100 });
       const html = await createAttendeeAndGetHtml(
@@ -131,22 +144,14 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
       const ctx = await setupRefundTest("pi_no_quantity_action");
       await setBookingLineQuantity(ctx.attendee.id, ctx.listing.id, 0);
 
-      const loaded = await withTestSession(() =>
-        loadAttendeeForEdit(ctx.attendee.id),
-      );
-
-      expect(loaded?.canRefund).toBe(false);
+      await expectCannotRefund(ctx.attendee.id, false);
     });
 
     test("loads canRefund as false when the attendee is already refunded", async () => {
       const ctx = await setupRefundTest("pi_already_refunded_action");
       await markAsRefunded(ctx.attendee.id);
 
-      const loaded = await withTestSession(() =>
-        loadAttendeeForEdit(ctx.attendee.id),
-      );
-
-      expect(loaded?.canRefund).toBe(false);
+      await expectCannotRefund(ctx.attendee.id, true);
     });
 
     test("groups package paths by listing and keeps zero-price overrides", () => {
@@ -170,10 +175,18 @@ describeWithEnv("server (admin refund UI)", { db: true }, () => {
 
       const byListing = packagesByListingIdFrom(paths);
 
-      expect(byListing.get(1)?.get(10)).toBe(0);
-      expect(byListing.get(1)?.get(11)).toBe(null);
-      expect(byListing.get(2)?.get(10)).toBe(500);
-      expect(byListing.has(3)).toBe(false);
+      expect(byListing).toEqual(
+        new Map([
+          [
+            1,
+            new Map([
+              [10, 0],
+              [11, null],
+            ]),
+          ],
+          [2, new Map([[10, 500]])],
+        ]),
+      );
     });
 
     test("builds edit no-quantity lines and blank create lines", () => {
