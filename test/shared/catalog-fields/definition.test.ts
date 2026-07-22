@@ -39,6 +39,16 @@ describe("catalog field projection", () => {
     );
   });
 
+  test("throws when a catalog transfer schema is missing", () => {
+    expect(() =>
+      projectCatalogFields(groupCatalogFields, "schema", {
+        boolean: v.boolean(),
+        name: v.string(),
+        nonNegativeInt: v.number(),
+      }),
+    ).toThrow("Missing catalog schema: string");
+  });
+
   test("parses form values and keeps neutral defaults", () => {
     expect(
       projectCatalogFields(groupCatalogFields, "form", {
@@ -115,6 +125,22 @@ describe("catalog field projection", () => {
         unit_price: "50",
       }),
     ).toEqual({});
+  });
+
+  test("accepts only records for object API fields", () => {
+    const fields = {
+      dayPrices: ["day_prices", undefined, "dayPrices", 1],
+    } as const;
+
+    expect(
+      projectCatalogFields(fields, "api", { day_prices: { 1: 500 } }),
+    ).toEqual({ dayPrices: { 1: 500 } });
+    expect(projectCatalogFields(fields, "api", { day_prices: [500] })).toEqual(
+      {},
+    );
+    expect(projectCatalogFields(fields, "api", { day_prices: null })).toEqual(
+      {},
+    );
   });
 
   test("only clears string API fields when their value is null", () => {

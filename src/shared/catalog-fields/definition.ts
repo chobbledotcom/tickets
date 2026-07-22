@@ -1,10 +1,33 @@
 import type * as v from "valibot";
 import type { ColumnDef } from "#shared/db/table.ts";
 
+const TRANSFER_KINDS = {
+  bookableDays: "array",
+  boolean: "boolean",
+  datetime: "string",
+  dayPrices: "object",
+  durationDays: "number",
+  fields: "string",
+  listingType: "string",
+  maxPrice: "number",
+  name: "string",
+  nonNegativeInt: "number",
+  nullableDatetime: "string",
+  positiveInt: "number",
+  price: "number",
+  requiredPositiveInt: "number",
+  string: "string",
+} as const satisfies Record<
+  string,
+  "array" | "boolean" | "number" | "object" | "string"
+>;
+
+type TransferName = keyof typeof TRANSFER_KINDS;
+
 type CatalogField = readonly [
   string,
   object | undefined,
-  string?,
+  TransferName?,
   (0 | 1 | 2 | 3)?,
   unknown?,
 ];
@@ -18,26 +41,21 @@ type FieldValue<Field extends CatalogField> =
       ? string | null
       : string;
 
-export type CatalogFieldValues<Fields extends CatalogFieldSet> = {
-  -readonly [Key in keyof Fields]: FieldValue<Fields[Key]>;
-};
-
 export type OptionalCatalogFieldValues<Fields extends CatalogFieldSet> = {
   -readonly [Key in keyof Fields]?: FieldValue<Fields[Key]> | undefined;
 };
 
+type UsedKeys<Fields extends CatalogFieldSet, Use extends 1 | 2> = {
+  [Key in keyof Fields]: Fields[Key][3] extends Use | 3 ? Key : never;
+}[keyof Fields];
+
 export type CatalogApiBody<Fields extends CatalogFieldSet> = {
-  [Key in keyof Fields as Fields[Key][3] extends 1 | 3
-    ? Fields[Key][0]
-    : never]?: FieldValue<Fields[Key]>;
+  [Key in UsedKeys<Fields, 1> as Fields[Key][0]]?: FieldValue<Fields[Key]>;
 };
 
-type FormValues<Fields extends CatalogFieldSet> = Pick<
-  CatalogFieldValues<Fields>,
-  {
-    [Key in keyof Fields]: Fields[Key][3] extends 2 | 3 ? Key : never;
-  }[keyof Fields]
->;
+type FormValues<Fields extends CatalogFieldSet> = {
+  [Key in UsedKeys<Fields, 2>]: FieldValue<Fields[Key]>;
+};
 
 type StorageColumns<Fields extends CatalogFieldSet> = {
   [Key in keyof Fields as Fields[Key][1] extends object
@@ -61,15 +79,6 @@ type ProjectionMode =
   | "storedApi"
   | "transfer";
 
-const USE_BY_MODE = {
-  api: 1,
-  columns: 0,
-  form: 2,
-  schema: 0,
-  storedApi: 1,
-  transfer: 0,
-} as const;
-
 type CatalogProjection<
   Fields extends CatalogFieldSet,
   Mode extends ProjectionMode,
@@ -80,16 +89,17 @@ type CatalogProjection<
     ? TransferFields<Fields, Source & Record<string, v.GenericSchema>>
     : Mode extends "form"
       ? FormValues<Fields>
-      : Partial<CatalogFieldValues<Fields>>;
+      : OptionalCatalogFieldValues<Fields>;
 
-const matchesTransfer = (value: unknown, transfer: string) =>
-  transfer === "boolean"
-    ? typeof value === "boolean"
-    : transfer === "bookableDays"
-      ? Array.isArray(value)
-      : /Int|Price|^price$|^duration/.test(transfer)
-        ? typeof value === "number"
-        : typeof value === "string";
+const matchesTransfer = (value: unknown, transfer: TransferName) => {
+  const kind = TRANSFER_KINDS[transfer];
+  if (value === null) return kind === "string";
+  return kind === "array"
+    ? Array.isArray(value)
+    : kind === "object"
+      ? typeof value === "object" && !Array.isArray(value)
+      : typeof value === kind;
+};
 
 const projectedValue = (
   mode: ProjectionMode,
@@ -102,17 +112,19 @@ const projectedValue = (
       return field[1];
     case "form":
       return field[2] === "boolean" ? value === "1" : (value ?? field[4]);
-    case "schema":
-      return values[field[2] as string];
+    case "schema": {
+      const schema = values[field[2] as string];
+      if (schema === undefined) {
+        throw new Error(`Missing catalog schema: ${field[2]}`);
+      }
+      return schema;
+    }
     case "storedApi":
       return value ?? "";
     case "api":
-      if (value === null) {
-        return matchesTransfer(String(value), field[2] as string)
-          ? ""
-          : undefined;
-      }
-      return matchesTransfer(value, field[2] as string) ? value : undefined;
+      return matchesTransfer(value, field[2] as TransferName)
+        ? (value ?? "")
+        : undefined;
     case "transfer":
       return field[2] === "dayPrices" &&
         Object.keys(value as object).length === 0
@@ -122,30 +134,34 @@ const projectedValue = (
 };
 
 export const projectCatalogFields = <
-  const Fields extends CatalogFieldSet,
-  const Mode extends ProjectionMode,
-  const Source extends object,
+  Fields extends CatalogFieldSet,
+  Mode extends ProjectionMode,
+  Source extends object,
 >(
   fields: Fields,
   mode: Mode,
   source: Source,
   excluded: readonly (keyof Fields)[] = [],
 ): CatalogProjection<Fields, Mode, Source> => {
-  const values = source as Record<string, unknown>;
-  const requiredUse = USE_BY_MODE[mode];
-  const pairs = (Object.entries(fields) as [string, CatalogField][]).flatMap(
-    ([key, field]) => {
-      const [, column, transfer, use] = field;
-      const selected =
-        requiredUse === 0
-          ? (mode === "columns" ? column : transfer) !== undefined
-          : (Number(use) & requiredUse) !== 0;
-      if (!selected || excluded.includes(key)) return [];
-      const value = projectedValue(mode, field, values);
-      return value === undefined
-        ? []
-        : [[mode === "columns" ? field[0] : key, value] as const];
-    },
-  );
+  const requiredUse =
+    mode === "form" ? 2 : mode === "api" || mode === "storedApi" ? 1 : 0;
+  const pairs = (
+    Object.entries(fields) as [keyof Fields, CatalogField][]
+  ).flatMap(([key, field]) => {
+    const [, column, transfer, use] = field;
+    const selected =
+      requiredUse === 0
+        ? (mode === "columns" ? column : transfer) !== undefined
+        : (Number(use) & requiredUse) !== 0;
+    if (!selected || excluded.includes(key)) return [];
+    const value = projectedValue(
+      mode,
+      field,
+      source as Record<string, unknown>,
+    );
+    return value === undefined
+      ? []
+      : [[mode === "columns" ? field[0] : key, value] as const];
+  });
   return Object.fromEntries(pairs) as CatalogProjection<Fields, Mode, Source>;
 };
