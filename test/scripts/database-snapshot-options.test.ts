@@ -116,14 +116,22 @@ describe("database snapshot options", () => {
     ).toThrow("DB_TOKEN environment variable is required");
   });
 
-  test("rejects local and malformed database URLs", () => {
-    for (const dbUrl of [":memory:", "file:site.sqlite", "not a URL"]) {
+  test("rejects local, insecure, and malformed database URLs", () => {
+    for (const dbUrl of [
+      ":memory:",
+      "file:site.sqlite",
+      "http://site.example.com",
+      "http://localhost.example.com",
+      "not a URL",
+    ]) {
       expect(() =>
         readSnapshotRequest(
           { outputPath: "site.sqlite" },
           envReader({ DB_TOKEN: "token", DB_URL: dbUrl }),
         ),
-      ).toThrow("DB_URL must be a remote libSQL or HTTP URL");
+      ).toThrow(
+        "DB_URL must use libsql or HTTPS. HTTP is allowed only for loopback.",
+      );
     }
   });
 
@@ -132,6 +140,8 @@ describe("database snapshot options", () => {
       "libsql://site.example.com",
       "https://site.example.com",
       "http://localhost:8080",
+      "http://127.0.0.1:8080",
+      "http://[::1]:8080",
     ]) {
       expect(
         readSnapshotRequest(

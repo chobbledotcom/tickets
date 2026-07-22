@@ -75,7 +75,8 @@ const IntegrityRowsSchema = v.pipe(
   v.length(1),
 );
 
-const REMOTE_DATABASE_PROTOCOLS = new Set(["http:", "https:", "libsql:"]);
+const SECURE_DATABASE_PROTOCOLS = new Set(["https:", "libsql:"]);
+const HTTP_LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 const invalidUsage = (): never => {
   throw new Error(SNAPSHOT_USAGE);
@@ -108,13 +109,18 @@ const requiredEnv = (key: string, readEnv: SnapshotEnvReader): string => {
 const requireRemoteDatabaseUrl = (value: string): string => {
   try {
     const url = new URL(value);
-    if (url.hostname && REMOTE_DATABASE_PROTOCOLS.has(url.protocol)) {
+    const secure = SECURE_DATABASE_PROTOCOLS.has(url.protocol);
+    const loopbackHttp =
+      url.protocol === "http:" && HTTP_LOOPBACK_HOSTNAMES.has(url.hostname);
+    if (url.hostname && (secure || loopbackHttp)) {
       return value;
     }
   } catch {
     // Invalid URLs share the same clear configuration error as local URLs.
   }
-  throw new Error("DB_URL must be a remote libSQL or HTTP URL");
+  throw new Error(
+    "DB_URL must use libsql or HTTPS. HTTP is allowed only for loopback.",
+  );
 };
 
 export const readSnapshotRequest = (
