@@ -206,6 +206,7 @@ describe("mutant evaluation", () => {
     );
     expect(result.status).toBe("killed");
     expect(builds).toBe(2);
+    expect(state.runs).toEqual([]);
   });
 
   test("stops when mutant state creation uses the whole deadline", async () => {
@@ -287,10 +288,16 @@ describe("mutant evaluation", () => {
     expect(restored).toBe(1);
   });
 
-  test("records the static gate that detects a mutant", async () => {
+  test("stops at the first static gate that detects a mutant", async () => {
     const state = setup();
     const result = await evaluateMutant(
-      plan({ rebuildTestState: false }),
+      plan({
+        assets: {
+          rebuild: () => Promise.reject(new Error("unexpected asset build")),
+          restore: () => Promise.resolve(),
+        },
+        rebuildTestState: false,
+      }),
       mutant,
       runConfig,
       [],
@@ -307,6 +314,12 @@ describe("mutant evaluation", () => {
           phase: "type-check",
           remedy: [],
         },
+        {
+          exit: () => Promise.reject(new Error("unexpected later gate")),
+          label: "lint again",
+          phase: "lint",
+          remedy: [],
+        },
       ],
       new AbortController().signal,
       state.deps,
@@ -316,6 +329,7 @@ describe("mutant evaluation", () => {
       "lint",
       "type-check",
     ]);
+    expect(state.runs).toEqual([]);
   });
 
   test("reports integration detection after a direct-test survivor", async () => {

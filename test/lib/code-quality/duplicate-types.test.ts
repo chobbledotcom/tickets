@@ -111,6 +111,16 @@ describe("extractTypeShapes", () => {
     ]);
   });
 
+  test("handles arrow defaults inside alias type parameters", () => {
+    expect(
+      extractTypeShapes(
+        "type Box<T = () => void> = { value: T; label: string };",
+      ),
+    ).toEqual([
+      { kind: "type", members: ["value: T", "label: string"], name: "Box" },
+    ]);
+  });
+
   test("ignores a non-object alias (union)", () => {
     expect(extractTypeShapes('type A = "x" | "y";')).toEqual([]);
   });

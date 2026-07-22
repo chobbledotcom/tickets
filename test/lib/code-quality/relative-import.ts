@@ -1,4 +1,9 @@
-import { blankSpans, skipComment, skipString } from "./detectors.ts";
+import {
+  blankSpans,
+  skipComment,
+  skipCommentOrString,
+  skipString,
+} from "./detectors.ts";
 
 /**
  * No relative "../" imports — use a `#` alias instead.
@@ -248,16 +253,12 @@ const findStaticSpecifier = (
   let i = afterImportPos;
   let braceDepth = 0;
   while (i < contents.length) {
-    const pastComment = skipComment(contents, i);
-    if (pastComment !== i) {
-      i = pastComment;
+    const skipped = skipCommentOrString(contents, i);
+    if (skipped !== i) {
+      i = skipped;
       continue;
     }
     const c = contents[i]!;
-    if (isQuote(c)) {
-      i = skipString(contents, i);
-      continue;
-    }
     if (c === "{") braceDepth++;
     else if (c === "}") braceDepth--;
     else if (c === ";") return null;
@@ -348,18 +349,10 @@ export const detectRelativeImport = (
   const violations: string[] = [];
   let i = 0;
   while (i < contents.length) {
-    // Skip comments — they may quote `from "../x"` as documentation or data,
-    // and the rule must not treat that as an import.
-    const pastComment = skipComment(contents, i);
-    if (pastComment !== i) {
-      i = pastComment;
-      continue;
-    }
-    // Skip string literals — they may quote an import statement as fixture
-    // text, and the rule must not treat the inner text as an import either.
-    const c = contents[i];
-    if (c === '"' || c === "'" || c === "`") {
-      i = skipString(contents, i);
+    // Comments and strings may quote imports as documentation or fixture data.
+    const skipped = skipCommentOrString(contents, i);
+    if (skipped !== i) {
+      i = skipped;
       continue;
     }
     if (isImportKeyword(contents, i)) {

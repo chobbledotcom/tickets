@@ -136,56 +136,69 @@ const performCheckIn = async (
   return scanResult(entry, attendeeName, "checked_in");
 };
 
+/** Resolve a token to the requested listing and perform its scan decision. */
+const scanToken = async (
+  listingId: number,
+  token: string,
+  force: boolean,
+  idVerified: boolean,
+  privateKey: CryptoKey,
+): Promise<Response> => {
+  const results = await getAttendeesByTokens([token]);
+  const awb = results[0];
+  if (!awb) return jsonResponse({ status: "not_found" }, 404);
+
+  const allEntries = await resolveTokenEntries(awb, privateKey);
+  const matchingEntry = allEntries.find(
+    (entry) => entry.listing.id === listingId,
+  );
+  const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
+
+  // Wrong listing — attendee not registered for the scanned listing.
+  if (!matchingEntry && !force) {
+    return wrongListingResponse(allEntries, attendeeName);
+  }
+
+  // A forced cross-listing check-in uses the attendee's first live entry.
+  const entry = matchingEntry ?? allEntries[0];
+  if (!entry) return jsonResponse({ status: "not_found" }, 404);
+
+  const stateResponse = checkAttendeeState(entry, attendeeName, idVerified);
+  return stateResponse ?? performCheckIn(entry, attendeeName);
+};
+
+/** Validate scan controls and load the request's decryption key. */
+const processScan = async (
+  listingId: number,
+  body: Record<string, unknown>,
+): Promise<Response> => {
+  if (typeof body.token !== "string") {
+    return jsonResponse({ error: "Missing token" }, 400);
+  }
+  const privateKey = await getRequestPrivateKey();
+  if (!privateKey) {
+    logError({
+      code: ErrorCode.KEY_DERIVATION,
+      detail: "Scanner: private key unavailable",
+    });
+    return jsonResponse({ error: "Decryption unavailable" }, 500);
+  }
+  return scanToken(
+    listingId,
+    body.token,
+    body.force === true,
+    body.id_verified === true,
+    privateKey,
+  );
+};
+
 /**
  * Handle POST /admin/listing/:id/scan - JSON check-in API.
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
  * accidental check-outs from double-scans during rapid door check-in.
  */
 const handleScanPost: IdRouteHandler = (request, { id }) =>
-  withAuth(request, SCANNER_JSON, async (_session, body) => {
-    if (typeof body.token !== "string") {
-      return jsonResponse({ error: "Missing token" }, 400);
-    }
-
-    const token = body.token;
-    const force = body.force === true;
-    const idVerified = body.id_verified === true;
-
-    const privateKey = await getRequestPrivateKey();
-    if (!privateKey) {
-      logError({
-        code: ErrorCode.KEY_DERIVATION,
-        detail: "Scanner: private key unavailable",
-      });
-      return jsonResponse({ error: "Decryption unavailable" }, 500);
-    }
-
-    const results = await getAttendeesByTokens([token]);
-    const awb = results[0];
-    if (!awb) {
-      return jsonResponse({ status: "not_found" }, 404);
-    }
-
-    const allEntries = await resolveTokenEntries(awb, privateKey);
-    const matchingEntry = allEntries.find((e) => e.listing.id === id);
-    const attendeeName = await resolveAttendeeName(allEntries, awb, privateKey);
-
-    // Wrong listing — attendee not registered for the scanned listing
-    if (!matchingEntry && !force) {
-      return wrongListingResponse(allEntries, attendeeName);
-    }
-
-    // When force=true, use the first entry if no match (cross-listing check-in)
-    const entry = matchingEntry ?? allEntries[0];
-    if (!entry) {
-      return jsonResponse({ status: "not_found" }, 404);
-    }
-
-    const stateResponse = checkAttendeeState(entry, attendeeName, idVerified);
-    if (stateResponse) return stateResponse;
-
-    return performCheckIn(entry, attendeeName);
-  });
+  withAuth(request, SCANNER_JSON, (_session, body) => processScan(id, body));
 
 /** Scanner routes */
 export const adminHandlers = defineRoutes({

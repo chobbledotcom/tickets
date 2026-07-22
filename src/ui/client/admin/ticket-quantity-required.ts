@@ -7,23 +7,29 @@
  *
  * Fails open: if anything unexpected happens the form is allowed through and
  * the server-side validation handles it. */
+type QuantityInput = HTMLSelectElement | HTMLInputElement;
+
+const selectedTicketQuantity = (inputs: NodeListOf<QuantityInput>): number => {
+  let total = 0;
+  for (const input of inputs) {
+    const value = Number.parseInt(input.value, 10);
+    if (!Number.isNaN(value) && value > 0) total += value;
+  }
+  return total;
+};
+
 export const initTicketQuantityRequired = (): void => {
   const forms = document.querySelectorAll<HTMLFormElement>("form");
   for (const form of forms) {
-    const qtyInputs = form.querySelectorAll<
-      HTMLSelectElement | HTMLInputElement
-    >('[name^="quantity_"]');
+    const qtyInputs = form.querySelectorAll<QuantityInput>(
+      '[name^="quantity_"], [name^="package_quantity_"]',
+    );
     if (qtyInputs.length === 0) continue;
 
     let errorEl: HTMLDivElement | null = null;
 
     form.addEventListener("submit", (listing) => {
-      let total = 0;
-      for (const input of qtyInputs) {
-        const value = Number.parseInt(input.value, 10);
-        if (!Number.isNaN(value) && value > 0) total += value;
-      }
-      if (total > 0) return;
+      if (selectedTicketQuantity(qtyInputs) > 0) return;
 
       listing.preventDefault();
       if (!errorEl) {

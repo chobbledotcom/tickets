@@ -37,6 +37,21 @@ const WEAK_ASSERTION_PATTERNS: { message: string; pattern: RegExp }[] = [
   },
 ];
 
+const testBlockEnd = (content: string, start: number): number | null => {
+  let depth = 0;
+  let seenOpen = false;
+  for (let index = start; index < content.length; index += 1) {
+    const char = content[index];
+    if (char === "(") {
+      depth += 1;
+      seenOpen = true;
+    }
+    if (char === ")") depth -= 1;
+    if (seenOpen && depth === 0) return index + 1;
+  }
+  return null;
+};
+
 const testBlockRanges = (content: string): { end: number; start: number }[] => {
   const ranges: { end: number; start: number }[] = [];
   // Match `test(`/`it(` declarations and `Deno.test(`, but not predicate method
@@ -45,20 +60,8 @@ const testBlockRanges = (content: string): { end: number; start: number }[] => {
   const startPattern = /\bDeno\.test\s*\(|(?<![.\w$])(?:test|it)\s*\(/g;
   for (const match of content.matchAll(startPattern)) {
     const start = match.index ?? 0;
-    let depth = 0;
-    let seenOpen = false;
-    for (let index = start; index < content.length; index += 1) {
-      const char = content[index];
-      if (char === "(") {
-        depth += 1;
-        seenOpen = true;
-      }
-      if (char === ")") depth -= 1;
-      if (seenOpen && depth === 0) {
-        ranges.push({ end: index + 1, start });
-        break;
-      }
-    }
+    const end = testBlockEnd(content, start);
+    if (end !== null) ranges.push({ end, start });
   }
   return ranges;
 };

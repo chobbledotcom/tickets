@@ -294,6 +294,18 @@ describe("adminListingPage optional fields", () => {
     expect(html).toContain('value="https://hooks.example.com/notify"');
     expect(html).toContain("readonly");
   });
+
+  test("hides embed rows for a child listing", () => {
+    const listing = testListingWithCount({ attendee_count: 0 });
+    const html = renderListingDetail({
+      allowedDomain: "localhost",
+      attendees: [],
+      isChild: true,
+      listing,
+    });
+    expect(html).not.toContain(`embed-script-${listing.id}`);
+    expect(html).not.toContain(`embed-iframe-${listing.id}`);
+  });
 });
 
 describe("adminListingPage listing date and location", () => {

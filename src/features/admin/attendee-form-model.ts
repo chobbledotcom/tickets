@@ -338,6 +338,66 @@ const resolveNewLinePackage = (
     : 0;
 };
 
+type SubmittedLine = { index: number; listingId: number };
+
+type LineResolver = (
+  id: number,
+  key: string,
+) => Pick<AttendeeFormLine, "listing" | "existingBooking">;
+
+/** Find valid line indexes and listing ids in document order. The first field
+ * for an index owns it, even when that field carries an invalid listing id. */
+const submittedLines = (form: FormParams): SubmittedLine[] => {
+  const lines: SubmittedLine[] = [];
+  const seen = new Set<number>();
+  for (const [field, raw] of form.entries()) {
+    if (!field.startsWith(LINE_LISTING_PREFIX)) continue;
+    // Line indexes start at 0, so this must accept zero (unlike listing ids).
+    const index = parseNonNegativeInt(field.slice(LINE_LISTING_PREFIX.length));
+    if (index === null || seen.has(index)) continue;
+    seen.add(index);
+    const listingId = parsePositiveIntId(raw);
+    if (listingId === null) continue;
+    lines.push({ index, listingId });
+  }
+  return lines;
+};
+
+/** Resolve one submitted line and read the rest of its indexed fields. */
+const parseLine = (
+  form: FormParams,
+  { index, listingId }: SubmittedLine,
+  resolve: LineResolver,
+  packagesByListingId: PackagePricesByListingId,
+): AttendeeFormLine => {
+  const key = form.getString(`${LINE_KEY_PREFIX}${index}`);
+  const resolved = resolve(listingId, key);
+  const noQuantity = form.getString(`${NO_QUANTITY_PREFIX}${index}`) !== "";
+  const packageGroupId =
+    resolved.existingBooking?.package_group_id ??
+    resolveNewLinePackage(
+      form.getString(`${LINE_PACKAGE_PREFIX}${index}`),
+      listingId,
+      packagesByListingId,
+    );
+  return {
+    error: null,
+    key,
+    listingId,
+    noQuantity,
+    packageGroupId,
+    packagePrice:
+      packageGroupId > 0
+        ? (packagesByListingId.get(listingId)?.get(packageGroupId) ?? null)
+        : null,
+    parentListingId: resolved.existingBooking?.parent_listing_id ?? 0,
+    quantity: noQuantity
+      ? 0
+      : parseQuantity(form.getString(`${QTY_PREFIX}${index}`)),
+    ...resolved,
+  };
+};
+
 /** One editor line per `line_listing_<i>` field in the form, in document order
  * and de-duplicated by index, with the listing + existing booking resolved. An
  * existing row's path (package, folded parent) comes from the row; a blank
@@ -346,51 +406,12 @@ const resolveNewLinePackage = (
  * quantity input is CSS-hidden, so its submitted value is ignored). */
 const parseLines = (
   form: FormParams,
-  resolve: (
-    id: number,
-    key: string,
-  ) => Pick<AttendeeFormLine, "listing" | "existingBooking">,
+  resolve: LineResolver,
   packagesByListingId: PackagePricesByListingId,
-): AttendeeFormLine[] => {
-  const lines: AttendeeFormLine[] = [];
-  const seen = new Set<number>();
-  for (const [field, raw] of form.entries()) {
-    if (!field.startsWith(LINE_LISTING_PREFIX)) continue;
-    // Line indexes start at 0, so this must accept zero (unlike listing ids).
-    const index = parseNonNegativeInt(field.slice(LINE_LISTING_PREFIX.length));
-    if (index === null || seen.has(index)) continue;
-    seen.add(index);
-    const id = parsePositiveIntId(raw);
-    if (id === null) continue;
-    const key = form.getString(`${LINE_KEY_PREFIX}${index}`);
-    const resolved = resolve(id, key);
-    const noQuantity = form.getString(`${NO_QUANTITY_PREFIX}${index}`) !== "";
-    const packageGroupId =
-      resolved.existingBooking?.package_group_id ??
-      resolveNewLinePackage(
-        form.getString(`${LINE_PACKAGE_PREFIX}${index}`),
-        id,
-        packagesByListingId,
-      );
-    lines.push({
-      error: null,
-      key,
-      listingId: id,
-      noQuantity,
-      packageGroupId,
-      packagePrice:
-        packageGroupId > 0
-          ? (packagesByListingId.get(id)?.get(packageGroupId) ?? null)
-          : null,
-      parentListingId: resolved.existingBooking?.parent_listing_id ?? 0,
-      quantity: noQuantity
-        ? 0
-        : parseQuantity(form.getString(`${QTY_PREFIX}${index}`)),
-      ...resolved,
-    });
-  }
-  return lines;
-};
+): AttendeeFormLine[] =>
+  submittedLines(form).map((line) =>
+    parseLine(form, line, resolve, packagesByListingId),
+  );
 
 export const parseAttendeeForm = (
   form: FormParams,

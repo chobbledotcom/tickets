@@ -4,6 +4,7 @@ import {
   ctxStandInNames,
   getTicketContext,
   loadPagePackage,
+  ticketGalleryTarget,
 } from "#routes/public/ticket-payment.ts";
 import { buildBookingTree } from "#shared/booking/build-tree.ts";
 import { buildTicketListing } from "#shared/booking/model.ts";
@@ -166,6 +167,30 @@ describeWithEnv(
     });
 
     describe("loadPagePackage / getTicketContext packages", () => {
+      test("ticketGalleryTarget chooses the page's one header entity", async () => {
+        const group = await createTestGroup({ name: "Gallery group" });
+        const first = buildTicketListing(
+          testListingWithCount({ id: 11 }),
+          false,
+          undefined,
+        );
+        const second = buildTicketListing(
+          testListingWithCount({ id: 12 }),
+          false,
+          undefined,
+        );
+
+        expect(ticketGalleryTarget([first], undefined)).toEqual({
+          id: 11,
+          type: "listing",
+        });
+        expect(ticketGalleryTarget([first, second], undefined)).toBeNull();
+        expect(ticketGalleryTarget([first, second], group)).toEqual({
+          id: group.id,
+          type: "group",
+        });
+      });
+
       test("loadPagePackage keeps overrides incl. free, skips no-override, and every quantity", async () => {
         const group = await createTestGroup({ isPackage: true, name: "Pk" });
         const a = await createTestListing({ name: "PA" });

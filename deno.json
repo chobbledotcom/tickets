@@ -42,6 +42,7 @@
   },
   "imports": {
     "@jridgewell/sourcemap-codec": "npm:@jridgewell/sourcemap-codec@^1.5.5",
+    "#e2e/": "./e2e-payments/src/",
     "#fp": "./src/fp.ts",
     "#shared/test-overrides": "./src/shared/test-overrides.ts",
     "#test-utils/": "./test/test-utils/",

@@ -446,6 +446,11 @@ const isOpenBracket = (c: string | undefined): boolean =>
   c === "(" || c === "[" || c === "{";
 const isCloseBracket = (c: string | undefined): boolean =>
   c === ")" || c === "]" || c === "}";
+const bracketDepthDelta = (c: string | undefined): number => {
+  if (isOpenBracket(c)) return 1;
+  if (isCloseBracket(c)) return -1;
+  return 0;
+};
 
 /**
  * Skip a string or template literal starting at the opening quote `start`.
@@ -518,7 +523,7 @@ export const skipComment = (content: string, i: number): number => {
  * past it; otherwise return `i` unchanged. Comments are checked before strings,
  * matching the tokenizer order used elsewhere in this file.
  */
-const skipCommentOrString = (content: string, i: number): number => {
+export const skipCommentOrString = (content: string, i: number): number => {
   const pastComment = skipComment(content, i);
   if (pastComment !== i) return pastComment;
   if (isQuote(content[i])) return skipString(content, i);
@@ -546,14 +551,12 @@ export const parseArgList = (
       continue;
     }
     const d = content[p];
-    if (isOpenBracket(d)) depth++;
-    else if (isCloseBracket(d)) {
-      depth--;
-      if (depth === 0) {
-        args.push(content.slice(cur, p).trim());
-        break;
-      }
-    } else if (d === "," && depth === 1) {
+    depth += bracketDepthDelta(d);
+    if (depth === 0) {
+      args.push(content.slice(cur, p).trim());
+      break;
+    }
+    if (d === "," && depth === 1) {
       args.push(content.slice(cur, p).trim());
       cur = p + 1;
     }
@@ -816,8 +819,8 @@ const skipTypeParams = (code: string, i: number): number => {
   let depth = 0;
   let j = i;
   for (; j < code.length; j++) {
-    if (code[j] === "<") depth++;
-    else if (code[j] === ">" && --depth === 0) {
+    depth += angleDepthDelta(code, j);
+    if (depth === 0) {
       j++;
       break;
     }
@@ -883,11 +886,8 @@ export const splitTypeMembers = (
   };
   for (let i = innerStart; i < innerEnd; i++) {
     const c = code[i];
-    if (isOpenBracket(c) || c === "<") depth++;
-    else if (isCloseBracket(c)) depth--;
-    else if (c === ">") {
-      if (code[i - 1] !== "=") depth--;
-    } else if (depth === 0 && (c === ";" || c === ",")) push(i);
+    depth += bracketDepthDelta(c) + angleDepthDelta(code, i);
+    if (depth === 0 && (c === ";" || c === ",")) push(i);
   }
   push(innerEnd);
   return members;

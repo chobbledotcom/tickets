@@ -11,8 +11,8 @@ attendeeTableSuite(() => {
   describe("sortAttendeeRows", () => {
     test("sorts by listing date with missing dates last", () => {
       const rows = [
-        namedListingRow("A", testAttendee({ date: null, id: 1 })),
         namedListingRow("A", testAttendee({ date: "2026-03-01", id: 2 })),
+        namedListingRow("A", testAttendee({ date: null, id: 1 })),
         namedListingRow("A", testAttendee({ date: "2026-01-15", id: 3 })),
       ];
       expect(sortAttendeeRows(rows).map((row) => row.attendee.id)).toEqual([
@@ -98,6 +98,21 @@ attendeeTableSuite(() => {
       expect(sortAttendeeRows(rows).map((row) => row.attendee.id)).toEqual([
         2, 1,
       ]);
+    });
+
+    test("preserves input order when all sort keys match", () => {
+      const first = namedListingRow(
+        "Gala",
+        testAttendee({ email: "first@example.com", id: 1, name: "Sam" }),
+      );
+      const second = namedListingRow(
+        "Gala",
+        testAttendee({ email: "second@example.com", id: 1, name: "Sam" }),
+      );
+
+      expect(
+        sortAttendeeRows([first, second]).map((row) => row.attendee.email),
+      ).toEqual(["first@example.com", "second@example.com"]);
     });
 
     test("does not mutate the input", () => {
