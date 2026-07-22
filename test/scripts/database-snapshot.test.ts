@@ -6,7 +6,7 @@ import {
   createDatabaseSnapshot,
   type SnapshotClientFactory,
 } from "#scripts/database-snapshot-lib.ts";
-import { withTempDir } from "#test-utils/files.ts";
+import { directoryNames, withTempDir } from "#test-utils/files.ts";
 
 describe("database snapshot", () => {
   test("publishes a complete SQLite database", () =>
@@ -70,10 +70,7 @@ describe("database snapshot", () => {
         factory,
       );
 
-      const outputNames = (await Array.fromAsync(Deno.readDir(dir)))
-        .map((entry) => entry.name)
-        .sort();
-      expect(outputNames).toEqual(["snapshot.sqlite", "source"]);
+      expect(await directoryNames(dir)).toEqual(["snapshot.sqlite", "source"]);
 
       const snapshot = createClient({
         intMode: "bigint",

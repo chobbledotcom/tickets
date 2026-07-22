@@ -9,7 +9,7 @@ import {
   type SnapshotClientFactory,
   type SnapshotRequest,
 } from "#scripts/database-snapshot-lib.ts";
-import { pathExists, withTempDir } from "#test-utils/files.ts";
+import { directoryNames, pathExists, withTempDir } from "#test-utils/files.ts";
 
 const request = (outputPath: string): SnapshotRequest => ({
   dbToken: "token",
@@ -58,12 +58,6 @@ const fakeDatabaseFactory = (
       () => onLocalClose(path),
     );
   };
-};
-
-const directoryNames = async (path: string): Promise<string[]> => {
-  const names: string[] = [];
-  for await (const entry of Deno.readDir(path)) names.push(entry.name);
-  return names.sort();
 };
 
 const expectExistingFilePreserved = async (

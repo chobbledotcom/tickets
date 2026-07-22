@@ -8,6 +8,9 @@ export const pathExists = async (path: string): Promise<boolean> => {
   }
 };
 
+export const directoryNames = async (path: string): Promise<string[]> =>
+  (await Array.fromAsync(Deno.readDir(path))).map((entry) => entry.name).sort();
+
 export interface TempPath extends Disposable {
   dispose(): void;
   path: string;
