@@ -9,10 +9,8 @@ import {
   type SiteSecretsView,
 } from "#shared/site-secrets.ts";
 import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
-import type {
-  UptimeKumaMonitorDetails,
-  UptimeKumaMonitorState,
-} from "#shared/uptime-kuma/monitors.ts";
+import type { UptimeKumaMonitorDetails } from "#shared/uptime-kuma/matching.ts";
+import type { UptimeKumaMonitorState } from "#shared/uptime-kuma/monitors.ts";
 import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import {
   Icon,

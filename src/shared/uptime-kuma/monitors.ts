@@ -28,8 +28,6 @@ import {
   UPTIME_KUMA_GROUP_NAME,
 } from "./monitor-input.ts";
 
-export type { UptimeKumaMonitorDetails };
-
 export type UptimeKumaMonitorState =
   | { kind: "unconfigured" }
   | { error: string; kind: "error" }
