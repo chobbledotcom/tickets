@@ -33,6 +33,7 @@
     "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts",
     "test:quality-audit": "deno run --allow-read scripts/test-quality-audit.ts",
     "mutation": "deno run -A scripts/mutation.ts",
+    "mutation:audit-equivalents": "deno run -A scripts/audit-equivalent-mutants.ts",
     "pr-queue": "deno run --allow-run=gh scripts/pr-queue.ts",
     "screenshot": "deno run -A scripts/screenshots.ts",
     "screenshot:all": "deno task screenshot all",

@@ -19,7 +19,7 @@
 
 /* jscpd:ignore-start */
 import type { InValue } from "@libsql/client";
-import { reduce } from "#fp";
+import { isNotNullish, reduce } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
@@ -154,7 +154,9 @@ export const parseUpdateSlug = async <Index extends string>(
   normalize: (slug: string) => string,
   computeIndex: (slug: string) => Promise<Index>,
 ): Promise<{ slug: string; slugIndex: Index }> => {
-  const slug = body.slug != null ? normalize(String(body.slug)) : existing;
+  const slug = isNotNullish(body.slug)
+    ? normalize(String(body.slug))
+    : existing;
   return { slug, slugIndex: await computeIndex(slug) };
 };
 
@@ -167,7 +169,7 @@ export const parseUpdateName = (
   body: Record<string, unknown>,
   existing: string,
 ): Result<string> => {
-  const name = body.name != null ? String(body.name).trim() : existing;
+  const name = isNotNullish(body.name) ? String(body.name).trim() : existing;
   return name === "" ? errorResult("name cannot be empty") : okResult(name);
 };
 

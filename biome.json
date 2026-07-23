@@ -99,7 +99,12 @@
       "suspicious": {
         "noAssignInExpressions": "error",
         "noConsole": "error",
-        "noDoubleEquals": "error",
+        "noDoubleEquals": {
+          "level": "error",
+          "options": {
+            "ignoreNull": false
+          }
+        },
         "noExplicitAny": "off",
         "noFocusedTests": "error",
         "noImplicitAnyLet": "error",

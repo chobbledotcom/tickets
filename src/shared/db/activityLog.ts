@@ -15,6 +15,7 @@
  * time.
  */
 
+import { isNullish } from "#fp";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import {
   decryptWithOwnerKey,
@@ -123,7 +124,11 @@ type ListingRef = number | { id: number };
 
 /** Extract listing ID from an ListingRef */
 const toListingId = (listing?: ListingRef | null): number | null =>
-  listing == null ? null : typeof listing === "number" ? listing : listing.id;
+  isNullish(listing)
+    ? null
+    : typeof listing === "number"
+      ? listing
+      : listing.id;
 
 /**
  * Log an activity. Optionally associate it with a listing and/or attendee so

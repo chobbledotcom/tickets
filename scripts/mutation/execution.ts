@@ -1,3 +1,7 @@
+import {
+  type BiomeCommand,
+  resolveBiomeCommand,
+} from "#scripts/biome-command.ts";
 import { commandExitCode } from "#scripts/deno-command.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { stripeMockEnv } from "#scripts/stripe-mock.ts";
@@ -41,30 +45,13 @@ export const mutantTestEnv = (
 export interface StaticGateDeps {
   commandExit(command: string, options: Deno.CommandOptions): Promise<number>;
   denoExit(args: string[], options: Deno.CommandOptions): Promise<number>;
-  whichBiome(): Promise<boolean>;
+  resolveBiome(args: string[]): Promise<BiomeCommand>;
 }
 
 const realGateDeps: StaticGateDeps = {
   commandExit: commandExitCode,
   denoExit: denoExitCode,
-  whichBiome: async () => {
-    const output = await new Deno.Command("which", {
-      args: ["biome"],
-    }).output();
-    return output.success;
-  },
-};
-
-const resolveBiome = async (
-  deps: StaticGateDeps,
-): Promise<{ bin: string; pre: string[] }> => {
-  try {
-    if (await deps.whichBiome()) return { bin: "biome", pre: [] };
-  } catch {
-    // Falling back to the package is the supported behavior when `which` or
-    // the native binary is unavailable.
-  }
-  return { bin: Deno.execPath(), pre: ["run", "-A", "npm:@biomejs/biome"] };
+  resolveBiome: resolveBiomeCommand,
 };
 
 const quietCommandOptions = (signal: AbortSignal): Deno.CommandOptions => ({
@@ -75,11 +62,17 @@ const quietCommandOptions = (signal: AbortSignal): Deno.CommandOptions => ({
 });
 
 const createLinter = async (deps: StaticGateDeps): Promise<StaticGate> => {
-  const { bin, pre } = await resolveBiome(deps);
+  const resolved = await deps.resolveBiome([]);
   return {
     exit: (file, signal) =>
-      deps.commandExit(bin, {
-        args: [...pre, "lint", "--no-errors-on-unmatched", file],
+      deps.commandExit(resolved.command, {
+        args: [
+          ...resolved.args,
+          "lint",
+          "--error-on-warnings",
+          "--no-errors-on-unmatched",
+          file,
+        ],
         ...quietCommandOptions(signal),
       }),
     label: "lint",

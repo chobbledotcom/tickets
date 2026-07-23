@@ -16,14 +16,10 @@ import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 /* jscpd:ignore-end */
-import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
-import {
-  getAttendeeRaw,
-  LISTING_ATTENDEE_ROW_COLS,
-} from "#shared/db/attendees/queries.ts";
-import { queryAll } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
+import { queryOne } from "#shared/db/client.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import {
   getRefundPaymentReferences,
   markPaymentReferencesProviderRefunded,
@@ -55,16 +51,17 @@ const loadRefreshContext = async (
   const attendeeRaw = await getAttendeeRaw(attendeeId);
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
-  const bookings = await queryAll<ListingAttendeeRow>(
-    // quantity > 0: refresh-payment refunds the picked row's (attendee, listing)
-    // pair, so it must target a real line — never a lower-id no-quantity ghost.
-    // LISTING_ATTENDEE_ROW_COLS projects refunded/price_paid from the ledger.
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS} FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY start_at, listing_id LIMIT 1`,
+  const firstBooking = await queryOne<{ listing_id: number }>(
+    `SELECT listingAttendee.listing_id
+       FROM listing_attendees AS listingAttendee
+      WHERE listingAttendee.attendee_id = ?
+        AND listingAttendee.quantity > 0
+      ORDER BY listingAttendee.start_at, listingAttendee.listing_id
+      LIMIT 1`,
     [attendeeId],
   );
-  const firstListingId = bookings[0]?.listing_id ?? attendee.listing_id;
-  const listing = await getListingWithCount(firstListingId);
-  if (!listing) return null;
+  if (!firstBooking) return null;
+  const listing = await requireListingWithCount(firstBooking.listing_id);
   return { attendee, listing };
 };
 
