@@ -1,7 +1,9 @@
 import * as v from "valibot";
 import { UptimeKumaError } from "./error.ts";
 
-type SocketListener = (...args: unknown[]) => void;
+export const SOCKET_TIMEOUT_MS = 10_000;
+
+export type SocketListener = (...args: unknown[]) => void;
 
 export interface UptimeKumaSocket {
   connect(): unknown;
