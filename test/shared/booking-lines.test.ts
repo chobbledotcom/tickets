@@ -1,214 +1,274 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { orderBookings, type SignedPaidLine } from "#shared/booking-lines.ts";
+import {
+  bookingsForOrder,
+  checkoutBookingLines,
+} from "#shared/booking-lines.ts";
 import type { ChildAllocation } from "#shared/db/attendee-types.ts";
+import type { CheckoutItem } from "#shared/payments.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-/** A standard dateless listing — the default source for date/duration facts. */
-const standardListing = () =>
-  testListingWithCount({ listing_type: "standard" });
-
-/** A bare signed paid line; overrides pick out the case under test. */
-const line = (overrides: Partial<SignedPaidLine>): SignedPaidLine => ({
-  listing: standardListing(),
-  listingId: 1,
-  packageGroupId: 0,
+const item = (
+  listingId: number,
+  overrides: Partial<CheckoutItem> = {},
+): CheckoutItem => ({
+  listingId,
+  name: `Listing ${listingId}`,
   quantity: 1,
+  slug: `listing-${listingId}`,
+  unitPrice: 100,
   ...overrides,
 });
 
-/** A per-(child, parent) allocation entry. */
-const alloc = (
+const listing = (id: number, overrides = {}) =>
+  testListingWithCount({ id, listing_type: "standard", ...overrides });
+
+const listingMap = (...listings: ReturnType<typeof listing>[]) =>
+  new Map(listings.map((entry) => [entry.id, entry]));
+
+const allocation = (
   childId: number,
   parentId: number,
   qty: number,
 ): ChildAllocation => ({ childId, parentId, qty });
 
-describe("orderBookings > standalone and tagged package rows", () => {
-  test("a standalone line books one dateless row with no parent and no token", () => {
-    const result = orderBookings({
-      date: null,
-      lines: [line({ listingId: 7, packageGroupId: 0, quantity: 2 })],
-    });
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      date: null,
-      durationDays: 1,
-      listingId: 7,
-      packageGroupId: 0,
-      quantity: 2,
-    });
-    // No allocations → the row is plain: no order token, no parent.
+describe("checkoutBookingLines", () => {
+  test("keeps item order, quantities, package paths, and per-path prices", () => {
+    const source = listing(7);
+    const packageItem = item(7, { packageGroupId: 5, quantity: 2 });
+    const standaloneItem = item(7, { quantity: 3, unitPrice: 200 });
+
+    const lines = checkoutBookingLines(
+      [packageItem, standaloneItem],
+      listingMap(source),
+      new Map([
+        [packageItem, 700],
+        [standaloneItem, 1100],
+      ]),
+    );
+
+    expect(lines).toEqual([
+      {
+        listing: source,
+        listingId: 7,
+        packageGroupId: 5,
+        pricePaid: 700,
+        quantity: 2,
+      },
+      {
+        listing: source,
+        listingId: 7,
+        packageGroupId: 0,
+        pricePaid: 1100,
+        quantity: 3,
+      },
+    ]);
+  });
+
+  test("keeps a real zero paid amount", () => {
+    const source = listing(7);
+    const checkoutItem = item(7);
+    expect(
+      checkoutBookingLines(
+        [checkoutItem],
+        listingMap(source),
+        new Map([[checkoutItem, 0]]),
+      ),
+    ).toEqual([
+      {
+        listing: source,
+        listingId: 7,
+        packageGroupId: 0,
+        pricePaid: 0,
+        quantity: 1,
+      },
+    ]);
+  });
+
+  test("leaves paid amounts off when the order has no paid map", () => {
+    const lines = checkoutBookingLines([item(7)], listingMap(listing(7)));
+    expect("pricePaid" in lines[0]!).toBe(false);
+  });
+
+  test("allows the existing zero-unit item to have no priced line", () => {
+    const checkoutItem = item(7, { quantity: 0 });
+    const lines = checkoutBookingLines(
+      [checkoutItem],
+      listingMap(listing(7)),
+      new Map(),
+    );
+    expect(lines[0]!.quantity).toBe(0);
+    expect("pricePaid" in lines[0]!).toBe(false);
+  });
+
+  test("names a listing that was not loaded", () => {
+    expect(() => checkoutBookingLines([item(42)], new Map())).toThrow(
+      "Listing 42 was not loaded for checkout",
+    );
+  });
+
+  test("names a paid amount that was not loaded", () => {
+    const checkoutItem = item(42);
+    expect(() =>
+      checkoutBookingLines([checkoutItem], listingMap(listing(42)), new Map()),
+    ).toThrow("Paid amount for listing 42 was not loaded for checkout");
+  });
+});
+
+describe("bookingsForOrder", () => {
+  test("builds one dateless standalone row without parent details", () => {
+    const result = bookingsForOrder(
+      { date: null },
+      checkoutBookingLines([item(7, { quantity: 2 })], listingMap(listing(7))),
+    );
+    expect(result).toEqual([
+      {
+        date: null,
+        durationDays: 1,
+        listingId: 7,
+        packageGroupId: 0,
+        quantity: 2,
+      },
+    ]);
     expect(result[0]!.orderToken).toBeUndefined();
     expect(result[0]!.parentListingId).toBeUndefined();
   });
 
-  test("a tagged package line keeps its package path", () => {
-    const result = orderBookings({
-      date: null,
-      lines: [line({ listingId: 7, packageGroupId: 5, quantity: 1 })],
+  test("uses the order day count for a customisable daily listing", () => {
+    const source = listing(7, {
+      customisable_days: true,
+      duration_days: 8,
+      listing_type: "daily",
     });
-    expect(result[0]).toEqual({
-      date: null,
-      durationDays: 1,
-      listingId: 7,
-      packageGroupId: 5,
-      quantity: 1,
-    });
-  });
-});
-
-describe("orderBookings > pricePaid: 0 versus omitted", () => {
-  test("a genuine 0 pricePaid is written to the row", () => {
-    const result = orderBookings({
-      date: null,
-      lines: [line({ pricePaid: 0 })],
-    });
-    expect(result[0]!.pricePaid).toBe(0);
+    expect(
+      bookingsForOrder(
+        { date: "2026-08-01", dayCount: 3 },
+        checkoutBookingLines([item(7)], listingMap(source)),
+      ),
+    ).toEqual([
+      {
+        date: "2026-08-01",
+        durationDays: 3,
+        listingId: 7,
+        packageGroupId: 0,
+        quantity: 1,
+      },
+    ]);
   });
 
-  test("an omitted pricePaid stays off the row entirely", () => {
-    const result = orderBookings({
-      date: null,
-      lines: [line({})],
-    });
-    expect("pricePaid" in result[0]!).toBe(false);
-    expect(result[0]!.pricePaid).toBeUndefined();
-  });
-});
-
-describe("orderBookings > allocations", () => {
-  test("empty allocations leave the rows plain — no order token, no parent", () => {
-    const result = orderBookings({
-      allocations: [],
-      date: null,
-      lines: [line({ listingId: 7 }), line({ listingId: 8 })],
-    });
-    expect(result).toHaveLength(2);
-    // Per-row: a mutation that silently drops one row's token keeps the
-    // aggregate green, so assert each row directly.
+  test("empty allocations leave every row without parent details", () => {
+    const result = bookingsForOrder(
+      { allocations: [], date: null },
+      checkoutBookingLines(
+        [item(7), item(8)],
+        listingMap(listing(7), listing(8)),
+      ),
+    );
+    expect(result.map((row) => row.listingId)).toEqual([7, 8]);
     for (const row of result) {
       expect(row.orderToken).toBeUndefined();
       expect(row.parentListingId).toBeUndefined();
     }
   });
 
-  test("multiple allocations expand into one row per (child, parent), sharing one order token", () => {
-    // Child 20 chosen under two parents in one order: one signed line but two
-    // per-parent rows, plus each parent's own row — every row carries the
-    // same order token.
-    const result = orderBookings({
-      allocations: [alloc(20, 10, 1), alloc(20, 30, 1)],
-      date: null,
-      lines: [
-        line({ listingId: 10, quantity: 1 }),
-        line({ listingId: 30, quantity: 1 }),
-        line({ listingId: 20, quantity: 2 }),
-      ],
-    });
-    expect(result).toHaveLength(4);
-    const token = result[0]!.orderToken;
-    expect(token).toBeTruthy();
-    for (const row of result) {
-      expect(row.orderToken).toBe(token);
-    }
-    const childRows = result.filter((r) => r.listingId === 20);
-    expect(childRows).toHaveLength(2);
-    expect(childRows.some((r) => r.parentListingId === 10)).toBe(true);
-    expect(childRows.some((r) => r.parentListingId === 30)).toBe(true);
-    for (const row of childRows) {
-      expect(row.quantity).toBe(1);
-    }
-  });
-
-  test("a parent-less remainder row keeps the shared order token", () => {
-    // Child 20 has qty 3 but only 1 unit allocated under a parent — the other
-    // 2 were bought standalone, so the expansion keeps them as one parent-less
-    // remainder row that still shares the order's token.
-    const result = orderBookings({
-      allocations: [alloc(20, 10, 1)],
-      date: null,
-      lines: [
-        line({ listingId: 10, quantity: 1 }),
-        line({ listingId: 20, quantity: 3 }),
-      ],
-    });
-    const remainder = result.find(
-      (r) => r.listingId === 20 && r.parentListingId === undefined,
+  test("preserves allocation order, exact prices, and each parent package", () => {
+    const parentA = item(10, { packageGroupId: 7 });
+    const child = item(20, { quantity: 3 });
+    const parentB = item(30, { packageGroupId: 9 });
+    const plain = item(40, { quantity: 2 });
+    const items = [parentA, child, parentB, plain];
+    const result = bookingsForOrder(
+      {
+        allocations: [allocation(20, 30, 1), allocation(20, 10, 1)],
+        date: null,
+      },
+      checkoutBookingLines(
+        items,
+        listingMap(listing(10), listing(20), listing(30), listing(40)),
+        new Map([
+          [parentA, 700],
+          [child, 100],
+          [parentB, 900],
+          [plain, 400],
+        ]),
+      ),
     );
-    expect(remainder).toBeDefined();
-    expect(remainder!.quantity).toBe(2);
-    expect(remainder!.orderToken).toBeTruthy();
+
+    const orderToken = result[0]!.orderToken;
+    expect(orderToken).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(result.map(({ orderToken: _, ...row }) => row)).toEqual([
+      {
+        date: null,
+        durationDays: 1,
+        listingId: 10,
+        packageGroupId: 7,
+        pricePaid: 700,
+        quantity: 1,
+      },
+      {
+        date: null,
+        durationDays: 1,
+        listingId: 20,
+        packageGroupId: 9,
+        parentListingId: 30,
+        pricePaid: 33,
+        quantity: 1,
+      },
+      {
+        date: null,
+        durationDays: 1,
+        listingId: 20,
+        packageGroupId: 7,
+        parentListingId: 10,
+        pricePaid: 33,
+        quantity: 1,
+      },
+      {
+        date: null,
+        durationDays: 1,
+        listingId: 20,
+        packageGroupId: 0,
+        pricePaid: 34,
+        quantity: 1,
+      },
+      {
+        date: null,
+        durationDays: 1,
+        listingId: 30,
+        packageGroupId: 9,
+        pricePaid: 900,
+        quantity: 1,
+      },
+      {
+        date: null,
+        durationDays: 1,
+        listingId: 40,
+        packageGroupId: 0,
+        pricePaid: 400,
+        quantity: 2,
+      },
+    ]);
+    for (const row of result) expect(row.orderToken).toBe(orderToken);
   });
 
-  test("exact paid price is conserved across the split rows", () => {
-    // 100 across three single-unit allocations would lose a penny to rounding
-    // under a naive per-row split; the last row must absorb the residue so
-    // the order's total never drifts. orderBookings must hand the line's
-    // pricePaid to the expansion unchanged.
-    const result = orderBookings({
-      allocations: [alloc(20, 10, 1), alloc(20, 30, 1), alloc(20, 40, 1)],
-      date: null,
-      lines: [
-        line({ listingId: 10, quantity: 1 }),
-        line({ listingId: 20, pricePaid: 100, quantity: 3 }),
-      ],
-    });
-    const childPrices = result
-      .filter((r) => r.listingId === 20)
-      .map((r) => r.pricePaid ?? 0);
-    expect(childPrices.reduce((total, p) => total + p, 0)).toBe(100);
-    // The residual penny lands on one row, not lost to rounding.
-    expect(Math.max(...childPrices)).toBe(34);
-  });
-});
-
-describe("orderBookings > package stamping", () => {
-  /** The package stamped onto child 20's folded row for the given parent
-   *  lines (child folded under parent 10 once), so each stamping case reads
-   *  only the parent paths it varies. Returns the row's `packageGroupId` as a
-   *  `number` (not `number | undefined`): the builder always sets it — every
-   *  row leaves `orderBookings` with a concrete `packageGroupId` (set on the
-   *  raw line, preserved by `expandChildAllocations`'s spread, kept or
-   *  stamped by `stampChildRowPackages`) — so the invariant is asserted here
-   *  with `!` rather than modelled as a state the application says is
-   *  impossible (per the repo's "Trust application invariants" rule). */
-  const childPackageFor = (parentLines: SignedPaidLine[]): number =>
-    orderBookings({
-      allocations: [alloc(20, 10, 1)],
-      date: null,
-      lines: [
-        ...parentLines,
-        line({ listingId: 20, packageGroupId: 0, quantity: 1 }),
-      ],
-    }).find((r) => r.listingId === 20)!.packageGroupId!;
-
-  test("a folded child is stamped with its parent's sole package", () => {
-    expect(
-      childPackageFor([
-        line({ listingId: 10, packageGroupId: 7, quantity: 1 }),
-      ]),
-    ).toBe(7);
-  });
-
-  test("a mixed-parent path does not stamp the child", () => {
-    // The parent (10) books through BOTH a package (7) and standalone (0), so
-    // it has no single package path — its folded child must stay unstamped.
-    expect(
-      childPackageFor([
-        line({ listingId: 10, packageGroupId: 7, quantity: 1 }),
-        line({ listingId: 10, packageGroupId: 0, quantity: 1 }),
-      ]),
-    ).toBe(0);
-  });
-
-  test("a standalone-only parent does not stamp its child", () => {
-    // The parent (10) books only standalone (packageGroupId 0), so there is
-    // no package path to inherit — the child stays at 0.
-    expect(
-      childPackageFor([
-        line({ listingId: 10, packageGroupId: 0, quantity: 1 }),
-      ]),
-    ).toBe(0);
+  test("does not stamp a child when its parent has mixed paths", () => {
+    const packageParent = item(10, { packageGroupId: 7 });
+    const standaloneParent = item(10);
+    const child = item(20);
+    const result = bookingsForOrder(
+      {
+        allocations: [allocation(20, 10, 1)],
+        date: null,
+      },
+      checkoutBookingLines(
+        [packageParent, standaloneParent, child],
+        listingMap(listing(10), listing(20)),
+      ),
+    );
+    expect(result[2]!.listingId).toBe(20);
+    expect(result[2]!.packageGroupId).toBe(0);
+    expect(result[2]!.parentListingId).toBe(10);
   });
 });

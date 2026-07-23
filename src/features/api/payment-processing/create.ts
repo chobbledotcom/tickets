@@ -6,6 +6,7 @@
  * quantity-0 placeholder instead of dropping a paid customer.
  */
 
+import { requiredMapValue } from "#fp";
 import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import {
@@ -16,14 +17,18 @@ import type {
   BookingIntent,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
-import { attendeeFailureFormatter } from "#shared/attendee-failures.ts";
+/* jscpd:ignore-start */
 import { lineGroupId } from "#shared/booking/signed-metadata.ts";
-import { orderBookings } from "#shared/booking-lines.ts";
+import {
+  bookingsForOrder,
+  checkoutBookingLines,
+} from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type {
   ModifierApplication,
   PricedOrder,
 } from "#shared/checkout-pricing.ts";
+/* jscpd:ignore-end */
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
@@ -108,17 +113,19 @@ export const pairEntriesByListing = <A extends { listing_id: number }>(
   );
   return attendees.map((attendee) => ({
     attendee,
-    listing: listingByItemId.get(attendee.listing_id)!,
+    listing: requiredMapValue(
+      listingByItemId,
+      attendee.listing_id,
+      `Listing ${attendee.listing_id} was not loaded for a created booking`,
+    ),
   }));
 };
 
-/** Format error for post-payment attendee creation failure */
-const formatPostPaymentError = attendeeFailureFormatter({
-  fallback: "Registration failed.",
-  generic: "Sorry, this listing sold out while you were completing payment.",
-  withName: (name) =>
-    `Sorry, ${name} sold out while you were completing payment.`,
-});
+/** Format a capacity failure without assuming the listing has a display name. */
+const formatPostPaymentError = (name: string): string =>
+  name
+    ? `Sorry, ${name} sold out while you were completing payment.`
+    : "Sorry, this listing sold out while you were completing payment.";
 
 type CreatedAttendee = Extract<
   Awaited<ReturnType<typeof attendeesApi.createAttendeeAtomic>>,
@@ -255,25 +262,20 @@ export const createAttendeeForSession = async (
     plan: Parameters<typeof attendeesApi.createBookingAtomic>[1];
   };
   try {
-    // Per-LINE paid amounts: a listing booked through two paths is two lines
-    // with their own prices, and each becomes its own booking row. The priced
-    // order's lines reference the pricing intent's item objects, which pair
-    // 1:1 by index with validatedItems.
+    // Per-line paid amounts are keyed by checkout item object, so one listing
+    // booked through two paths keeps each path's own price and package.
     const paidByIntentItem = paidByItem(pricedOrder);
-    const bookings = orderBookings({
-      allocations: intent.allocations,
-      date: intent.date,
-      dayCount: intent.dayCount,
-      lines: validatedItems.map(({ item, listing }, index) => {
-        const pricePaid = paidByIntentItem.get(pricingIntent.items[index]!);
-        return {
-          ...bookingSlot(item),
-          listing,
-          ...(pricePaid !== undefined ? { pricePaid } : {}),
-          quantity: item.q,
-        };
-      }),
-    });
+    const listingById = new Map(
+      validatedItems.map(({ listing }) => [listing.id, listing]),
+    );
+    const bookings = bookingsForOrder(
+      {
+        allocations: intent.allocations,
+        date: intent.date,
+        dayCount: intent.dayCount,
+      },
+      checkoutBookingLines(pricingIntent.items, listingById, paidByIntentItem),
+    );
     const remainingBalance =
       intent.reservationAmount === undefined
         ? 0
@@ -327,10 +329,7 @@ export const createAttendeeForSession = async (
   // All-or-nothing: a capacity failure rolled the transaction back (no legs).
   if (!result.success) {
     return {
-      detail: formatPostPaymentError(
-        result.reason,
-        validatedItems[0]!.listing.name,
-      ),
+      detail: formatPostPaymentError(validatedItems[0]!.listing.name),
       ok: false,
       reason: result.reason,
     };

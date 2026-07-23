@@ -176,6 +176,49 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
     });
 
+    test("fails before writing when a paid amount is missing", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      const ticketListings = [await ticketListingFor(listing.id)];
+      const items = itemsFor(ticketListings, new Map([[listing.id, 1]]));
+
+      await expect(
+        createFreeReservation({
+          contact,
+          date: null,
+          items,
+          ledgerOrder: null,
+          listings: ticketListings,
+          modifierUsages: [],
+          paidByItem: new Map(),
+        }),
+      ).rejects.toThrow(
+        `Paid amount for listing ${listing.id} was not loaded for checkout`,
+      );
+      await expectNoAttendeesForListings([listing.id]);
+    });
+
+    test("names a listing that was not loaded for the booking", async () => {
+      const missingId = 424242;
+      await expect(
+        createFreeReservation({
+          contact,
+          date: null,
+          items: [
+            {
+              listingId: missingId,
+              name: "Missing",
+              quantity: 1,
+              slug: "missing",
+              unitPrice: 100,
+            },
+          ],
+          ledgerOrder: null,
+          listings: [],
+          modifierUsages: [],
+        }),
+      ).rejects.toThrow(`Listing ${missingId} was not loaded for checkout`);
+    });
+
     test("a package order's capacity error omits the member name", async () => {
       // A hidden package conceals its members, so a sellout between render and
       // insert must not surface a member's name in the capacity error. The
