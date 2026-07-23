@@ -291,7 +291,6 @@ export const createUptimeKumaClient = (
       }
     },
     login: async (username, password): Promise<void> => {
-      await version.read();
       const response = v.parse(
         LoginResponseSchema,
         await call(socket, "login", {
@@ -304,6 +303,7 @@ export const createUptimeKumaClient = (
         throw new Error("Uptime Kuma two-factor login is not supported.");
       }
       if (!response.ok) throw new Error(response.msg);
+      await version.read();
     },
   };
 };
