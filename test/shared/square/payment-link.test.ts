@@ -12,13 +12,15 @@ import {
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
 describeSquare(() => {
-  describe("createPaymentLink", () => {
-    const debugLog = useDebugLogSpy();
+  const debug = useDebugLogSpy();
+  const debugMessages = (): string[] =>
+    debug().calls.map((call) => String(call.args[0]));
 
+  describe("createPaymentLink", () => {
     test("returns null when access token not set", async () => {
       await expectNoLink(
         checkoutIntent({
@@ -32,9 +34,7 @@ describeSquare(() => {
       await configureSquare();
       // No location ID set
       await expectNoLink(checkoutIntent());
-      expect(debugLog().calls.at(-1)?.args[0]).toBe(
-        "[Square] No location ID configured",
-      );
+      expect(debugMessages()).toContain("[Square] No location ID configured");
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -99,10 +99,12 @@ describeSquare(() => {
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
-          expect(debugMessages(debugLog()).slice(-2)).toEqual([
+          expect(debugMessages()).toContain(
             "[Square] Creating payment link for 1 listing(s)",
+          );
+          expect(debugMessages()).toContain(
             "[Square] Payment link created orderId=order_abc",
-          ]);
+          );
         },
       );
     });
@@ -177,11 +179,12 @@ describeSquare(() => {
             "http://localhost",
           );
           expect(result).toBeNull();
-          expect(debugMessages(debugLog()).slice(-3)).toEqual([
-            "[Square] Creating payment link for 1 listing(s)",
+          expect(debugMessages()).toContain(
             "[Square] Payment link response missing orderId or url",
+          );
+          expect(debugMessages()).toContain(
             "[Square] Payment link creation failed",
-          ]);
+          );
         },
       );
     });

@@ -20,11 +20,14 @@ import {
   validatedPaymentSession,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
+import { hasTerminalPaymentOutcome } from "#shared/payment-outcome.ts";
 import type {
   CheckoutIntent,
   PaymentProvider,
+  SessionMetadata,
   ValidatedPaymentSession,
   WebhookEvent,
+  WebhookSessionResolution,
   WebhookSetupResult,
 } from "#shared/payments.ts";
 import {
@@ -34,6 +37,95 @@ import {
   retrievePayment,
   verifyWebhookSignature,
 } from "#shared/square.ts";
+import {
+  type CompletedSquarePayment,
+  findCompletedSquarePayment,
+  type SquareOrder,
+  squareTenderPaymentIds,
+} from "#shared/square-payments.ts";
+
+type CompleteSquareOrder = SquareOrder & {
+  id: string;
+  metadata: SessionMetadata;
+};
+
+const squareSession = (
+  order: CompleteSquareOrder,
+  payment: {
+    amountTotal: number;
+    paymentReference: string;
+    paymentStatus: ValidatedPaymentSession["paymentStatus"];
+  },
+): ValidatedPaymentSession =>
+  validatedPaymentSession({
+    ...payment,
+    createdAt: toCanonicalIso(order.createdAt),
+    id: order.id,
+    metadata: order.metadata,
+  });
+
+const paidSquareSession = (
+  order: CompleteSquareOrder,
+  { amountTotal, paymentReference }: CompletedSquarePayment,
+): ValidatedPaymentSession =>
+  squareSession(order, {
+    amountTotal,
+    paymentReference,
+    paymentStatus: "paid",
+  });
+
+type SquareSessionPayment =
+  | { status: "missing" }
+  | { status: "paid"; payment: CompletedSquarePayment }
+  | { status: "refunded" };
+
+/** A refund changes provider state only until local state records the outcome. */
+const squareSessionPayment = async (
+  order: SquareOrder & { id: string },
+): Promise<SquareSessionPayment> => {
+  const payment = await findCompletedSquarePayment(retrievePayment)(order);
+  if (payment === null) return { status: "missing" };
+  if (
+    payment.refundedAmount > 0 &&
+    !(await hasTerminalPaymentOutcome(order.id))
+  ) {
+    return { status: "refunded" };
+  }
+  return { payment, status: "paid" };
+};
+
+const completeSquareOrder = (
+  order: SquareOrder & { id: string },
+): CompleteSquareOrder | null => {
+  if (!hasRequiredSessionMetadata(order.metadata)) return null;
+  return { ...order, id: order.id, metadata: order.metadata };
+};
+
+type SquareWebhookPayment = {
+  orderId: string;
+  paymentId: string;
+  status: unknown;
+};
+
+/** Read identifiers without mistaking another Square product for our order. */
+const squareWebhookPayment = (
+  listing: WebhookEvent,
+): SquareWebhookPayment | null => {
+  const object = listing.data.object;
+  const payment =
+    typeof object.payment === "object" && object.payment !== null
+      ? (object.payment as Record<string, unknown>)
+      : object;
+  const orderId =
+    typeof payment.order_id === "string" ? payment.order_id : null;
+  const paymentId = typeof payment.id === "string" ? payment.id : null;
+  if (!paymentId && listing.type.startsWith("payment.")) {
+    throw new Error("Square payment webhook is missing id");
+  }
+  return orderId && paymentId
+    ? { orderId, paymentId, status: payment.status }
+    : null;
+};
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
@@ -52,9 +144,14 @@ export const squarePaymentProvider: PaymentProvider = {
     // Fully refunded only: a partial refund leaves the customer still charged,
     // so it must not count as refunded (matches Stripe's charge.refunded and
     // SumUp's REFUNDED status, and keeps the refund-idempotency fallback honest).
-    const charged = payment.amountMoney?.amount ?? BigInt(0);
-    const refunded = payment.refundedMoney?.amount ?? BigInt(0);
-    return charged > BigInt(0) && refunded >= charged;
+    const charged = payment.amountMoney?.amount;
+    const refunded = payment.refundedMoney?.amount;
+    return (
+      charged !== undefined &&
+      refunded !== undefined &&
+      charged > BigInt(0) &&
+      refunded >= charged
+    );
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {
@@ -64,25 +161,10 @@ export const squarePaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null> {
-    const obj = listing.data.object;
-
-    // Square nests payment fields under data.object.payment
-    const payment =
-      typeof obj.payment === "object" && obj.payment !== null
-        ? (obj.payment as Record<string, unknown>)
-        : obj;
-
-    const paymentId = typeof payment.id === "string" ? payment.id : null;
-    if (!paymentId && listing.type.startsWith("payment.")) {
-      throw new Error("Square payment webhook is missing id");
-    }
-
-    // Extract the order ID (Square's session equivalent)
-    const orderId =
-      typeof payment.order_id === "string" ? payment.order_id : null;
-
-    if (!orderId || !paymentId) return Promise.resolve(null);
+  ): Promise<WebhookSessionResolution> {
+    const payment = squareWebhookPayment(listing);
+    if (payment === null) return null;
+    const { orderId, paymentId } = payment;
 
     // Skip non-completed payments to avoid unnecessary API calls
     if (typeof payment.status === "string" && payment.status !== "COMPLETED") {
@@ -97,8 +179,21 @@ export const squarePaymentProvider: PaymentProvider = {
     // dashboard/POS, not by our system), skip silently instead of treating
     // it as an error — avoids noisy logs and 400 responses that trigger
     // Square webhook retries.
-    const session = await this.retrieveSession(orderId);
-    return session ?? "skip";
+    const order = await retrieveOrder(orderId);
+    const providerOrderId = order?.id;
+    if (!providerOrderId) return "retry";
+    const completeOrder = completeSquareOrder({
+      ...order,
+      id: providerOrderId,
+    });
+    if (completeOrder === null) return "skip";
+    const resolved = await squareSessionPayment({
+      ...completeOrder,
+      tenders: [{ paymentId }],
+    });
+    if (resolved.status === "missing") return "retry";
+    if (resolved.status === "refunded") return "skip";
+    return paidSquareSession(completeOrder, resolved.payment);
   },
 
   /* jscpd:ignore-start -- PaymentProvider interface conformance, not
@@ -111,36 +206,28 @@ export const squarePaymentProvider: PaymentProvider = {
     /* jscpd:ignore-end */
     // sessionId is the Square order ID
     const order = await retrieveOrder(sessionId);
-    if (!order?.id) {
+    const orderId = order?.id;
+    if (!orderId) {
       logDebug("Square", `Order ${sessionId} not found`);
       return null;
     }
 
-    const { metadata } = order;
-    if (!hasRequiredSessionMetadata(metadata)) {
+    const completeOrder = completeSquareOrder({ ...order, id: orderId });
+    if (completeOrder === null) {
       logDebug("Square", `Order ${sessionId} missing required metadata fields`);
       return null;
     }
-
-    // Determine payment status from the payment itself (most reliable source)
-    const paymentReference = order.tenders?.[0]?.paymentId ?? "";
-
-    let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
-    if (paymentReference) {
-      const payment = await retrievePayment(paymentReference);
-      if (payment?.status === "COMPLETED") {
-        paymentStatus = "paid";
-      }
-    }
-
-    return validatedPaymentSession({
-      amountTotal: Number(order.totalMoney.amount),
-      createdAt: toCanonicalIso(order.createdAt),
-      id: order.id,
-      metadata,
-      paymentReference,
-      paymentStatus,
-    });
+    const paymentIds = squareTenderPaymentIds(order);
+    const paymentReference = paymentIds[0];
+    const payment = await squareSessionPayment(completeOrder);
+    return payment.status === "paid"
+      ? paidSquareSession(completeOrder, payment.payment)
+      : squareSession(completeOrder, {
+          amountTotal: Number(order.totalMoney.amount),
+          paymentReference:
+            paymentReference === undefined ? "" : paymentReference,
+          paymentStatus: "unpaid",
+        });
   },
 
   setupWebhookEndpoint(

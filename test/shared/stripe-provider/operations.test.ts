@@ -333,8 +333,9 @@ describeStripe("stripe-provider", () => {
         }),
       );
       expect(result).not.toBe("skip");
+      expect(result).not.toBe("retry");
       expect(result).not.toBeNull();
-      if (result && result !== "skip") {
+      if (result && result !== "retry" && result !== "skip") {
         expect(result.id).toBe("cs_resolve_1");
         expect(result.paymentStatus).toBe("paid");
         expect(result.paymentReference).toBe("pi_resolve_1");
@@ -353,6 +354,7 @@ describeStripe("stripe-provider", () => {
             amountTotal: 0,
             eventId: "evt_no_meta",
             metadata: {},
+            paymentIntent: "pi_no_meta",
             sessionId: "cs_no_meta",
           }),
         );

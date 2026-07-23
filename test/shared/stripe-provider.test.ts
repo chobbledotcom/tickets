@@ -10,10 +10,13 @@ import {
 } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 describeStripe("stripe-provider", () => {
+  const errors = setupErrorSpy();
+
   test("identifies its Stripe webhook contract", () => {
     expect(stripePaymentProvider.checkoutCompletedEventType).toBe(
       "checkout.session.completed",
@@ -76,6 +79,74 @@ describeStripe("stripe-provider", () => {
   });
 
   describe("retrieveSession - edge cases", () => {
+    test("returns null when a paid session has no payment intent", async () => {
+      const client = await stripeClient();
+      await whileRetrieving(
+        client,
+        () =>
+          Promise.resolve(
+            stripeCheckoutSession({
+              id: "cs_paid_without_intent",
+              metadata: {
+                email: "alice@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Alice",
+              },
+              payment_intent: null,
+            }),
+          ),
+        async () => {
+          expect(
+            await stripePaymentProvider.retrieveSession(
+              "cs_paid_without_intent",
+            ),
+          ).toBeNull();
+        },
+      );
+    });
+
+    test("retries a paid webhook session with no payment intent", async () => {
+      expect(
+        await stripePaymentProvider.resolveWebhookSession({
+          data: {
+            object: stripeCheckoutSession({
+              id: "cs_webhook_without_intent",
+              metadata: {
+                email: "buyer@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Buyer",
+              },
+              payment_intent: null,
+            }),
+          },
+          id: "evt_webhook_without_intent",
+          type: "checkout.session.completed",
+        }),
+      ).toBe("retry");
+      expect(errors.lastMessage()).toContain(
+        "Stripe checkout cs_webhook_without_intent is paid but has no payment intent",
+      );
+    });
+
+    test("accepts a one-character Stripe session id", async () => {
+      expect(
+        await stripePaymentProvider.resolveWebhookSession({
+          data: {
+            object: stripeCheckoutSession({
+              id: "x",
+              metadata: {
+                email: "buyer@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Buyer",
+              },
+            }),
+          },
+          id: "evt_short_session",
+          type: "checkout.session.completed",
+        }),
+      ).toMatchObject({ id: "x" });
+    });
+
     test("returns null for session without items", async () => {
       const client = await stripeClient();
       await whileRetrieving(
@@ -205,7 +276,7 @@ describeStripe("stripe-provider", () => {
                 items: '[{"e":10,"q":3,"p":0}]',
                 name: "Amount User",
               },
-              payment_intent: null,
+              payment_intent: "pi_with_amount",
             }),
           ),
         async () => {
@@ -213,7 +284,7 @@ describeStripe("stripe-provider", () => {
             await stripePaymentProvider.retrieveSession("cs_with_amount");
           expect(result).not.toBeNull();
           expect(result?.amountTotal).toBe(4500);
-          expect(result?.paymentReference).toBe("");
+          expect(result?.paymentReference).toBe("pi_with_amount");
         },
       );
     });

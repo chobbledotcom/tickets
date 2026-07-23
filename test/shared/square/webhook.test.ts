@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { spy } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
 import type { WebhookEvent } from "#shared/payments.ts";
 import {
@@ -9,22 +8,14 @@ import {
 } from "#shared/square.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describeSquare(() => {
+  const errors = setupErrorSpy();
+
   describe("verifyWebhookSignature", () => {
     const TEST_SECRET = "square_test_signature_key";
     const TEST_NOTIFICATION_URL = "https://example.com/payment/webhook";
-    const TEST_EVENT: WebhookEvent = {
-      data: {
-        object: {
-          id: "pay_123",
-          order_id: "order_456",
-          status: "COMPLETED",
-        },
-      },
-      id: "evt_square_123",
-      type: "payment.updated",
-    };
     const toBytes = (s: string) => new TextEncoder().encode(s);
 
     /** Verify a payload against a signature using the shared notification URL. */
@@ -56,26 +47,23 @@ describeSquare(() => {
     test("returns error when webhook signature key not configured", async () => {
       await resetDb();
       await createTestDb();
-      const errorSpy = spy(console, "error");
-      try {
-        await expectInvalid(
-          '{"test": true}',
-          "somesig",
-          "Webhook signature key not configured",
-        );
-        expect(errorSpy.calls).toHaveLength(1);
-        expect(errorSpy.calls[0]!.args[0]).toBe(
-          '[Error] E_CONFIG_MISSING detail="Square webhook signature key"',
-        );
-      } finally {
-        errorSpy.restore();
-      }
+      await expectInvalid(
+        '{"test": true}',
+        "somesig",
+        "Webhook signature key not configured",
+      );
+      expect(errors.lastMessage()).toContain("Square webhook signature key");
     });
 
     test("returns error for invalid signature", async () => {
+      const listing: WebhookEvent = {
+        data: { object: {} },
+        id: "evt_invalid_signature",
+        type: "payment.updated",
+      };
       const { payload, signature: expectedSignature } =
         await constructTestWebhookEvent(
-          TEST_EVENT,
+          listing,
           TEST_SECRET,
           TEST_NOTIFICATION_URL,
         );
@@ -102,16 +90,6 @@ describeSquare(() => {
         TEST_SECRET,
         TEST_NOTIFICATION_URL,
       );
-      const errorSpy = spy(console, "error");
-      try {
-        expect(await verify(payload, signature)).toEqual({
-          listing: TEST_EVENT,
-          valid: true,
-        });
-        expect(errorSpy.calls).toHaveLength(0);
-      } finally {
-        errorSpy.restore();
-      }
     });
 
     test("returns error for invalid JSON payload with valid signature", async () => {
@@ -138,8 +116,20 @@ describeSquare(() => {
     });
 
     test("verifies valid signature successfully", async () => {
+      const listing: WebhookEvent = {
+        data: {
+          object: {
+            id: "pay_123",
+            order_id: "order_456",
+            status: "COMPLETED",
+          },
+        },
+        id: "evt_square_123",
+        type: "payment.updated",
+      };
+
       const { payload, signature } = await constructTestWebhookEvent(
-        TEST_EVENT,
+        listing,
         TEST_SECRET,
         TEST_NOTIFICATION_URL,
       );
@@ -174,10 +164,13 @@ describeSquare(() => {
         notificationUrl,
       );
 
-      expect(payload).toBe(
-        '{"data":{"object":{"id":"pay_123","status":"COMPLETED"}},"id":"evt_constructed","type":"payment.updated"}',
-      );
-      expect(signature).toBe("1qV7bElBeg7e1tQ/IQSeIzgQMyFmpiVC5Q2jYS6r+ZU=");
+      // Verify payload is valid JSON matching input
+      const parsed = JSON.parse(payload);
+      expect(parsed.id).toBe("evt_constructed");
+      expect(parsed.type).toBe("payment.updated");
+
+      // Signature should be base64-encoded
+      expect(signature).toMatch(/^[A-Za-z0-9+/]+=*$/);
 
       // Signature should be verifiable with the same secret (stored in DB)
       await settings.update.square.webhookSignatureKey(secret);

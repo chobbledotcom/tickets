@@ -31,7 +31,12 @@ describeSquare(() => {
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_abc", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(5000), currency: "USD" },
+                id: "pay_abc",
+                orderId: "order_paid",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {
@@ -145,7 +150,12 @@ describeSquare(() => {
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_total_123", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(6000), currency: "GBP" },
+                id: "pay_total_123",
+                orderId: "order_with_amount",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {
@@ -182,7 +192,12 @@ describeSquare(() => {
             }),
           paymentsGet: () =>
             Promise.resolve({
-              payment: { id: "pay_multi", status: "COMPLETED" },
+              payment: {
+                amountMoney: { amount: BigInt(3000), currency: "USD" },
+                id: "pay_multi",
+                orderId: "order_multi",
+                status: "COMPLETED",
+              },
             }),
         },
         async () => {

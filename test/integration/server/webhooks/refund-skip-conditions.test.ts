@@ -24,7 +24,7 @@ describeWithEnv(
   "server webhooks > refund skip conditions",
   { db: true },
   () => {
-    test("webhook refund returns false when payment reference is null", async () => {
+    test("paid Stripe webhook without a payment intent requests retry", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -54,9 +54,9 @@ describeWithEnv(
         () => {
           mockVerify.restore();
         },
-        200,
+        503,
         (json) => {
-          expect(json.error).toContain("no longer accepting");
+          expect(json).toEqual({ status: "retry" });
         },
       );
     });

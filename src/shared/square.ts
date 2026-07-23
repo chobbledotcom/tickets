@@ -39,6 +39,7 @@ import type {
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import type { SquareOrder, SquarePayment } from "#shared/square-payments.ts";
 import { stringEntries } from "#shared/string-entries.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
@@ -61,7 +62,7 @@ type SquareRawTender = {
 /** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
 const mapTender = (t: SquareRawTender) => ({
   id: t.id,
-  paymentId: t.paymentId ?? t.payment_id,
+  paymentId: typeof t.paymentId === "string" ? t.paymentId : t.payment_id,
 });
 
 /** A single line item for Square checkout */
@@ -318,7 +319,10 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           const link = data?.payment_link;
           return {
             paymentLink: link
-              ? { orderId: link.order_id, url: link.long_url ?? link.url }
+              ? {
+                  orderId: link.order_id,
+                  url: link.long_url === undefined ? link.url : link.long_url,
+                }
               : undefined,
           };
         },
@@ -437,38 +441,6 @@ const getPaymentLinkConfig = (): PaymentLinkConfig | null => {
   if (!locationId) return null;
   const currency = settings.currency.toUpperCase();
   return { currency, locationId };
-};
-
-/** Square order response shape (subset we use) */
-type SquareOrder = {
-  id?: string | undefined;
-  metadata?: Record<string, string> | undefined;
-  tenders?:
-    | Array<{
-        id?: string | undefined;
-        paymentId?: string | undefined;
-      }>
-    | undefined;
-  state?: string | undefined;
-  totalMoney: { amount: bigint; currency: string };
-  /** Order creation time (RFC 3339 / ISO 8601), from the Square API. */
-  createdAt?: string | undefined;
-};
-
-/** A Square Money object with both fields optional, as returned on a payment's
- * `amountMoney` / `refundedMoney`. */
-type SquareMoney = {
-  amount?: bigint | undefined;
-  currency?: string | undefined;
-};
-
-/** Square payment response shape (subset we use) */
-type SquarePayment = {
-  id?: string | undefined;
-  status?: string | undefined;
-  orderId?: string | undefined;
-  amountMoney?: SquareMoney | undefined;
-  refundedMoney?: SquareMoney | undefined;
 };
 
 /** Result of creating a payment link */
@@ -765,10 +737,12 @@ export const squareApi: {
         },
         id: payment.id,
         orderId: payment.orderId,
-        refundedMoney: {
-          amount: payment.refundedMoney?.amount as bigint | undefined,
-          currency: payment.refundedMoney?.currency as string | undefined,
-        },
+        refundedMoney: payment.refundedMoney
+          ? {
+              amount: payment.refundedMoney.amount as bigint | undefined,
+              currency: payment.refundedMoney.currency as string | undefined,
+            }
+          : undefined,
         status: payment.status,
       };
     }, ErrorCode.SQUARE_SESSION),
@@ -792,7 +766,7 @@ export const squareApi: {
     let locations: SquareLocation[] = [];
     try {
       const response = await client.locations.list();
-      locations = response.locations ?? [];
+      locations = response.locations === undefined ? [] : response.locations;
       result.accessToken = {
         mode: settings.square.sandbox ? "sandbox" : "production",
         valid: true,

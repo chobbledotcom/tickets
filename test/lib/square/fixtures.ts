@@ -9,6 +9,19 @@ import { createMockClient } from "./harness.ts";
 type MockImpls = Parameters<typeof createMockClient>[0];
 type SquareMock = ReturnType<typeof createMockClient>;
 
+/** A Square Money value in the given minor units (defaults to USD). */
+export const squareMoney = (amount: number, currency = "USD") => ({
+  amount: BigInt(amount),
+  currency,
+});
+
+/** Canonical metadata for a single-ticket Square checkout. */
+export const SQUARE_ORDER_META = {
+  email: "alice@example.com",
+  items: '[{"e":1,"q":1,"p":0}]',
+  name: "Alice",
+};
+
 /**
  * Runs the test body with a fake Square SDK client standing in for the real
  * one: it builds the mock from the given method behaviours, points

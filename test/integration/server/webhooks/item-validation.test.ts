@@ -114,6 +114,7 @@ describeWithEnv(
           amountTotal: 0,
           eventId: "evt_no_eid",
           metadata: {},
+          paymentIntent: "pi_no_listing_id",
           sessionId: "cs_no_listing_id",
         }),
       );

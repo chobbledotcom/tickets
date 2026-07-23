@@ -373,7 +373,9 @@ const authenticateWebhook = async (
  * Receives listings directly from the payment provider with signature verification.
  * Primary handler for payment completion - more reliable than redirects.
  */
-const handlePaymentWebhook = async (request: Request): Promise<Response> => {
+export const handlePaymentWebhook = async (
+  request: Request,
+): Promise<Response> => {
   // Read raw body bytes FIRST, before any async work. The Bunny Edge runtime
   // can garbage-collect the underlying request body resource during awaits
   // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
@@ -394,6 +396,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Delegate session extraction to the provider — each provider knows how to
   // resolve a session from its own webhook listing structure.
   const sessionResult = await provider.resolveWebhookSession(listing);
+
+  if (sessionResult === "retry") {
+    return jsonResponse({ status: "retry" }, 503);
+  }
 
   if (sessionResult === "skip") {
     return webhookAckResponse({ status: "pending" });

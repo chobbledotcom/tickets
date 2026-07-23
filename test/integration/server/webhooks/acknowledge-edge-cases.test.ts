@@ -35,6 +35,7 @@ describeWithEnv(
           amountTotal: 0,
           eventId: "evt_test",
           metadata: {}, // Missing required fields — not our session
+          paymentIntent: "pi_unrecognized",
           sessionId: "cs_test",
         }),
       );

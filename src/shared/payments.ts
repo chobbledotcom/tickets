@@ -301,6 +301,15 @@ export type WebhookEvent = {
   };
 };
 
+/** A provider's decision for an authenticated payment webhook. "retry" means
+ * provider state is temporarily incomplete, so the HTTP boundary must return a
+ * failure and let the provider deliver the event again. */
+export type WebhookSessionResolution =
+  | ValidatedPaymentSession
+  | "retry"
+  | "skip"
+  | null;
+
 /** Result of webhook endpoint setup */
 export type WebhookSetupResult =
   | { success: true; endpointId: string; secret: string }
@@ -361,12 +370,13 @@ export interface PaymentProvider {
    * Each provider knows how to extract/fetch session data from its own
    * event structure, so the webhook handler stays provider-agnostic.
    *
-   * @returns the session, "skip" if the event should be acknowledged
-   *          without processing (e.g. pending payment), or null on error.
+   * @returns the session, "retry" for temporary provider inconsistency,
+   *          "skip" if the event should be acknowledged without processing
+   *          (e.g. pending payment), or null for an unrelated session.
    */
   resolveWebhookSession(
     listing: WebhookEvent,
-  ): Promise<ValidatedPaymentSession | "skip" | null>;
+  ): Promise<WebhookSessionResolution>;
 
   /**
    * Retrieve and validate a completed checkout session by ID.

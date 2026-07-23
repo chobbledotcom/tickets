@@ -70,6 +70,7 @@ describeSquare(() => {
       );
       expect(opts.method).toBe("POST");
       expect(opts.headers!.Authorization).toBe("Bearer EAAAl_rest_test");
+      expect(opts.headers?.["Content-Type"]).toBe("application/json");
       expect(opts.headers?.["Square-Version"]).toBe("2025-01-23");
 
       const body = JSON.parse(opts.body!);
@@ -337,6 +338,7 @@ describeSquare(() => {
       expect(mockFetch.calls[0]!.args[0]).toBe(
         "https://connect.squareupsandbox.com/v2/locations",
       );
+      expect(mockFetch.calls[0]!.args[1].method).toBe("GET");
       expect(result.locations).toHaveLength(2);
       expect(result.locations?.[0]?.id).toBe("L_1");
       expect(result.locations?.[0]?.name).toBe("Main");

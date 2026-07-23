@@ -6,29 +6,17 @@ import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
+import { SQUARE_ORDER_META, squareMoney } from "#test/lib/square/fixtures.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-
-/** A Square Money value in the given minor units (defaults to USD). */
-const money = (amount: number, currency = "USD") => ({
-  amount: BigInt(amount),
-  currency,
-});
-
-/** The canonical order metadata for a single-ticket Square checkout. */
-const ORDER_META = {
-  email: "alice@example.com",
-  items: '[{"e":1,"q":1,"p":0}]',
-  name: "Alice",
-};
 
 /** A completed order carrying no metadata (the "ignore" fixture). */
 const NO_META_ORDER = {
   id: "order_no_meta",
   metadata: {},
   state: "COMPLETED",
-  totalMoney: money(1000),
+  totalMoney: squareMoney(1000),
 };
 
 type SquarePayment = Awaited<ReturnType<typeof squareApi.retrievePayment>>;
@@ -39,14 +27,19 @@ const paidPay1Mocks = (id: string, createdAt?: string) => ({
     Promise.resolve({
       ...(createdAt ? { createdAt } : {}),
       id,
-      metadata: ORDER_META,
+      metadata: SQUARE_ORDER_META,
       state: "COMPLETED",
       tenders: [{ id: "tender_1", paymentId: "pay_1" }],
-      totalMoney: money(1000),
+      totalMoney: squareMoney(1000),
     }),
   ),
   payment: stub(squareApi, "retrievePayment", () =>
-    Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
+    Promise.resolve({
+      amountMoney: squareMoney(1000),
+      id: "pay_1",
+      orderId: id,
+      status: "COMPLETED",
+    }),
   ),
 });
 
@@ -193,7 +186,9 @@ describe("square-provider", () => {
           ),
           payment: stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
+              amountMoney: squareMoney(1000),
               id: "pay_2",
+              orderId: "order_open",
               status: "COMPLETED",
             }),
           ),
@@ -236,6 +231,7 @@ describe("square-provider", () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
+          expect(result!.paymentReference).toBe("pay_3");
           expect(result!.paymentStatus).toBe("unpaid");
         },
       );
@@ -278,9 +274,9 @@ describe("square-provider", () => {
         expected: true,
         name: "returns true when fully refunded",
         payment: {
-          amountMoney: money(1000),
+          amountMoney: squareMoney(1000),
           id: "pay_123",
-          refundedMoney: money(1000),
+          refundedMoney: squareMoney(1000),
           status: "COMPLETED",
         },
       },
@@ -288,9 +284,9 @@ describe("square-provider", () => {
         expected: true,
         name: "returns true when a one-cent payment is fully refunded",
         payment: {
-          amountMoney: money(1),
+          amountMoney: squareMoney(1),
           id: "pay_123",
-          refundedMoney: money(1),
+          refundedMoney: squareMoney(1),
           status: "COMPLETED",
         },
       },
@@ -298,9 +294,9 @@ describe("square-provider", () => {
         expected: false,
         name: "returns false when only partially refunded",
         payment: {
-          amountMoney: money(1000),
+          amountMoney: squareMoney(1000),
           id: "pay_123",
-          refundedMoney: money(400),
+          refundedMoney: squareMoney(400),
           status: "COMPLETED",
         },
       },
@@ -311,7 +307,7 @@ describe("square-provider", () => {
         name: "returns false when the charged amount is unknown",
         payment: {
           id: "pay_123",
-          refundedMoney: money(1000),
+          refundedMoney: squareMoney(1000),
           status: "COMPLETED",
         },
       },
@@ -319,9 +315,9 @@ describe("square-provider", () => {
         expected: false,
         name: "returns false when refundedMoney is zero",
         payment: {
-          amountMoney: money(1000),
+          amountMoney: squareMoney(1000),
           id: "pay_123",
-          refundedMoney: money(0),
+          refundedMoney: squareMoney(0),
           status: "COMPLETED",
         },
       },
@@ -335,7 +331,7 @@ describe("square-provider", () => {
         expected: false,
         name: "returns false when refundedMoney is missing",
         payment: {
-          amountMoney: money(1),
+          amountMoney: squareMoney(1),
           id: "pay_123",
           status: "COMPLETED",
         },
@@ -581,7 +577,7 @@ describe("square-provider", () => {
             type: "payment.updated",
           });
           expect(mockOrder.calls[0]!.args[0]).toBe("order_flat");
-          expect(result).toBe("skip");
+          expect(result).toBe("retry");
         },
       );
     });

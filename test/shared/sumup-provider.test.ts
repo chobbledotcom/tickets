@@ -129,6 +129,13 @@ describe("sumup-provider", () => {
         },
       );
     });
+
+    test("returns null when a paid checkout has no transaction", async () => {
+      await stageCheckout();
+      await withFetched(checkout({ transactionId: "" }), async () => {
+        expect(await sumupPaymentProvider.retrieveSession("ref")).toBeNull();
+      });
+    });
   });
 
   describe("isPaymentRefunded", () => {
@@ -272,6 +279,15 @@ describe("sumup-provider", () => {
           expect.objectContaining({ id: "ref", paymentReference: "txn" }),
         );
         expect(calls()).toEqual([["co_1"]]);
+      });
+    });
+
+    test("returns retry when a paid checkout has no transaction", async () => {
+      await stageCheckout();
+      await withFetched(checkout({ transactionId: "" }), async () => {
+        expect(
+          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+        ).toBe("retry");
       });
     });
   });

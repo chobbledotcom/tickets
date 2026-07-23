@@ -7,6 +7,7 @@
 
 import type Stripe from "stripe";
 import * as v from "valibot";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
@@ -14,8 +15,10 @@ import {
 } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
+  PaymentStatus,
   ValidatedPaymentSession,
   WebhookEvent,
+  WebhookSessionResolution,
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import {
@@ -34,6 +37,20 @@ type StripeCheckoutCompletedEvent = Pick<
   "data" | "id" | "type"
 >;
 
+/** A paid Stripe checkout must identify the payment that can be refunded. */
+const hasExpectedPaymentReference = (
+  id: string,
+  paymentStatus: PaymentStatus,
+  paymentReference: string,
+): boolean => {
+  if (paymentStatus !== "paid" || paymentReference) return true;
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail: `Stripe checkout ${id} is paid but has no payment intent`,
+  });
+  return false;
+};
+
 const toValidatedSession = (
   session: StripeCheckoutSession,
 ): ValidatedPaymentSession | null => {
@@ -41,12 +58,16 @@ const toValidatedSession = (
     session;
   if (!hasRequiredSessionMetadata(metadata) || amount_total === null)
     return null;
+  const paymentReference = payment_intent === null ? "" : payment_intent;
+  if (!hasExpectedPaymentReference(id, payment_status, paymentReference)) {
+    return null;
+  }
   return validatedPaymentSession({
     amountTotal: amount_total,
     createdAt: isoFromUnixSeconds(session.created),
     id,
     metadata,
-    paymentReference: payment_intent ?? "",
+    paymentReference,
     paymentStatus: payment_status,
   });
 };
@@ -77,11 +98,15 @@ export const stripePaymentProvider: PaymentProvider = {
 
   async resolveWebhookSession({
     data: { object: obj },
-  }: WebhookEvent): Promise<ValidatedPaymentSession | "skip" | null> {
+  }: WebhookEvent): Promise<WebhookSessionResolution> {
     const id = obj.id;
     if (typeof id !== "string" || id.length === 0) return null;
 
     const session = v.parse(StripeCheckoutSessionSchema, obj);
+    if (session.payment_status === "paid" && !session.payment_intent) {
+      hasExpectedPaymentReference(session.id, "paid", "");
+      return "retry";
+    }
     const validated = toValidatedSession(session);
     return validated === null ? await this.retrieveSession(id) : validated;
   },

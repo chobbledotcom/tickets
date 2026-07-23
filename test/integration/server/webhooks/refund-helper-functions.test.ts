@@ -59,11 +59,10 @@ describeWithEnv(
         );
         const html = await expectHtmlResponse(
           response,
-          410,
-          "no longer accepting registrations",
+          400,
+          "Payment session not found",
         );
-        // Should show "contact support" since refund failed (no payment reference)
-        expect(html).toContain("contact support");
+        expect(html).not.toContain("contact support");
       } finally {
         mockRetrieve.restore();
       }
