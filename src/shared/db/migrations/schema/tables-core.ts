@@ -32,6 +32,7 @@ export const coreTables: [name: string, table: Table][] = [
       columns: [
         ["name", "TEXT PRIMARY KEY"],
         ["checkpoint", "TEXT"],
+        ["completed_at", "INTEGER"],
         ["next_run_at", "INTEGER NOT NULL"],
         ["lease_token", "TEXT"],
         ["lease_expires_at", "INTEGER"],

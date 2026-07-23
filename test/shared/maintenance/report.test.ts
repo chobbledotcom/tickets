@@ -11,5 +11,6 @@ describe("maintenance failure reporting", () => {
 
     expect(errors.calls.length).toBe(1);
     expect(errors.contains("scheduled maintenance failed")).toBe(true);
+    expect(errors.contains("boom")).toBe(true);
   });
 });

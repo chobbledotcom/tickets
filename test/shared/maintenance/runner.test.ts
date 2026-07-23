@@ -39,6 +39,18 @@ const taskTiming = (name: string) =>
   );
 
 describeWithEnv("maintenance runner", { db: true }, () => {
+  test("names a failure while updating the task list", async () => {
+    await execute("DROP TABLE maintenance_tasks");
+
+    await expect(
+      runWithSubrequestBudget(() =>
+        maintenance.run(
+          defineMaintenanceTasks([declaration("unreachable", () => {})]),
+        ),
+      ),
+    ).rejects.toThrow("Maintenance task list update failed");
+  });
+
   test("isolates a failed task and reports it after another task runs", async () => {
     const ran: string[] = [];
     const tasks = defineMaintenanceTasks([
@@ -149,6 +161,40 @@ describeWithEnv("maintenance runner", { db: true }, () => {
         "SELECT checkpoint FROM maintenance_tasks WHERE name = 'checkpoint_task'",
       ),
     ).toEqual({ checkpoint: "page-2" });
+  });
+
+  test("a completed task cannot be claimed again", async () => {
+    let calls = 0;
+    const tasks = defineMaintenanceTasks([
+      declaration("one_time", ({ completeTask }) => {
+        calls += 1;
+        completeTask();
+      }),
+    ]);
+
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+    await forceDue(["one_time"]);
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+
+    expect(calls).toBe(1);
+  });
+
+  test("a task cannot complete and request a follow-up", async () => {
+    const tasks = defineMaintenanceTasks([
+      declaration("conflicting_result", ({ completeTask, requestFollowUp }) => {
+        completeTask();
+        requestFollowUp();
+      }),
+    ]);
+
+    await expect(
+      runWithSubrequestBudget(() => maintenance.run(tasks)),
+    ).rejects.toThrow("Maintenance failed: conflicting_result");
+    expect(
+      await queryOne<{ completed_at: number | null }>(
+        "SELECT completed_at FROM maintenance_tasks WHERE name = 'conflicting_result'",
+      ),
+    ).toEqual({ completed_at: null });
   });
 
   test("scheduled-only work is excluded from organic runs", async () => {

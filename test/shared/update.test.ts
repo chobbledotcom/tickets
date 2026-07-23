@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import { execute, getDb, queryAll, queryOne } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import {
   getSubrequestUsage,
@@ -271,6 +271,25 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
         "SELECT value FROM settings WHERE key = 'current_script_commit'",
       ),
     ).toBeNull();
+  });
+
+  test("reads the restored commit from the primary", async () => {
+    setBuildCommitForTest("abc123def4567890");
+    await recordScriptVersion();
+    const client = getDb();
+    const originalBatch = client.batch.bind(client);
+    const modes: unknown[] = [];
+    const batchStub = stub(client, "batch", ((statements, mode) => {
+      modes.push(mode);
+      return originalBatch(statements, mode);
+    }) as typeof client.batch);
+
+    try {
+      expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
+    } finally {
+      batchStub.restore();
+    }
+    expect(modes).toEqual(["write"]);
   });
 
   test("stores the exact rows for each available build marker", async () => {
