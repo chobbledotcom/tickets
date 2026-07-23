@@ -5,7 +5,7 @@
  */
 
 import {
-  cancelPageResponse,
+  cancelResponseAfterClose,
   closeStageForCancel,
 } from "#routes/api/payment-processing/cancel.ts";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
@@ -147,7 +147,11 @@ export const validatePaidSession = async (
     if (closeResult !== "paid") {
       return {
         ok: false,
-        response: await cancelPageResponse(session, logRedirectError),
+        response: await cancelResponseAfterClose(
+          session,
+          closeResult,
+          logRedirectError,
+        ),
       };
     }
     return validateRefreshedPaidSession(sessionId, provider);

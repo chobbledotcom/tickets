@@ -19,6 +19,7 @@
   "payment.cancel.title": "Payment Cancelled",
   "payment.cancel.heading": "Payment Cancelled",
   "payment.cancel.message": "Your payment was cancelled. Your ticket reservation has been removed.",
+  "payment.cancel.close_unresolved": "We could not confirm that this payment was cancelled. Do not start another payment. Please contact support.",
   "payment.cancel.try_again": "Try again",
   "payment.cancel.return_home": "Return home",
   "payment.error.title": "Payment Error",

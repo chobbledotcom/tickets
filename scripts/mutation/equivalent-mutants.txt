@@ -280,7 +280,7 @@ src/shared/payment-helpers.ts:168:24  ?? → ||    # toBookingItems intent.alloc
 src/shared/payment-helpers.ts:541:17  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 src/shared/payment-helpers.ts:600:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
 src/shared/stripe-provider.ts:56:42  ?? → ||   # payment reference is string|null; the empty string and null both resolve to ""
-src/shared/square-provider.ts:113:40  ?? → ||   # first payment id is string|undefined; the empty string and absence both resolve to ""
+src/shared/square-provider.ts:146:40  ?? → ||   # first payment id is string|undefined; the empty string and absence both resolve to ""
 src/shared/sumup-provider.ts:174:27  ?? → ||   # webhook id is string|undefined; empty and absent both resolve to ""
 src/shared/sumup-provider.ts:179:34  ?? → ||   # webhook event type is string|undefined; empty and absent both resolve to ""
 
@@ -1089,8 +1089,8 @@ src/features/api/folded-booking.ts:296:50  0 → 1   # a zero-total enabled-paym
 src/features/api/folded-booking.ts:305:70  0 → 1   # owedOrderForLedger derives gross value from item lines, not this feeSubtotal hint
 src/features/api/folded-booking.ts:318:53  0 → 1   # every folded entry belongs to the same attendee, so either entry returns the same attendee
 src/features/api/folded-booking.ts:385:17  1 → 0   # non-custom duration handling normalizes both 0 and 1 to one day
-src/features/api/payment-processing/cancel.ts:69:40  ?? → ||   # parsed listing ids are positive; missing falls back to 0 under both operators
-src/features/api/payment-processing/classify.ts:179:93  ?? → ||   # payment status is a non-empty enum or missing
+src/features/api/payment-processing/cancel.ts:70:40  ?? → ||   # parsed listing ids are positive; missing falls back to 0 under both operators
+src/features/api/payment-processing/classify.ts:183:93  ?? → ||   # payment status is a non-empty enum or missing
 src/features/api/payment-processing/create.ts:53:36  ?? → ||   # package group id is undefined, 0, or positive; the fallback is 0
 src/features/api/payment-processing/create.ts:116:12  Sorry, this listing sold out while you were completing payment. → ""   # this unnamed-listing branch is unreachable because the caller always supplies a required non-empty listing name
 src/features/api/payment-processing/create.ts:188:28  ?? → ||   # listingAnswerIds is an object or undefined
@@ -1105,6 +1105,10 @@ src/features/api/payment-processing/pricing.ts:75:40  ?? → ||   # running char
 src/features/api/payment-processing/store-refund.ts:146:22  ?? → ||   # spec.error is undefined or a required non-empty message
 src/features/api/payment-processing/store-refund.ts:148:24  ?? → ||   # spec.status is undefined or a positive HTTP status
 src/features/api/payment-processing/store-refund.ts:165:27  ?? → ||   # stage.refund is a truthy object or null
+
+# Square tender ids are kept only when non-empty, so the first value is either
+# a truthy string or undefined. Both operators return null only when absent.
+src/shared/square-payments.ts:52:16  ?? → ||
 
 # Stripe request null checks: both values are typed as string|null, never undefined,
 # so strict and loose null equality agree for every possible input.

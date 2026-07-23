@@ -7,7 +7,10 @@ import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
-import { johnCheckoutSession } from "#test-utils/checkout.ts";
+import {
+  expectUnresolvedCancelResponse,
+  johnCheckoutSession,
+} from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
@@ -196,5 +199,59 @@ describeWithEnv(
         );
       });
     }
+
+    test("a cancel callback offers no retry when provider closure fails", async () => {
+      await setupStripe();
+      const race = await stagedRace("cs_cancel_close_failed");
+
+      await withMocks(
+        () => ({
+          close: stub(stripePaymentProvider, "closeCheckout", () =>
+            Promise.reject(new Error("Stripe unavailable")),
+          ),
+          retrieve: stub(stripePaymentProvider, "retrieveSession", () =>
+            Promise.resolve(raceSession(race, "unpaid", false)),
+          ),
+        }),
+        async ({ close }) => {
+          const response = await handleRequest(
+            mockRequest(`/payment/cancel?session_id=${race.sessionId}`),
+          );
+          await expectUnresolvedCancelResponse(response);
+          expect(close.calls).toHaveLength(1);
+          await expectPendingStage(race);
+        },
+      );
+    });
+
+    test("a failed success callback offers no retry while recovery owns the stage", async () => {
+      await setupStripe();
+      const race = await stagedRace("cs_cancel_stage_kept");
+      await getDb().execute({
+        args: [race.sessionId],
+        sql: "UPDATE checkout_stages SET state = 'paid' WHERE payment_session_id = ?",
+      });
+
+      await withMocks(
+        () => ({
+          close: stub(stripePaymentProvider, "closeCheckout"),
+          retrieve: stub(stripePaymentProvider, "retrieveSession", () =>
+            Promise.resolve(raceSession(race, "failed", false)),
+          ),
+        }),
+        async ({ close }) => {
+          const response = await handleRequest(
+            mockRequest(`/payment/success?session_id=${race.sessionId}`),
+          );
+          await expectUnresolvedCancelResponse(response);
+          expect(close.calls).toHaveLength(0);
+          const stage = await getDb().execute({
+            args: [race.sessionId],
+            sql: "SELECT state FROM checkout_stages WHERE payment_session_id = ?",
+          });
+          expect(stage.rows).toEqual([{ state: "paid" }]);
+        },
+      );
+    });
   },
 );

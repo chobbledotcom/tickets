@@ -232,6 +232,7 @@ describe("square-provider", () => {
     });
 
     for (const [label, refundedMoney, paymentStatus] of [
+      ["refunded by one cent", money(1), "unpaid"],
       ["partially refunded", money(400), "unpaid"],
       ["refunded in another currency", money(0, "EUR"), "unpaid"],
       ["missing refunded amount", { currency: "GBP" }, "unpaid"],
@@ -576,12 +577,12 @@ describe("square-provider", () => {
           id: "evt_no_id",
           type: "payment.updated",
         }),
-      ).rejects.toThrow("Square payment webhook is missing order_id or id");
+      ).rejects.toThrow("Square payment webhook is missing id");
     });
 
-    test("rejects a payment id without its order id", async () => {
-      await expect(
-        squarePaymentProvider.resolveWebhookSession({
+    test("ignores a payment id without its order id", async () => {
+      expect(
+        await squarePaymentProvider.resolveWebhookSession({
           data: {
             object: {
               payment: {
@@ -593,7 +594,24 @@ describe("square-provider", () => {
           id: "evt_no_order",
           type: "payment.updated",
         }),
-      ).rejects.toThrow("Square payment webhook is missing order_id or id");
+      ).toBeNull();
+    });
+
+    test("rejects a possibly-owned order without its payment id", async () => {
+      await expect(
+        squarePaymentProvider.resolveWebhookSession({
+          data: {
+            object: {
+              payment: {
+                order_id: "order_without_payment",
+                status: "COMPLETED",
+              },
+            },
+          },
+          id: "evt_no_payment",
+          type: "payment.updated",
+        }),
+      ).rejects.toThrow("Square payment webhook is missing id");
     });
 
     test("ignores an unrelated event without payment identifiers", async () => {

@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import type { CheckoutIntent } from "#shared/payments.ts";
+import type { CheckoutIntent, WebhookEvent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { createMockClient } from "./harness.ts";
@@ -76,3 +76,55 @@ export const configureSquare = async (
     await settings.update.square.webhookSignatureKey(opts.webhookSignatureKey);
   }
 };
+
+/** Configure Square and make it the active checkout provider. */
+export const activateSquare = async (): Promise<void> => {
+  await configureSquare();
+  await settings.update.paymentProvider("square");
+};
+
+/** Stub one completed Square payment whose full amount was later refunded. */
+export const refundedSquareSessionMocks = (
+  orderId: string,
+  paymentId: string,
+  metadata: Record<string, string>,
+  withTender = true,
+): { order: Stub; payment: Stub } => ({
+  order: stub(squareApi, "retrieveOrder", () =>
+    Promise.resolve({
+      id: orderId,
+      metadata,
+      state: "COMPLETED",
+      ...(withTender && { tenders: [{ paymentId }] }),
+      totalMoney: { amount: BigInt(1000), currency: "USD" },
+    }),
+  ),
+  payment: stub(squareApi, "retrievePayment", () =>
+    Promise.resolve({
+      amountMoney: { amount: BigInt(1000), currency: "USD" },
+      id: paymentId,
+      orderId,
+      refundedMoney: { amount: BigInt(1000), currency: "USD" },
+      status: "COMPLETED",
+    }),
+  ),
+});
+
+/** A completed Square payment event for one order. */
+export const squarePaymentEvent = (
+  eventId: string,
+  orderId: string,
+  paymentId: string,
+): WebhookEvent => ({
+  data: {
+    object: {
+      payment: {
+        id: paymentId,
+        order_id: orderId,
+        status: "COMPLETED",
+      },
+    },
+  },
+  id: eventId,
+  type: "payment.updated",
+});

@@ -133,3 +133,16 @@ export const expectCapturedItemPriced = (
   const item = intent?.items.find((i) => i.listingId === listing.id);
   expect(item?.unitPrice).toBe(unitPrice);
 };
+
+/** Assert that an unresolved provider close blocks another checkout attempt. */
+export const expectUnresolvedCancelResponse = async (
+  response: Response,
+): Promise<void> => {
+  expect(response.status).toBe(503);
+  const html = await response.text();
+  expect(html).toContain(
+    "We could not confirm that this payment was cancelled.",
+  );
+  expect(html).not.toContain("Try again");
+  expect(html).not.toContain('data-payment-result="cancel"');
+};

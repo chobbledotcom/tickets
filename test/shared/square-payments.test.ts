@@ -68,8 +68,31 @@ describe("Square completed payments", () => {
       completed(
         payment({ amountMoney: { amount: BigInt(0), currency: "USD" } }),
       ),
-    ).resolves.toEqual({ amountTotal: 0, paymentReference: "payment_1" });
+    ).resolves.toEqual({
+      amountTotal: 0,
+      paymentReference: "payment_1",
+      refundedAmount: 0,
+    });
   });
+
+  for (const refundedAmount of [1, 100]) {
+    test(`reports a completed payment refunded by ${refundedAmount}`, async () => {
+      await expect(
+        completed(
+          payment({
+            refundedMoney: {
+              amount: BigInt(refundedAmount),
+              currency: "USD",
+            },
+          }),
+        ),
+      ).resolves.toEqual({
+        amountTotal: 100,
+        paymentReference: "payment_1",
+        refundedAmount,
+      });
+    });
+  }
 
   for (const [name, invalid] of [
     ["different payment id", payment({ id: "payment_2" })],
@@ -99,8 +122,12 @@ describe("Square completed payments", () => {
       payment({ refundedMoney: { currency: "USD" } }),
     ],
     [
-      "non-zero refund",
-      payment({ refundedMoney: { amount: BigInt(1), currency: "USD" } }),
+      "negative refund",
+      payment({ refundedMoney: { amount: BigInt(-1), currency: "USD" } }),
+    ],
+    [
+      "refund above the charge",
+      payment({ refundedMoney: { amount: BigInt(101), currency: "USD" } }),
     ],
     [
       "refund in another currency",

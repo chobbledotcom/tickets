@@ -18,6 +18,7 @@ import { htmlResponse } from "#routes/response.ts";
 import { lineGroupIds } from "#shared/booking/signed-metadata.ts";
 import { groups } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { t } from "#shared/i18n.ts";
 import type {
   PaymentProvider,
   ValidatedPaymentSession,
@@ -94,3 +95,17 @@ export const closeStageForCancel = async (
       `Could not close checkout stage ${session.id}: ${String(error)}`,
     ),
   );
+
+type CancelCloseResult = Awaited<ReturnType<typeof closeStageForCancel>>;
+
+/** Show a retry only after local cleanup is complete or was already complete. */
+export const cancelResponseAfterClose = (
+  session: ValidatedPaymentSession,
+  closeResult: Exclude<CancelCloseResult, "paid">,
+  logFailure: CancelLog,
+): Promise<Response> =>
+  closeResult === "error" || closeResult === "kept"
+    ? Promise.resolve(
+        paymentErrorResponse(t("payment.cancel.close_unresolved"), 503),
+      )
+    : cancelPageResponse(session, logFailure);

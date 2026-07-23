@@ -14,7 +14,7 @@ import {
 import { assembleCheckoutMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { sumupApi } from "#shared/sumup.ts";
-import { expectHtmlResponse } from "#test-utils/assertions.ts";
+import { expectUnresolvedCancelResponse } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest, mockWebhookRequest } from "#test-utils/mocks.ts";
@@ -131,7 +131,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
     }
   });
 
-  test("shows the cancel page when a SumUp payment fails", async () => {
+  test("does not offer retry when a failed SumUp close is unconfirmed", async () => {
     const listing = await createTestListing({ unitPrice: 1000 });
     const reference = await stageSumupCheckout(listing);
     const restore = stubRetrieveCheckoutById(reference, "FAILED", "");
@@ -139,7 +139,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
       const response = await handleRequest(
         mockRequest(`/payment/success?session_id=${reference}`),
       );
-      await expectHtmlResponse(response, 200, "Payment Cancelled");
+      await expectUnresolvedCancelResponse(response);
     } finally {
       restore.restore();
     }

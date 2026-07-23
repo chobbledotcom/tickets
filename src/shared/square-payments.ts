@@ -30,6 +30,7 @@ export type SquarePayment = {
 export type CompletedSquarePayment = {
   amountTotal: number;
   paymentReference: string;
+  refundedAmount: number;
 };
 
 const MAX_TENDERS_TO_CHECK = 10;
@@ -59,6 +60,7 @@ const completedPaymentForOrder = (
   const amount = payment.amountMoney?.amount;
   const currency = payment.amountMoney?.currency;
   const refunded = payment.refundedMoney;
+  const refundedAmount = refunded === undefined ? BigInt(0) : refunded.amount;
   if (
     payment.id !== paymentId ||
     payment.status !== "COMPLETED" ||
@@ -68,10 +70,10 @@ const completedPaymentForOrder = (
     currency !== order.totalMoney.currency ||
     amount < BigInt(0) ||
     amount > BigInt(Number.MAX_SAFE_INTEGER) ||
-    (refunded !== undefined &&
-      (typeof refunded.amount !== "bigint" ||
-        refunded.amount !== BigInt(0) ||
-        refunded.currency !== currency))
+    typeof refundedAmount !== "bigint" ||
+    refundedAmount < BigInt(0) ||
+    refundedAmount > amount ||
+    (refunded !== undefined && refunded.currency !== currency)
   ) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
@@ -79,7 +81,11 @@ const completedPaymentForOrder = (
     });
     return null;
   }
-  return { amountTotal: Number(amount), paymentReference: paymentId };
+  return {
+    amountTotal: Number(amount),
+    paymentReference: paymentId,
+    refundedAmount: Number(refundedAmount),
+  };
 };
 
 export const findCompletedSquarePayment =

@@ -16,7 +16,7 @@
 
 import { unique } from "#fp";
 import {
-  cancelPageResponse,
+  cancelResponseAfterClose,
   closeStageForCancel,
 } from "#routes/api/payment-processing/cancel.ts";
 import {
@@ -268,7 +268,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   );
   return closeResult === "paid"
     ? processSessionAndRedirect(sid, provider)
-    : cancelPageResponse(session, logCancelError);
+    : cancelResponseAfterClose(session, closeResult, logCancelError);
 });
 
 /**
