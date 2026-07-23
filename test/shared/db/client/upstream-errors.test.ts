@@ -11,20 +11,27 @@ import {
   type SqlStatement,
   setDb,
 } from "#shared/db/client.ts";
+import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
+import {
+  initDb,
+  invalidateInitDbCache,
+  LATEST_UPDATE,
+  SCHEMA_HASH,
+} from "#shared/db/migrations.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 
 /**
  * The transient upstream retry: the libsql server itself occasionally answers
- * a round trip with a fleeting gateway failure (a Turso 502/503/504, which the
- * client surfaces as a SERVER_ERROR LibsqlError naming the HTTP status). Those
- * retry on the shared 50/150/350ms backoff — but only on reads: a 5xx on a
- * write may have landed server-side before the gateway timed out, and replaying
- * it would double-apply, so writes (and the transactions that hold them) are not
- * retried for upstream errors. A hiccup that outlasts the retries rethrows the
- * original error (a sustained outage should still reach the error log), unlike
- * an exhausted write lock which becomes DatabaseBusyError. SQLITE_BUSY is always
- * safe to retry — the lock was never taken, so nothing ran. Any other failure
- * — a non-transient status, a non-SERVER_ERROR code, or a plain Error with a
+ * a round trip with a fleeting HTTP failure. The client surfaces BunnyDB 421
+ * and Turso 502/503/504 responses as a SERVER_ERROR naming the status. Those
+ * retry on the shared 50/150/350ms backoff — but only on reads: the same response
+ * on a write may arrive after it landed server-side, and replaying it would
+ * double-apply, so writes (and the transactions that hold them) are not retried
+ * for upstream errors. A hiccup that outlasts the retries rethrows the original
+ * error (a sustained outage should still reach the error log), unlike an
+ * exhausted write lock which becomes DatabaseBusyError. SQLITE_BUSY is always
+ * safe to retry — the lock was never taken, so nothing ran. Any other failure —
+ * a non-transient status, a non-SERVER_ERROR code, or a plain Error with a
  * lookalike message — fails immediately without a retry.
  */
 describe("db > client transient upstream retry", () => {
@@ -35,9 +42,12 @@ describe("db > client transient upstream retry", () => {
   const clientWithBatch = (run: () => Promise<ResultSet[]>): Client =>
     ({ batch: run }) as unknown as Client;
 
-  afterEach(() => setDb(null));
+  afterEach(() => {
+    invalidateInitDbCache();
+    setDb(null);
+  });
 
-  for (const status of [502, 503, 504]) {
+  for (const status of [421, 502, 503, 504]) {
     test(`a fleeting upstream ${status} retries and succeeds`, async () => {
       using time = new FakeTime();
       let attempts = 0;
@@ -56,6 +66,47 @@ describe("db > client transient upstream retry", () => {
       expect(attempts).toBe(2);
     });
   }
+
+  test("a fleeting upstream 421 on a write is not retried", async () => {
+    let attempts = 0;
+    setDb(
+      clientWith(() => {
+        attempts++;
+        return Promise.reject(upstreamError(421));
+      }),
+    );
+    await expect(execute("INSERT INTO t (x) VALUES (1)")).rejects.toThrow(
+      "SERVER_ERROR: Server returned HTTP status 421",
+    );
+    expect(attempts).toBe(1);
+  });
+
+  test("initDb retries a fleeting 421 on its initial schema probe", async () => {
+    using time = new FakeTime();
+    let attempts = 0;
+    setDb(
+      clientWith(() => {
+        attempts++;
+        return attempts === 1
+          ? Promise.reject(upstreamError(421))
+          : Promise.resolve({
+              ...emptyResultSet(),
+              rows: [
+                { key: "latest_db_update", value: LATEST_UPDATE },
+                { key: "db_schema_hash", value: SCHEMA_HASH },
+                {
+                  key: "applied_migrations",
+                  value: String(MIGRATION_IDS.length),
+                },
+              ] as unknown as ResultSet["rows"],
+            });
+      }),
+    );
+    const initialized = initDb();
+    await time.tickAsync(50);
+    await initialized;
+    expect(attempts).toBe(2);
+  });
 
   test("an upstream hiccup that outlasts the retries rethrows the original error", async () => {
     using time = new FakeTime();
@@ -140,8 +191,8 @@ describe("db > client transient upstream retry", () => {
     ["a PRAGMA", "PRAGMA table_info(t)"],
   ] as const) {
     test(`a fleeting upstream 504 on ${label} is not retried`, async () => {
-      // A 5xx on anything but a read may have committed its side effects
-      // before the gateway timed out; replaying it could double-apply, so
+      // An upstream HTTP failure on anything but a read may arrive after its
+      // side effects committed; replaying it could double-apply, so
       // only positively recognized SELECTs retry upstream errors. Every
       // CTE-led write — INSERT, UPDATE, DELETE, or REPLACE — is a write: the
       // CTE prefix must not trip the read-only retry gate. DDL and PRAGMA

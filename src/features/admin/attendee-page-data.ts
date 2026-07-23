@@ -476,58 +476,91 @@ const computeWarnings = async (
   return { byListing, top };
 };
 
-/** Build the form template data: everything the editable form itself renders
- * (statuses, balance notice, warnings, logistics), and nothing the other tabs
- * own (log, ledger, notes, contact history). */
-export const buildTemplateData = async (
-  mode: "create" | "edit",
-  parsed: ParsedAttendeeForm,
-  attendee: Attendee | null,
-  opts: {
-    attendeeError?: string | null | undefined;
-    dateError?: string | null | undefined;
-    formError?: string | null | undefined;
-    saveError?: string | undefined;
-    hasMixedTimings?: boolean | undefined;
-    returnUrl?: string | undefined;
-    questions?: QuestionWithAnswers[] | undefined;
-    selectedAnswerIds?: number[] | undefined;
-    selectedTextAnswers?: Map<number, string> | undefined;
-  } = {},
-): Promise<AttendeeFormTemplateData> => {
-  const statuses = await attendeeStatuses.getAll();
-  // The order totals come from the saved booking (edit only); create has none.
-  const summary = attendee ? await getAttendeeOrderSummary(attendee.id) : null;
-  const balanceNotice = attendeeBalanceNotice(
-    statuses.find((s) => s.id === parsed.statusId) ?? null,
-    // The balance is ledger-projected (no form field) — read it from the saved
-    // attendee; create mode has no attendee yet, so it starts at 0.
-    attendee?.remaining_balance ?? 0,
-    summary?.fullPrice ?? 0,
-    summary?.depositPaid ?? 0,
-  );
-  const warnings = await computeWarnings(parsed, attendee?.id);
-  const logistics = await buildAttendeeLogisticsData(parsed.lines, attendee);
+interface BuildTemplateDataOpts {
+  attendeeError?: string | null | undefined;
+  dateError?: string | null | undefined;
+  formError?: string | null | undefined;
+  hasMixedTimings?: boolean | undefined;
+  questions?: QuestionWithAnswers[] | undefined;
+  returnUrl?: string | undefined;
+  saveError?: string | undefined;
+  selectedAnswerIds?: number[] | undefined;
+  selectedTextAnswers?: Map<number, string> | undefined;
+}
+
+/** Load the package and parent names used to explain each booking path. */
+const loadPathNames = async (
+  lines: AttendeeFormLine[],
+): Promise<
+  Pick<AttendeeFormTemplateData, "packageNamesById" | "parentNamesById">
+> => {
   // Path labels: package names for "via <package>" (a row tagged with a
   // since-deleted package falls back to its id in the template), parent
   // names for "add-on under <parent>".
-  const packageNamesById = new Map(
-    (await loadPackagePaths()).map((path) => [path.groupId, path.packageName]),
-  );
   const parentIds = new Set(
-    parsed.lines.map((line) => line.parentListingId).filter((id) => id > 0),
+    lines.map((line) => line.parentListingId).filter((id) => id > 0),
+  );
+  const [packagePaths, parentListings] = await Promise.all([
+    loadPackagePaths(),
+    parentIds.size === 0 ? Promise.resolve([]) : getAllListings(),
+  ]);
+  const packageNamesById = new Map(
+    packagePaths.map((path) => [path.groupId, path.packageName]),
   );
   const parentNamesById = new Map(
-    parentIds.size === 0
-      ? []
-      : (await getAllListings())
-          .filter((listing) => parentIds.has(listing.id))
-          .map((listing) => [listing.id, listing.name] as const),
+    parentListings
+      .filter((listing) => parentIds.has(listing.id))
+      .map((listing) => [listing.id, listing.name] as const),
   );
+  return { packageNamesById, parentNamesById };
+};
+
+/** Load the independent form data in parallel. */
+const loadTemplateParts = async (
+  parsed: ParsedAttendeeForm,
+  attendee: Attendee | null,
+) => {
+  // The order totals come from the saved booking (edit only); create has none.
+  const summary = attendee
+    ? getAttendeeOrderSummary(attendee.id)
+    : Promise.resolve(null);
+  const [statuses, orderSummary, warnings, logistics, pathNames] =
+    await Promise.all([
+      attendeeStatuses.getAll(),
+      summary,
+      computeWarnings(parsed, attendee?.id),
+      buildAttendeeLogisticsData(parsed.lines, attendee),
+      loadPathNames(parsed.lines),
+    ]);
+  return { logistics, orderSummary, pathNames, statuses, warnings };
+};
+
+type TemplateParts = Awaited<ReturnType<typeof loadTemplateParts>>;
+
+interface TemplateDataInput {
+  attendee: Attendee | null;
+  mode: "create" | "edit";
+  opts: BuildTemplateDataOpts;
+  parsed: ParsedAttendeeForm;
+}
+
+/** Assemble the form view model from already-loaded data. */
+const assembleTemplateData = (
+  input: TemplateDataInput,
+  parts: TemplateParts,
+): AttendeeFormTemplateData => {
+  const { attendee, mode, opts, parsed } = input;
+  const { logistics, orderSummary, pathNames, statuses, warnings } = parts;
   return {
     attendee,
     attendeeError: opts.attendeeError ?? null,
-    balanceNotice,
+    balanceNotice: attendeeBalanceNotice(
+      statuses.find((status) => status.id === parsed.statusId) ?? null,
+      // The balance is ledger-projected (no form field). Create mode starts at 0.
+      attendee?.remaining_balance ?? 0,
+      orderSummary?.fullPrice ?? 0,
+      orderSummary?.depositPaid ?? 0,
+    ),
     dateError: opts.dateError ?? null,
     formError: opts.formError ?? null,
     // The shared date range only affects daily listings; the form's rendered
@@ -540,8 +573,8 @@ export const buildTemplateData = async (
     lineWarnings: warnings.byListing,
     logistics,
     mode,
-    packageNamesById,
-    parentNamesById,
+    packageNamesById: pathNames.packageNamesById,
+    parentNamesById: pathNames.parentNamesById,
     parsed,
     questions: opts.questions ?? [],
     returnUrl: opts.returnUrl,
@@ -552,6 +585,20 @@ export const buildTemplateData = async (
     topWarnings: warnings.top,
   };
 };
+
+/** Build the form template data: everything the editable form itself renders
+ * (statuses, balance notice, warnings, logistics), and nothing the other tabs
+ * own (log, ledger, notes, contact history). */
+export const buildTemplateData = async (
+  mode: "create" | "edit",
+  parsed: ParsedAttendeeForm,
+  attendee: Attendee | null,
+  opts: BuildTemplateDataOpts = {},
+): Promise<AttendeeFormTemplateData> =>
+  assembleTemplateData(
+    { attendee, mode, opts, parsed },
+    await loadTemplateParts(parsed, attendee),
+  );
 
 /** Load custom questions + currently-selected answers across ALL of the
  * attendee's booked listings. The request's private key is only derived when

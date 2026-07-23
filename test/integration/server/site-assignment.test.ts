@@ -471,7 +471,8 @@ describeWithEnv(
         expect(
           fetchStub.calls.some(
             (c) =>
-              (c.args[1] as RequestInit | undefined)?.body === "DATA_INVALID",
+              (c.args[1] as RequestInit | undefined)?.body ===
+              ErrorCode.DATA_INVALID,
           ),
         ).toBe(true);
       });
@@ -499,7 +500,7 @@ describeWithEnv(
             fetchStub.calls.some(
               (c) =>
                 (c.args[1] as RequestInit | undefined)?.body ===
-                "CONFIG_MISSING",
+                ErrorCode.CONFIG_MISSING,
             ),
           ).toBe(true);
         } finally {
