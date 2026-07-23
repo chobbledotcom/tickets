@@ -6,7 +6,7 @@
 
 import { t } from "#i18n";
 import { escapeHtml } from "#templates/layout.tsx";
-import { simplePublicPage } from "./shared.tsx";
+import { simplePublicPage } from "./prose-page.tsx";
 
 type RenewalErrorPageProps = {
   siteName: string;

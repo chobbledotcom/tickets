@@ -9,6 +9,7 @@
 import { notFoundResponse } from "#routes/response.ts";
 import type { createRouter } from "#routes/router.ts";
 import { decryptBytes } from "#shared/crypto/encryption.ts";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import {
   BROKEN_IMAGE_FILENAME,
   BROKEN_IMAGE_PNG,
@@ -16,7 +17,6 @@ import {
 } from "#shared/images/broken.ts";
 import {
   downloadRaw,
-  getImageProxyUrl,
   getMimeTypeFromFilename,
   isStorageEnabled,
 } from "#shared/storage.ts";

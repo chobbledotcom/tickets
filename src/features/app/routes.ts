@@ -9,7 +9,6 @@ import {
   publicMessageGroups,
 } from "#locales/groups.ts";
 import type { MessageGroup } from "#locales/manifest.ts";
-import { requireAdminApiOr } from "#routes/auth.ts";
 import {
   htmlResponse,
   jsonResponse,
@@ -288,6 +287,7 @@ const prefixHandlers: Record<string, PrefixRoute> = {
   admin: prefixRoute([], lazyRoute(routeLoaders.admin)),
   api: prefixRoute([], async (request, path, method, server) => {
     if (path.startsWith("/api/admin/")) {
+      const { requireAdminApiOr } = await import("#routes/auth.ts");
       return await requireAdminApiOr(request, () =>
         withMessageGroups(ADMIN_API_MESSAGE_GROUPS, async () =>
           (await loadAdminApiRoutes())(request, path, method, server),
