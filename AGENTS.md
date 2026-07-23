@@ -686,7 +686,7 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` / `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details, asks for typed confirmation, and reports each restore step in the console.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN` from `.env` over shell values. This developer-only task checkpoints and verifies the file, refuses to overwrite an existing path, and removes its temporary replica on success or failure.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
-- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. A source's mirror-located direct tests run first; changed tests under `test/integration/` or `test/e2e/` run only for direct-test survivors. Any other unmatched test is an error: move it to the path that mirrors its source while strengthening it to kill the mutants. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files (and likewise when src changed without any changed test). If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
+- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/` or `test/e2e/` run only for direct-test survivors. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
@@ -908,9 +908,12 @@ the whole tree would be far too slow. The standalone
 `deno task precommit:mutation` runs it automatically, but **only over the files
 this branch changed** (its committed diff against `origin/main`/`main`): the
 `precommit:mutation` step runs each source's mirror-located direct tests first,
-then runs changed `test/integration/` and `test/e2e/` files only for survivors.
-An unmatched test anywhere else fails the run so it must be moved. It demands a 100% kill
-rate, so the cost stays bounded to what you actually changed. Run
+whether or not the direct tests changed, then runs changed `test/integration/`
+and `test/e2e/` files only for survivors. Tests for unchanged sources, scripts,
+and test helpers are outside that src mutation run. A standalone mutation
+command still rejects any explicit test that neither mirrors a selected source
+nor lives in an integration folder. The gate demands a 100% kill rate, so the
+cost stays bounded to the source files you actually changed. Run
 `deno task precommit:mutation` before merging a
 branch that changes `src/` files; the standard `deno task precommit` no longer
 runs it (it was too slow for every commit).
@@ -953,12 +956,10 @@ record the mutant in `scripts/mutation/equivalent-mutants.txt` with a proof that
 no input can distinguish it. "It was already there" is not a resolution; leaving
 it just guarantees the next person trips over the same survivor. This is the
 [Good citizen](#preferences) rule applied to mutation testing.
-It is a best-effort check with three documented blind spots (see the header of
+It is a best-effort check with two documented blind spots (see the header of
 `scripts/precommit/mutation-step.ts`): it scopes to the
-*committed* diff, so uncommitted work isn't checked until committed; it trusts
-that a changed src file's covering test changed alongside it, so a changed src
-whose test is unchanged — paired with an unrelated changed test — can report
-false survivors; and it diffs against your *local* `origin/main`, never
+*committed* diff, so uncommitted work isn't checked until committed; and it
+diffs against your *local* `origin/main`, never
 re-fetching, so a stale local ref under a branch built on newer main commits can
 leak upstream src into the set (run `git fetch origin main` first; a branch's own
 author is unaffected). In each case, reach for `deno task mutation` on the

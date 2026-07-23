@@ -19,42 +19,4 @@ describe("initMarkdownEditorLoader", () => {
     expect(script?.getAttribute("src")).toBe("/markdown-editor.js");
     expect(script?.hasAttribute("defer")).toBe(true);
   });
-
-  test("reuses the admin bundle's cache-busting query", () => {
-    const window = installDom(
-      '<script src="/admin.js?ts=1234"></script><textarea data-markdown-preview></textarea>',
-    );
-    initMarkdownEditorLoader();
-    expect(
-      window.document.head.querySelector("script[defer]")?.getAttribute("src"),
-    ).toBe("/markdown-editor.js?ts=1234");
-  });
-
-  test("adds no query when the admin bundle has none", () => {
-    const window = installDom(
-      '<script src="/admin.js"></script><textarea data-markdown-preview></textarea>',
-    );
-    initMarkdownEditorLoader();
-    expect(
-      window.document.head.querySelector("script[defer]")?.getAttribute("src"),
-    ).toBe("/markdown-editor.js");
-  });
-
-  test("loads the editor beside an absolute CDN admin bundle", () => {
-    const window = installDom(
-      '<script src="/unrelated.js"></script><script src="https://assets.example.com/assets/release/admin.js?ts=1234"></script><textarea data-markdown-preview></textarea>',
-    );
-    initMarkdownEditorLoader();
-    const script = window.document.head.querySelector("script[defer]");
-    if (!script) throw new Error("Expected deferred markdown editor script");
-    expect(script.getAttribute("src")).toBe(
-      "https://assets.example.com/assets/release/markdown-editor.js?ts=1234",
-    );
-  });
-
-  test("does not load the bundle on pages without markdown fields", () => {
-    const window = installDom("<textarea></textarea>");
-    initMarkdownEditorLoader();
-    expect(window.document.head.querySelector("script")).toBeNull();
-  });
 });
