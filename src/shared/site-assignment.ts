@@ -24,9 +24,13 @@ import {
   getHostEmailConfig,
   sendEmail,
 } from "#shared/email.ts";
-import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import {
+  reportSiteAssignmentFailure,
+  type SiteAssignmentConfigValidation,
+} from "#shared/site-assignment-failure.ts";
 import { buildAssignableSite } from "#shared/site-build.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
@@ -68,55 +72,6 @@ type SiteAssignmentConfigEntry = {
     name: string;
   };
 };
-export type SiteAssignmentConfigValidation =
-  | { ok: true }
-  | {
-      ok: false;
-      reason: "builder_disabled" | "initial_months" | "missing_tier";
-      message: string;
-      listingId?: number;
-    };
-
-type SiteAssignmentConfigFailure = Exclude<
-  SiteAssignmentConfigValidation,
-  { ok: true }
->;
-type SiteAssignmentFailureReport = {
-  code: ErrorCodeType;
-  notification: string;
-};
-
-const SITE_ASSIGNMENT_FAILURE_REPORTS = {
-  builder_disabled: {
-    code: ErrorCode.CONFIG_MISSING,
-    notification: "CONFIG_MISSING",
-  },
-  initial_months: {
-    code: ErrorCode.DATA_INVALID,
-    notification: "DATA_INVALID",
-  },
-  missing_tier: {
-    code: ErrorCode.CONFIG_MISSING,
-    notification: "CONFIG_MISSING",
-  },
-} as const satisfies Record<
-  SiteAssignmentConfigFailure["reason"],
-  SiteAssignmentFailureReport
->;
-
-/** Report why post-checkout assignment was blocked. */
-const reportSiteAssignmentFailure = (
-  failure: SiteAssignmentConfigFailure,
-  skippedCount: number,
-): void => {
-  const report = SITE_ASSIGNMENT_FAILURE_REPORTS[failure.reason];
-  logError({
-    code: report.code,
-    detail: `Site assignment blocked (${failure.reason}, ${skippedCount} entries skipped)`,
-  });
-  sendNtfyError(report.notification);
-};
-
 /** Pick the cheapest qualifying tier listing (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
 export const isQualifyingTierListing = (listing: RenewalTierListing): boolean =>
   listing.purchase_only &&

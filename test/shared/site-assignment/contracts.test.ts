@@ -9,6 +9,7 @@ import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import {
   assignAndNotifyBuiltSites,
   isQualifyingTierListing,
@@ -154,7 +155,7 @@ describeWithEnv(
     });
 
     test("reports invalid initial months after checkout", async () => {
-      await expectBlockedNotification(configEntry(0), "DATA_INVALID");
+      await expectBlockedNotification(configEntry(0), ErrorCode.DATA_INVALID);
     });
 
     test("accepts an initial term of one month", async () => {
@@ -178,7 +179,7 @@ describeWithEnv(
     });
 
     test("reports a missing renewal tier after checkout", async () => {
-      await expectBlockedNotification(configEntry(), "CONFIG_MISSING");
+      await expectBlockedNotification(configEntry(), ErrorCode.CONFIG_MISSING);
     });
 
     test("picks the cheapest qualifying tier regardless of insert order", async () => {

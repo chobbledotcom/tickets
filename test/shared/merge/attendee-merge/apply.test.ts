@@ -110,8 +110,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         "alice@test.com",
       );
       const source = await createAttendee(listing2.id, "Bob", "bob@test.com");
-      await saveChoice(target.id, answers[0]!.id);
-      await saveChoice(source.id, answers[1]!.id);
+      await saveConflictAnswerChoice(target, source, answers);
 
       const { result } = await runMerge({
         decide: () => ({

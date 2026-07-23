@@ -281,11 +281,9 @@ const loadPageSections = async <E>(
   panel: SlotLoader<E> | undefined,
 ): Promise<LoadedSection[]> => {
   if (panel) return [{ html: await panel(entity, ctx), kind: "custom" }];
-  const sections: LoadedSection[] = [];
-  for (const section of active.sections) {
-    sections.push(await loadSection(section, entity, ctx));
-  }
-  return sections;
+  return await Promise.all(
+    active.sections.map((section) => loadSection(section, entity, ctx)),
+  );
 };
 
 /** Turn one page definition into its handlers + path helper. */

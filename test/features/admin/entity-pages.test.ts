@@ -161,6 +161,51 @@ describe("defineEntityPage", () => {
     expect(html).not.toContain("View all activity");
   });
 
+  test("active sections load concurrently without changing their declared order", async () => {
+    const first = Promise.withResolvers<ReturnType<typeof Raw>>();
+    const second = Promise.withResolvers<ReturnType<typeof Raw>>();
+    const firstStarted = Promise.withResolvers<void>();
+    const started: string[] = [];
+    const concurrentPage = defineEntityPage({
+      ...def,
+      tabs: [
+        {
+          labelKey: "entity.tab.overview",
+          sections: [
+            {
+              kind: "custom",
+              load: () => {
+                started.push("first");
+                firstStarted.resolve();
+                return first.promise;
+              },
+            },
+            {
+              kind: "custom",
+              load: () => {
+                started.push("second");
+                return second.promise;
+              },
+            },
+          ],
+          slug: "",
+        },
+      ],
+    });
+
+    const rendering = concurrentPage.renderPage(SESSION, 7, "");
+    await firstStarted.promise;
+    const startedBeforeAnyResolve = [...started];
+    second.resolve(Raw({ html: "<p>section-beta-marker</p>" }));
+    first.resolve(Raw({ html: "<p>section-alpha-marker</p>" }));
+    const html = await (await rendering).text();
+
+    expect(startedBeforeAnyResolve).toEqual(["first", "second"]);
+    expect(html.indexOf("section-alpha-marker")).toBeLessThan(
+      html.indexOf("section-beta-marker"),
+    );
+  });
+
   test("actions filter on their visible predicate and custom sections get ctx", async () => {
     const html = await (await page.renderPage(SESSION, 7, "actions")).text();
     // paid=false hides the refund action but keeps the danger delete.
@@ -181,14 +226,37 @@ describe("defineEntityPage", () => {
   });
 
   test("a panel override replaces the tab's content at the given status", async () => {
-    const response = await page.renderPage(SESSION, 7, "actions", {
-      panel: () => Promise.resolve(Raw({ html: "<p>override</p>" })),
+    const loaded: string[] = [];
+    const panelPage = defineEntityPage({
+      ...def,
+      tabs: [
+        {
+          labelKey: "entity.tab.actions",
+          sections: [
+            {
+              kind: "custom",
+              load: () => {
+                loaded.push("section");
+                return Promise.resolve(Raw({ html: "<p>section</p>" }));
+              },
+            },
+          ],
+          slug: "actions",
+        },
+      ],
+    });
+    const response = await panelPage.renderPage(SESSION, 7, "actions", {
+      panel: () => {
+        loaded.push("panel");
+        return Promise.resolve(Raw({ html: "<p>override</p>" }));
+      },
       status: 400,
     });
     expect(response.status).toBe(400);
     const html = await response.text();
     expect(html).toContain("<p>override</p>");
-    expect(html).not.toContain("/admin/widgets/7/delete");
+    expect(html).not.toContain("<p>section</p>");
+    expect(loaded).toEqual(["panel"]);
     // The shell (title + strip) still renders around the override.
     expect(html).toContain("<h1>Widget: Widget</h1>");
   });
