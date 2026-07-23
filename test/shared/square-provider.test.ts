@@ -290,6 +290,7 @@ describe("square-provider", () => {
             "recovery",
           );
           expect(result).not.toBeNull();
+          expect(result!.paymentReference).toBe("");
           expect(result!.paymentStatus).toBe("unpaid");
         },
       );
@@ -433,7 +434,7 @@ describe("square-provider", () => {
         expected: "failed",
         name: "returns failed when refundedMoney is missing",
         payment: {
-          amountMoney: money(1000),
+          amountMoney: money(1),
           id: "pay_123",
           status: "COMPLETED",
         },
@@ -582,20 +583,29 @@ describe("square-provider", () => {
     });
 
     test("ignores a payment id without its order id", async () => {
-      expect(
-        await squarePaymentProvider.resolveWebhookSession({
-          data: {
-            object: {
-              payment: {
-                id: "pay_fallback_id",
-                status: "COMPLETED",
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder"),
+          payment: stub(squareApi, "retrievePayment"),
+        }),
+        async (mocks) => {
+          const result = await squarePaymentProvider.resolveWebhookSession({
+            data: {
+              object: {
+                payment: {
+                  id: "pay_fallback_id",
+                  status: "COMPLETED",
+                },
               },
             },
-          },
-          id: "evt_no_order",
-          type: "payment.updated",
-        }),
-      ).toBeNull();
+            id: "evt_no_order",
+            type: "payment.updated",
+          });
+          expect(result).toBeNull();
+          expect(mocks.order.calls).toHaveLength(0);
+          expect(mocks.payment.calls).toHaveLength(0);
+        },
+      );
     });
 
     test("rejects a possibly-owned order without its payment id", async () => {
