@@ -164,13 +164,26 @@ const databaseRoundTrip = <T>(operation: string, run: () => T): T => {
   return run();
 };
 
-const executeWithRoundTripGuard = (
-  target: Pick<Client, "execute">,
-  operation: string,
-) =>
-  wrapExecute(target, (_statement, execute) =>
-    databaseRoundTrip(operation, execute),
-  );
+type AroundExecute = Parameters<typeof wrapExecute>[1];
+
+const executeWithRoundTrip =
+  (around: AroundExecute) =>
+  (target: Pick<Client, "execute">, operation: string) =>
+    wrapExecute(target, (statement, execute) =>
+      around(statement, () => databaseRoundTrip(operation, execute)),
+    );
+
+const executeWithRoundTripGuard = executeWithRoundTrip((_statement, execute) =>
+  execute(),
+);
+
+/** Count and retry a bare client statement. Transaction statements use only the
+ * round-trip guard above because their surrounding write must not be replayed. */
+const executeWithTransientRetry = executeWithRoundTrip((statement, execute) =>
+  retryOnTransientDatabaseError(execute, {
+    retryUpstream: isReadSql(sqlOf(statement)),
+  }),
+);
 
 const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
   proxyMembers(transaction, {
@@ -199,7 +212,7 @@ const withRoundTripGuard = (client: Client): Client => {
     [GUARDED_CLIENT]: true,
     batch: (statements: InStatement[], mode?: TransactionMode) =>
       databaseRoundTrip("batch", () => client.batch(statements, mode)),
-    execute: executeWithRoundTripGuard(client, "statement"),
+    execute: executeWithTransientRetry(client, "statement"),
     executeMultiple: (sql: string): Promise<void> =>
       databaseRoundTrip("script", () => client.executeMultiple(sql)),
     migrate: (statements: InStatement[]): Promise<ResultSet[]> =>
@@ -255,12 +268,13 @@ const isDatabaseLocked = (error: unknown): boolean =>
   error instanceof Error &&
   /SQLITE_BUSY|database is locked/i.test(error.message);
 
-/** The libsql server's own gateway briefly failing — it timed out (504) or was
- *  momentarily unreachable (502/503), which the client surfaces as a
- *  SERVER_ERROR LibsqlError naming the HTTP status. Worth a retry on a read;
- *  a genuine client or server fault (400/500) would only be replayed by one. */
+/** The libsql server briefly rejecting a fresh connection (421) or its gateway
+ *  timing out / becoming momentarily unreachable (502/503/504), which the
+ *  client surfaces as a SERVER_ERROR LibsqlError naming the HTTP status. Worth
+ *  a retry on a read; a genuine client or server fault (400/500) would only be
+ *  replayed by one. */
 const TRANSIENT_UPSTREAM_STATUS_RE =
-  /Server returned HTTP status (?:502|503|504)\b/;
+  /Server returned HTTP status (?:421|502|503|504)\b/;
 
 const isTransientUpstreamError = (error: unknown): boolean =>
   error instanceof LibsqlError &&
@@ -289,9 +303,9 @@ const isReadSql = (sql: string): boolean => READ_SQL_RE.test(writeSqlOf(sql));
  *   - a contended write lock (SQLITE_BUSY) is always retried — the lock was
  *     never taken, so nothing ran; a lock that outlasts the retries surfaces as
  *     {@link DatabaseBusyError} (the request layer's friendly busy page);
- *   - a fleeting upstream gateway error (502/503/504) is retried only on reads
- *     (`retryUpstream`): a 5xx on a write may have landed server-side before the
- *     gateway timed out, and replaying it would double-apply, so writes and the
+ *   - a fleeting upstream HTTP 421/502/503/504 is retried only on reads
+ *     (`retryUpstream`): the same response on a write may arrive after the write
+ *     landed server-side, and replaying it would double-apply, so writes and the
  *     transactions that hold them never retry upstream errors. A hiccup that
  *     outlasts the retries rethrows its original error, so a sustained outage
  *     still reaches the error log as itself.
@@ -314,12 +328,7 @@ type StatementRunner<T> = (sql: string, args?: InValue[]) => Promise<T>;
 
 const executeTrackedStatement: StatementRunner<ResultSet> = (sql, args) =>
   trackSql(sql, () =>
-    retryOnTransientDatabaseError(
-      () => (args ? getDb().execute({ args, sql }) : getDb().execute(sql)),
-      // A 5xx on anything but a read may have side effects that committed
-      // before the gateway timed out, so only reads retry upstream errors.
-      { retryUpstream: isReadSql(sql) },
-    ),
+    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
   );
 
 /** A SQL statement and its optional bound args — the shared parameters of the
@@ -572,7 +581,7 @@ export const executeBatchWithoutCacheInvalidation = async (
 /** A read/write batch with a fixed mode, or one chosen when it runs. */
 type BatchExecutor = (statements: SqlStatement[]) => Promise<ResultSet[]>;
 
-/** The read batch executors retry a fleeting upstream 5xx on the strength of
+/** The read batch executors retry a fleeting upstream HTTP failure because
  *  every statement being a side-effect-free SELECT, so a write smuggled into
  *  one is rejected loudly here rather than risk a double-apply on a retry. */
 const requireReadStatements = (statements: SqlStatement[]): void => {
@@ -588,7 +597,7 @@ const requireReadStatements = (statements: SqlStatement[]): void => {
 /** Create a batch executor for a fixed or per-call transaction mode. `retryUpstream`
  *  is a property of the executor, not re-derived from each statement: the read
  *  executors ({@link queryBatch}, {@link queryBatchPrimary}) always retry a
- *  fleeting upstream 5xx (their statements are validated SELECTs — no side
+ *  fleeting recognized upstream failure (their statements are validated SELECTs — no side
  *  effects to double-apply); the write executors never do. */
 const batchFor =
   (
@@ -659,8 +668,8 @@ type TransactionWork<T> = (tx: TxScope) => Promise<T>;
  * success and rolling back on any error. Cache invalidations fire once after a
  * successful commit (a rollback fires none). A write lock lost while beginning or
  * committing throws SQLITE_BUSY, which {@link withTransaction} treats as
- * retryable; a fleeting upstream gateway error is not retried here (a 5xx at
- * begin or commit may have landed, and replaying the writes would double-apply),
+ * retryable; a fleeting upstream error is not retried here (one at begin or
+ * commit may arrive after the writes landed, and replaying them would double-apply),
  * so every such error propagates.
  */
 const runWriteTransactionOnce = async <T>(
@@ -742,9 +751,9 @@ export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
   const run = (async (): Promise<T> => {
     await writeQueue.tail.catch(() => undefined);
     return retryOnTransientDatabaseError(() => runWriteTransactionOnce(work), {
-      // A transaction holds writes: a 5xx at begin or commit may have landed,
-      // so a retried transaction would replay its writes. Don't retry upstream
-      // errors here — only lock contention (which never ran anything).
+      // A transaction holds writes: an upstream failure at begin or commit may
+      // arrive after they landed, so a retried transaction would replay them.
+      // Only retry lock contention, which never ran anything.
       retryUpstream: false,
     });
   })();
