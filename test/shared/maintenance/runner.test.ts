@@ -4,6 +4,7 @@ import { execute, queryOne } from "#shared/db/client.ts";
 import {
   defineMaintenanceTasks,
   MAINTENANCE_MIN_INTERVAL_MS,
+  MAINTENANCE_TASK_CALL_LIMIT,
   type MaintenanceTaskDeclaration,
 } from "#shared/maintenance/definition.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
@@ -454,6 +455,50 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     });
 
     expect(calls).toEqual(["ran"]);
+  });
+
+  test("prior external calls leave the separate database allowance available", async () => {
+    let ran = false;
+    const tasks = defineMaintenanceTasks([
+      declaration(
+        "external_headroom",
+        () => {
+          ran = true;
+        },
+        { maxDatabaseCalls: MAINTENANCE_TASK_CALL_LIMIT },
+      ),
+    ]);
+
+    await runWithSubrequestBudget(async () => {
+      countSubrequest("external", "earlier provider call 1");
+      countSubrequest("external", "earlier provider call 2");
+      countSubrequest("external", "earlier provider call 3");
+      await maintenance.run(tasks);
+    });
+
+    expect(ran).toBe(true);
+  });
+
+  test("prior database calls preserve the database request ceiling", async () => {
+    let ran = false;
+    const tasks = defineMaintenanceTasks([
+      declaration(
+        "database_headroom",
+        () => {
+          ran = true;
+        },
+        { maxDatabaseCalls: MAINTENANCE_TASK_CALL_LIMIT },
+      ),
+    ]);
+
+    await runWithSubrequestBudget(async () => {
+      countSubrequest("database", "earlier database call 1");
+      countSubrequest("database", "earlier database call 2");
+      countSubrequest("database", "earlier database call 3");
+      await maintenance.run(tasks);
+    });
+
+    expect(ran).toBe(false);
   });
 
   test("zero external allowance leaves external tasks due", async () => {
