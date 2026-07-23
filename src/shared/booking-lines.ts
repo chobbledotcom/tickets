@@ -37,7 +37,7 @@ type BookingOrder = {
 /** Get the item's paid amount when this checkout carries paid amounts. Pricing
  * has no line for an existing zero-unit signed item, so only that amount may be
  * absent. */
-const paidAmountFor = <T extends CheckoutItem>(
+const paidAmountForOrNull = <T extends CheckoutItem>(
   item: T,
   paidByItem: ReadonlyMap<T, number> | undefined,
 ): number | undefined => {
@@ -60,7 +60,7 @@ export const checkoutBookingLines = <T extends CheckoutItem>(
   paidByItem?: ReadonlyMap<T, number>,
 ): BookingLine[] =>
   items.map((item) => {
-    const pricePaid = paidAmountFor(item, paidByItem);
+    const pricePaid = paidAmountForOrNull(item, paidByItem);
     return {
       listing: requiredMapValue(
         listingById,

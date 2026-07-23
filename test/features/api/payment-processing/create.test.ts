@@ -88,6 +88,7 @@ type PreparationOptions = {
   fullSubtotal?: number;
   listingName?: string;
   matchingPricedItem?: boolean;
+  packageGroupId?: number;
   reservationAmount?: string;
   total: number;
 };
@@ -98,13 +99,23 @@ const preparationResult = (options: PreparationOptions) => {
     name: options.listingName ?? "Test Listing",
     unit_price: 1000,
   });
-  const bookingItem = { e: listing.id, p: 1000, q: 1 };
+  const bookingItem = {
+    e: listing.id,
+    p: 1000,
+    q: 1,
+    ...(options.packageGroupId === undefined
+      ? {}
+      : { k: "p" as const, r: options.packageGroupId }),
+  };
   const checkoutItem = {
     listingId: listing.id,
     name: listing.name,
     quantity: 1,
     slug: listing.slug,
     unitPrice: 1000,
+    ...(options.packageGroupId === undefined
+      ? {}
+      : { packageGroupId: options.packageGroupId }),
   };
   const contact = {
     address: "",
@@ -232,6 +243,20 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       ok: false,
       reason: "capacity_exceeded",
     });
+  });
+
+  test("a package order's capacity error omits the member name", async () => {
+    using _create = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.resolve({ reason: "capacity_exceeded", success: false }),
+    );
+    expect(await preparationResult({ packageGroupId: 9, total: 1000 })).toEqual(
+      {
+        detail:
+          "Sorry, this listing sold out while you were completing payment.",
+        ok: false,
+        reason: "capacity_exceeded",
+      },
+    );
   });
 
   test("logs a zero-value promo without calling it a discount", async () => {
