@@ -880,6 +880,7 @@ src/features/api/payment-processing/index.ts:101:22   → "mutated"   # replaySu
 src/features/api/payment-processing/items.ts:53:24  false → true   # validateListingForPayment is private and validateAllItems always passes includeListingName explicitly, so the default is never evaluated
 src/features/api/payment-processing/items.ts:87:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts:169:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
+src/features/api/payment-processing/pricing.ts:84:40  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
 src/features/api/payment-processing/package-pricing.ts:50:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/package-pricing.ts:51:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
 src/features/api/payment-processing/package-pricing.ts:156:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy

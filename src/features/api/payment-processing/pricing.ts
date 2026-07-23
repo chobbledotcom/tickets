@@ -15,6 +15,7 @@ import {
 import type { BookingIntent } from "#routes/api/webhook-types.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { contactFields } from "#shared/db/attendees/pii.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
@@ -50,9 +51,8 @@ export const checkoutIntentForSession = (
   validatedItems: ValidatedItem[],
   modifierSpecs: ModifierSpec[],
 ): CheckoutIntent => ({
-  address: intent.address,
+  ...contactFields(intent),
   date: intent.date,
-  email: intent.email,
   items: validatedItems.map((v) => ({
     listingId: v.item.e,
     name: v.listing.name,
@@ -64,9 +64,6 @@ export const checkoutIntentForSession = (
     unitPrice: v.item.p / v.item.q,
   })),
   modifiers: modifierSpecs,
-  name: intent.name,
-  phone: intent.phone,
-  special_instructions: intent.special_instructions,
   ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
   ...(intent.reservationAmount
     ? { reservationAmount: intent.reservationAmount }
