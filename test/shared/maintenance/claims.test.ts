@@ -56,7 +56,7 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     expect(claims.filter((claim) => claim === null).length).toBe(1);
   });
 
-  test("does not open a write batch when task rows already match", async () => {
+  test("uses direct idempotent writes instead of a batch", async () => {
     await syncMaintenanceTaskRows([TASK], []);
     using batch = stub(getDb(), "batch", () =>
       Promise.reject(
