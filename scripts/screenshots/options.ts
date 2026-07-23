@@ -1,4 +1,5 @@
 import { parseArgs } from "@std/cli/parse-args";
+import { SOCIAL_TARGET_NAMES, type SocialTargetName } from "./social.ts";
 
 export const SCREENSHOT_NAMES = [
   "dashboard",
@@ -27,6 +28,7 @@ export interface ScreenshotOptions {
   names: ScreenshotName[];
   outputDir: string;
   scenarioPath?: string;
+  social?: SocialTargetName[];
   themes: ThemeName[];
 }
 
@@ -50,7 +52,7 @@ export const parseScreenshotOptions = (args: string[]): ScreenshotOptions => {
   const parsed = parseArgs(args, {
     alias: { o: "output", t: "theme" },
     default: { output: "screenshots", theme: "default" },
-    string: ["element", "output", "scenario", "theme"],
+    string: ["element", "output", "scenario", "social", "theme"],
   });
   if (parsed._.length > 1) {
     throw new Error(
@@ -68,6 +70,15 @@ export const parseScreenshotOptions = (args: string[]): ScreenshotOptions => {
       : selections(SCREENSHOT_NAMES, requestedNames, "screenshot"),
     outputDir: parsed.output,
     ...(parsed.scenario ? { scenarioPath: parsed.scenario } : {}),
+    ...(parsed.social
+      ? {
+          social: selections(
+            SOCIAL_TARGET_NAMES,
+            parsed.social,
+            "social target",
+          ),
+        }
+      : {}),
     themes: selections(THEME_NAMES, parsed.theme, "theme"),
   };
 };
