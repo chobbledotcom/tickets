@@ -20,7 +20,7 @@ nix develop -c deno task precommit
 Do not use `mise` or a host-installed `deno` directly when Nix is available.
 All `deno ...` commands in this file assume you are already inside
 `nix develop`; non-interactive agents should prefix them with
-`nix develop -c`. On non-Nix systems, `./setup.sh` remains the fallback.
+`nix develop -c`. On systems without Nix, `./setup.sh` remains the fallback.
 
 ## Runtime Environment
 
@@ -42,7 +42,7 @@ nix develop -c deno --version
 ```
 
 The `.tool-versions` and mise configuration are kept in sync only for
-non-Nix environments.
+environments without Nix.
 
 ## stripe-mock
 
