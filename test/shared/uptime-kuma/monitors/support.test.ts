@@ -5,7 +5,10 @@ import type {
   UptimeKumaMonitor,
 } from "#shared/uptime-kuma/client.ts";
 import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
-import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
+import {
+  scheduledAuthorization,
+  UPTIME_KUMA_GROUP_NAME,
+} from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
@@ -21,7 +24,7 @@ export const kumaEnv = {
 export const group = (id = 11): UptimeKumaMonitor => ({
   acceptedStatusCodes: ["200-299"],
   active: true,
-  headers: null,
+  authorization: null,
   id,
   interval: 60,
   method: "GET",
@@ -37,9 +40,7 @@ export const siteMonitor = (
 ): UptimeKumaMonitor => ({
   acceptedStatusCodes,
   active: true,
-  headers: JSON.stringify({
-    Authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
-  }),
+  authorization: scheduledAuthorization(TEST_SCHEDULED_KEY),
   id: 22,
   interval: 900,
   method: "POST",
@@ -66,7 +67,10 @@ const listedMonitor = (
     ? monitor.accepted_statuscodes.map(String)
     : [],
   active: true,
-  headers: typeof monitor.headers === "string" ? monitor.headers : null,
+  authorization:
+    typeof monitor.headers === "string"
+      ? scheduledAuthorization(TEST_SCHEDULED_KEY)
+      : null,
   id,
   interval: typeof monitor.interval === "number" ? monitor.interval : 60,
   method: typeof monitor.method === "string" ? monitor.method : "GET",

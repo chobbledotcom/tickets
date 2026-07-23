@@ -18,7 +18,7 @@ export type UptimeKumaMonitorInput = Record<string, unknown>;
 export interface UptimeKumaMonitor {
   acceptedStatusCodes: string[];
   active: boolean;
-  headers: string | null;
+  authorization: string | null;
   id: number;
   interval: number;
   method: string;
@@ -42,9 +42,50 @@ const ActiveSchema = v.pipe(
   v.transform((value) => value === true || value === 1),
 );
 
+const CustomHeadersSchema = v.record(v.string(), v.string());
+
+type CustomAuthorization = {
+  authorization: string | null;
+  valid: boolean;
+};
+
+const readCustomAuthorization = (
+  headers: string | null,
+): CustomAuthorization => {
+  if (headers === null) return { authorization: null, valid: true };
+  try {
+    const values = v.parse(CustomHeadersSchema, JSON.parse(headers));
+    const entry = Object.entries(values).find(
+      ([name]) => name.toLowerCase() === "authorization",
+    );
+    return {
+      authorization: entry === undefined ? null : entry[1],
+      valid: true,
+    };
+  } catch {
+    // A malformed custom header belongs to a different, broken monitor.
+    return { authorization: null, valid: false };
+  }
+};
+
+const authorizationFor = (
+  headers: string | null,
+  authMethod: string,
+  bearerToken: string | null,
+): string | null => {
+  const custom = readCustomAuthorization(headers);
+  if (!custom.valid) return null;
+  if (custom.authorization !== null) return custom.authorization;
+  return authMethod === "bearer" && bearerToken !== null
+    ? `Bearer ${bearerToken}`
+    : null;
+};
+
 const RawMonitorSchema = v.object({
   accepted_statuscodes: v.array(v.string()),
   active: ActiveSchema,
+  authMethod: v.string(),
+  bearer_token: v.optional(v.nullable(v.string()), null),
   headers: v.nullable(v.string()),
   id: integerAtLeast(1),
   interval: integerAtLeast(1),
@@ -56,10 +97,19 @@ const RawMonitorSchema = v.object({
 });
 const MonitorSchema = v.pipe(
   RawMonitorSchema,
-  v.transform(({ accepted_statuscodes, ...monitor }) => ({
-    ...monitor,
-    acceptedStatusCodes: accepted_statuscodes,
-  })),
+  v.transform(
+    ({
+      accepted_statuscodes,
+      authMethod,
+      bearer_token,
+      headers,
+      ...monitor
+    }) => ({
+      ...monitor,
+      acceptedStatusCodes: accepted_statuscodes,
+      authorization: authorizationFor(headers, authMethod, bearer_token),
+    }),
+  ),
 );
 
 const MonitorListSchema = v.record(v.string(), MonitorSchema);

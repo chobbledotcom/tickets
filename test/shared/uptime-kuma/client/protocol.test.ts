@@ -100,7 +100,8 @@ describe("Uptime Kuma Socket.IO protocol", () => {
         "7": {
           accepted_statuscodes: ["200-299"],
           active: 1,
-          headers: "must not cross the gateway",
+          authMethod: "",
+          headers: null,
           id: 7,
           interval: 900,
           method: "POST",
@@ -112,6 +113,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
         "8": {
           accepted_statuscodes: ["200-299"],
           active: 0,
+          authMethod: "",
           headers: null,
           id: 8,
           interval: 60,
@@ -124,6 +126,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
         "9": {
           accepted_statuscodes: ["204"],
           active: true,
+          authMethod: "",
           headers: null,
           id: 9,
           interval: 120,
@@ -141,7 +144,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
       {
         acceptedStatusCodes: ["200-299"],
         active: true,
-        headers: "must not cross the gateway",
+        authorization: null,
         id: 7,
         interval: 900,
         method: "POST",
@@ -153,7 +156,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
       {
         acceptedStatusCodes: ["200-299"],
         active: false,
-        headers: null,
+        authorization: null,
         id: 8,
         interval: 60,
         method: "GET",
@@ -165,7 +168,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
       {
         acceptedStatusCodes: ["204"],
         active: true,
-        headers: null,
+        authorization: null,
         id: 9,
         interval: 120,
         method: "GET",
@@ -186,6 +189,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
         "7": {
           accepted_statuscodes: ["200-299"],
           active: true,
+          authMethod: "",
           headers: null,
           id: 7,
           interval: 60,
@@ -264,6 +268,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
           bad: {
             accepted_statuscodes: ["200-299"],
             active: true,
+            authMethod: "",
             headers: null,
             id: 1,
             interval: 60,

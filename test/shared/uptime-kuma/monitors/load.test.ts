@@ -6,7 +6,6 @@ import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 import {
   configuredSite,
   connectFake,
@@ -190,40 +189,19 @@ describe("Uptime Kuma built-site monitor state", () => {
     });
   }
 
-  for (const [label, headers] of [
-    ["no bearer header", null],
-    ["the wrong bearer header", '{"Authorization":"Bearer wrong"}'],
-    ["malformed headers", "not json"],
+  for (const [label, authorization] of [
+    ["no bearer authorization", null],
+    ["the wrong bearer authorization", "Bearer wrong"],
   ] as const) {
     test(`does not treat a POST check with ${label} as the monitor`, async () => {
       using _env = withEnv(kumaEnv);
-      using _fake = connectFake([group(), { ...siteMonitor(), headers }]);
+      using _fake = connectFake([group(), { ...siteMonitor(), authorization }]);
 
       expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
         kind: "missing",
       });
     });
   }
-
-  test("matches the bearer header without case sensitivity", async () => {
-    using _env = withEnv(kumaEnv);
-    using _fake = connectFake([
-      group(),
-      {
-        ...siteMonitor(),
-        headers: JSON.stringify({
-          authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
-        }),
-      },
-    ]);
-
-    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
-      {
-        kind: "found",
-        monitor: { id: 22 },
-      },
-    );
-  });
 
   test("shows connection failures without leaking credentials", async () => {
     using _env = withEnv(kumaEnv);

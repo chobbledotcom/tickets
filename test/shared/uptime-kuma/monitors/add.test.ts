@@ -66,9 +66,12 @@ describe("adding Uptime Kuma built-site monitors", () => {
     });
   });
 
-  test("adds an authenticated monitor when a POST check has no header", async () => {
+  test("adds an authenticated monitor when a POST check has no authorization", async () => {
     using _env = withEnv(kumaEnv);
-    using fake = connectFake([group(), { ...siteMonitor(), headers: null }]);
+    using fake = connectFake([
+      group(),
+      { ...siteMonitor(), authorization: null },
+    ]);
 
     expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
       ok: true,

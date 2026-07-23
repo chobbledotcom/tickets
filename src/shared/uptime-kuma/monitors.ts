@@ -48,27 +48,6 @@ const sharedGroups = (monitors: UptimeKumaMonitor[]): UptimeKumaMonitor[] =>
       monitor.type === "group" && monitor.name === UPTIME_KUMA_GROUP_NAME,
   );
 
-const hasAuthorization = (
-  headers: string | null,
-  authorization: string,
-): boolean => {
-  if (headers === null) return false;
-  try {
-    const value: unknown = JSON.parse(headers);
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      Object.entries(value).some(
-        ([name, header]) =>
-          name.toLowerCase() === "authorization" && header === authorization,
-      )
-    );
-  } catch {
-    // A malformed custom header belongs to a different, broken monitor.
-    return false;
-  }
-};
-
 const acceptsScheduledResponse = (statusCodes: string[]): boolean =>
   statusCodes.some((range) => {
     const parts = range.split("-");
@@ -115,7 +94,7 @@ const siteMonitor = (
       monitor.url !== null &&
       scheduledTarget(monitor.url) === target &&
       acceptsScheduledResponse(monitor.acceptedStatusCodes) &&
-      hasAuthorization(monitor.headers, authorization),
+      monitor.authorization === authorization,
   );
   if (!allowRaceDuplicates && matches.length > 1) {
     throw new Error(`More than one Uptime Kuma monitor checks ${url}.`);
