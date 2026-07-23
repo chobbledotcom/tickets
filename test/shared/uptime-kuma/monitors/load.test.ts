@@ -79,6 +79,33 @@ describe("Uptime Kuma built-site monitor state", () => {
     expect(fake.disconnected()).toBe(true);
   });
 
+  test("matches an equivalent scheduled URL with trailing slashes", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([
+      group(),
+      { ...siteMonitor(), url: "https://child.example.test/scheduled//" },
+    ]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
+      { kind: "found", monitor: { id: 22 } },
+    );
+  });
+
+  test("shows a paused matching monitor", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([
+      group(),
+      { ...siteMonitor(), active: false, interval: 3_600 },
+    ]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
+      {
+        kind: "found",
+        monitor: { active: false, id: 22, intervalSeconds: 3_600 },
+      },
+    );
+  });
+
   test("ignores unrelated groups and monitors with the shared group name", async () => {
     using _env = withEnv(kumaEnv);
     using _fake = connectFake([

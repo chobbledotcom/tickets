@@ -57,13 +57,13 @@ describe("Uptime Kuma configuration", () => {
     expect(getEnabledUptimeKumaConfigOrNull()).not.toBeNull();
   });
 
-  test("uses the configured whole-minute interval", () => {
+  test("allows a configured interval longer than the default", () => {
     using _env = withEnv({
       ...configuredEnv,
-      UPTIME_KUMA_INTERVAL_MINUTES: "7",
+      UPTIME_KUMA_INTERVAL_MINUTES: "60",
     });
 
-    expect(getUptimeKumaConfigOrNull()?.intervalSeconds).toBe(420);
+    expect(getUptimeKumaConfigOrNull()?.intervalSeconds).toBe(3_600);
   });
 
   test("accepts a local HTTP server", () => {

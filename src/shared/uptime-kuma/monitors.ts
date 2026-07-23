@@ -1,5 +1,6 @@
 import { t } from "#i18n";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import { normalizePath } from "#shared/path.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   type UptimeKumaClient,
@@ -76,6 +77,11 @@ const acceptsScheduledResponse = (statusCodes: string[]): boolean =>
     return minimum <= 204 && maximum >= 204;
   });
 
+const scheduledTarget = (value: string): string => {
+  const url = new URL(value);
+  return `${url.origin}${normalizePath(url.pathname)}`;
+};
+
 const lowestByIdOrNull = (
   monitors: UptimeKumaMonitor[],
 ): UptimeKumaMonitor | null => {
@@ -99,13 +105,15 @@ const siteMonitor = (
   authorization: string,
   allowRaceDuplicates: boolean,
 ): UptimeKumaMonitor | null => {
+  const target = scheduledTarget(url);
   const matches = monitors.filter(
     (monitor) =>
       monitor.type === "http" &&
       monitor.parent !== null &&
       groupIds.includes(monitor.parent) &&
       monitor.method === "POST" &&
-      monitor.url === url &&
+      monitor.url !== null &&
+      scheduledTarget(monitor.url) === target &&
       acceptsScheduledResponse(monitor.acceptedStatusCodes) &&
       hasAuthorization(monitor.headers, authorization),
   );

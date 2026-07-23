@@ -19,6 +19,19 @@ import {
 
 // jscpd:ignore-end
 
+const expectMonitorReuse = async (
+  monitor: ReturnType<typeof siteMonitor>,
+): Promise<void> => {
+  using _env = withEnv(kumaEnv);
+  using fake = connectFake([group(), monitor]);
+
+  expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
+    ok: true,
+    value: { created: false, monitorId: 22 },
+  });
+  expect(fake.added).toEqual([]);
+};
+
 describe("adding Uptime Kuma built-site monitors", () => {
   test("does not add when Kuma is not configured", async () => {
     using _env = withEnv({
@@ -44,6 +57,13 @@ describe("adding Uptime Kuma built-site monitors", () => {
     });
     expect(fake.added).toHaveLength(1);
     expect(fake.added[0]).toMatchObject({ method: "POST", parent: 11 });
+  });
+
+  test("reuses an equivalent scheduled URL with a trailing slash", async () => {
+    await expectMonitorReuse({
+      ...siteMonitor(),
+      url: "https://child.example.test/scheduled/",
+    });
   });
 
   test("adds an authenticated monitor when a POST check has no header", async () => {
@@ -213,14 +233,7 @@ describe("adding Uptime Kuma built-site monitors", () => {
   });
 
   test("reuses a monitor that was added by another request", async () => {
-    using _env = withEnv(kumaEnv);
-    using fake = connectFake([group(), siteMonitor()]);
-
-    expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
-      ok: true,
-      value: { created: false, monitorId: 22 },
-    });
-    expect(fake.added).toEqual([]);
+    await expectMonitorReuse(siteMonitor());
   });
 
   test("requires the retained scheduled task key before connecting", async () => {

@@ -1,7 +1,8 @@
 # Scheduled maintenance
 
 Each site runs its own small database maintenance jobs. An external HTTPS
-monitor must send one request to each site at least every 15 minutes:
+monitor can send requests on any schedule. New managed monitors default to one
+request every 15 minutes:
 
 ```http
 POST /scheduled HTTP/1.1
@@ -38,8 +39,8 @@ site's **Scheduled maintenance** tab:
 - `UPTIME_KUMA_USERNAME`
 - `UPTIME_KUMA_PASSWORD`
 
-You can also set `UPTIME_KUMA_INTERVAL_MINUTES`. It must be a positive whole
-number and defaults to `15`.
+You can also set `UPTIME_KUMA_INTERVAL_MINUTES` to any positive whole number.
+It defaults to `15`.
 
 The tab connects to Uptime Kuma only while you view it or add a monitor. It
 shows a monitor that already checks the site's `/scheduled` URL under the
