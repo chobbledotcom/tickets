@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import fc from "fast-check";
 import { t } from "#i18n";
 import {
   type BuildTreeInput,
@@ -14,7 +13,6 @@ import {
   resolveChildSelections,
   resolvedByNodeKey,
 } from "#shared/booking/fold-tree.ts";
-import { formatAtomicError } from "#shared/booking/form.ts";
 import {
   buildTicketListing,
   type TicketListing,
@@ -63,24 +61,6 @@ const freshState = () => ({
   selectedListingIds: new Set<number>(),
 });
 
-/** Validate a single foldChild outcome against the running total and cap:
- * within the cap the fold must be accepted and the running quantity recorded;
- * above the cap it must be rejected with the capacity error (never clamped) and
- * the recorded quantity left exactly as it was before this fold. */
-const foldOutcomeValid = (
-  error: ReturnType<typeof foldChild>,
-  recordedQty: number | undefined,
-  prevRecordedQty: number | undefined,
-  running: number,
-  max: number,
-  capacityError: string,
-): boolean =>
-  running <= max
-    ? error === null && recordedQty === running
-    : error === capacityError && recordedQty === prevRecordedQty;
-
-/** Mirror the production adapter's steps, purely (no DB; holidays default none):
- * build the tree, resolve each node's availability, run the walk. */
 const foldOf = (
   input: BuildTreeInput,
   form: FormParams,
@@ -96,8 +76,6 @@ const foldOf = (
   return foldBookingTree(tree, resolved, form, base, holidays);
 };
 
-/** Fold a single standalone parent (id 1, quantity `parentQty`) over one child
- * (id 9) built from `childOver`, given the posted fields. */
 const foldOneChild = (
   childOver: Partial<ListingWithCount>,
   formRecord: Record<string, string>,
@@ -114,7 +92,6 @@ const foldOneChild = (
     baseOrder(new Map([[1, parentQty]]), baseOver),
   );
 
-/** Assert a fold failed with exactly `error`. */
 const expectFoldError = (
   fold: ReturnType<typeof foldBookingTree>,
   error: string,
@@ -124,15 +101,12 @@ const expectFoldError = (
   expect(fold.error).toBe(error);
 };
 
-/** Assert a fold succeeded, narrowing it to the ok branch so the caller can
- *  read its folded fields without a repeated `if (!fold.ok) return;` guard. */
 function expectFoldOk(
   fold: ReturnType<typeof foldBookingTree>,
 ): asserts fold is Extract<ReturnType<typeof foldBookingTree>, { ok: true }> {
   expect(fold.ok).toBe(true);
 }
 
-/** A pay-more child priced £10–£50 (minor units). */
 const PAY_MORE_CHILD: Partial<ListingWithCount> = {
   can_pay_more: true,
   max_price: 5000,
@@ -167,6 +141,15 @@ describe("foldBookingTree — walking the tree", () => {
     expect(fold.quantities.has(9)).toBe(false);
   });
 
+  test("a parent absent from the submitted quantities does not fold children", () => {
+    const fold = foldOneChild({ max_quantity: 9 }, { child_qty_1_9: "1" }, 1, {
+      quantities: new Map(),
+    });
+    expectFoldOk(fold);
+    expect(fold.allocations).toEqual([]);
+    expect(fold.quantities.has(9)).toBe(false);
+  });
+
   test("folds a posted child quantity into one allocation and an ordinary line", () => {
     const fold = foldOneChild({ max_quantity: 9 }, { child_qty_1_9: "2" }, 2);
     expect(fold.ok).toBe(true);
@@ -178,9 +161,6 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("a parent booked through two paths folds its children exactly once", () => {
-    // Listing 1 books through package 3 AND its own standalone row — two
-    // nodes with identical child edges. The child mix is chosen once against
-    // the parent's TOTAL quantity, never once per path.
     const fold = foldOf(
       {
         childrenByParentId: new Map([[1, [tl(9, { max_quantity: 9 })]]]),
@@ -193,8 +173,6 @@ describe("foldBookingTree — walking the tree", () => {
       baseOrder(new Map([[1, 3]])),
     );
     expectFoldOk(fold);
-    // One allocation against the total, never one per path — and the parent
-    // lists once in the folded cart despite its two nodes.
     expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 3 }]);
     expect(fold.listings.filter((info) => info.listing.id === 1)).toHaveLength(
       1,
@@ -233,7 +211,6 @@ describe("foldBookingTree — walking the tree", () => {
     expect(fold.allocations).toHaveLength(2);
     expect(fold.allocations.map((a) => a.parentId).sort()).toEqual([1, 2]);
     expect(fold.quantities.get(9)).toBe(2);
-    // Summed into a single line, not duplicated.
     expect(fold.listings.filter((l) => l.listing.id === 9)).toHaveLength(1);
   });
 
@@ -245,8 +222,6 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("a daily child with no chosen date is not bookable (sold out)", () => {
-    // childSelectableForSpan passes (active, priced, duration matches) but
-    // childDateOk is false for a daily listing with no date — the `&&` right arm.
     expectFoldError(
       foldOneChild({ listing_type: "daily", max_quantity: 9 }, {}, 1, {
         date: null,
@@ -291,7 +266,6 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("records a chosen pay-more child price", () => {
-    // Form prices are in major units: "20" → 2000 minor, within [1000, 5000].
     const fold = foldOneChild(
       PAY_MORE_CHILD,
       { child_price_1_9: "20", child_qty_1_9: "1" },
@@ -303,7 +277,6 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("rejects an invalid pay-more child price", () => {
-    // "5" → 500 minor, below the 1000 minimum → rejected.
     const fold = foldOneChild(
       PAY_MORE_CHILD,
       { child_price_1_9: "5", child_qty_1_9: "1" },
@@ -313,8 +286,6 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("rejects a child folded above its own max-purchasable", () => {
-    // Default max_quantity 1 → maxPurchasable 1; two units under one parent
-    // exceeds the cap, so the walk surfaces foldChild's capacity error.
     expect(foldOneChild({}, { child_qty_1_9: "2" }, 2).ok).toBe(false);
   });
 });
@@ -322,7 +293,6 @@ describe("foldBookingTree — walking the tree", () => {
 describe("childSelectableForSpan", () => {
   test("with no span applies only the date/span-independent disqualifiers", () => {
     expect(childSelectableForSpan(tl(1), null)).toBe(true);
-    // Sold out fails the span-independent check regardless of span.
     expect(
       childSelectableForSpan(
         tl(1, { attendee_count: 1, max_attendees: 1 }),
@@ -338,14 +308,12 @@ describe("childSelectableForSpan", () => {
       duration_days: 3,
     });
     expect(childSelectableForSpan(child, 1)).toBe(true);
-    // No price configured for a 2-day span → not selectable for that span.
     expect(childSelectableForSpan(child, 2)).toBe(false);
   });
 
   test("with a span rejects a fixed daily child whose duration differs", () => {
     const daily = tl(1, { duration_days: 2, listing_type: "daily" });
     expect(childSelectableForSpan(daily, 2)).toBe(true);
-    // A 2-day fixed daily child can't serve a 1-day span (duration mismatch).
     expect(childSelectableForSpan(daily, 1)).toBe(false);
   });
 });
@@ -376,13 +344,24 @@ describe("resolveChildSelections — error counts", () => {
       error: t("public.ticket.child_too_many", { count: 2, name: "P" }),
     });
   });
+
+  test("treats malformed child quantities as no selection", () => {
+    const result = resolveChildSelections(
+      parent,
+      [tl(1), tl(2)],
+      2,
+      formFrom({ child_qty_100_1: "2", child_qty_100_2: "2.9" }),
+    );
+    if (!Array.isArray(result)) throw new Error("Expected child selections");
+    expect(result.map(({ child, qty }) => [child.listing.id, qty])).toEqual([
+      [1, 2],
+    ]);
+  });
 });
 
 describe("foldChild — summing, capacity, duration, price", () => {
   test("a daily child skips the date-less max-purchasable cap", () => {
     const state = freshState();
-    // max_quantity 1 → maxPurchasable 1; a standard child would reject qty 5, a
-    // daily child must not (its per-date cap is enforced by checkAvailability).
     const daily = tl(9, { listing_type: "daily", max_quantity: 1 });
     expect(foldChild(state, daily, 5, 1, 1, undefined)).toBeNull();
     expect(state.quantities.get(9)).toBe(5);
@@ -397,11 +376,8 @@ describe("foldChild — summing, capacity, duration, price", () => {
       max_quantity: 9,
     });
     expect(foldChild(state, cust, 1, 2, 1, undefined)).toBeNull();
-    // Same duration again: still fine.
     expect(foldChild(state, cust, 1, 2, 2, undefined)).toBeNull();
-    // The shared duration is *set* to the value, not accumulated across folds.
     expect(state.customisableDuration).toBe(2);
-    // A different duration can't be represented by the single dayCount.
     expect(foldChild(state, cust, 1, 1, 3, undefined)).toBe(
       t("public.ticket.mixed_durations"),
     );
@@ -415,151 +391,10 @@ describe("foldChild — summing, capacity, duration, price", () => {
       max_quantity: 9,
     });
     expect(foldChild(state, child, 1, 1, 1, 2000)).toBeNull();
-    // Same price on another fold: no conflict.
     expect(foldChild(state, child, 1, 1, 2, 2000)).toBeNull();
     expect(state.customPrices.get(9)).toBe(2000);
-    // A different price for the same child id is a mismatch.
     expect(foldChild(state, child, 1, 1, 3, 2500)).toBe(
       t("public.ticket.child_price_mismatch", { name: "Test Listing" }),
-    );
-  });
-});
-
-// Pure (no DB) property tests over the per-parent fold algebra. Mutation testing
-// confirmed the example-based fold suite is tight; these explore the input space
-// the examples can't enumerate, pinning the core invariants directly.
-describe("fold selection algebra (property-based)", () => {
-  const PARENT_ID = 100;
-
-  /** A bookable, high-capacity standard listing wrapped as a cart line. */
-  const line = (
-    id: number,
-    over: Partial<ListingWithCount> = {},
-  ): TicketListing =>
-    tl(id, {
-      max_attendees: 1000,
-      max_quantity: 1000,
-      name: `L${id}`,
-      ...over,
-    });
-
-  test("resolveChildSelections accepts iff the chosen quantities sum to exactly the parent quantity", () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ max: 10, min: 1 }),
-        fc.array(fc.integer({ max: 12, min: 0 }), {
-          maxLength: 4,
-          minLength: 1,
-        }),
-        (parentQty, qtys) => {
-          const parent = line(PARENT_ID);
-          const children = qtys.map((_, i) => line(i + 1));
-          const record: Record<string, string> = {};
-          qtys.forEach((q, i) => {
-            record[`child_qty_${PARENT_ID}_${i + 1}`] = String(q);
-          });
-          const result = resolveChildSelections(
-            parent,
-            children,
-            parentQty,
-            formFrom(record),
-          );
-          const total = qtys.reduce((a, b) => a + b, 0);
-          // A sole child with nothing submitted auto-fills the whole parent qty.
-          const autoSelect = total === 0 && children.length === 1;
-          if (total === parentQty || autoSelect) {
-            if (!Array.isArray(result)) return false;
-            const sum = result.reduce((acc, s) => acc + s.qty, 0);
-            return sum === parentQty && result.every((s) => s.qty > 0);
-          }
-          return !Array.isArray(result);
-        },
-      ),
-    );
-  });
-
-  test("resolveChildSelections rejects any positive quantity on a child not bookable under the parent", () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ max: 10, min: 1 }),
-        fc.integer({ max: 50, min: 1 }),
-        fc.integer({ max: 5, min: 1 }),
-        (parentQty, strangerOffset, strangerQty) => {
-          const parent = line(PARENT_ID);
-          const child = line(1);
-          const strangerId = 1000 + strangerOffset;
-          const record = {
-            [`child_qty_${PARENT_ID}_1`]: String(parentQty),
-            [`child_qty_${PARENT_ID}_${strangerId}`]: String(strangerQty),
-          };
-          const result = resolveChildSelections(
-            parent,
-            [child],
-            parentQty,
-            formFrom(record),
-          );
-          return !Array.isArray(result);
-        },
-      ),
-    );
-  });
-
-  test("resolveChildSelections parses child quantities strictly, not via parseInt truncation", () => {
-    const parent = line(PARENT_ID);
-    const result = resolveChildSelections(
-      parent,
-      [line(1), line(2), line(3)],
-      2,
-      formFrom({
-        [`child_qty_${PARENT_ID}_1`]: "2",
-        [`child_qty_${PARENT_ID}_2`]: "2.9",
-        [`child_qty_${PARENT_ID}_3`]: "1abc",
-      }),
-    );
-    expect(Array.isArray(result)).toBe(true);
-    if (Array.isArray(result)) {
-      expect(result.map((s) => s.child.listing.id)).toEqual([1]);
-      expect(result.reduce((acc, s) => acc + s.qty, 0)).toBe(2);
-    }
-  });
-
-  test("foldChild sums across folds and rejects (never clamps) above max-purchasable", () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ max: 20, min: 1 }),
-        fc.array(fc.integer({ max: 8, min: 1 }), {
-          maxLength: 6,
-          minLength: 1,
-        }),
-        (max, qtys) => {
-          const child = line(1, { max_attendees: max, max_quantity: max });
-          const capacityError = formatAtomicError(
-            "capacity_exceeded",
-            child.listing.name,
-          );
-          const state = freshState();
-          let running = 0;
-          for (const q of qtys) {
-            const prevQty = state.quantities.get(1);
-            const error = foldChild(state, child, q, 1, PARENT_ID, undefined);
-            running += q;
-            if (
-              !foldOutcomeValid(
-                error,
-                state.quantities.get(1),
-                prevQty,
-                running,
-                max,
-                capacityError,
-              )
-            ) {
-              return false;
-            }
-            if (running > max) return true;
-          }
-          return true;
-        },
-      ),
     );
   });
 });

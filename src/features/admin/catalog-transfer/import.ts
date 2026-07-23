@@ -12,7 +12,7 @@
  */
 
 import * as v from "valibot";
-import { identity, mapById, mapNotNullish } from "#fp";
+import { identity, mapById } from "#fp";
 import { t } from "#i18n";
 import type {
   GroupInput,
@@ -241,6 +241,94 @@ const listingToEdge = (listing: Listing): EdgeListing => ({
   name: listing.name,
 });
 
+/** Build the add-on reachability check for the imported child when it needs one. */
+const loadChildAddOnChecker = async (
+  input: ListingInput,
+  groupIds: readonly number[],
+  byId: Awaited<ReturnType<typeof getListingsById>>,
+): Promise<Awaited<
+  ReturnType<typeof childOnlyAddOnCheckerForListings>
+> | null> => {
+  // A child that joins a group can inherit a group-scoped opt-in add-on. If that
+  // add-on's would-be scope reaches only this (suppressed) child and not the
+  // parent's page, the add-on becomes unbookable — the same dead-end the edge
+  // editor rejects. Resolve every add-on's would-be scope once (the new child
+  // appended at placeholder id 0 with its would-be groups) and reuse it per
+  // parent. A child with no groups can't inherit such an add-on, so skip the work.
+  // A `bookable_alone` child keeps its OWN booking page, so its add-on is still
+  // reachable there, so skip the check rather than reject a valid child.
+  if (groupIds.length === 0 || input.bookableAlone) return null;
+  const allMembership = await listingGroups.getIdsByKeys([...byId.keys()]);
+  const wouldBe: ListingGroupMembership[] = [
+    ...[...byId.values()].map((listing) =>
+      toListingGroupMembership(listing, allMembership),
+    ),
+    // Active is irrelevant here; the placeholder child serves a booking page.
+    { active: true, groupIds: [...groupIds], id: 0 },
+  ];
+  return childOnlyAddOnCheckerForListings(wouldBe);
+};
+
+type ParentEdges = {
+  groupIds: readonly number[];
+  input: ListingInput;
+  parentIds: readonly number[];
+};
+
+/** Load every shared value needed to validate all named parents. */
+const loadParentEdgeContext = async ({
+  groupIds,
+  input,
+  parentIds,
+}: ParentEdges) => {
+  // Batched reads keep a many-parent import within the request subrequest limit.
+  const [byId, nestedParentLinks, parentGroupIds, allGroups] =
+    await Promise.all([
+      getListingsById(),
+      listingParents.getIdsByKeys(parentIds),
+      listingGroups.getIdsByKeys([...parentIds]),
+      groups.cache.getAll(),
+    ]);
+  return {
+    addOnChecker: await loadChildAddOnChecker(input, groupIds, byId),
+    byId,
+    childEdge: listingInputToEdge(input, 0),
+    hiddenPackageIds: new Set(
+      allGroups
+        .filter((group) => group.is_package && group.hide_package_listings)
+        .map((group) => group.id),
+    ),
+    input,
+    nestedParentLinks,
+    parentGroupIds,
+  };
+};
+
+type ParentEdgeContext = Awaited<ReturnType<typeof loadParentEdgeContext>>;
+
+/** Apply every edge-editor rule to one proposed parent. */
+const parentEdgeError = (
+  parentId: number,
+  context: ParentEdgeContext,
+): string | null => {
+  const parent = context.byId.get(parentId)!;
+  if (context.nestedParentLinks.get(parentId)!.length > 0) {
+    return t("listings_table.children_err_parent_is_child", {
+      name: parent.name,
+    });
+  }
+  const parentIsHiddenPackageMember = listingGroups
+    .idsFor(context.parentGroupIds, parentId)
+    .some((groupId) => context.hiddenPackageIds.has(groupId));
+  if (parentIsHiddenPackageMember) {
+    return `"${parent.name}" is a member of a hidden package, so it cannot offer add-on children.`;
+  }
+  const fieldError = edgeFieldError(listingToEdge(parent), context.childEdge);
+  if (fieldError) return fieldError;
+  const addOn = context.addOnChecker?.(0, [parentId]);
+  return addOn ? childAddOnError(addOn, context.input.name) : null;
+};
+
 /** Reject a would-be child that can't sit under one of its named parents: a
  * package member is never folded under a parent, and each parent→child edge must
  * satisfy the same field-compatibility rules the edge editor enforces. */
@@ -254,74 +342,10 @@ const validateParentEdges = async (
   if (pkg) {
     return `"${input.name}" is a member of the package "${pkg.name}", so it cannot also be an add-on child of another listing.`;
   }
-  const childEdge = listingInputToEdge(input, 0);
-  // Batched reads (never one query per parent, so a many-parent import can't
-  // trip the request's N+1 guard): the listing rows, the parents that are
-  // themselves children, each parent's group ids, and the whole (cached) group
-  // set to identify hidden packages.
-  const [byId, nestedParentLinks, parentGroupIds, allGroups] =
-    await Promise.all([
-      getListingsById(),
-      listingParents.getIdsByKeys(parentIds),
-      listingGroups.getIdsByKeys([...parentIds]),
-      groups.cache.getAll(),
-    ]);
-  const hiddenPackageIds = new Set(
-    allGroups
-      .filter((g) => g.is_package && g.hide_package_listings)
-      .map((g) => g.id),
-  );
-  // A child that joins a group can inherit a group-scoped opt-in add-on. If that
-  // add-on's would-be scope reaches only this (suppressed) child and not the
-  // parent's page, the add-on becomes unbookable — the same dead-end the edge
-  // editor rejects. Resolve every add-on's would-be scope once (the new child
-  // appended at placeholder id 0 with its would-be groups) and reuse it per
-  // parent. A child with no groups can't inherit such an add-on, so skip the work.
-  // A `bookable_alone` child keeps its OWN booking page, so its add-on is still
-  // reachable there — the edge editor exempts it (`if (bookable_alone) continue`),
-  // so skip the check here too rather than reject a valid exported child.
-  let addOnChecker:
-    | ((childId: number, pageIds: readonly number[]) => string | null)
-    | null = null;
-  if (groupIds.length > 0 && !input.bookableAlone) {
-    const allMembership = await listingGroups.getIdsByKeys([...byId.keys()]);
-    const wouldBe: ListingGroupMembership[] = [
-      ...[...byId.values()].map((l) =>
-        toListingGroupMembership(l, allMembership),
-      ),
-      // active is irrelevant to child-reachability (only the deactivation check
-      // reads it); the placeholder child serves a page as far as this check cares.
-      { active: true, groupIds: [...groupIds], id: 0 },
-    ];
-    addOnChecker = await childOnlyAddOnCheckerForListings(wouldBe);
-  }
+  const context = await loadParentEdgeContext({ groupIds, input, parentIds });
   for (const parentId of parentIds) {
-    // parentIds were resolved by name from the same cached catalog byId reads,
-    // so every id is present (trust the invariant rather than guard a dead path).
-    const parent = byId.get(parentId)!;
-    // Single-level nesting only: a parent that is itself a child of another
-    // listing can't gain a child (the edge editor rejects the same shape).
-    if (nestedParentLinks.get(parentId)!.length > 0) {
-      return t("listings_table.children_err_parent_is_child", {
-        name: parent.name,
-      });
-    }
-    // A hidden-package member is collapsed on buyer surfaces and can't render a
-    // child selector, so it may not gain children — the same rule the edge
-    // editor enforces via packageChildEdgeConflict.
-    if (
-      listingGroups
-        .idsFor(parentGroupIds, parentId)
-        .some((groupId) => hiddenPackageIds.has(groupId))
-    ) {
-      return `"${parent.name}" is a member of a hidden package, so it cannot offer add-on children.`;
-    }
-    const error = edgeFieldError(listingToEdge(parent), childEdge);
+    const error = parentEdgeError(parentId, context);
     if (error) return error;
-    // The would-be child (id 0) must not carry an opt-in add-on reachable only
-    // through itself from this parent's page — mirroring the edge editor.
-    const addOn = addOnChecker?.(0, [parentId]);
-    if (addOn) return childAddOnError(addOn, input.name);
   }
   return null;
 };
@@ -452,6 +476,35 @@ const membersHomogeneous = (
   return null;
 };
 
+/** Validate the resolved members against every rule the group editor applies. */
+const importedGroupMembersError = async (
+  group: GroupTransfer["group"],
+  members: GroupTransfer["members"],
+  memberIds: readonly number[],
+  listings: readonly ListingWithCount[],
+): Promise<string | null> => {
+  const listingById = mapById(identity<ListingWithCount>)(listings);
+  const memberListings = memberIds.map((id) => listingById.get(id)!);
+  const homogeneityError = membersHomogeneous(memberListings);
+  if (homogeneityError) return homogeneityError;
+  if (!group.isPackage) return null;
+  const packageError = await packageMembersError(
+    memberListings,
+    group.hidePackageListings,
+  );
+  if (packageError) return packageError;
+  for (let i = 0; i < members.length; i++) {
+    const member = listingById.get(memberIds[i]!)!;
+    const dayError = memberDayOverrideError(
+      member.name,
+      members[i]!.dayPrices,
+      member,
+    );
+    if (dayError) return dayError;
+  }
+  return null;
+};
+
 const importGroup = async (
   transfer: GroupTransfer,
 ): Promise<Result<ImportedEntity>> => {
@@ -469,40 +522,19 @@ const importGroup = async (
   if ("error" in memberResolve) return fail(memberResolve.error);
 
   const listings = await requireListingsWithCountsByIds(memberResolve.ids);
-  // Members are few, so resolve each required id against the loaded set
-  // directly, preserving order without building an intermediate index.
-  const memberListings = mapNotNullish((id: number) =>
-    listings.find((l) => l.id === id),
-  )(memberResolve.ids);
-
-  const homogeneityError = membersHomogeneous(memberListings);
-  if (homogeneityError) return fail(homogeneityError);
-  if (group.isPackage) {
-    const packageError = await packageMembersError(
-      memberListings,
-      group.hidePackageListings,
-    );
-    if (packageError) return fail(packageError);
-  }
+  const memberError = await importedGroupMembersError(
+    group,
+    members,
+    memberResolve.ids,
+    listings,
+  );
+  if (memberError) return fail(memberError);
 
   const { slug, slugIndex } = await generateUniqueGroupSlug();
   const input: GroupInput = { ...group, slug, slugIndex };
   // Package overrides only apply to a package group; a non-package group clears
   // them (matching the normal group save).
   const isPackage = group.isPackage ?? false;
-  // Each member's day-price overrides must target a day count that member offers.
-  if (isPackage) {
-    const listingById = mapById(identity<ListingWithCount>)(listings);
-    for (let i = 0; i < members.length; i++) {
-      const member = listingById.get(memberResolve.ids[i]!)!;
-      const dayError = memberDayOverrideError(
-        member.name,
-        members[i]!.dayPrices,
-        member,
-      );
-      if (dayError) return fail(dayError);
-    }
-  }
   const specs = members.map((m, i) => ({
     ...membershipSpec(m, isPackage),
     listingId: memberResolve.ids[i]!,

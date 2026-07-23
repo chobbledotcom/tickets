@@ -135,6 +135,30 @@ const PromoCodeField = (): JSX.Element => (
   </div>
 );
 
+/** Listing rows, grouped under a legend only when the buyer must choose among
+ * several independent listings. */
+const ListingRows = ({
+  hideQuantity,
+  isPackage,
+  isSingleListing,
+  listingRows,
+}: {
+  hideQuantity: boolean;
+  isPackage: boolean;
+  isSingleListing: boolean;
+  listingRows: string;
+}): JSX.Element => {
+  if (hideQuantity || isSingleListing || isPackage) {
+    return <Raw html={listingRows} />;
+  }
+  return (
+    <fieldset class="ticket-listings">
+      <legend>{t("public.multi.select_tickets")}</legend>
+      <Raw html={listingRows} />
+    </fieldset>
+  );
+};
+
 /** Form body with fields, date selector, listing rows, questions, terms, and submit */
 export const TicketPageForm = ({
   slugs,
@@ -198,14 +222,12 @@ export const TicketPageForm = ({
         <Raw html={renderDayCountSelector(dayCounts, dayCountPriceFor)} />
       )}
 
-      {hideQuantity || isSingleListing || isPackage ? (
-        <Raw html={listingRows} />
-      ) : (
-        <fieldset class="ticket-listings">
-          <legend>{t("public.multi.select_tickets")}</legend>
-          <Raw html={listingRows} />
-        </fieldset>
-      )}
+      <ListingRows
+        hideQuantity={hideQuantity}
+        isPackage={isPackage}
+        isSingleListing={isSingleListing}
+        listingRows={listingRows}
+      />
 
       {questions &&
         questions.length > 0 &&

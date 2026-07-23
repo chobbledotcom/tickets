@@ -2,6 +2,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { assignListingsToGroup } from "#shared/db/groups.ts";
+import { listingParents } from "#shared/db/listing-parents.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -59,7 +62,7 @@ describeWithEnv(
       // (bookable_alone), so the group-scoped add-on is still reachable there —
       // the edge editor exempts a bookable_alone child, and so must the import.
       const group = await createTestGroup({ name: "Alone Group" });
-      await createTestListing({ name: "Alone Base Parent" });
+      const parent = await createTestListing({ name: "Alone Base Parent" });
       await groupOptInAddOn("Alone Extra", group.id);
 
       const result = await importCatalog({
@@ -69,7 +72,13 @@ describeWithEnv(
         parents: ["Alone Base Parent"],
         version: 1,
       });
-      if (!result.ok) throw new Error(result.error);
+      const imported = requireSuccess(result);
+      expect(imported).toMatchObject({ kind: "listing", name: "Alone Kid" });
+      expect(await requireListingWithCount(imported.id)).toMatchObject({
+        bookable_alone: true,
+        name: "Alone Kid",
+      });
+      expect(await listingParents.getIds(imported.id)).toEqual([parent.id]);
     });
 
     test("accepts a child import when the parent's page also reaches the add-on", async () => {
@@ -87,7 +96,9 @@ describeWithEnv(
         parents: ["Shared Parent"],
         version: 1,
       });
-      if (!result.ok) throw new Error(result.error);
+      const imported = requireSuccess(result);
+      expect(imported).toMatchObject({ kind: "listing", name: "Fine Kid" });
+      expect(await listingParents.getIds(imported.id)).toEqual([parent.id]);
     });
   },
 );

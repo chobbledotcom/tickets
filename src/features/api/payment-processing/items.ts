@@ -21,7 +21,11 @@ import type {
   PaymentFailureResult,
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { lineGroupId, lineGroupIds } from "#shared/booking/signed-metadata.ts";
+import {
+  lineGroupId,
+  lineGroupIds,
+  standaloneLineListingIds,
+} from "#shared/booking/signed-metadata.ts";
 import { getHiddenPackageMemberIds } from "#shared/db/groups.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
 import { resolveNamesConcealed } from "#shared/package-privacy.ts";
@@ -73,11 +77,13 @@ const validateListingForPayment = async (
   return { listing, ok: true };
 };
 
-/** Validate all booking items and return per-item pricing info or a failure result. */
-export const validateAllItems = async (
-  session: ValidatedPaymentSession,
-  intent: BookingIntent,
-): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
+interface BookingPaths {
+  allocations: NonNullable<BookingIntent["allocations"]>;
+  foldedChildIds: Set<number>;
+  standaloneLineIds: number[];
+}
+
+const bookingPaths = (intent: BookingIntent): BookingPaths => {
   const allocations = intent.allocations ?? [];
   // Parent listings with at least one package-tagged line; children folded
   // under them book as part of some bundle.
@@ -89,17 +95,32 @@ export const validateAllItems = async (
   // Children folded under a tagged member book as part of that bundle.
   const bundledChildIds = new Set(
     allocations
-      .filter((a) => taggedParentIds.has(a.parentId))
-      .map((a) => a.childId),
+      .filter((allocation) => taggedParentIds.has(allocation.parentId))
+      .map((allocation) => allocation.childId),
   );
   // Standalone-ness is judged per LINE, not per listing: an order may book
   // the same listing through a package AND its own row, and the standalone
   // path must still take the stale checks below even though a tagged line
   // shares its listing id.
-  const standaloneLineIds = intent.items
-    .filter((item) => lineGroupId(item) === undefined)
-    .map((i) => i.e)
-    .filter((id) => !bundledChildIds.has(id));
+  const standaloneLineIds = standaloneLineListingIds(intent.items).filter(
+    (id) => !bundledChildIds.has(id),
+  );
+  return {
+    allocations,
+    foldedChildIds: new Set(
+      allocations.map((allocation) => allocation.childId),
+    ),
+    standaloneLineIds,
+  };
+};
+
+/** Validate all booking items and return per-item pricing info or a failure result. */
+export const validateAllItems = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
+  const { allocations, foldedChildIds, standaloneLineIds } =
+    bookingPaths(intent);
   // For a hidden package, a per-member failure message would reveal a member
   // name on /payment/success, so never include the listing name in those errors
   // (fail-safe resolution — see resolveNamesConcealed).
@@ -120,7 +141,6 @@ export const validateAllItems = async (
   const includeListingName =
     intent.items.length > 1 && !hiddenPackage && !staleHiddenMember;
   const pricingByGroup = await loadPackagePricingByGroup(intent);
-  const foldedChildIds = new Set(allocations.map((a) => a.childId));
   // A folded child rides an UNTAGGED line that bundledChildIds removes from
   // standaloneLineIds wholesale, yet that one line can hold more units than
   // the package-tagged allocations cover (a bookable-alone child bought beside

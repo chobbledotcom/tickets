@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { getGroupDayPrices } from "#shared/db/listing-prices.ts";
 import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -54,8 +56,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       maxAttendees: 1,
       name: "Trimmed Days",
     });
-    expect(stored.day_prices[1]).toBe(1000);
-    expect(stored.day_prices[5]).toBeUndefined();
+    expect(stored.day_prices).toEqual({ 1: 1000 });
   });
 
   test("keeps a day price when no duration is given (defaults to 1)", async () => {
@@ -87,14 +88,21 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
   });
 
   test("accepts a package member day-override for an offered span", async () => {
-    await createTestListing({ ...customisable, name: "Custom Member 2" });
+    const member = await createTestListing({
+      ...customisable,
+      name: "Custom Member 2",
+    });
     const result = await importCatalog({
       group: { isPackage: true, name: "Pkg Custom 2" },
       kind: "group",
       members: [{ dayPrices: { 2: 500 }, listing: "Custom Member 2" }],
       version: 1,
     });
-    if (!result.ok) throw new Error(result.error);
+    const imported = requireSuccess(result);
+    expect(imported).toMatchObject({ kind: "group", name: "Pkg Custom 2" });
+    expect((await getGroupDayPrices(imported.id)).get(member.id)).toEqual(
+      new Map([[2, 500]]),
+    );
   });
 
   test("rejects a listing-import package day-override for an unoffered span", async () => {
@@ -108,12 +116,22 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
   });
 
   test("accepts a listing-import package day-override for an offered span", async () => {
-    await createTestGroup({ isPackage: true, name: "Host Pkg 2" });
+    const group = await createTestGroup({
+      isPackage: true,
+      name: "Host Pkg 2",
+    });
     const result = await importListingOverride(
       "Custom Joiner 2",
       "Host Pkg 2",
       2,
     );
-    if (!result.ok) throw new Error(result.error);
+    const imported = requireSuccess(result);
+    expect(imported).toMatchObject({
+      kind: "listing",
+      name: "Custom Joiner 2",
+    });
+    expect((await getGroupDayPrices(group.id)).get(imported.id)).toEqual(
+      new Map([[2, 500]]),
+    );
   });
 });

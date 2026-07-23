@@ -6,6 +6,7 @@ import {
   edgeDrifted,
   lineNodeKey,
   signedEdgeFor,
+  standaloneLineListingIds,
   treeNodeKeys,
 } from "#shared/booking/signed-metadata.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
@@ -62,6 +63,12 @@ describe("lineNodeKey", () => {
   });
   test("a ref without a kind is a standalone listing", () => {
     expect(lineNodeKey({ e: 5, p: 0, q: 1, r: 7 })).toBe("listing:5");
+  });
+});
+
+describe("standaloneLineListingIds", () => {
+  test("returns only lines booked outside a package", () => {
+    expect(standaloneLineListingIds([childLine, memberLine])).toEqual([9]);
   });
 });
 

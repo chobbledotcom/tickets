@@ -110,6 +110,21 @@
   },
   "overrides": [
     {
+      "includes": ["src/**/*.ts", "src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "warn",
+              "options": {
+                "maxAllowedComplexity": 12
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["test/**/*.js", "test/**/*.ts", "test/**/*.tsx"],
       "linter": {
         "rules": {

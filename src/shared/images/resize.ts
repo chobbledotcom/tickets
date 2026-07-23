@@ -14,6 +14,55 @@
 
 import type { RawImage } from "./types.ts";
 
+type RgbaPixel = [number, number, number, number];
+
+/** Calculate one destination pixel from its exact source footprint. */
+const areaAveragePixel = (
+  src: RawImage,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+): RgbaPixel => {
+  const { data, height, width } = src;
+  const ix0 = Math.floor(x0);
+  const ix1 = Math.min(width, Math.ceil(x1));
+  const iy0 = Math.floor(y0);
+  const iy1 = Math.min(height, Math.ceil(y1));
+  let accR = 0;
+  let accG = 0;
+  let accB = 0;
+  let accA = 0;
+  let accW = 0;
+  for (let sy = iy0; sy < iy1; sy++) {
+    const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
+    for (let sx = ix0; sx < ix1; sx++) {
+      const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
+      const weight = wx * wy;
+      const offset = (sy * width + sx) * 4;
+      // In-bounds by construction (offset derived from valid sx/sy), so the
+      // non-null assertions never hide a missing source channel.
+      const alpha = data[offset + 3]!;
+      const alphaWeight = (alpha / 255) * weight;
+      accR += data[offset]! * alphaWeight;
+      accG += data[offset + 1]! * alphaWeight;
+      accB += data[offset + 2]! * alphaWeight;
+      accA += alpha * weight;
+      accW += weight;
+    }
+  }
+
+  const averageAlpha = accA / accW;
+  const alphaFraction = averageAlpha / 255;
+  const pixel: RgbaPixel = [0, 0, 0, Math.round(averageAlpha)];
+  if (alphaFraction > 0) {
+    pixel[0] = Math.round(accR / accW / alphaFraction);
+    pixel[1] = Math.round(accG / accW / alphaFraction);
+    pixel[2] = Math.round(accB / accW / alphaFraction);
+  }
+  return pixel;
+};
+
 /**
  * Downscale `src` to exactly `dstW`×`dstH` using an area-average filter.
  * Requires a reduction (`dstW <= src.width`, `dstH <= src.height`) — the only
@@ -27,7 +76,7 @@ export const resizeAreaAverage = (
   dstW: number,
   dstH: number,
 ): RawImage => {
-  const { data, width: sw, height: sh } = src;
+  const { width: sw, height: sh } = src;
   const out = new Uint8ClampedArray(dstW * dstH * 4);
   const scaleX = sw / dstW;
   const scaleY = sh / dstH;
@@ -35,47 +84,10 @@ export const resizeAreaAverage = (
   for (let dy = 0; dy < dstH; dy++) {
     const y0 = dy * scaleY;
     const y1 = (dy + 1) * scaleY;
-    const iy0 = Math.floor(y0);
-    const iy1 = Math.min(sh, Math.ceil(y1));
     for (let dx = 0; dx < dstW; dx++) {
       const x0 = dx * scaleX;
       const x1 = (dx + 1) * scaleX;
-      const ix0 = Math.floor(x0);
-      const ix1 = Math.min(sw, Math.ceil(x1));
-
-      let accR = 0;
-      let accG = 0;
-      let accB = 0;
-      let accA = 0;
-      let accW = 0;
-      for (let sy = iy0; sy < iy1; sy++) {
-        const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
-        for (let sx = ix0; sx < ix1; sx++) {
-          const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
-          const w = wx * wy;
-          const o = (sy * sw + sx) * 4;
-          // In-bounds by construction (o derived from valid sx/sy), so the
-          // non-null assertions never fire — avoiding a `?? 0` fallback that
-          // would be an unreachable, uncovered branch.
-          const a = data[o + 3]!;
-          const af = (a / 255) * w;
-          accR += data[o]! * af;
-          accG += data[o + 1]! * af;
-          accB += data[o + 2]! * af;
-          accA += a * w;
-          accW += w;
-        }
-      }
-
-      const o = (dy * dstW + dx) * 4;
-      const avgA = accA / accW;
-      const af = avgA / 255;
-      if (af > 0) {
-        out[o] = Math.round(accR / accW / af);
-        out[o + 1] = Math.round(accG / accW / af);
-        out[o + 2] = Math.round(accB / accW / af);
-      }
-      out[o + 3] = Math.round(avgA);
+      out.set(areaAveragePixel(src, x0, x1, y0, y1), (dy * dstW + dx) * 4);
     }
   }
 
