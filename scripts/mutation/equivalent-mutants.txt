@@ -375,7 +375,7 @@ src/features/admin/groups.ts:201:51  ?? → ||   # parsePackageMembers dayPrices
 src/shared/listings-actions.ts:376:38  && → ||   # clearing false means mayStripPage never loads a flagged child; clearing true without a flagged child only reruns unchanged reachability, which cannot create an orphan
 
 # attendee merge/refund route: mutants with no observable effect.
-src/features/admin/attendee-refunds.ts:178:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
+src/features/admin/attendee-refunds.ts:179:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
 
 # attendee columns Listings/answers rework
 src/shared/columns/attendee-columns.ts:135:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
