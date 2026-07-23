@@ -47,6 +47,12 @@ export const lineGroupId = (line: BookingItem): number | undefined =>
 export const lineGroupIds = (items: readonly BookingItem[]): Set<number> =>
   new Set(mapNotNullish(lineGroupId)([...items]));
 
+/** Listing ids from lines booked outside a package. */
+export const standaloneLineListingIds = (
+  items: readonly BookingItem[],
+): number[] =>
+  items.filter((item) => lineGroupId(item) === undefined).map((item) => item.e);
+
 /** Reconstruct a top-level line's canonical `nodeKey` from its compact edge tag.
  * A package/group member needs its group id (`r`); a line missing that ref (or
  * untagged) is a standalone `listing:<id>`. */

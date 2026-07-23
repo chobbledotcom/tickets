@@ -172,40 +172,12 @@ const replayBalanceFromLedger = async (
     ? replaySuccess(sessionId, attendeeId, listingId, paymentReference)
     : null;
 
-/**
- * Process a session we have just reserved (holding the lock). A signed session
- * either becomes a real ticket or — for ANY reason we can't honour it (charge
- * mismatch, a price edited mid-checkout, a sold-out extra, a full event, a
- * since-deleted listing, or an unexpected error after the charge) — is kept as a
- * quantity-0 placeholder and refunded, so a paid customer is never dropped. Every
- * failure returned here is a handled terminal outcome; processPaymentSession
- * records it so a later redirect/webhook replays the same result instead of
- * re-running refunds or stalling behind the idempotency lock.
- */
-const processReservedSession: SessionProcessor = async (sessionId, data) => {
+const processNewBookingSession = async (
+  sessionId: string,
+  data: ValidatedSession,
+  signedListingId: number,
+): Promise<PaymentResult> => {
   const { session, intent, verdict } = data;
-  const signedListingId = intent.items[0]!.e;
-
-  // Balance payment: settle the existing attendee rather than create one. A
-  // mismatch can't be "stored" (the attendee already exists), so it refunds-and-
-  // fails as before, idempotently inside the reservation.
-  if (intent.balanceAttendeeId) {
-    // Preflight: a balance session whose payment leg is already in the ledger is
-    // a replay (its idempotency row was pruned or lost). Replay success rather
-    // than re-settling — settleAttendeeBalance would find nothing owed and refund
-    // a balance that's already paid.
-    const replay = await replayBalanceFromLedger(
-      sessionId,
-      intent.balanceAttendeeId,
-      signedListingId,
-      session.paymentReference,
-    );
-    if (replay) return replay;
-    if (verdict.verdict === "mismatch") {
-      return refuseMismatch(session, verdict.agreed, signedListingId);
-    }
-    return settleBalanceSession(sessionId, session, intent);
-  }
 
   // Preflight: the durable ledger is the source of truth for "already honoured".
   // Replay a session the ledger already records BEFORE any validation, pricing,
@@ -317,6 +289,38 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
   const createdEntries = honoured.entries;
   const firstAttendee = createdEntries[0]!;
   return complete(createdEntries, [firstAttendee.attendee.ticket_token]);
+};
+
+/**
+ * Process a session we have just reserved (holding the lock). A signed session
+ * either becomes a real ticket or — for ANY reason we can't honour it (charge
+ * mismatch, a price edited mid-checkout, a sold-out extra, a full event, a
+ * since-deleted listing, or an unexpected error after the charge) — is kept as a
+ * quantity-0 placeholder and refunded, so a paid customer is never dropped. Every
+ * failure returned here is a handled terminal outcome; processPaymentSession
+ * records it so a later redirect/webhook replays the same result instead of
+ * re-running refunds or stalling behind the idempotency lock.
+ */
+const processReservedSession: SessionProcessor = async (sessionId, data) => {
+  const { session, intent, verdict } = data;
+  const signedListingId = intent.items[0]!.e;
+  if (intent.balanceAttendeeId) {
+    // A balance session whose payment leg is already in the ledger is a replay
+    // even if its idempotency row was pruned or lost. Settling it again would
+    // find nothing owed and refund a balance that is already paid.
+    const replay = await replayBalanceFromLedger(
+      sessionId,
+      intent.balanceAttendeeId,
+      signedListingId,
+      session.paymentReference,
+    );
+    if (replay) return replay;
+    if (verdict.verdict === "mismatch") {
+      return refuseMismatch(session, verdict.agreed, signedListingId);
+    }
+    return settleBalanceSession(sessionId, session, intent);
+  }
+  return processNewBookingSession(sessionId, data, signedListingId);
 };
 
 export const processPaymentSession: SessionProcessor = async (

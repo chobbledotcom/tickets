@@ -73,15 +73,16 @@ export const squarePaymentProvider: PaymentProvider = {
         ? (obj.payment as Record<string, unknown>)
         : obj;
 
+    const paymentId = typeof payment.id === "string" ? payment.id : null;
+    if (!paymentId && listing.type.startsWith("payment.")) {
+      throw new Error("Square payment webhook is missing id");
+    }
+
     // Extract the order ID (Square's session equivalent)
     const orderId =
-      typeof payment.order_id === "string"
-        ? payment.order_id
-        : typeof payment.id === "string"
-          ? payment.id
-          : null;
+      typeof payment.order_id === "string" ? payment.order_id : null;
 
-    if (!orderId) return Promise.resolve(null);
+    if (!orderId || !paymentId) return Promise.resolve(null);
 
     // Skip non-completed payments to avoid unnecessary API calls
     if (typeof payment.status === "string" && payment.status !== "COMPLETED") {

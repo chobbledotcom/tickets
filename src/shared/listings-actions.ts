@@ -5,6 +5,7 @@
  * so that the route handlers remain thin response formatters.
  */
 
+import { firstProblem } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -141,7 +142,7 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   // referenced groups, then the compatibility check runs in memory per group.
   const groupsById = await getGroupsById();
   const siblingsByGroup = await getListingsByGroupIds(groupIds);
-  for (const groupId of groupIds) {
+  return firstProblem(async (groupId: number): Promise<string | null> => {
     const group = groupsById.get(groupId);
     if (!group) return "Selected group does not exist";
 
@@ -159,15 +160,13 @@ const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
     );
     if (typeError) return typeError;
 
-    const packageError = await packageMembershipError(
+    return packageMembershipError(
       group,
       input.name,
       incompatibleByType,
       existingId,
     );
-    if (packageError) return packageError;
-  }
-  return null;
+  })(groupIds);
 };
 
 /**

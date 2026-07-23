@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
-import { getListingWithCount } from "#shared/db/listings/records.ts";
+import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -51,7 +51,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       version: 1,
     });
     const importedResult = requireSuccess(result);
-    const imported = (await getListingWithCount(importedResult.id))!;
+    const imported = await requireListingWithCount(importedResult.id);
     expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
     expect(imported.date).toBe("2026-06-02T09:00:00.000Z");
   });
@@ -71,10 +71,8 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       listing: { closesAt: "2026-06-01T12:00", maxAttendees: 1, name: "NoSec" },
       version: 1,
     });
-    if (!result.ok) throw new Error(result.error);
-    expect((await getListingWithCount(result.value.id))!.closes_at).toContain(
-      "2026-06-01",
-    );
+    const imported = await requireListingWithCount(requireSuccess(result).id);
+    expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
   });
 
   test("rejects an out-of-range time", async () => {
@@ -132,7 +130,8 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    if (!result.ok) throw new Error(result.error);
+    const imported = await requireListingWithCount(requireSuccess(result).id);
+    expect(imported.closes_at).toBe("2030-01-01T00:00:00.500Z");
   });
 
   test("accepts an explicitly empty closesAt (never closes)", async () => {
@@ -141,8 +140,8 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       listing: { closesAt: "", maxAttendees: 1, name: "Open Listing" },
       version: 1,
     });
-    if (!result.ok) throw new Error(result.error);
-    expect((await getListingWithCount(result.value.id))!.closes_at).toBeNull();
+    const imported = await requireListingWithCount(requireSuccess(result).id);
+    expect(imported.closes_at).toBeNull();
   });
 
   test("rejects an over-cap duration", async () => {
@@ -184,9 +183,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       },
       version: 1,
     });
-    if (!result.ok) throw new Error(result.error);
-    expect(
-      (await getListingWithCount(result.value.id))!.bookable_days,
-    ).toContain("Monday");
+    const imported = await requireListingWithCount(requireSuccess(result).id);
+    expect(imported.bookable_days).toEqual(["Monday", "Wednesday"]);
   });
 });

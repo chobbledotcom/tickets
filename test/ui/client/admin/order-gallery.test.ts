@@ -173,8 +173,15 @@ describe("initOrderGallery", () => {
     expect(page.requests[0]).toContain("select_package_7=1");
     expect(page.requests[0]).toContain("select_5=1");
     expect(page.requests[0]).toContain("order=package%3A7%2Clisting%3A5");
-    // File entries never join the query — only string form fields do.
-    expect(page.requests[0]).not.toContain("upload");
+  });
+
+  test("omits file entries from the availability query", async () => {
+    const page = harness();
+    page.changeField('input[name="start_date"]');
+    await settle();
+    expect(page.requests).toEqual([
+      "/order/availability?start_date=&order=&pick=x",
+    ]);
   });
 
   test("applies returned states: labels, greying, and the date nudge", async () => {

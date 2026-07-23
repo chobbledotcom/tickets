@@ -2,6 +2,13 @@
 /// <reference lib="dom.iterable" />
 /** Manual check-in: custom combobox + fetch-based form submission.
  * Posts to the scan JSON API without a page reload so the camera keeps running. */
+type OptionDirection = "up" | "down";
+
+const KEY_DIRECTIONS: Partial<Record<string, OptionDirection>> = {
+  ArrowDown: "down",
+  ArrowUp: "up",
+};
+
 export const initManualCheckin = (): void => {
   const form = document.querySelector<HTMLFormElement>("[data-manual-checkin]");
   if (!form) return;
@@ -90,7 +97,7 @@ export const initManualCheckin = (): void => {
   const getActiveOption = () =>
     listbox.querySelector<HTMLLIElement>("[role='option'].combobox-active");
 
-  const navigateOptions = (direction: "up" | "down") => {
+  const navigateOptions = (direction: OptionDirection) => {
     const visible = getVisibleOptions();
     if (visible.length === 0) return;
     const active = getActiveOption();
@@ -109,18 +116,17 @@ export const initManualCheckin = (): void => {
       hideList();
       return;
     }
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    const direction = KEY_DIRECTIONS[e.key];
+    if (direction) {
       e.preventDefault();
-      navigateOptions(e.key === "ArrowDown" ? "down" : "up");
+      navigateOptions(direction);
       return;
     }
-    if (e.key === "Enter") {
-      const active = getActiveOption();
-      if (active) {
-        e.preventDefault();
-        selectOption(active);
-      }
-    }
+    if (e.key !== "Enter") return;
+    const active = getActiveOption();
+    if (!active) return;
+    e.preventDefault();
+    selectOption(active);
   };
 
   input.addEventListener("keydown", handleKeydown);

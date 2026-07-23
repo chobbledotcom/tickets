@@ -37,6 +37,7 @@ import type {
   WebhookVerifyResult,
 } from "#shared/payments.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { stringEntries } from "#shared/string-entries.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
 
 /* jscpd:ignore-end */
@@ -213,7 +214,7 @@ type SquarePaymentLinkResponse = {
 type SquareOrderResponse = {
   order?: {
     id?: string;
-    metadata?: Record<string, string>;
+    metadata?: Record<string, string | null>;
     tenders?: SquareRawTender[];
     state?: string;
     total_money?: { amount: number; currency: string };
@@ -653,12 +654,7 @@ export const squareApi: {
 
       // Convert nullable metadata values to plain string record
       const metadata: Record<string, string> | undefined = order.metadata
-        ? Object.fromEntries(
-            Object.entries(order.metadata).filter(
-              (entry): entry is [string, string] =>
-                typeof entry[1] === "string",
-            ),
-          )
+        ? Object.fromEntries(stringEntries(Object.entries(order.metadata)))
         : undefined;
 
       return {

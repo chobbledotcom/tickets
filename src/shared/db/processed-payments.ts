@@ -23,7 +23,7 @@ import type {
 import { execute, insert, queryOne } from "#shared/db/client.ts";
 import { encryptPaymentReference } from "#shared/db/payment-references.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
-import { nowIso, nowMs } from "#shared/now.ts";
+import { isoBefore, nowIso, nowMs } from "#shared/now.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 export { STALE_RESERVATION_MS };
@@ -147,7 +147,7 @@ export const releaseReservation: (sessionId: string) => Promise<void> =
  * redirect/webhook replays the handled outcome rather than re-refunding.
  */
 export const deleteAllStaleReservations = async (): Promise<number> => {
-  const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
+  const cutoff = isoBefore(STALE_RESERVATION_MS);
   const result = await execute(
     `DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ?`,
     [cutoff],
