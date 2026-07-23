@@ -5,8 +5,6 @@ import { normalizePath } from "#shared/path.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   type UptimeKumaClient,
-  UptimeKumaClientError,
-  type UptimeKumaClientErrorKind,
   type UptimeKumaMonitor,
   uptimeKumaClientApi,
 } from "./client.ts";
@@ -14,6 +12,7 @@ import {
   getEnabledUptimeKumaConfigOrNull,
   type UptimeKumaConfig,
 } from "./config.ts";
+import { UptimeKumaError, type UptimeKumaErrorKind } from "./error.ts";
 import {
   groupMonitorInput,
   scheduledUrl,
@@ -39,16 +38,21 @@ export type UptimeKumaMonitorState =
 
 type AddedMonitor = { created: boolean; monitorId: number };
 
-const CLIENT_ERROR_MESSAGE_KEYS: Record<UptimeKumaClientErrorKind, string> = {
+const ERROR_MESSAGE_KEYS: Record<UptimeKumaErrorKind, string> = {
+  connection_closed: "built_sites.kuma_connection_closed",
+  connection_failed: "built_sites.kuma_connection_failed",
+  connection_timeout: "built_sites.kuma_connection_timeout",
+  invalid_response: "built_sites.kuma_invalid_response",
   monitor_list_timeout: "built_sites.kuma_monitor_list_timeout",
+  request_timeout: "built_sites.kuma_request_timeout",
   two_factor: "built_sites.kuma_two_factor",
   unsupported_version: "built_sites.kuma_unsupported_version",
   version_timeout: "built_sites.kuma_version_timeout",
 };
 
 const kumaErrorMessage = (error: unknown): string =>
-  error instanceof UptimeKumaClientError
-    ? t(CLIENT_ERROR_MESSAGE_KEYS[error.kind])
+  error instanceof UptimeKumaError
+    ? t(ERROR_MESSAGE_KEYS[error.kind])
     : errorMessage(error);
 
 const errorMessage = (error: unknown): string => {
@@ -111,11 +115,11 @@ const siteMonitor = (
       monitor.authorization === authorization,
   );
   if (!allowRaceDuplicates && matches.length > 1) {
-    throw new Error(`More than one Uptime Kuma monitor checks ${url}.`);
+    throw new Error(t("built_sites.kuma_duplicate_monitor", { url }));
   }
   return matches.length === 0
     ? null
-    : firstById(matches, `Uptime Kuma did not return a monitor for ${url}.`);
+    : firstById(matches, t("built_sites.kuma_returned_no_monitor", { url }));
 };
 
 const groupForAdd = async (
@@ -127,7 +131,9 @@ const groupForAdd = async (
   await client.addMonitor(groupMonitorInput());
   return firstById(
     sharedGroups(await client.getMonitors()),
-    `Uptime Kuma did not return the new "${UPTIME_KUMA_GROUP_NAME}" group.`,
+    t("built_sites.kuma_new_group_missing", {
+      name: UPTIME_KUMA_GROUP_NAME,
+    }),
   );
 };
 
@@ -211,7 +217,7 @@ const finishMonitorAdd = async (
 ): Promise<AddedMonitor> => {
   const winner = raceWinnerMonitor(monitors, url, authorization);
   if (winner === null) {
-    throw new Error(`Uptime Kuma did not return the new monitor for ${url}.`);
+    throw new Error(t("built_sites.kuma_new_monitor_missing", { url }));
   }
   const created = winner.id === monitorId;
   if (created) return { created, monitorId };

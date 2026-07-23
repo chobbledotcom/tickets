@@ -2,7 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest, t } from "#i18n";
-import { UptimeKumaClientError } from "#shared/uptime-kuma/client.ts";
+import { UptimeKumaError } from "#shared/uptime-kuma/error.ts";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -144,7 +144,9 @@ describe("adding Uptime Kuma built-site monitors", () => {
     const outcome = await runChangingAdd([[], []]);
 
     expect(outcome.result).toEqual({
-      error: `Uptime Kuma did not return the new "${UPTIME_KUMA_GROUP_NAME}" group.`,
+      error: t("built_sites.kuma_new_group_missing", {
+        name: UPTIME_KUMA_GROUP_NAME,
+      }),
       ok: false,
     });
   });
@@ -153,8 +155,9 @@ describe("adding Uptime Kuma built-site monitors", () => {
     const outcome = await runChangingAdd([[group()], [group()], [group()]]);
 
     expect(outcome.result).toEqual({
-      error:
-        "Uptime Kuma did not return the new monitor for https://child.example.test/scheduled.",
+      error: t("built_sites.kuma_new_monitor_missing", {
+        url: "https://child.example.test/scheduled",
+      }),
       ok: false,
     });
   });
@@ -168,8 +171,9 @@ describe("adding Uptime Kuma built-site monitors", () => {
     ]);
 
     expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
-      error:
-        "More than one Uptime Kuma monitor checks https://child.example.test/scheduled.",
+      error: t("built_sites.kuma_duplicate_monitor", {
+        url: "https://child.example.test/scheduled",
+      }),
       ok: false,
     });
   });
@@ -258,7 +262,7 @@ describe("adding Uptime Kuma built-site monitors", () => {
     using _env = withEnv(kumaEnv);
     using fake = connectFake([]);
     fake.client.login = () =>
-      Promise.reject(new UptimeKumaClientError("unsupported_version"));
+      Promise.reject(new UptimeKumaError("unsupported_version"));
 
     expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
       error: t("built_sites.kuma_unsupported_version"),

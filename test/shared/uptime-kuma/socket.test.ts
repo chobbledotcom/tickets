@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
+import { UptimeKumaError } from "#shared/uptime-kuma/error.ts";
 import {
   uptimeKumaConnectionError,
   uptimeKumaWebSocketFactory,
@@ -40,7 +41,7 @@ describe("Uptime Kuma native Socket.IO transport", () => {
 
   test("uses a safe connection error for a non-error value", () => {
     expect(uptimeKumaConnectionError({ password: "hidden" })).toEqual(
-      new Error("Uptime Kuma connection failed."),
+      new UptimeKumaError("connection_failed"),
     );
   });
 
@@ -161,7 +162,7 @@ describe("Uptime Kuma native Socket.IO transport", () => {
     connect(setup);
     const acknowledgement = expect(
       setup.socket.emitWithAck("slow"),
-    ).rejects.toThrow("Uptime Kuma did not acknowledge slow.");
+    ).rejects.toMatchObject({ kind: "request_timeout" });
 
     await time.tickAsync(100);
 
@@ -217,28 +218,23 @@ describe("Uptime Kuma native Socket.IO transport", () => {
     expect(setup.raw.closed).toBe(true);
   });
 
-  for (const [name, frame, message] of [
-    ["binary frame", new Uint8Array(), "non-text Socket.IO frame"],
-    ["unknown frame", "9", "Unsupported Uptime Kuma Socket.IO frame"],
-    ["bad event", "42{}", "Invalid Uptime Kuma Socket.IO event"],
-    ["bad acknowledgement", "43bad", "Invalid Uptime Kuma acknowledgement"],
-    [
-      "bad acknowledgement data",
-      "430{}",
-      "Invalid Uptime Kuma acknowledgement data",
-    ],
-    [
-      "unknown acknowledgement",
-      "4399[]",
-      "Unexpected Uptime Kuma acknowledgement 99",
-    ],
+  for (const [name, frame] of [
+    ["binary frame", new Uint8Array()],
+    ["unknown frame", "9"],
+    ["malformed JSON", "42{"],
+    ["bad Engine.IO open", "0{}"],
+    ["bad Socket.IO error", "44{}"],
+    ["bad event", "42{}"],
+    ["bad acknowledgement", "43bad"],
+    ["bad acknowledgement data", "430{}"],
+    ["unknown acknowledgement", "4399[]"],
   ] as const) {
     test(`rejects a ${name}`, async () => {
       using setup = socketSetup();
       connect(setup);
       const acknowledgement = expect(
         setup.socket.emitWithAck("pending"),
-      ).rejects.toThrow(message);
+      ).rejects.toMatchObject({ kind: "invalid_response" });
 
       setup.raw.message(frame);
 
@@ -250,18 +246,16 @@ describe("Uptime Kuma native Socket.IO transport", () => {
   test("rejects a call before connecting", async () => {
     using setup = socketSetup();
 
-    await expect(setup.socket.emitWithAck("early")).rejects.toThrow(
-      "Uptime Kuma is not connected.",
-    );
+    await expect(setup.socket.emitWithAck("early")).rejects.toMatchObject({
+      kind: "connection_closed",
+    });
   });
 
   test("rejects a second connection attempt", () => {
     using setup = socketSetup();
     setup.socket.connect();
 
-    expect(() => setup.socket.connect()).toThrow(
-      "Uptime Kuma is already connected.",
-    );
+    expect(() => setup.socket.connect()).toThrow("connection_failed");
     setup.socket.disconnect();
   });
 

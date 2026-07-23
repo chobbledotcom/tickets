@@ -13,3 +13,14 @@ export const parseOrNull = <TSchema extends v.GenericSchema>(
   const result = v.safeParse(schema, input);
   return result.success ? result.output : null;
 };
+
+/** Parse with a schema or throw the caller's domain-specific error. */
+export const parseOrThrow = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  input: unknown,
+  invalid: () => Error,
+): v.InferOutput<TSchema> => {
+  const result = v.safeParse(schema, input);
+  if (!result.success) throw invalid();
+  return result.output;
+};

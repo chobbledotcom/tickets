@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { UptimeKumaError } from "./error.ts";
 
 type SocketListener = (...args: unknown[]) => void;
 
@@ -39,30 +40,48 @@ type PendingAck = {
 };
 
 export const uptimeKumaConnectionError = (value: unknown): Error =>
-  value instanceof Error ? value : new Error("Uptime Kuma connection failed.");
+  value instanceof Error ? value : new UptimeKumaError("connection_failed");
 
-const parseJson = (value: string): unknown => JSON.parse(value);
+const parseJson = (value: string): unknown => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new UptimeKumaError("invalid_response");
+  }
+};
 
 const parseEvent = (value: string): [string, ...unknown[]] => {
   const event: unknown = parseJson(value);
   if (!Array.isArray(event) || typeof event[0] !== "string") {
-    throw new Error("Invalid Uptime Kuma Socket.IO event.");
+    throw new UptimeKumaError("invalid_response");
   }
   return event as [string, ...unknown[]];
 };
 
 const parseAck = (frame: string): { id: number; value: unknown } => {
   const match = /^43(\d+)(.*)$/.exec(frame);
-  if (match === null) throw new Error("Invalid Uptime Kuma acknowledgement.");
+  if (match === null) throw new UptimeKumaError("invalid_response");
   const [, id, data] = v.parse(AckFrameMatchSchema, match);
   const values: unknown = parseJson(data);
   if (!Array.isArray(values)) {
-    throw new Error("Invalid Uptime Kuma acknowledgement data.");
+    throw new UptimeKumaError("invalid_response");
   }
   return {
     id: Number(id),
     value: values.length === 1 ? values[0] : values,
   };
+};
+
+const requireEngineOpen = (value: string): void => {
+  if (!v.is(EngineOpenSchema, parseJson(value))) {
+    throw new UptimeKumaError("invalid_response");
+  }
+};
+
+const socketError = (value: string): Error => {
+  const response = v.safeParse(SocketErrorSchema, parseJson(value));
+  if (!response.success) throw new UptimeKumaError("invalid_response");
+  return new Error(response.output.message);
 };
 
 class KumaSocket implements UptimeKumaSocket {
@@ -85,17 +104,15 @@ class KumaSocket implements UptimeKumaSocket {
   }
 
   connect(): void {
-    if (this.#raw !== null)
-      throw new Error("Uptime Kuma is already connected.");
+    if (this.#raw !== null) throw new UptimeKumaError("connection_failed");
     this.#attempt(() => {
       const raw = uptimeKumaWebSocketFactory.create(this.#url);
       this.#raw = raw;
       raw.onclose = () => this.#closed();
-      raw.onerror = () =>
-        this.#fail(new Error("Uptime Kuma connection failed."));
+      raw.onerror = () => this.#fail(new UptimeKumaError("connection_failed"));
       raw.onmessage = (event) => this.#message(event.data);
       this.#connectTimer = setTimeout(
-        () => this.#fail(new Error("Uptime Kuma connection timed out.")),
+        () => this.#fail(new UptimeKumaError("connection_timeout")),
         this.#timeoutMs,
       );
     });
@@ -106,12 +123,12 @@ class KumaSocket implements UptimeKumaSocket {
     this.#clearConnectTimer();
     if (this.#connected) this.#raw?.send("41");
     this.#raw?.close();
-    this.#rejectAcks(new Error("Uptime Kuma disconnected."));
+    this.#rejectAcks(new UptimeKumaError("connection_closed"));
   }
 
   emitWithAck(event: string, ...args: unknown[]): Promise<unknown> {
     if (!this.#connected || this.#raw === null) {
-      return Promise.reject(new Error("Uptime Kuma is not connected."));
+      return Promise.reject(new UptimeKumaError("connection_closed"));
     }
     const id = this.#ackId++;
     const timeoutMs = this.#ackTimeoutMs;
@@ -119,7 +136,7 @@ class KumaSocket implements UptimeKumaSocket {
     const promise = new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#acks.delete(id);
-        reject(new Error(`Uptime Kuma did not acknowledge ${event}.`));
+        reject(new UptimeKumaError("request_timeout"));
       }, timeoutMs);
       this.#acks.set(id, { reject, resolve, timer });
     });
@@ -172,7 +189,7 @@ class KumaSocket implements UptimeKumaSocket {
 
   #closed(): void {
     this.#clearConnectTimer();
-    const error = new Error("Uptime Kuma connection closed.");
+    const error = new UptimeKumaError("connection_closed");
     this.#rejectAcks(error);
     if (!this.#closedByClient && !this.#everConnected) {
       this.#emit("connect_error", error);
@@ -199,7 +216,7 @@ class KumaSocket implements UptimeKumaSocket {
   #message(data: unknown): void {
     this.#attempt(() => {
       if (typeof data !== "string") {
-        throw new Error("Uptime Kuma sent a non-text Socket.IO frame.");
+        throw new UptimeKumaError("invalid_response");
       }
       this.#readFrame(data);
     });
@@ -207,7 +224,7 @@ class KumaSocket implements UptimeKumaSocket {
 
   #readFrame(frame: string): void {
     if (frame.startsWith("0")) {
-      v.parse(EngineOpenSchema, parseJson(frame.slice(1)));
+      requireEngineOpen(frame.slice(1));
       this.#raw?.send("40");
       return;
     }
@@ -231,7 +248,7 @@ class KumaSocket implements UptimeKumaSocket {
       const ack = parseAck(frame);
       const pending = this.#acks.get(ack.id);
       if (pending === undefined) {
-        throw new Error(`Unexpected Uptime Kuma acknowledgement ${ack.id}.`);
+        throw new UptimeKumaError("invalid_response");
       }
       clearTimeout(pending.timer);
       this.#acks.delete(ack.id);
@@ -239,15 +256,14 @@ class KumaSocket implements UptimeKumaSocket {
       return;
     }
     if (frame.startsWith("44")) {
-      const response = v.parse(SocketErrorSchema, parseJson(frame.slice(2)));
-      throw new Error(response.message);
+      throw socketError(frame.slice(2));
     }
     if (frame === "1" || frame === "41") {
-      this.#fail(new Error("Uptime Kuma disconnected."));
+      this.#fail(new UptimeKumaError("connection_closed"));
       return;
     }
     if (frame === "6") return;
-    throw new Error("Unsupported Uptime Kuma Socket.IO frame.");
+    throw new UptimeKumaError("invalid_response");
   }
 
   #rejectAcks(error: Error): void {

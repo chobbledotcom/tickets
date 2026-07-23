@@ -2,14 +2,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { t } from "#i18n";
+import { resetI18nForTest, t } from "#i18n";
+import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
 import {
-  UptimeKumaClientError,
-  type UptimeKumaClientErrorKind,
-  uptimeKumaClientApi,
-} from "#shared/uptime-kuma/client.ts";
+  UptimeKumaError,
+  type UptimeKumaErrorKind,
+} from "#shared/uptime-kuma/error.ts";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
+import { uptimeKumaConnectionError } from "#shared/uptime-kuma/socket.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
   configuredSite,
@@ -229,7 +230,47 @@ describe("Uptime Kuma built-site monitor state", () => {
     });
   });
 
+  test("uses catalog copy for a malformed connection failure", async () => {
+    using _env = withEnv({
+      ...kumaEnv,
+      I18N_REPLACEMENTS: "failed|stopped",
+    });
+    resetI18nForTest();
+    try {
+      using _connect = stub(uptimeKumaClientApi, "connect", () =>
+        Promise.reject(uptimeKumaConnectionError({ password: "hidden" })),
+      );
+
+      expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
+        error: "Uptime Kuma connection stopped.",
+        kind: "error",
+      });
+    } finally {
+      resetI18nForTest();
+    }
+  });
+
   for (const scenario of [
+    {
+      kind: "connection_closed",
+      messageKey: "built_sites.kuma_connection_closed",
+      name: "uses catalog copy for a closed connection",
+    },
+    {
+      kind: "connection_timeout",
+      messageKey: "built_sites.kuma_connection_timeout",
+      name: "uses catalog copy for a connection timeout",
+    },
+    {
+      kind: "invalid_response",
+      messageKey: "built_sites.kuma_invalid_response",
+      name: "uses catalog copy for an invalid response",
+    },
+    {
+      kind: "request_timeout",
+      messageKey: "built_sites.kuma_request_timeout",
+      name: "uses catalog copy for a request timeout",
+    },
     {
       kind: "unsupported_version",
       messageKey: "built_sites.kuma_unsupported_version",
@@ -251,7 +292,7 @@ describe("Uptime Kuma built-site monitor state", () => {
       name: "uses catalog copy for a missing monitor list",
     },
   ] satisfies Array<{
-    kind: UptimeKumaClientErrorKind;
+    kind: UptimeKumaErrorKind;
     messageKey: string;
     name: string;
   }>) {
@@ -259,7 +300,7 @@ describe("Uptime Kuma built-site monitor state", () => {
       using _env = withEnv(kumaEnv);
       using fake = connectFake([]);
       fake.client.login = () =>
-        Promise.reject(new UptimeKumaClientError(scenario.kind));
+        Promise.reject(new UptimeKumaError(scenario.kind));
 
       expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
         error: t(scenario.messageKey),
@@ -285,8 +326,9 @@ describe("Uptime Kuma built-site monitor state", () => {
       { ...siteMonitor(), id: 23 },
     ]);
     expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
-      error:
-        "More than one Uptime Kuma monitor checks https://child.example.test/scheduled.",
+      error: t("built_sites.kuma_duplicate_monitor", {
+        url: "https://child.example.test/scheduled",
+      }),
       kind: "error",
     });
   });

@@ -2,7 +2,9 @@ import * as v from "valibot";
 import { bearerAuthorization, bearerTokenOrNull } from "#shared/bearer.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
+import { parseOrThrow } from "#shared/validation/parse.ts";
 import type { UptimeKumaConfig } from "./config.ts";
+import { UptimeKumaError, type UptimeKumaErrorKind } from "./error.ts";
 import {
   createUptimeKumaSocket,
   type UptimeKumaSocket,
@@ -13,18 +15,6 @@ const SOCKET_TIMEOUT_MS = 10_000;
 const MONITOR_LIST_TIMEOUT_MS = 60_000;
 
 type SocketListener = (...args: unknown[]) => void;
-
-export type UptimeKumaClientErrorKind =
-  | "monitor_list_timeout"
-  | "two_factor"
-  | "unsupported_version"
-  | "version_timeout";
-
-export class UptimeKumaClientError extends Error {
-  constructor(readonly kind: UptimeKumaClientErrorKind) {
-    super(kind);
-  }
-}
 
 export type UptimeKumaMonitorInput = Record<string, unknown>;
 
@@ -155,8 +145,14 @@ const AddResponseSchema = v.union([
   FailedResponseSchema,
 ]);
 
+const parseKumaResponse = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  value: unknown,
+): v.InferOutput<TSchema> =>
+  parseOrThrow(schema, value, () => new UptimeKumaError("invalid_response"));
+
 const requireOk = (value: unknown): void => {
-  const response = v.parse(BasicResponseSchema, value);
+  const response = parseKumaResponse(BasicResponseSchema, value);
   if (!response.ok) throw new Error(response.msg);
 };
 
@@ -175,13 +171,13 @@ type VersionCapture = {
 
 const requireSupportedVersion = ([major, minor]: [number, number]): void => {
   if (major < 2 || (major === 2 && minor < 4)) {
-    throw new UptimeKumaClientError("unsupported_version");
+    throw new UptimeKumaError("unsupported_version");
   }
 };
 
 type TimedEvent = "info" | "monitorList";
 
-const TIMEOUT_ERROR_KINDS: Record<TimedEvent, UptimeKumaClientErrorKind> = {
+const TIMEOUT_ERROR_KINDS: Record<TimedEvent, UptimeKumaErrorKind> = {
   info: "version_timeout",
   monitorList: "monitor_list_timeout",
 };
@@ -193,7 +189,7 @@ const withEventTimeout = async <Value>(
 ): Promise<Value> => {
   const timeout = Promise.withResolvers<never>();
   const timer = setTimeout(() => {
-    timeout.reject(new UptimeKumaClientError(TIMEOUT_ERROR_KINDS[event]));
+    timeout.reject(new UptimeKumaError(TIMEOUT_ERROR_KINDS[event]));
   }, timeoutMs);
   try {
     return await Promise.race([promise, timeout.promise]);
@@ -209,7 +205,7 @@ const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
       try {
         const parsed = v.safeParse(InfoSchema, value);
         if (!parsed.success) {
-          throw new UptimeKumaClientError("unsupported_version");
+          throw new UptimeKumaError("unsupported_version");
         }
         const info = parsed.output;
         if (info.version === undefined) {
@@ -277,7 +273,7 @@ export const createUptimeKumaClient = (
   const version = captureVersion(socket);
   return {
     addMonitor: async (monitor): Promise<number> => {
-      const response = v.parse(
+      const response = parseKumaResponse(
         AddResponseSchema,
         await call(socket, "add", monitor),
       );
@@ -303,13 +299,15 @@ export const createUptimeKumaClient = (
           list.received,
         ]);
         requireOk(response);
-        return Object.values(v.parse(MonitorListSchema, list.latest()));
+        return Object.values(
+          parseKumaResponse(MonitorListSchema, list.latest()),
+        );
       } finally {
         list.cancel();
       }
     },
     login: async (username, password): Promise<void> => {
-      const response = v.parse(
+      const response = parseKumaResponse(
         LoginResponseSchema,
         await call(socket, "login", {
           password,
@@ -318,7 +316,7 @@ export const createUptimeKumaClient = (
         }),
       );
       if ("tokenRequired" in response) {
-        throw new UptimeKumaClientError("two_factor");
+        throw new UptimeKumaError("two_factor");
       }
       if (!response.ok) throw new Error(response.msg);
       await version.read();

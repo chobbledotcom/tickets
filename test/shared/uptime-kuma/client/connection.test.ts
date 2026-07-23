@@ -9,6 +9,7 @@ import {
   uptimeKumaClientApi,
   uptimeKumaSocketFactory,
 } from "#shared/uptime-kuma/client.ts";
+import { UptimeKumaError } from "#shared/uptime-kuma/error.ts";
 import { configuredSocketUrl } from "#test/shared/uptime-kuma/socket/support.test.ts";
 import { config, FakeSocket, useSocketFactory } from "./support.test.ts";
 
@@ -57,8 +58,8 @@ describe("Uptime Kuma Socket.IO connection", () => {
     socket.connectError = { password: "must not leak" };
     using _factory = useSocketFactory(socket);
 
-    await expect(uptimeKumaClientApi.connect(config)).rejects.toThrow(
-      "Uptime Kuma connection failed.",
+    await expect(uptimeKumaClientApi.connect(config)).rejects.toEqual(
+      new UptimeKumaError("connection_failed"),
     );
   });
 

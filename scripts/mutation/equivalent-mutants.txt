@@ -39,20 +39,25 @@ src/features/admin/dashboard.ts:235:65  1 → 2   # The query needs any number a
 src/shared/bearer.ts:6:20  === → ==   # authorization is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
 src/shared/bearer.ts:7:55  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/scheduled-access.ts:25:15  === → ==   # bearerTokenOrNull returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:67:14  === → ==   # headers is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:90:27  !== → !=   # custom.authorization is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:92:17  === → ==   # bearerTokenOrNull returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:94:48  !== → !=   # bearerToken is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:90:12  === → ==   # firstById receives UptimeKumaMonitor|null and cannot receive undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:105:21  !== → !=   # monitor.parent is number|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:108:18  !== → !=   # monitor.url is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:126:15  !== → !=   # existing is UptimeKumaMonitor|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:179:13  === → ==   # config is UptimeKumaConfig|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:213:13  === → ==   # winner is UptimeKumaMonitor|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:236:17  !== → !=   # raceWinner is UptimeKumaMonitor|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:284:23  === → ==   # scheduledTaskKey is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:292:19  === → ==   # monitor is UptimeKumaMonitor|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:311:27  === → ==   # scheduledTaskKey is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:57:14  === → ==   # headers is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:80:27  !== → !=   # custom.authorization is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:82:17  === → ==   # bearerTokenOrNull returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:84:48  !== → !=   # bearerToken is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/socket.ts:63:12  === → ==   # RegExp.exec returns RegExpExecArray|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/socket.ts:107:18  !== → !=   # raw is UptimeKumaWebSocket|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/socket.ts:130:38  === → ==   # raw is UptimeKumaWebSocket|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/socket.ts:167:27  === → ==   # connectTimer is number|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/socket.ts:187:28  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
+src/shared/uptime-kuma/monitors.ts:94:12  === → ==   # firstById receives UptimeKumaMonitor|null and cannot receive undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:109:21  !== → !=   # monitor.parent is number|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:112:18  !== → !=   # monitor.url is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:133:15  !== → !=   # existing is UptimeKumaMonitor|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:188:13  === → ==   # config is UptimeKumaConfig|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:222:13  === → ==   # winner is UptimeKumaMonitor|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:245:17  !== → !=   # raceWinner is UptimeKumaMonitor|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:293:23  === → ==   # scheduledTaskKey is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:301:19  === → ==   # monitor is UptimeKumaMonitor|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/monitors.ts:320:27  === → ==   # scheduledTaskKey is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
 
 src/features/admin/entity-pages.ts:306:28  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts:307:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy

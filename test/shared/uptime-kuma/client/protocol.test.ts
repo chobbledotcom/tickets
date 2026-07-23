@@ -306,7 +306,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
 
       await expect(
         createUptimeKumaClient(socket).getMonitors(),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({ kind: "invalid_response" });
     });
   }
 
@@ -352,7 +352,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
 
     await expect(
       createUptimeKumaClient(socket).addMonitor({}),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ kind: "invalid_response" });
   });
 
   test("disconnects the wrapped socket", () => {
