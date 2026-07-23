@@ -1,7 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
-import { setEffectiveDomainForTest } from "#shared/config.ts";
+import {
+  resetEffectiveDomain,
+  setEffectiveDomainForTest,
+} from "#shared/config.ts";
 import { getPbkdf2Iterations, hashPassword } from "#shared/crypto/hashing.ts";
 import { generateDataKey } from "#shared/crypto/keys.ts";
 import type { WrappedKey } from "#shared/crypto/sealed.ts";
@@ -645,7 +648,18 @@ describe("sendSuperuserCredentialsEmail", () => {
 
   test("email text body contains the site login URL via getEffectiveDomain", async () => {
     setEffectiveDomainForTest("example.com");
-    await expectEmailBodyContains("text")("https://example.com/admin/")();
+    try {
+      await expectEmailBodyContains("text")("https://example.com/admin/")();
+    } finally {
+      resetEffectiveDomain();
+    }
+  });
+
+  test("resetting the effective domain restores localhost email links", async () => {
+    setEffectiveDomainForTest("example.com");
+    resetEffectiveDomain();
+
+    await expectEmailBodyContains("text")("https://localhost/admin/")();
   });
 
   test("email text body contains a security warning", async () => {

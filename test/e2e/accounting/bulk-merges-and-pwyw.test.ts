@@ -98,7 +98,7 @@ describeAccounting(() => {
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          expect.stringContaining("1 failed"),
+          "2 refunds succeeded. There was 1 failure. Some payments may have already been refunded.",
           false,
         )(response);
         expect(mockRefund.calls.length).toBe(3); // all three attempted

@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { parseOrThrow } from "./parse.ts";
 
 export interface StoredJson<TSchema extends v.GenericSchema> {
   read: (value: unknown, context: string) => v.InferOutput<TSchema>;
@@ -25,19 +26,19 @@ export const defineStoredJson = <TSchema extends v.GenericSchema>(
     } catch (error) {
       throw invalidStoredJson(context, String(error), error);
     }
-    const result = v.safeParse(schema, parsed);
-    if (!result.success) {
-      throw invalidStoredJson(context, INVALID_SCHEMA_DETAIL);
-    }
-    return result.output;
+    return parseOrThrow(schema, parsed, () =>
+      invalidStoredJson(context, INVALID_SCHEMA_DETAIL),
+    );
   },
   write: (value, context) => {
-    const result = v.safeParse(schema, value);
-    if (!result.success) {
-      throw new Error(
-        `Invalid value for stored JSON${context ? ` in ${context}` : ""}`,
-      );
-    }
-    return JSON.stringify(result.output);
+    const output = parseOrThrow(
+      schema,
+      value,
+      () =>
+        new Error(
+          `Invalid value for stored JSON${context ? ` in ${context}` : ""}`,
+        ),
+    );
+    return JSON.stringify(output);
   },
 });
