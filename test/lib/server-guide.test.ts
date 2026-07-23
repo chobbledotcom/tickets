@@ -315,7 +315,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
 
     test("hides built sites section when builder is disabled", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
-      const html = await guide();
+      const html = await assertAdminHtml("/admin/guide");
       expect(html).not.toContain('id="built-sites"');
     });
 
