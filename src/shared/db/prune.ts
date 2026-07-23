@@ -3,6 +3,7 @@
 import { decrypt } from "#shared/crypto/encryption.ts";
 import { addressCachePruneStatement } from "#shared/db/address-cache.ts";
 import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import {
   executeBatchWithResults,
   queryAll,
@@ -79,9 +80,16 @@ const paymentStatement = (): PruneStatement => ({
 
 const pruneStatements = (): PruneStatement[] => [
   paymentStatement(),
-  boundedDelete("sumup_checkouts", "created_at < ?", [
-    isoCutoff(PRUNE_SUMUP_RETENTION_MS),
-  ]),
+  boundedDelete(
+    "sumup_checkouts",
+    `created_at < ?
+     AND NOT EXISTS (
+       SELECT 1 FROM checkout_stages AS checkoutStage
+        WHERE checkoutStage.provider = 'sumup'
+          AND checkoutStage.provider_checkout_id = sumup_checkouts.sumup_id
+     )`,
+    [isoCutoff(PRUNE_SUMUP_RETENTION_MS)],
+  ),
   boundedDelete("strings", "used_count = 0 AND created < ?", [
     isoCutoff(PRUNE_UNUSED_STRINGS_RETENTION_MS),
   ]),
@@ -107,11 +115,12 @@ const pruneStatements = (): PruneStatement[] => [
 const ORPHAN_IDS = `SELECT attendee.id
   FROM attendees AS attendee
  WHERE attendee.created < ?
-   AND NOT EXISTS (
-     SELECT 1 FROM listing_attendees AS booking
-      WHERE booking.attendee_id = attendee.id
-   )
- ORDER BY attendee.id LIMIT ?`;
+    AND NOT EXISTS (
+      SELECT 1 FROM listing_attendees AS booking
+       WHERE booking.attendee_id = attendee.id
+    )
+    AND ${ordinaryAttendeeCondition("attendee")}
+  ORDER BY attendee.id LIMIT ?`;
 
 const orphanStatements = (): PruneStatement[] => {
   if (!settings.autoPurgeOrphans) return [];

@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import type { CheckoutStageState } from "#shared/db/checkout-stages.ts";
+import { getDb } from "#shared/db/client.ts";
 import { runDatabasePruning } from "#shared/db/prune.ts";
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -15,6 +17,7 @@ import {
 } from "#shared/limits.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { nowMs } from "#shared/now.ts";
+import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeExists,
@@ -32,6 +35,12 @@ import {
   sumupCheckoutExists,
   tokenAttemptExists,
 } from "./helpers.ts";
+
+const LIVE_STAGE_STATES: readonly CheckoutStageState[] = [
+  "pending",
+  "paid",
+  "refunding",
+];
 
 describeWithEnv("db > table pruning", { db: true }, () => {
   test("reports a drained pruning run", async () => {
@@ -96,6 +105,44 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       expect(await sumupCheckoutExists("idx_recent")).toBe(true);
+    });
+
+    test("keeps old metadata until each live SumUp stage is removed", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_SUMUP_RETENTION_MS - 60_000,
+      ).toISOString();
+      const rows = await Promise.all(
+        LIVE_STAGE_STATES.map(async (state) => {
+          const sessionId = `sumup-session-${state}`;
+          const sumupId = `sumup-id-${state}`;
+          const referenceIndex = `sumup-index-${state}`;
+          const attendeeId = await insertOrphanAttendee(old);
+          await insertSumupCheckout(referenceIndex, old, sumupId);
+          await insertCheckoutStage(attendeeId, sessionId, {
+            provider: "sumup",
+            providerCheckoutId: sumupId,
+            state,
+          });
+          return { referenceIndex, sessionId };
+        }),
+      );
+
+      await runDatabasePruning();
+
+      expect(
+        await Promise.all(
+          rows.map(({ referenceIndex }) => sumupCheckoutExists(referenceIndex)),
+        ),
+      ).toEqual([true, true, true]);
+
+      await getDb().execute("DELETE FROM checkout_stages");
+      await runDatabasePruning();
+
+      expect(
+        await Promise.all(
+          rows.map(({ referenceIndex }) => sumupCheckoutExists(referenceIndex)),
+        ),
+      ).toEqual([false, false, false]);
     });
   });
 
@@ -300,6 +347,30 @@ describeWithEnv("db > table pruning", { db: true }, () => {
       await runDatabasePruning();
 
       expect(await attendeeExists(id)).toBe(true);
+    });
+
+    test("keeps staged orphans until every live stage is removed", async () => {
+      await settings.update.orphanPurgeRetention("182");
+      const attendeeIds = await Promise.all(
+        LIVE_STAGE_STATES.map(async (state) => {
+          const id = await insertOrphanAttendee(oldOrphanIso());
+          await insertCheckoutStage(id, `automatic-orphan-${state}`, { state });
+          return id;
+        }),
+      );
+
+      await runDatabasePruning();
+
+      expect(
+        await Promise.all(attendeeIds.map((id) => attendeeExists(id))),
+      ).toEqual([true, true, true]);
+
+      await getDb().execute("DELETE FROM checkout_stages");
+      await runDatabasePruning();
+
+      expect(
+        await Promise.all(attendeeIds.map((id) => attendeeExists(id))),
+      ).toEqual([false, false, false]);
     });
   });
 });

@@ -73,12 +73,14 @@ export const postRefundCash = async (attendeeId: number): Promise<void> => {
 export const insertSumupCheckout = async (
   referenceIndex: string,
   createdAtIso: string,
+  sumupId = "",
 ): Promise<void> => {
   await getDb().execute(
     insert("sumup_checkouts", {
       created_at: createdAtIso,
       metadata: "ciphertext",
       reference_index: referenceIndex,
+      sumup_id: sumupId,
       wrapped_key: "wk",
     }),
   );

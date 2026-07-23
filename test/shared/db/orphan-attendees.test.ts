@@ -9,7 +9,9 @@
 import { assertExists } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { CheckoutStageState } from "#shared/db/checkout-stages.ts";
 import { getDb, insert, queryOne, requireOne } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings/delete.ts";
 import {
   countOrphanedAttendees,
   purgeOrphanedAttendees,
@@ -23,6 +25,11 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSystemNote } from "#test-utils/system-notes.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const LIVE_STAGE_STATES: readonly CheckoutStageState[] = [
+  "pending",
+  "paid",
+  "refunding",
+];
 
 /** An ISO timestamp `days` in the past. */
 const daysAgoIso = (days: number): string =>
@@ -158,13 +165,42 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       expect(await getNoteRows([id])).toEqual([]);
     });
 
-    test("removes the orphan's checkout stage", async () => {
-      const id = await insertOrphan(daysAgoIso(365));
-      await insertCheckoutStage(id, "stage-orphan-purge");
+    test("keeps listing-deletion orphans until their live stages are removed", async () => {
+      const listing = await createTestListing();
+      const attendeeIds = await Promise.all(
+        LIVE_STAGE_STATES.map(async (state) => {
+          const { attendee } = await createTestAttendeeDirect(
+            listing.id,
+            `Staged ${state}`,
+            `${state}@example.com`,
+          );
+          await insertCheckoutStage(attendee.id, `manual-orphan-${state}`, {
+            state,
+          });
+          return attendee.id;
+        }),
+      );
+      await deleteListing(listing.id);
+      const cutoff = new Date(nowMs() + 60_000).toISOString();
 
-      await purgeOrphanedAttendees(nowIso());
+      expect(await countOrphanedAttendees(cutoff)).toBe(0);
+      expect(await purgeOrphanedAttendees(cutoff)).toBe(0);
+      expect(
+        await Promise.all(attendeeIds.map((id) => attendeeExists(id))),
+      ).toEqual([true, true, true]);
+      expect(
+        await Promise.all(
+          attendeeIds.map((id) => childCount("checkout_stages", id)),
+        ),
+      ).toEqual([1, 1, 1]);
 
-      expect(await childCount("checkout_stages", id)).toBe(0);
+      await getDb().execute("DELETE FROM checkout_stages");
+
+      expect(await countOrphanedAttendees(cutoff)).toBe(3);
+      expect(await purgeOrphanedAttendees(cutoff)).toBe(3);
+      expect(
+        await Promise.all(attendeeIds.map((id) => attendeeExists(id))),
+      ).toEqual([false, false, false]);
     });
   });
 });

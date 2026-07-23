@@ -21,6 +21,7 @@
  */
 
 import { attendeeDependentDeleteStatements } from "#shared/db/attendees/delete.ts";
+import { ordinaryAttendeeCondition } from "#shared/db/attendees/ordinary.ts";
 import { executeBatchWithResults, requireOne } from "#shared/db/client.ts";
 
 /**
@@ -31,10 +32,11 @@ import { executeBatchWithResults, requireOne } from "#shared/db/client.ts";
 const ORPHAN_IDS = `SELECT attendee.id
      FROM attendees AS attendee
     WHERE attendee.created < ?
-      AND NOT EXISTS (
-        SELECT 1 FROM listing_attendees AS booking
-         WHERE booking.attendee_id = attendee.id
-      )`;
+       AND NOT EXISTS (
+         SELECT 1 FROM listing_attendees AS booking
+          WHERE booking.attendee_id = attendee.id
+       )
+       AND ${ordinaryAttendeeCondition("attendee")}`;
 
 /** Count orphaned attendees whose `created` is before `cutoffIso`. */
 export const countOrphanedAttendees = async (
