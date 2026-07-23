@@ -27,6 +27,7 @@ describe("built site maintenance panel", () => {
 
     expect(html).toContain("/admin/built-sites/42/provision-scheduler");
     expect(html).toContain("Set up scheduled maintenance");
+    expect(html).toContain("on the builder");
     expect(html).toContain('<div class="prose">');
     expect(html).not.toContain("stage-scheduler");
     expect(html).not.toContain("Site key");

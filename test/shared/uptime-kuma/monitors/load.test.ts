@@ -148,6 +148,15 @@ describe("Uptime Kuma built-site monitor state", () => {
     });
   });
 
+  test("matches a lowercase POST method", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([group(), { ...siteMonitor(), method: "post" }]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
+      { kind: "found", monitor: { id: 22 } },
+    );
+  });
+
   test("does not reuse a monitor that rejects the scheduled 204 response", async () => {
     using _env = withEnv(kumaEnv);
     using _fake = connectFake([group(), siteMonitor(11, ["200"])]);

@@ -104,7 +104,7 @@ const siteMonitor = (
       monitor.type === "http" &&
       monitor.parent !== null &&
       groupIds.includes(monitor.parent) &&
-      monitor.method === "POST" &&
+      monitor.method.toUpperCase() === "POST" &&
       monitor.url !== null &&
       scheduledTarget(monitor.url) === target &&
       acceptsScheduledResponse(monitor.acceptedStatusCodes) &&
