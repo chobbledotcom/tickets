@@ -17,24 +17,24 @@ import {
   MAINTENANCE_MIN_INTERVAL_MS,
   type MaintenanceTaskContext,
 } from "#shared/maintenance/definition.ts";
-import { CHECKOUT_RECOVERY_EXTERNAL_CALLS } from "#shared/payment-recovery-costs.ts";
+import {
+  CHECKOUT_RECOVERY_DATABASE_CALLS,
+  CHECKOUT_RECOVERY_EXTERNAL_CALLS,
+  CHECKOUT_RECOVERY_FOLLOW_UP_DATABASE_CALLS,
+} from "#shared/payment-recovery-costs.ts";
 import { getPaymentProvider, type PaymentProvider } from "#shared/payments.ts";
 import { closeAndPurgeCheckoutStage } from "#shared/staged-checkout.ts";
 
 /* jscpd:ignore-end */
-
-const RECOVERY_DATABASE_CALLS = {
-  paid: 22,
-  pending: 5,
-  refunding: 23,
-} as const satisfies Record<CheckoutStageCleanup["state"], number>;
 
 const attemptFits = (
   stage: CheckoutStageCleanup,
   context: MaintenanceTaskContext,
 ): boolean => {
   const remaining = context.budget.remaining();
-  const database = RECOVERY_DATABASE_CALLS[stage.state];
+  const database =
+    CHECKOUT_RECOVERY_DATABASE_CALLS[stage.state] +
+    CHECKOUT_RECOVERY_FOLLOW_UP_DATABASE_CALLS;
   const external = CHECKOUT_RECOVERY_EXTERNAL_CALLS[stage.provider];
   return (
     database <= remaining.database &&

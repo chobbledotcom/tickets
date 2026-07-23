@@ -2,16 +2,28 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { execute } from "#shared/db/client.ts";
+import {
+  decryptSessionTokens,
+  encryptTicketTokens,
+  isSessionProcessed,
+} from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { renderPaymentSuccess } from "#test/lib/payment-success-helpers.ts";
-import { expectHtmlResponse, expectRedirect } from "#test-utils/assertions.ts";
+import {
+  expectHtmlResponse,
+  expectRedirect,
+  followRedirect,
+} from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks.ts";
 
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("payment success token verification", () => {
@@ -146,6 +158,62 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "View your ticket");
       expect(html).toContain(`href="/t/${tokens.join("+")}"`);
       expect(html).not.toContain("mutated");
+    });
+
+    test("preserves every stored ticket token when a processed payment replays", async () => {
+      await setupStripe();
+      const firstListing = await createTestListing({ unitPrice: 500 });
+      const secondListing = await createTestListing({ unitPrice: 500 });
+      const first = await bookAttendee(firstListing);
+      const second = await bookAttendee(secondListing);
+      if (!first.success || !second.success) throw new Error("Booking failed");
+
+      const sessionId = "cs_multi_token_replay";
+      const tokens = [
+        first.attendees[0]!.ticket_token,
+        second.attendees[0]!.ticket_token,
+      ];
+      const joinedTokens = tokens.join("+");
+      await finalizeProcessedPayment(
+        sessionId,
+        first.attendees[0]!.id,
+        tokens[0]!,
+      );
+      await execute(
+        "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
+        [await encryptTicketTokens(tokens), sessionId],
+      );
+      const stored = await isSessionProcessed(sessionId);
+      if (stored === null) throw new Error("Processed payment was not stored");
+      expect(await decryptSessionTokens(stored.ticket_tokens)).toBe(
+        joinedTokens,
+      );
+
+      using _retrieve = stubRetrieveCheckoutSession({
+        amountTotal: 1000,
+        email: "multi-token-replay@example.com",
+        items: JSON.stringify([
+          { e: firstListing.id, p: 500, q: 1 },
+          { e: secondListing.id, p: 500, q: 1 },
+        ]),
+        name: "Multi token replay",
+        paymentIntent: `pi_${sessionId}`,
+        sessionId,
+      });
+      const response = await handleRequest(
+        mockRequest(`/payment/success?session_id=${sessionId}`),
+      );
+      const location = `/payment/success?tokens=${encodeURIComponent(joinedTokens)}`;
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(location);
+      const consumed = await isSessionProcessed(sessionId);
+      if (consumed === null) throw new Error("Processed payment was removed");
+      expect(consumed.ticket_tokens).toBe("");
+
+      const rendered = await followRedirect(response, handleRequest);
+      const html = await expectHtmlResponse(rendered, 200, "View your tickets");
+      expect(html).toContain(`href="/t/${joinedTokens}"`);
+      expect(html).not.toContain(`href="/t/${tokens[0]!}"`);
     });
 
     test("shows email notice on payment success when email configured", async () => {

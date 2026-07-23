@@ -8,12 +8,8 @@ import type {
   PaymentResult,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
-import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { queryBatchPrimary, resultRows } from "#shared/db/client.ts";
-import {
-  releaseReservation,
-  UNRESOLVED_RESERVATION,
-} from "#shared/db/processed-payments.ts";
+import { UNRESOLVED_RESERVATION } from "#shared/db/processed-payments.ts";
 
 type UnexpectedCreateRecovery = {
   complete: (
@@ -87,33 +83,4 @@ export const recoverOrRefundUnexpectedCreate = async ({
       `Unexpected error completing session ${session.id}: ${String(error)}`,
     ),
   );
-};
-
-/** Refund an ordinary staged booking after an unexpected processing error.
- * Balance payments and sessions without an open stage preserve the original
- * error because there is no staged attendee to refund and remove. */
-export const recoverOrRefundUnexpectedProcessing = async (
-  sessionId: string,
-  data: ValidatedSession,
-  error: unknown,
-): Promise<PaymentResult> => {
-  if (data.intent.balanceAttendeeId) throw error;
-  const stage = await loadCheckoutStageByPaymentSession(sessionId);
-  if (!stage) throw error;
-  if (stage.state === "refunding") {
-    await releaseReservation(sessionId);
-    throw error;
-  }
-  try {
-    return await refundStagedBooking(
-      data.session,
-      data.intent.items[0]!.e,
-      refundSpec("unexpected_error")(
-        `Unexpected error completing session ${sessionId}: ${String(error)}`,
-      ),
-    );
-  } catch (refundError) {
-    await releaseReservation(sessionId);
-    throw refundError;
-  }
 };

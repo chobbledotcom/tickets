@@ -15,10 +15,7 @@ import {
   checkoutIntentForSession,
   paidPricingRefund,
 } from "#routes/api/payment-processing/pricing.ts";
-import {
-  recoverOrRefundUnexpectedCreate,
-  recoverOrRefundUnexpectedProcessing,
-} from "#routes/api/payment-processing/recovery.ts";
+import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import {
   chargeMismatchSpec,
   deletedListingSpec,
@@ -239,11 +236,11 @@ const processClaimedSession =
     try {
       return await processReservedSession(sessionId, data);
     } catch (error) {
-      if (error instanceof DatabaseBusyError) {
-        if (busyRetries === 0) throw error;
-        return processClaimedSession(busyRetries - 1)(sessionId, data);
-      }
-      return recoverOrRefundUnexpectedProcessing(sessionId, data, error);
+      // Uncertain activation errors are recovered at the write boundary above.
+      // Every other error stays retryable instead of inferring a refund from the stage.
+      if (!(error instanceof DatabaseBusyError) || busyRetries === 0)
+        throw error;
+      return processClaimedSession(busyRetries - 1)(sessionId, data);
     }
   };
 

@@ -183,10 +183,11 @@ same claim.
 ## Budgets and failures
 
 Use one combined whole-request counter for database and external calls. Cap the
-maintenance envelope at 40 total subrequests and reserve setup, claim, success or
-failure release, and response headroom before claiming. Track database and
-external allowances separately inside that total. Reject a task declaration
-whose maximum cannot fit.
+maintenance envelope at 42 total subrequests and database work at 40 calls. This
+leaves eight calls below Bunny's limit. Reserve setup, claim, success or failure
+release, and response headroom before claiming. Track database and external
+allowances separately inside that total. Reject a task declaration whose maximum
+cannot fit.
 
 Stop claiming tasks before the request deadline. Pass an earlier deadline to
 each task and preserve enough time for the final lease release. Deadlines are

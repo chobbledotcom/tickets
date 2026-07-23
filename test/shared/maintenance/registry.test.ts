@@ -4,6 +4,10 @@ import { stub } from "@std/testing/mock";
 import { ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
+import {
+  beginCheckoutStageRefund,
+  loadCheckoutStageByPaymentSession,
+} from "#shared/db/checkout-stages.ts";
 import { executeBatch } from "#shared/db/client.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
@@ -18,6 +22,11 @@ import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
+  getSubrequestRemaining,
+  runWithSubrequestBudget,
+  withSubrequestAllowance,
+} from "#shared/subrequest-budget.ts";
+import {
   attendeeExists,
   insertLoginAttempt,
   insertOrphanAttendee,
@@ -28,7 +37,10 @@ import {
   insertLegacyActivity,
   rawActivityMessage,
 } from "#test-utils/activity-log.ts";
-import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
+import {
+  insertCheckoutStage,
+  testCheckoutRefund,
+} from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
@@ -43,7 +55,11 @@ const runTask = (
 ): void | Promise<void> =>
   task.run({
     budget: {
-      remaining: () => ({ database: 23, external: 9, total: 32 }),
+      remaining: () => ({
+        database: task.maxDatabaseCalls,
+        external: task.maxExternalCalls,
+        total: task.maxDatabaseCalls + task.maxExternalCalls,
+      }),
     },
     checkpoint: null,
     completeTask: () => {},
@@ -52,6 +68,25 @@ const runTask = (
     setCheckpoint: () => {},
     ...overrides,
   });
+
+const runTaskAtDeclaredAllowance = (
+  task: MaintenanceTaskDeclaration,
+  overrides: Partial<MaintenanceTaskContext> = {},
+): void | Promise<void> =>
+  runWithSubrequestBudget(() =>
+    withSubrequestAllowance(
+      {
+        database: task.maxDatabaseCalls,
+        external: task.maxExternalCalls,
+        total: task.maxDatabaseCalls + task.maxExternalCalls,
+      },
+      () =>
+        runTask(task, {
+          budget: { remaining: getSubrequestRemaining },
+          ...overrides,
+        }),
+    ),
+  );
 
 describeWithEnv("maintenance registry", { db: true }, () => {
   test("declares bounded database, checkout, and activity work", () => {
@@ -86,7 +121,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         deadlineMs: 20_000,
         failureRetryIntervalMs: 300_000,
         intervalMs: 86_400_000,
-        maxDatabaseCalls: 23,
+        maxDatabaseCalls: 25,
         maxExternalCalls: 9,
         name: "checkout_stage_pruning",
         wakePolicy: "scheduled_only",
@@ -150,6 +185,28 @@ describeWithEnv("maintenance registry", { db: true }, () => {
 
     expect(close.calls).toHaveLength(1);
     expect(await attendeeExists(attendeeId)).toBe(false);
+  });
+
+  test("the checkout task advances a due refunding stage at its declared allowance", async () => {
+    const attendeeId = await insertOrphanAttendee(nowIso());
+    const sessionId = "scheduled-refunding-stage";
+    await insertCheckoutStage(attendeeId, sessionId);
+    await beginCheckoutStageRefund(sessionId, testCheckoutRefund());
+    using retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+      Promise.resolve(null),
+    );
+    const followUps: number[] = [];
+
+    await runTaskAtDeclaredAllowance(taskNamed("checkout_stage_pruning"), {
+      requestFollowUp: (afterMs = 60_000) => followUps.push(afterMs),
+    });
+
+    expect(await loadCheckoutStageByPaymentSession(sessionId)).toMatchObject({
+      attemptCount: 1,
+      state: "refunding",
+    });
+    expect(retrieve.calls).toHaveLength(1);
+    expect(followUps).toHaveLength(1);
   });
 
   test("the checkout task requests follow-ups until its backlog is empty", async () => {

@@ -1,5 +1,10 @@
+import { BUNNY_SUBREQUEST_LIMIT } from "#shared/subrequest-budget.ts";
+
 export const MAINTENANCE_MIN_INTERVAL_MS = 60_000;
-export const MAINTENANCE_REQUEST_CALL_LIMIT = 40;
+const MAINTENANCE_REQUEST_CALL_RESERVE = 8;
+export const MAINTENANCE_REQUEST_CALL_LIMIT =
+  BUNNY_SUBREQUEST_LIMIT - MAINTENANCE_REQUEST_CALL_RESERVE;
+export const MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT = 40;
 const MAINTENANCE_RESERVED_CALLS = 8;
 export const MAINTENANCE_TASK_CALL_LIMIT =
   MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_RESERVED_CALLS;
@@ -130,9 +135,12 @@ export const defineMaintenanceTasks = <
     validateTask(task);
   }
   const startup = maintenanceStartupCalls(tasks);
-  if (startup.total > MAINTENANCE_REQUEST_CALL_LIMIT) {
+  if (
+    startup.database > MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT ||
+    startup.total > MAINTENANCE_REQUEST_CALL_LIMIT
+  ) {
     throw new Error(
-      `Maintenance checks declare ${startup.total} startup calls; maximum is ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
+      `Maintenance checks declare ${startup.database} database and ${startup.total} total startup calls; maximums are ${MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT} and ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
     );
   }
   return tasks;

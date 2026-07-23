@@ -10,6 +10,13 @@ import {
 import { execute, queryAll } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { MaintenanceTaskContext } from "#shared/maintenance/definition.ts";
+import {
+  CHECKOUT_RECOVERY_DATABASE_CALLS,
+  CHECKOUT_RECOVERY_EXTERNAL_CALLS,
+  CHECKOUT_RECOVERY_FOLLOW_UP_DATABASE_CALLS,
+  MAX_CHECKOUT_RECOVERY_DATABASE_CALLS,
+  MAX_CHECKOUT_RECOVERY_EXTERNAL_CALLS,
+} from "#shared/payment-recovery-costs.ts";
 import type {
   BookingIntent,
   ValidatedPaymentSession,
@@ -76,9 +83,12 @@ const runRecovery = async (
   await runWithSubrequestBudget(() =>
     withSubrequestAllowance(
       {
-        database: options.database ?? 24,
-        external: options.external ?? 9,
-        total: options.total ?? 33,
+        database: options.database ?? MAX_CHECKOUT_RECOVERY_DATABASE_CALLS,
+        external: options.external ?? MAX_CHECKOUT_RECOVERY_EXTERNAL_CALLS,
+        total:
+          options.total ??
+          (options.database ?? MAX_CHECKOUT_RECOVERY_DATABASE_CALLS) +
+            (options.external ?? MAX_CHECKOUT_RECOVERY_EXTERNAL_CALLS),
       },
       () =>
         recoverCheckoutStages({
@@ -103,6 +113,11 @@ const stageAttempt = async (
       [sessionId],
     )
   )[0]!;
+
+const PENDING_RECOVERY_DATABASE_CALLS =
+  CHECKOUT_RECOVERY_DATABASE_CALLS.pending +
+  CHECKOUT_RECOVERY_FOLLOW_UP_DATABASE_CALLS;
+const STRIPE_RECOVERY_EXTERNAL_CALLS = CHECKOUT_RECOVERY_EXTERNAL_CALLS.stripe;
 
 describeWithEnv(
   "payment processing > scheduled stage recovery",
@@ -347,7 +362,7 @@ describeWithEnv(
       expect(refund.calls).toHaveLength(1);
     });
 
-    test("reserves the refund fence database call before recovery starts", async () => {
+    test("reserves the follow-up query before refund recovery starts", async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
       const intent = intentFor(listing.id);
       await stageSession("scheduled-refund-budget", intent);
@@ -360,7 +375,7 @@ describeWithEnv(
         Promise.resolve(paidProviderSession("scheduled-refund-budget", intent)),
       );
 
-      await runRecovery({ database: 23 });
+      await runRecovery({ database: 24 });
 
       expect(await stageAttempt("scheduled-refund-budget")).toEqual({
         attempt_count: 0,
@@ -381,7 +396,7 @@ describeWithEnv(
         Promise.resolve(paidProviderSession("scheduled-paid-budget", intent)),
       );
 
-      await runRecovery({ database: 22 });
+      await runRecovery({ database: 23 });
 
       expect(await stageAttempt("scheduled-paid-budget")).toEqual({
         attempt_count: 0,
@@ -400,7 +415,7 @@ describeWithEnv(
       );
 
       await runRecovery({ deadline: Date.now() - 1 });
-      await runRecovery({ database: 5 });
+      await runRecovery({ database: 6 });
 
       expect(await stageAttempt("scheduled-wait")).toEqual({
         attempt_count: 0,
@@ -408,5 +423,37 @@ describeWithEnv(
       });
       expect(close.calls).toHaveLength(0);
     });
+
+    for (const [label, allowance] of [
+      ["provider allowance", { external: STRIPE_RECOVERY_EXTERNAL_CALLS - 1 }],
+      [
+        "combined allowance",
+        {
+          total:
+            PENDING_RECOVERY_DATABASE_CALLS +
+            STRIPE_RECOVERY_EXTERNAL_CALLS -
+            1,
+        },
+      ],
+    ] as const) {
+      test(`starts no checkout work without its ${label}`, async () => {
+        const listing = await createTestListing({ unitPrice: 1000 });
+        const intent = intentFor(listing.id);
+        const sessionId = `scheduled-${label.replace(" ", "-")}`;
+        await stageSession(sessionId, intent);
+        await due(sessionId);
+        using close = stub(stripePaymentProvider, "closeCheckout", () =>
+          Promise.resolve("closed" as const),
+        );
+
+        await runRecovery(allowance);
+
+        expect(await stageAttempt(sessionId)).toEqual({
+          attempt_count: 0,
+          state: "pending",
+        });
+        expect(close.calls).toHaveLength(0);
+      });
+    }
   },
 );

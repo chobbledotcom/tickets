@@ -9,7 +9,10 @@ import {
   defineMaintenanceTasks,
   type MaintenanceTaskCheck,
 } from "#shared/maintenance/definition.ts";
-import { MAX_CHECKOUT_RECOVERY_EXTERNAL_CALLS } from "#shared/payment-recovery-costs.ts";
+import {
+  MAX_CHECKOUT_RECOVERY_DATABASE_CALLS,
+  MAX_CHECKOUT_RECOVERY_EXTERNAL_CALLS,
+} from "#shared/payment-recovery-costs.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
 const FAILURE_RETRY_MS = 5 * 60 * 1000;
@@ -48,7 +51,7 @@ export const MAINTENANCE_TASKS = defineMaintenanceTasks([
     deadlineMs: 20_000,
     failureRetryIntervalMs: FAILURE_RETRY_MS,
     intervalMs: PRUNE_INTERVAL_MS,
-    maxDatabaseCalls: 23,
+    maxDatabaseCalls: MAX_CHECKOUT_RECOVERY_DATABASE_CALLS,
     maxExternalCalls: MAX_CHECKOUT_RECOVERY_EXTERNAL_CALLS,
     name: "checkout_stage_pruning",
     run: async (context) => {

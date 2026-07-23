@@ -150,14 +150,13 @@ const processSessionAndRedirect = async (
     return paymentErrorResponse(formatPaymentError(result), result.status);
   }
 
+  const joinedTicketTokens = result.ticketTokens.join("+");
+
   // Direct-render path: render the success page here (with the ticket URL drawn
   // from the persisted/just-created tokens) so the parent's thank-you URL is
-  // honoured and a reload still finds the token in the DB.
+  // honoured and a reload still finds the tokens in the DB.
   if (explicitThankYou && result.ticketTokens.length > 0) {
-    return renderPaidSuccessPage(
-      explicitThankYou,
-      `/t/${result.ticketTokens[0]!}`,
-    );
+    return renderPaidSuccessPage(explicitThankYou, `/t/${joinedTicketTokens}`);
   }
 
   // Redirect path: the tokens go in the URL, so clear any a racing webhook stored
@@ -166,7 +165,7 @@ const processSessionAndRedirect = async (
   if (result.ticketTokens.length > 0) {
     await clearSessionTokens(sessionId);
     return redirectResponse(
-      `/payment/success?tokens=${encodeURIComponent(result.ticketTokens[0]!)}`,
+      `/payment/success?tokens=${encodeURIComponent(joinedTicketTokens)}`,
     );
   }
 

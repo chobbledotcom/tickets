@@ -15,6 +15,7 @@ import {
   MAINTENANCE_MIN_INTERVAL_MS,
   MAINTENANCE_RELEASE_HEADROOM_MS,
   MAINTENANCE_REQUEST_CALL_LIMIT,
+  MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT,
   MAINTENANCE_REQUEST_DEADLINE_MS,
   type MaintenanceTaskDeclaration,
   type MaintenanceWakePolicy,
@@ -48,6 +49,7 @@ const taskFits = (
   task: MaintenanceTaskDeclaration,
   remaining: { database: number; external: number; total: number },
 ): boolean =>
+  task.maxDatabaseCalls <= remaining.database - TASK_RUNNER_CALL_RESERVE &&
   task.maxExternalCalls <= remaining.external &&
   taskCalls(task) <= remaining.total - TASK_RUNNER_CALL_RESERVE;
 
@@ -188,12 +190,19 @@ const runMaintenance = (
 ): Promise<void> => {
   const requestDeadline =
     options.requestDeadline ?? Date.now() + MAINTENANCE_REQUEST_DEADLINE_MS;
-  const used = getSubrequestUsage().total;
+  const used = getSubrequestUsage();
   const combinedAllowance = Math.max(
     0,
     Math.min(
       options.combinedAllowance ?? MAINTENANCE_REQUEST_CALL_LIMIT,
-      MAINTENANCE_REQUEST_CALL_LIMIT - used,
+      MAINTENANCE_REQUEST_CALL_LIMIT - used.total,
+    ),
+  );
+  const databaseAllowance = Math.max(
+    0,
+    Math.min(
+      combinedAllowance,
+      MAINTENANCE_REQUEST_DATABASE_CALL_LIMIT - used.database,
     ),
   );
   const externalAllowance = Math.min(
@@ -206,7 +215,7 @@ const runMaintenance = (
   );
   const startup = maintenanceStartupCalls(candidates);
   if (
-    startup.database > combinedAllowance ||
+    startup.database > databaseAllowance ||
     startup.external > externalAllowance ||
     startup.total > combinedAllowance
   ) {
@@ -214,7 +223,7 @@ const runMaintenance = (
   }
   return withSubrequestAllowance(
     {
-      database: combinedAllowance,
+      database: databaseAllowance,
       external: externalAllowance,
       total: combinedAllowance,
     },

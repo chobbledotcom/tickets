@@ -3,17 +3,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
-import {
-  recoverOrRefundUnexpectedCreate,
-  recoverOrRefundUnexpectedProcessing,
-} from "#routes/api/payment-processing/recovery.ts";
+import { recoverOrRefundUnexpectedCreate } from "#routes/api/payment-processing/recovery.ts";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
-import { beginCheckoutStageRefund } from "#shared/db/checkout-stages.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
+import { getDb } from "#shared/db/client.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { testCheckoutRefund } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -144,57 +139,6 @@ describeWithEnv(
       ).rejects.toThrow("stage alone is ambiguous");
     });
 
-    test("rethrows an ordinary processing error when its stage is missing", async () => {
-      const facts = await recoveryFacts("missing-processing-stage");
-      await expect(
-        recoverOrRefundUnexpectedProcessing(
-          "missing-processing-stage",
-          facts.data,
-          new Error("processing failed"),
-        ),
-      ).rejects.toThrow("processing failed");
-    });
-
-    test("rethrows a balance processing error without looking for a stage", async () => {
-      const facts = await recoveryFacts("balance-processing-error");
-      const balanceData = {
-        ...facts.data,
-        intent: { ...facts.intent, balanceAttendeeId: 42 },
-      };
-      await expect(
-        recoverOrRefundUnexpectedProcessing(
-          "balance-processing-error",
-          balanceData,
-          new Error("balance failed"),
-        ),
-      ).rejects.toThrow("balance failed");
-    });
-
-    test("releases the reservation when an already-refunding stage errors", async () => {
-      const facts = await recoveryFacts("refunding-processing-error");
-      await stageSession("refunding-processing-error", facts.intent);
-      expect(
-        (await reserveSession("refunding-processing-error")).reserved,
-      ).toBe(true);
-      await beginCheckoutStageRefund(
-        "refunding-processing-error",
-        testCheckoutRefund(),
-      );
-      await expect(
-        recoverOrRefundUnexpectedProcessing(
-          "refunding-processing-error",
-          facts.data,
-          new Error("refund continuation failed"),
-        ),
-      ).rejects.toThrow("refund continuation failed");
-      expect(
-        await queryAll(
-          "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-          ["refunding-processing-error"],
-        ),
-      ).toEqual([]);
-    });
-
     test("rejects a refunding stage without its stored reason", async () => {
       const facts = await recoveryFacts("refunding-without-reason");
       await stageSession("refunding-without-reason", facts.intent);
@@ -208,70 +152,6 @@ describeWithEnv(
       ).rejects.toThrow(
         "Refunding checkout stage refunding-without-reason has no reason",
       );
-    });
-
-    test("refunds a pending stage after an unexpected processing error", async () => {
-      await setupStripe();
-      const facts = await recoveryFacts("unexpected-processing-refund");
-      await stageSession("unexpected-processing-refund", facts.intent);
-      expect(
-        (await reserveSession("unexpected-processing-refund")).reserved,
-      ).toBe(true);
-      const refund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({
-          id: "unexpected-processing-refund",
-          status: "succeeded",
-        } as never),
-      );
-      try {
-        const result = await recoverOrRefundUnexpectedProcessing(
-          "unexpected-processing-refund",
-          facts.data,
-          new Error("unexpected processing failure"),
-        );
-        await expectTerminalRefund(result, refund.calls.length);
-      } finally {
-        refund.restore();
-      }
-    });
-
-    test("releases the reservation when unexpected refund finalization fails", async () => {
-      await setupStripe();
-      const facts = await recoveryFacts("unexpected-finalization-error");
-      await stageSession("unexpected-finalization-error", facts.intent);
-      expect(
-        (await reserveSession("unexpected-finalization-error")).reserved,
-      ).toBe(true);
-      const refund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({
-          id: "unexpected-finalization-error",
-          status: "succeeded",
-        } as never),
-      );
-      await getDb().execute(`CREATE TRIGGER reject_terminal_refund_write
-        BEFORE UPDATE OF failure_data ON processed_payments
-        WHEN NEW.payment_session_id = 'unexpected-finalization-error'
-        BEGIN
-          SELECT RAISE(ABORT, 'terminal refund write failed');
-        END`);
-      try {
-        await expect(
-          recoverOrRefundUnexpectedProcessing(
-            "unexpected-finalization-error",
-            facts.data,
-            new Error("unexpected processing failure"),
-          ),
-        ).rejects.toThrow("terminal refund write failed");
-        expect(
-          await queryAll(
-            "SELECT payment_session_id FROM processed_payments WHERE payment_session_id = ?",
-            ["unexpected-finalization-error"],
-          ),
-        ).toEqual([]);
-      } finally {
-        await getDb().execute("DROP TRIGGER reject_terminal_refund_write");
-        refund.restore();
-      }
     });
   },
 );
