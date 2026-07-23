@@ -42,11 +42,31 @@ describe("Uptime Kuma Socket.IO protocol", () => {
 
   test("reports rejected credentials", async () => {
     const socket = new FakeSocket();
-    socket.reply("login", { msg: "Incorrect password.", ok: false });
+    socket.reply("login", {
+      msg: "Incorrect password.",
+      msgi18n: false,
+      ok: false,
+    });
 
     await expect(
       createUptimeKumaClient(socket).login("owner", "wrong"),
     ).rejects.toThrow("Incorrect password.");
+  });
+
+  test("identifies Kuma's translated incorrect-credentials error", async () => {
+    const socket = new FakeSocket();
+    socket.reply("login", {
+      msg: "authIncorrectCreds",
+      msgi18n: true,
+      ok: false,
+    });
+
+    await expect(
+      createUptimeKumaClient(socket).login("owner", "wrong"),
+    ).rejects.toMatchObject({
+      kind: "incorrect_credentials",
+      message: "incorrect_credentials",
+    });
   });
 
   test("reports unsupported two-factor login", async () => {

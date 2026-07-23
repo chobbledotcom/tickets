@@ -2,6 +2,7 @@ export type UptimeKumaErrorKind =
   | "connection_closed"
   | "connection_failed"
   | "connection_timeout"
+  | "incorrect_credentials"
   | "invalid_response"
   | "monitor_list_timeout"
   | "request_timeout"

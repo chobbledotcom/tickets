@@ -262,6 +262,11 @@ describe("Uptime Kuma built-site monitor state", () => {
       name: "uses catalog copy for a connection timeout",
     },
     {
+      kind: "incorrect_credentials",
+      messageKey: "built_sites.kuma_incorrect_credentials",
+      name: "uses catalog copy for incorrect credentials",
+    },
+    {
       kind: "invalid_response",
       messageKey: "built_sites.kuma_invalid_response",
       name: "uses catalog copy for an invalid response",

@@ -134,10 +134,22 @@ const FailedResponseSchema = v.object({
   msg: v.string(),
   ok: v.literal(false),
 });
+const PlainLoginFailureSchema = v.object({
+  msg: v.string(),
+  msgi18n: v.optional(v.literal(false)),
+  ok: v.literal(false),
+});
+const IncorrectCredentialsSchema = v.object({
+  msg: v.literal("authIncorrectCreds"),
+  msgi18n: v.literal(true),
+  ok: v.literal(false),
+});
 const OkResponseSchema = v.object({ ok: v.literal(true) });
 const BasicResponseSchema = v.union([OkResponseSchema, FailedResponseSchema]);
 const LoginResponseSchema = v.union([
-  BasicResponseSchema,
+  OkResponseSchema,
+  IncorrectCredentialsSchema,
+  PlainLoginFailureSchema,
   v.object({ tokenRequired: v.literal(true) }),
 ]);
 const AddResponseSchema = v.union([
@@ -318,7 +330,12 @@ export const createUptimeKumaClient = (
       if ("tokenRequired" in response) {
         throw new UptimeKumaError("two_factor");
       }
-      if (!response.ok) throw new Error(response.msg);
+      if (!response.ok) {
+        if (response.msgi18n === true) {
+          throw new UptimeKumaError("incorrect_credentials");
+        }
+        throw new Error(response.msg);
+      }
       await version.read();
     },
   };

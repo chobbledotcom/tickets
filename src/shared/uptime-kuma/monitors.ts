@@ -42,6 +42,7 @@ const ERROR_MESSAGE_KEYS: Record<UptimeKumaErrorKind, string> = {
   connection_closed: "built_sites.kuma_connection_closed",
   connection_failed: "built_sites.kuma_connection_failed",
   connection_timeout: "built_sites.kuma_connection_timeout",
+  incorrect_credentials: "built_sites.kuma_incorrect_credentials",
   invalid_response: "built_sites.kuma_invalid_response",
   monitor_list_timeout: "built_sites.kuma_monitor_list_timeout",
   request_timeout: "built_sites.kuma_request_timeout",

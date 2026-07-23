@@ -35,6 +35,7 @@
   "built_sites.kuma_connection_timeout": "Uptime Kuma took too long to connect.",
   "built_sites.kuma_duplicate_monitor": "More than one Uptime Kuma monitor checks {url}.",
   "built_sites.kuma_failed": "Uptime Kuma failed.",
+  "built_sites.kuma_incorrect_credentials": "The Uptime Kuma username or password is incorrect. Check them on the builder.",
   "built_sites.kuma_invalid_response": "Uptime Kuma sent an invalid response.",
   "built_sites.kuma_monitor_list_timeout": "Uptime Kuma did not send its monitor list.",
   "built_sites.kuma_new_group_missing": "Uptime Kuma did not return the new \"{name}\" group.",
