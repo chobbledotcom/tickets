@@ -13,7 +13,7 @@ import {
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
-import { useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describeSquare(() => {
@@ -39,7 +39,7 @@ describeSquare(() => {
     test("returns null when access token not set", async () => {
       const client = await getSquareClient();
       expect(client).toBeNull();
-      expect(debugLog().calls.map((call) => call.args[0])).toEqual([
+      expect(debugMessages(debugLog())).toEqual([
         "[Square] No access token configured, cannot create client",
       ]);
     });

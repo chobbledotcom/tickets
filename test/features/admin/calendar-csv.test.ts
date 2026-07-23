@@ -291,12 +291,11 @@ describe("generateCalendarCsv", () => {
         ticket_token: "att-token",
       });
       const csv = generateCalendarCsv([service, attendee]);
-      expect(csv).toContain("Type");
-      expect(csv).toContain("Service event");
-      expect(csv).toContain("Attendee");
-      // The servicing row's dead ticket URL is omitted; the attendee's is kept.
-      expect(csv).not.toContain("/t/svc-token");
-      expect(csv).toContain("/t/att-token");
+      expect(csv.split("\n")).toEqual([
+        CALENDAR_HEADER,
+        "Boiler Room,Service event,2026-03-15,Boiler Service,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,svc-token,",
+        `Boiler Room,Attendee,2026-03-15,Jane Doe,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,att-token,https://${CSV_DOMAIN}/t/att-token`,
+      ]);
     });
 
     test("keeps a servicing row as 'Service event' on a logistics listing", () => {
@@ -314,10 +313,10 @@ describe("generateCalendarCsv", () => {
         listingIds: new Set([1]),
       };
       const csv = generateCalendarCsv([service], logistics);
-      // Logistics columns render (listing 1 uses logistics), but the servicing
-      // row is still labelled "Service event" — a hold, not a logisticable booking.
-      expect(csv).toContain("Service event");
-      expect(csv).toContain("Start Agent");
+      expect(csv.split("\n")).toEqual([
+        LOGISTICS_HEADER,
+        "Logistics Room,Service event,2026-03-15,Deep Clean,john@example.com,,,,1,2024-01-01T12:00:00.000Z,0.00,,No,svc-tok,,,,,,,",
+      ]);
     });
   });
 });

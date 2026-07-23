@@ -12,7 +12,7 @@ import {
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
-import { useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
 describeSquare(() => {
@@ -99,11 +99,7 @@ describeSquare(() => {
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
-          expect(
-            debugLog()
-              .calls.slice(-2)
-              .map((call) => call.args[0]),
-          ).toEqual([
+          expect(debugMessages(debugLog()).slice(-2)).toEqual([
             "[Square] Creating payment link for 1 listing(s)",
             "[Square] Payment link created orderId=order_abc",
           ]);
@@ -181,11 +177,7 @@ describeSquare(() => {
             "http://localhost",
           );
           expect(result).toBeNull();
-          expect(
-            debugLog()
-              .calls.slice(-3)
-              .map((call) => call.args[0]),
-          ).toEqual([
+          expect(debugMessages(debugLog()).slice(-3)).toEqual([
             "[Square] Creating payment link for 1 listing(s)",
             "[Square] Payment link response missing orderId or url",
             "[Square] Payment link creation failed",

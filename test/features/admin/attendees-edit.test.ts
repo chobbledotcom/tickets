@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { filter, map, pipe } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
@@ -178,9 +180,10 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
 
       const message = "Payment marked as refunded for attendee 'First Real'";
       expect(
-        (await getAttendeeActivityLog(attendee.id))
-          .filter((entry) => entry.message === message)
-          .map(({ attendee_id, listing_id }) => ({ attendee_id, listing_id })),
+        pipe(
+          filter((entry: ActivityLogEntry) => entry.message === message),
+          map(({ attendee_id, listing_id }) => ({ attendee_id, listing_id })),
+        )(await getAttendeeActivityLog(attendee.id)),
       ).toEqual([{ attendee_id: attendee.id, listing_id: firstReal.id }]);
     });
 
