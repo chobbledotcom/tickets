@@ -4,6 +4,7 @@ import { defineRoutes } from "#routes/router.ts";
  */
 
 /* jscpd:ignore-start */
+import { compact } from "#fp";
 import { t } from "#i18n";
 import {
   withDecryptedAttendees,
@@ -52,7 +53,7 @@ import { requirePaymentProvider } from "./require-provider.ts";
 const refundError = (
   attendeeId: number,
   msg: string,
-  returnUrl = "",
+  returnUrl: string,
 ): Response =>
   errorRedirect(
     attendeeActionUrlWithReturn(attendeeId, "refund", returnUrl),
@@ -198,14 +199,23 @@ const buildRefundProblemResponse = async (
   const { listing, refundAllUrl, counts, remaining } = ctx;
   const { refundedCount, failedCount, errorCount } = counts;
   const problemCount = failedCount + errorCount;
-  const errorNote =
+  const msg = compact([
+    t("admin.attendees.refund_all_result_refunds", {
+      count: refundedCount,
+    }),
+    t("admin.attendees.refund_all_result_failures", {
+      count: problemCount,
+    }),
     errorCount > 0
-      ? ` (${errorCount} errored — check the activity log for details)`
-      : "";
-  const msg =
-    remaining > 0
-      ? `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. ${remaining} remaining — submit again to continue.`
-      : `${refundedCount} refund(s) succeeded, ${problemCount} failed${errorNote}. Some payments may have already been refunded.`;
+      ? t("admin.attendees.refund_all_result_errors", { count: errorCount })
+      : null,
+    t(
+      remaining > 0
+        ? "admin.attendees.refund_all_result_remaining"
+        : "admin.attendees.refund_all_result_complete",
+      { count: remaining },
+    ),
+  ]).join(" ");
   await logActivity(
     `Bulk refund: ${refundedCount} succeeded, ${problemCount} failed for '${listing.name}'`,
     listing.id,
@@ -237,7 +247,14 @@ const buildRefundAllResponse = async (
     );
     return ok(
       refundAllUrl,
-      `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
+      [
+        t("admin.attendees.refund_all_result_refunds", {
+          count: refundedCount,
+        }),
+        t("admin.attendees.refund_all_result_remaining", {
+          count: remaining,
+        }),
+      ].join(" "),
     );
   }
 

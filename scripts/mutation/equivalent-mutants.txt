@@ -375,7 +375,7 @@ src/features/admin/groups.ts:201:51  ?? → ||   # parsePackageMembers dayPrices
 src/shared/listings-actions.ts:376:38  && → ||   # clearing false means mayStripPage never loads a flagged child; clearing true without a flagged child only reruns unchanged reachability, which cannot create an orphan
 
 # attendee merge/refund route: mutants with no observable effect.
-src/features/admin/attendee-refunds.ts:178:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
+src/features/admin/attendee-refunds.ts:179:24  ?? → ||    # flash.error: string|undefined from applyFlash; a refund error flash is always a non-empty message, so the only falsy-non-null value "" never occurs and ?? / || agree
 
 # attendee columns Listings/answers rework
 src/shared/columns/attendee-columns.ts:135:67  ?? → ||    # getAnswerDisplay attendeeAnswerMap.get(): number[]|undefined — an array is always truthy, so ?? and || coincide
@@ -880,6 +880,7 @@ src/features/api/payment-processing/index.ts:101:22   → "mutated"   # replaySu
 src/features/api/payment-processing/items.ts:53:24  false → true   # validateListingForPayment is private and validateAllItems always passes includeListingName explicitly, so the default is never evaluated
 src/features/api/payment-processing/items.ts:87:41  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/items.ts:169:24  ?? → ||   # extractIntent emits a positive dayCount or undefined, so every present value is truthy
+src/features/api/payment-processing/pricing.ts:84:40  ?? → ||   # paidByItem stores numeric charged totals; the only falsy present total is 0, and both operators keep the 0 fallback
 src/features/api/payment-processing/package-pricing.ts:50:46  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/package-pricing.ts:51:59  ?? → ||   # the running allocated quantity is non-negative and the fallback is 0, so 0 ?? 0 and 0 || 0 agree
 src/features/api/payment-processing/package-pricing.ts:156:56  ?? → ||   # stored per-package quantities are at least 1, so every present value is truthy
