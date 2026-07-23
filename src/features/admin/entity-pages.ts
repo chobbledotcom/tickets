@@ -281,7 +281,7 @@ const loadPageSections = async <E>(
   panel: SlotLoader<E> | undefined,
 ): Promise<LoadedSection[]> => {
   if (panel) return [{ html: await panel(entity, ctx), kind: "custom" }];
-  return await Promise.all(
+  return Promise.all(
     active.sections.map((section) => loadSection(section, entity, ctx)),
   );
 };
