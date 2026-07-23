@@ -12,10 +12,13 @@ import {
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
 describeSquare(() => {
   describe("createPaymentLink", () => {
+    const debugLog = useDebugLogSpy();
+
     test("returns null when access token not set", async () => {
       await expectNoLink(
         checkoutIntent({
@@ -29,6 +32,9 @@ describeSquare(() => {
       await configureSquare();
       // No location ID set
       await expectNoLink(checkoutIntent());
+      expect(debugLog().calls.at(-1)?.args[0]).toBe(
+        "[Square] No location ID configured",
+      );
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -93,6 +99,14 @@ describeSquare(() => {
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
+          expect(
+            debugLog()
+              .calls.slice(-2)
+              .map((call) => call.args[0]),
+          ).toEqual([
+            "[Square] Creating payment link for 1 listing(s)",
+            "[Square] Payment link created orderId=order_abc",
+          ]);
         },
       );
     });
@@ -167,6 +181,15 @@ describeSquare(() => {
             "http://localhost",
           );
           expect(result).toBeNull();
+          expect(
+            debugLog()
+              .calls.slice(-3)
+              .map((call) => call.args[0]),
+          ).toEqual([
+            "[Square] Creating payment link for 1 listing(s)",
+            "[Square] Payment link response missing orderId or url",
+            "[Square] Payment link creation failed",
+          ]);
         },
       );
     });

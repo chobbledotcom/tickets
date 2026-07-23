@@ -802,3 +802,22 @@ src/ui/templates/admin/questions.tsx:264:50  ?? → ||   # `answerCounts?.get(a.
 # only for that value-less case, so every parsed result is identical.
 src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
 src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
+
+# Strict-null cleanup source files — values where `??` and `||` agree, plus
+# assignments and SQL aliases whose mutations cannot change an observable result.
+src/features/admin/calendar-csv.ts:77:55  ?? → ||   # agentNames.get() is string|undefined; "" and the "" fallback are identical
+src/features/admin/calendar-csv.ts:94:59  ?? → ||   # startTime is string|undefined; every falsy value produces the same "" fallback
+src/features/admin/calendar-csv.ts:102:57  ?? → ||   # endTime is string|undefined; every falsy value produces the same "" fallback
+src/shared/db/activityLog.ts:187:69   → "mutated"   # the inserted word is an unused SQLite table alias, so rows, ordering, arguments, and limit are unchanged
+src/shared/forms/rendering.tsx:67:17   → "mutated"   # split("T")[0] always exists, and the empty input returned before this line
+src/shared/forms/rendering.tsx:194:35  || → &&   # publicLinkPath is absent or a function, so both boolean terms always agree
+src/shared/forms/rendering.tsx:209:20  ?? → ||   # beforeHtml is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts:65:22  ?? → ||   # arch is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts:66:31  ?? → ||   # denoVersion is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts:67:45  ?? → ||   # nodeCompatVersion is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts:68:18  ?? → ||   # os is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts:70:43  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
+src/shared/runtime.ts:71:38  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
+src/shared/square.ts:642:18  ?? → ||   # the callback returns true while missing clients and caught errors return null; both operators produce the same boolean
+src/shared/square.ts:717:37  ?? → ||   # locations is an array or undefined; arrays are truthy and undefined takes [] under both operators
+src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
