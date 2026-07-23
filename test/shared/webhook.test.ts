@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
+import { resetEffectiveDomain } from "#shared/config.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   buildWebhookPayload,
@@ -91,6 +92,7 @@ describe("webhook", () => {
 
   describeWithEnv("buildWebhookPayload", { db: true }, () => {
     beforeEach(async () => {
+      resetEffectiveDomain();
       const { settings: s } = await import("#shared/db/settings.ts");
       s.invalidateCache();
     });
