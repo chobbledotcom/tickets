@@ -69,7 +69,7 @@ const loadRefreshContext = async (
 };
 
 const refreshProviderRefunds = async (
-  provider: Pick<PaymentProvider, "isPaymentRefunded">,
+  provider: Pick<PaymentProvider, "inspectPaymentRefund">,
   references: readonly RefundPaymentReference[],
 ): Promise<RefundPaymentReference[]> => {
   const refreshed: RefundPaymentReference[] = [];
@@ -85,9 +85,9 @@ const refreshProviderRefunds = async (
             ? reference
             : {
                 ...reference,
-                providerRefunded: await provider.isPaymentRefunded(
-                  reference.reference,
-                ),
+                providerRefunded:
+                  (await provider.inspectPaymentRefund(reference.reference)) ===
+                  "refunded",
               },
         ),
       )),

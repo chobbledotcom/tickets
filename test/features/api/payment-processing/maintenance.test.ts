@@ -21,6 +21,7 @@ import type {
   BookingIntent,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   getSubrequestRemaining,
@@ -186,6 +187,39 @@ describeWithEnv(
       expect(
         await queryAll("SELECT memo FROM transfers WHERE kind = 'refund_cash'"),
       ).toEqual([{ memo: "capacity_full" }]);
+    });
+
+    test("finishes a refunded Square stage that now reads as unpaid", async () => {
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const intent = intentFor(listing.id);
+      const attendeeId = await stageSession(
+        "scheduled-square-refund",
+        intent,
+        "square",
+      );
+      await beginCheckoutStageRefund(
+        "scheduled-square-refund",
+        testCheckoutRefund("capacity_full"),
+      );
+      await due("scheduled-square-refund");
+      using retrieve = stub(squarePaymentProvider, "retrieveSession", () =>
+        Promise.resolve({
+          ...paidProviderSession("scheduled-square-refund", intent),
+          paymentStatus: "unpaid" as const,
+        }),
+      );
+      using refund = stub(squarePaymentProvider, "refundPayment", () =>
+        Promise.resolve("refunded" as const),
+      );
+
+      await runRecovery();
+
+      expect(
+        await loadCheckoutStageByPaymentSession("scheduled-square-refund"),
+      ).toBeNull();
+      expect(await attendeeExists(attendeeId)).toBe(false);
+      expect(refund.calls).toHaveLength(1);
+      expect(retrieve.calls).toHaveLength(1);
     });
 
     test("refunds a paid recovered stage that can no longer be booked", async () => {

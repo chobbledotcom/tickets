@@ -61,7 +61,10 @@ const processCheckoutStage = async (
     stage.paymentSessionId,
     "recovery",
   );
-  if (session?.paymentStatus !== "paid") {
+  if (
+    session === null ||
+    (stage.state !== "refunding" && session.paymentStatus !== "paid")
+  ) {
     await deferCheckoutStage(stage);
     return;
   }

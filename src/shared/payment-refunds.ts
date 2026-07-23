@@ -7,24 +7,23 @@ import type { PaymentProvider, PaymentRefundResult } from "#shared/payments.ts";
 
 export type RefundProvider = Pick<
   PaymentProvider,
-  "isPaymentRefunded" | "refundPayment" | "refundRetryMode" | "type"
+  "inspectPaymentRefund" | "refundPayment" | "refundRetryMode" | "type"
 >;
 
-const paymentIsRefunded = async (
-  provider: RefundProvider,
-  paymentReference: string,
-): Promise<boolean> => {
-  try {
-    return await provider.isPaymentRefunded(paymentReference);
-  } catch (error) {
-    if (provider.refundRetryMode === "idempotent") throw error;
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Could not inspect ${provider.type} refund ${paymentReference}: ${String(error)}`,
-    });
-    return false;
-  }
-};
+const inspectPaymentRefund =
+  (provider: RefundProvider) =>
+  async (paymentReference: string): Promise<PaymentRefundResult> => {
+    try {
+      return await provider.inspectPaymentRefund(paymentReference);
+    } catch (error) {
+      if (provider.refundRetryMode === "idempotent") throw error;
+      logError({
+        code: ErrorCode.PAYMENT_REFUND,
+        detail: `Could not inspect ${provider.type} refund ${paymentReference}: ${String(error)}`,
+      });
+      return "pending";
+    }
+  };
 
 /** Submit one provider refund, or inspect the durable attempt when POST retries
  * are unsafe. A non-idempotent uncertain result stays pending until its status
@@ -39,9 +38,11 @@ export const refundPaymentAtProvider = async (
     inspectAfterFirst &&
     !(await claimPaymentRefundAttempt(provider.type, paymentReference))
   ) {
-    return (await paymentIsRefunded(provider, paymentReference))
-      ? "refunded"
-      : "pending";
+    const result = await inspectPaymentRefund(provider)(paymentReference);
+    if (result === "failed") {
+      await releasePaymentRefundAttempt(provider.type, paymentReference);
+    }
+    return result;
   }
 
   let result: PaymentRefundResult;
@@ -60,7 +61,7 @@ export const refundPaymentAtProvider = async (
     return result;
   }
   if (result === "pending") return result;
-  if (await paymentIsRefunded(provider, paymentReference)) {
+  if ((await inspectPaymentRefund(provider)(paymentReference)) === "refunded") {
     logDebug("Payment", "Payment already fully refunded");
     return "refunded";
   }

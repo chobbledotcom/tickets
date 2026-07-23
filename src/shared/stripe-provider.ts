@@ -88,9 +88,11 @@ export const stripePaymentProvider: PaymentProvider = {
     stripeApi.closeCheckoutSession(providerCheckoutId),
   createCheckoutSession: createStripeCheckoutSession,
 
-  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
+  async inspectPaymentRefund(
+    paymentReference: string,
+  ): Promise<PaymentRefundResult> {
     const intent = await stripeApi.retrievePaymentIntent(paymentReference);
-    return intent?.latest_charge?.refunded === true;
+    return intent?.latest_charge?.refunded === true ? "refunded" : "failed";
   },
 
   async refundPayment(paymentReference: string): Promise<PaymentRefundResult> {

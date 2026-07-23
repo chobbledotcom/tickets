@@ -17,18 +17,18 @@ type TestProvider = RefundProvider & {
 const provider = (
   options: {
     mode?: RefundProvider["refundRetryMode"];
+    inspection?: PaymentRefundResult | Error;
     refund?: PaymentRefundResult | Error;
-    refunded?: boolean | Error;
   } = {},
 ): TestProvider => {
   const refundCalls: string[] = [];
   const statusCalls: string[] = [];
   return {
-    isPaymentRefunded: (reference) => {
+    inspectPaymentRefund: (reference) => {
       statusCalls.push(reference);
-      return options.refunded instanceof Error
-        ? Promise.reject(options.refunded)
-        : Promise.resolve(options.refunded ?? false);
+      return options.inspection instanceof Error
+        ? Promise.reject(options.inspection)
+        : Promise.resolve(options.inspection ?? "failed");
     },
     refundCalls,
     refundPayment: (reference) => {
@@ -70,7 +70,7 @@ describeWithEnv(
     });
 
     test("confirms an idempotent failed submission was already refunded", async () => {
-      const api = provider({ refund: "failed", refunded: true });
+      const api = provider({ inspection: "refunded", refund: "failed" });
       expect(await refundPaymentAtProvider(api, "already-refunded")).toBe(
         "refunded",
       );
@@ -81,7 +81,7 @@ describeWithEnv(
     });
 
     test("keeps a genuine idempotent failure", async () => {
-      const api = provider({ refund: "failed", refunded: false });
+      const api = provider({ inspection: "failed", refund: "failed" });
       expect(await refundPaymentAtProvider(api, "failed")).toBe("failed");
       expect(api.statusCalls).toEqual(["failed"]);
     });
@@ -95,7 +95,10 @@ describeWithEnv(
       ).rejects.toThrow("submit failed");
       await expect(
         refundPaymentAtProvider(
-          provider({ refund: "failed", refunded: new Error("status failed") }),
+          provider({
+            inspection: new Error("status failed"),
+            refund: "failed",
+          }),
           "status-error",
         ),
       ).rejects.toThrow("status failed");
@@ -103,9 +106,9 @@ describeWithEnv(
 
     test("inspects a pending non-idempotent attempt without another submission", async () => {
       const api = provider({
+        inspection: "pending",
         mode: "inspect-after-first",
         refund: "pending",
-        refunded: false,
       });
       expect(await refundPaymentAtProvider(api, "uncertain")).toBe("pending");
       expect(await refundPaymentAtProvider(api, "uncertain")).toBe("pending");
@@ -115,9 +118,9 @@ describeWithEnv(
 
     test("allows only one simultaneous non-idempotent submission", async () => {
       const api = provider({
+        inspection: "pending",
         mode: "inspect-after-first",
         refund: "pending",
-        refunded: false,
       });
       expect(
         await Promise.all([
@@ -131,9 +134,9 @@ describeWithEnv(
 
     test("finishes a pending non-idempotent attempt after status confirms it", async () => {
       const api = provider({
+        inspection: "refunded",
         mode: "inspect-after-first",
         refund: "pending",
-        refunded: true,
       });
       await refundPaymentAtProvider(api, "later-refunded");
       expect(await refundPaymentAtProvider(api, "later-refunded")).toBe(
@@ -144,6 +147,7 @@ describeWithEnv(
 
     test("keeps uncertain non-idempotent submission and status errors pending", async () => {
       const submitError = provider({
+        inspection: "pending",
         mode: "inspect-after-first",
         refund: new Error("submit uncertain"),
       });
@@ -158,9 +162,9 @@ describeWithEnv(
       expect(submitError.statusCalls).toEqual(["submit-uncertain"]);
 
       const statusError = provider({
+        inspection: new Error("status uncertain"),
         mode: "inspect-after-first",
         refund: "pending",
-        refunded: new Error("status uncertain"),
       });
       await refundPaymentAtProvider(statusError, "status-uncertain");
       expect(
@@ -172,13 +176,33 @@ describeWithEnv(
 
     test("allows a new non-idempotent submission after authoritative failure", async () => {
       const api = provider({
+        inspection: "failed",
         mode: "inspect-after-first",
         refund: "failed",
-        refunded: false,
       });
       expect(await refundPaymentAtProvider(api, "rejected")).toBe("failed");
       expect(await refundPaymentAtProvider(api, "rejected")).toBe("failed");
       expect(api.refundCalls).toEqual(["rejected", "rejected"]);
+    });
+
+    test("surfaces a later non-idempotent failure before allowing another submission", async () => {
+      const api = provider({
+        inspection: "failed",
+        mode: "inspect-after-first",
+        refund: "pending",
+      });
+
+      expect(await refundPaymentAtProvider(api, "later-rejected")).toBe(
+        "pending",
+      );
+      expect(await refundPaymentAtProvider(api, "later-rejected")).toBe(
+        "failed",
+      );
+      expect(await refundPaymentAtProvider(api, "later-rejected")).toBe(
+        "pending",
+      );
+      expect(api.refundCalls).toEqual(["later-rejected", "later-rejected"]);
+      expect(api.statusCalls).toEqual(["later-rejected"]);
     });
   },
 );

@@ -11,8 +11,8 @@ describeWithEnv("admin SumUp refund provider", { db: true }, () => {
     using refund = stub(sumupPaymentProvider, "refundPayment", () =>
       Promise.resolve("pending" as const),
     );
-    using status = stub(sumupPaymentProvider, "isPaymentRefunded", () =>
-      Promise.resolve(false),
+    using status = stub(sumupPaymentProvider, "inspectPaymentRefund", () =>
+      Promise.resolve("pending" as const),
     );
     const candidate = candidateWithReferences(["sumup-admin-payment"]);
 

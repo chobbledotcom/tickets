@@ -123,9 +123,9 @@ export const submitAttendeeEdit = async (
 };
 
 /** POST `/admin/attendees/:id/refresh-payment` with Stripe configured as the
- *  provider and `isPaymentRefunded` stubbed to return `refunded`. The three
+ *  provider and `inspectPaymentRefund` stubbed to return `refunded`. The three
  *  Stripe refresh tests share this exact mock dance. Returns the response and
- *  the args `isPaymentRefunded` was first called with (so a test can confirm
+ *  the args `inspectPaymentRefund` was first called with (so a test can confirm
  *  the payment id was passed). */
 export const refreshPaymentAsStripe = async (
   attendeeId: number,

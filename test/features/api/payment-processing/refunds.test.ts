@@ -42,8 +42,8 @@ const withRefundProvider = async <T>(
   using _status =
     alreadyRefunded === undefined
       ? null
-      : stub(stripePaymentProvider, "isPaymentRefunded", () =>
-          Promise.resolve(alreadyRefunded),
+      : stub(stripePaymentProvider, "inspectPaymentRefund", () =>
+          Promise.resolve(alreadyRefunded ? "refunded" : "failed"),
         );
   return await action();
 };

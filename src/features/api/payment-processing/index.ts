@@ -54,6 +54,33 @@ type SessionProcessor = (
   data: ValidatedSession,
 ) => Promise<PaymentResult>;
 
+type ReplaySession = (
+  sessionId: string,
+  signedListingId: number,
+  paymentReference: string,
+) => Promise<PaymentResult | null>;
+
+type NewSessionProcessor = (
+  sessionId: string,
+  data: ValidatedSession,
+  signedListingId: number,
+) => Promise<PaymentResult>;
+
+const processAfterReplay =
+  (replaySession: ReplaySession) =>
+  (processSession: NewSessionProcessor): SessionProcessor =>
+  async (sessionId: string, data: ValidatedSession): Promise<PaymentResult> => {
+    const signedListingId = data.intent.items[0]!.e;
+    const replay = await replaySession(
+      sessionId,
+      signedListingId,
+      data.session.paymentReference,
+    );
+    return replay !== null
+      ? replay
+      : processSession(sessionId, data, signedListingId);
+  };
+
 const validateStagedItems = async (
   data: ValidatedSession,
 ): Promise<
@@ -83,151 +110,121 @@ const validateStagedItems = async (
   };
 };
 
-const processBalanceSession = async (
-  sessionId: string,
-  data: ValidatedSession,
-  attendeeId: number,
-  signedListingId: number,
-): Promise<PaymentResult> => {
-  const { session, intent, verdict } = data;
-  const replay = await replayBalanceFromLedger(
-    sessionId,
-    attendeeId,
-    signedListingId,
-    session.paymentReference,
-  );
-  if (replay) return replay;
-  if (verdict.verdict === "mismatch") {
-    return refuseMismatch(session, verdict.agreed, signedListingId);
-  }
-  return settleBalanceSession(sessionId, session, intent);
-};
-
-/**
- * Process a session we have just reserved (holding the lock). A signed session
- * either becomes a real ticket or — for ANY reason we can't honour it (charge
- * mismatch, a price edited mid-checkout, a sold-out extra, a full event, a
- * since-deleted listing, or an unexpected error after the charge) — is refunded.
- * Successful staged refunds store replay data atomically with cleanup.
- */
-const processReservedSession: SessionProcessor = async (sessionId, data) => {
-  const { session, intent, verdict } = data;
-  const signedListingId = intent.items[0]!.e;
-
-  // Balance payment: settle the existing attendee rather than create one. A
-  // mismatch can't be "stored" (the attendee already exists), so it refunds-and-
-  // fails as before, idempotently inside the reservation.
-  if (intent.balanceAttendeeId) {
-    return processBalanceSession(
-      sessionId,
-      data,
-      intent.balanceAttendeeId,
-      signedListingId,
-    );
-  }
-
-  // Preflight: the durable ledger is the source of truth for "already honoured".
-  // Replay a session the ledger already records BEFORE any validation, pricing,
-  // or refund path runs below — so a late delivery (after the prunable idempotency
-  // row is gone) never refunds a live ticket via the deleted-listing, price-change,
-  // inactive-listing, or capacity paths, nor double-books it.
-  const replay = await replaySessionFromLedger(
-    sessionId,
-    signedListingId,
-    session.paymentReference,
-  );
-  if (replay) return replay;
-
-  const stage = await loadCheckoutStageByPaymentSession(sessionId);
-  if (!stage) {
-    throw new Error(
-      `Paid session ${sessionId} has no compatible checkout stage`,
-    );
-  }
-  if (stage.state === "refunding") {
-    if (!stage.refund) {
-      throw new Error(`Refunding checkout stage ${sessionId} has no reason`);
+const processBalanceSession = (attendeeId: number): SessionProcessor =>
+  processAfterReplay((id, listingId, reference) =>
+    replayBalanceFromLedger(id, attendeeId, listingId, reference),
+  )(async (sessionId, { session, intent, verdict }, signedListingId) => {
+    if (verdict.verdict === "mismatch") {
+      return refuseMismatch(session, verdict.agreed, signedListingId);
     }
-    return refundStagedBooking(session, signedListingId, stage.refund);
-  }
+    return settleBalanceSession(sessionId, session, intent);
+  });
 
-  // Phase 2: Validate listings.
-  const validation = await validateStagedItems(data);
-  if ("result" in validation) return validation.result;
-  const validatedItems = validation.items.items;
+/** Replay the durable ledger before validation, pricing, or refund work so a
+ * late delivery can never refund or double-book an already honoured ticket. */
+const processNewBookingSession = processAfterReplay(replaySessionFromLedger)(
+  async (sessionId, data, signedListingId) => {
+    const { session, intent, verdict } = data;
 
-  // Resolve the applied modifiers once (re-fetched by id from the database);
-  // both the price re-derivation and the stock consumption use the same specs.
-  // Every trigger — automatic, code, opt-in add-on, and answer — rides the same
-  // metadata refs and is re-fetched by id here, re-checking the visit gate and
-  // re-deriving the amount so a tampered checkout can't dodge a surcharge.
-  const visits = await buyerVisits(intent.email, intent.phone);
-  const modifierSpecs = await specsFromRefs(intent.modifiers, { visits });
-  const pricingIntent = checkoutIntentForSession(
-    intent,
-    validatedItems,
-    modifierSpecs,
-  );
-  const pricedOrder: PricedOrder = priceCheckout(pricingIntent);
-  // A signed-by-us payment we already know we can't honour at the charged amount
-  // or whose listing/modifier/answer price changed is refunded.
-  const knownRefund =
-    verdict.verdict === "mismatch"
-      ? chargeMismatchSpec(session, verdict.agreed)
-      : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
-  if (knownRefund) {
-    return refundStagedBooking(session, signedListingId, knownRefund);
-  }
+    const stage = await loadCheckoutStageByPaymentSession(sessionId);
+    if (!stage) {
+      throw new Error(
+        `Paid session ${sessionId} has no compatible checkout stage`,
+      );
+    }
+    if (stage.state === "refunding") {
+      if (!stage.refund) {
+        throw new Error(`Refunding checkout stage ${sessionId} has no reason`);
+      }
+      return refundStagedBooking(session, signedListingId, stage.refund);
+    }
 
-  // Otherwise try to honour it at the charged price. An uncertain atomic result
-  // is checked on the primary and refunded only when state proves rollback.
-  const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
-  const complete = (
-    entries: Parameters<typeof completePaidBooking>[0],
-    ticketTokens: string[],
-  ) =>
-    completePaidBooking(
-      entries,
+    // Phase 2: Validate listings.
+    const validation = await validateStagedItems(data);
+    if ("result" in validation) return validation.result;
+    const validatedItems = validation.items.items;
+
+    // Resolve the applied modifiers once (re-fetched by id from the database);
+    // both the price re-derivation and the stock consumption use the same specs.
+    // Every trigger — automatic, code, opt-in add-on, and answer — rides the same
+    // metadata refs and is re-fetched by id here, re-checking the visit gate and
+    // re-deriving the amount so a tampered checkout can't dodge a surcharge.
+    const visits = await buyerVisits(intent.email, intent.phone);
+    const modifierSpecs = await specsFromRefs(intent.modifiers, { visits });
+    const pricingIntent = checkoutIntentForSession(
       intent,
-      codeSpecs,
-      pricedOrder.modifierApplications,
-      ticketTokens,
-    );
-  const honoured = await createAttendeeForSession(
-    session,
-    intent,
-    validatedItems,
-    pricingIntent,
-    pricedOrder,
-    stage,
-  );
-  if (honoured.ok === null) {
-    return recoverOrRefundUnexpectedCreate({
-      complete,
-      error: honoured.error,
-      intent,
-      session,
-      ticketToken: stage.ticketToken,
       validatedItems,
-    });
-  }
-  if (!honoured.ok) {
-    return refundStagedBooking(
-      session,
-      signedListingId,
-      specForFailure(honoured),
+      modifierSpecs,
     );
-  }
+    const pricedOrder: PricedOrder = priceCheckout(pricingIntent);
+    // A signed-by-us payment we already know we can't honour at the charged amount
+    // or whose listing/modifier/answer price changed is refunded.
+    const knownRefund =
+      verdict.verdict === "mismatch"
+        ? chargeMismatchSpec(session, verdict.agreed)
+        : paidPricingRefund(validatedItems, pricedOrder, verdict.agreed);
+    if (knownRefund) {
+      return refundStagedBooking(session, signedListingId, knownRefund);
+    }
 
-  // Success: a real ticket, finalized atomically in the creation transaction.
-  const createdEntries = await committedEntries(
-    stage.attendeeId,
-    stage.ticketToken,
-    session,
-    intent,
-    validatedItems,
-  );
-  return complete(createdEntries, [stage.ticketToken]);
+    // Otherwise try to honour it at the charged price. An uncertain atomic result
+    // is checked on the primary and refunded only when state proves rollback.
+    const codeSpecs = modifierSpecs.filter((spec) => spec.trigger === "code");
+    const complete = (
+      entries: Parameters<typeof completePaidBooking>[0],
+      ticketTokens: string[],
+    ) =>
+      completePaidBooking(
+        entries,
+        intent,
+        codeSpecs,
+        pricedOrder.modifierApplications,
+        ticketTokens,
+      );
+    const honoured = await createAttendeeForSession(
+      session,
+      intent,
+      validatedItems,
+      pricingIntent,
+      pricedOrder,
+      stage,
+    );
+    if (honoured.ok === null) {
+      return recoverOrRefundUnexpectedCreate({
+        complete,
+        error: honoured.error,
+        intent,
+        session,
+        ticketToken: stage.ticketToken,
+        validatedItems,
+      });
+    }
+    if (!honoured.ok) {
+      return refundStagedBooking(
+        session,
+        signedListingId,
+        specForFailure(honoured),
+      );
+    }
+
+    // Success: a real ticket, finalized atomically in the creation transaction.
+    const createdEntries = await committedEntries(
+      stage.attendeeId,
+      stage.ticketToken,
+      session,
+      intent,
+      validatedItems,
+    );
+    return complete(createdEntries, [stage.ticketToken]);
+  },
+);
+
+/** Dispatch a reserved payment to its balance or staged-booking path. */
+const processReservedSession: SessionProcessor = async (sessionId, data) => {
+  const { intent } = data;
+  return intent.balanceAttendeeId
+    ? processBalanceSession(intent.balanceAttendeeId)(sessionId, data)
+    : processNewBookingSession(sessionId, data);
 };
 
 const processClaimedSession =

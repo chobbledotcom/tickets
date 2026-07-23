@@ -1,3 +1,4 @@
+// test-groups: run-alone - cached guide output must not race global env changes.
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
@@ -19,7 +20,13 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
   // The guide's default rendering is identical in every test (static help
   // content from the standard fixture), so it is rendered once and shared;
   // only the tests that alter config below fetch their own copy.
-  const guide = cachedAdminPage("/admin/guide");
+  const cachedGuide = cachedAdminPage("/admin/guide");
+  const guide = async (
+    ...expected: Parameters<typeof cachedGuide>
+  ): Promise<string> => {
+    using _env = withEnv({ CAN_BUILD_SITES: undefined });
+    return cachedGuide(...expected);
+  };
 
   describe("GET /admin/guide", () => {
     testRequiresAuth("/admin/guide");

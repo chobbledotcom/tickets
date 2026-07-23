@@ -1,12 +1,13 @@
 /* jscpd:ignore-start */
-import { LibsqlError } from "@libsql/client";
+import { createClient, LibsqlError } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll, setDb } from "#shared/db/client.ts";
+import { requireEnv } from "#shared/env.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
   attendeeIds,
@@ -42,13 +43,14 @@ describeWithEnv(
         } as never),
       );
       const db = getDb();
-      const execute = db.execute.bind(db);
       const outage = new LibsqlError(
         "Server returned HTTP status 503",
         "SERVER_ERROR",
       );
       let failedReads = 0;
-      const failLedgerRead = stub(db, "execute", (statement) => {
+      const failingDb = createClient({ url: requireEnv("DB_URL") });
+      const execute = failingDb.execute.bind(failingDb);
+      const failLedgerRead = stub(failingDb, "execute", (statement) => {
         if (
           JSON.stringify(statement).includes("FROM transfers WHERE event_group")
         ) {
@@ -57,6 +59,7 @@ describeWithEnv(
         }
         return execute(statement);
       });
+      setDb(failingDb);
 
       try {
         await expect(
@@ -66,6 +69,8 @@ describeWithEnv(
         ).rejects.toBe(outage);
       } finally {
         failLedgerRead.restore();
+        setDb(db);
+        failingDb.close();
       }
 
       expect(failedReads).toBe(4);

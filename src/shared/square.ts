@@ -583,19 +583,44 @@ const fetchOrder = async (
   };
 };
 
+/** Read one payment without turning provider errors into a missing payment. */
+const fetchPayment = async (
+  client: SquareClient,
+  paymentId: string,
+): Promise<SquarePayment | null> => {
+  const payment = (await client.payments.get({ paymentId })).payment;
+  if (!payment) return null;
+  return {
+    amountMoney: {
+      amount: payment.amountMoney?.amount as bigint | undefined,
+      currency: payment.amountMoney?.currency as string | undefined,
+    },
+    id: payment.id,
+    orderId: payment.orderId,
+    refundedMoney: payment.refundedMoney
+      ? {
+          amount: payment.refundedMoney.amount as bigint | undefined,
+          currency: payment.refundedMoney.currency as string | undefined,
+        }
+      : undefined,
+    status: payment.status,
+  };
+};
+
 export const retrieveCompletedPaymentForOrder = async (
   order: SquareOrder,
 ): Promise<CompletedSquarePayment | null> =>
   findCompletedSquarePayment(squareApi.retrievePayment)(order);
 
 const squareCheckoutState = async (
+  client: SquareClient,
   order: SquareOrder,
 ): Promise<CheckoutCloseResult | null> => {
   if (order.state === "COMPLETED") return "paid";
   const paymentId = squareCloseTenderPaymentId(order);
   if (
     paymentId !== null &&
-    (await retrieveCompletedPaymentForOrder({
+    (await findCompletedSquarePayment((id) => fetchPayment(client, id))({
       ...order,
       tenders: [{ paymentId }],
     }))
@@ -633,7 +658,7 @@ export const squareApi: {
 
     const current = await fetchOrder(client, orderId);
     if (!current) throw new Error(`Square order ${orderId} not found`);
-    const currentState = await squareCheckoutState(current);
+    const currentState = await squareCheckoutState(client, current);
     if (currentState) return currentState;
 
     let deleted: Awaited<
@@ -646,7 +671,10 @@ export const squareApi: {
     } catch (err) {
       const afterFailure = await fetchOrder(client, orderId);
       if (afterFailure) {
-        const afterFailureState = await squareCheckoutState(afterFailure);
+        const afterFailureState = await squareCheckoutState(
+          client,
+          afterFailure,
+        );
         if (afterFailureState) return afterFailureState;
       }
       throw err;
@@ -771,26 +799,10 @@ export const squareApi: {
 
   /** Retrieve a payment by ID */
   retrievePayment: (paymentId: string): Promise<SquarePayment | null> =>
-    withClient(async (client) => {
-      const response = await client.payments.get({ paymentId });
-      const payment = response.payment;
-      if (!payment) return null;
-      return {
-        amountMoney: {
-          amount: payment.amountMoney?.amount as bigint | undefined,
-          currency: payment.amountMoney?.currency as string | undefined,
-        },
-        id: payment.id,
-        orderId: payment.orderId,
-        refundedMoney: payment.refundedMoney
-          ? {
-              amount: payment.refundedMoney.amount as bigint | undefined,
-              currency: payment.refundedMoney.currency as string | undefined,
-            }
-          : undefined,
-        status: payment.status,
-      };
-    }, ErrorCode.SQUARE_SESSION),
+    withClient(
+      (client) => fetchPayment(client, paymentId),
+      ErrorCode.SQUARE_SESSION,
+    ),
 
   /** Test Square connection: verify access token, location, and webhook key */
   testSquareConnection: async (): Promise<SquareConnectionTestResult> => {

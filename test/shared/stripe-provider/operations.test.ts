@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
+import type { PaymentRefundResult } from "#shared/payments.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
 import type { StripeWebhookEvent } from "#shared/stripe/webhook.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -195,26 +196,26 @@ describeStripe("stripe-provider", () => {
     });
   });
 
-  describe("isPaymentRefunded", () => {
-    /** isPaymentRefunded should return `expected` for the given intent lookup. */
+  describe("inspectPaymentRefund", () => {
+    /** Refund inspection should return `expected` for the given intent lookup. */
     const expectRefunded = (
       client: Awaited<ReturnType<typeof stripeClient>>,
       retrieveImpl: Awaited<
         ReturnType<typeof stripeClient>
       >["paymentIntents"]["retrieveWithLatestCharge"],
-      expected: boolean,
+      expected: PaymentRefundResult,
     ) =>
       withMocks(
         () =>
           stub(client.paymentIntents, "retrieveWithLatestCharge", retrieveImpl),
         async () => {
           const result =
-            await stripePaymentProvider.isPaymentRefunded("pi_check");
+            await stripePaymentProvider.inspectPaymentRefund("pi_check");
           expect(result).toBe(expected);
         },
       );
 
-    test("returns true when latest_charge is refunded", async () => {
+    test("returns refunded when latest_charge is refunded", async () => {
       const client = await stripeClient();
       await expectRefunded(
         client,
@@ -223,11 +224,11 @@ describeStripe("stripe-provider", () => {
             id: "pi_refunded",
             latest_charge: { refunded: true },
           }),
-        true,
+        "refunded",
       );
     });
 
-    test("returns false when latest_charge is not refunded", async () => {
+    test("returns failed when latest_charge is not refunded", async () => {
       const client = await stripeClient();
       await expectRefunded(
         client,
@@ -236,16 +237,16 @@ describeStripe("stripe-provider", () => {
             id: "pi_not_refunded",
             latest_charge: { refunded: false },
           }),
-        false,
+        "failed",
       );
     });
 
-    test("returns false when payment intent not found", async () => {
+    test("returns failed when payment intent not found", async () => {
       const client = await stripeClient();
       await expectRefunded(
         client,
         () => Promise.reject(new Error("Not found")),
-        false,
+        "failed",
       );
     });
   });

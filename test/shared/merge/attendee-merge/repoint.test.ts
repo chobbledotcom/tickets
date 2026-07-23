@@ -1,7 +1,11 @@
 /** Payment repointing for the split attendee merge service test suite. */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import {
+  attendeeAccount,
+  revenueAccount,
+  WORLD,
+} from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
@@ -43,14 +47,37 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     const { result } = await runMerge({ source, target });
 
     expect(result.success).toBe(true);
-    // The source's legs now belong to the target; nothing strands on the
-    // deleted source attendee.
-    expect((await transfersByAccount(attendeeAccount(source.id))).length).toBe(
-      0,
-    );
-    expect((await transfersByAccount(attendeeAccount(target.id))).length).toBe(
-      2,
-    );
+    expect(await transfersByAccount(attendeeAccount(source.id))).toEqual([]);
+    const targetTransfers = (
+      await transfersByAccount(attendeeAccount(target.id))
+    )
+      .map(({ amount, destination, eventGroup, kind, reference, source }) => ({
+        amount,
+        destination,
+        eventGroup,
+        kind,
+        reference,
+        source,
+      }))
+      .sort((a, b) => a.reference.localeCompare(b.reference));
+    expect(targetTransfers).toEqual([
+      {
+        amount: 5000,
+        destination: attendeeAccount(target.id),
+        eventGroup: "evt",
+        kind: "payment",
+        reference: "pay-evt",
+        source: WORLD,
+      },
+      {
+        amount: 5000,
+        destination: revenueAccount(sourceListing.id),
+        eventGroup: "evt",
+        kind: "sale",
+        reference: "sale-evt",
+        source: attendeeAccount(target.id),
+      },
+    ]);
   });
 
   test("repoints the source's provider payment references onto the target", async () => {
@@ -129,11 +156,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     const { result } = await runMerge({ source, target });
 
     expect(result.success).toBe(true);
-    // The moved package booking keeps its group, so the merged attendee's
-    // ticket still renders/hides as the package rather than a bare listing.
-    const moved = (await getBookings(target.id)).find(
-      (b) => b.listing_id === member.id,
-    );
-    expect(moved?.package_group_id).toBe(group.id);
+    const moved = (await getBookings(target.id))
+      .filter(({ listing_id }) => listing_id === member.id)
+      .map(({ listing_id, package_group_id }) => ({
+        listingId: listing_id,
+        packageGroupId: package_group_id,
+      }));
+    expect(moved).toEqual([{ listingId: member.id, packageGroupId: group.id }]);
   });
 });

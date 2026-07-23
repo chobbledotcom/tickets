@@ -188,16 +188,18 @@ export const squarePaymentProvider: PaymentProvider = {
     });
   },
 
-  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
+  async inspectPaymentRefund(
+    paymentReference: string,
+  ): Promise<PaymentRefundResult> {
     const payment = await retrievePayment(paymentReference);
-    if (!payment) return false;
+    if (!payment) return "failed";
     // Fully refunded only: a partial refund leaves the customer still charged,
     // so it must not count as refunded (matches Stripe's charge.refunded and
     // SumUp's REFUNDED status, and keeps the refund-idempotency fallback honest).
     const charged = payment.amountMoney?.amount;
     const refunded = payment.refundedMoney?.amount;
-    if (charged === undefined || refunded === undefined) return false;
-    return charged > BigInt(0) && refunded >= charged;
+    if (charged === undefined || refunded === undefined) return "failed";
+    return charged > BigInt(0) && refunded >= charged ? "refunded" : "failed";
   },
 
   refundPayment(paymentReference: string): Promise<PaymentRefundResult> {

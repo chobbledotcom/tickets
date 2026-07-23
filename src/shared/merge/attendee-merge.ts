@@ -6,7 +6,7 @@
  * 2. applyAttendeeMerge: apply explicit decisions from the admin
  */
 
-import { fieldById, filter, map, mapParallel, reduce } from "#fp";
+import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import {
   attendeeAccount,
   revenueAccount,
@@ -376,55 +376,6 @@ const buildBookingDiffItems = (
 // validateAttendeeMergeDecision
 // ---------------------------------------------------------------------------
 
-/** Validate that the admin's decisions cover all required conflicts */
-export const validateAttendeeMergeDecision = (
-  diff: AttendeeMergeDiff,
-  decision: AttendeeMergeDecisionInput,
-): AttendeeMergeValidationResult => {
-  const errors: string[] = [];
-
-  // Check version match
-  if (decision.version !== diff.version) {
-    errors.push(
-      "The merge preview is out of date. Please reload and try again.",
-    );
-    return { errors, valid: false };
-  }
-
-  // Check answer decisions for conflicts
-  const conflictingAnswers = filter(
-    (a: AttendeeMergeDiffAnswerItem) => a.conflict,
-  )(diff.answerItems);
-  for (const item of conflictingAnswers) {
-    const key = String(item.questionId);
-    const choice = decision.answers[key];
-    if (!choice) {
-      errors.push(`Missing decision for question: ${item.questionText}`);
-    }
-  }
-
-  // Check booking decisions for conflicts — both the row choice AND, when the
-  // booking the operator discards carries money, the decision-17 money choice
-  // (credit vs write-off). Neither is ever defaulted silently.
-  for (const { item, key } of conflictBookingEntries(diff)) {
-    const label = `Listing #${item.listingId}${
-      item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""
-    }`;
-    const bookingChoice = decision.bookings[key];
-    if (!bookingChoice) {
-      errors.push(`Missing decision for booking: ${label}`);
-      continue;
-    }
-    if (discardedSaleAmount(item, bookingChoice) > 0 && !decision.money[key]) {
-      errors.push(`Missing money decision for booking: ${label}`);
-    }
-  }
-
-  errors.push(...strandedPaymentErrors(diff, decision));
-
-  return errors.length > 0 ? { errors, valid: false } : { valid: true };
-};
-
 /** The `sale` amount the booking choice DISCARDS — the source booking for
  *  keep_target/skip_source, the target booking for take_source — so decision 17
  *  only demands a money choice when real money is being set aside. */
@@ -434,6 +385,64 @@ const discardedSaleAmount = (
 ): number => {
   if (bookingChoice === "take_source") return item.targetSaleAmount;
   return item.sourceSaleAmount;
+};
+
+/** Missing decisions for conflicting answers, in diff order. */
+const answerDecisionErrors = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): string[] =>
+  mapNotNullish((item: AttendeeMergeDiffAnswerItem) =>
+    item.conflict && !decision.answers[String(item.questionId)]
+      ? `Missing decision for question: ${item.questionText}`
+      : null,
+  )(diff.answerItems);
+
+type ConflictBookingEntry = ReturnType<typeof conflictBookingEntries>[number];
+
+/** The one missing decision error for a booking conflict, or null when its row
+ * and any required money choice are both present. */
+const bookingDecisionError =
+  (decision: AttendeeMergeDecisionInput) =>
+  ({ item, key }: ConflictBookingEntry): string | null => {
+    const label = `Listing #${item.listingId}${
+      item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""
+    }`;
+    const bookingChoice = decision.bookings[key];
+    if (!bookingChoice) return `Missing decision for booking: ${label}`;
+    return discardedSaleAmount(item, bookingChoice) > 0 && !decision.money[key]
+      ? `Missing money decision for booking: ${label}`
+      : null;
+  };
+
+/** Missing row and money decisions for booking conflicts, in diff order. */
+const bookingDecisionErrors = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): string[] =>
+  mapNotNullish(bookingDecisionError(decision))(conflictBookingEntries(diff));
+
+/** Validate that the admin's decisions cover all required conflicts */
+export const validateAttendeeMergeDecision = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): AttendeeMergeValidationResult => {
+  if (decision.version !== diff.version) {
+    return {
+      errors: [
+        "The merge preview is out of date. Please reload and try again.",
+      ],
+      valid: false,
+    };
+  }
+
+  const errors = [
+    ...answerDecisionErrors(diff, decision),
+    ...bookingDecisionErrors(diff, decision),
+    ...strandedPaymentErrors(diff, decision),
+  ];
+
+  return errors.length > 0 ? { errors, valid: false } : { valid: true };
 };
 
 /** Whether a merge decision results in the source booking being copied to the

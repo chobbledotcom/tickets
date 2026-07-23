@@ -83,6 +83,20 @@ const createSumupCheckoutSession = makeCreateCheckoutSession(
   }),
 );
 
+const sumupRefundResult = (
+  paymentReference: string,
+  status: string | null,
+): PaymentRefundResult => {
+  if (status === "REFUNDED") return "refunded";
+  if (status === "REFUND_FAILED") return "failed";
+  if (status === null || status === "SUCCESSFUL" || status === "PENDING") {
+    return "pending";
+  }
+  throw new Error(
+    `Unknown SumUp refund transaction status for ${paymentReference}: ${status}`,
+  );
+};
+
 /** SumUp payment provider implementation. */
 export const sumupPaymentProvider: PaymentProvider = {
   checkoutWebhookEvents: {
@@ -99,20 +113,20 @@ export const sumupPaymentProvider: PaymentProvider = {
   },
   createCheckoutSession: createSumupCheckoutSession,
 
-  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
-    return (await getTransactionStatus(paymentReference)) === "REFUNDED";
+  async inspectPaymentRefund(
+    paymentReference: string,
+  ): Promise<PaymentRefundResult> {
+    return sumupRefundResult(
+      paymentReference,
+      await getTransactionStatus(paymentReference),
+    );
   },
 
   async refundPayment(paymentReference: string): Promise<PaymentRefundResult> {
     if (!(await refundTransaction(paymentReference))) return "failed";
-    const status = await getTransactionStatus(paymentReference);
-    if (status === "REFUNDED") return "refunded";
-    if (status === null || status === "SUCCESSFUL" || status === "PENDING") {
-      return "pending";
-    }
-    if (status === "REFUND_FAILED") return "failed";
-    throw new Error(
-      `Unknown SumUp refund transaction status for ${paymentReference}: ${status}`,
+    return sumupRefundResult(
+      paymentReference,
+      await getTransactionStatus(paymentReference),
     );
   },
   refundRetryMode: "inspect-after-first",

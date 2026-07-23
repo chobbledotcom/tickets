@@ -4,6 +4,7 @@ import { type Spy, spy, stub } from "@std/testing/mock";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
+import type { PaymentRefundResult } from "#shared/payments.ts";
 import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { expectUnpaidSquareSession } from "#test/shared/square/session-assertions.ts";
@@ -364,16 +365,16 @@ describe("square-provider", () => {
     });
   });
 
-  describe("isPaymentRefunded", () => {
+  describe("inspectPaymentRefund", () => {
     const REFUND_CASES: {
       name: string;
       payment: SquarePayment;
-      expected: boolean;
+      expected: PaymentRefundResult;
       id?: string;
     }[] = [
       {
-        expected: true,
-        name: "returns true when fully refunded",
+        expected: "refunded",
+        name: "returns refunded when fully refunded",
         payment: {
           amountMoney: money(1000),
           id: "pay_123",
@@ -382,8 +383,8 @@ describe("square-provider", () => {
         },
       },
       {
-        expected: true,
-        name: "returns true when a one-cent payment is fully refunded",
+        expected: "refunded",
+        name: "returns refunded when a one-cent payment is fully refunded",
         payment: {
           amountMoney: money(1),
           id: "pay_123",
@@ -392,8 +393,8 @@ describe("square-provider", () => {
         },
       },
       {
-        expected: false,
-        name: "returns false when only partially refunded",
+        expected: "failed",
+        name: "returns failed when only partially refunded",
         payment: {
           amountMoney: money(1000),
           id: "pay_123",
@@ -404,8 +405,8 @@ describe("square-provider", () => {
       {
         // Without amountMoney we cannot confirm a full refund, so a present
         // refundedMoney must not be treated as fully refunded.
-        expected: false,
-        name: "returns false when the charged amount is unknown",
+        expected: "failed",
+        name: "returns failed when the charged amount is unknown",
         payment: {
           id: "pay_123",
           refundedMoney: money(1000),
@@ -413,8 +414,8 @@ describe("square-provider", () => {
         },
       },
       {
-        expected: false,
-        name: "returns false when refundedMoney is zero",
+        expected: "failed",
+        name: "returns failed when refundedMoney is zero",
         payment: {
           amountMoney: money(1000),
           id: "pay_123",
@@ -423,14 +424,14 @@ describe("square-provider", () => {
         },
       },
       {
-        expected: false,
+        expected: "failed",
         id: "pay_missing",
-        name: "returns false when payment not found",
+        name: "returns failed when payment not found",
         payment: null,
       },
       {
-        expected: false,
-        name: "returns false when refundedMoney is missing",
+        expected: "failed",
+        name: "returns failed when refundedMoney is missing",
         payment: {
           amountMoney: money(1000),
           id: "pay_123",
@@ -445,7 +446,7 @@ describe("square-provider", () => {
           () =>
             stub(squareApi, "retrievePayment", () => Promise.resolve(payment)),
           async () => {
-            const result = await squarePaymentProvider.isPaymentRefunded(
+            const result = await squarePaymentProvider.inspectPaymentRefund(
               id ?? "pay_123",
             );
             expect(result).toBe(expected);

@@ -7,6 +7,18 @@ import { checkoutIntent } from "#test-utils/checkout.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 describe("Square hosted checkout closing", () => {
+  const withSquareClient = (
+    client: unknown,
+    body: () => void | Promise<void>,
+  ): Promise<void> =>
+    withMocks(
+      () =>
+        stub(squareApi, "getSquareClient", () =>
+          Promise.resolve(client as never),
+        ),
+      body,
+    );
+
   const withSquareOrderStates = (
     states: string[],
     deleteLink: () => Promise<unknown>,
@@ -30,16 +42,11 @@ describe("Square hosted checkout closing", () => {
       checkout: { paymentLinks: { delete: remove } },
       orders: { get },
     };
-    return withMocks(
-      () =>
-        stub(squareApi, "getSquareClient", () =>
-          Promise.resolve(client as never),
-        ),
-      () =>
-        body({
-          deleteLink: () => remove.calls.length,
-          order: () => get.calls.length,
-        }),
+    return withSquareClient(client, () =>
+      body({
+        deleteLink: () => remove.calls.length,
+        order: () => get.calls.length,
+      }),
     );
   };
 
@@ -157,6 +164,16 @@ describe("Square hosted checkout closing", () => {
 
   test("does not delete an open order whose tender payment completed", () => {
     const remove = spy(() => Promise.resolve({}));
+    const payment = spy(() =>
+      Promise.resolve({
+        payment: {
+          amountMoney: { amount: BigInt(1000), currency: "GBP" },
+          id: "payment_paid",
+          orderId: "order_paid",
+          status: "COMPLETED",
+        },
+      }),
+    );
     const client = {
       checkout: { paymentLinks: { delete: remove } },
       orders: {
@@ -170,28 +187,51 @@ describe("Square hosted checkout closing", () => {
             },
           }),
       },
+      payments: { get: payment },
     };
-    return withMocks(
-      () => ({
-        client: stub(squareApi, "getSquareClient", () =>
-          Promise.resolve(client as never),
-        ),
-        payment: stub(squareApi, "retrievePayment", () =>
-          Promise.resolve({
-            amountMoney: { amount: BigInt(1000), currency: "GBP" },
-            id: "payment_paid",
-            orderId: "order_paid",
-            status: "COMPLETED",
-          }),
-        ),
+    return withSquareClient(client, async () => {
+      expect(await squareApi.closePaymentLink("link_paid", "order_paid")).toBe(
+        "paid",
+      );
+      expect(remove.calls.length).toBe(0);
+      expect(payment.calls).toHaveLength(1);
+    });
+  });
+
+  test("keeps an open order when its tender payment cannot be read", async () => {
+    const remove = spy(() =>
+      Promise.resolve({
+        cancelledOrderId: "order_unknown",
+        id: "link_unknown",
       }),
-      async () => {
-        expect(
-          await squareApi.closePaymentLink("link_paid", "order_paid"),
-        ).toBe("paid");
-        expect(remove.calls.length).toBe(0);
-      },
     );
+    const payments = spy(() =>
+      Promise.reject(new Error("payment unavailable")),
+    );
+    const client = {
+      checkout: { paymentLinks: { delete: remove } },
+      orders: {
+        get: () =>
+          Promise.resolve({
+            order: {
+              id: "order_unknown",
+              state: "OPEN",
+              tenders: [{ paymentId: "payment_unknown" }],
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
+            },
+          }),
+      },
+      payments: { get: payments },
+    };
+
+    await withSquareClient(client, async () => {
+      await expect(
+        squareApi.closePaymentLink("link_unknown", "order_unknown"),
+      ).rejects.toThrow("payment unavailable");
+    });
+
+    expect(payments.calls).toHaveLength(1);
+    expect(remove.calls).toHaveLength(0);
   });
 
   test("bounds a failed close to five provider calls", async () => {
@@ -214,17 +254,11 @@ describe("Square hosted checkout closing", () => {
       orders: { get: orders },
       payments: { get: payments },
     };
-    await withMocks(
-      () =>
-        stub(squareApi, "getSquareClient", () =>
-          Promise.resolve(client as never),
-        ),
-      async () => {
-        await expect(
-          squareApi.closePaymentLink("link_budget", "order_budget"),
-        ).rejects.toThrow("delete failed");
-      },
-    );
+    await withSquareClient(client, async () => {
+      await expect(
+        squareApi.closePaymentLink("link_budget", "order_budget"),
+      ).rejects.toThrow("delete failed");
+    });
 
     expect(orders.calls).toHaveLength(2);
     expect(payments.calls).toHaveLength(2);
@@ -249,17 +283,11 @@ describe("Square hosted checkout closing", () => {
       },
       payments: { get: payment },
     };
-    await withMocks(
-      () =>
-        stub(squareApi, "getSquareClient", () =>
-          Promise.resolve(client as never),
-        ),
-      async () => {
-        await expect(
-          squareApi.closePaymentLink("link_many", "order_many"),
-        ).rejects.toThrow("multiple tenders");
-      },
-    );
+    await withSquareClient(client, async () => {
+      await expect(
+        squareApi.closePaymentLink("link_many", "order_many"),
+      ).rejects.toThrow("multiple tenders");
+    });
 
     expect(payment.calls).toHaveLength(0);
     expect(remove.calls).toHaveLength(0);
@@ -309,17 +337,11 @@ describe("Square hosted checkout closing", () => {
       checkout: { paymentLinks: { delete: spy() } },
       orders: { get: () => Promise.resolve({ order: null }) },
     };
-    return withMocks(
-      () =>
-        stub(squareApi, "getSquareClient", () =>
-          Promise.resolve(client as never),
-        ),
-      async () => {
-        await expect(
-          squareApi.closePaymentLink("link", "missing"),
-        ).rejects.toThrow("Square order missing not found");
-      },
-    );
+    return withSquareClient(client, async () => {
+      await expect(
+        squareApi.closePaymentLink("link", "missing"),
+      ).rejects.toThrow("Square order missing not found");
+    });
   });
 
   test("throws when the Square order has no total", () => {
@@ -329,17 +351,11 @@ describe("Square hosted checkout closing", () => {
         get: () => Promise.resolve({ order: { id: "order", state: "OPEN" } }),
       },
     };
-    return withMocks(
-      () =>
-        stub(squareApi, "getSquareClient", () =>
-          Promise.resolve(client as never),
-        ),
-      async () => {
-        await expect(
-          squareApi.closePaymentLink("link", "order"),
-        ).rejects.toThrow("Square order order has no total");
-      },
-    );
+    return withSquareClient(client, async () => {
+      await expect(squareApi.closePaymentLink("link", "order")).rejects.toThrow(
+        "Square order order has no total",
+      );
+    });
   });
 
   test("throws when Square is not configured", () =>

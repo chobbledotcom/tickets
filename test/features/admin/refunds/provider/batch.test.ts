@@ -37,7 +37,7 @@ const pendingCandidate = (
 /** Provider that fails every live refund and throws for references in
  * `throws`; used to drive the failed/errored tally branches. */
 const failingProvider = (throws: Set<string>) => ({
-  isPaymentRefunded: () => Promise.resolve(false),
+  inspectPaymentRefund: () => Promise.resolve("failed" as const),
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve("failed" as const);
@@ -100,7 +100,7 @@ describeWithEnv(
     test("counts an accepted refund as pending", async () => {
       const counts = await processRefundBatch(
         {
-          isPaymentRefunded: () => Promise.resolve(false),
+          inspectPaymentRefund: () => Promise.resolve("failed" as const),
           refundPayment: () => Promise.resolve("pending"),
           refundRetryMode: "idempotent",
           type: "stripe",

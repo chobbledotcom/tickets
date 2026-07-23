@@ -23,17 +23,9 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { withLocalStorageEnabled } from "#test-utils/mocks.ts";
+import { inputFor } from "./listings-actions/helpers.ts";
 
 setupTestEncryptionKey();
-
-/** Build a full ListingInput from overrides for a validateListingInput call. */
-const inputFor = (overrides: Partial<ListingInput>): ListingInput => ({
-  ...testListingInput(overrides),
-  slug: "some-slug",
-  // Hand-crafted fixture stand-in for the blind index — test cast.
-  slugIndex: "some-index" as BlindIndex,
-  ...overrides,
-});
 
 describe("listingInputToEdge", () => {
   test("defaults every optional field for a sparse input", () => {
@@ -304,7 +296,7 @@ describeWithEnv("toggleListingActive", { db: true }, () => {
     const listing = await createTestListing({ name: "Toggle Off" });
     const withCount = (await getListingWithCount(listing.id))!;
     const result = await toggleListingActive(listing.id, withCount, false);
-    expect("updated" in result && result.updated.active).toBe(false);
+    expect(result).toMatchObject({ updated: { active: false } });
     const log = await getAllActivityLog();
     expect(
       log.some(
@@ -319,7 +311,7 @@ describeWithEnv("toggleListingActive", { db: true }, () => {
     await listingsTable.update(listing.id, { active: false });
     const withCount = (await getListingWithCount(listing.id))!;
     const result = await toggleListingActive(listing.id, withCount, true);
-    expect("updated" in result && result.updated.active).toBe(true);
+    expect(result).toMatchObject({ updated: { active: true } });
     const log = await getAllActivityLog();
     expect(
       log.some(
@@ -349,74 +341,5 @@ describeWithEnv("performListingDelete", { db: true }, () => {
       const log = await getAllActivityLog();
       expect(log.some((e) => e.message.includes("Delete Me"))).toBe(true);
     });
-  });
-});
-
-describeWithEnv("validateListingInput edge rules", { db: true }, () => {
-  test("accepts maxPrice at unit price + 1.00 for a pay-more listing", async () => {
-    // minPrice is unitPrice + 100 (not × 100); 2000 clears 1000 + 100.
-    const error = await validateListingInput(
-      inputFor({
-        canPayMore: true,
-        maxPrice: 2000,
-        name: "Pay More OK",
-        unitPrice: 1000,
-      }),
-    );
-    expect(error).toBeNull();
-  });
-
-  test("rejects maxPrice below unit price + 1.00 for a pay-more listing", async () => {
-    const error = await validateListingInput(
-      inputFor({
-        canPayMore: true,
-        maxPrice: 1050,
-        name: "Pay More Low",
-        unitPrice: 1000,
-      }),
-    );
-    expect(error).toContain("Maximum price must be at least");
-  });
-
-  test("allows a visible package member that gates its own children", async () => {
-    const member = await createTestListing({ name: "Vis Member" });
-    const child = await createTestListing({ name: "Vis Child" });
-    await listingChildren.setIds(member.id, [child.id]);
-    const pkg = await createTestGroup({ isPackage: true, name: "Visible Pkg" });
-
-    // A VISIBLE package renders a member's child selector like any parent row,
-    // so a member that gates children is a valid member (unlike a hidden one).
-    const error = await validateListingInput(
-      inputFor({ groupIds: [pkg.id], name: "Vis Member" }),
-      member.id,
-    );
-    expect(error).toBeNull();
-  });
-
-  test("rejects months-per-unit with No Check-In but not Hidden", async () => {
-    const error = await validateListingInput(
-      inputFor({
-        hidden: false,
-        monthsPerUnit: 1,
-        name: "Renewal Mixed",
-        purchaseOnly: true,
-      }),
-    );
-    expect(error).toBe(
-      "Months per unit requires No Check-In and Hidden to be enabled",
-    );
-  });
-
-  test("a create ignores a slug already used by another listing", async () => {
-    const owner = await createTestListing({ name: "Slug Owner" });
-    // On create the slug is auto-uniquified downstream, so validation does not
-    // reject a colliding slug (that check is update-only).
-    const error = await validateListingInput({
-      ...inputFor({ name: "Slug Taker" }),
-      slug: owner.slug,
-      // Hand-crafted fixture stand-in for the blind index — test cast.
-      slugIndex: "taker-index" as BlindIndex,
-    });
-    expect(error).toBeNull();
   });
 });

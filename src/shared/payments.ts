@@ -381,13 +381,8 @@ export interface PaymentProvider {
     baseUrl: string,
   ): Promise<CheckoutSessionResult>;
 
-  /**
-   * Check if a payment has been refunded via the provider API.
-   * Used to refresh refund status from the edit attendee page.
-   * @param paymentReference - provider-specific payment reference
-   * @returns true if the payment has been refunded
-   */
-  isPaymentRefunded(paymentReference: string): Promise<boolean>;
+  /** Inspect the provider's current refund state without submitting a refund. */
+  inspectPaymentRefund(paymentReference: string): Promise<PaymentRefundResult>;
 
   /**
    * Refund a completed payment.

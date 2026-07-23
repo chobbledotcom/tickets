@@ -22,8 +22,12 @@ const provider = ({
   alreadyRefunded?: Set<string>;
   throws?: Set<string>;
 } = {}) => ({
-  isPaymentRefunded: (reference: string) =>
-    Promise.resolve(alreadyRefunded.has(reference)),
+  inspectPaymentRefund: (reference: string) =>
+    Promise.resolve(
+      alreadyRefunded.has(reference)
+        ? ("refunded" as const)
+        : ("failed" as const),
+    ),
   refundPayment: (reference: string) => {
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     const result: PaymentRefundResult = refunded.has(reference)
@@ -60,7 +64,7 @@ describe("admin refund provider", () => {
     const marker = collectingMarker();
     const result = await refundCandidateAtProvider(
       {
-        isPaymentRefunded: () => Promise.resolve(false),
+        inspectPaymentRefund: () => Promise.resolve("failed" as const),
         refundPayment: () => {
           refundCalls++;
           return Promise.resolve("failed" as const);

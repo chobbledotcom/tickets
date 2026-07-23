@@ -241,8 +241,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
             Promise.resolve("failed"),
           ),
-          mockRefunded: stub(stripePaymentProvider, "isPaymentRefunded", () =>
-            Promise.resolve(false),
+          mockRefunded: stub(
+            stripePaymentProvider,
+            "inspectPaymentRefund",
+            () => Promise.resolve("failed"),
           ),
           mockRetrieve: stubRetrieveCheckoutSession({
             amountTotal: 1000,

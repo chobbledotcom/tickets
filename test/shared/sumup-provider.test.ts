@@ -148,21 +148,22 @@ describe("sumup-provider", () => {
     });
   });
 
-  describe("isPaymentRefunded", () => {
-    for (const [status, refunded] of [
-      ["REFUNDED", true],
-      ["SUCCESSFUL", false],
-      [null, false],
+  describe("inspectPaymentRefund", () => {
+    for (const [status, outcome] of [
+      ["REFUNDED", "refunded"],
+      ["REFUND_FAILED", "failed"],
+      ["SUCCESSFUL", "pending"],
+      [null, "pending"],
     ] as const) {
-      test(`returns ${refunded} when transaction status is ${status}`, () =>
+      test(`returns ${outcome} when transaction status is ${status}`, () =>
         withMocks(
           () =>
             stub(sumupApi, "getTransactionStatus", () =>
               Promise.resolve(status),
             ),
           async () => {
-            expect(await sumupPaymentProvider.isPaymentRefunded("txn")).toBe(
-              refunded,
+            expect(await sumupPaymentProvider.inspectPaymentRefund("txn")).toBe(
+              outcome,
             );
           },
         ));

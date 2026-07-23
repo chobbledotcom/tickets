@@ -66,65 +66,37 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
   describe("bookingConflictLabel", () => {
     test("returns Duplicate for duplicate conflict class", () => {
-      const item = {
-        conflictClass: "duplicate" as const,
-        listingId: 1,
-        sourceBooking:
-          {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
-        startAt: null,
-        targetBooking: null,
-      };
-      expect(bookingConflictLabel(item)).toBe("Duplicate");
+      expect(bookingConflictLabel({ conflictClass: "duplicate" })).toBe(
+        "Duplicate",
+      );
     });
 
     test("returns Conflicting metadata for conflicting_metadata class", () => {
-      const item = {
-        conflictClass: "conflicting_metadata" as const,
-        listingId: 1,
-        sourceBooking:
-          {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
-        startAt: null,
-        targetBooking: null,
-      };
-      expect(bookingConflictLabel(item)).toBe("Conflicting metadata");
+      expect(
+        bookingConflictLabel({ conflictClass: "conflicting_metadata" }),
+      ).toBe("Conflicting metadata");
     });
   });
 
   describe("hasBookingConflicts", () => {
     test("returns false when all items are moveable", () => {
-      const items = [
-        {
-          conflictClass: "moveable" as const,
-          listingId: 1,
-          sourceBooking:
-            {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
-          startAt: null,
-          targetBooking: null,
-        },
-      ];
-      expect(hasBookingConflicts(items)).toBe(false);
+      expect([
+        hasBookingConflicts([]),
+        hasBookingConflicts([
+          { conflictClass: "moveable" },
+          { conflictClass: "moveable" },
+        ]),
+      ]).toEqual([false, false]);
     });
 
-    test("returns true when at least one item is not moveable", () => {
-      const items = [
-        {
-          conflictClass: "moveable" as const,
-          listingId: 1,
-          sourceBooking:
-            {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
-          startAt: null,
-          targetBooking: null,
-        },
-        {
-          conflictClass: "duplicate" as const,
-          listingId: 2,
-          sourceBooking:
-            {} as import("#shared/db/attendee-types.ts").ListingAttendeeRow,
-          startAt: null,
-          targetBooking: null,
-        },
-      ];
-      expect(hasBookingConflicts(items)).toBe(true);
+    test("returns true for either non-moveable conflict class", () => {
+      expect([
+        hasBookingConflicts([
+          { conflictClass: "moveable" },
+          { conflictClass: "duplicate" },
+        ]),
+        hasBookingConflicts([{ conflictClass: "conflicting_metadata" }]),
+      ]).toEqual([true, true]);
     });
   });
 });
