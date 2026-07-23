@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
+import { isNotNullish } from "#fp";
 import type { Table } from "#shared/db/table.ts";
 import {
   type CrudApiConfig,
@@ -37,7 +38,9 @@ const makeRoutes = (
     table,
     toCreateInput: (body) => okResult({ name: String(body.name) }),
     toUpdateInput: (body, existing) =>
-      okResult({ name: body.name != null ? String(body.name) : existing.name }),
+      okResult({
+        name: isNotNullish(body.name) ? String(body.name) : existing.name,
+      }),
     ...config,
   });
 

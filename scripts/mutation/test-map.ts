@@ -1,5 +1,5 @@
 import { isAbsolute, relative } from "node:path";
-import { filter, map, sort } from "#fp";
+import { filter, map, sort, unique } from "#fp";
 import { projectRoot } from "#scripts/project-root.ts";
 
 export interface SourceTestTarget {
@@ -41,6 +41,23 @@ const isIntegrationTest = (testFile: string): boolean => {
       INTEGRATION_TEST_PREFIXES,
     ).length > 0
   );
+};
+
+/** Select every direct test for the changed sources, plus only the integration
+ * tests changed on this branch. Tests for scripts, test helpers, and unchanged
+ * sources are outside this src mutation run. */
+export const selectMutationTests = (
+  sourceFiles: string[],
+  allTestFiles: string[],
+  changedTestFiles: string[],
+): string[] => {
+  const prefixes = map(testPrefix)(sourceFiles);
+  const direct = filter(
+    (testFile: string) =>
+      !isIntegrationTest(testFile) &&
+      prefixes.some((prefix) => ownsTest(prefix, testFile)),
+  )(allTestFiles);
+  return unique([...direct, ...filter(isIntegrationTest)(changedTestFiles)]);
 };
 
 interface OwnedTest {

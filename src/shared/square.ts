@@ -11,6 +11,7 @@
  */
 
 /* jscpd:ignore-start */
+import { isNotNullish } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -169,15 +170,18 @@ export type SquareRequestOptions = { method?: string; body?: unknown };
 export const squareRequestInit = (
   token: string,
   options?: SquareRequestOptions,
-): { headers: Record<string, string>; method: string; body?: string } => ({
-  headers: {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    "Square-Version": SQUARE_API_VERSION,
-  },
-  method: options?.method ?? "GET",
-  ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
-});
+): { headers: Record<string, string>; method: string; body?: string } => {
+  const body = options?.body;
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Square-Version": SQUARE_API_VERSION,
+    },
+    method: options?.method ?? "GET",
+    ...(isNotNullish(body) ? { body: jsonStringify(body) } : {}),
+  };
+};
 
 /** Make an authenticated request to the Square REST API */
 const squareFetch = async (

@@ -185,10 +185,12 @@ describe("runMutationStep", () => {
   const expectSkip = async (
     run: RunCommand,
     expectedLogs: string[],
+    testFiles: string[] = [],
   ): Promise<void> => {
     const logs: string[] = [];
     let mutationRan = false;
     const code = await runMutationStep({
+      allTestFiles: () => Promise.resolve(testFiles),
       log: (message) => logs.push(message),
       run,
       runMutation: () => {
@@ -234,6 +236,7 @@ describe("runMutationStep", () => {
     );
     let mutatedSources = -1;
     const code = await runMutationStep({
+      allTestFiles: () => Promise.resolve(["test/f0.test.ts"]),
       log: () => {},
       run: fakeGit({
         base: "origin/main",
@@ -258,21 +261,22 @@ describe("runMutationStep", () => {
     );
   });
 
-  test("skips (passing) when src changed without any test", async () => {
+  test("skips when changed sources have no matching tests", async () => {
     await expectSkip(
       fakeGit({ base: "origin/main", diff: ok("src/a.ts\nsrc/b.ts\n") }),
       [
-        `${MUTATION_NOTICE_PREFIX}changed src files but no changed test files ` +
-          "— skipping mutation. Change a test that covers them to " +
-          "mutation-check the change.",
+        `${MUTATION_NOTICE_PREFIX}changed src files but no matching test files ` +
+          "— skipping mutation.",
       ],
     );
   });
 
-  test("mutates the changed src against the changed tests", async () => {
+  test("mutates changed src against every matching direct test", async () => {
     const logs: string[] = [];
     let received: ChangedFiles | null = null;
     const code = await runMutationStep({
+      allTestFiles: () =>
+        Promise.resolve(["test/a.test.ts", "test/a/extra.test.ts"]),
       log: (message) => logs.push(message),
       run: fakeGit({
         base: "origin/main",
@@ -286,16 +290,17 @@ describe("runMutationStep", () => {
     expect(code).toBe(0);
     expect(received).toEqual({
       sources: ["src/a.ts"],
-      tests: ["test/a.test.ts"],
+      tests: ["test/a.test.ts", "test/a/extra.test.ts"],
     });
     expect(logs).toEqual([
-      "Mutation-testing 1 changed src file(s) against 1 changed test " +
+      "Mutation-testing 1 changed src file(s) against 2 selected test " +
         "file(s); every mutant must be killed.",
     ]);
   });
 
   test("propagates a survivor failure from the mutation runner", async () => {
     const code = await runMutationStep({
+      allTestFiles: () => Promise.resolve(["test/a.test.ts"]),
       log: () => {},
       run: fakeGit({
         base: "origin/main",
@@ -308,6 +313,7 @@ describe("runMutationStep", () => {
 
   test("treats 'no mutable operators' (exit 2) as a pass", async () => {
     const code = await runMutationStep({
+      allTestFiles: () => Promise.resolve(["test/types.test.ts"]),
       log: () => {},
       run: fakeGit({
         base: "origin/main",

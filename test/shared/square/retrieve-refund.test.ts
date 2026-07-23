@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import type { RefundPaymentInput } from "#shared/square.ts";
 import { retrievePayment, squareApi } from "#shared/square.ts";
 import { withSquareClient } from "#test/lib/square/fixtures.ts";
@@ -131,6 +131,33 @@ describeSquare(() => {
         },
       );
     });
+
+    test("removes null metadata values from an order", async () => {
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_metadata",
+                metadata: {
+                  items: '[{"e":1,"q":1,"p":1000}]',
+                  name: "Jane",
+                  removed: null,
+                },
+                state: "COMPLETED",
+                totalMoney: { amount: BigInt(1000), currency: "GBP" },
+              },
+            }),
+        },
+        async () => {
+          const result = await squareApi.retrieveOrder("order_metadata");
+          expect(result?.metadata).toEqual({
+            items: '[{"e":1,"q":1,"p":1000}]',
+            name: "Jane",
+          });
+        },
+      );
+    });
   });
 
   describe("retrievePayment", () => {
@@ -224,14 +251,19 @@ describeSquare(() => {
       const retrieveStub = stub(squareApi, "retrievePayment", () =>
         Promise.resolve(null),
       );
+      const errorSpy = spy(console, "error");
       await withMocks(
-        () => retrieveStub,
+        () => ({ errorSpy, retrieveStub }),
         async () => {
           const result = await squareApi.refundPayment("pay_123");
           expect(result).toBe(false);
           // Prove we reached the null-retrieval branch, not an earlier exit.
           expect(retrieveStub.calls).toHaveLength(1);
           expect(retrieveStub.calls[0]!.args[0]).toBe("pay_123");
+          expect(errorSpy.calls).toHaveLength(1);
+          expect(errorSpy.calls[0]!.args[0]).toBe(
+            '[Error] E_SQUARE_REFUND detail="Cannot refund payment pay_123: missing amount info"',
+          );
         },
       );
     });

@@ -98,15 +98,15 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(entries[0]!.message).toBe("legacy entry");
   });
 
-  test("logActivity records an attendee_id and getAttendeeActivityLog filters by it", async () => {
+  test("logActivity records attendee id 0 and getAttendeeActivityLog filters by it", async () => {
     await logActivity("Unrelated entry");
-    await logActivity("Balance paid", null, 42);
+    await logActivity("Balance paid", null, 0);
     await logActivity("Other attendee", null, 99);
 
-    const entries = await withTestSession(() => getAttendeeActivityLog(42));
+    const entries = await withTestSession(() => getAttendeeActivityLog(0));
     expect(entries).toHaveLength(1);
     expect(entries[0]!.message).toBe("Balance paid");
-    expect(entries[0]!.attendee_id).toBe(42);
+    expect(entries[0]!.attendee_id).toBe(0);
   });
 
   test("getListingActivityLog returns entries for specific listing", async () => {

@@ -24,9 +24,9 @@
  * It mutates every changed `src/` file and demands a 100% kill rate. The runner
  * pairs mirror-located tests with their source and runs them first. Changed
  * tests under `test/integration/` or `test/e2e/` are the later integration
- * stage. Any other unmatched test is an error so it gets moved instead of
- * hidden behind a fallback. The whole source file is mutated regardless of how
- * little of it changed.
+ * stage. Direct tests come from the whole checkout, not just the branch diff,
+ * so an unchanged test still proves a changed source. The whole source file is
+ * mutated regardless of how little of it changed.
  *
  * Known limitations (this is a best-effort *local* check; `deno task mutation`
  * is the precise manual tool):
@@ -36,9 +36,6 @@
  *     canonical flow — commit, then `deno task precommit`, then push — runs on a
  *     clean tree where the worktree already equals HEAD, so this only affects
  *     dirty pre-checks. Commit (even a WIP commit) to bring changes under it.
- *   - Changed tests only. A source's unchanged covering test is absent from the
- *     plan, so that source can report false survivors. Touch the covering test
- *     too, or verify that source with `deno task mutation` directly.
  *   - Trusts the *local* base ref. The diff is against your local
  *     `origin/main`/`main` — never re-fetched. If that ref is stale *and* the
  *     branch sits on newer main commits you have not fetched (e.g. you checked
@@ -54,6 +51,7 @@
  * `scripts/precommit-mutation.ts` wires in the real implementations.
  */
 
+import { selectMutationTests } from "#scripts/mutation/test-map.ts";
 import { nonBlankLines } from "#shared/lines.ts";
 import type { RunCommand } from "./git.ts";
 
@@ -79,6 +77,7 @@ export interface ChangedFiles {
 export type RunMutation = (files: ChangedFiles) => Promise<number>;
 
 export interface MutationStepDeps {
+  allTestFiles(): Promise<string[]>;
   log: (message: string) => void;
   run: RunCommand;
   runMutation: RunMutation;
@@ -142,7 +141,7 @@ export const changedFiles = async (
 };
 
 /**
- * The notice lines (stale base, no merge base, no changed tests, …) emitted on
+ * The notice lines (stale base, no merge base, no matching tests, …) emitted on
  * `stdout`, joined for display — or undefined when there are none. Wired as the
  * mutation step's `summary` so these stay visible even though the precommit
  * runner swallows a passing step's output. A normal mutation *run* emits none,
@@ -164,12 +163,11 @@ export const mutationNoticeSummary = (stdout: string): string | undefined => {
  *   - More than `STALE_BASE_SOURCE_LIMIT` changed src files → skip (pass) with a
  *     fetch hint; the local base ref is almost certainly stale.
  *   - No changed src files → nothing to prove; pass.
- *   - Changed src but no changed tests → skip (pass). There are no changed
- *     tests to mutate against; the 100%-coverage gate still applies, and
- *     changing a covering test brings the change under the gate.
- *   - Both → map direct tests to each changed source, then use explicit
- *     integration/e2e tests as the later stage. The runner's exit code passes
- *     through, except
+ *   - Changed src but no matching direct or changed integration tests → skip
+ *     (pass). The 100%-coverage gate still applies.
+ *   - Otherwise → map every mirror-located direct test to each changed source,
+ *     then use changed integration/e2e tests as the later stage. The runner's
+ *     exit code passes through, except
  *     code 2 ("no mutable operators
  *     in any changed src file", e.g. a types-only or re-export change) becomes a
  *     pass — there is genuinely nothing to mutate.
@@ -198,18 +196,22 @@ export const runMutationStep = async (
     deps.log("No changed src files — nothing to mutation-test.");
     return 0;
   }
-  if (changed.tests.length === 0) {
+  const tests = selectMutationTests(
+    changed.sources,
+    await deps.allTestFiles(),
+    changed.tests,
+  );
+  if (tests.length === 0) {
     deps.log(
-      `${MUTATION_NOTICE_PREFIX}changed src files but no changed test files — ` +
-        "skipping mutation. Change a test that covers them to mutation-check " +
-        "the change.",
+      `${MUTATION_NOTICE_PREFIX}changed src files but no matching test files — ` +
+        "skipping mutation.",
     );
     return 0;
   }
   deps.log(
     `Mutation-testing ${changed.sources.length} changed src file(s) against ` +
-      `${changed.tests.length} changed test file(s); every mutant must be killed.`,
+      `${tests.length} selected test file(s); every mutant must be killed.`,
   );
-  const code = await deps.runMutation(changed);
+  const code = await deps.runMutation({ sources: changed.sources, tests });
   return code === 2 ? 0 : code;
 };

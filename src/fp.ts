@@ -217,8 +217,14 @@ export const requiredMapValue = <Key, Value>(
 /**
  * Remove null and undefined values from array
  */
+export const isNullish = (value: unknown): value is null | undefined =>
+  value === null || value === undefined;
+
+export const isNotNullish = <T>(value: T | null | undefined): value is T =>
+  !isNullish(value);
+
 export const compact = <T>(array: (T | null | undefined)[]): T[] =>
-  array.filter((x): x is T => x !== null && x !== undefined);
+  array.filter(isNotNullish);
 
 /**
  * Alternative combinator: try a sequence of producers in order and return the

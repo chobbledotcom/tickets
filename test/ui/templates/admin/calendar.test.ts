@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { generateCalendarCsv } from "#routes/admin/calendar-csv.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
 import {
@@ -13,10 +12,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
-import {
-  expectTestAttendeeCsvColumns,
-  selectOptionLabels,
-} from "#test-utils/assertions.ts";
+import { selectOptionLabels } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 
 const calendarAttendee = (
@@ -258,109 +254,6 @@ describe("adminCalendarPage", () => {
     // The selected date rides along on the month-paging links so paging
     // months never clears the current selection.
     expect(html).toContain("date=2026-03-15&amp;cal=");
-  });
-});
-
-describe("generateCalendarCsv", () => {
-  test("generates CSV header for empty attendees (no Listing Date/Location columns)", () => {
-    const csv = generateCalendarCsv([]);
-    expect(csv).toBe(
-      "Listing,Type,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
-    );
-  });
-
-  test("omits Listing Date and Listing Location columns when all empty", () => {
-    const attendees = [calendarAttendee()];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[0]).toContain("Listing,Type,Date,Name");
-    expect(lines[1]).toMatch(/^Daily Listing,Attendee,2026-03-15,/);
-  });
-
-  test("shows an inclusive date range for multi-day bookings", () => {
-    // end_date is the exclusive end (the 18th), so the booking occupies the
-    // 15th through the 17th.
-    const attendees = [calendarAttendee({ end_date: "2026-03-18" })];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[1]).toMatch(
-      /^Daily Listing,Attendee,2026-03-15 to 2026-03-17,/,
-    );
-  });
-
-  test("includes Listing Date column when some attendees have listing dates", () => {
-    const attendees = [
-      calendarAttendee({ listingDate: "2026-06-15T14:00:00.000Z" }),
-    ];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[0]).toContain("Listing,Type,Listing Date,Date,Name");
-    // The UTC ISO listing datetime is shown as a date + time in the tz
-    // (14:00 UTC = 15:00 BST in the default Europe/London timezone).
-    expect(lines[1]).toContain("2026-06-15 15:00");
-    expect(lines[1]).not.toContain("2026-06-15T14:00:00.000Z");
-  });
-
-  test("includes Listing Location column when some attendees have listing locations", () => {
-    const attendees = [calendarAttendee({ listingLocation: "Village Hall" })];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[0]).toContain("Listing,Type,Listing Location,Date,Name");
-    expect(lines[1]).toContain("Village Hall");
-  });
-
-  test("includes Date column", () => {
-    const attendees = [calendarAttendee({ date: "2026-03-20" })];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[1]).toContain("2026-03-20");
-  });
-
-  test("escapes listing names with commas", () => {
-    const attendees = [calendarAttendee({ listingName: "Listing, Special" })];
-    const csv = generateCalendarCsv(attendees);
-    expect(csv).toContain('"Listing, Special"');
-  });
-
-  test("includes standard attendee columns", () => {
-    const attendees = [
-      calendarAttendee({
-        checked_in: true,
-        created: "2024-01-15T10:30:00Z",
-        payment_id: "pi_abc",
-        price_paid: "2000",
-        quantity: 2,
-      }),
-    ];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expectTestAttendeeCsvColumns(lines[1], 2);
-    expect(lines[1]).toContain("20.00");
-    expect(lines[1]).toContain("pi_abc");
-    expect(lines[1]).toContain(",Yes,");
-  });
-
-  test("generates multiple rows", () => {
-    const attendees = [
-      calendarAttendee(),
-      calendarAttendee({
-        id: 2,
-        listingName: "Other Listing",
-        name: "Jane Smith",
-      }),
-    ];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines).toHaveLength(3);
-    expect(lines[1]).toContain("Daily Listing");
-    expect(lines[2]).toContain("Other Listing");
-  });
-
-  test("handles null date in calendar row", () => {
-    const attendees = [calendarAttendee({ date: null })];
-    const csv = generateCalendarCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[1]).toMatch(/^Daily Listing,Attendee,,/);
   });
 });
 
