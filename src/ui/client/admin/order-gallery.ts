@@ -1,5 +1,7 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
+import { stringEntries } from "#shared/string-entries.ts";
+
 /** Live availability for the public order gallery.
  *
  * Without JS the gallery is a plain GET form (CSS-only cart) and availability
@@ -17,11 +19,7 @@ const REFRESH_DELAY_MS = 200;
 
 /** Build the availability query from the form (checkboxes, date, order). */
 const availabilityQuery = (form: HTMLFormElement): URLSearchParams =>
-  new URLSearchParams(
-    [...new FormData(form).entries()].flatMap(([key, value]) =>
-      typeof value === "string" ? [[key, value] as [string, string]] : [],
-    ),
-  );
+  new URLSearchParams(stringEntries(new FormData(form).entries()));
 
 type CardState = { state: string; label: string };
 

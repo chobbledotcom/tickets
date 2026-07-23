@@ -83,6 +83,28 @@ describeSquare(() => {
       );
     });
 
+    test("drops null order metadata values", async () => {
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: {
+                id: "order_metadata",
+                metadata: {
+                  removed_null: null,
+                  stored_key: "stored value",
+                },
+                totalMoney: { amount: BigInt(0), currency: "USD" },
+              },
+            }),
+        },
+        async () => {
+          const result = await squareApi.retrieveOrder("order_metadata");
+          expect(result?.metadata).toEqual({ stored_key: "stored value" });
+        },
+      );
+    });
+
     test("maps totalMoney from order response", async () => {
       await withSquareClient(
         {
