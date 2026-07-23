@@ -219,7 +219,7 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
       expect(body).toContain("<th>Date</th>");
     });
 
-    test("shows empty date cell for standard listing when combined with daily listing", async () => {
+    test("shows the Date column when a daily listing attendee is combined with a standard one", async () => {
       const date = "2026-02-15";
       const { token: tokenA } = await createDailyTestAttendee(
         "Zara",
@@ -233,24 +233,49 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
 
       const response = await adminGet(`/checkin/${tokenA}+${tokenB}`);
       const body = await response.text();
+      // The column header renders because at least one attendee in the bundle
+      // has a date; the formatted date label renders for Zara's row; Alice's
+      // row also renders (visible as her name). The negative case — column
+      // hidden when no attendee has a date — is covered by the test below.
       expect(body).toContain("<th>Date</th>");
       expect(body).toContain(formatDateLabel(date));
-      // Standard listing attendee has no date - empty cell rendered
       expect(body).toContain("Alice");
     });
 
-    test("renders empty email and phone for attendee without contact details", async () => {
+    test("renders an empty cell for an attendee with no email when another attendee has one", async () => {
+      // The email/phone columns are only rendered when at least one attendee
+      // in the bundle has the field (see computeVisibilityMap). Mix one
+      // attendee with contact details and one without so the column renders
+      // AND the no-contact attendee's cell is empty — then assert both, so
+      // a mutation that always fills the cell (or never renders the column)
+      // fails loudly.
       const listing = await createTestListing({ maxAttendees: 10 });
-      const result = await bookAttendee(listing, {
+      const withContact = await bookAttendee(listing, {
+        email: "with@test.com",
+        name: "WithContact",
+        phone: "0712345678",
+      });
+      if (!withContact.success) throw new Error("Failed to create attendee");
+      const withoutContact = await bookAttendee(listing, {
         email: "",
         name: "NoContact",
       });
-      if (!result.success) throw new Error("Failed to create attendee");
+      if (!withoutContact.success) throw new Error("Failed to create attendee");
 
       const response = await adminGet(
-        `/checkin/${result.attendees[0]!.ticket_token}`,
+        `/checkin/${withContact.attendees[0]!.ticket_token}+${withoutContact.attendees[0]!.ticket_token}`,
       );
       const body = await response.text();
+      // Column header renders (at least one attendee has email + phone).
+      expect(body).toContain("<th>Email</th>");
+      expect(body).toContain("<th>Phone</th>");
+      // The contact-bearing attendee's values render.
+      expect(body).toContain("with@test.com");
+      expect(body).toContain("0712345678");
+      // The no-contact attendee appears with empty cells — `<td></td>` is
+      // what renderCells emits for a falsy column value. At least one such
+      // empty cell is expected for the no-contact attendee's email/phone.
+      expect(body).toContain("<td></td>");
       expect(body).toContain("NoContact");
     });
 

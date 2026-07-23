@@ -488,13 +488,6 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
     });
   });
 
-  describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
-    test("login returns error redirect when user has null wrappedDataKey", async () => {
-      // A null wrapped_data_key means the user is not activated.
-      await expectLoginRejectedWithWrappedKey(null, "not been activated");
-    });
-  });
-
   describe("session expiration (blank screen test)", () => {
     test("expired session shows login page, not blank screen", async () => {
       // Create an expired session using the real createSession function

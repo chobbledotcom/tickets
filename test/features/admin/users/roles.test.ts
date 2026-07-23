@@ -115,6 +115,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const response = await awaitTestRequest("/admin/", {
         cookie: `${getSessionCookieName()}=orphan-session`,
       });
+      // An orphaned session (user gone) lands on the dashboard root, whose
+      // withSession fallback renders the login page with a 200 — not a 302
+      // redirect. Pin both the status and the login markup so a mutant that
+      // renders the dashboard despite the missing user fails loudly here.
+      expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Login");
     });
@@ -142,7 +147,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   });
 
   describe("settings user not found", () => {
-    test("password change returns 500 when user is deleted mid-request", async () => {
+    test("password change redirects to login when user is deleted mid-request", async () => {
       await getDb().execute({
         args: [],
         sql: "DELETE FROM users WHERE id = 1",
@@ -154,7 +159,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       });
+      // The user is gone, so the session resolve returns null and the
+      // not-authenticated branch redirects to /admin (login) with a 302 —
+      // not a 500. Asserting the location pins both facts: the redirect
+      // happened, and it went to login rather than an error page.
       expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 
