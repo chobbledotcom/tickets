@@ -28,7 +28,7 @@ import {
   pruneSmsMessagesBefore,
   type SmsMessageRow,
 } from "#shared/db/sms-messages.ts";
-import { nowMs, nowSeconds } from "#shared/now.ts";
+import { isoBefore, nowSeconds } from "#shared/now.ts";
 import { hmacSha256Hex } from "#shared/payment-crypto.ts";
 import { decryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
@@ -153,7 +153,7 @@ export const handleSmsWebhook = async (request: Request): Promise<Response> => {
   await smsEventHandlers[event]?.(payload);
 
   // Backstop cleanup for rows whose delivery webhook never arrived.
-  const retentionCutoff = new Date(nowMs() - RETENTION_MS).toISOString();
+  const retentionCutoff = isoBefore(RETENTION_MS);
   await pruneSmsMessagesBefore(retentionCutoff);
   await pruneProcessedSmsInboundBefore(retentionCutoff);
 

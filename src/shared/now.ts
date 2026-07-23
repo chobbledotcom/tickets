@@ -15,6 +15,10 @@ export const nowIso = (): string => new Date().toISOString();
 /** Epoch milliseconds for numeric comparisons */
 export const nowMs = (): number => Date.now();
 
+/** ISO timestamp a fixed duration before the current time. */
+export const isoBefore = (durationMs: number): string =>
+  new Date(nowMs() - durationMs).toISOString();
+
 /** Current time in whole epoch seconds — the unit signed-token expiry uses. */
 export const nowSeconds = (): number => Math.floor(nowMs() / 1000);
 
