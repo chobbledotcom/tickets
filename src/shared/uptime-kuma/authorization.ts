@@ -38,7 +38,7 @@ export const readCustomAuthorization = (
   }
 };
 
-export const authorizationFor = (
+export const authorizationForOrNull = (
   headers: string | null,
   authMethod: string | null,
   bearerToken: string | null,

@@ -13,6 +13,8 @@ import {
 } from "./schemas.ts";
 import {
   createUptimeKumaSocket,
+  SOCKET_TIMEOUT_MS,
+  type SocketListener,
   type UptimeKumaSocket,
   uptimeKumaConnectionError,
 } from "./socket.ts";
@@ -27,10 +29,6 @@ export interface UptimeKumaClient {
   getMonitors(): Promise<UptimeKumaMonitor[]>;
   login(username: string, password: string): Promise<void>;
 }
-
-type SocketListener = (...args: unknown[]) => void;
-
-const SOCKET_TIMEOUT_MS = 10_000;
 
 export const createUptimeKumaClient = (
   socket: UptimeKumaSocket,

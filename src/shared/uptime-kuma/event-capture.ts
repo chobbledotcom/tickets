@@ -1,5 +1,6 @@
 import { UptimeKumaError, type UptimeKumaErrorKind } from "./error.ts";
 import type { UptimeKumaSocket } from "./socket.ts";
+import { SOCKET_TIMEOUT_MS, type SocketListener } from "./socket.ts";
 
 /**
  * Timing out socket event captures and request acknowledgements.
@@ -9,10 +10,8 @@ import type { UptimeKumaSocket } from "./socket.ts";
  * its own timeout so a silent Kuma server cannot hang the maintenance tab.
  */
 
-const SOCKET_TIMEOUT_MS = 10_000;
 const MONITOR_LIST_TIMEOUT_MS = 60_000;
 
-type SocketListener = (...args: unknown[]) => void;
 type TimedEvent = "info" | "monitorList";
 
 const TIMEOUT_ERROR_KINDS: Record<TimedEvent, UptimeKumaErrorKind> = {

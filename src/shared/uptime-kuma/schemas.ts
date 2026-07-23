@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { parseOrThrow } from "#shared/validation/parse.ts";
-import { authorizationFor } from "./authorization.ts";
+import { authorizationForOrNull } from "./authorization.ts";
 import { UptimeKumaError } from "./error.ts";
 
 /**
@@ -66,7 +66,7 @@ const MonitorSchema = v.pipe(
     }) => ({
       ...monitor,
       acceptedStatusCodes: accepted_statuscodes,
-      authorization: authorizationFor(headers, authMethod, bearer_token),
+      authorization: authorizationForOrNull(headers, authMethod, bearer_token),
     }),
   ),
 );

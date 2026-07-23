@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import { UptimeKumaError } from "./error.ts";
 import { withEventTimeout } from "./event-capture.ts";
-import type { UptimeKumaSocket } from "./socket.ts";
+import type { SocketListener, UptimeKumaSocket } from "./socket.ts";
 
 /**
  * Reading Uptime Kuma's post-login version event and checking the server is
@@ -35,8 +35,6 @@ export const requireSupportedVersion = ([major, minor]: [
     throw new UptimeKumaError("unsupported_version");
   }
 };
-
-type SocketListener = (...args: unknown[]) => void;
 
 type VersionOutcome = { error: unknown; ok: false } | { ok: true };
 
