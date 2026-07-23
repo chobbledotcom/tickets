@@ -83,15 +83,19 @@ const localFiles = (specifiers: Iterable<string>): Set<string> =>
       .map((specifier) => fromFileUrl(specifier)),
   );
 
+/** Collect local files from a module graph rooted at `entry`, run from `cwd`. */
+type GraphFiles = (entry: string, cwd: string) => Promise<Set<string>>;
+
 /**
- * Build a "collect files from `entry`'s graph" function from a derivation
- * step that turns the parsed graph into a set of specifiers. The entry read
- * and the file:// filtering are shared by every caller; only which
- * specifiers count differs.
+ * Build a `GraphFiles` from a derivation step that turns the parsed graph
+ * into a set of specifiers. The entry read and the file:// filtering are
+ * shared by every caller; only which specifiers count differs.
  */
 const graphFilesFrom =
-  (derive: (graph: v.InferOutput<typeof ModuleGraphSchema>) => Set<string>) =>
-  async (entry: string, cwd: string): Promise<Set<string>> =>
+  (
+    derive: (graph: v.InferOutput<typeof ModuleGraphSchema>) => Set<string>,
+  ): GraphFiles =>
+  async (entry, cwd) =>
     localFiles(derive(await readModuleGraph(entry, cwd)));
 
 /**
@@ -100,7 +104,7 @@ const graphFilesFrom =
  * static and string-literal dynamic imports; non-file modules (npm:, jsr:,
  * data:) are left out.
  */
-export const collectModuleGraphFiles = graphFilesFrom(
+export const collectModuleGraphFiles: GraphFiles = graphFilesFrom(
   (graph) => new Set(graph.modules.map((module) => module.specifier)),
 );
 
@@ -149,4 +153,4 @@ const walkStatic = (
  * it in the graph. This is the set a cold-start regression test cares about:
  * a heavy module that creeps back onto this list costs every fresh isolate.
  */
-export const staticGraphFiles = graphFilesFrom(walkStatic);
+export const staticGraphFiles: GraphFiles = graphFilesFrom(walkStatic);
