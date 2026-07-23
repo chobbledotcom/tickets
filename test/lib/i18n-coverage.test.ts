@@ -130,6 +130,17 @@ const relFromSrc = (file: string): string => file.slice(SRC_DIR.length + 1);
 /** Object-property labels are a .ts-module idiom; .tsx uses JSX instead. */
 const isTsModule = (file: string): boolean => file.endsWith(".ts");
 
+const missingMessageReferences = (file: string): string[] => {
+  const missing: string[] = [];
+  const src = Deno.readTextFileSync(file);
+  for (const match of src.matchAll(T_CALL)) {
+    const key = match[2]!;
+    if (key.includes("${") || key.includes("{")) continue;
+    if (!(key in messages)) missing.push(`${file}: t("${key}")`);
+  }
+  return missing;
+};
+
 /** Wordy matches of `re` on one line, each formatted via `label`. The captured
  * user-facing value lives in group `valueGroup` (differs per pattern). */
 const matchesOnLine = (
@@ -186,15 +197,9 @@ describe("i18n coverage", () => {
   });
 
   test('forward: every t("key") in the source resolves to a locale key', () => {
-    const missing: string[] = [];
-    for (const file of walk(SRC_DIR, [".ts", ".tsx"])) {
-      const src = Deno.readTextFileSync(file);
-      for (const m of src.matchAll(T_CALL)) {
-        const key = m[2]!;
-        if (key.includes("${") || key.includes("{")) continue; // dynamic key
-        if (!(key in messages)) missing.push(`${file}: t("${key}")`);
-      }
-    }
+    const missing = walk(SRC_DIR, [".ts", ".tsx"]).flatMap(
+      missingMessageReferences,
+    );
     expect(missing).toEqual([]);
   });
 

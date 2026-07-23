@@ -1,4 +1,5 @@
 import { mapNotNullish } from "#fp";
+import type { ScriptIo } from "#scripts/script-runner.ts";
 
 export const BUNNY_API_BASE = "https://api.bunny.net";
 export const BUNDLE_PATH = "bunny-script.ts";
@@ -32,16 +33,12 @@ export interface BuildResult {
   success: boolean;
 }
 
-export interface DeployEdgeDeps {
-  args: string[];
+export interface DeployEdgeDeps extends ScriptIo {
   bundlePath: string;
   cwd: string;
   fetchText: FetchText;
-  getEnv: (key: string) => string | undefined;
   readTextFile: (path: string) => Promise<string>;
   runBuildEdge: (cwd: string) => Promise<BuildResult>;
-  stderr: (line: string) => void;
-  stdout: (line: string) => void;
 }
 
 export const parseScriptIdArg = (

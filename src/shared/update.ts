@@ -13,6 +13,7 @@ import {
   executeBatchWithoutCacheInvalidation,
   inPlaceholders,
   queryAll,
+  queryOnePrimary,
 } from "#shared/db/client.ts";
 import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -126,10 +127,6 @@ const readSettingMarkers = async (
   return new Map(rows.map((row) => [row.key, row.value]));
 };
 
-/** Read a plaintext settings marker's value, or "" when the row is absent. */
-const readSettingMarker = async (key: string): Promise<string> =>
-  (await readSettingMarkers([key])).get(key) ?? "";
-
 /**
  * Record the running build's version and commit into settings so a parent
  * host (or a backup) can read them back. Runs on every isolate boot: one
@@ -180,8 +177,13 @@ export const recordScriptVersion = async (): Promise<void> => {
  * unset (older backups, or development builds). A restore reads this from the
  * just-restored data to tell the operator which commit to redeploy.
  */
-export const readRecordedScriptCommit = (): Promise<string> =>
-  readSettingMarker(CURRENT_SCRIPT_COMMIT_KEY);
+export const readRecordedScriptCommit = async (): Promise<string> =>
+  (
+    await queryOnePrimary<{ value: string }>(
+      "SELECT value FROM settings WHERE key = ?",
+      [CURRENT_SCRIPT_COMMIT_KEY],
+    )
+  )?.value ?? "";
 
 /**
  * Format a build timestamp for display.

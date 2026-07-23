@@ -25,10 +25,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import { QTY_PREFIX } from "#routes/admin/attendee-form-lines.ts";
 import {
   DAY_COUNT_FIELD,
   parseAttendeeForm,
-  QTY_PREFIX,
   START_DATE_FIELD,
   validateAttendeeBlock,
 } from "#routes/admin/attendee-form-model.ts";

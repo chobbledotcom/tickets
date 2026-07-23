@@ -7,8 +7,12 @@
  * tweak to one selector doesn't break the whole flow.
  */
 
-import type { Frame, Locator, Page } from "playwright";
+import type { Frame, Page } from "playwright";
 import { log, warn } from "#e2e/log.ts";
+import {
+  tryFirstVisibleIn,
+  type VisibleAction,
+} from "#e2e/providers/visible-action.ts";
 
 const FILL_TIMEOUT = 8_000;
 
@@ -24,21 +28,13 @@ const searchRoots = (page: Page): (Page | Frame)[] => [page, ...page.frames()];
 const withFirstVisible = async <T>(
   page: Page,
   selectors: string[],
-  act: (loc: Locator, selector: string) => Promise<T>,
+  act: VisibleAction<T>,
 ): Promise<T | null> => {
   const deadline = Date.now() + FILL_TIMEOUT;
   while (Date.now() < deadline) {
     for (const root of searchRoots(page)) {
-      for (const selector of selectors) {
-        const loc: Locator = root.locator(selector).first();
-        try {
-          if (await loc.isVisible({ timeout: 250 })) {
-            return await act(loc, selector);
-          }
-        } catch {
-          // selector not present in this root right now
-        }
-      }
+      const attempted = await tryFirstVisibleIn(root, selectors, act);
+      if (attempted.matched) return attempted.value;
     }
     await page.waitForTimeout(250);
   }
@@ -152,7 +148,7 @@ export interface CardDetails {
  * so those are tried first; the rest are common name/id/placeholder/aria
  * fallbacks. fillFirst also searches child frames, covering SDK iframes.
  */
-const CARD_SELECTORS: Record<string, string[]> = {
+const CARD_SELECTORS = {
   cvc: [
     'input[autocomplete="cc-csc"]',
     'input[name="cvc"]',
@@ -220,7 +216,7 @@ const CARD_SELECTORS: Record<string, string[]> = {
     'input[id*="zip" i]',
     "#billingPostalCode",
   ],
-};
+} satisfies Record<keyof CardDetails, string[]>;
 
 /**
  * Fill a hosted checkout's card form using the standard selectors. Pass

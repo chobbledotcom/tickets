@@ -1,6 +1,8 @@
+import { LibsqlError } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { stub } from "@std/testing/mock";
+import { execute, getDb, queryOne } from "#shared/db/client.ts";
 import {
   claimNextMaintenanceTask,
   finishMaintenanceTask,
@@ -17,9 +19,11 @@ const taskRow = (name = TASK) =>
     last_started_at: number | null;
     lease_token: string | null;
     checkpoint: string | null;
+    completed_at: number | null;
     next_run_at: number;
   }>(
-    `SELECT checkpoint, next_run_at, lease_token, last_started_at, last_finished_at
+    `SELECT checkpoint, completed_at, next_run_at, lease_token,
+            last_started_at, last_finished_at
        FROM maintenance_tasks WHERE name = ?`,
     [name],
   );
@@ -52,6 +56,19 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     expect(claims.filter((claim) => claim === null).length).toBe(1);
   });
 
+  test("uses direct idempotent writes instead of a batch", async () => {
+    await syncMaintenanceTaskRows([TASK], []);
+    using batch = stub(getDb(), "batch", () =>
+      Promise.reject(
+        new LibsqlError("Server returned HTTP status 500", "SERVER_ERROR"),
+      ),
+    );
+
+    await syncMaintenanceTaskRows([TASK], []);
+
+    expect(batch.calls).toHaveLength(0);
+  });
+
   test("leaves the due time unchanged while work is leased", async () => {
     await syncMaintenanceTaskRows([TASK], []);
     const before = await taskRow();
@@ -74,7 +91,11 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     const { first, second } = await replaceExpiredClaim();
 
     await expect(
-      finishMaintenanceTask(first!, { checkpoint: null, intervalMs: 60_000 }),
+      finishMaintenanceTask(first!, {
+        checkpoint: null,
+        completed: false,
+        intervalMs: 60_000,
+      }),
     ).rejects.toThrow("Lost maintenance lease for claim_test");
     expect((await taskRow())?.lease_token).toBe(second?.leaseToken);
   });
@@ -88,12 +109,14 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     const claim = await claimNextMaintenanceTask([TASK], 60_000);
     await finishMaintenanceTask(claim!, {
       checkpoint: "next-page",
+      completed: false,
       intervalMs: 60_000,
     });
 
     const row = await taskRow();
     expect(row?.next_run_at).toBe((row?.last_finished_at ?? 0) + 60_000);
     expect(row?.checkpoint).toBe("next-page");
+    expect(row?.completed_at).toBeNull();
     expect(row?.last_finished_at).not.toBeNull();
     expect(row?.lease_token).toBeNull();
   });
@@ -103,6 +126,7 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     const claim = await claimNextMaintenanceTask([TASK], 60_000);
     await finishMaintenanceTask(claim!, {
       checkpoint: null,
+      completed: false,
       intervalMs: 120_000,
     });
 
@@ -139,9 +163,26 @@ describeWithEnv("maintenance task claims", { db: true }, () => {
     expect((await taskRow())?.lease_token).toBe(claim?.leaseToken);
     await finishMaintenanceTask(claim!, {
       checkpoint: claim!.checkpoint,
+      completed: false,
       intervalMs: 60_000,
     });
     await syncMaintenanceTaskRows([], [TASK]);
     expect(await taskRow()).toBeNull();
+  });
+
+  test("does not claim completed work when its old due time has passed", async () => {
+    await syncMaintenanceTaskRows([TASK], []);
+    const claim = await claimNextMaintenanceTask([TASK], 60_000);
+    await finishMaintenanceTask(claim!, {
+      checkpoint: "done",
+      completed: true,
+      intervalMs: 60_000,
+    });
+    await execute(
+      "UPDATE maintenance_tasks SET next_run_at = 0 WHERE name = ?",
+      [TASK],
+    );
+
+    expect(await claimNextMaintenanceTask([TASK], 60_000)).toBeNull();
   });
 });

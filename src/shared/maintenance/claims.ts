@@ -1,5 +1,5 @@
 import { generateSecureToken } from "#shared/crypto/utils.ts";
-import { executeBatch, inPlaceholders, queryOne } from "#shared/db/client.ts";
+import { execute, inPlaceholders, queryOne } from "#shared/db/client.ts";
 
 const DATABASE_NOW_MS =
   "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
@@ -14,24 +14,21 @@ export const syncMaintenanceTaskRows = async (
   enabledNames: readonly string[],
   disabledNames: readonly string[],
 ): Promise<void> => {
-  const inserts = enabledNames.map((name) => ({
-    args: [name],
-    sql: `INSERT OR IGNORE INTO maintenance_tasks (name, next_run_at)
-          VALUES (?, ${DATABASE_NOW_MS})`,
-  }));
-  const removals =
-    disabledNames.length === 0
-      ? []
-      : [
-          {
-            args: [...disabledNames],
-            sql: `DELETE FROM maintenance_tasks
-               WHERE name IN (${inPlaceholders(disabledNames)})
-                 AND lease_token IS NULL`,
-          },
-        ];
-  const statements = [...inserts, ...removals];
-  if (statements.length > 0) await executeBatch(statements);
+  if (enabledNames.length > 0) {
+    await execute(
+      `INSERT OR IGNORE INTO maintenance_tasks (name, next_run_at)
+       VALUES ${enabledNames.map(() => `(?, ${DATABASE_NOW_MS})`).join(", ")}`,
+      [...enabledNames],
+    );
+  }
+  if (disabledNames.length > 0) {
+    await execute(
+      `DELETE FROM maintenance_tasks
+        WHERE name IN (${inPlaceholders(disabledNames)})
+          AND lease_token IS NULL`,
+      [...disabledNames],
+    );
+  }
 };
 
 export const claimNextMaintenanceTask = async (
@@ -49,7 +46,8 @@ export const claimNextMaintenanceTask = async (
         SELECT candidate.name
           FROM maintenance_tasks AS candidate
          WHERE candidate.name IN (${inPlaceholders(allowedNames)})
-           AND candidate.next_run_at <= ${DATABASE_NOW_MS}
+            AND candidate.completed_at IS NULL
+            AND candidate.next_run_at <= ${DATABASE_NOW_MS}
            AND (
              candidate.lease_token IS NULL
              OR candidate.lease_expires_at <= ${DATABASE_NOW_MS}
@@ -67,18 +65,25 @@ export const claimNextMaintenanceTask = async (
 
 export const finishMaintenanceTask = async (
   claim: MaintenanceClaim,
-  result: { checkpoint: string | null; intervalMs: number },
+  result: { checkpoint: string | null; completed: boolean; intervalMs: number },
 ): Promise<void> => {
   const row = await queryOne<{ name: string }>(
     `UPDATE maintenance_tasks
         SET next_run_at = ${DATABASE_NOW_MS} + ?,
             checkpoint = ?,
+            completed_at = CASE WHEN ? = 1 THEN ${DATABASE_NOW_MS} ELSE NULL END,
             lease_token = NULL,
             lease_expires_at = NULL,
             last_finished_at = ${DATABASE_NOW_MS}
       WHERE name = ? AND lease_token = ?
       RETURNING name`,
-    [result.intervalMs, result.checkpoint, claim.name, claim.leaseToken],
+    [
+      result.intervalMs,
+      result.checkpoint,
+      result.completed ? 1 : 0,
+      claim.name,
+      claim.leaseToken,
+    ],
   );
   if (!row) throw new Error(`Lost maintenance lease for ${claim.name}`);
 };

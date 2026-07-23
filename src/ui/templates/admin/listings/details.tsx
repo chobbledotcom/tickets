@@ -150,31 +150,13 @@ const PublicUrlRow = ({
     </tr>
   );
 
-export const ListingDetailsTable = ({
-  listing,
-  aggregateRecalculation,
-  allowedDomain,
-  ticketUrl,
-  embedScriptCode,
-  embedIframeCode,
-  capacity,
-  sharedRows,
-  isChild,
-  isHiddenPackageMember,
-}: {
-  listing: ListingWithCount;
-  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
-  allowedDomain: string;
-  ticketUrl: string;
-  embedScriptCode: string;
-  embedIframeCode: string;
-  capacity: ListingCapacityRowsProps;
-  sharedRows: DetailRow[];
-  isChild: boolean;
-  isHiddenPackageMember: boolean;
-}): JSX.Element => {
-  const shareSuppressed = isChild || isHiddenPackageMember;
-  const copyRows: CopyableInputRowSpec[] = compact([
+const buildListingCopyRows = (
+  listing: ListingWithCount,
+  embedScriptCode: string,
+  embedIframeCode: string,
+  shareSuppressed: boolean,
+): CopyableInputRowSpec[] =>
+  compact([
     listing.thank_you_url
       ? {
           id: `thank-you-url-${listing.id}`,
@@ -206,6 +188,37 @@ export const ListingDetailsTable = ({
         }
       : null,
   ]);
+
+export const ListingDetailsTable = ({
+  listing,
+  aggregateRecalculation,
+  allowedDomain,
+  ticketUrl,
+  embedScriptCode,
+  embedIframeCode,
+  capacity,
+  sharedRows,
+  isChild,
+  isHiddenPackageMember,
+}: {
+  listing: ListingWithCount;
+  aggregateRecalculation?: ListingAggregateRecalculation | undefined;
+  allowedDomain: string;
+  ticketUrl: string;
+  embedScriptCode: string;
+  embedIframeCode: string;
+  capacity: ListingCapacityRowsProps;
+  sharedRows: DetailRow[];
+  isChild: boolean;
+  isHiddenPackageMember: boolean;
+}): JSX.Element => {
+  const shareSuppressed = isChild || isHiddenPackageMember;
+  const copyRows = buildListingCopyRows(
+    listing,
+    embedScriptCode,
+    embedIframeCode,
+    shareSuppressed,
+  );
   return (
     <article>
       <DetailTable rows={sharedRows}>

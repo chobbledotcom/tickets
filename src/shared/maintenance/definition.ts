@@ -1,6 +1,6 @@
 export const MAINTENANCE_MIN_INTERVAL_MS = 60_000;
 export const MAINTENANCE_REQUEST_CALL_LIMIT = 40;
-const MAINTENANCE_RESERVED_CALLS = 7;
+const MAINTENANCE_RESERVED_CALLS = 8;
 export const MAINTENANCE_TASK_CALL_LIMIT =
   MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_RESERVED_CALLS;
 export const MAINTENANCE_REQUEST_DEADLINE_MS = 25_000;
@@ -15,6 +15,7 @@ export type MaintenanceTaskBudget = {
 export type MaintenanceTaskContext = {
   budget: MaintenanceTaskBudget;
   checkpoint: string | null;
+  completeTask: () => void;
   deadline: number;
   requestFollowUp: () => void;
   setCheckpoint: (checkpoint: string | null) => void;
@@ -46,8 +47,9 @@ export const maintenanceStartupCalls = (
   const settingsRead = tasks.some((task) => task.check.settingsKeys.length > 0)
     ? 1
     : 0;
+  // Task sync can issue one idempotent insert and one guarded delete.
   const database =
-    1 +
+    2 +
     settingsRead +
     tasks.reduce((sum, task) => sum + task.check.maxDatabaseCalls, 0);
   const external = tasks.reduce(

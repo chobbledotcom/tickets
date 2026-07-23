@@ -387,6 +387,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-21_activity_backfill_complete",
     () => import("./2026-07-21_activity_backfill_complete.ts"),
   ),
+  // Keep one-time work dormant after it reaches its final checkpoint.
+  entry(
+    "2026-07-22_maintenance_completion",
+    () => import("./2026-07-22_maintenance_completion.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

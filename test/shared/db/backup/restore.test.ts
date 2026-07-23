@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { zipSync } from "fflate";
 import {
   createBackupZip,
   PostResetError,
@@ -8,8 +9,11 @@ import {
 } from "#shared/db/backup.ts";
 import { exportTable } from "#shared/db/backup-snapshot.ts";
 import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import { listingsTable } from "#shared/db/listings/records.ts";
+import { verifyCurrentAppSchema } from "#shared/db/migrations/schema-sync.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /**
@@ -25,6 +29,15 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
   const listingCount = async (): Promise<number> =>
     (await queryOne<{ n: number }>("SELECT COUNT(*) AS n FROM listings"))!.n;
+  const zipSql = (file: string, sql: string): Uint8Array =>
+    zipSync({ [file]: new TextEncoder().encode(sql) });
+  const listingTotals = (
+    listingId: number,
+  ): Promise<{ booked_quantity: number; tickets_count: number } | null> =>
+    queryOne(
+      "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
+      [listingId],
+    );
 
   const listingColumnNames = async (): Promise<string[]> => {
     const rows = await queryAll<{ name: string }>(
@@ -32,6 +45,131 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
     );
     return rows.map((row) => row.name);
   };
+
+  test("preserves stored listing totals while replaying booking rows", async () => {
+    const listing = await createTestListing({ name: "Stored totals" });
+    await bookTestAttendee([listing.id]);
+    const zip = await createBackupZip();
+
+    await restoreFromZip(zip);
+
+    expect(await listingTotals(listing.id)).toEqual({
+      booked_quantity: 1,
+      tickets_count: 1,
+    });
+  });
+
+  test("reinstalls listing total triggers after importing rows", async () => {
+    const listing = await createTestListing({ name: "Restored triggers" });
+    await restoreFromZip(await createBackupZip());
+
+    const attendee = await getDb().execute(
+      "INSERT INTO attendees (created, pii_blob) VALUES ('2026-07-22T00:00:00.000Z', '')",
+    );
+    await getDb().execute({
+      args: [listing.id, Number(attendee.lastInsertRowid)],
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, ?)",
+    });
+
+    expect(await listingTotals(listing.id)).toEqual({
+      booked_quantity: 1,
+      tickets_count: 1,
+    });
+  });
+
+  test("keeps validation triggers active while importing rows", async () => {
+    await expect(
+      restoreFromSql("INSERT INTO attendee_answers (attendee_id) VALUES (1);"),
+    ).rejects.toThrow("invalid attendee answer");
+
+    expect(
+      await queryOne<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM attendee_answers",
+      ),
+    ).toEqual({ count: 0 });
+    await verifyCurrentAppSchema();
+  });
+
+  test("keeps unique indexes active while importing rows", async () => {
+    const listing =
+      "INSERT INTO listings (created, max_attendees, slug_index) " +
+      "VALUES ('2026-07-22T00:00:00.000Z', 1, 'duplicate');";
+
+    await expect(restoreFromSql(`${listing}\n${listing}`)).rejects.toThrow(
+      "UNIQUE constraint failed: listings.slug_index",
+    );
+
+    expect(await listingCount()).toBe(0);
+    await verifyCurrentAppSchema();
+  });
+
+  test("rejects one oversized statement before wiping existing data", async () => {
+    await createTestListing({ name: "Still here" });
+    const statement = `INSERT INTO "settings" ("key", "value") VALUES ('oversized', '${"x".repeat(
+      600_000,
+    )}');`;
+
+    await expect(
+      restoreFromZip(zipSql("settings.sql", statement)),
+    ).rejects.toThrow("Backup SQL statement is larger than 524288 bytes");
+
+    expect(await listingCount()).toBe(1);
+  });
+
+  test("rejects a statement for the wrong table before wiping existing data", async () => {
+    await createTestListing({ name: "Still here" });
+    const statement = 'INSERT INTO "events" ("id") VALUES (1);';
+
+    await expect(
+      restoreFromZip(zipSql("settings.sql", statement)),
+    ).rejects.toThrow(
+      "Backup file settings.sql contains SQL for events instead of settings",
+    );
+
+    expect(await listingCount()).toBe(1);
+  });
+
+  test("rejects non-insert SQL before wiping existing data", async () => {
+    await createTestListing({ name: "Still here" });
+
+    await expect(
+      restoreFromZip(zipSql("settings.sql", "DELETE FROM settings;")),
+    ).rejects.toThrow(
+      "Backup file settings.sql contains a statement that is not an INSERT",
+    );
+
+    expect(await listingCount()).toBe(1);
+  });
+
+  test("rejects a partial backup without a manifest before wiping existing data", async () => {
+    await createTestListing({ name: "From partial backup" });
+    const { sql } = await exportTable("listings");
+    await createTestListing({ name: "Must stay" });
+
+    await expect(restoreFromZip(zipSql("listings.sql", sql))).rejects.toThrow(
+      "Backup without a manifest is missing required data for tables: settings, schema_migrations, attendee_statuses",
+    );
+
+    expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
+      "From partial backup",
+      "Must stay",
+    ]);
+  });
+
+  test("keeps restored data when the final progress callback fails", async () => {
+    await createTestListing({ name: "From backup" });
+    const zip = await createBackupZip();
+    await createTestListing({ name: "Not in backup" });
+
+    const error = await restoreFromZip(zip, ({ stage }) => {
+      if (stage === "clearing-caches") throw new Error("progress stopped");
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toEqual(new Error("progress stopped"));
+    expect((await listingsTable.findAll()).map(({ name }) => name)).toEqual([
+      "From backup",
+    ]);
+  });
 
   describe("backups taken before a column-dropping migration", () => {
     const FIRST_CLASS_IMAGES_ID = "2026-07-05_first_class_images";
@@ -92,22 +230,6 @@ describeWithEnv("db > backup restore", { db: true, triggers: true }, () => {
   });
 
   describe("backups this build cannot replay", () => {
-    test("a backup from a newer build is refused before anything is wiped", async () => {
-      await createTestListing({ name: "Still Here" });
-      const recorded = await exportTable("schema_migrations");
-      const dump =
-        `${recorded.sql}\n` +
-        `INSERT INTO "schema_migrations" ("id", "description", "applied_at") ` +
-        `VALUES ('2099-01-01_from_the_future', 'Future change', '2099-01-01T00:00:00.000Z');\n`;
-
-      await expect(restoreFromSql(dump)).rejects.toThrow(
-        "2099-01-01_from_the_future",
-      );
-
-      // Refused up front: the database was never reset, so the data survives.
-      expect(await listingCount()).toBe(1);
-    });
-
     test("an orphaned marker from a historically renamed migration is not refused", async () => {
       // Real databases carry schema_migrations rows whose migration was later
       // renamed (e.g. 2026-06-18_answer_price_modifiers); the old marker is

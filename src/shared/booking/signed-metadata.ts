@@ -116,6 +116,47 @@ const allocatedQtyByChild = (
   return byChild;
 };
 
+type LineDriftContext = {
+  allocatedParentIds: ReadonlySet<number>;
+  childIdsByParentKey: ReadonlyMap<string, readonly number[]>;
+  foldedQty: ReadonlyMap<number, number>;
+  keys: ReadonlySet<string>;
+  lineByListing: ReadonlyMap<number, BookingItem>;
+};
+
+/** Whether one non-fully-folded line no longer resolves, or has gained a
+ * required child that this order does not carry. */
+const lineEdgeDrifted = (
+  line: BookingItem,
+  context: LineDriftContext,
+): boolean => {
+  // A folded child collapses to one line whose folded units live in
+  // `allocations`; skip it ONLY when every unit is folded. A bookable_alone
+  // child can carry standalone SURPLUS, which still needs its own validation.
+  if ((context.foldedQty.get(line.e) ?? 0) >= line.q) return false;
+  const key = lineNodeKey(line);
+  if (!context.keys.has(key)) return true;
+  const childIds = context.childIdsByParentKey.get(key);
+  return (
+    childIds !== undefined &&
+    !context.allocatedParentIds.has(line.e) &&
+    !childIds.some((id) => context.lineByListing.has(id))
+  );
+};
+
+/** Whether one folded allocation has lost its parent line or parent-child edge. */
+const allocationEdgeDrifted = (
+  allocation: ChildAllocation,
+  keys: ReadonlySet<string>,
+  lineByListing: ReadonlyMap<number, BookingItem>,
+): boolean => {
+  const parent = lineByListing.get(allocation.parentId);
+  return (
+    parent === undefined ||
+    !keys.has(childNodeKey(lineNodeKey(parent), allocation.childId))
+  );
+};
+
 export const edgeDrifted = (
   tree: BookingTree,
   items: readonly BookingItem[],
@@ -126,30 +167,17 @@ export const edgeDrifted = (
   const foldedQty = allocatedQtyByChild(allocations);
   const allocatedParentIds = new Set(allocations.map((a) => a.parentId));
   const lineByListing = new Map(items.map((item) => [item.e, item]));
-  for (const line of items) {
-    // A folded child collapses to one line whose folded units live in
-    // `allocations`; skip it ONLY when every unit is folded. A bookable_alone
-    // child can carry standalone SURPLUS (line.q beyond its allocated units),
-    // which must still be revalidated as a standalone line — else a required
-    // child added to it mid-checkout would let the surplus book without the
-    // add-on the current page now demands.
-    if ((foldedQty.get(line.e) ?? 0) >= line.q) continue;
-    const key = lineNodeKey(line);
-    if (!keys.has(key)) return true;
-    const childIds = childIdsByParentKey.get(key);
-    if (
-      childIds &&
-      !allocatedParentIds.has(line.e) &&
-      !childIds.some((id) => lineByListing.has(id))
-    ) {
-      return true;
-    }
-  }
-  for (const alloc of allocations) {
-    const parent = lineByListing.get(alloc.parentId);
-    if (!parent) return true;
-    if (!keys.has(childNodeKey(lineNodeKey(parent), alloc.childId)))
-      return true;
-  }
-  return false;
+  const context: LineDriftContext = {
+    allocatedParentIds,
+    childIdsByParentKey,
+    foldedQty,
+    keys,
+    lineByListing,
+  };
+  return (
+    items.some((line) => lineEdgeDrifted(line, context)) ||
+    allocations.some((allocation) =>
+      allocationEdgeDrifted(allocation, keys, lineByListing),
+    )
+  );
 };

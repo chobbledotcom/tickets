@@ -20,7 +20,7 @@ const task = (
   });
 
 describe("maintenance task declarations", () => {
-  test("totals every startup call and the shared settings and sync reads", () => {
+  test("totals every startup call and the shared settings and sync calls", () => {
     expect(maintenanceStartupCalls([])).toEqual({
       database: 0,
       external: 0,
@@ -41,12 +41,12 @@ describe("maintenance task declarations", () => {
           name: "second",
         }),
       ]),
-    ).toEqual({ database: 7, external: 9, total: 16 });
+    ).toEqual({ database: 8, external: 9, total: 17 });
   });
 
-  test("reserves seven calls and one second for scheduler bookkeeping", () => {
+  test("reserves eight calls and one second for scheduler bookkeeping", () => {
     expect(MAINTENANCE_REQUEST_CALL_LIMIT - MAINTENANCE_TASK_CALL_LIMIT).toBe(
-      7,
+      8,
     );
     expect(MAINTENANCE_RELEASE_HEADROOM_MS).toBe(1_000);
   });
@@ -117,7 +117,7 @@ describe("maintenance task declarations", () => {
         }),
       ]),
     ).toThrow(
-      `Maintenance checks declare ${MAINTENANCE_REQUEST_CALL_LIMIT + 1} startup calls; maximum is ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
+      `Maintenance checks declare ${MAINTENANCE_REQUEST_CALL_LIMIT + 2} startup calls; maximum is ${MAINTENANCE_REQUEST_CALL_LIMIT}`,
     );
   });
 

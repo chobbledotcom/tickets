@@ -80,7 +80,8 @@ src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error messag
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
 src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
-src/shared/maintenance/runner.ts:181:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
+src/shared/maintenance/runner.ts:181:5  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
+src/shared/maintenance/runner.ts:193:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:201:44  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
 src/shared/builder.ts:202:35  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:207:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
@@ -141,8 +142,8 @@ src/shared/db/users.ts:263:62  ?? → ||   # queryAll()[0] is a truthy UserAuthF
 src/shared/db/query-log.ts:71:62  ?? → ||   # queryLogScope.current() is a truthy QueryLogState object or undefined
 src/shared/db/query-log.ts:252:43  ?? → ||   # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
 src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState object or undefined
-src/shared/update.ts:131:45  ?? → ||   # the stored marker is a string or undefined and the fallback is empty, so both operators return the same string
-src/shared/update.ts:156:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
+src/shared/update.ts:153:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
+src/shared/update.ts:186:11  ?? → ||   # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 
 # Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
 # entries below); the ticket-payment.ts fold-internal equivalents went with it.
@@ -1118,3 +1119,5 @@ src/shared/stripe/request.ts:152:15  === → ==   # Headers.get returns string|n
 # only for that value-less case, so every parsed result is identical.
 src/shared/stripe/webhook.ts:28:15  ?: → alternate only   # with "=", both arms slice the same key; without it, no value can be consumed
 src/shared/stripe/webhook.ts:28:30  1 → 2   # this changes only the no-separator key arm; value-less recognized and unknown keys are all ignored
+
+# Schema indexes are an array when present, and arrays are always truthy.

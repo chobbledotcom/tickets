@@ -5,12 +5,9 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#shared/types.ts";
 import { flashDataPage } from "#templates/admin/admin-page.tsx";
-import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { GuideFooter } from "#templates/components/actions.tsx";
 import { DataTable } from "#templates/components/data-table.tsx";
-import { ErrorNote } from "#templates/components/error.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
 /* jscpd:ignore-end */
 
@@ -132,77 +129,17 @@ export const adminBackupPage = flashDataPage<BackupPageState>(
               </>
             )}
           </section>
-
-          <section>
-            <div class="prose">
-              <h2>{t("backup.restore_heading")}</h2>
-              <p>
-                <Raw html={t("backup.restore_warning")} />
-              </p>
-            </div>
-            <SaveForm
-              action="/admin/backup/restore"
-              enctype="multipart/form-data"
-              id="backup-restore"
-              submitIcon="rotate-ccw"
-              submitLabel={t("backup.upload_button")}
-            >
-              <label>
-                {t("backup.backup_file_label")}
-                <input accept=".zip" name="backup_file" required type="file" />
-              </label>
-            </SaveForm>
-          </section>
         </>
       )}
+      <section>
+        <div class="prose">
+          <h2>{t("backup.restore_heading")}</h2>
+          <Raw html={t("backup.restore_console_description")} />
+        </div>
+      </section>
       <GuideFooter href="/admin/guide#backups">
         {t("backup.guide_link")}
       </GuideFooter>
     </>
   ),
 );
-
-export const RESTORE_CONFIRM_PHRASE =
-  "This will restore my whole database to an earlier state. Existing info will be lost. I understand that this is dangerous.";
-
-export const adminRestoreConfirmPage = (
-  session: AdminSession,
-  filename: string,
-  lineCount: number,
-  error?: string,
-  schemaMismatch?: boolean,
-): string =>
-  ConfirmPage({
-    action: "/admin/backup/restore/confirm",
-    active: "/admin/backup",
-    buttonText: t("backup.restore_button"),
-    children: (
-      <>
-        <h1>{t("backup.confirm_restore_heading")}</h1>
-        {schemaMismatch && (
-          <ErrorNote>
-            <Raw html={t("backup.schema_mismatch_warning")} />
-          </ErrorNote>
-        )}
-        <p>
-          <Raw html={t("backup.restore_confirmation_intro", { lineCount })} />
-        </p>
-        <ul>
-          <li>{t("backup.restore_step_drop_tables")}</li>
-          <li>{t("backup.restore_step_recreate_schema")}</li>
-          <li>{t("backup.restore_step_import_data")}</li>
-        </ul>
-        <p>
-          <Raw html={t("backup.restore_cannot_undo")} />{" "}
-          <code>{RESTORE_CONFIRM_PHRASE}</code> {t("backup.restore_type_below")}
-        </p>
-      </>
-    ),
-    error,
-    hiddenFields: { backup_filename: filename },
-    id: "backup-restore-confirm",
-    label: t("backup.confirmation_label"),
-    name: RESTORE_CONFIRM_PHRASE,
-    session,
-    title: t("backup.confirm_restore_title"),
-  });

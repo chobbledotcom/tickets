@@ -26,18 +26,52 @@ import type {
 } from "#shared/payments.ts";
 import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 import { stripeApi } from "#shared/stripe.ts";
+
 /* jscpd:ignore-end */
 
-/** Give a simulated paid callback the stage its earlier checkout creation would
- * have stored in production. Invalid and balance sessions deliberately skip it. */
-export const stagePaymentCallback = async (fields: {
+interface StagePaymentCallbackFields {
   amountTotal: number;
   metadata: SessionMetadata | Record<string, string>;
   paymentReference: string;
   provider?: PaymentProviderType;
   providerCheckoutId?: string;
   sessionId: string;
-}): Promise<void> => {
+}
+
+const createCallbackStage = async (
+  attendeeInput: Parameters<typeof attendeesApi.createStagedCheckoutAtomic>[0],
+  fields: StagePaymentCallbackFields,
+): Promise<void> => {
+  const staged = await attendeesApi.createStagedCheckoutAtomic(attendeeInput, {
+    paymentSessionId: fields.sessionId,
+    provider: fields.provider ?? "stripe",
+    providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
+  });
+  if (staged.success) return;
+  const attendee = await attendeesApi.createAttendeeAtomic({
+    ...attendeeInput,
+    allowOverbook: true,
+  });
+  assert(attendee.success, "Could not stage payment callback");
+  const first = attendee.attendees[0]!;
+  const stage = await pendingCheckoutStageInsert(
+    {
+      paymentSessionId: fields.sessionId,
+      provider: fields.provider ?? "stripe",
+      providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
+    },
+    "?",
+    [first.id],
+    first.ticket_token,
+  );
+  await execute(stage.sql, stage.args);
+};
+
+/** Give a simulated paid callback the stage its earlier checkout creation would
+ * have stored in production. Invalid and balance sessions deliberately skip it. */
+export const stagePaymentCallback = async (
+  fields: StagePaymentCallbackFields,
+): Promise<void> => {
   if (await loadCheckoutStageByPaymentSession(fields.sessionId)) return;
   if (await isSessionProcessed(fields.sessionId)) return;
   if (
@@ -95,33 +129,7 @@ export const stagePaymentCallback = async (fields: {
       special_instructions: intent.special_instructions,
       statusId: await requirePublicStatusId(),
     };
-    const staged = await attendeesApi.createStagedCheckoutAtomic(
-      attendeeInput,
-      {
-        paymentSessionId: fields.sessionId,
-        provider: fields.provider ?? "stripe",
-        providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
-      },
-    );
-    if (!staged.success) {
-      const attendee = await attendeesApi.createAttendeeAtomic({
-        ...attendeeInput,
-        allowOverbook: true,
-      });
-      assert(attendee.success, "Could not stage payment callback");
-      const first = attendee.attendees[0]!;
-      const stage = await pendingCheckoutStageInsert(
-        {
-          paymentSessionId: fields.sessionId,
-          provider: fields.provider ?? "stripe",
-          providerCheckoutId: fields.providerCheckoutId ?? fields.sessionId,
-        },
-        "?",
-        [first.id],
-        first.ticket_token,
-      );
-      await execute(stage.sql, stage.args);
-    }
+    await createCallbackStage(attendeeInput, fields);
   } finally {
     if (inactiveIds.length > 0) {
       await execute(

@@ -176,6 +176,8 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
 
       expect(response.status).toBe(302);
       expectFlash(response, "API key sk_test_123 created", true);
+      const entries = await getAllActivityLog();
+      expect(entries[0]?.message).toBe("API key *** created");
     });
 
     test("createActionHandler redacts dynamic secret from activity log", async () => {
@@ -183,7 +185,8 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         {
           auth: "any" as const,
           execute: () => Promise.resolve(),
-          message: "API key created",
+          message: (_session, form) =>
+            `API key ${form.getString("api_key")} created`,
           redactedSecret: (_session, form) =>
             form.getString("api_key") || undefined,
           successRedirect: "/admin/keys",
@@ -193,7 +196,9 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
 
       expect(response.status).toBe(302);
-      expectFlash(response, "API key created", true);
+      expectFlash(response, "API key secret_key_456 created", true);
+      const entries = await getAllActivityLog();
+      expect(entries[0]?.message).toBe("API key *** created");
     });
 
     test("createActionHandler logs with fixed listingId when configured", async () => {

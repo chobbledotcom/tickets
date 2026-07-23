@@ -56,6 +56,8 @@ import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import {
   checkoutWebhookEventKind,
   getActivePaymentProvider,
+  type PaymentProvider,
+  type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
 import { tryCloseAndPurgeCheckoutStageBySession } from "#shared/staged-checkout.ts";
@@ -388,6 +390,33 @@ const authenticateWebhook = async (
   return { listing: verification.listing, provider };
 };
 
+const closeExpiredWebhookSession = async (
+  session: ValidatedPaymentSession,
+  expired: boolean,
+  provider: PaymentProvider,
+): Promise<Response | ValidatedPaymentSession> => {
+  if (!expired && session.paymentStatus !== "failed") return session;
+  const closeResult = await tryCloseAndPurgeCheckoutStageBySession(
+    session.id,
+    provider,
+    (error) =>
+      logDebug(
+        "Webhook",
+        `Checkout stage close failed (provider=${provider.type}, session=${session.id}): ${String(error)}`,
+      ),
+  );
+  if (closeResult === "error") {
+    return jsonResponse({ status: "retry" }, 503);
+  }
+  if (closeResult !== "paid") {
+    return webhookAckResponse({ status: "closed" });
+  }
+  const refreshed = await validateRefreshedPaidSession(session.id, provider);
+  return refreshed.ok
+    ? refreshed.data.session
+    : jsonResponse({ status: "retry" }, 503);
+};
+
 /**
  * Handle POST /payment/webhook (payment provider webhook endpoint)
  *
@@ -435,28 +464,13 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse();
   }
 
-  let session = sessionResult;
-
-  if (eventKind === "expired" || session.paymentStatus === "failed") {
-    const closeResult = await tryCloseAndPurgeCheckoutStageBySession(
-      session.id,
-      provider,
-      (error) =>
-        logDebug(
-          "Webhook",
-          `Checkout stage close failed (provider=${provider.type}, session=${session.id}): ${String(error)}`,
-        ),
-    );
-    if (closeResult === "error") {
-      return jsonResponse({ status: "retry" }, 503);
-    }
-    if (closeResult !== "paid") {
-      return webhookAckResponse({ status: "closed" });
-    }
-    const refreshed = await validateRefreshedPaidSession(session.id, provider);
-    if (!refreshed.ok) return jsonResponse({ status: "retry" }, 503);
-    session = refreshed.data.session;
-  }
+  const closedSession = await closeExpiredWebhookSession(
+    sessionResult,
+    eventKind === "expired",
+    provider,
+  );
+  if (closedSession instanceof Response) return closedSession;
+  const session = closedSession;
 
   // Verify payment is complete before classifying — an unpaid session may carry
   // a charge amount that would otherwise classify as trusted.
