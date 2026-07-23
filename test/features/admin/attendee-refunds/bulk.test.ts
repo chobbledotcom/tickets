@@ -1,17 +1,16 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { resetI18nForTest } from "#i18n";
 import { handleRequest } from "#routes";
 import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { BULK_REFUND_LIMIT } from "#shared/subrequest-budget.ts";
 import {
   createPaidListing,
-  expectPartialRefund,
   seedBatchAttendees,
   setupRefundTest,
 } from "#test/lib/server-refunds-helpers.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
-  expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   testRequiresAuth,
@@ -23,6 +22,7 @@ import {
 } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   postRefundAll,
@@ -31,6 +31,9 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+
+const SINGLE_ERROR_RESULT =
+  "1 refund succeeded. There was 1 failure. There was 1 error. Check the activity log for details. Some payments may have already been refunded.";
 
 describeWithEnv("server (admin refund-all)", { db: true }, () => {
   describe("GET /admin/listing/:id/refund-all", () => {
@@ -234,7 +237,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         expect(mockRefund.calls.length).toBe(2);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          expect.stringContaining("had errors"),
+          SINGLE_ERROR_RESULT,
           false,
         )(response);
       });
@@ -248,13 +251,8 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         expect(mockRefund.calls.length).toBe(BULK_REFUND_LIMIT);
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          expect.stringContaining(`${BULK_REFUND_LIMIT} attendee(s) refunded`),
+          `${BULK_REFUND_LIMIT} refunds succeeded. 1 refund remains. Submit again to continue.`,
         )(response);
-        expectFlash(
-          response,
-          `${BULK_REFUND_LIMIT} attendee(s) refunded. 1 remaining — submit again to continue.`,
-          true,
-        );
       });
 
       const log = (await getListingActivityLog(listing.id)).find((entry) =>
@@ -265,25 +263,54 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       );
     });
 
-    test("reports failures with remaining count when batch has errors", async () => {
-      const listing = await createPaidListing({ maxAttendees: 500 });
-      await seedBatchAttendees(listing, "pi_batchfail_", BULK_REFUND_LIMIT + 1);
-      await withRefundMock(false, async () => {
-        const response = await postRefundAll(listing);
+    const remainingFailureCases = [
+      {
+        count: 1,
+        expected: `0 refunds succeeded. There were ${BULK_REFUND_LIMIT} failures. 1 refund remains. Submit again to continue.`,
+        label: "one refund remaining",
+      },
+      {
+        count: 2,
+        expected: `0 refunds succeeded. There were ${BULK_REFUND_LIMIT} failures. 2 refunds remain. Submit again to continue.`,
+        label: "multiple refunds remaining",
+      },
+    ];
+    for (const { count, expected, label } of remainingFailureCases) {
+      test(`reports failures with ${label}`, async () => {
+        const listing = await createPaidListing({ maxAttendees: 500 });
+        await seedBatchAttendees(
+          listing,
+          `pi_batchfail_${count}_`,
+          BULK_REFUND_LIMIT + count,
+        );
+        await withRefundMock(false, async () => {
+          await expectFlashRedirect(
+            `/admin/listing/${listing.id}/refund-all`,
+            expected,
+            false,
+          )(await postRefundAll(listing));
+        });
+      });
+    }
+
+    test("reports a pending refund without calling it a failure", async () => {
+      const listing = await createPaidListing();
+      await createPaidTestAttendee(
+        listing.id,
+        "Pending User",
+        "pending@example.com",
+        "pi_pending",
+      );
+      await withRefundMock("pending", async () => {
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
-          expect.stringContaining(`${BULK_REFUND_LIMIT} failed`),
+          "0 refunds succeeded. 1 refund is pending. Some payments may have already been refunded.",
           false,
-        )(response);
-        expectFlash(
-          response,
-          `0 refund(s) succeeded, 0 pending, and ${BULK_REFUND_LIMIT} failed. 1 remaining. Submit again to continue.`,
-          false,
-        );
+        )(await postRefundAll(listing));
       });
     });
 
-    test("reports partial failure when some refunds fail", async () => {
+    test("applies copy replacements to a completed partial-refund result", async () => {
       const listing = await createPaidListing();
       await createPaidTestAttendee(
         listing.id,
@@ -298,12 +325,22 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         "pi_partial_fail",
       );
       let callNum = 0;
-      await withRefundMock(
-        () => Promise.resolve(++callNum <= 1),
-        async () => {
-          await expectPartialRefund(listing, await postRefundAll(listing));
-        },
-      );
+      using _env = withEnv({ I18N_REPLACEMENTS: "failure|problem" });
+      resetI18nForTest();
+      try {
+        await withRefundMock(
+          () => Promise.resolve(++callNum <= 1),
+          async () => {
+            await expectFlashRedirect(
+              `/admin/listing/${listing.id}/refund-all`,
+              "1 refund succeeded. There was 1 problem. Some payments may have already been refunded.",
+              false,
+            )(await postRefundAll(listing));
+          },
+        );
+      } finally {
+        resetI18nForTest();
+      }
 
       const log = (await getListingActivityLog(listing.id)).find((entry) =>
         entry.message.includes("Bulk refund: 1 succeeded"),
@@ -334,8 +371,37 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         },
         async () => {
           const response = await postRefundAll(listing);
-          await expectPartialRefund(listing, response);
-          expectFlash(response, expect.stringContaining("1 had errors"), false);
+          await expectFlashRedirect(
+            `/admin/listing/${listing.id}/refund-all`,
+            SINGLE_ERROR_RESULT,
+            false,
+          )(response);
+        },
+      );
+    });
+
+    test("uses plural error copy when multiple refunds throw", async () => {
+      const listing = await createPaidListing();
+      await createPaidTestAttendee(
+        listing.id,
+        "Throw One",
+        "throw-one@example.com",
+        "pi_throw_one",
+      );
+      await createPaidTestAttendee(
+        listing.id,
+        "Throw Two",
+        "throw-two@example.com",
+        "pi_throw_two",
+      );
+      await withRefundMock(
+        () => Promise.reject(new Error("Stripe refund boom")),
+        async () => {
+          await expectFlashRedirect(
+            `/admin/listing/${listing.id}/refund-all`,
+            "0 refunds succeeded. There were 2 failures. There were 2 errors. Check the activity log for details. Some payments may have already been refunded.",
+            false,
+          )(await postRefundAll(listing));
         },
       );
     });

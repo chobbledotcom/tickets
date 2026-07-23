@@ -24,7 +24,7 @@ describe("defineStoredJson", () => {
 
   test("rejects the wrong top-level shape", () => {
     expect(() => entriesJson.read('{"id":1}', "test.entries")).toThrow(
-      "Invalid stored JSON in test.entries: Stored value does not match its schema",
+      /^Invalid stored JSON in test\.entries: Stored value does not match its schema$/,
     );
   });
 

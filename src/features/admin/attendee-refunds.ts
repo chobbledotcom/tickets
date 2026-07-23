@@ -3,8 +3,8 @@ import { defineRoutes } from "#routes/router.ts";
  * Admin attendee refund routes (single + bulk)
  */
 
-import { compact } from "#fp";
 /* jscpd:ignore-start */
+import { compact } from "#fp";
 import { t } from "#i18n";
 import {
   withDecryptedAttendees,
@@ -203,19 +203,25 @@ const buildRefundProblemResponse = async (
   const { refundedCount, pendingCount, failedCount, errorCount } = counts;
   const problemCount = failedCount + errorCount;
   const msg = compact([
-    t("admin.attendees.refund_all_problem_summary", {
-      pendingCount,
-      problemCount,
-      refundedCount,
-    }),
+    t("admin.attendees.refund_all_result_refunds", { count: refundedCount }),
+    pendingCount > 0
+      ? t("admin.attendees.refund_all_result_pending", {
+          count: pendingCount,
+        })
+      : null,
+    problemCount > 0
+      ? t("admin.attendees.refund_all_result_failures", {
+          count: problemCount,
+        })
+      : null,
     errorCount > 0
-      ? t("admin.attendees.refund_all_problem_errors", { errorCount })
+      ? t("admin.attendees.refund_all_result_errors", { count: errorCount })
       : null,
     t(
       remaining > 0
-        ? "admin.attendees.refund_all_problem_remaining"
-        : "admin.attendees.refund_all_problem_complete",
-      { remaining },
+        ? "admin.attendees.refund_all_result_remaining"
+        : "admin.attendees.refund_all_result_complete",
+      { count: remaining },
     ),
   ]).join(" ");
   await logActivity(
@@ -250,7 +256,14 @@ const buildRefundAllResponse = async (
     );
     return ok(
       refundAllUrl,
-      `${refundedCount} attendee(s) refunded. ${remaining} remaining — submit again to continue.`,
+      [
+        t("admin.attendees.refund_all_result_refunds", {
+          count: refundedCount,
+        }),
+        t("admin.attendees.refund_all_result_remaining", {
+          count: remaining,
+        }),
+      ].join(" "),
     );
   }
 

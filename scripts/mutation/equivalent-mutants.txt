@@ -21,6 +21,9 @@ src/ui/templates/components/data-table.tsx:85:43  0 → -1   # For the only chan
 src/shared/form-data.ts:16:33  ?? → ||   # trim returns a string, and its only falsy value is the empty string supplied by the fallback
 src/shared/forms/validation.ts:101:46  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
 src/features/admin/dashboard.ts:232:65  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
+src/shared/bearer.ts:7:55  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
+src/shared/uptime-kuma/socket.ts:187:28  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
+src/shared/uptime-kuma/monitors.ts:87:21  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
 
 src/features/admin/entity-pages.ts:306:28  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts:307:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
@@ -63,7 +66,6 @@ src/shared/accounting/store.ts:225:42  ?? → ||    # planGroup originalsById.ge
 src/shared/accounting/manual-entries.ts:236:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:42:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
-src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/maintenance/runner.ts:195:5  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:202:5  0 → 1   # every non-empty run needs at least two database startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:214:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback

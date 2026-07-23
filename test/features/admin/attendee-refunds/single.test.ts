@@ -7,6 +7,7 @@ import {
   setBookingLineQuantity,
   setupRefundTest,
 } from "#test/lib/server-refunds-helpers.ts";
+import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertAdminHtml,
   expectFlashRedirect,
@@ -157,7 +158,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
       await expectFlashRedirect(
         `/admin/attendees/${ctx.attendee.id}/refund`,
-        expect.stringContaining("does not match"),
+        "Attendee name does not match. Please type the exact attendee name to confirm refund.",
         false,
       )(response);
     });
@@ -184,17 +185,15 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       )(response);
     });
 
-    test("returns the no-payment error when the attendee has no active booking line", async () => {
+    test("returns error when attendee has no active booking line", async () => {
       const ctx = await setupRefundTest("pi_no_quantity_post");
       await setBookingLineQuantity(ctx.attendee.id, ctx.listing.id, 0);
-
-      const response = await submitRefund(ctx);
 
       await expectFlashRedirect(
         `/admin/attendees/${ctx.attendee.id}/refund`,
         "This attendee has no payment to refund.",
         false,
-      )(response);
+      )(await submitRefund(ctx));
     });
 
     test("returns error when no payment provider configured", async () => {
@@ -211,6 +210,11 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const ctx = await setupRefundTest("pi_test_success");
 
       await expectSingleRefundIssued(ctx);
+      expect(
+        (await getAttendeeActivityLog(ctx.attendee.id)).map(
+          (entry) => entry.message,
+        ),
+      ).toContain("Refund issued for attendee 'John Doe'");
     });
 
     test("treats an already-refunded provider charge as success", async () => {
