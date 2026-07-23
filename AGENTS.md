@@ -4,7 +4,23 @@ A minimal ticket reservation system using Bunny Edge Scripting and libsql.
 
 ## Getting Started
 
-Run `./setup.sh` to install Deno, cache dependencies, and run all precommit checks (typecheck, lint, tests).
+Assume the workspace is probably running on NixOS. Use the repository's Nix
+development shell so Deno and the other tools come from `flake.nix`:
+
+```bash
+nix develop
+```
+
+For one command, run it through the shell instead of entering it:
+
+```bash
+nix develop -c deno task precommit
+```
+
+Do not use `mise` or a host-installed `deno` directly when Nix is available.
+All `deno ...` commands in this file assume you are already inside
+`nix develop`; non-interactive agents should prefix them with
+`nix develop -c`. On non-Nix systems, `./setup.sh` remains the fallback.
 
 ## Runtime Environment
 
@@ -19,14 +35,14 @@ Code must work in both environments. The edge runtime is Deno-based, so developm
 This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
 project is expected to run on. Local development should use that version too.
 
-This repo pins Deno with mise:
+The Nix flake pins the required Deno version. Check it with:
 
 ```bash
-mise install
-mise exec -- deno --version
+nix develop -c deno --version
 ```
 
-The `.tool-versions` file is kept in sync for asdf-compatible tooling.
+The `.tool-versions` and mise configuration are kept in sync only for
+non-Nix environments.
 
 ## stripe-mock
 
@@ -81,7 +97,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Never lose work — commit WIP even if broken**: Uncommitted changes are lost if the working environment is reclaimed (it has happened). If you have non-trivial work in progress and are about to pause, hand off, delegate to a background agent, or end a turn with a dirty tree, **commit and push it** rather than leaving it uncommitted. A known-broken checkpoint is fine and expected — mark it unmistakably in the commit message (e.g. `WIP: <chunk> — NOT GREEN, <what fails>`) so it is never mistaken for finished work, and follow up with a green commit. Do not hold a commit back purely because the tree does not yet build or pass; losing the work is worse.
 - **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit. **If a suggestion is valid but outside the current job's scope**, do not silently drop it — record it in `TODO.md` with enough context for a future person to pick it up without re-reading the PR (the file/path it concerns, what the reviewer proposed, why it's genuinely out of scope here, and a starting point), then reply on the thread pointing to the TODO entry. Scope is a real boundary, not an excuse to lose good ideas.
 - **Finish by rewriting the PR name and description**: Once a feature is done, revisit its pull request and update the name and description to match what was actually built. A PR often starts life with a WIP or work-in-flight title; the finished PR should be thorough but written in simple, concise, understandable, non-technical language — the same plain language we want in our code, comments, and method names. Someone without a CS degree should be able to read the PR and know what changed, why, and what it means for the people using the site.
-- **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
+- **Final check**: Run `nix develop -c deno task precommit` before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
 
 ## Offensive Programming — Never Suppress Errors
 
