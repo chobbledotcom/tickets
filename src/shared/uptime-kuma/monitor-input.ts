@@ -13,9 +13,9 @@ export const scheduledAuthorization = (scheduledTaskKey: string): string =>
 
 type KumaGeneration = "one" | "two";
 
-const VERSION_DEFAULTS: Record<KumaGeneration, UptimeKumaMonitorInput> = {
-  one: {},
-  two: { conditions: [], rabbitmqNodes: [] },
+const VERSION_DEFAULTS: Record<KumaGeneration, () => UptimeKumaMonitorInput> = {
+  one: () => ({}),
+  two: () => ({ conditions: [], rabbitmqNodes: [] }),
 };
 
 const generation = (majorVersion: number): KumaGeneration =>
@@ -61,7 +61,7 @@ const monitorDefaults = (
   type,
   upsideDown: false,
   url: null,
-  ...VERSION_DEFAULTS[generation(majorVersion)],
+  ...VERSION_DEFAULTS[generation(majorVersion)](),
 });
 
 export const groupMonitorInput = (

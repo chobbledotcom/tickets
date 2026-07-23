@@ -9,6 +9,7 @@ import {
 } from "./socket.ts";
 
 const SOCKET_TIMEOUT_MS = 10_000;
+const MONITOR_LIST_TIMEOUT_MS = 60_000;
 
 type SocketListener = (...args: unknown[]) => void;
 
@@ -89,9 +90,10 @@ const requireOk = (value: unknown): void => {
   if (!response.ok) throw new Error(response.msg);
 };
 
-type EventWaiter = {
+type EventCapture = {
   cancel: () => void;
-  promise: Promise<unknown>;
+  latest: () => unknown;
+  received: Promise<void>;
 };
 
 type VersionOutcome =
@@ -106,11 +108,12 @@ type VersionCapture = {
 const withEventTimeout = async <Value>(
   promise: Promise<Value>,
   event: string,
+  timeoutMs = SOCKET_TIMEOUT_MS,
 ): Promise<Value> => {
   const timeout = Promise.withResolvers<never>();
   const timer = setTimeout(() => {
     timeout.reject(new Error(`Uptime Kuma did not send ${event}.`));
-  }, SOCKET_TIMEOUT_MS);
+  }, timeoutMs);
   try {
     return await Promise.race([promise, timeout.promise]);
   } finally {
@@ -145,31 +148,43 @@ const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
   };
 };
 
-const waitForEvent = (socket: UptimeKumaSocket, event: string): EventWaiter => {
-  let timer: number;
+const captureEvents = (
+  socket: UptimeKumaSocket,
+  event: string,
+  timeoutMs: number,
+): EventCapture => {
+  let latest: unknown;
   let listener: SocketListener;
-  const promise = new Promise<unknown>((resolve, reject) => {
-    listener = resolve;
+  const received = Promise.withResolvers<void>();
+  listener = (value) => {
+    latest = value;
+    received.resolve();
     socket.once(event, listener);
-    timer = setTimeout(() => {
-      reject(new Error(`Uptime Kuma did not send ${event}.`));
-    }, SOCKET_TIMEOUT_MS);
-  });
+  };
+  socket.once(event, listener);
   return {
     cancel: () => {
-      clearTimeout(timer);
       socket.off(event, listener);
+      received.resolve();
     },
-    promise,
+    latest: () => latest,
+    received: withEventTimeout(received.promise, event, timeoutMs),
   };
 };
+
+const callWithTimeout = (
+  socket: UptimeKumaSocket,
+  event: string,
+  timeoutMs: number,
+  ...args: unknown[]
+): Promise<unknown> => socket.timeout(timeoutMs).emitWithAck(event, ...args);
 
 const call = (
   socket: UptimeKumaSocket,
   event: string,
   ...args: unknown[]
 ): Promise<unknown> =>
-  socket.timeout(SOCKET_TIMEOUT_MS).emitWithAck(event, ...args);
+  callWithTimeout(socket, event, SOCKET_TIMEOUT_MS, ...args);
 
 export const createUptimeKumaClient = (
   socket: UptimeKumaSocket,
@@ -193,14 +208,18 @@ export const createUptimeKumaClient = (
     },
     getMajorVersion: (): Promise<number> => version.read(),
     getMonitors: async (): Promise<UptimeKumaMonitor[]> => {
-      const list = waitForEvent(socket, "monitorList");
+      const list = captureEvents(
+        socket,
+        "monitorList",
+        MONITOR_LIST_TIMEOUT_MS,
+      );
       try {
-        const [response, monitorList] = await Promise.all([
-          call(socket, "getMonitorList"),
-          list.promise,
+        const [response] = await Promise.all([
+          callWithTimeout(socket, "getMonitorList", MONITOR_LIST_TIMEOUT_MS),
+          list.received,
         ]);
         requireOk(response);
-        return Object.values(v.parse(MonitorListSchema, monitorList));
+        return Object.values(v.parse(MonitorListSchema, list.latest()));
       } finally {
         list.cancel();
       }
@@ -208,7 +227,11 @@ export const createUptimeKumaClient = (
     login: async (username, password): Promise<void> => {
       const response = v.parse(
         LoginResponseSchema,
-        await call(socket, "login", { password, token: "", username }),
+        await call(socket, "login", {
+          password,
+          token: "",
+          username,
+        }),
       );
       if ("tokenRequired" in response) {
         throw new Error("Uptime Kuma two-factor login is not supported.");

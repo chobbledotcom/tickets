@@ -28,6 +28,7 @@
   "built_sites.maintenance_provisioned": "Scheduled maintenance key sent to the site.",
   "built_sites.kuma_title": "Uptime Kuma monitor",
   "built_sites.kuma_unconfigured": "Set the Uptime Kuma URL, username and password on this site to manage monitors here.",
+  "built_sites.kuma_add_unconfigured": "Uptime Kuma is not configured.",
   "built_sites.kuma_error": "Uptime Kuma could not be checked. {error}",
   "built_sites.kuma_missing": "No Uptime Kuma monitor exists for this site.",
   "built_sites.kuma_needs_key": "Set up scheduled maintenance before you add the monitor.",

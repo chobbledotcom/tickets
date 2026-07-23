@@ -1,6 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -28,7 +29,7 @@ describe("adding Uptime Kuma built-site monitors", () => {
     });
 
     expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
-      error: "Uptime Kuma is not configured.",
+      error: t("built_sites.kuma_add_unconfigured"),
       ok: false,
     });
   });
@@ -228,7 +229,7 @@ describe("adding Uptime Kuma built-site monitors", () => {
     );
 
     expect(outcome.result).toEqual({
-      error: "Set up scheduled maintenance before adding this monitor.",
+      error: t("built_sites.kuma_needs_key"),
       ok: false,
     });
     expect(outcome.connections).toBe(0);

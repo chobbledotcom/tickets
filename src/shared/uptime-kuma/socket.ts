@@ -71,6 +71,7 @@ class KumaSocket implements UptimeKumaSocket {
   #acks = new Map<number, PendingAck>();
   #connectTimer: number | null = null;
   #connected = false;
+  #everConnected = false;
   #closedByClient = false;
   #listeners = new Map<string, Set<SocketListener>>();
   #raw: UptimeKumaWebSocket | null = null;
@@ -173,9 +174,10 @@ class KumaSocket implements UptimeKumaSocket {
     this.#clearConnectTimer();
     const error = new Error("Uptime Kuma connection closed.");
     this.#rejectAcks(error);
-    if (!this.#closedByClient && !this.#connected) {
+    if (!this.#closedByClient && !this.#everConnected) {
       this.#emit("connect_error", error);
     }
+    this.#connected = false;
   }
 
   #emit(event: string, ...args: unknown[]): void {
@@ -189,7 +191,8 @@ class KumaSocket implements UptimeKumaSocket {
   #fail(error: Error): void {
     this.#clearConnectTimer();
     this.#rejectAcks(error);
-    if (!this.#connected) this.#emit("connect_error", error);
+    if (!this.#everConnected) this.#emit("connect_error", error);
+    this.#connected = false;
     this.#raw?.close();
   }
 
@@ -214,6 +217,7 @@ class KumaSocket implements UptimeKumaSocket {
     }
     if (frame.startsWith("40")) {
       this.#connected = true;
+      this.#everConnected = true;
       this.#clearConnectTimer();
       this.#emit("connect");
       return;

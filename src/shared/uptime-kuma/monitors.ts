@@ -1,3 +1,4 @@
+import { t } from "#i18n";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
@@ -68,7 +69,12 @@ const hasAuthorization = (
 };
 
 const acceptsScheduledResponse = (statusCodes: string[]): boolean =>
-  statusCodes.includes("200-299") || statusCodes.includes("204");
+  statusCodes.some((range) => {
+    const parts = range.split("-");
+    const minimum = Number(parts[0]);
+    const maximum = Number(parts[1] === undefined ? parts[0] : parts[1]);
+    return minimum <= 204 && maximum >= 204;
+  });
 
 const lowestByIdOrNull = (
   monitors: UptimeKumaMonitor[],
@@ -302,16 +308,12 @@ const load = (site: BuiltSite): Promise<UptimeKumaMonitorState> =>
 
 const add = (site: BuiltSite): Promise<Result<AddedMonitor>> =>
   withConfiguredKuma<Result<AddedMonitor>>(
-    () => errorResult("Uptime Kuma is not configured."),
+    () => errorResult(t("built_sites.kuma_add_unconfigured")),
     (error) => errorResult(errorMessage(error)),
     (config) => {
       const scheduledTaskKey = site.scheduledTaskKey;
       if (scheduledTaskKey === null) {
-        return Promise.resolve(
-          errorResult(
-            "Set up scheduled maintenance before adding this monitor.",
-          ),
-        );
+        return Promise.resolve(errorResult(t("built_sites.kuma_needs_key")));
       }
       return withMonitors(config, (client, monitors, groups) =>
         addFromMonitors(

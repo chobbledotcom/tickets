@@ -90,6 +90,14 @@ describe("Uptime Kuma monitor input", () => {
     });
   });
 
+  test("gives each Uptime Kuma 2 monitor its own array defaults", () => {
+    const first = groupMonitorInput(2);
+    const second = groupMonitorInput(2);
+
+    expect(first.conditions).not.toBe(second.conditions);
+    expect(first.rabbitmqNodes).not.toBe(second.rabbitmqNodes);
+  });
+
   test("omits Uptime Kuma 2 fields for a 1.x server", () => {
     const {
       conditions: _conditions,

@@ -135,6 +135,34 @@ describe("Uptime Kuma built-site monitor state", () => {
     );
   });
 
+  for (const acceptedStatusCodes of [["200-399"], ["100-599"]]) {
+    test(`matches a monitor whose ${acceptedStatusCodes[0]} range includes 204`, async () => {
+      using _env = withEnv(kumaEnv);
+      using _fake = connectFake([
+        group(),
+        siteMonitor(11, acceptedStatusCodes),
+      ]);
+
+      expect(
+        await uptimeKumaMonitorService.load(configuredSite()),
+      ).toMatchObject({ kind: "found", monitor: { id: 22 } });
+    });
+  }
+
+  for (const acceptedStatusCodes of [["205-399"], ["100-203"]]) {
+    test(`ignores a monitor whose ${acceptedStatusCodes[0]} range excludes 204`, async () => {
+      using _env = withEnv(kumaEnv);
+      using _fake = connectFake([
+        group(),
+        siteMonitor(11, acceptedStatusCodes),
+      ]);
+
+      expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
+        kind: "missing",
+      });
+    });
+  }
+
   for (const [label, headers] of [
     ["no bearer header", null],
     ["the wrong bearer header", '{"Authorization":"Bearer wrong"}'],

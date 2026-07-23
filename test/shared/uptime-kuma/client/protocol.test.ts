@@ -87,7 +87,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
       createUptimeKumaClient(socket).getMajorVersion(),
     ).rejects.toThrow("Uptime Kuma did not send info.");
 
-    await time.tickAsync(10_000);
+    await time.tickAsync(10_001);
 
     await version;
   });
@@ -178,6 +178,33 @@ describe("Uptime Kuma Socket.IO protocol", () => {
     expect(time.next()).toBe(false);
   });
 
+  test("uses the monitor list paired with the request acknowledgement", async () => {
+    const socket = new FakeSocket();
+    socket.reply("getMonitorList", () => {
+      socket.emitEvent("monitorList", {});
+      socket.emitEvent("monitorList", {
+        "7": {
+          accepted_statuscodes: ["200-299"],
+          active: true,
+          headers: null,
+          id: 7,
+          interval: 60,
+          method: "POST",
+          name: "Current monitor",
+          parent: null,
+          type: "http",
+          url: "https://current.example.test",
+        },
+      });
+      return { ok: true };
+    });
+
+    expect(await createUptimeKumaClient(socket).getMonitors()).toMatchObject([
+      { id: 7, name: "Current monitor" },
+    ]);
+    expect(socket.timeoutMs).toBe(60_000);
+  });
+
   test("reports a rejected monitor-list request", async () => {
     const socket = new FakeSocket();
     socket.reply("getMonitorList", () => {
@@ -206,12 +233,22 @@ describe("Uptime Kuma Socket.IO protocol", () => {
     using time = new FakeTime();
     const socket = new FakeSocket();
     socket.reply("getMonitorList", { ok: true });
-    const outcome = expect(
-      createUptimeKumaClient(socket).getMonitors(),
-    ).rejects.toThrow("Uptime Kuma did not send monitorList.");
+    let failed = false;
+    const outcome = createUptimeKumaClient(socket)
+      .getMonitors()
+      .catch((error) => {
+        failed = true;
+        return error;
+      });
 
-    await time.tickAsync(10_000);
-    await outcome;
+    await time.tickAsync(10_001);
+
+    expect(failed).toBe(false);
+
+    await time.tickAsync(50_000);
+    expect(await outcome).toEqual(
+      new Error("Uptime Kuma did not send monitorList."),
+    );
     expect(socket.listenerCount("monitorList")).toBe(0);
   });
 
