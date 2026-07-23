@@ -111,6 +111,10 @@ src/shared/db/admin-features.ts:208:29  !== → !=   # nextEncrypted is string|n
 src/shared/db/admin-features.ts:208:60  !== → !=   # nextPlain is string|null and cannot be undefined
 src/shared/db/settings/json-field.ts:88:15  === → ==   # the transaction returns string|null and cannot return undefined
 src/shared/db/migrations/schema/admin-feature-triggers.ts:160:35  ?? → ||   # source.columns is undefined or an array; every array, including [], is truthy
+src/shared/square-provider.ts:55:48  ?? → ||   # amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts:56:51  ?? → ||   # refunded amount is bigint|undefined, and its only falsy bigint is 0n, which equals the fallback
+src/shared/square-provider.ts:101:19  ?? → ||   # retrieveSession returns a session object or null, so every present value is truthy
+src/shared/square-provider.ts:126:59  ?? → ||   # paymentId is string|undefined, and its only falsy string is the empty fallback itself
 
 # Collection cache generation values are only compared for equality. Their
 # absolute value and direction do not matter: every invalidation changes the
