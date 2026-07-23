@@ -2,7 +2,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
+import { t } from "#i18n";
+import {
+  UptimeKumaClientError,
+  type UptimeKumaClientErrorKind,
+  uptimeKumaClientApi,
+} from "#shared/uptime-kuma/client.ts";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -214,6 +219,45 @@ describe("Uptime Kuma built-site monitor state", () => {
       kind: "error",
     });
   });
+
+  for (const scenario of [
+    {
+      kind: "unsupported_version",
+      messageKey: "built_sites.kuma_unsupported_version",
+      name: "uses catalog copy for an unsupported version",
+    },
+    {
+      kind: "two_factor",
+      messageKey: "built_sites.kuma_two_factor",
+      name: "uses catalog copy for two-factor login",
+    },
+    {
+      kind: "version_timeout",
+      messageKey: "built_sites.kuma_version_timeout",
+      name: "uses catalog copy for a missing version",
+    },
+    {
+      kind: "monitor_list_timeout",
+      messageKey: "built_sites.kuma_monitor_list_timeout",
+      name: "uses catalog copy for a missing monitor list",
+    },
+  ] satisfies Array<{
+    kind: UptimeKumaClientErrorKind;
+    messageKey: string;
+    name: string;
+  }>) {
+    test(scenario.name, async () => {
+      using _env = withEnv(kumaEnv);
+      using fake = connectFake([]);
+      fake.client.login = () =>
+        Promise.reject(new UptimeKumaClientError(scenario.kind));
+
+      expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
+        error: t(scenario.messageKey),
+        kind: "error",
+      });
+    });
+  }
 
   test("finds a monitor across duplicate shared groups", async () => {
     using _env = withEnv(kumaEnv);

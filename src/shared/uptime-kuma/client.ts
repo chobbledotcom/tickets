@@ -11,9 +11,20 @@ import {
 
 const SOCKET_TIMEOUT_MS = 10_000;
 const MONITOR_LIST_TIMEOUT_MS = 60_000;
-const UNSUPPORTED_VERSION_MESSAGE = "Uptime Kuma 2.4 or newer is required.";
 
 type SocketListener = (...args: unknown[]) => void;
+
+export type UptimeKumaClientErrorKind =
+  | "monitor_list_timeout"
+  | "two_factor"
+  | "unsupported_version"
+  | "version_timeout";
+
+export class UptimeKumaClientError extends Error {
+  constructor(readonly kind: UptimeKumaClientErrorKind) {
+    super(kind);
+  }
+}
 
 export type UptimeKumaMonitorInput = Record<string, unknown>;
 
@@ -164,18 +175,25 @@ type VersionCapture = {
 
 const requireSupportedVersion = ([major, minor]: [number, number]): void => {
   if (major < 2 || (major === 2 && minor < 4)) {
-    throw new Error(UNSUPPORTED_VERSION_MESSAGE);
+    throw new UptimeKumaClientError("unsupported_version");
   }
+};
+
+type TimedEvent = "info" | "monitorList";
+
+const TIMEOUT_ERROR_KINDS: Record<TimedEvent, UptimeKumaClientErrorKind> = {
+  info: "version_timeout",
+  monitorList: "monitor_list_timeout",
 };
 
 const withEventTimeout = async <Value>(
   promise: Promise<Value>,
-  event: string,
+  event: TimedEvent,
   timeoutMs = SOCKET_TIMEOUT_MS,
 ): Promise<Value> => {
   const timeout = Promise.withResolvers<never>();
   const timer = setTimeout(() => {
-    timeout.reject(new Error(`Uptime Kuma did not send ${event}.`));
+    timeout.reject(new UptimeKumaClientError(TIMEOUT_ERROR_KINDS[event]));
   }, timeoutMs);
   try {
     return await Promise.race([promise, timeout.promise]);
@@ -191,7 +209,7 @@ const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
       try {
         const parsed = v.safeParse(InfoSchema, value);
         if (!parsed.success) {
-          throw new Error(UNSUPPORTED_VERSION_MESSAGE);
+          throw new UptimeKumaClientError("unsupported_version");
         }
         const info = parsed.output;
         if (info.version === undefined) {
@@ -217,7 +235,7 @@ const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
 
 const captureEvents = (
   socket: UptimeKumaSocket,
-  event: string,
+  event: TimedEvent,
   timeoutMs: number,
 ): EventCapture => {
   let latest: unknown;
@@ -300,7 +318,7 @@ export const createUptimeKumaClient = (
         }),
       );
       if ("tokenRequired" in response) {
-        throw new Error("Uptime Kuma two-factor login is not supported.");
+        throw new UptimeKumaClientError("two_factor");
       }
       if (!response.ok) throw new Error(response.msg);
       await version.read();

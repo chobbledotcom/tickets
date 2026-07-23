@@ -5,6 +5,8 @@ import { normalizePath } from "#shared/path.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
   type UptimeKumaClient,
+  UptimeKumaClientError,
+  type UptimeKumaClientErrorKind,
   type UptimeKumaMonitor,
   uptimeKumaClientApi,
 } from "./client.ts";
@@ -36,6 +38,18 @@ export type UptimeKumaMonitorState =
   | { kind: "found"; monitor: UptimeKumaMonitorDetails };
 
 type AddedMonitor = { created: boolean; monitorId: number };
+
+const CLIENT_ERROR_MESSAGE_KEYS: Record<UptimeKumaClientErrorKind, string> = {
+  monitor_list_timeout: "built_sites.kuma_monitor_list_timeout",
+  two_factor: "built_sites.kuma_two_factor",
+  unsupported_version: "built_sites.kuma_unsupported_version",
+  version_timeout: "built_sites.kuma_version_timeout",
+};
+
+const kumaErrorMessage = (error: unknown): string =>
+  error instanceof UptimeKumaClientError
+    ? t(CLIENT_ERROR_MESSAGE_KEYS[error.kind])
+    : errorMessage(error);
 
 const errorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -284,14 +298,14 @@ const loadConfigured = (
 const load = (site: BuiltSite): Promise<UptimeKumaMonitorState> =>
   withConfiguredKuma<UptimeKumaMonitorState>(
     () => ({ kind: "unconfigured" }),
-    (error) => ({ error: errorMessage(error), kind: "error" }),
+    (error) => ({ error: kumaErrorMessage(error), kind: "error" }),
     (config) => loadConfigured(site, config),
   );
 
 const add = (site: BuiltSite): Promise<Result<AddedMonitor>> =>
   withConfiguredKuma<Result<AddedMonitor>>(
     () => errorResult(t("built_sites.kuma_add_unconfigured")),
-    (error) => errorResult(errorMessage(error)),
+    (error) => errorResult(kumaErrorMessage(error)),
     (config) => {
       const scheduledTaskKey = site.scheduledTaskKey;
       if (scheduledTaskKey === null) {

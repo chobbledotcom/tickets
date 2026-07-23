@@ -55,9 +55,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
 
     await expect(
       createUptimeKumaClient(socket).login("owner", "password"),
-    ).rejects.toEqual(
-      new Error("Uptime Kuma two-factor login is not supported."),
-    );
+    ).rejects.toMatchObject({ kind: "two_factor" });
   });
 
   test("accepts Uptime Kuma 2.4", async () => {
@@ -93,9 +91,9 @@ describe("Uptime Kuma Socket.IO protocol", () => {
       const socket = new FakeSocket();
       const client = successfulLoginClient(socket, version);
 
-      await expect(client.login("owner", "secret")).rejects.toEqual(
-        new Error("Uptime Kuma 2.4 or newer is required."),
-      );
+      await expect(client.login("owner", "secret")).rejects.toMatchObject({
+        kind: "unsupported_version",
+      });
     });
   }
 
@@ -105,7 +103,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
     socket.reply("login", { ok: true, token: "session-token" });
     const version = expect(
       createUptimeKumaClient(socket).login("owner", "secret"),
-    ).rejects.toThrow("Uptime Kuma did not send info.");
+    ).rejects.toMatchObject({ kind: "version_timeout" });
 
     await time.tickAsync(10_001);
 
@@ -274,9 +272,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
     expect(failed).toBe(false);
 
     await time.tickAsync(50_000);
-    expect(await outcome).toEqual(
-      new Error("Uptime Kuma did not send monitorList."),
-    );
+    expect(await outcome).toMatchObject({ kind: "monitor_list_timeout" });
     expect(socket.listenerCount("monitorList")).toBe(0);
   });
 
