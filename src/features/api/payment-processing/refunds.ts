@@ -22,6 +22,7 @@ import {
 } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import type {
+  PaymentProvider,
   PaymentRefundResult,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
@@ -53,19 +54,12 @@ export const getPaymentProviderOrLog = async (
 /**
  * Attempt to refund a payment and preserve the provider's pending state.
  */
-export const tryRefund = async (
+export const refundWithProvider = async (
+  provider: PaymentProvider,
   paymentReference: string,
   listingId?: number,
 ): Promise<PaymentRefundResult> => {
   if (!paymentReference) return "failed";
-
-  const provider = await getPaymentProviderOrLog(
-    ErrorCode.PAYMENT_REFUND,
-    "No payment provider configured for refund",
-    listingId,
-  );
-  if (!provider) return "failed";
-
   const result = await provider.refundPayment(paymentReference);
   if (result === "refunded") {
     logDebug("Payment", "Refund issued");
@@ -91,6 +85,20 @@ export const tryRefund = async (
     listingId,
   });
   return "failed";
+};
+
+export const tryRefund = async (
+  paymentReference: string,
+  listingId?: number,
+): Promise<PaymentRefundResult> => {
+  const provider = await getPaymentProviderOrLog(
+    ErrorCode.PAYMENT_REFUND,
+    "No payment provider configured for refund",
+    listingId,
+  );
+  return provider
+    ? refundWithProvider(provider, paymentReference, listingId)
+    : "failed";
 };
 
 /** Attempt refund and log activity if successful */

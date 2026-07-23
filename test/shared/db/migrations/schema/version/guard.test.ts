@@ -103,7 +103,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-21_activity_backfill_complete",
         "2026-07-22_maintenance_completion",
       ],
-      schemaHash: "1siactz",
+      schemaHash: "17o7l3j",
     });
   });
 

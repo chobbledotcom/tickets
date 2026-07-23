@@ -17,7 +17,7 @@ export type MaintenanceTaskContext = {
   checkpoint: string | null;
   completeTask: () => void;
   deadline: number;
-  requestFollowUp: () => void;
+  requestFollowUp: (afterMs?: number) => void;
   setCheckpoint: (checkpoint: string | null) => void;
 };
 

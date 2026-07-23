@@ -126,7 +126,7 @@ export const validatePaidSession = async (
     };
   }
 
-  const session = await provider.retrieveSession(sessionId);
+  const session = await provider.retrieveSession(sessionId, "callback");
   if (!session) {
     logRedirectError(`Session not found (session=${sessionId})`);
     return {
@@ -173,7 +173,7 @@ export const validateRefreshedPaidSession = async (
   sessionId: string,
   provider: PaymentProvider,
 ): Promise<SessionValidation> => {
-  const session = await provider.retrieveSession(sessionId);
+  const session = await provider.retrieveSession(sessionId, "callback");
   if (session?.paymentStatus !== "paid") {
     logRedirectError(
       `Paid checkout not yet readable (session=${sessionId}, status=${session?.paymentStatus ?? "missing"})`,

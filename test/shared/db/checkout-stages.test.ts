@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
+import { selectDueCheckoutStages } from "#shared/db/checkout-stage-recovery.ts";
 import {
   beginCheckoutStageRefund,
   checkoutStageClaimStatement,
@@ -10,7 +11,6 @@ import {
   loadCheckoutStageByPaymentSession,
   pendingCheckoutStageInsert,
   purgePendingCheckoutStage,
-  selectOldPendingCheckoutStages,
 } from "#shared/db/checkout-stages.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
@@ -60,7 +60,11 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     ]);
     expect(statement.args.slice(5, 7)).toEqual(["", "pending"]);
     expect(String(statement.args[4])).not.toContain("plain-token");
-    expect(statement.sql).toContain("VALUES (?, (SELECT ?), ?, ?, ?, ?, ?, ?)");
+    expect(Number(statement.args[8])).toBeGreaterThan(Date.now());
+    expect(statement.args.slice(9)).toEqual([0, null]);
+    expect(statement.sql).toContain(
+      "VALUES (?, (SELECT ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
   });
 
   test("finds only the exact attendee token and loads the full stage", async () => {
@@ -93,12 +97,13 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     expect(await loadCheckoutStageByPaymentSession("missing-stage")).toBeNull();
   });
 
-  test("selects only the four oldest pending stages", async () => {
+  test("selects every due stage in queue order", async () => {
     const ids = await Promise.all(
       Array.from({ length: 5 }, async (_, index) => {
         const attendeeId = await insertOrphanAttendee(old);
         await insertCheckoutStage(attendeeId, `old-${index}`, {
           createdAt: old,
+          nextAttemptAt: index,
         });
         return attendeeId;
       }),
@@ -106,28 +111,32 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     const refundingId = await insertOrphanAttendee(old);
     await insertCheckoutStage(refundingId, "old-refunding", {
       createdAt: old,
+      nextAttemptAt: 5,
       state: "refunding",
     });
 
-    const selected = await selectOldPendingCheckoutStages(
-      "2026-07-02T00:00:00.000Z",
-    );
+    const selected = await selectDueCheckoutStages();
     expect(selected.map((stage) => stage.paymentSessionId)).toEqual([
       "old-0",
       "old-1",
       "old-2",
       "old-3",
+      "old-4",
+      "old-refunding",
     ]);
-    expect(selected.map((stage) => stage.attendeeId)).toEqual(ids.slice(0, 4));
+    expect(selected.map((stage) => stage.attendeeId)).toEqual([
+      ...ids,
+      refundingId,
+    ]);
   });
 
   test("purges an unclaimed pending stage but keeps a claimed stage", async () => {
     const purgedId = await insertOrphanAttendee(old);
     await insertCheckoutStage(purgedId, "purge-stage");
     await createTestSystemNote(purgedId, "Remove with stage");
-    const purged = (
-      await selectOldPendingCheckoutStages("2026-07-20T00:00:00.000Z")
-    ).find((stage) => stage.paymentSessionId === "purge-stage")!;
+    const purged = (await selectDueCheckoutStages()).find(
+      (stage) => stage.paymentSessionId === "purge-stage",
+    )!;
     expect(await purgePendingCheckoutStage(purged)).toBe(true);
     expect(await attendeeExists(purgedId)).toBe(false);
     const purgedNotes = await getDb().execute(
@@ -139,9 +148,9 @@ describeWithEnv("db > checkout stages", { db: true }, () => {
     const keptId = await insertOrphanAttendee(old);
     await insertCheckoutStage(keptId, "keep-stage");
     await reserveSession("keep-stage");
-    const kept = (
-      await selectOldPendingCheckoutStages("2026-07-20T00:00:00.000Z")
-    ).find((stage) => stage.paymentSessionId === "keep-stage")!;
+    const kept = (await selectDueCheckoutStages()).find(
+      (stage) => stage.paymentSessionId === "keep-stage",
+    )!;
     expect(await purgePendingCheckoutStage(kept)).toBe(false);
     expect(await attendeeExists(keptId)).toBe(true);
   });

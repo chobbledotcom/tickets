@@ -4,6 +4,7 @@ import {
   findCompletedSquarePayment,
   type SquareOrder,
   type SquarePayment,
+  squareCloseTenderPaymentId,
   squareTenderPaymentIds,
 } from "#shared/square-payments.ts";
 
@@ -46,6 +47,20 @@ describe("Square completed payments", () => {
 
   test("returns no tender ids when an order has no tenders", () => {
     expect(squareTenderPaymentIds(order({ tenders: undefined }))).toEqual([]);
+  });
+
+  test("close inspection accepts one tender payment id", () => {
+    expect(squareCloseTenderPaymentId(order())).toBe("payment_1");
+  });
+
+  test("close inspection rejects several tender payment ids", () => {
+    expect(() =>
+      squareCloseTenderPaymentId(
+        order({
+          tenders: [{ paymentId: "payment_1" }, { paymentId: "payment_2" }],
+        }),
+      ),
+    ).toThrow("multiple tenders");
   });
 
   test("accepts a zero-value completed payment", async () => {

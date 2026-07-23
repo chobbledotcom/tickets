@@ -419,7 +419,10 @@ export interface PaymentProvider {
    * Retrieve and validate a completed checkout session by ID.
    * Returns the validated session or null if not found / invalid.
    */
-  retrieveSession(sessionId: string): Promise<ValidatedPaymentSession | null>;
+  retrieveSession(
+    sessionId: string,
+    mode?: "callback" | "recovery",
+  ): Promise<ValidatedPaymentSession | null>;
 
   /**
    * Set up a webhook endpoint for this provider.

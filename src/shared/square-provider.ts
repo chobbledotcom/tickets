@@ -12,6 +12,7 @@
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
 
+import { identity } from "#fp";
 import { logDebug } from "#shared/logger.ts";
 import {
   hasRequiredSessionMetadata,
@@ -41,6 +42,7 @@ import {
 } from "#shared/square.ts";
 import {
   type CompletedSquarePayment,
+  squareCloseTenderPaymentId,
   squareTenderPaymentIds,
 } from "#shared/square-payments.ts";
 
@@ -70,6 +72,48 @@ const paidSquareSession = (
   payment: CompletedSquarePayment,
 ): ValidatedPaymentSession =>
   squareSession(order, { ...payment, paymentStatus: "paid" });
+
+type PaymentOrderFor = (order: SquareOrder) => SquareOrder;
+
+const closePaymentOrder = (order: SquareOrder): SquareOrder => {
+  const paymentId = squareCloseTenderPaymentId(order);
+  return {
+    ...order,
+    tenders: paymentId === null ? [] : [{ paymentId }],
+  };
+};
+
+const retrieveSquareSession = async (
+  sessionId: string,
+  paymentOrderFor: PaymentOrderFor,
+): Promise<ValidatedPaymentSession | null> => {
+  const order = await retrieveOrder(sessionId);
+  if (!order?.id) {
+    logDebug("Square", `Order ${sessionId} not found`);
+    return null;
+  }
+
+  const { metadata } = order;
+  if (!hasRequiredSessionMetadata(metadata)) {
+    logDebug("Square", `Order ${sessionId} missing required metadata fields`);
+    return null;
+  }
+  const completeOrder: CompleteSquareOrder = {
+    ...order,
+    id: order.id,
+    metadata,
+  };
+  const paymentOrder = paymentOrderFor(order);
+  const paymentIds = squareTenderPaymentIds(paymentOrder);
+  const completed = await retrieveCompletedPaymentForOrder(paymentOrder);
+  return completed
+    ? paidSquareSession(completeOrder, completed)
+    : squareSession(completeOrder, {
+        amountTotal: Number(order.totalMoney.amount),
+        paymentReference: paymentIds[0] ?? "",
+        paymentStatus: "unpaid",
+      });
+};
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
@@ -155,35 +199,13 @@ export const squarePaymentProvider: PaymentProvider = {
      Square fetches the order and its payment from the API). */
   async retrieveSession(
     sessionId: string,
+    mode = "callback",
   ): Promise<ValidatedPaymentSession | null> {
     /* jscpd:ignore-end */
-    // sessionId is the Square order ID
-    const order = await retrieveOrder(sessionId);
-    if (!order?.id) {
-      logDebug("Square", `Order ${sessionId} not found`);
-      return null;
-    }
-
-    const { metadata } = order;
-    if (!hasRequiredSessionMetadata(metadata)) {
-      logDebug("Square", `Order ${sessionId} missing required metadata fields`);
-      return null;
-    }
-    const completeOrder: CompleteSquareOrder = {
-      ...order,
-      id: order.id,
-      metadata,
-    };
-
-    const completed = await retrieveCompletedPaymentForOrder(order);
-    if (completed) return paidSquareSession(completeOrder, completed);
-    const paymentIds = squareTenderPaymentIds(order);
-
-    return squareSession(completeOrder, {
-      amountTotal: Number(order.totalMoney.amount),
-      paymentReference: paymentIds.length === 0 ? "" : paymentIds[0]!,
-      paymentStatus: "unpaid",
-    });
+    return retrieveSquareSession(
+      sessionId,
+      mode === "recovery" ? closePaymentOrder : identity,
+    );
   },
 
   setupWebhookEndpoint(

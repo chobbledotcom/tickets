@@ -6,7 +6,7 @@ export default schemaMigration(
   {
     indexes: [
       "idx_checkout_stages_attendee_id",
-      "idx_checkout_stages_state_created_at",
+      "idx_checkout_stages_next_attempt",
     ],
     newTables: ["checkout_stages"],
   },

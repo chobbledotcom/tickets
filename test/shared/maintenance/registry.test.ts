@@ -43,7 +43,7 @@ const runTask = (
 ): void | Promise<void> =>
   task.run({
     budget: {
-      remaining: () => ({ database: 2, external: 0, total: 2 }),
+      remaining: () => ({ database: 23, external: 9, total: 32 }),
     },
     checkpoint: null,
     completeTask: () => {},
@@ -86,8 +86,8 @@ describeWithEnv("maintenance registry", { db: true }, () => {
         deadlineMs: 20_000,
         failureRetryIntervalMs: 300_000,
         intervalMs: 86_400_000,
-        maxDatabaseCalls: 17,
-        maxExternalCalls: 4,
+        maxDatabaseCalls: 23,
+        maxExternalCalls: 9,
         name: "checkout_stage_pruning",
         wakePolicy: "scheduled_only",
       },
@@ -150,6 +150,38 @@ describeWithEnv("maintenance registry", { db: true }, () => {
 
     expect(close.calls).toHaveLength(1);
     expect(await attendeeExists(attendeeId)).toBe(false);
+  });
+
+  test("the checkout task requests follow-ups until its backlog is empty", async () => {
+    const created = new Date(nowMs() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const task = taskNamed("checkout_stage_pruning");
+    const attendeeIds = await Promise.all(
+      Array.from({ length: task.maxDatabaseCalls + 1 }, async (_, index) => {
+        const attendeeId = await insertOrphanAttendee(created);
+        await insertCheckoutStage(attendeeId, `backlog-${index}`, {
+          createdAt: created,
+        });
+        return attendeeId;
+      }),
+    );
+    using close = stub(stripePaymentProvider, "closeCheckout", () =>
+      Promise.resolve("closed" as const),
+    );
+    const followUps: number[] = [];
+
+    for (let index = 0; index < 2; index++) {
+      await runTask(task, {
+        requestFollowUp: (afterMs = 60_000) => followUps.push(afterMs),
+      });
+    }
+
+    expect(close.calls).toHaveLength(attendeeIds.length);
+    expect(followUps).toEqual([60_000]);
+    expect(
+      await Promise.all(
+        attendeeIds.map((attendeeId) => attendeeExists(attendeeId)),
+      ),
+    ).toEqual(attendeeIds.map(() => false));
   });
 
   test("the activity task enables and drains legacy rows", async () => {

@@ -43,7 +43,7 @@ describeWithEnv(
         requires: {
           indexes: [
             "idx_checkout_stages_attendee_id",
-            "idx_checkout_stages_state_created_at",
+            "idx_checkout_stages_next_attempt",
           ],
           newTables: ["checkout_stages"],
         },
@@ -123,6 +123,30 @@ describeWithEnv(
           pk: 0,
           type: "TEXT",
         },
+        {
+          cid: 8,
+          dflt_value: null,
+          name: "next_attempt_at",
+          notnull: 1,
+          pk: 0,
+          type: "INTEGER",
+        },
+        {
+          cid: 9,
+          dflt_value: "0",
+          name: "attempt_count",
+          notnull: 1,
+          pk: 0,
+          type: "INTEGER",
+        },
+        {
+          cid: 10,
+          dflt_value: null,
+          name: "last_attempt_at",
+          notnull: 0,
+          pk: 0,
+          type: "INTEGER",
+        },
       ]);
       const indexes = await getDb().execute(
         "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'checkout_stages' ORDER BY name",
@@ -133,8 +157,8 @@ describeWithEnv(
           sql: "CREATE UNIQUE INDEX idx_checkout_stages_attendee_id ON checkout_stages(attendee_id)",
         },
         {
-          name: "idx_checkout_stages_state_created_at",
-          sql: "CREATE INDEX idx_checkout_stages_state_created_at ON checkout_stages(state, created_at)",
+          name: "idx_checkout_stages_next_attempt",
+          sql: "CREATE INDEX idx_checkout_stages_next_attempt ON checkout_stages(next_attempt_at, payment_session_id)",
         },
         { name: "sqlite_autoindex_checkout_stages_1", sql: null },
       ]);
@@ -151,8 +175,8 @@ describeWithEnv(
     test("a stage cannot be stored without a payment session id", async () => {
       await expect(
         getDb().execute(`INSERT INTO checkout_stages
-          (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, state, created_at)
-          VALUES (NULL, 42, 'stripe', 'checkout-1', '["ticket-1"]', 'pending', '2026-07-15T12:00:00Z')`),
+          (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, state, created_at, next_attempt_at)
+          VALUES (NULL, 42, 'stripe', 'checkout-1', '["ticket-1"]', 'pending', '2026-07-15T12:00:00Z', 0)`),
       ).rejects.toThrow();
       const result = await getDb().execute(
         "SELECT COUNT(*) AS count FROM checkout_stages",
@@ -230,8 +254,8 @@ describeWithEnv(
           getDb().execute({
             args: [`session-${state}`, state],
             sql: `INSERT INTO checkout_stages
-              (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, state, created_at)
-              VALUES (?, 42, 'stripe', 'checkout-1', 'encrypted', ?, '2026-07-17T12:00:00Z')`,
+              (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, state, created_at, next_attempt_at)
+              VALUES (?, 42, 'stripe', 'checkout-1', 'encrypted', ?, '2026-07-17T12:00:00Z', 0)`,
           }),
         ).rejects.toThrow();
       });

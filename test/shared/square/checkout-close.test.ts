@@ -194,6 +194,77 @@ describe("Square hosted checkout closing", () => {
     );
   });
 
+  test("bounds a failed close to five provider calls", async () => {
+    const orders = spy(() =>
+      Promise.resolve({
+        order: {
+          id: "order_budget",
+          state: "OPEN",
+          tenders: [{ paymentId: "payment_budget" }],
+          totalMoney: { amount: BigInt(1000), currency: "GBP" },
+        },
+      }),
+    );
+    const payments = spy(() =>
+      Promise.resolve({ payment: { id: "payment_budget", status: "FAILED" } }),
+    );
+    const remove = spy(() => Promise.reject(new Error("delete failed")));
+    const client = {
+      checkout: { paymentLinks: { delete: remove } },
+      orders: { get: orders },
+      payments: { get: payments },
+    };
+    await withMocks(
+      () =>
+        stub(squareApi, "getSquareClient", () =>
+          Promise.resolve(client as never),
+        ),
+      async () => {
+        await expect(
+          squareApi.closePaymentLink("link_budget", "order_budget"),
+        ).rejects.toThrow("delete failed");
+      },
+    );
+
+    expect(orders.calls).toHaveLength(2);
+    expect(payments.calls).toHaveLength(2);
+    expect(remove.calls).toHaveLength(1);
+  });
+
+  test("keeps a multi-tender order instead of scanning and deleting it", async () => {
+    const remove = spy(() => Promise.resolve({}));
+    const payment = spy(() => Promise.resolve({ payment: null }));
+    const client = {
+      checkout: { paymentLinks: { delete: remove } },
+      orders: {
+        get: () =>
+          Promise.resolve({
+            order: {
+              id: "order_many",
+              state: "OPEN",
+              tenders: [{ paymentId: "payment_1" }, { paymentId: "payment_2" }],
+              totalMoney: { amount: BigInt(1000), currency: "GBP" },
+            },
+          }),
+      },
+      payments: { get: payment },
+    };
+    await withMocks(
+      () =>
+        stub(squareApi, "getSquareClient", () =>
+          Promise.resolve(client as never),
+        ),
+      async () => {
+        await expect(
+          squareApi.closePaymentLink("link_many", "order_many"),
+        ).rejects.toThrow("multiple tenders");
+      },
+    );
+
+    expect(payment.calls).toHaveLength(0);
+    expect(remove.calls).toHaveLength(0);
+  });
+
   for (const [state, result] of [
     ["COMPLETED", "paid"],
     ["CANCELED", "closed"],

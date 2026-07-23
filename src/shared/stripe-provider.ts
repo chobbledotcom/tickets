@@ -114,7 +114,9 @@ export const stripePaymentProvider: PaymentProvider = {
       return "retry";
     }
     const validated = toValidatedSession(session);
-    return validated === null ? await this.retrieveSession(id) : validated;
+    return validated === null
+      ? await this.retrieveSession(id, "callback")
+      : validated;
   },
 
   async retrieveSession(

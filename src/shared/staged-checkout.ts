@@ -13,17 +13,13 @@ import {
   findCheckoutStage,
   loadCheckoutStageByPaymentSession,
   purgePendingCheckoutStage,
-  selectOldPendingCheckoutStages,
 } from "#shared/db/checkout-stages.ts";
 import { getListingsWithCountsByIds } from "#shared/db/listings/records.ts";
-import { logDebug } from "#shared/logger.ts";
-import { isoBefore } from "#shared/now.ts";
 import type {
   CheckoutIntent,
   CheckoutSessionResult,
   PaymentProvider,
 } from "#shared/payments.ts";
-import { getPaymentProvider } from "#shared/payments.ts";
 /* jscpd:ignore-end */
 
 export type PaidCheckoutResult =
@@ -35,8 +31,6 @@ export type PaidCheckoutResult =
       providerCheckoutId: string;
       sessionId: string;
     };
-
-const CHECKOUT_STAGE_RETENTION_MS = 172_800_000;
 
 /** Close one hosted checkout, then purge its local stage only after closure. */
 export const closeAndPurgeCheckoutStage = async (
@@ -63,7 +57,7 @@ export const closeAndPurgeCheckoutStageBySession = async (
       `Checkout stage ${paymentSessionId} provider did not match`,
     );
   }
-  if (stage.state === "refunding") return "kept";
+  if (stage.state !== "pending") return "kept";
   return closeAndPurgeCheckoutStage(stage, provider);
 };
 
@@ -83,27 +77,6 @@ export const tryCloseAndPurgeCheckoutStageBySession = async (
     onError(error);
     return "error";
   }
-};
-
-/** Close and purge one bounded batch of abandoned pending stages. */
-export const pruneAbandonedCheckoutStages = async (): Promise<number> => {
-  const cutoff = isoBefore(CHECKOUT_STAGE_RETENTION_MS);
-  const stages = await selectOldPendingCheckoutStages(cutoff);
-  let purged = 0;
-  for (const stage of stages) {
-    try {
-      const provider = await getPaymentProvider(stage.provider);
-      if ((await closeAndPurgeCheckoutStage(stage, provider)) === "purged") {
-        purged += 1;
-      }
-    } catch (error) {
-      logDebug(
-        "Prune",
-        `checkout stage close failed (provider=${stage.provider}, session=${stage.paymentSessionId}): ${String(error)}`,
-      );
-    }
-  }
-  return purged;
 };
 
 type CreatePaidCheckoutInput = {

@@ -16,7 +16,7 @@ import { businessTime } from "#routes/api/payment-processing/metadata.ts";
 import {
   refundAndFail,
   refundSpec,
-  tryRefund,
+  refundWithProvider,
 } from "#routes/api/payment-processing/refunds.ts";
 import type {
   BookingIntent,
@@ -34,6 +34,7 @@ import { balanceFinalizeStatements } from "#shared/db/payment-finalize.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import { getPaymentProvider } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { stagedRefundLegs } from "#shared/refund-ledger.ts";
 import {
@@ -122,10 +123,15 @@ export const refundStagedBooking = async (
   if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
   const stage = await loadCheckoutStageByPaymentSession(session.id);
   if (!stage) throw new Error(`Checkout stage ${session.id} is missing`);
-  if (stage.state === "pending") {
+  if (stage.state !== "refunding") {
     await beginCheckoutStageRefund(session.id, storedCheckoutRefund(spec));
   }
-  const refundStatus = await tryRefund(session.paymentReference, listingId);
+  const provider = await getPaymentProvider(stage.provider);
+  const refundStatus = await refundWithProvider(
+    provider,
+    session.paymentReference,
+    listingId,
+  );
   if (refundStatus !== "refunded") {
     if (refundStatus === "failed") {
       logError({

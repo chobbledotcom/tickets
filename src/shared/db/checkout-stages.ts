@@ -2,12 +2,12 @@
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { insertManyStatement } from "#shared/accounting/rows.ts";
+import { CHECKOUT_STAGE_RETENTION_MS } from "#shared/checkout-stage-retry.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { attendeeOwnedDeleteStatements } from "#shared/db/attendees/delete.ts";
 import {
   execute,
-  queryAll,
   queryOnePrimary,
   withTransaction,
 } from "#shared/db/client.ts";
@@ -17,7 +17,7 @@ import {
   UNRESOLVED_RESERVATION,
 } from "#shared/db/processed-payments.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
-import { nowIso } from "#shared/now.ts";
+import { nowIso, nowMs } from "#shared/now.ts";
 import {
   type StoredCheckoutRefund,
   StoredCheckoutRefundSchema,
@@ -28,12 +28,19 @@ import {
 } from "#shared/types.ts";
 /* jscpd:ignore-end */
 
-export const CheckoutStageStateSchema = v.picklist(["pending", "refunding"]);
+export const CheckoutStageStateSchema = v.picklist([
+  "pending",
+  "paid",
+  "refunding",
+]);
 export type CheckoutStageState = v.InferOutput<typeof CheckoutStageStateSchema>;
 
 const CheckoutStageRowSchema = v.object({
+  attempt_count: v.number(),
   attendee_id: v.number(),
   created_at: v.string(),
+  last_attempt_at: v.nullable(v.number()),
+  next_attempt_at: v.number(),
   payment_session_id: v.string(),
   provider: PaymentProviderSchema,
   provider_checkout_id: v.string(),
@@ -44,7 +51,10 @@ const CheckoutStageRowSchema = v.object({
 
 export type CheckoutStage = {
   attendeeId: number;
+  attemptCount: number;
   createdAt: string;
+  lastAttemptAt: number | null;
+  nextAttemptAt: number;
   paymentSessionId: string;
   provider: PaymentProviderType;
   providerCheckoutId: string;
@@ -63,11 +73,6 @@ export type PendingCheckoutStage = {
   provider: PaymentProviderType;
   providerCheckoutId: string;
 };
-
-// One selected stage can cost five subrequests: provider close, transaction
-// begin, claim, delete batch, and commit. Four stages plus the selection cost 21,
-// leaving 29 of Bunny's 50 for scheduled markers, other tasks, and route work.
-const CHECKOUT_STAGE_CLEANUP_LIMIT = 4;
 
 export const checkoutStageClaimStatement = (
   stage: Pick<CheckoutStage, "attendeeId" | "paymentSessionId">,
@@ -113,8 +118,11 @@ const checkoutStageWithoutToken = (
     "refund_spec" | "ticket_tokens"
   >,
 ): CheckoutStageCleanup => ({
+  attemptCount: row.attempt_count,
   attendeeId: row.attendee_id,
   createdAt: row.created_at,
+  lastAttemptAt: row.last_attempt_at,
+  nextAttemptAt: row.next_attempt_at,
   paymentSessionId: row.payment_session_id,
   provider: row.provider,
   providerCheckoutId: row.provider_checkout_id,
@@ -126,21 +134,27 @@ export const pendingCheckoutStageInsert = async (
   attendeeIdSql: string,
   attendeeIdArgs: InValue[],
   ticketToken: string,
-): Promise<{ sql: string; args: InValue[] }> => ({
-  args: [
-    stage.paymentSessionId,
-    ...attendeeIdArgs,
-    stage.provider,
-    stage.providerCheckoutId,
-    await encrypt(ticketToken),
-    "",
-    "pending",
-    nowIso(),
-  ],
-  sql: `INSERT INTO checkout_stages
-          (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, refund_spec, state, created_at)
-        VALUES (?, ${attendeeIdSql}, ?, ?, ?, ?, ?, ?)`,
-});
+): Promise<{ sql: string; args: InValue[] }> => {
+  const createdAt = nowMs();
+  return {
+    args: [
+      stage.paymentSessionId,
+      ...attendeeIdArgs,
+      stage.provider,
+      stage.providerCheckoutId,
+      await encrypt(ticketToken),
+      "",
+      "pending",
+      new Date(createdAt).toISOString(),
+      createdAt + CHECKOUT_STAGE_RETENTION_MS,
+      0,
+      null,
+    ],
+    sql: `INSERT INTO checkout_stages
+          (payment_session_id, attendee_id, provider, provider_checkout_id, ticket_tokens, refund_spec, state, created_at, next_attempt_at, attempt_count, last_attempt_at)
+        VALUES (?, ${attendeeIdSql}, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  };
+};
 
 /** Find one stage only when the session, attendee, and plaintext token all match. */
 export const findCheckoutStage = async (
@@ -151,9 +165,10 @@ export const findCheckoutStage = async (
   const raw = await queryOnePrimary<unknown>(
     `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
             checkout_stage.provider, checkout_stage.provider_checkout_id,
-            checkout_stage.ticket_tokens, checkout_stage.refund_spec,
-            checkout_stage.state,
-            checkout_stage.created_at
+             checkout_stage.ticket_tokens, checkout_stage.refund_spec,
+             checkout_stage.state, checkout_stage.next_attempt_at,
+             checkout_stage.attempt_count, checkout_stage.last_attempt_at,
+             checkout_stage.created_at
        FROM checkout_stages AS checkout_stage
       WHERE checkout_stage.payment_session_id = ?
         AND checkout_stage.attendee_id = ?`,
@@ -175,29 +190,15 @@ const checkoutStageFromRow = async (raw: unknown): Promise<CheckoutStage> => {
   );
 };
 
-/** Select only a small oldest-first batch whose provider expiry window passed. */
-export const selectOldPendingCheckoutStages = async (
-  createdBefore: string,
-): Promise<CheckoutStageCleanup[]> => {
-  const rows = await queryAll<unknown>(
-    `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
-            checkout_stage.provider, checkout_stage.provider_checkout_id,
-            checkout_stage.state, checkout_stage.created_at
-       FROM checkout_stages AS checkout_stage
-      WHERE checkout_stage.state = 'pending'
-        AND checkout_stage.created_at < ?
-      ORDER BY checkout_stage.created_at, checkout_stage.payment_session_id
-      LIMIT ?`,
-    [createdBefore, CHECKOUT_STAGE_CLEANUP_LIMIT],
-  );
-  return rows.map((raw) => {
-    const row = v.parse(
+export const checkoutStageCleanupFromRow = (
+  raw: unknown,
+): CheckoutStageCleanup =>
+  checkoutStageWithoutToken(
+    v.parse(
       v.omit(CheckoutStageRowSchema, ["refund_spec", "ticket_tokens"]),
       raw,
-    );
-    return checkoutStageWithoutToken(row);
-  });
-};
+    ),
+  );
 
 /** Remove a closed stage only if payment has not claimed it in the meantime. */
 export const purgePendingCheckoutStage = async (
@@ -233,9 +234,10 @@ export const loadCheckoutStageByPaymentSession = async (
   const row = await queryOnePrimary<unknown>(
     `SELECT checkout_stage.payment_session_id, checkout_stage.attendee_id,
             checkout_stage.provider, checkout_stage.provider_checkout_id,
-            checkout_stage.ticket_tokens, checkout_stage.refund_spec,
-            checkout_stage.state,
-            checkout_stage.created_at
+             checkout_stage.ticket_tokens, checkout_stage.refund_spec,
+             checkout_stage.state, checkout_stage.next_attempt_at,
+             checkout_stage.attempt_count, checkout_stage.last_attempt_at,
+             checkout_stage.created_at
        FROM checkout_stages AS checkout_stage
       WHERE checkout_stage.payment_session_id = ?`,
     [paymentSessionId],
@@ -250,8 +252,10 @@ export const beginCheckoutStageRefund = async (
 ): Promise<void> => {
   const encryptedRefund = await encrypt(JSON.stringify(refund));
   const result = await execute(
-    `UPDATE checkout_stages SET state = 'refunding', refund_spec = ?
-      WHERE payment_session_id = ? AND state = 'pending'`,
+    `UPDATE checkout_stages
+        SET state = 'refunding', refund_spec = ?, next_attempt_at = 0,
+            attempt_count = 0, last_attempt_at = NULL
+      WHERE payment_session_id = ? AND state IN ('pending', 'paid')`,
     [encryptedRefund, paymentSessionId],
   );
   if (result.rowsAffected !== 1) {

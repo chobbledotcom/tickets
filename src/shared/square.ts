@@ -44,6 +44,7 @@ import {
   findCompletedSquarePayment,
   type SquareOrder,
   type SquarePayment,
+  squareCloseTenderPaymentId,
 } from "#shared/square-payments.ts";
 import { stringEntries } from "#shared/string-entries.ts";
 import { finishWebhookVerification } from "#shared/webhook-verification.ts";
@@ -591,7 +592,16 @@ const squareCheckoutState = async (
   order: SquareOrder,
 ): Promise<CheckoutCloseResult | null> => {
   if (order.state === "COMPLETED") return "paid";
-  if (await retrieveCompletedPaymentForOrder(order)) return "paid";
+  const paymentId = squareCloseTenderPaymentId(order);
+  if (
+    paymentId !== null &&
+    (await retrieveCompletedPaymentForOrder({
+      ...order,
+      tenders: [{ paymentId }],
+    }))
+  ) {
+    return "paid";
+  }
   return order.state === "CANCELED" ? "closed" : null;
 };
 

@@ -2,7 +2,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { handleRequest } from "#routes";
 import { loadCheckoutStageByPaymentSession } from "#shared/db/checkout-stages.ts";
 import { deleteListing } from "#shared/db/listings/delete.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -12,7 +11,6 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
-import { mockWebhookRequest } from "#test-utils/mocks.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stagePaymentCallback } from "#test-utils/staged-payments.ts";
 import {
@@ -61,66 +59,6 @@ describeWithEnv(
           expect(json).toEqual({ status: "retry" });
         },
       );
-    });
-
-    test("tryRefund logs error when no payment provider is configured", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        name: "WH Tryrefund Noprov",
-        unitPrice: 500,
-      });
-      await deactivateTestListing(listing.id);
-
-      // Mock paymentsApi.getConfiguredProvider to return "stripe" on first call
-      // (for webhook handler's initial check) then null on second call (for tryRefund).
-      // This covers lines 135-141 where tryRefund has a payment reference but no provider.
-      const { paymentsApi } = await import("#shared/payments.ts");
-      const origGetConfigured = paymentsApi.getConfiguredProvider;
-      let callCount = 0;
-      const mockGetConfigured = stub(
-        paymentsApi,
-        "getConfiguredProvider",
-        () => {
-          callCount++;
-          // First call: webhook handler needs provider; second call: tryRefund should get null
-          return callCount <= 1 ? origGetConfigured() : null;
-        },
-      );
-
-      const mockVerify = await stubWebhookVerify(
-        checkoutSessionEvent({
-          amountTotal: 500,
-          eventId: "evt_tryrefund_noprov",
-          metadata: signedMeta(
-            {
-              email: "noprov@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "No Provider",
-            },
-            500,
-          ),
-          paymentIntent: "pi_tryrefund_noprov",
-          sessionId: "cs_tryrefund_noprov",
-        }),
-      );
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-        );
-        // The payment has a reference but the refund couldn't go through (no
-        // provider), so it is retryable: 5xx for the provider to re-deliver once
-        // reconfigured, rather than ack a still-charged customer.
-        expect(response.status).toBe(503);
-        expect(await response.text()).toContain(
-          "couldn't complete your booking",
-        );
-      } finally {
-        mockVerify.restore();
-        mockGetConfigured.restore();
-      }
     });
 
     test("multi-ticket webhook refunds when a signed listing is missing", async () => {

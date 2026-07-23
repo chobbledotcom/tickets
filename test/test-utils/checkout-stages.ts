@@ -1,3 +1,4 @@
+import { CHECKOUT_STAGE_RETENTION_MS } from "#shared/checkout-stage-retry.ts";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import type {
@@ -19,14 +20,21 @@ export const insertCheckoutStage = async (
   paymentSessionId: string,
   options: {
     createdAt?: string;
+    nextAttemptAt?: number;
     providerCheckoutId?: string;
-    state?: "pending" | "refunding";
+    state?: "paid" | "pending" | "refunding";
   } = {},
-): Promise<unknown> =>
-  getDb().execute(
+): Promise<unknown> => {
+  const createdAt = options.createdAt ?? "2026-07-15T12:00:00.000Z";
+  return getDb().execute(
     insert("checkout_stages", {
+      attempt_count: 0,
       attendee_id: attendeeId,
-      created_at: options.createdAt ?? "2026-07-15T12:00:00.000Z",
+      created_at: createdAt,
+      last_attempt_at: null,
+      next_attempt_at:
+        options.nextAttemptAt ??
+        new Date(createdAt).getTime() + CHECKOUT_STAGE_RETENTION_MS,
       payment_session_id: paymentSessionId,
       provider: "stripe",
       provider_checkout_id: options.providerCheckoutId ?? paymentSessionId,
@@ -34,3 +42,4 @@ export const insertCheckoutStage = async (
       ticket_tokens: await encrypt(`token-${paymentSessionId}`),
     }),
   );
+};

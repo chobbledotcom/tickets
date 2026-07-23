@@ -40,6 +40,17 @@ export const squareTenderPaymentIds = (order: SquareOrder): string[] =>
     .reverse()
     .flatMap((tender) => (tender.paymentId ? [tender.paymentId] : []));
 
+/** Closing must never scan an unbounded payment-attempt history. */
+export const squareCloseTenderPaymentId = (
+  order: SquareOrder,
+): string | null => {
+  const ids = squareTenderPaymentIds(order);
+  if (ids.length > 1) {
+    throw new Error(`Square order ${order.id} has multiple tenders`);
+  }
+  return ids[0] ?? null;
+};
+
 const completedPaymentForOrder = (
   payment: SquarePayment,
   paymentId: string,

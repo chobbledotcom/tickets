@@ -251,7 +251,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Payment provider not configured");
   }
 
-  const session = await provider.retrieveSession(sid);
+  const session = await provider.retrieveSession(sid, "callback");
   if (!session) {
     logCancelError(`Session not found (session=${sid})`);
     return paymentErrorResponse("Payment session not found");

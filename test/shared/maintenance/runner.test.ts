@@ -142,6 +142,56 @@ describeWithEnv("maintenance runner", { db: true }, () => {
     );
   });
 
+  test("a successful task can schedule a bounded delayed follow-up", async () => {
+    const tasks = defineMaintenanceTasks([
+      declaration(
+        "delayed_follow_up",
+        ({ requestFollowUp }) => requestFollowUp(180_000),
+        { intervalMs: 300_000 },
+      ),
+    ]);
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+
+    const timing = await taskTiming("delayed_follow_up");
+    expect(timing?.next_run_at).toBe((timing?.last_finished_at ?? 0) + 180_000);
+  });
+
+  test("a task keeps its shortest requested follow-up", async () => {
+    const tasks = defineMaintenanceTasks([
+      declaration(
+        "shortest_follow_up",
+        ({ requestFollowUp }) => {
+          requestFollowUp(240_000);
+          requestFollowUp(120_000);
+          requestFollowUp(180_000);
+        },
+        { intervalMs: 300_000 },
+      ),
+    ]);
+    await runWithSubrequestBudget(() => maintenance.run(tasks));
+
+    const timing = await taskTiming("shortest_follow_up");
+    expect(timing?.next_run_at).toBe((timing?.last_finished_at ?? 0) + 120_000);
+  });
+
+  for (const [name, afterMs] of [
+    ["short_follow_up", MAINTENANCE_MIN_INTERVAL_MS - 1],
+    ["long_follow_up", 300_001],
+    ["fractional_follow_up", 120_000.5],
+  ] as const) {
+    test(`rejects the ${name.replaceAll("_", " ")}`, async () => {
+      const tasks = defineMaintenanceTasks([
+        declaration(name, ({ requestFollowUp }) => requestFollowUp(afterMs), {
+          intervalMs: 300_000,
+        }),
+      ]);
+
+      await expect(
+        runWithSubrequestBudget(() => maintenance.run(tasks)),
+      ).rejects.toThrow(`Maintenance failed: ${name}`);
+    });
+  }
+
   test("passes and saves a successful task checkpoint", async () => {
     await execute(
       `INSERT INTO maintenance_tasks (name, checkpoint, next_run_at)

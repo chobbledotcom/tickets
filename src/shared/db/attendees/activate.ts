@@ -189,11 +189,11 @@ const claimActivation = async (
   const [stageClaim, paymentClaim] = await claimCheckoutStagePayment(
     tx,
     stage,
-    "pending",
+    stage.state,
   );
   if (stageClaim!.rowsAffected !== 1) {
     throw new Error(
-      `Checkout stage ${stage.paymentSessionId} was not pending for attendee ${stage.attendeeId}`,
+      `Checkout stage ${stage.paymentSessionId} was not ${stage.state} for attendee ${stage.attendeeId}`,
     );
   }
   if (paymentClaim!.rowsAffected !== 1) {
@@ -279,9 +279,9 @@ const activationWriteStatements = (
     ...activity,
     ...finalize,
     {
-      args: [stage.paymentSessionId, stage.attendeeId],
+      args: [stage.paymentSessionId, stage.attendeeId, stage.state],
       sql: `DELETE FROM checkout_stages
-             WHERE payment_session_id = ? AND attendee_id = ? AND state = 'pending'`,
+             WHERE payment_session_id = ? AND attendee_id = ? AND state = ?`,
     },
   ];
 };

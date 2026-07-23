@@ -170,8 +170,17 @@ export const attendeeTables: [name: string, table: Table][] = [
         ["provider_checkout_id", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL"],
         ["refund_spec", "TEXT NOT NULL DEFAULT ''"],
-        ["state", "TEXT NOT NULL CHECK (state IN ('pending', 'refunding'))"],
+        [
+          "state",
+          "TEXT NOT NULL CHECK (state IN ('pending', 'paid', 'refunding'))",
+        ],
         ["created_at", "TEXT NOT NULL"],
+        ["next_attempt_at", "INTEGER NOT NULL"],
+        [
+          "attempt_count",
+          "INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0)",
+        ],
+        ["last_attempt_at", "INTEGER"],
       ],
       indexes: [
         {
@@ -180,8 +189,8 @@ export const attendeeTables: [name: string, table: Table][] = [
           unique: true,
         },
         {
-          columns: ["state", "created_at"],
-          name: "idx_checkout_stages_state_created_at",
+          columns: ["next_attempt_at", "payment_session_id"],
+          name: "idx_checkout_stages_next_attempt",
         },
       ],
     },

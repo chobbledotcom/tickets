@@ -6,6 +6,7 @@ import {
   deletedListingSpec,
   refundAndFail,
   refundSpec,
+  refundWithProvider,
   refuseMismatch,
   tryRefund,
   validationFailure,
@@ -73,7 +74,12 @@ const captureLog = async <T>(
 
 describeWithEnv("payment refunds", { db: true }, () => {
   test("rejects an empty reference", async () => {
-    expect(await tryRefund("")).toBe("failed");
+    using refund = stub(stripePaymentProvider, "refundPayment", () =>
+      Promise.resolve("refunded" as const),
+    );
+
+    expect(await refundWithProvider(stripePaymentProvider, "")).toBe("failed");
+    expect(refund.calls).toHaveLength(0);
   });
 
   test("returns provider refunded and pending outcomes", async () => {

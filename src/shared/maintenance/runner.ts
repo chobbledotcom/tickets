@@ -82,7 +82,7 @@ const runClaimedTask = async (
   );
   let failure: unknown | null = null;
   let completed = false;
-  let needsFollowUp = false;
+  let followUpIntervalMs: number | null = null;
   let checkpoint = claim.checkpoint;
   try {
     await withSubrequestAllowance(
@@ -99,15 +99,27 @@ const runClaimedTask = async (
             completed = true;
           },
           deadline,
-          requestFollowUp: () => {
-            needsFollowUp = true;
+          requestFollowUp: (afterMs = MAINTENANCE_MIN_INTERVAL_MS) => {
+            if (
+              !Number.isInteger(afterMs) ||
+              afterMs < MAINTENANCE_MIN_INTERVAL_MS ||
+              afterMs > task.intervalMs
+            ) {
+              throw new Error(
+                `${task.name} follow-up must be between ${MAINTENANCE_MIN_INTERVAL_MS}ms and ${task.intervalMs}ms`,
+              );
+            }
+            followUpIntervalMs =
+              followUpIntervalMs === null
+                ? afterMs
+                : Math.min(followUpIntervalMs, afterMs);
           },
           setCheckpoint: (nextCheckpoint) => {
             checkpoint = nextCheckpoint;
           },
         }),
     );
-    if (completed && needsFollowUp) {
+    if (completed && followUpIntervalMs !== null) {
       throw new Error(`${task.name} cannot complete and request a follow-up`);
     }
   } catch (error) {
@@ -118,8 +130,8 @@ const runClaimedTask = async (
     completed: failure === null && completed,
     intervalMs:
       failure === null
-        ? needsFollowUp
-          ? MAINTENANCE_MIN_INTERVAL_MS
+        ? followUpIntervalMs !== null
+          ? followUpIntervalMs
           : task.intervalMs
         : task.failureRetryIntervalMs,
   });

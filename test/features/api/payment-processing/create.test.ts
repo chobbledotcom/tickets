@@ -163,8 +163,11 @@ const preparationResult = (options: {
       total: options.total,
     },
     {
+      attemptCount: 0,
       attendeeId: 1,
       createdAt: "2026-07-17T00:00:00.000Z",
+      lastAttemptAt: null,
+      nextAttemptAt: 0,
       paymentSessionId: session.id,
       provider: "stripe",
       providerCheckoutId: session.id,

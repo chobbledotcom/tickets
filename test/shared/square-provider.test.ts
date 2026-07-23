@@ -182,12 +182,14 @@ describe("square-provider", () => {
       );
     });
 
-    test("returns paid when payment status is COMPLETED", async () => {
+    test("recovery returns paid for one completed tender", async () => {
       await withMocks(
         () => paidPay1Mocks("order_completed"),
         async (mocks) => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_completed");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_completed",
+            "recovery",
+          );
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("paid");
           expect(result!.paymentReference).toBe("pay_1");
@@ -264,7 +266,7 @@ describe("square-provider", () => {
       );
     });
 
-    test("returns unpaid when order state is OPEN and no tenders exist", async () => {
+    test("recovery returns unpaid when no tenders exist", async () => {
       await withMocks(
         () =>
           stub(squareApi, "retrieveOrder", () =>
@@ -280,8 +282,10 @@ describe("square-provider", () => {
             }),
           ),
         async () => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_no_tenders");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_no_tenders",
+            "recovery",
+          );
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("unpaid");
         },
@@ -340,8 +344,10 @@ describe("square-provider", () => {
           ),
         }),
         async ({ payment }) => {
-          const result =
-            await squarePaymentProvider.retrieveSession("order_two_tenders");
+          const result = await squarePaymentProvider.retrieveSession(
+            "order_two_tenders",
+            "callback",
+          );
           expect(payment.calls.map((call) => call.args)).toEqual([
             ["pay_stale"],
             ["pay_completed"],
