@@ -5,7 +5,7 @@ import { FakeSocket } from "./support.test.ts";
 
 type AuthenticationFields = {
   authMethod: string;
-  bearer_token?: string | null;
+  bearer_token: string | null;
   headers: string | null;
 };
 

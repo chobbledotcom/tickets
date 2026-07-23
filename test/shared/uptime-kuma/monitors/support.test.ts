@@ -68,8 +68,8 @@ const listedMonitor = (
     : [],
   active: true,
   authorization:
-    typeof monitor.headers === "string"
-      ? scheduledAuthorization(TEST_SCHEDULED_KEY)
+    typeof monitor.bearer_token === "string"
+      ? scheduledAuthorization(monitor.bearer_token)
       : null,
   id,
   interval: typeof monitor.interval === "number" ? monitor.interval : 60,
@@ -85,7 +85,6 @@ type ConnectedFake = FakeClient & Disposable;
 const fakeClient = (
   monitors: UptimeKumaMonitor[],
   beforeDelete?: (id: number) => void,
-  majorVersion = 2,
 ): FakeClient => {
   const added: AddedMonitor[] = [];
   const deleted: number[] = [];
@@ -108,7 +107,6 @@ const fakeClient = (
     disconnect: () => {
       disconnected = true;
     },
-    getMajorVersion: () => Promise.resolve(majorVersion),
     getMonitors: () => Promise.resolve(currentMonitors),
     login: () => Promise.resolve(),
   };
@@ -125,11 +123,8 @@ const connectClient = (fake: FakeClient): ConnectedFake => {
   };
 };
 
-export const connectFake = (
-  monitors: UptimeKumaMonitor[],
-  majorVersion = 2,
-): ConnectedFake =>
-  connectClient(fakeClient(monitors, undefined, majorVersion));
+export const connectFake = (monitors: UptimeKumaMonitor[]): ConnectedFake =>
+  connectClient(fakeClient(monitors));
 
 const connectChangingFake = (
   reads: UptimeKumaMonitor[][],
@@ -199,6 +194,14 @@ type AddRaceCase = {
 };
 
 export const addRaceCases: AddRaceCase[] = [
+  {
+    addedCount: 1,
+    created: false,
+    deleted: [],
+    monitorId: 99,
+    name: "does not delete a monitor Kuma omitted after an add race",
+    reads: [[group()], [group()], [group(), { ...siteMonitor(), id: 99 }]],
+  },
   {
     addedCount: 2,
     addedParent: 99,

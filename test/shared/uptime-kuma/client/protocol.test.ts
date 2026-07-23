@@ -1,14 +1,33 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import { createUptimeKumaClient } from "#shared/uptime-kuma/client.ts";
+import {
+  createUptimeKumaClient,
+  type UptimeKumaClient,
+} from "#shared/uptime-kuma/client.ts";
 import { FakeSocket } from "./support.test.ts";
+
+const clientAtVersion = (
+  socket: FakeSocket,
+  version = "2.4.0",
+): UptimeKumaClient => {
+  const client = createUptimeKumaClient(socket);
+  socket.emitEvent("info", { version });
+  return client;
+};
+
+const successfulLoginClient = (
+  socket: FakeSocket,
+  version = "2.4.0",
+): UptimeKumaClient => {
+  socket.reply("login", { ok: true, token: "session-token" });
+  return clientAtVersion(socket, version);
+};
 
 describe("Uptime Kuma Socket.IO protocol", () => {
   test("logs in with the username and password payload", async () => {
     const socket = new FakeSocket();
-    socket.reply("login", { ok: true, token: "session-token" });
-    const client = createUptimeKumaClient(socket);
+    const client = successfulLoginClient(socket);
 
     await client.login("owner", "secret");
 
@@ -24,67 +43,65 @@ describe("Uptime Kuma Socket.IO protocol", () => {
   test("reports rejected credentials", async () => {
     const socket = new FakeSocket();
     socket.reply("login", { msg: "Incorrect password.", ok: false });
+    const client = clientAtVersion(socket);
 
-    await expect(
-      createUptimeKumaClient(socket).login("owner", "wrong"),
-    ).rejects.toThrow("Incorrect password.");
+    await expect(client.login("owner", "wrong")).rejects.toThrow(
+      "Incorrect password.",
+    );
   });
 
   test("reports unsupported two-factor login", async () => {
     const socket = new FakeSocket();
     socket.reply("login", { tokenRequired: true });
+    const client = clientAtVersion(socket);
 
-    await expect(
-      createUptimeKumaClient(socket).login("owner", "password"),
-    ).rejects.toThrow("two-factor login is not supported");
+    await expect(client.login("owner", "password")).rejects.toEqual(
+      new Error("Uptime Kuma two-factor login is not supported."),
+    );
   });
 
-  test("reads the Kuma major version", async () => {
+  test("accepts Uptime Kuma 2.4", async () => {
     const socket = new FakeSocket();
-    const client = createUptimeKumaClient(socket);
-    const version = client.getMajorVersion();
+    const client = successfulLoginClient(socket);
 
-    socket.emitEvent("info", { version: "1.23.16" });
-
-    await expect(version).resolves.toBe(1);
+    await expect(client.login("owner", "secret")).resolves.toBeUndefined();
   });
 
-  test("reads a multi-digit Kuma major version", async () => {
+  test("accepts later Uptime Kuma versions", async () => {
     const socket = new FakeSocket();
-    const client = createUptimeKumaClient(socket);
-    const version = client.getMajorVersion();
+    const client = successfulLoginClient(socket, "12.3.4");
 
-    socket.emitEvent("info", { version: "12.3.4" });
-
-    await expect(version).resolves.toBe(12);
+    await expect(client.login("owner", "secret")).resolves.toBeUndefined();
   });
 
   test("waits for the versioned info event", async () => {
     const socket = new FakeSocket();
+    socket.reply("login", { ok: true, token: "session-token" });
     const client = createUptimeKumaClient(socket);
-    const version = client.getMajorVersion();
-    socket.emitEvent("info", { latestVersion: "2.0.0-beta.4" });
+    socket.emitEvent("info", { latestVersion: "2.4.0" });
+    const login = client.login("owner", "secret");
 
-    socket.emitEvent("info", { version: "2.0.0-beta.4" });
+    socket.emitEvent("info", { version: "2.4.0" });
 
-    await expect(version).resolves.toBe(2);
+    await expect(login).resolves.toBeUndefined();
   });
 
-  test("rejects a malformed Kuma version", async () => {
-    const socket = new FakeSocket();
-    const client = createUptimeKumaClient(socket);
-    const version = client.getMajorVersion();
+  for (const version of ["1.23.16", "2.3.1", "next"]) {
+    test(`rejects unsupported Uptime Kuma version ${version}`, async () => {
+      const socket = new FakeSocket();
+      const client = clientAtVersion(socket, version);
 
-    socket.emitEvent("info", { version: "next" });
-
-    await expect(version).rejects.toThrow();
-  });
+      await expect(client.login("owner", "secret")).rejects.toEqual(
+        new Error("Uptime Kuma 2.4 or newer is required."),
+      );
+    });
+  }
 
   test("times out when Kuma does not send its version", async () => {
     using time = new FakeTime();
     const socket = new FakeSocket();
     const version = expect(
-      createUptimeKumaClient(socket).getMajorVersion(),
+      createUptimeKumaClient(socket).login("owner", "secret"),
     ).rejects.toThrow("Uptime Kuma did not send info.");
 
     await time.tickAsync(10_001);
@@ -97,16 +114,17 @@ describe("Uptime Kuma Socket.IO protocol", () => {
     const socket = new FakeSocket();
     socket.reply("getMonitorList", () => {
       socket.emitEvent("monitorList", {
-        "7": {
+        "1": {
           accepted_statuscodes: ["200-299"],
           active: 1,
           authMethod: "",
+          bearer_token: null,
           headers: null,
-          id: 7,
-          interval: 900,
+          id: 1,
+          interval: 1,
           method: "POST",
           name: "Child",
-          parent: 3,
+          parent: 1,
           type: "http",
           url: "https://child.example.test/scheduled",
         },
@@ -114,6 +132,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
           accepted_statuscodes: ["200-299"],
           active: 0,
           authMethod: "",
+          bearer_token: null,
           headers: null,
           id: 8,
           interval: 60,
@@ -127,6 +146,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
           accepted_statuscodes: ["204"],
           active: true,
           authMethod: "",
+          bearer_token: null,
           headers: null,
           id: 9,
           interval: 120,
@@ -145,11 +165,11 @@ describe("Uptime Kuma Socket.IO protocol", () => {
         acceptedStatusCodes: ["200-299"],
         active: true,
         authorization: null,
-        id: 7,
-        interval: 900,
+        id: 1,
+        interval: 1,
         method: "POST",
         name: "Child",
-        parent: 3,
+        parent: 1,
         type: "http",
         url: "https://child.example.test/scheduled",
       },
@@ -190,6 +210,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
           accepted_statuscodes: ["200-299"],
           active: true,
           authMethod: "",
+          bearer_token: null,
           headers: null,
           id: 7,
           interval: 60,
@@ -269,6 +290,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
             accepted_statuscodes: ["200-299"],
             active: true,
             authMethod: "",
+            bearer_token: null,
             headers: null,
             id: 1,
             interval: 60,
@@ -291,10 +313,10 @@ describe("Uptime Kuma Socket.IO protocol", () => {
 
   test("returns the monitor number from an add acknowledgement", async () => {
     const socket = new FakeSocket();
-    socket.reply("add", { monitorID: 41, msg: "Added.", ok: true });
+    socket.reply("add", { monitorID: 1, msg: "Added.", ok: true });
     const input = { name: "Child", type: "http" };
 
-    expect(await createUptimeKumaClient(socket).addMonitor(input)).toBe(41);
+    expect(await createUptimeKumaClient(socket).addMonitor(input)).toBe(1);
     expect(socket.calls[0]).toEqual({ args: [input], event: "add" });
   });
 

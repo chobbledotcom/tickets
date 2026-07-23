@@ -10,6 +10,7 @@ import {
 
 const SOCKET_TIMEOUT_MS = 10_000;
 const MONITOR_LIST_TIMEOUT_MS = 60_000;
+const UNSUPPORTED_VERSION_MESSAGE = "Uptime Kuma 2.4 or newer is required.";
 
 type SocketListener = (...args: unknown[]) => void;
 
@@ -32,7 +33,6 @@ export interface UptimeKumaClient {
   addMonitor(monitor: UptimeKumaMonitorInput): Promise<number>;
   deleteMonitor(id: number): Promise<void>;
   disconnect(): void;
-  getMajorVersion(): Promise<number>;
   getMonitors(): Promise<UptimeKumaMonitor[]>;
   login(username: string, password: string): Promise<void>;
 }
@@ -85,7 +85,7 @@ const RawMonitorSchema = v.object({
   accepted_statuscodes: v.array(v.string()),
   active: ActiveSchema,
   authMethod: v.string(),
-  bearer_token: v.optional(v.nullable(v.string()), null),
+  bearer_token: v.nullable(v.string()),
   headers: v.nullable(v.string()),
   id: integerAtLeast(1),
   interval: integerAtLeast(1),
@@ -113,11 +113,16 @@ const MonitorSchema = v.pipe(
 );
 
 const MonitorListSchema = v.record(v.string(), MonitorSchema);
+const VersionNumberSchema = v.pipe(
+  v.string(),
+  v.regex(/^\d+$/),
+  v.transform(Number),
+  v.safeInteger(),
+);
 const VersionSchema = v.pipe(
   v.string(),
-  v.regex(/^[1-9]\d*(?:\.|$)/),
-  v.transform((version) => Number(version.split(".")[0])),
-  v.safeInteger(),
+  v.transform((version) => version.split(".")),
+  v.tuple([VersionNumberSchema, VersionNumberSchema]),
 );
 const InfoSchema = v.object({ version: v.optional(VersionSchema) });
 const FailedResponseSchema = v.object({
@@ -146,13 +151,17 @@ type EventCapture = {
   received: Promise<void>;
 };
 
-type VersionOutcome =
-  | { error: unknown; ok: false }
-  | { majorVersion: number; ok: true };
+type VersionOutcome = { error: unknown; ok: false } | { ok: true };
 
 type VersionCapture = {
   cancel: () => void;
-  read: () => Promise<number>;
+  read: () => Promise<void>;
+};
+
+const requireSupportedVersion = ([major, minor]: [number, number]): void => {
+  if (major < 2 || (major === 2 && minor < 4)) {
+    throw new Error(UNSUPPORTED_VERSION_MESSAGE);
+  }
 };
 
 const withEventTimeout = async <Value>(
@@ -176,12 +185,17 @@ const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
   const promise = new Promise<VersionOutcome>((resolve) => {
     listener = (value) => {
       try {
-        const info = v.parse(InfoSchema, value);
+        const parsed = v.safeParse(InfoSchema, value);
+        if (!parsed.success) {
+          throw new Error(UNSUPPORTED_VERSION_MESSAGE);
+        }
+        const info = parsed.output;
         if (info.version === undefined) {
           socket.once("info", listener);
           return;
         }
-        resolve({ majorVersion: info.version, ok: true });
+        requireSupportedVersion(info.version);
+        resolve({ ok: true });
       } catch (error) {
         resolve({ error, ok: false });
       }
@@ -190,10 +204,9 @@ const captureVersion = (socket: UptimeKumaSocket): VersionCapture => {
   });
   return {
     cancel: () => socket.off("info", listener),
-    read: async (): Promise<number> => {
+    read: async (): Promise<void> => {
       const outcome = await withEventTimeout(promise, "info");
       if (!outcome.ok) throw outcome.error;
-      return outcome.majorVersion;
     },
   };
 };
@@ -256,7 +269,6 @@ export const createUptimeKumaClient = (
       version.cancel();
       socket.disconnect();
     },
-    getMajorVersion: (): Promise<number> => version.read(),
     getMonitors: async (): Promise<UptimeKumaMonitor[]> => {
       const list = captureEvents(
         socket,
@@ -275,6 +287,7 @@ export const createUptimeKumaClient = (
       }
     },
     login: async (username, password): Promise<void> => {
+      await version.read();
       const response = v.parse(
         LoginResponseSchema,
         await call(socket, "login", {
@@ -298,7 +311,7 @@ const socketPath = (url: URL): string => {
 
 const socketUrl = (url: URL): string => {
   const socket = new URL(url.origin);
-  socket.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  socket.protocol = url.protocol === "https:" ? "wss" : "ws";
   socket.pathname = `${socketPath(url)}/`;
   socket.searchParams.set("EIO", "4");
   socket.searchParams.set("transport", "websocket");

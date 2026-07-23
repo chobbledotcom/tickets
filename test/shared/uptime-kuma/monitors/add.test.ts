@@ -78,13 +78,13 @@ describe("adding Uptime Kuma built-site monitors", () => {
       value: { created: true, monitorId: 100 },
     });
     expect(fake.added[0]).toMatchObject({
-      headers: JSON.stringify({
-        Authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
-      }),
+      authMethod: "bearer",
+      bearer_token: TEST_SCHEDULED_KEY,
+      headers: null,
     });
   });
 
-  test("includes the Uptime Kuma 2 JSON defaults", async () => {
+  test("includes the Uptime Kuma JSON defaults", async () => {
     using _env = withEnv(kumaEnv);
     using fake = connectFake([group()]);
 
@@ -96,16 +96,6 @@ describe("adding Uptime Kuma built-site monitors", () => {
       kafkaProducerSaslOptions: { mechanism: "None" },
       rabbitmqNodes: [],
     });
-  });
-
-  test("omits Uptime Kuma 2 fields when adding to a 1.x server", async () => {
-    using _env = withEnv(kumaEnv);
-    using fake = connectFake([group()], 1);
-
-    await uptimeKumaMonitorService.add(configuredSite());
-
-    expect(fake.added[0]).not.toHaveProperty("conditions");
-    expect(fake.added[0]).not.toHaveProperty("rabbitmqNodes");
   });
 
   for (const scenario of addRaceCases) {
@@ -198,9 +188,9 @@ describe("adding Uptime Kuma built-site monitors", () => {
       type: "group",
     });
     expect(fake.added[1]).toMatchObject({
-      headers: JSON.stringify({
-        Authorization: `Bearer ${TEST_SCHEDULED_KEY}`,
-      }),
+      authMethod: "bearer",
+      bearer_token: TEST_SCHEDULED_KEY,
+      headers: null,
       interval: 900,
       method: "POST",
       name: "Child site",

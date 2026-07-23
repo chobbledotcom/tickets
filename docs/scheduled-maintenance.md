@@ -32,8 +32,8 @@ the child's **Scheduled maintenance** tab to set up an older child.
 
 ## Uptime Kuma
 
-Set all three credentials on the builder to manage monitors from each built
-site's **Scheduled maintenance** tab:
+Use Uptime Kuma 2.4 or newer. Set all three credentials on the builder to
+manage monitors from each built site's **Scheduled maintenance** tab:
 
 - `UPTIME_KUMA_URL`
 - `UPTIME_KUMA_USERNAME`

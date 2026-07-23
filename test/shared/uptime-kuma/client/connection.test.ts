@@ -29,14 +29,15 @@ describe("Uptime Kuma Socket.IO connection", () => {
     expectDisconnected(socket);
   });
 
-  test("captures the Kuma version sent during connection", async () => {
+  test("accepts the Kuma version sent during connection", async () => {
     const socket = new FakeSocket();
-    socket.connectInfo = { version: "2.0.0-beta.4" };
+    socket.connectInfo = { version: "2.4.0" };
+    socket.reply("login", { ok: true, token: "session-token" });
     using _factory = useSocketFactory(socket);
 
     const client = await uptimeKumaClientApi.connect(config);
 
-    expect(await client.getMajorVersion()).toBe(2);
+    await expect(client.login("owner", "secret")).resolves.toBeUndefined();
     client.disconnect();
   });
 
@@ -87,8 +88,11 @@ describe("Uptime Kuma Socket.IO connection", () => {
       withSubrequestAllowance({ database: 50, external: 0, total: 50 }, () =>
         uptimeKumaSocketFactory.create(config),
       ),
-    ).rejects.toThrow(
-      "Blocked external operation: Uptime Kuma socket connection",
+    ).rejects.toEqual(
+      new Error(
+        "Subrequest allowance exceeded: 0 database + 1 external calls. " +
+          "Blocked external operation: Uptime Kuma socket connection",
+      ),
     );
   });
 });

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   groupMonitorInput,
-  scheduledAuthorization,
   scheduledUrl,
   siteMonitorInput,
   UPTIME_KUMA_GROUP_NAME,
@@ -13,6 +12,7 @@ import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 const monitorDefaults = {
   accepted_statuscodes: ["200-299"],
   authMethod: "",
+  bearer_token: null,
   body: null,
   conditions: [],
   databaseConnectionString: null,
@@ -52,8 +52,8 @@ const site = testBuiltSite({
 });
 
 describe("Uptime Kuma monitor input", () => {
-  test("builds the shared group with Uptime Kuma 2 defaults", () => {
-    expect(groupMonitorInput(2)).toEqual({
+  test("builds the shared group", () => {
+    expect(groupMonitorInput()).toEqual({
       ...monitorDefaults,
       name: "Chobble Tickets",
       parent: null,
@@ -74,13 +74,11 @@ describe("Uptime Kuma monitor input", () => {
         },
         11,
         TEST_SCHEDULED_KEY,
-        2,
       ),
     ).toEqual({
       ...monitorDefaults,
-      headers: JSON.stringify({
-        Authorization: scheduledAuthorization(TEST_SCHEDULED_KEY),
-      }),
+      authMethod: "bearer",
+      bearer_token: TEST_SCHEDULED_KEY,
       interval: 900,
       method: "POST",
       name: "Child site",
@@ -90,25 +88,11 @@ describe("Uptime Kuma monitor input", () => {
     });
   });
 
-  test("gives each Uptime Kuma 2 monitor its own array defaults", () => {
-    const first = groupMonitorInput(2);
-    const second = groupMonitorInput(2);
+  test("gives each monitor its own array defaults", () => {
+    const first = groupMonitorInput();
+    const second = groupMonitorInput();
 
     expect(first.conditions).not.toBe(second.conditions);
     expect(first.rabbitmqNodes).not.toBe(second.rabbitmqNodes);
-  });
-
-  test("omits Uptime Kuma 2 fields for a 1.x server", () => {
-    const {
-      conditions: _conditions,
-      rabbitmqNodes: _rabbitmqNodes,
-      ...versionOneDefaults
-    } = monitorDefaults;
-    expect(groupMonitorInput(1)).toEqual({
-      ...versionOneDefaults,
-      name: "Chobble Tickets",
-      parent: null,
-      type: "group",
-    });
   });
 });

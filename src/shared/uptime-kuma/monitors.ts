@@ -107,11 +107,10 @@ const siteMonitor = (
 const groupForAdd = async (
   client: UptimeKumaClient,
   groups: UptimeKumaMonitor[],
-  majorVersion: number,
 ): Promise<UptimeKumaMonitor> => {
   const existing = lowestByIdOrNull(groups);
   if (existing !== null) return existing;
-  await client.addMonitor(groupMonitorInput(majorVersion));
+  await client.addMonitor(groupMonitorInput());
   return firstById(
     sharedGroups(await client.getMonitors()),
     `Uptime Kuma did not return the new "${UPTIME_KUMA_GROUP_NAME}" group.`,
@@ -217,7 +216,6 @@ const addToGroup = async (
   group: UptimeKumaMonitor,
   url: string,
   authorization: string,
-  majorVersion: number,
 ): Promise<AddedMonitor> => {
   const currentMonitors = await client.getMonitors();
   const raceWinner = raceWinnerMonitor(currentMonitors, url, authorization);
@@ -225,7 +223,7 @@ const addToGroup = async (
     return { created: false, monitorId: raceWinner.id };
   }
   const monitorId = await client.addMonitor(
-    siteMonitorInput(site, config, group.id, scheduledTaskKey, majorVersion),
+    siteMonitorInput(site, config, group.id, scheduledTaskKey),
   );
   return await finishMonitorAdd(
     client,
@@ -250,8 +248,7 @@ const addFromMonitors = async (
   if (existing) {
     return okResult({ created: false, monitorId: existing.id });
   }
-  const majorVersion = await client.getMajorVersion();
-  const group = await groupForAdd(client, groups, majorVersion);
+  const group = await groupForAdd(client, groups);
   return okResult(
     await addToGroup(
       client,
@@ -261,7 +258,6 @@ const addFromMonitors = async (
       group,
       url,
       authorization,
-      majorVersion,
     ),
   );
 };
@@ -272,8 +268,7 @@ const loadConfigured = (
 ): Promise<UptimeKumaMonitorState> => {
   const scheduledTaskKey = site.scheduledTaskKey;
   if (scheduledTaskKey === null) return Promise.resolve({ kind: "missing" });
-  return withMonitors(config, (_client, monitors, groups) => {
-    if (groups.length === 0) return { kind: "missing" };
+  return withMonitors(config, (_client, monitors, _groups) => {
     const url = scheduledUrl(site);
     const monitor = existingSiteMonitor(
       monitors,
