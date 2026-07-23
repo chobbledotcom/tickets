@@ -85,15 +85,19 @@ const colourConflict: AttendeeMergeDiffAnswerItem = {
   targetAnswerText: "Red",
 };
 
-/** Assert a validation failed and one of its errors mentions `substring`. */
-const expectInvalidContaining = (
+const STRANDED_PAYMENT_ERROR =
+  "Listing #5: a no-quantity line would strand a recorded payment — refund or retarget it before merging.";
+const MISSING_MONEY_ERROR = "Missing money decision for booking: Listing #5";
+
+/** Assert validation failed with exactly the expected error. */
+const expectInvalid = (
   result: ReturnType<typeof validateAttendeeMergeDecision>,
-  substring: string,
+  error: string | string[],
 ) => {
-  expect(result.valid).toBe(false);
-  if (!result.valid) {
-    expect(result.errors.some((e) => e.includes(substring))).toBe(true);
-  }
+  expect(result).toEqual({
+    errors: typeof error === "string" ? [error] : error,
+    valid: false,
+  });
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
@@ -103,7 +107,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         diffWith(),
         decision({ version: "v2" }),
       );
-      expectInvalidContaining(result, "out of date");
+      expectInvalid(
+        result,
+        "The merge preview is out of date. Please reload and try again.",
+      );
     });
 
     test("rejects missing answer decision for conflict", () => {
@@ -111,7 +118,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         diffWith({ answerItems: [colourConflict] }),
         decision(),
       );
-      expectInvalidContaining(result, "Colour?");
+      expectInvalid(result, "Missing decision for question: Colour?");
     });
 
     test("rejects missing booking decision for conflict", () => {
@@ -124,18 +131,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision(),
       );
-      // Exact-match the label string. A no-date booking renders as
-      // `Listing #<id>` with no suffix — the empty-string fallback of the
-      // `item.startAt ? \`…\` : ""` ternary. Mutating that literal to any
-      // non-empty value would append it (e.g. `Listing #5mutated`) and slip
-      // past an `.includes("Listing #5")` check, so the array-membership
-      // assertion is what kills the literal mutation.
-      expectInvalidContaining(result, "Missing decision for booking");
-      if (!result.valid) {
-        expect(result.errors).toContain(
-          "Missing decision for booking: Listing #5",
-        );
-      }
+      expectInvalid(result, "Missing decision for booking: Listing #5");
     });
 
     test("rejects a missing booking decision with exactly one error even when the booking carries money", () => {
@@ -148,12 +144,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         moneyConflictDiff(5000, 5000),
         decision(),
       );
-      if (!result.valid) {
-        expect(result.errors.length).toBe(1);
-        expect(result.errors.some((e) => e.includes("Missing decision"))).toBe(
-          true,
-        );
-      }
+      expectInvalid(result, "Missing decision for booking: Listing #5");
     });
 
     test("rejects missing booking decision for daily listing conflict", () => {
@@ -173,7 +164,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision(),
       );
-      expectInvalidContaining(result, "2026-06-15");
+      expectInvalid(
+        result,
+        "Missing decision for booking: Listing #7 (2026-06-15)",
+      );
     });
 
     test("rejects copying a no-quantity source line that still carries a payment", () => {
@@ -190,7 +184,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision(),
       );
-      expectInvalidContaining(result, "strand a recorded payment");
+      expectInvalid(result, STRANDED_PAYMENT_ERROR);
     });
 
     test("rejects replacing an active paid target line with a no-quantity source", () => {
@@ -207,7 +201,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision({ bookings: { "5:null:0:0": "take_source" } }),
       );
-      expectInvalidContaining(result, "strand a recorded payment");
+      expectInvalid(result, [MISSING_MONEY_ERROR, STRANDED_PAYMENT_ERROR]);
     });
 
     test("allows moving a no-quantity source line that carries no payment", () => {
@@ -222,7 +216,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision(),
       );
-      expect(result.valid).toBe(true);
+      expect(result).toEqual({ valid: true });
     });
 
     test("accepts valid decisions", () => {
@@ -237,7 +231,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           pii: { name: "target" },
         }),
       );
-      expect(result.valid).toBe(true);
+      expect(result).toEqual({ valid: true });
     });
 
     // --- Decision 17: a discarded booking that carries money needs a choice --- //
@@ -270,7 +264,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         moneyConflictDiff(5000, 5000),
         moneyDecision({}),
       );
-      expectInvalidContaining(result, "money decision");
+      expectInvalid(result, MISSING_MONEY_ERROR);
     });
 
     test("accepts a discarded paid booking once a money choice is given", () => {
@@ -278,7 +272,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         moneyConflictDiff(5000, 5000),
         moneyDecision({ "5:null:0:0": "credit" }),
       );
-      expect(result.valid).toBe(true);
+      expect(result).toEqual({ valid: true });
     });
 
     test("needs no money decision when the discarded booking is free", () => {
@@ -287,7 +281,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         moneyConflictDiff(0, 0),
         moneyDecision({}),
       );
-      expect(result.valid).toBe(true);
+      expect(result).toEqual({ valid: true });
     });
 
     test("take_source weighs the TARGET amount it discards, not the source", () => {
@@ -297,7 +291,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         moneyConflictDiff(0, 5000),
         moneyDecision({}, "take_source"),
       );
-      expectInvalidContaining(result, "money decision");
+      expectInvalid(result, MISSING_MONEY_ERROR);
     });
 
     test("rejects a discarded booking whose sale is exactly one minor unit", () => {
@@ -309,7 +303,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         moneyConflictDiff(1, 0),
         moneyDecision({}),
       );
-      expectInvalidContaining(result, "money decision");
+      expectInvalid(result, MISSING_MONEY_ERROR);
     });
 
     // --- Stranded-payment guards (a no-quantity line must have price_paid 0) --- //
@@ -332,7 +326,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision({ bookings: { "5:null:0:0": "take_source" } }),
       );
-      expect(result.valid).toBe(true);
+      expect(result).toEqual({ valid: true });
     });
 
     test("rejects copying a no-quantity source line whose price is one minor unit", () => {
@@ -350,7 +344,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision(),
       );
-      expectInvalidContaining(result, "strand a recorded payment");
+      expectInvalid(result, STRANDED_PAYMENT_ERROR);
     });
 
     test("rejects replacing a single-pence paid target with a no-quantity source", () => {
@@ -370,7 +364,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         ),
         decision({ bookings: { "5:null:0:0": "take_source" } }),
       );
-      expectInvalidContaining(result, "strand a recorded payment");
+      expectInvalid(result, [MISSING_MONEY_ERROR, STRANDED_PAYMENT_ERROR]);
     });
   });
 });

@@ -27,6 +27,7 @@ import {
   edgeDrifted,
   lineGroupId,
   lineGroupIds,
+  standaloneLineListingIds,
 } from "#shared/booking/signed-metadata.ts";
 import { childIdsMatching } from "#shared/child-parents.ts";
 import {
@@ -248,11 +249,7 @@ export const orderEdgeDrifted = async (
     prices: pkg.priceMap,
     quantities: pkg.quantityMap,
   }));
-  const standaloneListingIds = new Set(
-    nonFolded
-      .filter((item) => lineGroupId(item) === undefined)
-      .map((item) => item.e),
-  );
+  const standaloneListingIds = new Set(standaloneLineListingIds(nonFolded));
   const tree = buildBookingTree({
     childrenByParentId,
     listings: topLevel,

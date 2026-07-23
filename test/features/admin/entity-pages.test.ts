@@ -90,7 +90,7 @@ const def: EntityPageDef<Fixture> = {
           load: (entity, ctx) =>
             Promise.resolve(
               Raw({
-                html: `<p>${entity.name} @ ${ctx.returnUrl} from ${ctx.baseUrl}</p>`,
+                html: `<p data-from="${ctx.query.get("from") ?? ""}">${entity.name} @ ${ctx.returnUrl} from ${ctx.baseUrl}</p>`,
               }),
             ),
         },
@@ -161,6 +161,51 @@ describe("defineEntityPage", () => {
     expect(html).not.toContain("View all activity");
   });
 
+  test("active sections load concurrently without changing their declared order", async () => {
+    const first = Promise.withResolvers<ReturnType<typeof Raw>>();
+    const second = Promise.withResolvers<ReturnType<typeof Raw>>();
+    const firstStarted = Promise.withResolvers<void>();
+    const started: string[] = [];
+    const concurrentPage = defineEntityPage({
+      ...def,
+      tabs: [
+        {
+          labelKey: "entity.tab.overview",
+          sections: [
+            {
+              kind: "custom",
+              load: () => {
+                started.push("first");
+                firstStarted.resolve();
+                return first.promise;
+              },
+            },
+            {
+              kind: "custom",
+              load: () => {
+                started.push("second");
+                return second.promise;
+              },
+            },
+          ],
+          slug: "",
+        },
+      ],
+    });
+
+    const rendering = concurrentPage.renderPage(SESSION, 7, "");
+    await firstStarted.promise;
+    const startedBeforeAnyResolve = [...started];
+    second.resolve(Raw({ html: "<p>section-beta-marker</p>" }));
+    first.resolve(Raw({ html: "<p>section-alpha-marker</p>" }));
+    const html = await (await rendering).text();
+
+    expect(startedBeforeAnyResolve).toEqual(["first", "second"]);
+    expect(html.indexOf("section-alpha-marker")).toBeLessThan(
+      html.indexOf("section-beta-marker"),
+    );
+  });
+
   test("actions filter on their visible predicate and custom sections get ctx", async () => {
     const html = await (await page.renderPage(SESSION, 7, "actions")).text();
     // paid=false hides the refund action but keeps the danger delete.
@@ -168,7 +213,9 @@ describe("defineEntityPage", () => {
     expect(html).toContain('href="/admin/widgets/7/delete"');
     expect(html).toContain("entity-danger-zone");
     // The custom section received the tab's canonical URL as returnUrl.
-    expect(html).toContain("<p>Widget @ /admin/widgets/7/actions from </p>");
+    expect(html).toContain(
+      '<p data-from="">Widget @ /admin/widgets/7/actions from </p>',
+    );
   });
 
   test("read-only mode hides write-form tabs and actions", async () => {
@@ -179,14 +226,37 @@ describe("defineEntityPage", () => {
   });
 
   test("a panel override replaces the tab's content at the given status", async () => {
-    const response = await page.renderPage(SESSION, 7, "actions", {
-      panel: () => Promise.resolve(Raw({ html: "<p>override</p>" })),
+    const loaded: string[] = [];
+    const panelPage = defineEntityPage({
+      ...def,
+      tabs: [
+        {
+          labelKey: "entity.tab.actions",
+          sections: [
+            {
+              kind: "custom",
+              load: () => {
+                loaded.push("section");
+                return Promise.resolve(Raw({ html: "<p>section</p>" }));
+              },
+            },
+          ],
+          slug: "actions",
+        },
+      ],
+    });
+    const response = await panelPage.renderPage(SESSION, 7, "actions", {
+      panel: () => {
+        loaded.push("panel");
+        return Promise.resolve(Raw({ html: "<p>override</p>" }));
+      },
       status: 400,
     });
     expect(response.status).toBe(400);
     const html = await response.text();
     expect(html).toContain("<p>override</p>");
-    expect(html).not.toContain("/admin/widgets/7/delete");
+    expect(html).not.toContain("<p>section</p>");
+    expect(loaded).toEqual(["panel"]);
     // The shell (title + strip) still renders around the override.
     expect(html).toContain("<h1>Widget: Widget</h1>");
   });
@@ -197,14 +267,16 @@ describe("defineEntityPage", () => {
     ).rejects.toThrow();
   });
 
-  test("renderTab authenticates, then renders the requested tab with the request's query", async () => {
+  test("renderTab passes the request origin and query to the active section", async () => {
     const response = await page.renderTab(
-      new Request("http://localhost/admin/widgets/7"),
+      new Request("https://tickets.example/admin/widgets/7/actions?from=queue"),
       7,
-      "",
+      "actions",
     );
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("<h1>Widget: Widget</h1>");
+    expect(await response.text()).toContain(
+      '<p data-from="queue">Widget @ /admin/widgets/7/actions from https://tickets.example</p>',
+    );
   });
 
   test("tab labels render translated, never as raw locale keys", async () => {
@@ -229,6 +301,9 @@ describe("defineEntityPage", () => {
     expect(html).toContain('href="/admin/widgets/7/delete"');
     expect(html).toContain("Delete");
     expect(html).toContain("entity-danger-zone");
+    expect((await deletePage.renderPage(SESSION, 7, "actions")).status).toBe(
+      200,
+    );
 
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     expect((await deletePage.renderPage(SESSION, 7, "")).status).toBe(404);

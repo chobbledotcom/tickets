@@ -102,6 +102,19 @@ describe("resizeAreaAverage", () => {
     expect(pixelAt(out, 0, 0)).toEqual([100, 0, 0, 255]);
   });
 
+  test("weights fractional source-pixel coverage at destination edges", () => {
+    const out = resizeAreaAverage(
+      image(3, 1, [
+        [0, 0, 0, 255],
+        [60, 60, 60, 255],
+        [120, 120, 120, 255],
+      ]),
+      2,
+      1,
+    );
+    expect([...out.data]).toEqual([20, 20, 20, 255, 100, 100, 100, 255]);
+  });
+
   test("leaves colour black where the averaged alpha is zero", () => {
     const img = image(2, 2, [
       [255, 128, 64, 0],

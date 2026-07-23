@@ -27,6 +27,10 @@ import {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import {
+  reportSiteAssignmentFailure,
+  type SiteAssignmentConfigValidation,
+} from "#shared/site-assignment-failure.ts";
 import { buildAssignableSite } from "#shared/site-build.ts";
 import { parseEmail, type ValidEmail } from "#shared/validation/email.ts";
 
@@ -68,15 +72,6 @@ type SiteAssignmentConfigEntry = {
     name: string;
   };
 };
-export type SiteAssignmentConfigValidation =
-  | { ok: true }
-  | {
-      ok: false;
-      reason: "builder_disabled" | "initial_months" | "missing_tier";
-      message: string;
-      listingId?: number;
-    };
-
 /** Pick the cheapest qualifying tier listing (purchase_only=1, hidden=1, months_per_unit>0, active=1). */
 export const isQualifyingTierListing = (listing: RenewalTierListing): boolean =>
   listing.purchase_only &&
@@ -308,16 +303,7 @@ const assignSitesForEntries = async (
   // Keep async assignment aligned with the pre-checkout validation gate.
   const config = await validateSiteAssignmentConfig(needsSite);
   if (!config.ok) {
-    logError({
-      code:
-        config.reason === "initial_months"
-          ? ErrorCode.DATA_INVALID
-          : ErrorCode.CONFIG_MISSING,
-      detail: `Site assignment blocked (${config.reason}, ${needsSite.length} entries skipped)`,
-    });
-    sendNtfyError(
-      config.reason === "initial_months" ? "DATA_INVALID" : "CONFIG_MISSING",
-    );
+    reportSiteAssignmentFailure(config, needsSite.length);
     return [];
   }
 
