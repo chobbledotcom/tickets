@@ -147,8 +147,20 @@ describe("renderField", () => {
         '<label>Color<select name="color" id="color"><option value="red" selected>Red</option><option value="blue">Blue</option></select></label>',
       );
     });
+    test("keeps an explicit empty id", () => {
+      expect(
+        rendered({
+          id: "",
+          label: "Color",
+          name: "color",
+          options: [{ label: "Red", value: "red" }],
+          type: "select",
+        }),
+      ).toBe(
+        '<label>Color<select name="color" id=""><option value="red">Red</option></select></label>',
+      );
+    });
   });
-
   describe("checkbox group", () => {
     const days = field({
       label: "Days",
