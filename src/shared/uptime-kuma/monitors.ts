@@ -1,6 +1,7 @@
 import { t } from "#i18n";
 import { bearerAuthorization } from "#shared/bearer.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
+import { MAINTENANCE_REQUEST_DEADLINE_MS } from "#shared/maintenance/definition.ts";
 import { normalizePath } from "#shared/path.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import {
@@ -80,6 +81,11 @@ const scheduledTarget = (value: string): string => {
   return `${url.origin}${normalizePath(url.pathname)}`;
 };
 
+const canCompleteScheduledRequest = (monitor: UptimeKumaMonitor): boolean =>
+  !monitor.upsideDown &&
+  monitor.conditions.length === 0 &&
+  monitor.timeout * 1_000 >= MAINTENANCE_REQUEST_DEADLINE_MS;
+
 const lowestByIdOrNull = (
   monitors: UptimeKumaMonitor[],
 ): UptimeKumaMonitor | null => {
@@ -113,6 +119,7 @@ const siteMonitor = (
       monitor.url !== null &&
       scheduledTarget(monitor.url) === target &&
       acceptsScheduledResponse(monitor.acceptedStatusCodes) &&
+      canCompleteScheduledRequest(monitor) &&
       monitor.authorization === authorization,
   );
   if (!allowRaceDuplicates && matches.length > 1) {

@@ -5,6 +5,7 @@ import {
   createUptimeKumaClient,
   type UptimeKumaClient,
 } from "#shared/uptime-kuma/client.ts";
+import { safeMonitorFields } from "#test/shared/uptime-kuma/support.ts";
 import { FakeSocket } from "./support.test.ts";
 
 const clientAtVersion = (
@@ -136,6 +137,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
     socket.reply("getMonitorList", () => {
       socket.emitEvent("monitorList", {
         "1": {
+          ...safeMonitorFields,
           accepted_statuscodes: ["200-299"],
           active: 1,
           authMethod: "",
@@ -150,6 +152,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
           url: "https://child.example.test/scheduled",
         },
         "8": {
+          ...safeMonitorFields,
           accepted_statuscodes: ["200-299"],
           active: 0,
           authMethod: "",
@@ -164,6 +167,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
           url: null,
         },
         "9": {
+          ...safeMonitorFields,
           accepted_statuscodes: ["204"],
           active: true,
           authMethod: "",
@@ -183,6 +187,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
 
     expect(await createUptimeKumaClient(socket).getMonitors()).toEqual([
       {
+        ...safeMonitorFields,
         acceptedStatusCodes: ["200-299"],
         active: true,
         authorization: null,
@@ -195,6 +200,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
         url: "https://child.example.test/scheduled",
       },
       {
+        ...safeMonitorFields,
         acceptedStatusCodes: ["200-299"],
         active: false,
         authorization: null,
@@ -207,6 +213,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
         url: null,
       },
       {
+        ...safeMonitorFields,
         acceptedStatusCodes: ["204"],
         active: true,
         authorization: null,
@@ -228,6 +235,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
       socket.emitEvent("monitorList", {});
       socket.emitEvent("monitorList", {
         "7": {
+          ...safeMonitorFields,
           accepted_statuscodes: ["200-299"],
           active: true,
           authMethod: "",
@@ -238,6 +246,7 @@ describe("Uptime Kuma Socket.IO protocol", () => {
           method: "POST",
           name: "Current monitor",
           parent: null,
+          timeout: 1,
           type: "http",
           url: "https://current.example.test",
         },
@@ -300,12 +309,14 @@ describe("Uptime Kuma Socket.IO protocol", () => {
     ["id", 0],
     ["interval", 0],
     ["parent", 0],
+    ["timeout", 0],
   ] as const) {
     test(`rejects a monitor whose ${field} is ${value}`, async () => {
       const socket = new FakeSocket();
       socket.reply("getMonitorList", () => {
         socket.emitEvent("monitorList", {
           bad: {
+            ...safeMonitorFields,
             accepted_statuscodes: ["200-299"],
             active: true,
             authMethod: "",

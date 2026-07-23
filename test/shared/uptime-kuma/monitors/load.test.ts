@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { resetI18nForTest, t } from "#i18n";
+import { MAINTENANCE_REQUEST_DEADLINE_MS } from "#shared/maintenance/definition.ts";
 import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
 import {
   UptimeKumaError,
@@ -152,6 +153,50 @@ describe("Uptime Kuma built-site monitor state", () => {
   test("matches a lowercase POST method", async () => {
     using _env = withEnv(kumaEnv);
     using _fake = connectFake([group(), { ...siteMonitor(), method: "post" }]);
+
+    expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
+      { kind: "found", monitor: { id: 22 } },
+    );
+  });
+
+  for (const scenario of [
+    {
+      change: { upsideDown: true },
+      name: "an upside-down check",
+    },
+    {
+      change: { conditions: [{ operator: "contains" }] },
+      name: "a conditional check",
+    },
+    {
+      change: {
+        timeout: Math.ceil(MAINTENANCE_REQUEST_DEADLINE_MS / 1_000) - 1,
+      },
+      name: "a check that times out before maintenance can finish",
+    },
+  ]) {
+    test(`does not reuse ${scenario.name}`, async () => {
+      using _env = withEnv(kumaEnv);
+      using _fake = connectFake([
+        group(),
+        { ...siteMonitor(), ...scenario.change },
+      ]);
+
+      expect(await uptimeKumaMonitorService.load(configuredSite())).toEqual({
+        kind: "missing",
+      });
+    });
+  }
+
+  test("reuses a check whose timeout equals the maintenance deadline", async () => {
+    using _env = withEnv(kumaEnv);
+    using _fake = connectFake([
+      group(),
+      {
+        ...siteMonitor(),
+        timeout: Math.ceil(MAINTENANCE_REQUEST_DEADLINE_MS / 1_000),
+      },
+    ]);
 
     expect(await uptimeKumaMonitorService.load(configuredSite())).toMatchObject(
       { kind: "found", monitor: { id: 22 } },

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createUptimeKumaClient } from "#shared/uptime-kuma/client.ts";
+import { safeMonitorFields } from "#test/shared/uptime-kuma/support.ts";
 import { FakeSocket } from "./support.test.ts";
 
 type AuthenticationFields = {
@@ -16,6 +17,7 @@ const readAuthorization = async (
   socket.reply("getMonitorList", () => {
     socket.emitEvent("monitorList", {
       "7": {
+        ...safeMonitorFields,
         accepted_statuscodes: ["200-299"],
         active: true,
         id: 7,

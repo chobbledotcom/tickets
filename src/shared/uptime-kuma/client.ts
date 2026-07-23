@@ -22,12 +22,15 @@ export interface UptimeKumaMonitor {
   acceptedStatusCodes: string[];
   active: boolean;
   authorization: string | null;
+  conditions: unknown[];
   id: number;
   interval: number;
   method: string;
   name: string;
   parent: number | null;
+  timeout: number;
   type: string;
+  upsideDown: boolean;
   url: string | null;
 }
 
@@ -91,13 +94,16 @@ const RawMonitorSchema = v.object({
   active: ActiveSchema,
   authMethod: v.nullable(v.string()),
   bearer_token: v.nullable(v.string()),
+  conditions: v.array(v.unknown()),
   headers: v.nullable(v.string()),
   id: integerAtLeast(1),
   interval: integerAtLeast(1),
   method: v.string(),
   name: v.string(),
   parent: v.nullable(integerAtLeast(1)),
+  timeout: integerAtLeast(1),
   type: v.string(),
+  upsideDown: ActiveSchema,
   url: v.nullable(v.string()),
 });
 const MonitorSchema = v.pipe(

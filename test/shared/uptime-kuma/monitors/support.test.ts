@@ -8,6 +8,7 @@ import type {
 import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
+import { safeMonitorFields } from "#test/shared/uptime-kuma/support.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -20,6 +21,7 @@ export const kumaEnv = {
 };
 
 export const group = (id = 11): UptimeKumaMonitor => ({
+  ...safeMonitorFields,
   acceptedStatusCodes: ["200-299"],
   active: true,
   authorization: null,
@@ -36,6 +38,7 @@ export const siteMonitor = (
   parent = 11,
   acceptedStatusCodes = ["200-299"],
 ): UptimeKumaMonitor => ({
+  ...safeMonitorFields,
   acceptedStatusCodes,
   active: true,
   authorization: bearerAuthorization(TEST_SCHEDULED_KEY),
@@ -69,12 +72,15 @@ const listedMonitor = (
     typeof monitor.bearer_token === "string"
       ? bearerAuthorization(monitor.bearer_token)
       : null,
+  conditions: Array.isArray(monitor.conditions) ? monitor.conditions : [],
   id,
   interval: typeof monitor.interval === "number" ? monitor.interval : 60,
   method: typeof monitor.method === "string" ? monitor.method : "GET",
   name: typeof monitor.name === "string" ? monitor.name : "",
   parent: typeof monitor.parent === "number" ? monitor.parent : null,
+  timeout: typeof monitor.timeout === "number" ? monitor.timeout : 48,
   type: typeof monitor.type === "string" ? monitor.type : "",
+  upsideDown: monitor.upsideDown === true,
   url: typeof monitor.url === "string" ? monitor.url : null,
 });
 
