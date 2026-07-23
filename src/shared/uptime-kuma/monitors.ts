@@ -53,7 +53,7 @@ const kumaErrorMessage = (error: unknown): string =>
 
 const errorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  return "Uptime Kuma failed.";
+  return t("built_sites.kuma_failed");
 };
 
 const sharedGroups = (monitors: UptimeKumaMonitor[]): UptimeKumaMonitor[] =>

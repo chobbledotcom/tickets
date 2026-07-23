@@ -30,6 +30,7 @@
   "built_sites.kuma_unconfigured": "Set the Uptime Kuma URL, username and password on the builder to manage monitors here.",
   "built_sites.kuma_add_unconfigured": "Uptime Kuma is not configured.",
   "built_sites.kuma_error": "Uptime Kuma could not be checked. {error}",
+  "built_sites.kuma_failed": "Uptime Kuma failed.",
   "built_sites.kuma_monitor_list_timeout": "Uptime Kuma did not send its monitor list.",
   "built_sites.kuma_two_factor": "This Uptime Kuma account uses two-factor login. Use an account without it.",
   "built_sites.kuma_unsupported_version": "Uptime Kuma 2.4 or newer is required.",

@@ -1,7 +1,7 @@
 // jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
+import { resetI18nForTest, t } from "#i18n";
 import { UptimeKumaClientError } from "#shared/uptime-kuma/client.ts";
 import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
@@ -266,14 +266,22 @@ describe("adding Uptime Kuma built-site monitors", () => {
     });
   });
 
-  test("uses a safe error when Kuma rejects with a non-error value", async () => {
-    using _env = withEnv(kumaEnv);
-    using fake = connectFake([group()]);
-    fake.client.addMonitor = () => Promise.reject({ password: "hidden" });
-
-    expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
-      error: "Uptime Kuma failed.",
-      ok: false,
+  test("uses catalog copy when Kuma rejects with a non-error value", async () => {
+    using _env = withEnv({
+      ...kumaEnv,
+      I18N_REPLACEMENTS: "failed|stopped",
     });
+    resetI18nForTest();
+    try {
+      using fake = connectFake([group()]);
+      fake.client.addMonitor = () => Promise.reject({ password: "hidden" });
+
+      expect(await uptimeKumaMonitorService.add(configuredSite())).toEqual({
+        error: "Uptime Kuma stopped.",
+        ok: false,
+      });
+    } finally {
+      resetI18nForTest();
+    }
   });
 });
