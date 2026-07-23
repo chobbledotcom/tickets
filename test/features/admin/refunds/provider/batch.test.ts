@@ -42,6 +42,8 @@ const failingProvider = (throws: Set<string>) => ({
     if (throws.has(reference)) throw new Error(`boom ${reference}`);
     return Promise.resolve("failed" as const);
   },
+  refundRetryMode: "idempotent" as const,
+  type: "stripe" as const,
 });
 
 describeWithEnv(
@@ -100,6 +102,8 @@ describeWithEnv(
         {
           isPaymentRefunded: () => Promise.resolve(false),
           refundPayment: () => Promise.resolve("pending"),
+          refundRetryMode: "idempotent",
+          type: "stripe",
         },
         [pendingCandidate(20, ["pi_pending"])],
         LISTING,

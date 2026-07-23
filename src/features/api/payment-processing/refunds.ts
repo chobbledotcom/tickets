@@ -9,18 +9,16 @@
 
 /* jscpd:ignore-start */
 import type {
+  ListingPaymentFailureResult,
+  ListingValidation,
   PaymentFailureResult,
   PaymentResult,
 } from "#routes/api/webhook-types.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { markSessionFailed } from "#shared/db/processed-payments.ts";
-import {
-  ErrorCode,
-  type ErrorCodeType,
-  logDebug,
-  logError,
-} from "#shared/logger.ts";
+import { ErrorCode, type ErrorCodeType, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { refundPaymentAtProvider } from "#shared/payment-refunds.ts";
 import type {
   PaymentProvider,
   PaymentRefundResult,
@@ -60,31 +58,15 @@ export const refundWithProvider = async (
   listingId?: number,
 ): Promise<PaymentRefundResult> => {
   if (!paymentReference) return "failed";
-  const result = await provider.refundPayment(paymentReference);
-  if (result === "refunded") {
-    logDebug("Payment", "Refund issued");
-    return result;
+  const result = await refundPaymentAtProvider(provider, paymentReference);
+  if (result === "failed") {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Failed to refund payment ${paymentReference}`,
+      listingId,
+    });
   }
-  if (result === "pending") return result;
-
-  // A failed result can simply mean the payment was ALREADY fully refunded: each
-  // provider rejects a second full refund (Stripe errors on an already-refunded
-  // intent; Square and SumUp reject a re-refund), and that rejection surfaces
-  // here as failed. That is success, not failure — the money is back with the
-  // customer — so confirm via the provider's refund-status query before
-  // reporting failure. Without this, a redelivery after a recovered refund would
-  // loop on a 503 retry for money already returned.
-  if (await provider.isPaymentRefunded(paymentReference)) {
-    logDebug("Payment", "Payment already fully refunded");
-    return "refunded";
-  }
-
-  logError({
-    code: ErrorCode.PAYMENT_REFUND,
-    detail: `Failed to refund payment ${paymentReference}`,
-    listingId,
-  });
-  return "failed";
+  return result;
 };
 
 export const tryRefund = async (
@@ -156,10 +138,11 @@ export const refundAndFail = async (
  */
 export const validationFailure = (
   _session: ValidatedPaymentSession,
-  validation: { error: string; status?: number },
+  validation: Extract<ListingValidation, { ok: false }>,
   _listingId: number,
-): PaymentFailureResult => ({
+): ListingPaymentFailureResult => ({
   error: validation.error,
+  refundCode: validation.refundCode,
   status: validation.status,
   success: false,
 });
@@ -198,52 +181,35 @@ export const refuseMismatch = (
 
 /**
  * Why a signed-by-us payment must be refunded even though we can't just drop it.
- * `code` is a PII-free reason stamped into the ledger reversal; `reason` is the
- * operator-facing phrase; `detail` is the internal log line (ids/prices, never
- * PII); `notify` optionally pages an alert.
+ * `code` is a PII-free reason stamped into the ledger reversal; `detail` is the
+ * internal log line (ids/prices, never PII); `notify` optionally pages an alert.
  */
 /**
- * Every reason we keep-and-refund a signed booking, as one table: the
- * operator-facing reason, plus (where the failure means a broken promise rather
- * than plain bad luck) the alert to page. Unexpected
- * errors and removed listings page because someone should look; a full event
- * or a sold-out extra is normal operation.
+ * The alert for each refund reason. Unexpected errors, removed listings, and
+ * charge mismatches page because someone should look; ordinary availability
+ * changes do not.
  */
-const REFUND_REASONS = {
-  capacity_full: { reason: "the event filled up while they were paying" },
-  charge_mismatch: {
-    notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
-    reason: "the amount charged did not match the agreed total",
-  },
-  listing_removed: {
-    notify: ErrorCode.PAYMENT_SESSION,
-    reason: "the listing was removed while they were paying",
-  },
-  price_changed: {
-    reason: "the listing price changed while they were paying",
-  },
-  sold_out: {
-    reason: "an add-on or extra they chose sold out while they were paying",
-  },
-  unexpected_error: {
-    notify: ErrorCode.PAYMENT_SESSION,
-    reason: "an unexpected error stopped the booking being completed",
-  },
-} as const satisfies Record<
-  RefundCode,
-  { reason: string; notify?: ErrorCodeType }
->;
+const REFUND_NOTIFICATIONS = {
+  capacity_full: null,
+  charge_mismatch: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+  listing_removed: ErrorCode.PAYMENT_SESSION,
+  price_changed: null,
+  registration_closed: null,
+  sold_out: null,
+  unexpected_error: ErrorCode.PAYMENT_SESSION,
+} as const satisfies Record<RefundCode, ErrorCodeType | null>;
 
-/** Build the RefundSpec for a reason code: the table supplies the note phrase
- *  and any alert, the caller supplies the internal log line (ids/prices, never
- *  PII). */
+/** Build a refund spec from its ledger code and internal detail. */
 export const refundSpec =
   (code: RefundCode) =>
-  (detail: string): RefundSpec => ({
-    code,
-    detail,
-    ...REFUND_REASONS[code],
-  });
+  (detail: string): RefundSpec => {
+    const notify = REFUND_NOTIFICATIONS[code];
+    return {
+      code,
+      detail,
+      ...(notify === null ? {} : { notify }),
+    };
+  };
 
 /** A payment the provider charged for a different amount than our signed total. */
 export const chargeMismatchSpec = (

@@ -144,6 +144,7 @@ export const squarePaymentProvider: PaymentProvider = {
   refundPayment(paymentReference: string): Promise<PaymentRefundResult> {
     return refundPayment(paymentReference);
   },
+  refundRetryMode: "idempotent",
   requiresWebhookSignature: true,
 
   async resolveWebhookSession(

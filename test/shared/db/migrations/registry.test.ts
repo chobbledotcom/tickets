@@ -31,7 +31,7 @@ describe("db > migration registry", () => {
   });
 
   test("orders every scheduled-maintenance schema change", () => {
-    expect(MIGRATION_IDS.slice(-5)).toEqual([
+    expect(MIGRATION_IDS.slice(-6, -1)).toEqual([
       "2026-07-18_maintenance_tasks",
       "2026-07-18_drop_built_sites_last_pruned",
       "2026-07-19_maintenance_checkpoint",

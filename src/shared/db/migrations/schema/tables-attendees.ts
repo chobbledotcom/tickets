@@ -197,6 +197,17 @@ export const attendeeTables: [name: string, table: Table][] = [
   ],
 
   [
+    "payment_refund_attempts",
+    {
+      columns: [
+        ["reference_index", "TEXT PRIMARY KEY"],
+        ["provider", "TEXT NOT NULL"],
+        ["started_at", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
     "processed_payments",
     {
       columns: [

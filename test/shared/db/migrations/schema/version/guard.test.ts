@@ -102,8 +102,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-07-19_maintenance_checkpoint",
         "2026-07-21_activity_backfill_complete",
         "2026-07-22_maintenance_completion",
+        "2026-07-23_payment_refund_attempts",
       ],
-      schemaHash: "17o7l3j",
+      schemaHash: "zu5wy8",
     });
   });
 
@@ -117,7 +118,8 @@ describe("db > migrations > schema change guard", () => {
     }).toEqual({
       dbSchemaHash: "db_schema_hash",
       latestDbUpdate: "latest_db_update",
-      latestUpdate: "Keep completed maintenance work dormant.",
+      latestUpdate:
+        "Keep non-idempotent refund submissions from being sent twice.",
       migrationLock: "migration_lock",
       schemaMigrations: "schema_migrations",
     });

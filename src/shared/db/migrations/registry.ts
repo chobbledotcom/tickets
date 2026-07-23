@@ -392,6 +392,11 @@ export const MIGRATION_REGISTRY: MigrationRegistryEntry[] = [
     "2026-07-22_maintenance_completion",
     () => import("./2026-07-22_maintenance_completion.ts"),
   ),
+  // Fence non-idempotent refund submissions before provider IO.
+  entry(
+    "2026-07-23_payment_refund_attempts",
+    () => import("./2026-07-23_payment_refund_attempts.ts"),
+  ),
 ];
 /* jscpd:ignore-end */
 

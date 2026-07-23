@@ -11,7 +11,6 @@ export const testCheckoutRefund = (
 ): StoredCheckoutRefund => ({
   code,
   detail: "Test checkout refund",
-  reason: "a test checkout could not be completed",
 });
 
 /** Insert a dormant checkout stage for cleanup-path tests. */

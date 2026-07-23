@@ -7,6 +7,7 @@ import type {
   PaymentRefundResult,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import type { RefundCode } from "#shared/refund-reasons.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 
 export type { BookingIntent };
@@ -43,7 +44,15 @@ export type SessionValidation =
 /** Validate listing is eligible for post-payment registration */
 export type ListingValidation =
   | { ok: true; listing: ListingWithCount }
-  | { ok: false; error: string; status?: number };
+  | {
+      ok: false;
+      error: string;
+      refundCode: Extract<
+        RefundCode,
+        "listing_removed" | "registration_closed"
+      >;
+      status: 404 | 410;
+    };
 
 /** Successful payment result with created attendee details.
  * Carries the listing id rather than the loaded listing — the redirect resolves
@@ -72,3 +81,7 @@ export type PaymentResult = PaymentSuccess | PaymentFailure;
 
 /** Narrowed failure type for formatPaymentError */
 export type PaymentFailureResult = PaymentResult & { success: false };
+
+export type ListingPaymentFailureResult = PaymentFailureResult & {
+  refundCode: Extract<RefundCode, "listing_removed" | "registration_closed">;
+};

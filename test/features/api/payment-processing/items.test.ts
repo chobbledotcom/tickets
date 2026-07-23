@@ -59,6 +59,7 @@ describeWithEnv("payment item validation", { db: true }, () => {
       await validateAllItems(session, intent([{ e: 99999, p: 1000, q: 1 }])),
     ).toEqual({
       error: "Listing not found",
+      refundCode: "listing_removed",
       status: 404,
       success: false,
     });

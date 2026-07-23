@@ -76,9 +76,9 @@ const runRecovery = async (
   await runWithSubrequestBudget(() =>
     withSubrequestAllowance(
       {
-        database: options.database ?? 23,
+        database: options.database ?? 24,
         external: options.external ?? 9,
-        total: options.total ?? 32,
+        total: options.total ?? 33,
       },
       () =>
         recoverCheckoutStages({
@@ -347,6 +347,49 @@ describeWithEnv(
       expect(refund.calls).toHaveLength(1);
     });
 
+    test("reserves the refund fence database call before recovery starts", async () => {
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const intent = intentFor(listing.id);
+      await stageSession("scheduled-refund-budget", intent);
+      await beginCheckoutStageRefund(
+        "scheduled-refund-budget",
+        testCheckoutRefund(),
+      );
+      await due("scheduled-refund-budget");
+      using retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+        Promise.resolve(paidProviderSession("scheduled-refund-budget", intent)),
+      );
+
+      await runRecovery({ database: 23 });
+
+      expect(await stageAttempt("scheduled-refund-budget")).toEqual({
+        attempt_count: 0,
+        state: "refunding",
+      });
+      expect(retrieve.calls).toHaveLength(0);
+    });
+
+    test("reserves paid recovery database calls before provider IO", async () => {
+      const listing = await createTestListing({ unitPrice: 1000 });
+      const intent = intentFor(listing.id);
+      await stageSession("scheduled-paid-budget", intent);
+      await execute(
+        "UPDATE checkout_stages SET state = 'paid', next_attempt_at = 0 WHERE payment_session_id = ?",
+        ["scheduled-paid-budget"],
+      );
+      using retrieve = stub(stripePaymentProvider, "retrieveSession", () =>
+        Promise.resolve(paidProviderSession("scheduled-paid-budget", intent)),
+      );
+
+      await runRecovery({ database: 22 });
+
+      expect(await stageAttempt("scheduled-paid-budget")).toEqual({
+        attempt_count: 0,
+        state: "paid",
+      });
+      expect(retrieve.calls).toHaveLength(0);
+    });
+
     test("starts no checkout work past its deadline or without its budget", async () => {
       const listing = await createTestListing({ unitPrice: 1000 });
       const intent = intentFor(listing.id);
@@ -357,7 +400,7 @@ describeWithEnv(
       );
 
       await runRecovery({ deadline: Date.now() - 1 });
-      await runRecovery({ database: 2, external: 0, total: 2 });
+      await runRecovery({ database: 5 });
 
       expect(await stageAttempt("scheduled-wait")).toEqual({
         attempt_count: 0,

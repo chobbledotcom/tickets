@@ -6,6 +6,7 @@ export const RefundCodeSchema = v.picklist([
   "charge_mismatch",
   "listing_removed",
   "price_changed",
+  "registration_closed",
   "sold_out",
   "unexpected_error",
 ]);
@@ -15,7 +16,6 @@ export const StoredCheckoutRefundSchema = v.object({
   code: RefundCodeSchema,
   detail: v.string(),
   error: v.optional(v.string()),
-  reason: v.string(),
   status: v.optional(v.number()),
 });
 export type StoredCheckoutRefund = v.InferOutput<

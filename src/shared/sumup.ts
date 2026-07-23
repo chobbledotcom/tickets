@@ -255,11 +255,12 @@ export const sumupApi: {
   refundTransaction: async (transactionId: string): Promise<boolean> => {
     const merchantCode = getMerchantCode();
     if (!merchantCode) return false;
-    const result = await withClient(async (client) => {
-      await client.transactions.refund(merchantCode, transactionId);
-      return true;
-    }, ErrorCode.PAYMENT_REFUND);
-    return result ?? false;
+    const client = sumupApi.getSumupClient();
+    if (!client) return false;
+    // Once this non-idempotent request starts, a transport error is uncertain:
+    // let the durable refund fence keep it pending instead of claiming it failed.
+    await client.transactions.refund(merchantCode, transactionId);
+    return true;
   },
 
   /** Retrieve a checkout by its SumUp id. */

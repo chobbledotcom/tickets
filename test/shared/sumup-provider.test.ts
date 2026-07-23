@@ -59,6 +59,7 @@ describe("sumup-provider", () => {
       expired: null,
     });
     expect(sumupPaymentProvider.requiresWebhookSignature).toBe(false);
+    expect(sumupPaymentProvider.refundRetryMode).toBe("inspect-after-first");
   });
 
   describe("retrieveSession", () => {
@@ -201,6 +202,7 @@ describe("sumup-provider", () => {
     for (const [status, outcome] of [
       ["SUCCESSFUL", "pending"],
       ["PENDING", "pending"],
+      [null, "pending"],
       ["REFUND_FAILED", "failed"],
     ] as const) {
       test(`returns ${outcome} after accepted refund is ${status}`, () =>

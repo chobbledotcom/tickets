@@ -148,6 +148,7 @@ describe("square-provider", () => {
       expired: null,
     });
     expect(squarePaymentProvider.requiresWebhookSignature).toBe(true);
+    expect(squarePaymentProvider.refundRetryMode).toBe("idempotent");
   });
 
   describe("retrieveSession", () => {

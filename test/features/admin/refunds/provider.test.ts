@@ -5,6 +5,8 @@ import type { RefundPaymentReference } from "#shared/db/payment-references.ts";
 import type { PaymentRefundResult } from "#shared/payments.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { candidate, candidateWithReferences } from "./helpers.ts";
+import "./provider/batch.test.ts";
+import "./provider/sumup.test.ts";
 
 /** Provider that refunds exactly the references in `refunded`, reports the
  * ones in `alreadyRefunded` as refunded on the follow-up check, and throws for
@@ -31,6 +33,8 @@ const provider = ({
         : "failed";
     return Promise.resolve(result);
   },
+  refundRetryMode: "idempotent" as const,
+  type: "stripe" as const,
 });
 
 const collectingMarker = () => {
@@ -61,6 +65,8 @@ describe("admin refund provider", () => {
           refundCalls++;
           return Promise.resolve("failed" as const);
         },
+        refundRetryMode: "idempotent",
+        type: "stripe",
       },
       candidate([{ providerRefunded: true, reference: "pi_pre" }]),
       7,

@@ -26,7 +26,7 @@ import { closeAndPurgeCheckoutStage } from "#shared/staged-checkout.ts";
 const RECOVERY_DATABASE_CALLS = {
   paid: 22,
   pending: 5,
-  refunding: 22,
+  refunding: 23,
 } as const satisfies Record<CheckoutStageCleanup["state"], number>;
 
 const attemptFits = (

@@ -46,8 +46,7 @@ src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record ob
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
 src/shared/booking-lines.ts:145:40  ?? → ||    # packageGroupId is undefined, 0, or a positive id; both return 0 for the only falsy value
-src/shared/sumup.ts:262:18  ?? → ||    # withClient returns true|null here; the false fallback is identical for null
-src/shared/sumup.ts:301:37  ?? → ||    # keyMode is "live", "test", or null; present values are always truthy
+src/shared/sumup.ts:302:37  ?? → ||    # keyMode is "live", "test", or null; present values are always truthy
 src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts:166:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
@@ -280,10 +279,10 @@ src/shared/db/attendees/capacity/groups.ts:178:39  ?? → ||   # membership.get(
 src/shared/payment-helpers.ts:168:24  ?? → ||    # toBookingItems intent.allocations: ChildAllocation[]|undefined — an array is always truthy, undefined→[] either way
 src/shared/payment-helpers.ts:541:17  || → &&    # parsed JSON null/falsy primitives return {} in both forms; truthy primitives expose none of PACKED_KEYS and also produce {}
 src/shared/payment-helpers.ts:600:40  ?? → ||    # metadata field length is undefined or a non-negative integer; 0 and undefined both use 0
-src/shared/stripe-provider.ts:75:43  ?? → ||   # refund state is boolean|null; both operators preserve false and use the fallback for null
-src/shared/stripe-provider.ts:148:44  ?? → ||   # payment reference is string|null; the empty string and null both resolve to ""
-src/shared/sumup-provider.ts:171:27  ?? → ||   # webhook id is string|undefined; empty and absent both resolve to ""
-src/shared/sumup-provider.ts:176:34  ?? → ||   # webhook event type is string|undefined; empty and absent both resolve to ""
+src/shared/stripe-provider.ts:56:42  ?? → ||   # payment reference is string|null; the empty string and null both resolve to ""
+src/shared/square-provider.ts:113:40  ?? → ||   # first payment id is string|undefined; the empty string and absence both resolve to ""
+src/shared/sumup-provider.ts:174:27  ?? → ||   # webhook id is string|undefined; empty and absent both resolve to ""
+src/shared/sumup-provider.ts:179:34  ?? → ||   # webhook event type is string|undefined; empty and absent both resolve to ""
 
 # Built-site blob strings are either truthy or have the same falsy fallback.
 src/shared/db/built-sites.ts:377:71  ?? → ||   # blob input strings use "" as their fallback, providers are non-empty, and renewalToken uses null
@@ -1098,10 +1097,9 @@ src/features/api/payment-processing/create.ts:188:28  ?? → ||   # listingAnswe
 src/features/api/payment-processing/create.ts:191:67  ?? → ||   # per-listing text answers are an array or undefined
 src/features/api/payment-processing/create.ts:194:46  ?? → ||   # grouped answers are an object or undefined
 src/features/api/payment-processing/create.ts:198:35  ?? → ||   # textAnswerIds is an array or undefined
-src/features/api/payment-processing/items.ts:49:24  false → true   # the only production caller always supplies includeListingName explicitly
-src/features/api/payment-processing/items.ts:81:41  ?? → ||   # allocations is an array or undefined
-src/features/api/payment-processing/items.ts:149:24  ?? → ||   # dayCount is positive when present; missing uses the same positive fallback
-src/features/api/payment-processing/items.ts:149:28  1 → 0   # custom sessions carry dayCount; non-custom duration normalizes 0 and 1 identically
+src/features/api/payment-processing/items.ts:95:41  ?? → ||   # allocations is an array or undefined
+src/features/api/payment-processing/items.ts:163:24  ?? → ||   # dayCount is positive when present; missing uses the same positive fallback
+src/features/api/payment-processing/items.ts:163:28  1 → 0   # custom sessions carry dayCount; non-custom duration normalizes 0 and 1 identically
 src/features/api/payment-processing/pricing.ts:56:25  && → ||   # validated metadata carries r exactly on k:"p" package lines, so both conditions agree
 src/features/api/payment-processing/pricing.ts:75:40  ?? → ||   # running charged amount is numeric; 0 equals the 0 fallback
 src/features/api/payment-processing/store-refund.ts:146:22  ?? → ||   # spec.error is undefined or a required non-empty message

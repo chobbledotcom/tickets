@@ -72,10 +72,10 @@ const validateStagedItems = async (
   const validated = await validateAllItems(session, intent);
   if (!("success" in validated)) return { items: validated };
   const spec =
-    validated.status === 404
+    validated.refundCode === "listing_removed"
       ? deletedListingSpec(session)
       : {
-          ...refundSpec("unexpected_error")(
+          ...refundSpec("registration_closed")(
             `Listing validation failed for session ${session.id}: ${validated.error}`,
           ),
           error: validated.error,

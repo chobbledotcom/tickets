@@ -100,6 +100,7 @@ export const stripePaymentProvider: PaymentProvider = {
       ? "pending"
       : "failed";
   },
+  refundRetryMode: "idempotent",
   requiresWebhookSignature: true,
 
   async resolveWebhookSession({

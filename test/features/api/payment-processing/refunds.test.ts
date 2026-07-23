@@ -16,6 +16,7 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { webhookMeta } from "#test-utils/factories.ts";
@@ -115,30 +116,40 @@ describeWithEnv("payment refunds", { db: true }, () => {
     expect(String(logs[0]?.[0])).toContain("E_PAYMENT_REFUND");
   });
 
-  test("returns validation failures without refund metadata", () => {
+  test("returns validation failures with their expected refund code", () => {
     expect(
-      validationFailure(session, { error: "Gone", status: 410 }, 7),
+      validationFailure(
+        session,
+        {
+          error: "Gone",
+          ok: false,
+          refundCode: "registration_closed",
+          status: 410,
+        },
+        7,
+      ),
     ).toEqual({
       error: "Gone",
+      refundCode: "registration_closed",
       status: 410,
       success: false,
     });
   });
 
-  test("builds every refund reason with its exact operator message", () => {
+  test("builds every refund reason with only its expected alert", () => {
     const expected = {
-      capacity_full: "the event filled up while they were paying",
-      charge_mismatch: "the amount charged did not match the agreed total",
-      listing_removed: "the listing was removed while they were paying",
-      price_changed: "the listing price changed while they were paying",
-      sold_out: "an add-on or extra they chose sold out while they were paying",
-      unexpected_error:
-        "an unexpected error stopped the booking being completed",
+      capacity_full: undefined,
+      charge_mismatch: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+      listing_removed: ErrorCode.PAYMENT_SESSION,
+      price_changed: undefined,
+      registration_closed: undefined,
+      sold_out: undefined,
+      unexpected_error: ErrorCode.PAYMENT_SESSION,
     } as const;
-    for (const [code, reason] of Object.entries(expected)) {
-      expect(refundSpec(code as keyof typeof expected)("detail")).toMatchObject(
-        { code, detail: "detail", reason },
-      );
+    for (const [code, notify] of Object.entries(expected)) {
+      const spec = refundSpec(code as keyof typeof expected)("detail");
+      expect(spec).toMatchObject({ code, detail: "detail" });
+      expect(spec.notify).toBe(notify);
     }
   });
 

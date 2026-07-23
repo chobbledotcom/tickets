@@ -1,7 +1,11 @@
 import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { queryAll } from "#shared/db/client.ts";
-import type { BookingIntent, SessionMetadata } from "#shared/payments.ts";
+import type {
+  BookingIntent,
+  PaymentProviderType,
+  SessionMetadata,
+} from "#shared/payments.ts";
 
 export const intentFor = (
   listingId: number,
@@ -39,6 +43,7 @@ export const paidSession = (
 export const stageSession = async (
   sessionId: string,
   intent: BookingIntent,
+  provider: PaymentProviderType = "stripe",
 ): Promise<number> => {
   const result = await attendeesApi.createStagedCheckoutAtomic(
     {
@@ -56,7 +61,7 @@ export const stageSession = async (
     },
     {
       paymentSessionId: sessionId,
-      provider: "stripe",
+      provider,
       providerCheckoutId: `checkout-${sessionId}`,
     },
   );

@@ -1,4 +1,5 @@
 import "./stripe-checkout-close.test.ts";
+import "./stripe-provider/operations.test.ts";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -11,16 +12,20 @@ import {
 } from "#test/lib/stripe/fixtures.ts";
 import { describeStripe } from "#test/lib/stripe/harness.ts";
 import { checkoutIntent } from "#test-utils/checkout.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 describeStripe("stripe-provider", () => {
+  const errors = setupErrorSpy();
+
   test("identifies its Stripe webhook contract", () => {
     expect(stripePaymentProvider.checkoutWebhookEvents).toEqual({
       completed: "checkout.session.completed",
       expired: "checkout.session.expired",
     });
     expect(stripePaymentProvider.requiresWebhookSignature).toBe(true);
+    expect(stripePaymentProvider.refundRetryMode).toBe("idempotent");
     expect(stripePaymentProvider.type).toBe("stripe");
   });
 
@@ -109,7 +114,7 @@ describeStripe("stripe-provider", () => {
         await stripePaymentProvider.resolveWebhookSession({
           data: {
             object: stripeCheckoutSession({
-              id: "cs_webhook_without_intent",
+              id: "x",
               metadata: {
                 items: '[{"e":1,"q":1,"p":0}]',
                 name: "Buyer",
@@ -121,6 +126,9 @@ describeStripe("stripe-provider", () => {
           type: "checkout.session.completed",
         }),
       ).toBe("retry");
+      expect(errors.lastMessage()).toContain(
+        "Stripe checkout x is paid but has no payment intent",
+      );
     });
     test("returns null for session without items", async () => {
       const client = await stripeClient();

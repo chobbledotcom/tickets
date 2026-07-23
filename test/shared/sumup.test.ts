@@ -18,6 +18,7 @@ import {
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
+import "./sumup-checkout-close.test.ts";
 
 /** Methods the fake SumUp client may implement for a given test. */
 type FakeParts = {
@@ -321,6 +322,17 @@ describe("sumup", () => {
     test("returns false when the client is unavailable", async () => {
       await withClient(null, async () => {
         expect(await refundTransaction("txn")).toBe(false);
+      });
+    });
+
+    test("keeps a started refund request error uncertain", async () => {
+      const client = makeClient({
+        refund: () => Promise.reject(new Error("SumUp response lost")),
+      });
+      await withClient(client, async () => {
+        await expect(refundTransaction("txn_uncertain")).rejects.toThrow(
+          "SumUp response lost",
+        );
       });
     });
   });

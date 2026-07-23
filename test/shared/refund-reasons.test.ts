@@ -5,6 +5,7 @@ import { ErrorCode } from "#shared/logger.ts";
 import {
   type RefundCode,
   RefundCodeSchema,
+  StoredCheckoutRefundSchema,
   storedCheckoutRefund,
 } from "#shared/refund-reasons.ts";
 
@@ -13,6 +14,7 @@ const REFUND_CODES: RefundCode[] = [
   "charge_mismatch",
   "listing_removed",
   "price_changed",
+  "registration_closed",
   "sold_out",
   "unexpected_error",
 ];
@@ -30,12 +32,20 @@ describe("refund reasons", () => {
         code: "unexpected_error",
         detail: "Provider failed",
         notify: ErrorCode.PAYMENT_SESSION,
-        reason: "Payment could not be refunded",
       }),
     ).toEqual({
       code: "unexpected_error",
       detail: "Provider failed",
-      reason: "Payment could not be refunded",
     });
+  });
+
+  test("ignores the unused reason field in an older stored refund", () => {
+    expect(
+      v.parse(StoredCheckoutRefundSchema, {
+        code: "capacity_full",
+        detail: "Event filled",
+        reason: "old operator phrase",
+      }),
+    ).toEqual({ code: "capacity_full", detail: "Event filled" });
   });
 });

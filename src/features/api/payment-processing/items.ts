@@ -17,8 +17,8 @@ import {
 import { validationFailure } from "#routes/api/payment-processing/refunds.ts";
 import type {
   BookingIntent,
+  ListingPaymentFailureResult,
   ListingValidation,
-  PaymentFailureResult,
 } from "#routes/api/webhook-types.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { lineGroupId, lineGroupIds } from "#shared/booking/signed-metadata.ts";
@@ -35,18 +35,28 @@ const loadListingOr404 = async (
       ok: true;
       listing: NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>;
     }
-  | { ok: false; error: string; status: 404 }
+  | {
+      ok: false;
+      error: string;
+      refundCode: "listing_removed";
+      status: 404;
+    }
 > => {
   const listing = await getListingWithCount(listingId);
   if (!listing) {
-    return { error: "Listing not found", ok: false, status: 404 };
+    return {
+      error: "Listing not found",
+      ok: false,
+      refundCode: "listing_removed",
+      status: 404,
+    };
   }
   return { listing, ok: true };
 };
 
 const validateListingForPayment = async (
   listingId: number,
-  includeListingName = false,
+  includeListingName: boolean,
 ): Promise<ListingValidation> => {
   const loaded = await loadListingOr404(listingId);
   if (!loaded.ok) return loaded;
@@ -58,6 +68,7 @@ const validateListingForPayment = async (
         ? `${name} is no longer accepting registrations.`
         : "This listing is no longer accepting registrations.",
       ok: false,
+      refundCode: "registration_closed",
       status: 410,
     };
   }
@@ -67,6 +78,7 @@ const validateListingForPayment = async (
         ? `Sorry, registration for ${name} closed while you were completing payment.`
         : "Sorry, registration closed while you were completing payment.",
       ok: false,
+      refundCode: "registration_closed",
       status: 410,
     };
   }
@@ -77,7 +89,9 @@ const validateListingForPayment = async (
 export const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
-): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
+): Promise<
+  { ok: true; items: ValidatedItem[] } | ListingPaymentFailureResult
+> => {
   const allocations = intent.allocations ?? [];
   // Parent listings with at least one package-tagged line; children folded
   // under them book as part of some bundle.

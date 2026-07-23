@@ -396,6 +396,10 @@ export interface PaymentProvider {
    */
   refundPayment(paymentReference: string): Promise<PaymentRefundResult>;
 
+  /** Whether a retry may safely repeat the refund POST. SumUp has no provider
+   * idempotency key, so later attempts inspect the first submission instead. */
+  readonly refundRetryMode: "idempotent" | "inspect-after-first";
+
   /** Whether incoming webhooks carry a verifiable signature. Providers that
    * sign their webhooks (Stripe, Square) set this true so the endpoint rejects
    * unsigned requests. Providers whose webhooks are unsigned (SumUp) set this

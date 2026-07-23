@@ -107,12 +107,15 @@ export const sumupPaymentProvider: PaymentProvider = {
     if (!(await refundTransaction(paymentReference))) return "failed";
     const status = await getTransactionStatus(paymentReference);
     if (status === "REFUNDED") return "refunded";
-    if (status === "SUCCESSFUL" || status === "PENDING") return "pending";
+    if (status === null || status === "SUCCESSFUL" || status === "PENDING") {
+      return "pending";
+    }
     if (status === "REFUND_FAILED") return "failed";
     throw new Error(
       `Unknown SumUp refund transaction status for ${paymentReference}: ${status}`,
     );
   },
+  refundRetryMode: "inspect-after-first",
   requiresWebhookSignature: false,
 
   async resolveWebhookSession(

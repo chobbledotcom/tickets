@@ -4,7 +4,10 @@ import {
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import type { getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  type RefundProvider,
+  refundPaymentAtProvider,
+} from "#shared/payment-refunds.ts";
 import { recordAttendeeRefundsBatch } from "#shared/refund-ledger.ts";
 import type { RefundCandidate } from "./candidates.ts";
 import {
@@ -13,10 +16,6 @@ import {
   type RefundOutcome,
 } from "./waves.ts";
 
-type RefundProvider = Pick<
-  NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
-  "isPaymentRefunded" | "refundPayment"
->;
 type MarkReturnedReferences = (
   references: readonly RefundPaymentReference[],
 ) => Promise<void>;
@@ -47,9 +46,8 @@ const refundReferenceAtProvider = async (
   const paymentReference = reference.reference;
   try {
     if (reference.providerRefunded) return "refunded";
-    const result = await provider.refundPayment(paymentReference);
+    const result = await refundPaymentAtProvider(provider, paymentReference);
     if (result === "refunded" || result === "pending") return result;
-    if (await provider.isPaymentRefunded(paymentReference)) return "refunded";
     logError({
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Admin refund failed for attendee ${attendeeId}, payment ${paymentReference}`,
