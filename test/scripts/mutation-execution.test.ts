@@ -63,89 +63,89 @@ describe("mutation test execution", () => {
     expect(mutantTestEnv(env, false)).toEqual(env);
   });
 
-  test("creates native Biome and Deno static gates", async () => {
-    const calls: unknown[][] = [];
+  test("resolves native Biome once for repeated static gates", async () => {
+    const biomeCalls: Deno.CommandOptions[] = [];
+    const denoCalls: Array<{ args: string[]; options: Deno.CommandOptions }> =
+      [];
+    let resolutions = 0;
     const deps: StaticGateDeps = {
       commandExit: (command, options) => {
-        calls.push([command, options]);
+        expect(command).toBe("biome");
+        biomeCalls.push(options);
         return Promise.resolve(0);
       },
       denoExit: (args, options) => {
-        calls.push([args, options]);
+        denoCalls.push({ args, options });
         return Promise.resolve(0);
       },
-      whichBiome: () => Promise.resolve(true),
+      resolveBiome: (args) => {
+        resolutions += 1;
+        return Promise.resolve({ args, command: "biome" });
+      },
     };
     const signal = new AbortController().signal;
     const gates = await createStaticGates(deps);
     expect(
       await Promise.all(gates.map((gate) => gate.exit("source.ts", signal))),
     ).toEqual([0, 0]);
-    expect(calls).toEqual([
-      [
-        "biome",
-        {
-          args: ["lint", "--no-errors-on-unmatched", "source.ts"],
-          cwd: projectRoot,
-          signal,
-          stderr: "null",
-          stdout: "null",
-        },
-      ],
-      [
-        ["check", "source.ts"],
-        {
-          cwd: projectRoot,
-          signal,
-          stderr: "null",
-          stdout: "null",
-        },
-      ],
+    expect(await gates[0]!.exit("second.ts", signal)).toBe(0);
+    expect(biomeCalls.map((options) => options.args)).toEqual([
+      ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "source.ts"],
+      ["lint", "--error-on-warnings", "--no-errors-on-unmatched", "second.ts"],
     ]);
+    expect(biomeCalls.map((options) => options.cwd)).toEqual(
+      Array.from({ length: 2 }, () => projectRoot),
+    );
+    expect(denoCalls).toEqual([
+      {
+        args: ["check", "source.ts"],
+        options: {
+          cwd: projectRoot,
+          signal,
+          stderr: "null",
+          stdout: "null",
+        },
+      },
+    ]);
+    expect(resolutions).toBe(1);
     expect(gates.map(({ label, phase }) => ({ label, phase }))).toEqual([
       { label: "lint", phase: "lint" },
       { label: "type-check", phase: "type-check" },
     ]);
   });
 
-  test("falls back to packaged Biome when native lookup cannot find it", async () => {
+  test("passes the resolved Biome command prefix to lint", async () => {
     const commands: Array<{ args: string[] | undefined; command: string }> = [];
-    const deps = (whichBiome: () => Promise<boolean>): StaticGateDeps => ({
+    const deps: StaticGateDeps = {
       commandExit: (command, options) => {
         commands.push({ args: options.args, command });
         return Promise.resolve(0);
       },
       denoExit: () => Promise.resolve(0),
-      whichBiome,
-    });
-    for (const whichBiome of [
-      () => Promise.resolve(false),
-      () => Promise.reject(new Error("which unavailable")),
-    ]) {
-      const gates = await createStaticGates(deps(whichBiome));
-      const lint = gates[0];
-      if (!lint) throw new Error("Expected lint gate");
-      await lint.exit("source.ts", new AbortController().signal);
-    }
-    expect(commands).toEqual(
-      Array.from({ length: 2 }, () => ({
+      resolveBiome: (args) =>
+        Promise.resolve({
+          args: ["run", "-A", "npm:@biomejs/biome@2.4.16", ...args],
+          command: Deno.execPath(),
+        }),
+    };
+    const gates = await createStaticGates(deps);
+    const lint = gates[0];
+    if (!lint) throw new Error("Expected lint gate");
+    await lint.exit("source.ts", new AbortController().signal);
+
+    expect(commands).toEqual([
+      {
         args: [
           "run",
           "-A",
-          "npm:@biomejs/biome",
+          "npm:@biomejs/biome@2.4.16",
           "lint",
+          "--error-on-warnings",
           "--no-errors-on-unmatched",
           "source.ts",
         ],
         command: Deno.execPath(),
-      })),
-    );
-  });
-
-  test("finds the static gate tools available to the running process", async () => {
-    expect((await createStaticGates()).map(({ label }) => label)).toEqual([
-      "lint",
-      "type-check",
+      },
     ]);
   });
 

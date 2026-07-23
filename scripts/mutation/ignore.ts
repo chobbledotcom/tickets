@@ -24,25 +24,46 @@ import { seenBefore } from "#shared/seen-before.ts";
 import type { Mutant } from "./generate.ts";
 import { type MutantResult, rel } from "./summary.ts";
 
-const IGNORE_FILE = new URL("./equivalent-mutants.txt", import.meta.url);
+export const EQUIVALENT_MUTANTS_FILE = new URL(
+  "./equivalent-mutants.txt",
+  import.meta.url,
+);
 
 /** Canonical key for a mutant at a project-relative path. */
-const keyFor = (relPath: string, mutant: Mutant): string =>
+export const mutantKeyForPath = (relPath: string, mutant: Mutant): string =>
   `${relPath}:${mutant.line}:${mutant.column} ${mutant.operator}→${mutant.newOperator}`;
 
 /** Canonical key for a mutant given its absolute source path. */
 export const mutantKey = (file: string, mutant: Mutant): string =>
-  keyFor(rel(file), mutant);
+  mutantKeyForPath(rel(file), mutant);
+
+export interface ParsedIgnoreLine {
+  column: number;
+  key: string;
+  line: number;
+  newOperator: string;
+  operator: string;
+  sourcePath: string;
+}
 
 /** Parse one ignore-file line into a canonical key, or null when blank/comment. */
-const parseLine = (line: string): string | null => {
+export const parseIgnoreLine = (line: string): ParsedIgnoreLine | null => {
   const body = line.replace(/#.*$/, "").trim();
   if (body === "") return null;
   // The "from" side is `.*?` (not `.+?`): an already-empty string literal
   // mutates with an empty display label (see stringLiteralMutants), so a
   // legitimate key can have nothing between the location and the arrow.
-  const match = body.match(/^(.+:\d+:\d+)\s+(.*?)\s*→\s*(.+?)$/);
-  return match ? `${match[1]} ${match[2]}→${match[3]}` : null;
+  const match = body.match(/^(.+):(\d+):(\d+)\s+(.*?)\s*→\s*(.+?)$/);
+  return match
+    ? {
+        column: Number(match[3]),
+        key: `${match[1]}:${match[2]}:${match[3]} ${match[4]}→${match[5]}`,
+        line: Number(match[2]),
+        newOperator: match[5]!,
+        operator: match[4]!,
+        sourcePath: match[1]!,
+      }
+    : null;
 };
 
 export interface IgnoreList {
@@ -54,7 +75,7 @@ export interface IgnoreList {
 
 /** Load the ignore-list (empty when the file is absent). */
 export const loadIgnoreList = async (
-  ignoreFile: string | URL = IGNORE_FILE,
+  ignoreFile: string | URL = EQUIVALENT_MUTANTS_FILE,
 ): Promise<IgnoreList> => {
   let text: string;
   try {
@@ -64,8 +85,9 @@ export const loadIgnoreList = async (
   }
   const entries = text
     .split("\n")
-    .map(parseLine)
-    .filter((key): key is string => key !== null);
+    .map(parseIgnoreLine)
+    .filter((entry): entry is ParsedIgnoreLine => entry !== null)
+    .map((entry) => entry.key);
   return { entries, keys: new Set(entries) };
 };
 

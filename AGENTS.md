@@ -916,22 +916,19 @@ branch that changes `src/` files; the standard `deno task precommit` no longer
 runs it (it was too slow for every commit).
 Known-equivalent survivors recorded in
 `scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
-That file's header warns against recording `=== → ==`/`!== → !=` mutants
-because Biome's `noDoubleEquals` normally rejects `==`/`!=` and the runner
-counts a lint failure as killed before tests even run — **but this does not
-apply to comparisons against the `null` literal**: Biome's `noDoubleEquals`
-allows `== null`/`!= null` as the idiomatic null-or-undefined check, so a
-`=== null` → `== null` mutant on a value typed to exclude `undefined` is a
-real, lint-surviving equivalent and belongs in the file (there are several
-already, e.g. `logistics-filter.ts:41:45`, `sort-listings.ts:44:12`,
-`package-privacy.ts:44:10`). Verify either way by mutating the line by hand
-and running `deno run -A scripts/biome.ts check --error-on-warnings <file>` —
-exit 0 means the lint gate does not kill it, so a real survivor needs a test
-or a documented equivalent, not removal on the assumption that lint caught it.
+Never record `=== → ==`/`!== → !=` mutants: Biome's `noDoubleEquals` rule is
+configured to reject loose comparisons even against `null`, and the runner
+counts that lint failure as killed before tests run. Use
+`deno task mutation:audit-equivalents` to check the whole equivalent list with
+lint and type-check only; pass `--write` to remove entries those static gates
+now kill. The audit never runs tests and refuses to rewrite stale or malformed
+entries.
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
-**static gates**, ordered cheapest-first: a per-file Biome **lint** (the
-`noDoubleEquals` case above) and then a `deno check` **type-check**. Either one
+**static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
+`deno check` **type-check**. Keep the Biome calls one-shot unless a new benchmark
+proves otherwise: with pinned Biome 2.4.16, 20 warm one-file runs measured a
+17.3 ms standalone median and a 51.2 ms `--use-server` median. Either gate
 exiting non-zero kills the mutant without spending a full `deno test` on it —
 both a forbidden lint diagnostic and a type error are build failures, so the
 mutant could never ship, and static checks are far faster than the suite. The

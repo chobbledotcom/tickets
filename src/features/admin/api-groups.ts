@@ -2,6 +2,7 @@
  * Admin JSON API routes for groups — accessible via API key or cookie+CSRF.
  */
 
+import { isNotNullish } from "#fp";
 import {
   deleteGroup,
   soldHiddenPackageError,
@@ -197,7 +198,7 @@ const toGroupInput = async (
     const value = body[field[0]];
     return (
       (Number(field[3]) & 1) !== 0 &&
-      value != null &&
+      isNotNullish(value) &&
       !isValidCatalogApiValue(field, value)
     );
   });

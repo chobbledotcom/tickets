@@ -11,6 +11,8 @@
  * runtimes, and we only ever read version/platform metadata — never secrets.
  */
 
+import { isNotNullish } from "#fp";
+
 /** Shape of the runtime globals we probe. All optional — presence varies. */
 export type RuntimeGlobals = {
   Bunny?: unknown;
@@ -49,8 +51,8 @@ export type RuntimeInfo = {
  */
 const detectRuntime = (g: RuntimeGlobals): RuntimeInfo["runtime"] => {
   if (typeof g.Bunny !== "undefined") return "bunny";
-  if (g.Deno?.build != null) return "deno";
-  if (g.process?.versions?.node != null) return "node";
+  if (isNotNullish(g.Deno?.build)) return "deno";
+  if (isNotNullish(g.process?.versions?.node)) return "node";
   return "unknown";
 };
 

@@ -1,6 +1,11 @@
 /** Apply behavior for the split attendee merge service test suite. */
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import {
+  eventGroup,
+  legReference,
+  type RefPart,
+} from "#shared/accounting/refs.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import {
   getAttendeeAnswersByQuestion,
@@ -381,9 +386,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       );
       const legs = await transfersByAccount(attendeeAccount(target.id));
       // The credit leg is positive (cash handed back to the attendee).
-      expect(
-        legs.some((leg) => leg.kind === "adjustment" && leg.amount > 0),
-      ).toBe(true);
+      const credit = legs.find(
+        (leg) => leg.kind === "adjustment" && leg.amount > 0,
+      );
+      expect(credit).toBeDefined();
       // The un-bill reversal leg must land on the listing's revenue account
       // as source: `revenue → writeoff` (the original sale direction was
       // attendee → revenue, so un-billing it sources from revenue back out).
@@ -396,6 +402,29 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(unbill!.source.type).toBe("revenue");
       expect(unbill!.destination.type).toBe("writeoff");
       expect(unbill!.amount).toBe(5000);
+      const expectedIdentity = async (
+        role: "merge-credit" | "merge-unbill",
+        delta: number,
+        occurredAt: string,
+      ): Promise<{ eventGroup: string; reference: string }> => {
+        const parts: RefPart[] = [role, target.id, key, delta, occurredAt];
+        return {
+          eventGroup: await eventGroup(parts),
+          reference: await legReference(parts),
+        };
+      };
+      expect({
+        eventGroup: unbill!.eventGroup,
+        reference: unbill!.reference,
+      }).toEqual(
+        await expectedIdentity("merge-unbill", -5000, unbill!.occurredAt),
+      );
+      expect({
+        eventGroup: credit!.eventGroup,
+        reference: credit!.reference,
+      }).toEqual(
+        await expectedIdentity("merge-credit", 5000, credit!.occurredAt),
+      );
     });
 
     test("preserves the target's free-text answers through a merge", async () => {

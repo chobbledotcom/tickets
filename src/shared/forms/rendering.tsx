@@ -1,5 +1,5 @@
 /* jscpd:ignore-start */
-import { joinStrings, map, pipe } from "#fp";
+import { isNotNullish, joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import {
@@ -228,7 +228,7 @@ const resolveFieldValue = (
   field: Field,
   explicit: string | number | null | undefined,
 ): string => {
-  if (explicit != null && explicit !== "") return String(explicit);
+  if (isNotNullish(explicit) && explicit !== "") return String(explicit);
   const saved = getSavedFieldValue(field);
   if (saved !== "") return saved;
   return String(explicit ?? field.defaultValue ?? "");

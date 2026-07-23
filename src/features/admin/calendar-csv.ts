@@ -7,7 +7,7 @@
  */
 
 /* jscpd:ignore-start */
-import { identity, mapById } from "#fp";
+import { identity, isNullish, mapById } from "#fp";
 import { t } from "#i18n";
 import {
   csvDateRange,
@@ -74,7 +74,7 @@ const logisticsColumns = (
   const assignmentOf = (a: CalendarAttendee): LogisticsAssignment | undefined =>
     logistics.assignments.get(bookingAssignmentKey(a.id, a.listing_id));
   const agentName = (id: number | null | undefined): string =>
-    id == null ? "" : (logistics.agentNames.get(id) ?? "");
+    isNullish(id) ? "" : (logistics.agentNames.get(id) ?? "");
   // Only logistics-listing rows get values; the rest stay blank.
   const onLogistics =
     (cell: (a: CalendarAttendee) => string) =>

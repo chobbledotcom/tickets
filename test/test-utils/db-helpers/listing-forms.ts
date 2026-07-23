@@ -1,3 +1,4 @@
+import { isNotNullish } from "#fp";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import type { DayPrices, ListingWithCount } from "#shared/types.ts";
@@ -7,9 +8,9 @@ const checked = (name: string, value: unknown): TestFormValues =>
   value ? { [name]: "1" } : {};
 const flagChoice = (value: unknown): string => (value ? "1" : "");
 const optionalNumber = (v: number | null | undefined): string =>
-  v != null ? String(v) : "";
+  isNotNullish(v) ? String(v) : "";
 const optionalPrice = (v: number | null | undefined): string =>
-  v != null ? toMajorUnits(v) : "";
+  isNotNullish(v) ? toMajorUnits(v) : "";
 const repeated = (value: string): string[] =>
   value ? value.split(",").map((part) => part.trim()) : [];
 
