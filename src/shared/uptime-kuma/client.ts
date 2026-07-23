@@ -57,7 +57,8 @@ type CustomAuthorization = {
 const readCustomAuthorization = (
   headers: string | null,
 ): CustomAuthorization => {
-  if (headers === null) return { authorization: null, valid: true };
+  if (headers === null || headers === "")
+    return { authorization: null, valid: true };
   try {
     const values = v.parse(CustomHeadersSchema, JSON.parse(headers));
     const entry = Object.entries(values).find(

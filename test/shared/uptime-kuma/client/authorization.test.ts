@@ -87,6 +87,15 @@ describe("Uptime Kuma monitor authorization", () => {
     {
       authentication: {
         authMethod: "bearer",
+        bearer_token: "site key",
+        headers: "",
+      },
+      expected: "Bearer site key",
+      name: "treats an empty headers string as no custom headers",
+    },
+    {
+      authentication: {
+        authMethod: "bearer",
         bearer_token: "must not hide broken headers",
         headers: "not JSON",
       },
