@@ -1,3 +1,4 @@
+import { bearerTokenOrNull } from "#shared/bearer.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import { getEnv } from "#shared/env.ts";
 import { normalizePath } from "#shared/path.ts";
@@ -10,12 +11,6 @@ export type ScheduledAccess =
   | { kind: "authorized" }
   | { kind: "rejected"; status: 401 | 404 };
 
-const bearerValue = (authorization: string | null): string | null => {
-  if (!authorization) return null;
-  const match = /^Bearer ([^\s]+)$/i.exec(authorization);
-  return match?.[1] ?? null;
-};
-
 export const checkScheduledAccess = (
   request: Pick<Request, "method" | "url" | "headers">,
   key: string | undefined,
@@ -26,7 +21,7 @@ export const checkScheduledAccess = (
   if (request.method !== "POST" || key === undefined) {
     return { kind: "rejected", status: 404 };
   }
-  const supplied = bearerValue(request.headers.get("authorization"));
+  const supplied = bearerTokenOrNull(request.headers.get("authorization"));
   if (supplied === null) return { kind: "rejected", status: 401 };
   return constantTimeEqual(supplied, key)
     ? { kind: "authorized" }

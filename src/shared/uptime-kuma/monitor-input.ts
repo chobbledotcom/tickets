@@ -8,9 +8,6 @@ export const UPTIME_KUMA_GROUP_NAME = "Chobble Tickets";
 export const scheduledUrl = (site: BuiltSite): string =>
   `${siteBaseUrl(site.siteUrl)}/scheduled`;
 
-export const scheduledAuthorization = (scheduledTaskKey: string): string =>
-  `Bearer ${scheduledTaskKey}`;
-
 const monitorDefaults = (
   type: "group" | "http",
   name: string,

@@ -1,4 +1,5 @@
 import { t } from "#i18n";
+import { bearerAuthorization } from "#shared/bearer.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import { normalizePath } from "#shared/path.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -13,7 +14,6 @@ import {
 } from "./config.ts";
 import {
   groupMonitorInput,
-  scheduledAuthorization,
   scheduledUrl,
   siteMonitorInput,
   UPTIME_KUMA_GROUP_NAME,
@@ -243,7 +243,7 @@ const addFromMonitors = async (
   scheduledTaskKey: string,
 ): Promise<Result<AddedMonitor>> => {
   const url = scheduledUrl(site);
-  const authorization = scheduledAuthorization(scheduledTaskKey);
+  const authorization = bearerAuthorization(scheduledTaskKey);
   const existing = existingSiteMonitor(monitors, url, authorization);
   if (existing) {
     return okResult({ created: false, monitorId: existing.id });
@@ -273,7 +273,7 @@ const loadConfigured = (
     const monitor = existingSiteMonitor(
       monitors,
       url,
-      scheduledAuthorization(scheduledTaskKey),
+      bearerAuthorization(scheduledTaskKey),
     );
     return monitor === null
       ? { kind: "missing" }

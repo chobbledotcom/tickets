@@ -1,14 +1,12 @@
 import { stub } from "@std/testing/mock";
+import { bearerAuthorization } from "#shared/bearer.ts";
 import type { BuiltSite } from "#shared/db/built-sites/types.ts";
 import type {
   UptimeKumaClient,
   UptimeKumaMonitor,
 } from "#shared/uptime-kuma/client.ts";
 import { uptimeKumaClientApi } from "#shared/uptime-kuma/client.ts";
-import {
-  scheduledAuthorization,
-  UPTIME_KUMA_GROUP_NAME,
-} from "#shared/uptime-kuma/monitor-input.ts";
+import { UPTIME_KUMA_GROUP_NAME } from "#shared/uptime-kuma/monitor-input.ts";
 import { uptimeKumaMonitorService } from "#shared/uptime-kuma/monitors.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
@@ -40,7 +38,7 @@ export const siteMonitor = (
 ): UptimeKumaMonitor => ({
   acceptedStatusCodes,
   active: true,
-  authorization: scheduledAuthorization(TEST_SCHEDULED_KEY),
+  authorization: bearerAuthorization(TEST_SCHEDULED_KEY),
   id: 22,
   interval: 900,
   method: "POST",
@@ -69,7 +67,7 @@ const listedMonitor = (
   active: true,
   authorization:
     typeof monitor.bearer_token === "string"
-      ? scheduledAuthorization(monitor.bearer_token)
+      ? bearerAuthorization(monitor.bearer_token)
       : null,
   id,
   interval: typeof monitor.interval === "number" ? monitor.interval : 60,

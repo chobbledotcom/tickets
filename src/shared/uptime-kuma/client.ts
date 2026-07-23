@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { bearerAuthorization, bearerTokenOrNull } from "#shared/bearer.ts";
 import { countExternalSubrequest } from "#shared/subrequest-budget.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import type { UptimeKumaConfig } from "./config.ts";
@@ -70,21 +71,24 @@ const readCustomAuthorization = (
 
 const authorizationFor = (
   headers: string | null,
-  authMethod: string,
+  authMethod: string | null,
   bearerToken: string | null,
 ): string | null => {
   const custom = readCustomAuthorization(headers);
   if (!custom.valid) return null;
-  if (custom.authorization !== null) return custom.authorization;
+  if (custom.authorization !== null) {
+    const token = bearerTokenOrNull(custom.authorization);
+    return token === null ? custom.authorization : bearerAuthorization(token);
+  }
   return authMethod === "bearer" && bearerToken !== null
-    ? `Bearer ${bearerToken}`
+    ? bearerAuthorization(bearerToken)
     : null;
 };
 
 const RawMonitorSchema = v.object({
   accepted_statuscodes: v.array(v.string()),
   active: ActiveSchema,
-  authMethod: v.string(),
+  authMethod: v.nullable(v.string()),
   bearer_token: v.nullable(v.string()),
   headers: v.nullable(v.string()),
   id: integerAtLeast(1),

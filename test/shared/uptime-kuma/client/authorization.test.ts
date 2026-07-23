@@ -4,7 +4,7 @@ import { createUptimeKumaClient } from "#shared/uptime-kuma/client.ts";
 import { FakeSocket } from "./support.test.ts";
 
 type AuthenticationFields = {
-  authMethod: string;
+  authMethod: string | null;
   bearer_token: string | null;
   headers: string | null;
 };
@@ -57,6 +57,15 @@ describe("Uptime Kuma monitor authorization", () => {
     },
     {
       authentication: {
+        authMethod: null,
+        bearer_token: null,
+        headers: '{"authorization":"bearer site-key"}',
+      },
+      expected: "Bearer site-key",
+      name: "normalizes a lowercase custom bearer scheme",
+    },
+    {
+      authentication: {
         authMethod: "bearer",
         bearer_token: "replaced key",
         headers: '{"Authorization":""}',
@@ -90,6 +99,15 @@ describe("Uptime Kuma monitor authorization", () => {
       },
       expected: null,
       name: "ignores a bearer token when bearer authentication is not selected",
+    },
+    {
+      authentication: {
+        authMethod: null,
+        bearer_token: null,
+        headers: null,
+      },
+      expected: null,
+      name: "accepts a null authentication method",
     },
   ] satisfies Array<{
     authentication: AuthenticationFields;

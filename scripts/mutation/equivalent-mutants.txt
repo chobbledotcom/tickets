@@ -36,9 +36,13 @@ src/shared/forms/validation.ts:101:46  = → +=   # this assignment runs only wh
 src/shared/forms/validation.ts:105:16  !== → !=   # validateFieldText returns string|null and cannot return undefined, so strict and loose inequality agree when comparing it with null
 src/features/admin/settings-listing-defaults.ts:53:15  === → ==   # parseNonNegativeInt returns number|null and cannot return undefined, so strict and loose equality agree when comparing it with null
 src/features/admin/dashboard.ts:235:65  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
-src/shared/uptime-kuma/client.ts:55:14  === → ==   # headers is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:78:27  !== → !=   # custom.authorization is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:79:48  !== → !=   # bearerToken is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/bearer.ts:6:20  === → ==   # authorization is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/bearer.ts:7:55  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
+src/shared/scheduled-access.ts:25:15  === → ==   # bearerTokenOrNull returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:56:14  === → ==   # headers is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:79:27  !== → !=   # custom.authorization is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:81:17  === → ==   # bearerTokenOrNull returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/client.ts:83:48  !== → !=   # bearerToken is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
 src/shared/uptime-kuma/monitors.ts:76:12  === → ==   # firstById receives UptimeKumaMonitor|null and cannot receive undefined, so strict and loose equality agree when comparing it with null
 src/shared/uptime-kuma/monitors.ts:91:21  !== → !=   # monitor.parent is number|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
 src/shared/uptime-kuma/monitors.ts:94:18  !== → !=   # monitor.url is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
@@ -94,7 +98,6 @@ src/shared/accounting/rows.ts:133:72  ?? → ||   # renderInsert guard?.args: In
 src/shared/accounting/manual-entries.ts:209:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:35:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
-src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/maintenance/runner.ts:181:5  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:193:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:201:44  ?? → ||   # dbToken is string|undefined and the fallback is "", so its only falsy string already equals the fallback
