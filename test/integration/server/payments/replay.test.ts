@@ -5,7 +5,7 @@ import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees/queries.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
 import { getNoteRows } from "#shared/db/system-notes.ts";
-import { fillSoldOutListing } from "#test/lib/server-payments/_shared-setup.ts";
+import { fillSoldOutListing } from "#test/integration/server/payments/_shared-setup.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
