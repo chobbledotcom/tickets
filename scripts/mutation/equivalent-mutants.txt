@@ -824,8 +824,8 @@ src/shared/db/client.ts:129:71  replace → ""   # REPLACEs classify as "insert"
 # DB client (client.ts) — nullish-coalescing fallbacks whose left side can never
 # be a falsy non-null value, so `??` and `||` pick the same branch on every input.
 src/shared/db/client.ts:105:73  ?? → ||   # writeSqlOf's CTE capture is anchored on the literal "UPDATE" (6+ chars), never ""; a missing capture is undefined either way
-src/shared/db/client.ts:364:57  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
-src/shared/db/client.ts:374:36  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
+src/shared/db/client.ts:373:57  ?? → ||   # `args` is `InValue[] | undefined`; every array (including []) is truthy, so only undefined reaches the fallback under both operators
+src/shared/db/client.ts:383:36  ?? → ||   # queryOne's row comes from resultRows — libsql rows are always objects (truthy); a miss yields undefined, where ?? and || both produce null
 
 # DB client (client.ts) — sentinel symbol descriptions.
 src/shared/db/client.ts:160:31  guarded-db-client → ""   # Symbol("guarded-db-client") description is debug-only metadata; the double-wrap check branches on the symbol's identity, and GUARDED_CLIENT is module-private so no test can observe the description
