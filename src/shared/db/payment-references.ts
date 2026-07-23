@@ -32,6 +32,7 @@ export type RefundPaymentReferenceSource = {
 export type RefundPaymentReference = {
   readonly providerRefunded: boolean;
   readonly reference: string;
+  /** Non-legacy sessions ordered by processing time, then session ID. */
   readonly sessionIds: readonly string[];
 };
 

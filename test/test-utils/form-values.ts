@@ -1,3 +1,4 @@
+import { isNullish } from "#fp";
 import { FormParams } from "#shared/form-data.ts";
 
 export type TestFormValues = Record<
@@ -10,7 +11,7 @@ export const appendTestFormValues = (
   data: TestFormValues = {},
 ): void => {
   for (const [key, values] of Object.entries(data)) {
-    if (values == null) continue;
+    if (isNullish(values)) continue;
     for (const value of typeof values === "string" ? [values] : values) {
       params.append(key, value);
     }

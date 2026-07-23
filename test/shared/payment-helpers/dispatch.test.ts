@@ -12,7 +12,7 @@ import {
   toCheckoutResult,
   validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
-import { useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 
 describe("payment-helpers", () => {
   const debugSpy = useDebugLogSpy();
@@ -163,7 +163,7 @@ describe("payment-helpers", () => {
       expect(await cache.getClient()).toBeNull();
       config = "secret";
       expect(await cache.getClient()).toEqual({ value: "secret" });
-      expect(debugSpy().calls.map((call) => call.args[0])).toEqual([
+      expect(debugMessages(debugSpy())).toEqual([
         "[Stripe] No secret key configured",
         "[Stripe] ",
       ]);
@@ -186,7 +186,7 @@ describe("payment-helpers", () => {
       expect(await cache.getClient()).toBe(client);
       expect(await cache.getClient()).toBe(client);
       expect(createCalls).toBe(1);
-      expect(debugSpy().calls.map((call) => call.args[0])).toEqual([
+      expect(debugMessages(debugSpy())).toEqual([
         "[Stripe] Creating new Stripe client",
         "[Stripe] Using cached Stripe client",
       ]);

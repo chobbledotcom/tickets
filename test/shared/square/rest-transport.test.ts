@@ -103,12 +103,13 @@ describeSquare(() => {
       expect(body.pre_populated_data.buyer_phone_number).toBe("+44123");
     });
 
-    test("falls back to short url when long_url is absent", async () => {
+    test("keeps an empty long_url instead of falling back to short url", async () => {
       installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
             payment_link: {
               id: "link_short",
+              long_url: "",
               order_id: "ord_short",
               url: "https://square.link/short",
             },
@@ -136,7 +137,7 @@ describeSquare(() => {
       });
 
       expect(result.paymentLink!.orderId).toBe("ord_short");
-      expect(result.paymentLink!.url).toBe("https://square.link/short");
+      expect(result.paymentLink!.url).toBe("");
     });
 
     test("omits buyer_phone_number from request when not provided", async () => {
@@ -224,7 +225,7 @@ describeSquare(() => {
               state: "COMPLETED",
               tenders: [
                 { id: "t_1", payment_id: "pay_1" },
-                { id: "t_2", payment_id: null },
+                { id: "t_2", payment_id: "pay_fallback", paymentId: "" },
               ],
               total_money: { amount: 5000, currency: "USD" },
             },
@@ -241,7 +242,7 @@ describeSquare(() => {
       expect(result.order!.id).toBe("ord_100");
       expect(result.order!.metadata!.items).toBe('[{"e":5,"q":1,"p":0}]');
       expect(result.order?.tenders?.[0]?.paymentId).toBe("pay_1");
-      expect(result.order?.tenders?.[1]?.paymentId).toBeNull();
+      expect(result.order?.tenders?.[1]?.paymentId).toBe("");
       expect(result.order!.state).toBe("COMPLETED");
       expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));
       expect(result.order!.totalMoney!.currency).toBe("USD");

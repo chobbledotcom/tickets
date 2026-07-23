@@ -244,7 +244,7 @@ describeWithEnv("db > payment references", { db: true }, () => {
     expect(ids).toBeInstanceOf(Set);
   });
 
-  test("merges same-reference rows keeping every session id and the merged false refund flag", async () => {
+  test("merges same-reference rows in stable processing order", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const created = await bookAttendee(listing, {
       email: "shared-ref@example.com",
@@ -252,17 +252,29 @@ describeWithEnv("db > payment references", { db: true }, () => {
     });
     if (!created.success) throw new Error("setup failed");
     const attendeeId = created.attendees[0]!.id;
-    await finalizeProcessedPayment(
-      "sess_shared_a",
-      attendeeId,
-      "",
-      "pi_shared",
-    );
-    await finalizeProcessedPayment(
-      "sess_shared_b",
-      attendeeId,
-      "",
-      "pi_shared",
+    const storedReference = await encryptPaymentReference("pi_shared");
+    await execute(
+      `INSERT INTO processed_payments
+          (payment_session_id, attendee_id, processed_at, payment_reference)
+        VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)`,
+      [
+        "sess_shared_a_middle",
+        attendeeId,
+        "2026-06-22T00:00:00.000Z",
+        storedReference,
+        "sess_shared_d_earlier",
+        attendeeId,
+        "2026-06-21T00:00:00.000Z",
+        storedReference,
+        "sess_shared_b_earlier",
+        attendeeId,
+        "2026-06-21T00:00:00.000Z",
+        storedReference,
+        "sess_shared_c_later",
+        attendeeId,
+        "2026-06-23T00:00:00.000Z",
+        storedReference,
+      ],
     );
 
     const references = await getRefundPaymentReferences(
@@ -274,7 +286,12 @@ describeWithEnv("db > payment references", { db: true }, () => {
       {
         providerRefunded: false,
         reference: "pi_shared",
-        sessionIds: ["sess_shared_a", "sess_shared_b"],
+        sessionIds: [
+          "sess_shared_b_earlier",
+          "sess_shared_d_earlier",
+          "sess_shared_a_middle",
+          "sess_shared_c_later",
+        ],
       },
     ]);
   });

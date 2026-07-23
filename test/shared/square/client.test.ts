@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Spy, spy } from "@std/testing/mock";
+import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import {
   getSquareClient,
   resetSquareClient,
@@ -15,22 +13,12 @@ import {
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 
 describeSquare(() => {
-  let debug: Spy;
-
-  beforeEach(() => {
-    setSuppressDebugLogs(false);
-    debug = spy(console, "debug");
-  });
-
-  afterEach(() => {
-    debug.restore();
-    setSuppressDebugLogs(null);
-  });
-
   describe("getSquareClient", () => {
+    const debugLog = useDebugLogSpy();
     let calledUrl = "";
 
     /** Install one fetch stub for this test that records the URL it was given. */
@@ -51,7 +39,7 @@ describeSquare(() => {
     test("returns null when access token not set", async () => {
       const client = await getSquareClient();
       expect(client).toBeNull();
-      expect(debug.calls.at(-1)?.args).toEqual([
+      expect(debugMessages(debugLog())).toEqual([
         "[Square] No access token configured, cannot create client",
       ]);
     });
@@ -60,9 +48,9 @@ describeSquare(() => {
       await settings.update.square.accessToken("EAAAl_test_123");
       const client = await getSquareClient();
       expect(client).not.toBeNull();
-      expect(debug.calls.at(-1)?.args).toEqual([
+      expect(debugLog().calls.at(-1)?.args[0]).toBe(
         "[Square] Creating new Square client (production)",
-      ]);
+      );
     });
 
     test("returns cached client on second call with same token", async () => {
@@ -80,12 +68,12 @@ describeSquare(() => {
       await settings.update.square.sandbox(true);
       const client = await getSquareClient();
       expect(client).not.toBeNull();
-      expect(debug.calls.at(-1)?.args).toEqual([
-        "[Square] Creating new Square client (sandbox)",
-      ]);
       // Sandbox mode must route requests to the sandbox host.
       using _fetch = trackFetch();
       expect(await hostFor(client!)).toBe("connect.squareupsandbox.com");
+      expect(debugLog().calls.at(-1)?.args[0]).toBe(
+        "[Square] Creating new Square client (sandbox)",
+      );
     });
 
     test("recreates client when sandbox setting changes", async () => {
@@ -176,13 +164,7 @@ describeSquare(() => {
     };
 
     test("returns error when no access token configured", async () => {
-      const result = await testSquareConnection();
-      expectConnection(result, {
-        ok: false,
-        tokenError: "No Square access token configured",
-        tokenValid: false,
-      });
-      expect(result).toEqual({
+      expect(await testSquareConnection()).toEqual({
         accessToken: {
           error: "No Square access token configured",
           valid: false,
@@ -293,19 +275,21 @@ describeSquare(() => {
       await runConnection(
         { locationId: "L_test_123" },
         () => Promise.resolve(oneLocation("L_test_123", "Test Store")),
-        (result) => {
-          expectConnection(result, {
-            locationConfigured: true,
+        (result) =>
+          expect(result).toEqual({
+            accessToken: { mode: "production", valid: true },
+            location: {
+              configured: true,
+              locationId: "L_test_123",
+              name: "Test Store",
+              status: "ACTIVE",
+            },
             ok: false,
-            tokenValid: true,
-            webhookConfigured: false,
-            webhookError: "No webhook signature key configured",
-          });
-          expect(result.webhook).toEqual({
-            configured: false,
-            error: "No webhook signature key configured",
-          });
-        },
+            webhook: {
+              configured: false,
+              error: "No webhook signature key configured",
+            },
+          }),
       );
     });
   });

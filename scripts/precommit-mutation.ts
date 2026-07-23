@@ -12,9 +12,12 @@
  * scripts/precommit.ts).
  */
 
+import { relative } from "node:path";
 import { runMutationInSnapshot } from "./mutation/isolation.ts";
 import { runCommand } from "./precommit/git.ts";
 import { runMutationStep } from "./precommit/mutation-step.ts";
+import { projectRoot } from "./project-root.ts";
+import { collectTestFiles } from "./test-groups.ts";
 
 /** Per-mutant timeout floor; mirrors `deno task mutation`'s default. */
 const MUTANT_TIMEOUT_MS = 10_000;
@@ -32,6 +35,10 @@ const mutationArgs = (sources: string[], tests: string[]): string[] => [
 
 if (import.meta.main) {
   const code = await runMutationStep({
+    allTestFiles: async () =>
+      (await collectTestFiles(projectRoot)).map((path) =>
+        relative(projectRoot, path),
+      ),
     log: (message) => console.log(message),
     run: runCommand,
     runMutation: ({ sources, tests }) =>

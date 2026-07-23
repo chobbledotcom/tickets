@@ -71,9 +71,9 @@ around four rules that the rest of this plan must satisfy:
    bespoke CRUD); the engine arrives as a small directory of single-purpose,
    **under-~400-line** files with the pure core split from the IO shell, using
    `#fp` helpers; and it lands with 100% deterministic test coverage, 0% jscpd
-   duplication, and tests that survive the precommit **mutation gate** (changed
-   `src/` files are mutation-tested against the changed tests at a 100% kill
-   rate).
+    duplication, and tests that survive the precommit **mutation gate** (changed
+    `src/` files are mutation-tested against all of their direct tests at a 100%
+    kill rate).
 
 ## Schemas
 

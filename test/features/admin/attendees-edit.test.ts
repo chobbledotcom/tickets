@@ -1,13 +1,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { filter, map, pipe } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
 import { balanceEventGroup } from "#shared/db/attendees/balance.ts";
 import { execute } from "#shared/db/client.ts";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import type { Attendee } from "#shared/types.ts";
+import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -112,6 +116,75 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_balance",
         "pi_refresh_deposit",
       ]);
+    });
+
+    test("logs a refreshed refund against the first real booking", async () => {
+      const ghost = await createTestListing({
+        listingType: "daily",
+        maxAttendees: 100,
+        unitPrice: 0,
+      });
+      const laterReal = await createTestListing({
+        listingType: "daily",
+        maxAttendees: 100,
+        unitPrice: 300,
+      });
+      const firstReal = await createTestListing({
+        listingType: "daily",
+        maxAttendees: 100,
+        unitPrice: 200,
+      });
+      const created = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-08-01",
+            listingId: ghost.id,
+            pricePaid: 0,
+            quantity: 0,
+          },
+          {
+            date: "2026-08-03",
+            listingId: laterReal.id,
+            pricePaid: 300,
+            quantity: 1,
+          },
+          {
+            date: "2026-08-02",
+            listingId: firstReal.id,
+            pricePaid: 200,
+            quantity: 1,
+          },
+        ],
+        email: "first-real@example.com",
+        name: "First Real",
+        paymentId: "pi_refresh_first_real",
+      });
+      if (!created.success) throw new Error(`setup failed: ${created.reason}`);
+      const attendee = created.attendees[0]!;
+      await postTransfers(
+        await mapBooking({
+          amountPaid: 500,
+          attendeeId: attendee.id,
+          bookingFee: 0,
+          eventId: "pi_refresh_first_real",
+          lines: [
+            { gross: 300, listingId: laterReal.id },
+            { gross: 200, listingId: firstReal.id },
+          ],
+          modifiers: [],
+          occurredAt: OCCURRED_AT,
+        }),
+      );
+
+      await submitRefreshPayment(attendee, () => Promise.resolve(true));
+
+      const message = "Payment marked as refunded for attendee 'First Real'";
+      expect(
+        pipe(
+          filter((entry: ActivityLogEntry) => entry.message === message),
+          map(({ attendee_id, listing_id }) => ({ attendee_id, listing_id })),
+        )(await getAttendeeActivityLog(attendee.id)),
+      ).toEqual([{ attendee_id: attendee.id, listing_id: firstReal.id }]);
     });
 
     test("reuses already-refunded balance charges before recording the refund", async () => {

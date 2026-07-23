@@ -2,6 +2,7 @@
  * Admin JSON API routes for holidays — accessible via API key or cookie+CSRF.
  */
 
+import { isNotNullish } from "#fp";
 import { validateDateRange } from "#routes/admin/holidays.ts";
 import { OWNER_API } from "#routes/auth.ts";
 import { type HolidayInput, holidays } from "#shared/db/holidays.ts";
@@ -48,7 +49,7 @@ export const holidayApiRoutes = defineCrudApi<Holiday, HolidayInput>({
     const nameParsed = parseUpdateName(body, existing.name);
     if (!nameParsed.ok) return nameParsed;
     const trimmedFieldOrFallback = (key: string, fallback: string) =>
-      body[key] != null ? String(body[key]).trim() : fallback;
+      isNotNullish(body[key]) ? String(body[key]).trim() : fallback;
     return okResult({
       endDate: trimmedFieldOrFallback("end_date", existing.end_date),
       name: nameParsed.value,

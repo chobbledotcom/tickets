@@ -4,7 +4,23 @@ A minimal ticket reservation system using Bunny Edge Scripting and libsql.
 
 ## Getting Started
 
-Run `./setup.sh` to install Deno, cache dependencies, and run all precommit checks (typecheck, lint, tests).
+Assume the workspace is probably running on NixOS. Use the repository's Nix
+development shell so Deno and the other tools come from `flake.nix`:
+
+```bash
+nix develop
+```
+
+For one command, run it through the shell instead of entering it:
+
+```bash
+nix develop -c deno task precommit
+```
+
+Do not use `mise` or a host-installed `deno` directly when Nix is available.
+All `deno ...` commands in this file assume you are already inside
+`nix develop`; non-interactive agents should prefix them with
+`nix develop -c`. On systems without Nix, `./setup.sh` remains the fallback.
 
 ## Runtime Environment
 
@@ -19,14 +35,14 @@ Code must work in both environments. The edge runtime is Deno-based, so developm
 This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
 project is expected to run on. Local development should use that version too.
 
-This repo pins Deno with mise:
+The Nix flake pins the required Deno version. Check it with:
 
 ```bash
-mise install
-mise exec -- deno --version
+nix develop -c deno --version
 ```
 
-The `.tool-versions` file is kept in sync for asdf-compatible tooling.
+The `.tool-versions` and mise configuration are kept in sync only for
+environments without Nix.
 
 ## stripe-mock
 
@@ -81,7 +97,7 @@ as-is and skips the download, so `deno task test`, `deno task test:files`, and
 - **Never lose work — commit WIP even if broken**: Uncommitted changes are lost if the working environment is reclaimed (it has happened). If you have non-trivial work in progress and are about to pause, hand off, delegate to a background agent, or end a turn with a dirty tree, **commit and push it** rather than leaving it uncommitted. A known-broken checkpoint is fine and expected — mark it unmistakably in the commit message (e.g. `WIP: <chunk> — NOT GREEN, <what fails>`) so it is never mistaken for finished work, and follow up with a green commit. Do not hold a commit back purely because the tree does not yet build or pass; losing the work is worse.
 - **Answer every PR review thread you address**: When a pull request review leaves comments — from an automated reviewer (e.g. Codex) or a human — reply to **each** thread directly with a concise, proper note: how it was resolved (the mechanism + the regression test that locks it), or why it is not actionable/incorrect. Do this even when the commit message already explains the change — an open thread reads as unaddressed, so close the loop on the thread itself. This is a deliberate exception to general GitHub-comment frugality: resolution replies on review threads are expected, not noise. Keep each reply tight (a few sentences), and reference the fixing commit. **If a suggestion is valid but outside the current job's scope**, do not silently drop it — record it in `TODO.md` with enough context for a future person to pick it up without re-reading the PR (the file/path it concerns, what the reviewer proposed, why it's genuinely out of scope here, and a starting point), then reply on the thread pointing to the TODO entry. Scope is a real boundary, not an excuse to lose good ideas.
 - **Finish by rewriting the PR name and description**: Once a feature is done, revisit its pull request and update the name and description to match what was actually built. A PR often starts life with a WIP or work-in-flight title; the finished PR should be thorough but written in simple, concise, understandable, non-technical language — the same plain language we want in our code, comments, and method names. Someone without a CS degree should be able to read the PR and know what changed, why, and what it means for the people using the site.
-- **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
+- **Final check**: Run `nix develop -c deno task precommit` before finishing any job with code or documentation changes. It is the only check that mirrors CI exactly — it typechecks the **test** files too, so `deno check <src>` plus `test:files` is not a substitute (a test-only type error will pass locally and still break CI).
 
 ## Offensive Programming — Never Suppress Errors
 
@@ -687,7 +703,7 @@ logging and table-scoped cache invalidation stay automatic.
 - `deno task restore <backup.zip>` - Restore the database named by `DB_URL` / `DB_TOKEN` in `.env` using its `DB_ENCRYPTION_KEY`. Shows the backup details, asks for typed confirmation, and reports each restore step in the console.
 - `deno task snapshot --out <path.sqlite>` - Sync the complete remote database to a standalone local SQLite file. The task prefers `DB_URL` and `DB_TOKEN` from `.env` over shell values. This developer-only task checkpoints and verifies the file, refuses to overwrite an existing path, and removes its temporary replica on success or failure.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
-- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. A source's mirror-located direct tests run first; changed tests under `test/integration/` or `test/e2e/` run only for direct-test survivors. Any other unmatched test is an error: move it to the path that mirrors its source while strengthening it to kill the mutants. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files (and likewise when src changed without any changed test). If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
+- `deno task precommit:mutation` - The precommit mutation gate, runnable on its own: mutation-test every `src/` file this branch changed and demand a 100% kill rate. All of a source's mirror-located direct tests run first, whether or not those tests changed; changed tests under `test/integration/` or `test/e2e/` run only for direct-test survivors. The changed set is the branch's committed diff against the integration branch (`origin/main`, else a local `main`) via `base...HEAD` — three-dot/merge-base, so it's the branch's full diff vs main and stays bounded to the branch's own commits (precommit runs post-commit on a clean tree, so the index is empty). Skips cheaply when there is no base ref or no changed `src/` files. If a badly stale local `origin/main` balloons the changed set past `STALE_BASE_SOURCE_LIMIT`, it skips with a "run `git fetch origin main`" hint instead of mutating most of the tree. See [Mutation Testing](#mutation-testing).
 - `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests on demand in an isolated `.mutation-runs/<id>/work` copy: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
@@ -909,30 +925,30 @@ the whole tree would be far too slow. The standalone
 `deno task precommit:mutation` runs it automatically, but **only over the files
 this branch changed** (its committed diff against `origin/main`/`main`): the
 `precommit:mutation` step runs each source's mirror-located direct tests first,
-then runs changed `test/integration/` and `test/e2e/` files only for survivors.
-An unmatched test anywhere else fails the run so it must be moved. It demands a 100% kill
-rate, so the cost stays bounded to what you actually changed. Run
+whether or not the direct tests changed, then runs changed `test/integration/`
+and `test/e2e/` files only for survivors. Tests for unchanged sources, scripts,
+and test helpers are outside that src mutation run. A standalone mutation
+command still rejects any explicit test that neither mirrors a selected source
+nor lives in an integration folder. The gate demands a 100% kill rate, so the
+cost stays bounded to the source files you actually changed. Run
 `deno task precommit:mutation` before merging a
 branch that changes `src/` files; the standard `deno task precommit` no longer
 runs it (it was too slow for every commit).
 Known-equivalent survivors recorded in
 `scripts/mutation/equivalent-mutants.txt` are suppressed, as with a manual run.
-That file's header warns against recording `=== → ==`/`!== → !=` mutants
-because Biome's `noDoubleEquals` normally rejects `==`/`!=` and the runner
-counts a lint failure as killed before tests even run — **but this does not
-apply to comparisons against the `null` literal**: Biome's `noDoubleEquals`
-allows `== null`/`!= null` as the idiomatic null-or-undefined check, so a
-`=== null` → `== null` mutant on a value typed to exclude `undefined` is a
-real, lint-surviving equivalent and belongs in the file (there are several
-already, e.g. `logistics-filter.ts:41:45`, `sort-listings.ts:44:12`,
-`package-privacy.ts:44:10`). Verify either way by mutating the line by hand
-and running `deno run -A scripts/biome.ts check --error-on-warnings <file>` —
-exit 0 means the lint gate does not kill it, so a real survivor needs a test
-or a documented equivalent, not removal on the assumption that lint caught it.
+Never record `=== → ==`/`!== → !=` mutants: Biome's `noDoubleEquals` rule is
+configured to reject loose comparisons even against `null`, and the runner
+counts that lint failure as killed before tests run. Use
+`deno task mutation:audit-equivalents` to check the whole equivalent list with
+lint and type-check only; pass `--write` to remove entries those static gates
+now kill. The audit never runs tests and refuses to rewrite stale or malformed
+entries.
 
 Before it runs the mapped tests, the runner puts every mutant through two cheap
-**static gates**, ordered cheapest-first: a per-file Biome **lint** (the
-`noDoubleEquals` case above) and then a `deno check` **type-check**. Either one
+**static gates**, ordered cheapest-first: a per-file Biome **lint** and then a
+`deno check` **type-check**. Keep the Biome calls one-shot unless a new benchmark
+proves otherwise: with pinned Biome 2.4.16, 20 warm one-file runs measured a
+17.3 ms standalone median and a 51.2 ms `--use-server` median. Either gate
 exiting non-zero kills the mutant without spending a full `deno test` on it —
 both a forbidden lint diagnostic and a type error are build failures, so the
 mutant could never ship, and static checks are far faster than the suite. The
@@ -957,12 +973,10 @@ record the mutant in `scripts/mutation/equivalent-mutants.txt` with a proof that
 no input can distinguish it. "It was already there" is not a resolution; leaving
 it just guarantees the next person trips over the same survivor. This is the
 [Good citizen](#preferences) rule applied to mutation testing.
-It is a best-effort check with three documented blind spots (see the header of
+It is a best-effort check with two documented blind spots (see the header of
 `scripts/precommit/mutation-step.ts`): it scopes to the
-*committed* diff, so uncommitted work isn't checked until committed; it trusts
-that a changed src file's covering test changed alongside it, so a changed src
-whose test is unchanged — paired with an unrelated changed test — can report
-false survivors; and it diffs against your *local* `origin/main`, never
+*committed* diff, so uncommitted work isn't checked until committed; and it
+diffs against your *local* `origin/main`, never
 re-fetching, so a stale local ref under a branch built on newer main commits can
 leak upstream src into the set (run `git fetch origin main` first; a branch's own
 author is unaffected). In each case, reach for `deno task mutation` on the

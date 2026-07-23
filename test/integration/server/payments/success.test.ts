@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
+import { fillSoldOutListing } from "#test/integration/server/payments/_shared-setup.ts";
 import {
   attendeeExists,
   insertOrphanAttendee,
@@ -25,7 +26,6 @@ import {
   stubRefundPayment,
   stubRetrieveCheckoutSession,
 } from "#test-utils/webhooks.ts";
-import { fillSoldOutListing } from "./_shared-setup.ts";
 
 // jscpd:ignore-end
 

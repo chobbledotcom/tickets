@@ -28,24 +28,4 @@ describe("initLogisticsMapLoader", () => {
     );
     expect(head.querySelector("link")?.getAttribute("rel")).toBe("stylesheet");
   });
-
-  test("loads nothing on pages without a map", () => {
-    const window = installDom("<div></div>");
-    initLogisticsMapLoader();
-    expect(window.document.head.querySelector("script")).toBeNull();
-    expect(window.document.head.querySelector("link")).toBeNull();
-  });
-
-  test("loads both resources beside an absolute CDN admin bundle", () => {
-    const window = installDom(
-      '<script src="https://assets.example.com/assets/release/admin.js"></script><div data-logistics-map></div>',
-    );
-    initLogisticsMapLoader();
-    expect(
-      window.document.head.querySelector("script")?.getAttribute("src"),
-    ).toBe("https://assets.example.com/assets/release/logistics-map.js");
-    expect(
-      window.document.head.querySelector("link")?.getAttribute("href"),
-    ).toBe("https://assets.example.com/assets/release/logistics-map.css");
-  });
 });

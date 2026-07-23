@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import { createServiceChargeScenario } from "#test/integration/server/webhooks/service-charge-scenario.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleModifierMeta } from "#test-utils/factories.ts";
@@ -11,7 +12,6 @@ import {
   expectStagedAttendeeRemovedAndRefunded,
   expectWebhookKeptAndRefunded,
 } from "#test-utils/webhooks.ts";
-import { createServiceChargeScenario } from "./service-charge-scenario.ts";
 
 // jscpd:ignore-end
 

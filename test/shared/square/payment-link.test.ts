@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type { CreatePaymentLinkInput } from "#shared/square.ts";
@@ -14,10 +13,13 @@ import {
 } from "#test/lib/square/fixtures.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout.ts";
+import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { testListing } from "#test-utils/factories.ts";
 
 describeSquare(() => {
   describe("createPaymentLink", () => {
+    const debugLog = useDebugLogSpy();
+
     test("returns null when access token not set", async () => {
       await expectNoLink(
         checkoutIntent({
@@ -29,17 +31,11 @@ describeSquare(() => {
 
     test("returns null when location ID not configured", async () => {
       await configureSquare();
-      setSuppressDebugLogs(false);
-      const debug = spy(console, "debug");
-      try {
-        await expectNoLink(checkoutIntent());
-        expect(debug.calls.at(-1)?.args).toEqual([
-          "[Square] No location ID configured",
-        ]);
-      } finally {
-        debug.restore();
-        setSuppressDebugLogs(null);
-      }
+      // No location ID set
+      await expectNoLink(checkoutIntent());
+      expect(debugLog().calls.at(-1)?.args[0]).toBe(
+        "[Square] No location ID configured",
+      );
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -47,8 +43,6 @@ describeSquare(() => {
       await withSquareClient(
         linkResult("order_abc", "https://square.link/abc"),
         async ({ checkoutCreate }) => {
-          setSuppressDebugLogs(false);
-          const debug = spy(console, "debug");
           const result = await squareApi.createPaymentLink(
             checkoutIntent({
               email: "jane@example.com",
@@ -107,14 +101,10 @@ describeSquare(() => {
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
           expect(args.idempotencyKey.length).toBeGreaterThan(0);
-          expect(debug.calls.map((call) => call.args[0])).toContain(
+          expect(debugMessages(debugLog()).slice(-2)).toEqual([
             "[Square] Creating payment link for 1 listing(s)",
-          );
-          expect(debug.calls.map((call) => call.args[0])).toContain(
             "[Square] Payment link created orderId=order_abc",
-          );
-          debug.restore();
-          setSuppressDebugLogs(null);
+          ]);
         },
       );
     });
@@ -180,7 +170,10 @@ describeSquare(() => {
         {
           checkoutCreate: () =>
             Promise.resolve({
-              paymentLink: { url: "https://square.link/abc" },
+              paymentLink: {
+                id: "link_without_order",
+                url: "https://square.link/abc",
+              },
             }),
         },
         async () => {

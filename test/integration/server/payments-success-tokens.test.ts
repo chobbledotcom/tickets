@@ -215,7 +215,6 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       expect(html).toContain(`href="/t/${joinedTokens}"`);
       expect(html).not.toContain(`href="/t/${tokens[0]!}"`);
     });
-
     test("shows email notice on payment success when email configured", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,

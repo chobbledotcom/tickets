@@ -11,6 +11,7 @@
  */
 
 /* jscpd:ignore-start */
+import { isNotNullish } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { errorMessage } from "#shared/error-message.ts";
@@ -187,15 +188,15 @@ export const squareRequestInit = (
   token: string,
   options?: SquareRequestOptions,
 ): { headers: Record<string, string>; method: string; body?: string } => {
-  const method = options?.method;
+  const body = options?.body;
   return {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       "Square-Version": SQUARE_API_VERSION,
     },
-    method: method === undefined ? "GET" : method,
-    ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
+    method: options?.method ?? "GET",
+    ...(isNotNullish(body) ? { body: jsonStringify(body) } : {}),
   };
 };
 
@@ -322,7 +323,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
               ? {
                   id: link.id,
                   orderId: link.order_id,
-                  url: link.long_url || link.url,
+                  url: link.long_url ?? link.url,
                 }
               : undefined,
           };

@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Tiny browser-side DOM helpers shared by the hand-built client widgets (the
  * order cart, the markdown toolbar). Kept dependency-free so it can be bundled
