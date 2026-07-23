@@ -330,6 +330,8 @@ export const createAttendeeForSession = async (
   if (!result.success) {
     // A package order must never name a member in the capacity error — a hidden
     // package would leak the listing it conceals. Same guard as the free path.
+    // The named arm needs one listing: a paid checkout always has at least one
+    // validated item, so the first is guaranteed to exist.
     const errorName = pricingIntent.items.some(
       (item) => item.packageGroupId !== undefined,
     )
