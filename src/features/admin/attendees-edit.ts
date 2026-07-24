@@ -19,7 +19,6 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne } from "#shared/db/client.ts";
-import { requireListingWithCount } from "#shared/db/listings/records.ts";
 import {
   getRefundPaymentReferences,
   markPaymentReferencesProviderRefunded,
@@ -30,7 +29,7 @@ import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 /* jscpd:ignore-start */
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import type { Attendee } from "#shared/types.ts";
 /* jscpd:ignore-end */
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 import { PROVIDER_REFUND_CONCURRENCY } from "./refunds/provider.ts";
@@ -39,11 +38,15 @@ import { requirePaymentProvider } from "./require-provider.ts";
 /** Minimal context needed by the refresh-payment flow. */
 type RefreshPaymentContext = {
   attendee: Attendee;
-  /** First listing the attendee is registered for — used for activity log. */
-  listing: ListingWithCount;
+  /** Listing id for the activity log — from the booking row, so it works even
+   * for a quantity-0 placeholder whose listing was since deleted. */
+  listingId: number;
 };
 
-/** Load the attendee + its first listing for the refresh-payment flow. */
+/** Load the attendee + its first listing id for the refresh-payment flow.
+ * Prefers a real booking (quantity > 0) but falls back to a quantity-0
+ * placeholder, so a stored-but-unrefunded placeholder can be refreshed when
+ * its Square refund later settles. */
 const loadRefreshContext = async (
   attendeeId: number,
 ): Promise<RefreshPaymentContext | null> => {
@@ -55,14 +58,13 @@ const loadRefreshContext = async (
     `SELECT listingAttendee.listing_id
        FROM listing_attendees AS listingAttendee
       WHERE listingAttendee.attendee_id = ?
-        AND listingAttendee.quantity > 0
-      ORDER BY listingAttendee.start_at, listingAttendee.listing_id
+      ORDER BY (listingAttendee.quantity > 0) DESC,
+               listingAttendee.start_at, listingAttendee.listing_id
       LIMIT 1`,
     [attendeeId],
   );
   if (!firstBooking) return null;
-  const listing = await requireListingWithCount(firstBooking.listing_id);
-  return { attendee, listing };
+  return { attendee, listingId: firstBooking.listing_id };
 };
 
 const refreshProviderRefunds = async (
@@ -105,7 +107,7 @@ export const handleRefreshPayment: TypedRouteHandler<
     const ctx = await loadRefreshContext(attendeeId);
     if (!ctx) return htmlResponse("", 404);
 
-    const { attendee, listing } = ctx;
+    const { attendee, listingId } = ctx;
     const form = _form as FormParams;
 
     const references = (
@@ -142,7 +144,7 @@ export const handleRefreshPayment: TypedRouteHandler<
       );
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
-        listing.id,
+        listingId,
         attendeeId,
       );
       // Refund status is ledger-only now; if the post missed, surface it for a

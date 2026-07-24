@@ -11,6 +11,7 @@
  */
 
 /* jscpd:ignore-start */
+import * as v from "valibot";
 import { isNotNullish } from "#fp";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -233,13 +234,23 @@ type SquarePaymentResponse = {
   };
 };
 
-/** A parsed Square refund object — the parts of the POST /v2/refunds response
- * the refund contract relies on. `id` and `status` are the only fields the
- * confirmation check reads. */
-type SquareRefund = { id?: string; status?: string };
+/**
+ * Valibot boundary schema for the Square PaymentRefund object returned by
+ * POST /v2/refunds. Square documents `id` as a required string with Min Length
+ * 1, and `status` as a string (PENDING / COMPLETED / REJECTED / FAILED).
+ * Parsing with this schema at the boundary rejects malformed responses — a
+ * missing refund object, empty id, or non-string field type — with a thrown
+ * ValiError instead of silently passing them through a type cast.
+ */
+const SquareRefundSchema = v.object({
+  id: v.pipe(v.string(), v.minLength(1)),
+  status: v.pipe(v.string(), v.minLength(1)),
+});
 
-/** Response shape for POST /v2/refunds (snake_case). */
-type SquareRefundResponse = { refund?: SquareRefund };
+/** Response schema for POST /v2/refunds — the `refund` object is required. */
+const SquareRefundResponseSchema = v.object({
+  refund: SquareRefundSchema,
+});
 
 type SquareLocation = {
   id?: string;
@@ -362,21 +373,15 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
       },
     },
     refunds: {
-      refundPayment: async (
-        p: RefundPaymentInput,
-      ): Promise<{ refund: SquareRefund | null }> => {
-        const data = await post<SquareRefundResponse>("/v2/refunds", {
+      refundPayment: async (p: RefundPaymentInput): Promise<unknown> =>
+        await post<unknown>("/v2/refunds", {
           amount_money: {
             amount: p.amountMoney.amount,
             currency: p.amountMoney.currency,
           },
           idempotency_key: p.idempotencyKey,
           payment_id: p.paymentId,
-        });
-        const refund = data?.refund;
-        if (!refund) return { refund: null };
-        return { refund };
-      },
+        }),
     },
   };
 };
@@ -564,12 +569,11 @@ const buildCheckoutOptions = (
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
-/** Square refund statuses that mean the money has been returned to the buyer.
- * Square documents a settled refund as COMPLETED (PaymentRefund object) or
- * APPROVED (current RefundStatus enum); PENDING, REJECTED, FAILED, and any
- * non-Square status (e.g. SUCCEEDED) are treated as not-yet-confirmed, so a
- * contract-drift response is never recorded as a confirmed refund. */
-const CONFIRMED_REFUND_STATUSES: readonly string[] = ["APPROVED", "COMPLETED"];
+/** Square PaymentRefund status that means the money has been returned to the
+ * buyer. Square's PaymentRefund object documents COMPLETED as the terminal
+ * success status (PENDING → COMPLETED is the happy-path transition; REJECTED
+ * and FAILED are failures). Any other status is treated as not-yet-confirmed. */
+const CONFIRMED_REFUND_STATUSES: readonly string[] = ["COMPLETED"];
 
 /**
  * Stubbable API for testing - allows mocking in ES modules
@@ -638,13 +642,12 @@ export const squareApi: {
   getSquareClient: getClientImpl,
 
   /** Refund a payment (full amount). Returns true only when Square confirms the
-   * refund with an authoritative success status in CONFIRMED_REFUND_STATUSES
-   * (APPROVED or COMPLETED — Square's documented refund success states). PENDING,
-   * FAILED, and any unknown status return false. A 200 response whose refund
-   * object, id, or status is missing, empty, or not a string is malformed — that
-   * is logged at this boundary under E_SQUARE_REFUND and returns false (fail
-   * safely: never report a refund that was never confirmed), so the bad response
-   * is diagnosed instead of being read as an ordinary not-yet-refunded payment. */
+   * refund with a COMPLETED status. PENDING, REJECTED, FAILED, and any other
+   * status return false. A 200 response that is missing its refund object, has
+   * an empty id, or carries non-string fields is malformed — that is caught at
+   * the boundary by a Valibot schema parse OUTSIDE withClient, so it throws
+   * loudly instead of normalizing to false. (Client-unconfigured and HTTP
+   * errors are still contained by withClient → null → false.) */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
@@ -655,36 +658,31 @@ export const squareApi: {
       return false;
     }
 
-    const result = await withClient(async (client) => {
-      const response = await client.refunds.refundPayment({
-        amountMoney: {
-          amount: payment.amountMoney!.amount,
-          currency: payment.amountMoney!.currency as string,
-        },
-        idempotencyKey: await refundIdempotencyKey("square", paymentId),
-        paymentId,
-      });
-      // A 200 with a missing, empty, or non-string refund object/id/status is
-      // malformed — log it at this boundary so the bad response can be
-      // diagnosed, then fail safely to false (do not report a refund that was
-      // never confirmed).
-      const refund = response.refund;
-      if (
-        !refund ||
-        typeof refund.id !== "string" ||
-        !refund.id ||
-        typeof refund.status !== "string"
-      ) {
-        logError({
-          code: ErrorCode.SQUARE_REFUND,
-          detail: `Square refund for payment ${paymentId} returned a malformed refund object (id/status missing, empty, or not strings)`,
-        });
-        return false;
-      }
-      return CONFIRMED_REFUND_STATUSES.includes(refund.status);
-    }, ErrorCode.SQUARE_REFUND);
+    // POST the refund inside withClient (handles client-not-configured + HTTP
+    // errors → null). The raw response comes back UNVALIDATED; we parse it
+    // with a Valibot schema below, OUTSIDE withClient, so a malformed response
+    // throws loudly instead of being caught and normalized to false.
+    const raw = await withClient(
+      async (client) =>
+        await client.refunds.refundPayment({
+          amountMoney: {
+            amount: payment.amountMoney!.amount,
+            currency: payment.amountMoney!.currency as string,
+          },
+          idempotencyKey: await refundIdempotencyKey("square", paymentId),
+          paymentId,
+        }),
+      ErrorCode.SQUARE_REFUND,
+    );
 
-    return result ?? false;
+    if (raw === null) return false;
+
+    // Boundary validation: a 200 from Square must carry a refund object with
+    // a non-empty string id and a non-empty string status. Square documents id
+    // as Required with Min Length 1. A malformed response throws here — outside
+    // withClient — so it surfaces loudly rather than silently returning false.
+    const parsed = v.parse(SquareRefundResponseSchema, raw);
+    return CONFIRMED_REFUND_STATUSES.includes(parsed.refund.status);
   },
 
   resetSquareClient: (): void => clientCache.reset(),

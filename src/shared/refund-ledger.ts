@@ -53,6 +53,15 @@ const isProviderPaymentLeg = legMatches({ from: WORLD, kind: KIND.payment });
 const isOperatorMoneyLeg = (leg: Transfer): boolean =>
   leg.kind === KIND.adjustment || leg.kind?.startsWith("manual_") === true;
 
+/** A sale leg: revenue recognised when a booking was honoured. A placeholder
+ * booking (quantity 0) has a `payment` leg but no `sale` leg, so the account
+ * balance is non-zero (world funded, nothing consumed). Such a placeholder can
+ * still be reversed: the refund_cash leg simply returns the payment, with no
+ * sale to unwind — the balance zeroes cleanly. */
+const isSaleLeg = (leg: Transfer): boolean => leg.kind === KIND.sale;
+
+const hasSaleLeg = (group: Transfer[]): boolean => group.some(isSaleLeg);
+
 const refundedSessionGroups = async (
   references: RefundReferences,
 ): Promise<Set<string>> =>
@@ -128,11 +137,16 @@ const computeAttendeeRefund = async (
   }
   const orders = await coveredRefundGroups(legs, references);
   if (orders.length === 0) return { groups: [], posted: false };
-  // Only auto-reverse a fully-paid account. If the attendee still owes (an
-  // unpaid reservation) or holds credit, a full provider refund can't map cleanly
-  // onto the ledger: reversing the account while a balance remains would strand
-  // receivables or over-refund it. Such cases go to a manual adjustment instead.
-  if (balanceOf(account)(legs) !== 0) return { groups: [], posted: false };
+  // Only auto-reverse a fully-paid account — UNLESS the account is a placeholder
+  // (payment in, no sale): a quantity-0 stored-but-refunded booking has a
+  // non-zero balance (world funded, nothing consumed), but reversing it is
+  // clean (refund_cash returns the payment, balance zeroes). This lets the
+  // operator's "refresh payment" reconcile a placeholder when a PENDING refund
+  // later settles — recordAttendeeRefund would otherwise skip it as unbalanced.
+  const isPlaceholder = orders.every((order) => !hasSaleLeg(order));
+  if (!isPlaceholder && balanceOf(account)(legs) !== 0) {
+    return { groups: [], posted: false };
+  }
   const occurredAt = nowIso();
   return {
     groups: await Promise.all(
