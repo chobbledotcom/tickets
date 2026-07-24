@@ -7,6 +7,7 @@ import type { Listing, ListingWithCount } from "#shared/types.ts";
 import type { BookResponseBody } from "#test/routes/api/helpers.ts";
 import {
   expectCapturedItemPriced,
+  STUB_CHECKOUT_URL,
   stubCheckout,
 } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -23,8 +24,6 @@ import { setupStripe } from "#test-utils/settings.ts";
  * paid-checkout behaviour at the function boundary, covering the internal
  * `completeFoldedBooking`/`foldedIntent` through their one exported entry point.
  * The pure child-selection tests live in `folded-booking.test.ts`. */
-
-const CHECKOUT_URL = "https://stripe.example/checkout";
 
 /** A POST request carrying only a host header — {@link processParentApiBooking}
  * uses it solely for `getBaseUrl`, and receives the parsed body as a separate
@@ -216,7 +215,7 @@ describeWithEnv("processParentApiBooking", { db: true, triggers: true }, () => {
     // the order silently taking the free path.
     const { parent, child } = await makeProviderlessParent(1);
     const { body } = await stubFoldedCheckout(parent, parentBody(child));
-    expect(body.booking?.checkoutUrl).toBe(CHECKOUT_URL);
+    expect(body.booking?.checkoutUrl).toBe(STUB_CHECKOUT_URL);
   });
 
   test("rejects a malformed children array with a 400", async () => {

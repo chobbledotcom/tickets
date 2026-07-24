@@ -8,7 +8,7 @@ import {
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { withCheckoutStub } from "#test/routes/api/helpers.ts";
-import { stubCheckout } from "#test-utils/checkout.ts";
+import { STUB_CHECKOUT_URL, stubCheckout } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -116,7 +116,7 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
           BASE_URL,
         );
         expect(result).toEqual({
-          checkoutUrl: "https://stripe.example/checkout",
+          checkoutUrl: STUB_CHECKOUT_URL,
           type: "checkout",
         });
       } finally {
