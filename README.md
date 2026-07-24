@@ -302,6 +302,22 @@ capture. Pass their path with `--scenario`; the scenario's `name` sets the PNG
 filename directly inside `--output`. A scenario can set its own viewport when a
 wider layout is part of the screenshot.
 
+Pass `--social` (one of `facebook`, `instagram-landscape`,
+`instagram-portrait`, `instagram-square`, a comma-separated list, or `all`) to
+also write a social-media-sized copy of each screenshot next to the original.
+The runner takes the page background colour and extends one side of the canvas
+until the image reaches the target's aspect ratio, then downscales to the
+target's pixel size if the result is larger. Variants are named
+`<theme>/<name>__<target>.png` (or `<scenario-name>__<target>.png` for
+scenarios). For example, `dashboard__facebook.png` is the Facebook share size
+(1200 by 630px) of the dashboard screenshot.
+
+```bash
+deno task screenshot all --social facebook,instagram-portrait
+deno task screenshot dashboard --social all
+```
+
+
 ```bash
 # Install Deno, cache dependencies, run all checks
 ./setup.sh
