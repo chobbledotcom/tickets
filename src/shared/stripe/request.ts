@@ -22,6 +22,15 @@ type StripeParams = Readonly<Record<string, StripeFormValue>>;
 type Method = "DELETE" | "GET" | "POST";
 type ResponseSchema<T> = v.BaseSchema<unknown, T, v.BaseIssue<unknown>>;
 
+/**
+ * Per-request options. `idempotencyKey` overrides the default per-POST retry
+ * key so a caller can supply a stable, provider-and-payment-scoped key that
+ * survives webhook redelivery — see {@link refundIdempotencyKey}.
+ */
+export interface StripeRequestOptions {
+  idempotencyKey?: string | undefined;
+}
+
 export interface StripeClientConfig {
   apiBase?: string;
   fetch?: Fetch;
@@ -253,13 +262,15 @@ export const createStripeRequest = (
     path: string,
     params: StripeParams,
     schema: ResponseSchema<T>,
+    options: StripeRequestOptions = {},
   ): Promise<T> => {
     const encoded = encodeStripeForm(params);
     const url = `${config.apiBase}${path}${method === "GET" && encoded ? `?${encoded}` : ""}`;
     const idempotencyKey =
-      method === "POST" && config.maxNetworkRetries > 0
+      options.idempotencyKey ??
+      (method === "POST" && config.maxNetworkRetries > 0
         ? `tickets-stripe-retry-${crypto.randomUUID()}`
-        : undefined;
+        : undefined);
     const headers = new Headers({
       Accept: "application/json",
       Authorization: `Bearer ${config.secretKey}`,

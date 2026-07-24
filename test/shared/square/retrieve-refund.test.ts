@@ -300,8 +300,46 @@ describeSquare(() => {
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");
-          expect(typeof refundArgs.idempotencyKey).toBe("string");
-          expect(refundArgs.idempotencyKey.length).toBeGreaterThan(0);
+          // The key is a pure function of (provider, payment id), so a webhook
+          // redelivery of the same refund reuses it and Square deduplicates
+          // the second call instead of charging back a second time.
+          expect(refundArgs.idempotencyKey).toBe(
+            "94jKDa73RqRmoCUbDHE2CCc5rNAMtKDdSERbYIImwK0",
+          );
+        },
+      );
+    });
+
+    test("reuses the same idempotency key across repeated refunds of one payment", async () => {
+      // Two refund attempts for the same Square payment must hand Square the
+      // same idempotency key, so a retried webhook redelivery cannot create a
+      // second refund. The key is deterministic, not a fresh random per call.
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(1000), currency: "GBP" },
+                id: "pay_repeat",
+                orderId: "order_repeat",
+                status: "COMPLETED",
+              },
+            }),
+          refundsRefundPayment: () =>
+            Promise.resolve({
+              refund: { id: "refund_repeat", status: "PENDING" },
+            }),
+        },
+        async ({ refundsRefundPayment }) => {
+          await squareApi.refundPayment("pay_repeat");
+          await squareApi.refundPayment("pay_repeat");
+
+          expect(refundsRefundPayment.calls).toHaveLength(2);
+          const [first, second] = refundsRefundPayment.calls.map(
+            (call) => (call.args[0] as RefundPaymentInput).idempotencyKey,
+          );
+          expect(first).toBe(second);
+          expect(first).toBe("Zo9WnE2h_fa7qTOrXREnPmK-WsI5dcg2LE4-0mMYwao");
         },
       );
     });

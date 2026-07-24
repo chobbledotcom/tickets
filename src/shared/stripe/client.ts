@@ -88,6 +88,7 @@ export interface StripeClient {
   refunds: {
     create: (
       params: Pick<Stripe.RefundCreateParams, "payment_intent">,
+      idempotencyKey?: string,
     ) => Promise<StripeRefund>;
   };
   webhookEndpoints: {
@@ -142,8 +143,10 @@ export const createStripeClient = (
         ),
     },
     refunds: {
-      create: (params) =>
-        call("POST", "/v1/refunds", params, StripeRefundSchema),
+      create: (params, idempotencyKey) =>
+        call("POST", "/v1/refunds", params, StripeRefundSchema, {
+          idempotencyKey,
+        }),
     },
     webhookEndpoints: {
       create: (params) =>

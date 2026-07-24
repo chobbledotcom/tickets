@@ -67,3 +67,22 @@ test("maps every used Stripe operation to its endpoint", async () => {
     { body: "", method: "DELETE", path: "/v1/webhook_endpoints/we%2F1" },
   ]);
 });
+
+test("sends the supplied idempotency key as the Idempotency-Key header on a refund", async () => {
+  let capturedKey: string | null = null;
+  const client = createStripeClient("sk_test_client", {
+    fetch: (_input, init = {}) => {
+      capturedKey = new Headers(init.headers).get("idempotency-key");
+      return Promise.resolve(
+        Response.json({ id: "re_1", status: "succeeded" }),
+      );
+    },
+    // Zero retries so no default retry key is generated: the only key on the
+    // wire is the one the caller passed through refunds.create.
+    maxNetworkRetries: 0,
+  });
+
+  await client.refunds.create({ payment_intent: "pi_1" }, "stable-refund-key");
+
+  expect(capturedKey).toBe("stable-refund-key");
+});

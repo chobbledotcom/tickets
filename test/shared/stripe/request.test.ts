@@ -299,6 +299,26 @@ describe("Stripe request transport", () => {
     expect(key).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
   });
 
+  test("treats an empty-string override as no key, not as the retry default", async () => {
+    // An explicitly-empty idempotency key must NOT be swallowed into the
+    // random retry default: nullish coalescing (??) only falls through on
+    // null/undefined, while logical-or (||) would replace "" with the retry
+    // key. Real callers pass a 43-char SHA-256 key or undefined, but locking
+    // this keeps the ?? intent explicit.
+    let key: string | null = "unset";
+    const client = createStripeClient("sk_test_secret", {
+      fetch: (_input, init) => {
+        key = new Headers(init?.headers).get("idempotency-key");
+        return Promise.resolve(
+          Response.json({ id: "re_1", status: "succeeded" }),
+        );
+      },
+      maxNetworkRetries: 1,
+    });
+    await client.refunds.create({ payment_intent: "pi_1" }, "");
+    expect(key).toBeNull();
+  });
+
   test("does not retry when Stripe forbids it", async () => {
     const { calls, client } = oneCallErrorClient(
       Response.json(
