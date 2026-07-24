@@ -149,6 +149,30 @@ describe("initOrderGallery", () => {
     await settle();
   });
 
+  test("records a selected card only once", async () => {
+    const page = harness();
+    page.tick("select_package_7", true);
+    page.tick("select_package_7", true);
+    expect(page.orderField.value).toBe("package:7");
+    await settle();
+  });
+
+  test("does not record a card that was unticked before it was selected", async () => {
+    const page = harness();
+    page.tick("select_package_7", false);
+    expect(page.orderField.value).toBe("");
+    await settle();
+  });
+
+  test("removes the second selected card from the recorded order", async () => {
+    const page = harness();
+    page.tick("select_package_7", true);
+    page.tick("select_5", true);
+    page.tick("select_5", false);
+    expect(page.orderField.value).toBe("package:7");
+    await settle();
+  });
+
   test("a change outside any card leaves the recorded order alone", async () => {
     const page = harness();
     page.tick("select_5", true);
@@ -184,6 +208,17 @@ describe("initOrderGallery", () => {
     ]);
   });
 
+  test("waits for the debounce delay before checking availability", async () => {
+    const page = harness();
+    page.tick("select_package_7", true);
+    await clock.time!.tickAsync(199);
+    expect(page.requests).toHaveLength(0);
+
+    await clock.time!.tickAsync(1);
+    await clock.time!.runMicrotasks();
+    expect(page.requests).toHaveLength(1);
+  });
+
   test("applies returned states: labels, greying, and the date nudge", async () => {
     const page = harness();
     page.responses.push({
@@ -199,6 +234,10 @@ describe("initOrderGallery", () => {
       },
       ok: true,
     });
+    const label = page
+      .cardFor("listing:5")
+      .querySelector("[data-order-state-label]");
+    if (label) label.textContent = "Checking availability";
     page.tick("select_package_7", true);
     await settle();
 
@@ -242,6 +281,19 @@ describe("initOrderGallery", () => {
     await settle();
     expect(page.boxFor("select_5").disabled).toBe(false);
     expect(page.cardFor("listing:5").dataset.orderState).toBe("unavailable");
+  });
+
+  test("disables an unticked card when it is unavailable", async () => {
+    const page = harness();
+    page.responses.push({
+      body: {
+        states: { "listing:5": { label: "Sold out", state: "unavailable" } },
+      },
+      ok: true,
+    });
+    page.changeField('input[name="start_date"]');
+    await settle();
+    expect(page.boxFor("select_5").disabled).toBe(true);
   });
 
   test("ignores non-OK responses and cards the payload does not name", async () => {

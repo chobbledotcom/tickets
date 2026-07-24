@@ -5,7 +5,7 @@ import {
   findAttendeeIdByPhoneIndex,
   setAttendeePhoneIndexIfEmpty,
 } from "#shared/db/attendee-phone-index.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getSmsMessageByProviderId,
@@ -170,6 +170,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
   test("404 when the webhook secret is not configured", async () => {
     const res = await postWebhook({ event: "sms:received", payload: {} });
     expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Not configured" });
   });
 
   test("401 on an invalid signature", async () => {
@@ -181,11 +182,22 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
       },
     );
     expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Invalid signature" });
   });
 
   test("valid signature with a current timestamp succeeds", async () => {
     await configure();
     const res = await postWebhook({ event: "sms:received", payload: {} });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  test("timestamp at the future tolerance boundary succeeds", async () => {
+    await configure();
+    const res = await postWebhook(
+      { event: "sms:sent", payload: {} },
+      { timestamp: currentTimestamp(300) },
+    );
     expect(res.status).toBe(200);
   });
 
@@ -238,12 +250,34 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     await configure();
     const res = await postWebhook(null, { rawBody: "not json" });
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid JSON" });
   });
 
   test("400 on a payload missing the event", async () => {
     await configure();
     const res = await postWebhook({ payload: {} });
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid payload" });
+  });
+
+  test("cleanup preserves a provider-message row within retention", async () => {
+    await configure();
+    const attendee = await makeAttendee();
+    await recordSmsMessage({
+      attendeeId: attendee.id,
+      listingId: 1,
+      providerId: "msg-fresh",
+    });
+    await execute(
+      "UPDATE sms_messages SET created = datetime('now', '-1 day') WHERE provider_id = ?",
+      ["msg-fresh"],
+    );
+
+    await postWebhook({ event: "sms:sent", payload: {} });
+
+    expect((await getSmsMessageByProviderId("msg-fresh"))?.provider_id).toBe(
+      "msg-fresh",
+    );
   });
 
   test("delivered logs against the attendee and clears the row", async () => {

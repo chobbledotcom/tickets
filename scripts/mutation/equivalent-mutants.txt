@@ -51,6 +51,7 @@ src/features/admin/entity-pages.ts:307:24  ?? → ||   # opts.query is a URLSear
 src/features/admin/site-content-page.ts:78:38  ?? → ||   # extraTabs is an array when present, and arrays are always truthy
 src/ui/templates/admin/holidays.tsx:79:45  ?? → ||   # values is a render-values object when present, so it is always truthy
 src/ui/client/admin/manual-checkin.ts:59:36  ?? → ||   # textContent is string|null; its only falsy string is the empty fallback itself
+src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record object when present, so it is always truthy
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
@@ -914,3 +915,12 @@ src/features/api/payment-processing/package-pricing.ts:228:45  false → true   
 src/features/api/payment-processing/package-pricing.ts:243:19  false → true   # hideListings changes node visibility only, while edgeDrifted reads node keys and child structure, never visibility
 src/features/api/payment-processing/package-pricing.ts:260:60  ?? → ||   # intent.allocations is an array or undefined, and arrays (including []) are truthy
 src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the allocated quantity is non-negative and the fallback is 0, so both operators agree for 0 and undefined
+
+# processed-payments failure_data label: the "processed_payments.failure_data"
+# context string only surfaces in errors thrown inside defineStoredJson.read/.write.
+# parseSessionFailure catches every read error and substitutes CORRUPT_FAILURE, and
+# markSessionFailed only writes valid StoredPaymentFailure inputs (its public type
+# guards the schema), so the write path never throws. The label is unobservable
+# through the public API regardless of its value.
+src/shared/db/processed-payments.ts:260:43  processed_payments.failure_data → ""   # write-path label: write never throws on valid input, and the label lives only in its error message
+src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
