@@ -165,30 +165,48 @@ describe("Square webhook session resolution", () => {
     });
   }
 
-  for (const refundedAmount of [1, 1000]) {
-    test(`skips a fresh Square payment refunded by ${refundedAmount}`, async () => {
-      await withMocks(
-        () => ({
-          order: stub(squareApi, "retrieveOrder", () =>
-            Promise.resolve(order("order_refunded", "pay_refunded")),
-          ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              ...completedPayment("order_refunded", "pay_refunded"),
-              refundedMoney: squareMoney(refundedAmount),
-            }),
-          ),
-        }),
-        async () => {
-          expect(
-            await squarePaymentProvider.resolveWebhookSession(
-              paymentEvent("order_refunded", "pay_refunded"),
-            ),
-          ).toBe("skip");
-        },
+  /** Stub order + payment for a refunded payment and run assertions. */
+  const withRefundedPayment = (
+    refundedAmount: number,
+    body: () => Promise<void>,
+  ) =>
+    withMocks(
+      () => ({
+        order: stub(squareApi, "retrieveOrder", () =>
+          Promise.resolve(order("order_refunded", "pay_refunded")),
+        ),
+        payment: stub(squareApi, "retrievePayment", () =>
+          Promise.resolve({
+            ...completedPayment("order_refunded", "pay_refunded"),
+            refundedMoney: squareMoney(refundedAmount),
+          }),
+        ),
+      }),
+      body,
+    );
+
+  test("processes a partially refunded Square payment as paid", async () => {
+    await withRefundedPayment(1, async () => {
+      const result = await squarePaymentProvider.resolveWebhookSession(
+        paymentEvent("order_refunded", "pay_refunded"),
       );
+      expect(result).not.toBe("skip");
+      expect(result).toMatchObject({
+        paymentReference: "pay_refunded",
+        paymentStatus: "paid",
+      });
     });
-  }
+  });
+
+  test("skips a fully refunded Square payment", async () => {
+    await withRefundedPayment(1000, async () => {
+      expect(
+        await squarePaymentProvider.resolveWebhookSession(
+          paymentEvent("order_refunded", "pay_refunded"),
+        ),
+      ).toBe("skip");
+    });
+  });
 
   test("replays a terminal Square payment after it is refunded", async () => {
     await reserveSession("order_terminal");

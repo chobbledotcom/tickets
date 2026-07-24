@@ -79,14 +79,17 @@ type SquareSessionPayment =
   | { status: "paid"; payment: CompletedSquarePayment }
   | { status: "refunded" };
 
-/** A refund changes provider state only until local state records the outcome. */
+/** A full refund changes provider state only until local state records the
+ * outcome. A partial refund still leaves the customer charged, so it must be
+ * processed as paid (the correct amount is collected and the booking is
+ * honoured). */
 const squareSessionPayment = async (
   order: SquareOrder & { id: string },
 ): Promise<SquareSessionPayment> => {
   const payment = await findCompletedSquarePayment(retrievePayment)(order);
   if (payment === null) return { status: "missing" };
   if (
-    payment.refundedAmount > 0 &&
+    payment.refundedAmount >= payment.amountTotal &&
     !(await hasTerminalPaymentOutcome(order.id))
   ) {
     return { status: "refunded" };
@@ -175,13 +178,13 @@ export const squarePaymentProvider: PaymentProvider = {
       return Promise.resolve("skip");
     }
 
+    const order = await retrieveOrder(orderId);
+    const providerOrderId = order?.id;
+    if (!providerOrderId) return "retry";
     // If the order has no metadata (e.g. created directly in Square
     // dashboard/POS, not by our system), skip silently instead of treating
     // it as an error — avoids noisy logs and 400 responses that trigger
     // Square webhook retries.
-    const order = await retrieveOrder(orderId);
-    const providerOrderId = order?.id;
-    if (!providerOrderId) return "retry";
     const completeOrder = completeSquareOrder({
       ...order,
       id: providerOrderId,

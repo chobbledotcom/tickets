@@ -14,8 +14,13 @@ import type {
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { parseDateMs } from "#shared/dates.ts";
-import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
-import { logDebug, logError } from "#shared/logger.ts";
+import {
+  ErrorCode,
+  type ErrorCodeType,
+  type LogCategory,
+  logDebug,
+  logError,
+} from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
 import {
   PAYMENT_PROVIDERS,
@@ -28,6 +33,7 @@ import type {
   CheckoutIntent,
   CheckoutSessionResult,
   ModifierRef,
+  PaymentStatus,
   SessionMetadata,
   ValidatedPaymentSession,
   WebhookEvent,
@@ -697,6 +703,26 @@ export const extractSessionMetadata = (
     text_answer_ids: get("text_answer_ids"),
     thank_you_url: get("thank_you_url"),
   };
+};
+
+/**
+ * A paid checkout must carry a payment reference (the id that lets us refund
+ * it later). When it doesn't, log and return false so the caller can reject
+ * the session. Not-paid sessions and paid sessions with a reference are fine.
+ */
+export const hasPaymentReference = (
+  provider: string,
+  id: string,
+  referenceLabel: string,
+  paymentStatus: PaymentStatus,
+  paymentReference: string,
+): boolean => {
+  if (paymentStatus !== "paid" || paymentReference) return true;
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail: `${provider} checkout ${id} is paid but has no ${referenceLabel}`,
+  });
+  return false;
 };
 
 /**

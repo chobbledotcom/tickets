@@ -56,6 +56,7 @@ const completedPaymentForOrder = (
     typeof amount !== "bigint" ||
     !currency ||
     currency !== order.totalMoney.currency ||
+    amount !== order.totalMoney.amount ||
     amount < BigInt(0) ||
     amount > BigInt(Number.MAX_SAFE_INTEGER) ||
     (refunded !== undefined &&
@@ -78,7 +79,9 @@ const completedPaymentForOrder = (
 };
 
 export const findCompletedSquarePayment =
-  (retrievePayment: (paymentId: string) => Promise<SquarePayment | null>) =>
+  (
+    retrievePayment: (paymentId: string) => Promise<SquarePayment | null>,
+  ): ((order: SquareOrder) => Promise<CompletedSquarePayment | null>) =>
   async (order: SquareOrder): Promise<CompletedSquarePayment | null> => {
     for (const paymentId of squareTenderPaymentIds(order)) {
       const payment = await retrievePayment(paymentId);

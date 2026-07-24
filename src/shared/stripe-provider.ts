@@ -7,15 +7,14 @@
 
 import type Stripe from "stripe";
 import * as v from "valibot";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import {
+  hasPaymentReference,
   hasRequiredSessionMetadata,
   makeCreateCheckoutSession,
   validatedPaymentSession,
 } from "#shared/payment-helpers.ts";
 import type {
   PaymentProvider,
-  PaymentStatus,
   ValidatedPaymentSession,
   WebhookEvent,
   WebhookSessionResolution,
@@ -37,20 +36,6 @@ type StripeCheckoutCompletedEvent = Pick<
   "data" | "id" | "type"
 >;
 
-/** A paid Stripe checkout must identify the payment that can be refunded. */
-const hasExpectedPaymentReference = (
-  id: string,
-  paymentStatus: PaymentStatus,
-  paymentReference: string,
-): boolean => {
-  if (paymentStatus !== "paid" || paymentReference) return true;
-  logError({
-    code: ErrorCode.PAYMENT_SESSION,
-    detail: `Stripe checkout ${id} is paid but has no payment intent`,
-  });
-  return false;
-};
-
 const toValidatedSession = (
   session: StripeCheckoutSession,
 ): ValidatedPaymentSession | null => {
@@ -59,7 +44,15 @@ const toValidatedSession = (
   if (!hasRequiredSessionMetadata(metadata) || amount_total === null)
     return null;
   const paymentReference = payment_intent === null ? "" : payment_intent;
-  if (!hasExpectedPaymentReference(id, payment_status, paymentReference)) {
+  if (
+    !hasPaymentReference(
+      "Stripe",
+      id,
+      "payment intent",
+      payment_status,
+      paymentReference,
+    )
+  ) {
     return null;
   }
   return validatedPaymentSession({
@@ -104,7 +97,12 @@ export const stripePaymentProvider: PaymentProvider = {
 
     const session = v.parse(StripeCheckoutSessionSchema, obj);
     if (session.payment_status === "paid" && !session.payment_intent) {
-      hasExpectedPaymentReference(session.id, "paid", "");
+      // The webhook snapshot may lag behind the current session state —
+      // fetch it now before deciding the payment cannot be processed.
+      // toValidatedSession (inside retrieveSession) logs the error if the
+      // fetched session also lacks a payment intent.
+      const fetched = await this.retrieveSession(id);
+      if (fetched?.paymentReference) return fetched;
       return "retry";
     }
     const validated = toValidatedSession(session);

@@ -8,6 +8,7 @@ import {
 import { type SumupCheckout, sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 /** Booking metadata as buildItemsMetadata would write it. */
@@ -44,12 +45,22 @@ const withFetched = (
   );
 
 describe("sumup-provider", () => {
+  const errors = setupErrorSpy();
+
   beforeEach(async () => {
     await createTestDb();
   });
 
   afterEach(() => {
     resetDb();
+  });
+
+  test("identifies its SumUp webhook contract", () => {
+    expect(sumupPaymentProvider.checkoutCompletedEventType).toBe(
+      "CHECKOUT_STATUS_CHANGED",
+    );
+    expect(sumupPaymentProvider.requiresWebhookSignature).toBe(false);
+    expect(sumupPaymentProvider.type).toBe("sumup");
   });
 
   describe("retrieveSession", () => {
@@ -134,6 +145,9 @@ describe("sumup-provider", () => {
       await stageCheckout();
       await withFetched(checkout({ transactionId: "" }), async () => {
         expect(await sumupPaymentProvider.retrieveSession("ref")).toBeNull();
+        expect(errors.lastMessage()).toContain(
+          "SumUp checkout ref is paid but has no transaction id",
+        );
       });
     });
   });
@@ -248,12 +262,12 @@ describe("sumup-provider", () => {
       });
     });
 
-    test("returns null when the checkout cannot be fetched", async () => {
+    test("retries when the checkout cannot be fetched", async () => {
       await stageCheckout();
       await withFetched(null, async () => {
         expect(
           await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
-        ).toBeNull();
+        ).toBe("retry");
       });
     });
 
@@ -288,6 +302,9 @@ describe("sumup-provider", () => {
         expect(
           await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
         ).toBe("retry");
+        expect(errors.lastMessage()).toContain(
+          "SumUp checkout ref is paid but has no transaction id",
+        );
       });
     });
   });

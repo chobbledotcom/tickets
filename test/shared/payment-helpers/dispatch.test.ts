@@ -5,6 +5,7 @@ import { ErrorCode } from "#shared/logger.ts";
 import {
   cachedClientFactory,
   createWithClient,
+  hasPaymentReference,
   hasRequiredSessionMetadata,
   PaymentUserError,
   parseWebhookPayload,
@@ -14,6 +15,7 @@ import {
 } from "#shared/payment-helpers.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 
 describe("payment-helpers", () => {
   const debugSpy = useDebugLogSpy();
@@ -255,6 +257,39 @@ describe("payment-helpers", () => {
     });
 
     expect(session.createdAt).toBe(createdAt);
+  });
+
+  describe("hasPaymentReference", () => {
+    const errors = setupErrorSpy();
+
+    test("returns true when not paid", () => {
+      expect(
+        hasPaymentReference("Stripe", "cs_1", "payment intent", "unpaid", ""),
+      ).toBe(true);
+      expect(errors.lastMessage()).toBeUndefined();
+    });
+
+    test("returns true when paid with a reference", () => {
+      expect(
+        hasPaymentReference(
+          "Stripe",
+          "cs_1",
+          "payment intent",
+          "paid",
+          "pi_123",
+        ),
+      ).toBe(true);
+      expect(errors.lastMessage()).toBeUndefined();
+    });
+
+    test("returns false and logs when paid with no reference", () => {
+      expect(
+        hasPaymentReference("SumUp", "co_1", "transaction id", "paid", ""),
+      ).toBe(false);
+      expect(errors.lastMessage()).toContain(
+        "SumUp checkout co_1 is paid but has no transaction id",
+      );
+    });
   });
 
   test("parseWebhookPayload returns the invalid JSON error", () => {

@@ -16,8 +16,8 @@ import {
   getSumupCheckout,
   hasSumupCheckoutId,
 } from "#shared/db/sumup-checkouts.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import {
+  hasPaymentReference,
   makeCreateCheckoutSession,
   toCanonicalIso,
   validatedPaymentSession,
@@ -53,11 +53,16 @@ const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
 ): ValidatedPaymentSession | null => {
-  if (checkout.status === "PAID" && !checkout.transactionId) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `SumUp checkout ${checkout.reference} is PAID but has no transaction id`,
-    });
+  const paymentStatus = toPaymentStatus(checkout.status);
+  if (
+    !hasPaymentReference(
+      "SumUp",
+      checkout.reference,
+      "transaction id",
+      paymentStatus,
+      checkout.transactionId,
+    )
+  ) {
     return null;
   }
   return validatedPaymentSession({
@@ -66,7 +71,7 @@ const buildValidatedSession = (
     id: checkout.reference,
     metadata: metadata as SessionMetadata,
     paymentReference: checkout.transactionId,
-    paymentStatus: toPaymentStatus(checkout.status),
+    paymentStatus,
   });
 };
 
@@ -99,7 +104,10 @@ export const sumupPaymentProvider: PaymentProvider = {
     // integration's listings are acknowledged without an API call.
     if (!(await hasSumupCheckoutId(webhookEvent.id))) return "skip";
     const checkout = await retrieveCheckoutById(webhookEvent.id);
-    if (!checkout) return null;
+    // We confirmed this is our checkout via hasSumupCheckoutId, so a null
+    // fetch is likely a transient SumUp API failure — retry rather than
+    // silently dropping it.
+    if (!checkout) return "retry";
     // Non-null: the pre-filter just matched this id to a staging row
     const stored = (await getSumupCheckout(checkout.reference))!;
     const session = buildValidatedSession(checkout, stored.metadata);

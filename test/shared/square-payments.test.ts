@@ -64,6 +64,7 @@ describe("Square completed payments", () => {
     await expect(
       completed(
         payment({ amountMoney: { amount: BigInt(0), currency: "USD" } }),
+        order({ totalMoney: { amount: BigInt(0), currency: "USD" } }),
       ),
     ).resolves.toEqual({
       amountTotal: 0,
@@ -77,6 +78,12 @@ describe("Square completed payments", () => {
       completed(
         payment({
           amountMoney: {
+            amount: BigInt(Number.MAX_SAFE_INTEGER),
+            currency: "USD",
+          },
+        }),
+        order({
+          totalMoney: {
             amount: BigInt(Number.MAX_SAFE_INTEGER),
             currency: "USD",
           },
@@ -160,6 +167,10 @@ describe("Square completed payments", () => {
     [
       "refund in another currency",
       payment({ refundedMoney: { amount: BigInt(0), currency: "GBP" } }),
+    ],
+    [
+      "amount different from order total",
+      payment({ amountMoney: { amount: BigInt(99), currency: "USD" } }),
     ],
   ] as const) {
     test(`rejects a completed payment with ${name}`, async () => {

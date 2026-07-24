@@ -106,11 +106,54 @@ describeStripe("stripe-provider", () => {
     });
 
     test("retries a paid webhook session with no payment intent", async () => {
-      expect(
-        await stripePaymentProvider.resolveWebhookSession({
+      const fetched = stripeCheckoutSession({
+        id: "cs_webhook_without_intent",
+        metadata: {
+          email: "buyer@example.com",
+          items: '[{"e":1,"q":1,"p":0}]',
+          name: "Buyer",
+        },
+        payment_intent: null,
+      });
+      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve(fetched),
+      );
+      try {
+        expect(
+          await stripePaymentProvider.resolveWebhookSession({
+            data: {
+              object: fetched,
+            },
+            id: "evt_webhook_without_intent",
+            type: "checkout.session.completed",
+          }),
+        ).toBe("retry");
+        expect(errors.lastMessage()).toContain(
+          "Stripe checkout cs_webhook_without_intent is paid but has no payment intent",
+        );
+      } finally {
+        retrieve.restore();
+      }
+    });
+
+    test("processes a webhook session whose snapshot lacked a payment intent but the fetched session has one", async () => {
+      const fetched = stripeCheckoutSession({
+        id: "cs_webhook_late_intent",
+        metadata: {
+          email: "buyer@example.com",
+          items: '[{"e":1,"q":1,"p":0}]',
+          name: "Buyer",
+        },
+        payment_intent: "pi_late_123",
+      });
+      const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve(fetched),
+      );
+      try {
+        const result = await stripePaymentProvider.resolveWebhookSession({
           data: {
             object: stripeCheckoutSession({
-              id: "cs_webhook_without_intent",
+              id: "cs_webhook_late_intent",
               metadata: {
                 email: "buyer@example.com",
                 items: '[{"e":1,"q":1,"p":0}]',
@@ -119,13 +162,16 @@ describeStripe("stripe-provider", () => {
               payment_intent: null,
             }),
           },
-          id: "evt_webhook_without_intent",
+          id: "evt_webhook_late_intent",
           type: "checkout.session.completed",
-        }),
-      ).toBe("retry");
-      expect(errors.lastMessage()).toContain(
-        "Stripe checkout cs_webhook_without_intent is paid but has no payment intent",
-      );
+        });
+        expect(result).toMatchObject({
+          id: "cs_webhook_late_intent",
+          paymentReference: "pi_late_123",
+        });
+      } finally {
+        retrieve.restore();
+      }
     });
 
     test("accepts a one-character Stripe session id", async () => {
@@ -403,6 +449,53 @@ describeStripe("stripe-provider", () => {
           expect(result?.createdAt).toBe("1970-01-01T00:02:03.000Z");
         },
       );
+    });
+  });
+
+  describe("isPaymentRefunded", () => {
+    test("returns true when latest_charge is refunded", async () => {
+      const retrieve = stub(stripeApi, "retrievePaymentIntent", () =>
+        Promise.resolve({
+          id: "pi_1",
+          latest_charge: { refunded: true },
+        }),
+      );
+      try {
+        expect(await stripePaymentProvider.isPaymentRefunded("pi_1")).toBe(
+          true,
+        );
+      } finally {
+        retrieve.restore();
+      }
+    });
+
+    test("returns false when latest_charge is not refunded", async () => {
+      const retrieve = stub(stripeApi, "retrievePaymentIntent", () =>
+        Promise.resolve({
+          id: "pi_2",
+          latest_charge: { refunded: false },
+        }),
+      );
+      try {
+        expect(await stripePaymentProvider.isPaymentRefunded("pi_2")).toBe(
+          false,
+        );
+      } finally {
+        retrieve.restore();
+      }
+    });
+
+    test("returns false when payment intent not found", async () => {
+      const retrieve = stub(stripeApi, "retrievePaymentIntent", () =>
+        Promise.resolve(null),
+      );
+      try {
+        expect(await stripePaymentProvider.isPaymentRefunded("pi_3")).toBe(
+          false,
+        );
+      } finally {
+        retrieve.restore();
+      }
     });
   });
 });
