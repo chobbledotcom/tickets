@@ -252,7 +252,7 @@ describeSquare(() => {
             }),
           refundsRefundPayment: () =>
             Promise.resolve({
-              refund: { id: "refund_prov", status: "PENDING" },
+              refund: { id: "refund_prov", status: "COMPLETED" },
             }),
         },
         async () => {

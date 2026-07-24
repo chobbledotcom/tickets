@@ -318,7 +318,7 @@ describeSquare(() => {
       );
 
       const client = await getSquareClient();
-      await client!.refunds.refundPayment({
+      const result = await client!.refunds.refundPayment({
         amountMoney: { amount: BigInt(3000), currency: "GBP" },
         idempotencyKey: "idem-ref",
         paymentId: "pay_1",
@@ -332,6 +332,41 @@ describeSquare(() => {
       expect(body.payment_id).toBe("pay_1");
       expect(body.amount_money.amount).toBe(3000);
       expect(body.amount_money.currency).toBe("GBP");
+      // The parsed refund object is surfaced back for the contract to inspect.
+      expect(result.refund?.id).toBe("ref_1");
+    });
+
+    test("refunds.refundPayment surfaces the refund id and status", async () => {
+      installMockFetch(() =>
+        Promise.resolve(
+          jsonResponse({
+            refund: { id: "ref_done", status: "COMPLETED" },
+          }),
+        ),
+      );
+
+      const client = await getSquareClient();
+      const result = await client!.refunds.refundPayment({
+        amountMoney: { amount: BigInt(4250), currency: "USD" },
+        idempotencyKey: "idem-status",
+        paymentId: "pay_status",
+      });
+
+      expect(result.refund?.id).toBe("ref_done");
+      expect(result.refund?.status).toBe("COMPLETED");
+    });
+
+    test("refunds.refundPayment returns a null refund when none is present", async () => {
+      installMockFetch(() => Promise.resolve(jsonResponse({})));
+
+      const client = await getSquareClient();
+      const result = await client!.refunds.refundPayment({
+        amountMoney: { amount: BigInt(1500), currency: "EUR" },
+        idempotencyKey: "idem-empty",
+        paymentId: "pay_empty",
+      });
+
+      expect(result.refund).toBeNull();
     });
 
     test("throws error with status code and body for HTTP errors", async () => {

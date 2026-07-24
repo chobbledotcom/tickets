@@ -233,6 +233,14 @@ type SquarePaymentResponse = {
   };
 };
 
+/** A parsed Square refund object — the parts of the POST /v2/refunds response
+ * the refund contract relies on. `id` and `status` are the only fields the
+ * confirmation check reads. */
+type SquareRefund = { id?: string; status?: string };
+
+/** Response shape for POST /v2/refunds (snake_case). */
+type SquareRefundResponse = { refund?: SquareRefund };
+
 type SquareLocation = {
   id?: string;
   name?: string;
@@ -354,8 +362,10 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
       },
     },
     refunds: {
-      refundPayment: async (p: RefundPaymentInput) => {
-        await post<unknown>("/v2/refunds", {
+      refundPayment: async (
+        p: RefundPaymentInput,
+      ): Promise<{ refund: SquareRefund | null }> => {
+        const data = await post<SquareRefundResponse>("/v2/refunds", {
           amount_money: {
             amount: p.amountMoney.amount,
             currency: p.amountMoney.currency,
@@ -363,7 +373,9 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           idempotency_key: p.idempotencyKey,
           payment_id: p.paymentId,
         });
-        return {};
+        const refund = data?.refund;
+        if (!refund) return { refund: null };
+        return { refund };
       },
     },
   };
@@ -552,6 +564,26 @@ const buildCheckoutOptions = (
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
+/** Square refund statuses that mean the money has actually been returned to the
+ * buyer. A refund moves through PENDING before it settles; only COMPLETED (and
+ * the SUCCEEDED alias some flows emit) is authoritative, so any other status is
+ * treated as not-yet-confirmed. */
+const CONFIRMED_REFUND_STATUSES: readonly string[] = ["COMPLETED", "SUCCEEDED"];
+
+/**
+ * True only when Square has actually returned the money: the refund object is
+ * present, carries an id, and reports a status Square treats as final. A missing
+ * refund object, id, or status, and any pending or failed/unknown status, all
+ * return false — we only ever report a refund as successful when Square confirms
+ * it, so a still-pending or ambiguous refund never counts as done.
+ */
+const isRefundConfirmed = (
+  refund: SquareRefund | null | undefined,
+): boolean => {
+  if (!refund?.id || !refund.status) return false;
+  return CONFIRMED_REFUND_STATUSES.includes(refund.status);
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  */
@@ -618,7 +650,10 @@ export const squareApi: {
   },
   getSquareClient: getClientImpl,
 
-  /** Refund a payment (full amount) */
+  /** Refund a payment (full amount). Returns true only when Square confirms the
+   * refund (COMPLETED or SUCCEEDED); a pending, failed, or unknown status, and
+   * a refund object missing its id/status, all return false — never report a
+   * refund as done until Square has confirmed it. */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
@@ -630,7 +665,7 @@ export const squareApi: {
     }
 
     const result = await withClient(async (client) => {
-      await client.refunds.refundPayment({
+      const response = await client.refunds.refundPayment({
         amountMoney: {
           amount: payment.amountMoney!.amount,
           currency: payment.amountMoney!.currency as string,
@@ -638,7 +673,7 @@ export const squareApi: {
         idempotencyKey: await refundIdempotencyKey("square", paymentId),
         paymentId,
       });
-      return true;
+      return isRefundConfirmed(response.refund);
     }, ErrorCode.SQUARE_REFUND);
 
     return result ?? false;

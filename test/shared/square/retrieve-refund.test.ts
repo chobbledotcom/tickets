@@ -282,7 +282,7 @@ describeSquare(() => {
             }),
           refundsRefundPayment: () =>
             Promise.resolve({
-              refund: { id: "refund_123", status: "PENDING" },
+              refund: { id: "refund_123", status: "COMPLETED" },
             }),
         },
         async ({ paymentsGet, refundsRefundPayment }) => {
@@ -364,6 +364,77 @@ describeSquare(() => {
           expect(result).toBe(false);
         },
       );
+    });
+
+    /** Runs refundPayment against a payment with a chargeable amount, with the
+     * Square refund response shaped as `refund` (the client already parsed the
+     * HTTP body). Returns the boolean contract outcome, so each status case
+     * only states its refund shape and expectation. */
+    const refundOutcomeFor = async (
+      refund: { id?: string; status?: string } | null,
+    ): Promise<boolean> => {
+      const paymentId = "pay_contract";
+      let outcome = true;
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(1999), currency: "GBP" },
+                id: paymentId,
+                orderId: "order_contract",
+                status: "COMPLETED",
+              },
+            }),
+          refundsRefundPayment: () => Promise.resolve({ refund }),
+        },
+        async () => {
+          outcome = await squareApi.refundPayment(paymentId);
+        },
+      );
+      return outcome;
+    };
+
+    test("returns true for a COMPLETED refund status", async () => {
+      expect(
+        await refundOutcomeFor({ id: "ref_completed", status: "COMPLETED" }),
+      ).toBe(true);
+    });
+
+    test("returns true for a SUCCEEDED refund status", async () => {
+      expect(
+        await refundOutcomeFor({ id: "ref_succeeded", status: "SUCCEEDED" }),
+      ).toBe(true);
+    });
+
+    test("returns false for a PENDING refund status", async () => {
+      expect(
+        await refundOutcomeFor({ id: "ref_pending", status: "PENDING" }),
+      ).toBe(false);
+    });
+
+    test("returns false for a FAILED refund status", async () => {
+      expect(
+        await refundOutcomeFor({ id: "ref_failed", status: "FAILED" }),
+      ).toBe(false);
+    });
+
+    test("returns false for an unknown refund status", async () => {
+      expect(await refundOutcomeFor({ id: "ref_unknown", status: "WAT" })).toBe(
+        false,
+      );
+    });
+
+    test("fails safely when the refund object has no id", async () => {
+      expect(await refundOutcomeFor({ status: "COMPLETED" })).toBe(false);
+    });
+
+    test("fails safely when the refund object has no status", async () => {
+      expect(await refundOutcomeFor({ id: "ref_no_status" })).toBe(false);
+    });
+
+    test("fails safely when the response has no refund object", async () => {
+      expect(await refundOutcomeFor(null)).toBe(false);
     });
   });
 });
