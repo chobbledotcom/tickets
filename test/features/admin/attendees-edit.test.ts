@@ -295,18 +295,20 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       );
     });
 
-    test("reconciles a quantity-0 placeholder when its refund later settles", async () => {
-      // A stored-but-unrefunded placeholder has a payment leg but no sale and
-      // no refund_cash. The old quantity > 0 filter excluded it from refresh;
-      // the new fallback (ORDER BY (quantity > 0) DESC) finds it, and
-      // computeAttendeeRefund now posts the refund_cash for a placeholder
-      // (no sale legs) regardless of balance.
+    /** Create a quantity-0 placeholder attendee with a payment leg, finalize
+     *  the payment reference, and optionally run a callback before the refresh.
+     *  Shared by the placeholder reconciliation tests. */
+    const setupPlaceholderForRefresh = async (
+      name: string,
+      email: string,
+      sessionId: string,
+      paymentReference: string,
+      beforeRefresh?: () => Promise<void>,
+    ): Promise<Attendee> => {
       const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 800,
       });
-      const sessionId = "placeholder-refresh-session";
-      const paymentReference = "pi_placeholder_refresh";
       const created = await attendeesApi.createAttendeeAtomic({
         bookings: [
           {
@@ -316,14 +318,12 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
             quantity: 0,
           },
         ],
-        email: "placeholder@example.com",
-        name: "Placeholder",
+        email,
+        name,
         paymentId: paymentReference,
       });
       if (!created.success) throw new Error(`setup failed: ${created.reason}`);
       const attendee = created.attendees[0]!;
-      // Post the payment leg only (no sale, no refund_cash — like
-      // recordPlaceholderRefund with refunded=false).
       await postPaymentLeg(attendee.id, 500, sessionId, listing.id, 0);
       await reserveSession(sessionId);
       await finalizeReservedPayment(
@@ -332,13 +332,41 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "tok-placeholder",
         paymentReference,
       );
+      if (beforeRefresh) await beforeRefresh();
+      return attendee;
+    };
 
+    /** Submit the refresh with the provider reporting the refund as settled,
+     *  and verify the refund_cash leg was posted to the attendee's account. */
+    const refreshAndVerifyRefundCash = async (
+      attendee: Attendee,
+    ): Promise<void> => {
       await submitRefreshPayment(attendee, () => Promise.resolve(true));
-
-      // The refresh should have posted the refund_cash leg, reconciling the
-      // placeholder ledger. The attendee's account now has a refund_cash leg.
       const legs = await transfersByAccount(attendeeAccount(attendee.id));
       expect(legs.some((leg) => leg.kind === KIND.refundCash)).toBe(true);
+    };
+
+    test("reconciles a quantity-0 placeholder when its refund later settles", async () => {
+      const attendee = await setupPlaceholderForRefresh(
+        "Placeholder",
+        "placeholder@example.com",
+        "placeholder-refresh-session",
+        "pi_placeholder_refresh",
+      );
+      await refreshAndVerifyRefundCash(attendee);
+    });
+
+    test("reconciles a placeholder whose listing was since deleted", async () => {
+      const attendee = await setupPlaceholderForRefresh(
+        "Deleted Placeholder",
+        "deleted-listing@example.com",
+        "placeholder-deleted-listing-session",
+        "pi_placeholder_deleted",
+        async () => {
+          await execute("DELETE FROM listings WHERE id = ?", [0]);
+        },
+      );
+      await refreshAndVerifyRefundCash(attendee);
     });
   });
 });

@@ -100,6 +100,39 @@ const hasProviderRefund = (
   reference: Pick<RefundPaymentReference, "providerRefunded">,
 ): boolean => reference.providerRefunded;
 
+/** After the provider confirms the refund, record it in the ledger and add a
+ *  resolving note if the attendee is a quantity-0 placeholder. Returns null on
+ *  success (caller redirects), or a Response for the error redirect paths. */
+const recordConfirmedRefund = async (
+  attendee: Attendee,
+  attendeeId: number,
+  listingId: number,
+  references: readonly RefundPaymentReference[],
+): Promise<Response | null> => {
+  const { posted } = await recordAttendeeRefund(attendeeId, references);
+  await logActivity(
+    `Payment marked as refunded for attendee '${attendee.name}'`,
+    listingId,
+    attendeeId,
+  );
+  if (!posted) {
+    return errorRedirect(
+      `/admin/attendees/${attendeeId}`,
+      t("error.refund_not_recorded"),
+    );
+  }
+  // Only add the resolving note for a quantity-0 placeholder — a normal
+  // attendee never had the "could NOT be refunded... refund manually" warning.
+  const hasNonZeroBooking = await queryOne<{ one: number }>(
+    "SELECT 1 AS one FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 LIMIT 1",
+    [attendeeId],
+  );
+  if (!hasNonZeroBooking) {
+    await createSystemNote(attendeeId, t("note.placeholder_refund_confirmed"));
+  }
+  return null;
+};
+
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
@@ -139,31 +172,13 @@ export const handleRefreshPayment: TypedRouteHandler<
       refreshedReferences.filter(hasProviderRefund),
     );
     if (refreshedReferences.every(hasProviderRefund) && !attendee.refunded) {
-      const { posted } = await recordAttendeeRefund(
+      const error = await recordConfirmedRefund(
+        attendee,
         attendeeId,
+        listingId,
         refreshedReferences,
       );
-      await logActivity(
-        `Payment marked as refunded for attendee '${attendee.name}'`,
-        listingId,
-        attendeeId,
-      );
-      // If the attendee was a stored-but-unrefunded placeholder (the system
-      // note from storeRefundedBooking said "could NOT be refunded... refund
-      // manually"), record that the refund has now been confirmed so the
-      // operator does not follow the stale manual-refund instruction.
-      await createSystemNote(
-        attendeeId,
-        "Refund confirmed: the payment provider reported this refund as settled. No manual refund is needed.",
-      );
-      // Refund status is ledger-only now; if the post missed, surface it for a
-      // manual adjustment instead of leaving the payment looking un-refunded.
-      if (!posted) {
-        return errorRedirect(
-          `/admin/attendees/${attendeeId}`,
-          t("error.refund_not_recorded"),
-        );
-      }
+      if (error) return error;
       return redirect(
         `/admin/attendees/${attendeeId}`,
         t("success.payment_status_refunded"),
