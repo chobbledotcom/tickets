@@ -13,4 +13,5 @@ export * from "#shared/bunny-cdn.ts";
 export * from "#shared/embed.ts";
 export * from "#shared/embed-hosts.ts";
 export * from "#shared/iframe.ts";
+export * from "#shared/image-proxy-url.ts";
 export * from "#shared/storage.ts";

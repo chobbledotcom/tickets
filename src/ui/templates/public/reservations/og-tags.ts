@@ -1,7 +1,7 @@
 /** OpenGraph head tags for a public listing page. */
 
 /* jscpd:ignore-start */
-import { getImageProxyUrl } from "#shared/storage.ts";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import type { ItemImageProjection } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 /* jscpd:ignore-end */

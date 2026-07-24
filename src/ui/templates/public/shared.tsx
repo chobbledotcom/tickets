@@ -2,11 +2,11 @@
 import { t } from "#i18n";
 import { isContactFormActive } from "#shared/contact-form.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { NavModel } from "#shared/site-pages/types.ts";
-import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Group, Image, ItemImageProjection } from "#shared/types.ts";
 import {
   LabelledAmount,
@@ -17,7 +17,6 @@ import {
   leveledNav,
   nodeLis,
 } from "#templates/components/nav.tsx";
-import { ProseHeading } from "#templates/components/prose-heading.tsx";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 /* jscpd:ignore-end */
 
@@ -347,29 +346,6 @@ export const publicPage =
         {showLoginFooter && <LoginFooter />}
       </PublicLayout>,
     );
-
-/** The `<Layout title><div class="prose"><h1>{heading}</h1>{prose}</div>
- *  {afterProse}</Layout>` shell. {@link simplePublicPage} wraps its whole body
- *  in the prose block; the balance page keeps its recap intro in prose but
- *  renders its table/form as siblings after it. */
-export const prosePage =
-  (title: string, heading: string) =>
-  (prose: Child, afterProse?: Child): string =>
-    String(
-      <Layout contentClassName="public-page" title={title}>
-        <ProseHeading heading={heading}>{prose}</ProseHeading>
-        {afterProse}
-      </Layout>,
-    );
-
-/** Curried simple public page: <Layout title={title}><div class="prose">
- *  <h1>{heading}</h1>{body}</div></Layout>. No nav, no footer — used by the
- *  simple status pages (balance errors, rate-limited, check-in, renewal).
- *  Takes the page title and heading text, returns a body receiver. */
-export const simplePublicPage =
-  (title: string, heading: string) =>
-  (body: Child): string =>
-    prosePage(title, heading)(body);
 
 /** Render listing image HTML if an image is set.
  *

@@ -115,6 +115,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const response = await awaitTestRequest("/admin/", {
         cookie: `${getSessionCookieName()}=orphan-session`,
       });
+      // If the session's user no longer exists, GET /admin/ renders the
+      // login page with HTTP 200 instead of redirecting.
+      expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Login");
     });
@@ -142,7 +145,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   });
 
   describe("settings user not found", () => {
-    test("password change returns 500 when user is deleted mid-request", async () => {
+    test("password change redirects to login when user is deleted mid-request", async () => {
       await getDb().execute({
         args: [],
         sql: "DELETE FROM users WHERE id = 1",
@@ -154,7 +157,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       });
+      // If the user is deleted during the request, the password change
+      // redirects to the login page at /admin with HTTP 302.
       expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 

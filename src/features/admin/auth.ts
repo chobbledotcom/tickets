@@ -9,7 +9,6 @@ import {
   ANY_USER_FORM,
   adminLandingPath,
   anyUserPage,
-  generateSecureToken,
   withAuth,
   withOptionalSession,
 } from "#routes/auth.ts";
@@ -28,6 +27,7 @@ import {
   unwrapKey,
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
+import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { verifySignedCsrfToken } from "#shared/csrf.ts";
 import { clearLoginAttempts, loginLimiter } from "#shared/db/login-attempts.ts";
 import { createSession, deleteSession } from "#shared/db/sessions.ts";

@@ -10,13 +10,13 @@ import { stub } from "@std/testing/mock";
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#shared/db/activity-log-backfill.ts";
 import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings/records.ts";
+import { MissingSettingsTableError } from "#shared/db/migrations/errors.ts";
 import { MIGRATION_IDS } from "#shared/db/migrations/registry.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   loadMigrations,
-  MissingSettingsTableError,
   resetDatabase,
   SCHEMA_HASH,
 } from "#shared/db/migrations.ts";

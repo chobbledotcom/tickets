@@ -3,9 +3,9 @@
  */
 
 import { t } from "#i18n";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { formatBytes, MAX_IMAGE_SIZE } from "#shared/limits.ts";
-import { getImageProxyUrl } from "#shared/storage.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";

@@ -80,6 +80,33 @@ publishes shared browser assets to the optional CDN has a different file size.
 The `no-big-strings` variant is an attribution experiment, not an exact CDN
 artifact.
 
+### Lean base request graph
+
+Measured on 23 July 2026 against clean main `b51380cb`, with Deno 2.5.6 and
+Sentry enabled. The comparison used production app-core bundles with the
+benchmark's large publishable payloads emptied, then ran 60 balanced fresh
+processes with `--no-code-cache`. The change keeps authentication, migrations,
+Markdown, and storage available but stops generic static requests from
+evaluating them before they are needed.
+
+| Variant | Bundle import | First `/robots.txt` | Combined |
+| --- | ---: | ---: | ---: |
+| Main | 235.9 ms | 13.0 ms | 250.9 ms |
+| Lean base graph | **181.9 ms** | **10.8 ms** | **193.3 ms** |
+
+The median paired combined improvement was **49.1 ms**. The middle half of
+paired runs improved by 27.5–80.2 ms. The generated bundle grew by 723 bytes,
+so this is evaluation deferral rather than a transfer-size win. The changes
+that produced it are:
+
+- import the shared session-key error without evaluating the authentication
+  feature;
+- load admin API authentication only after its path matches;
+- load migration execution only for database-backed requests;
+- keep the generic page layout independent of storage; and
+- keep generic error pages independent of the broad public template and
+  Markdown graph.
+
 ## Cold `/listings`
 
 `first-request.ts` prepares a fully migrated, setup-complete public site with 12
