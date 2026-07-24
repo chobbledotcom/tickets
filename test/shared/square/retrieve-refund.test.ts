@@ -401,10 +401,12 @@ describeSquare(() => {
       ).toBe(true);
     });
 
-    test("returns true for a SUCCEEDED refund status", async () => {
+    test("returns false for a SUCCEEDED status (not a Square refund status)", async () => {
+      // SUCCEEDED is not a Square-documented refund status (COMPLETED/APPROVED
+      // are), so it is treated as contract drift, not a confirmed refund.
       expect(
         await refundOutcomeFor({ id: "ref_succeeded", status: "SUCCEEDED" }),
-      ).toBe(true);
+      ).toBe(false);
     });
 
     test("returns true for an APPROVED refund status", async () => {
