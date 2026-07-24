@@ -20,31 +20,10 @@
 src/ui/templates/components/data-table.tsx:85:43  0 → -1   # For the only changed case, an empty array, both branches render the same empty tbody; non-empty arrays make both comparisons false
 src/shared/form-data.ts:16:33  ?? → ||   # trim returns a string, and its only falsy value is the empty string supplied by the fallback
 src/shared/forms/validation.ts:101:46  = → +=   # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
-src/shared/forms/validation.ts:105:16  !== → !=   # validateFieldText returns string|null and cannot return undefined, so strict and loose inequality agree when comparing it with null
-src/features/admin/settings-listing-defaults.ts:53:15  === → ==   # parseNonNegativeInt returns number|null and cannot return undefined, so strict and loose equality agree when comparing it with null
 src/features/admin/dashboard.ts:232:65  1 → 2   # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
-src/shared/bearer.ts:6:20  === → ==   # authorization is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
 src/shared/bearer.ts:7:55  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
-src/shared/scheduled-access.ts:25:15  === → ==   # bearerTokenOrNull returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:60:14  === → ==   # headers is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:83:27  !== → !=   # custom.authorization is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:85:17  === → ==   # bearerTokenOrNull returns string|null and cannot return undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/client.ts:87:48  !== → !=   # bearerToken is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/socket.ts:63:12  === → ==   # RegExp.exec returns RegExpExecArray|null and cannot return undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/socket.ts:107:18  !== → !=   # raw is UptimeKumaWebSocket|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/socket.ts:130:38  === → ==   # raw is UptimeKumaWebSocket|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/socket.ts:167:27  === → ==   # connectTimer is number|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/socket.ts:187:28  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
-src/shared/uptime-kuma/monitors.ts:87:21  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
-src/shared/uptime-kuma/monitors.ts:101:12  === → ==   # firstById receives UptimeKumaMonitor|null and cannot receive undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:116:21  !== → !=   # monitor.parent is number|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:119:18  !== → !=   # monitor.url is string|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:138:15  !== → !=   # existing is UptimeKumaMonitor|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:193:13  === → ==   # config is UptimeKumaConfig|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:227:13  === → ==   # winner is UptimeKumaMonitor|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:250:17  !== → !=   # raceWinner is UptimeKumaMonitor|null and cannot be undefined, so strict and loose inequality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:306:19  === → ==   # monitor is UptimeKumaMonitor|null and cannot be undefined, so strict and loose equality agree when comparing it with null
-src/shared/uptime-kuma/monitors.ts:325:27  === → ==   # scheduledTaskKey is string|null and cannot be undefined, so strict and loose equality agree when comparing it with null
+src/shared/uptime-kuma/socket.ts:189:28  0 → -1   # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
+src/shared/uptime-kuma/matching.ts:58:25  1000 → 1001   # timeout is a positive whole number of seconds and the 25,000ms deadline lies between the same integer seconds under either multiplier
 
 src/features/admin/entity-pages.ts:306:28  ?? → ||   # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts:307:24  ?? → ||   # opts.query is a URLSearchParams object when present, so it is always truthy
@@ -88,7 +67,6 @@ src/shared/accounting/rows.ts:136:72  ?? → ||   # renderInsert guard?.args: In
 src/shared/accounting/manual-entries.ts:236:29  ?? → ||   # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
 src/shared/checkout-ledger.ts:42:72  ?? → ||   # find(...)?.amount: number|undefined; the only falsy-non-null amount is 0 and 0 ?? 0 === 0 || 0
 src/features/settings-bundles.ts:247:40  ?? → ||   # bundle is a readonly string[] or undefined; every present array, including [], is truthy
-src/shared/scheduled-access.ts:16:20  ?? → ||   # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/maintenance/runner.ts:183:5  0 → 1   # every non-empty run needs at least two startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:190:5  0 → 1   # every non-empty run needs at least two database startup calls, so both allowances skip it; an empty run makes no calls
 src/shared/maintenance/runner.ts:202:23  ?? → ||   # wakePolicy is a non-empty MaintenanceWakePolicy value or undefined, so only undefined reaches the fallback
@@ -97,7 +75,7 @@ src/shared/builder.ts:202:35  ?? → ||   # dbProvider is a non-empty provider v
 src/shared/builder.ts:207:36  ?? → ||   # dbProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/shared/builder.ts:290:26  ?? → ||   # hostingProvider is a non-empty provider value or undefined, so only undefined reaches the fallback
 src/features/url.ts:58:35  ?? → ||   # URLSearchParams.get returns null or a string; its only falsy string is already the empty fallback
-src/shared/storage.ts:376:18  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
+src/shared/storage.ts:368:18  application/octet-stream → ""   # the pinned Bunny SDK normalizes an empty contentType to application/octet-stream, as the request-level upload test proves
 src/shared/site-build.ts:39:21  = → +=   # retainedId starts at 0 and buildSite invokes retain exactly once, so both assignments store row.id
 src/shared/db/built-site-scheduler.ts:11:36  ?? → ||   # scheduledTaskKey is null or a non-empty canonical key, so both operators select the candidate only when no key exists
 src/shared/deno-deploy-api.ts:139:30  ?? → ||   # failure_reason is null or a non-empty picklist value, so both use the status only for null
@@ -673,8 +651,8 @@ src/shared/url-safety.ts:22:65  1 → 2   # slice(1,-2) vs slice(1,-1): still le
 src/shared/url-safety.ts:22:65  1 → -1   # slice(1,1) empties h; same isDomainHostname fallback as above
 src/shared/url-safety.ts:23:18  : → ": mutated"   # h never contains this literal, so the colon-detection branch is skipped — falls to the regex, but the dotless-host isDomainHostname fallback still catches it
 src/shared/url-safety.ts:23:31  true → false   # isIpLiteral wrongly says "not an IP literal", but the dotless-host isDomainHostname fallback still rejects it
-src/ui/templates/admin/images.tsx:84:28  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
-src/ui/templates/admin/images.tsx:85:20  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx:85:28  ?? → ||   # alt_text ?? "" vs || "": identical for every string — "" falls through to "" either way
+src/ui/templates/admin/images.tsx:86:20  ?? → ||   # name ?? "" vs || "": identical for every string — "" falls through to "" either way
 src/features/admin/images.ts:170:25   → "mutated"   # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
 src/features/admin/images.ts:170:38   → "mutated"   # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
 src/features/admin/images.ts:78:5  applyFlash(request); → (removed)   # only records ?form= targeting; no form on the images pages has an id, so the flash renders at the Layout backstop either way
@@ -824,7 +802,7 @@ src/features/admin/index.ts:27:21  ?? → ||   # `path.split("/")[2] ?? ""`: the
 src/features/admin/index.ts:41:44  ?? → ||   # areasBySegment values are arrays, so every present value is truthy and a miss is undefined
 
 # App prefix dispatch (app/routes.ts) — two provably-equivalent survivors.
-src/features/app/routes.ts:235:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
+src/features/app/routes.ts:234:14   → "mutated"   # publicPagePath only receives the declared prefixes "", "listings", and "terms"; for "", both ternary arms return "/", and neither non-empty prefix equals "mutated", so no declared route path changes
 src/features/app/routes.ts:439:59  ?? → ||   # route handlers return Response|null; every Response object is truthy, while null (and the mutation runner's return-undefined mutants) selects notFoundResponse under both operators
 
 # Logger (logger.ts) — a provably-equivalent survivor from the logger suites.
