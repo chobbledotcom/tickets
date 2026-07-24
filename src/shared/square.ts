@@ -639,9 +639,10 @@ export const squareApi: {
   /** Refund a payment (full amount). Returns true only when Square confirms the
    * refund (COMPLETED or SUCCEEDED). PENDING, FAILED, and any unknown status
    * return false. A 200 response missing its refund object, id, or status is a
-   * malformed Square response — that throws here and withClient turns it into a
-   * logged false, so the bad response is diagnosed at the boundary instead of
-   * being read as an ordinary not-yet-refunded payment. */
+   * malformed Square response — that is logged at this boundary under
+   * E_SQUARE_REFUND and returns false (fail safely: never report a refund that
+   * was never confirmed), so the bad response is diagnosed instead of being
+   * read as an ordinary not-yet-refunded payment. */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
@@ -661,14 +662,16 @@ export const squareApi: {
         idempotencyKey: await refundIdempotencyKey("square", paymentId),
         paymentId,
       });
-      // A 200 missing the documented refund object/id/status is malformed —
-      // fail loudly at this boundary (withClient logs the throw and returns
-      // false). Only a present-but-not-confirmed status returns false silently.
+      // A 200 missing the documented refund object/id/status is malformed — log
+      // it at this boundary so the bad response can be diagnosed, then fail
+      // safely to false (do not report a refund that was never confirmed).
       const refund = response.refund;
       if (!refund?.id || !refund.status) {
-        throw new Error(
-          `Square refund for payment ${paymentId} is missing its refund object, id, or status`,
-        );
+        logError({
+          code: ErrorCode.SQUARE_REFUND,
+          detail: `Square refund for payment ${paymentId} is missing its refund object, id, or status`,
+        });
+        return false;
       }
       return CONFIRMED_REFUND_STATUSES.includes(refund.status);
     }, ErrorCode.SQUARE_REFUND);
