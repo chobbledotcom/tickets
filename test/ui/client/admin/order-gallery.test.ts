@@ -237,7 +237,8 @@ describe("initOrderGallery", () => {
     const label = page
       .cardFor("listing:5")
       .querySelector("[data-order-state-label]");
-    if (label) label.textContent = "Checking availability";
+    expect(label).not.toBeNull();
+    label!.textContent = "Checking availability";
     page.tick("select_package_7", true);
     await settle();
 

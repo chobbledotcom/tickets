@@ -15,12 +15,17 @@ import {
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
+  type StoredPaymentFailure,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  expectProcessedPaymentReference,
+  finalizeReservedPayment,
+} from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
   describe("reserveSession", () => {
@@ -186,6 +191,14 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       });
     });
 
+    test("markSessionFailed throws a labelled error for an invalid failure", async () => {
+      await expect(
+        markSessionFailed("sess_invalid", {
+          error: 42 as unknown as string,
+        } as StoredPaymentFailure),
+      ).rejects.toThrow("processed_payments.failure_data");
+    });
+
     test("re-throws non-unique-constraint errors", async () => {
       await getDb().execute("DROP TABLE processed_payments");
 
@@ -275,9 +288,12 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("stores a supplied payment reference while healing", async () => {
       await reserveSession("sess_heal_reference");
       await finalizeSessionIfUnresolved("sess_heal_reference", 42, "pi_healed");
-      const row = (await isSessionProcessed("sess_heal_reference"))!;
-      expect(row.attendee_id).toBe(42);
-      expect(row.payment_reference).not.toBe("");
+      await expectProcessedPaymentReference(
+        42,
+        "sess_heal_reference",
+        "pi_healed",
+        await getTestPrivateKey(),
+      );
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {

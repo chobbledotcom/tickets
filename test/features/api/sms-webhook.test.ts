@@ -260,7 +260,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     expect(await res.json()).toEqual({ error: "Invalid payload" });
   });
 
-  test("cleanup preserves a provider-message row within retention", async () => {
+  test("cleanup preserves a provider-message row within retention and prunes an expired one", async () => {
     await configure();
     const attendee = await makeAttendee();
     await recordSmsMessage({
@@ -268,9 +268,18 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
       listingId: 1,
       providerId: "msg-fresh",
     });
+    await recordSmsMessage({
+      attendeeId: attendee.id,
+      listingId: 1,
+      providerId: "msg-stale",
+    });
     await execute(
       "UPDATE sms_messages SET created = datetime('now', '-1 day') WHERE provider_id = ?",
       ["msg-fresh"],
+    );
+    await execute(
+      "UPDATE sms_messages SET created = datetime('now', '-31 days') WHERE provider_id = ?",
+      ["msg-stale"],
     );
 
     await postWebhook({ event: "sms:sent", payload: {} });
@@ -278,6 +287,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     expect((await getSmsMessageByProviderId("msg-fresh"))?.provider_id).toBe(
       "msg-fresh",
     );
+    expect(await getSmsMessageByProviderId("msg-stale")).toBeNull();
   });
 
   test("delivered logs against the attendee and clears the row", async () => {
