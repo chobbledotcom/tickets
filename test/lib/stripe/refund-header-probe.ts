@@ -11,9 +11,11 @@ import { createStripeClient } from "#shared/stripe/client.ts";
  */
 export const refundHeaderProbe = (
   secretKey = "sk_test_secret",
-  maxNetworkRetries = 1,
 ): { capturedKey: () => string | null; client: StripeClient } => {
   let key: string | null = null;
+  // One retry allowed so a retry-generated key WOULD exist by default; the
+  // caller's key must take precedence over it, which is what the shared tests
+  // assert. With zero retries the override has nothing to override.
   const client = createStripeClient(secretKey, {
     fetch: (_input, init = {}) => {
       key = new Headers(init.headers).get("idempotency-key");
@@ -21,7 +23,7 @@ export const refundHeaderProbe = (
         Response.json({ id: "re_1", status: "succeeded" }),
       );
     },
-    maxNetworkRetries,
+    maxNetworkRetries: 1,
   });
   return { capturedKey: () => key, client };
 };

@@ -70,10 +70,8 @@ test("maps every used Stripe operation to its endpoint", async () => {
 });
 
 test("sends the supplied idempotency key as the Idempotency-Key header on a refund", async () => {
-  // One retry allowed so a retry-generated key WOULD exist by default; the
-  // caller's key must take precedence over it (nullish-coalescing, not a
-  // fallback swap). With zero retries the override would be untestable,
-  // since no retry key is ever generated to override.
+  // The probe enables one retry, so a retry-generated key would exist by
+  // default; the caller's key must take precedence over it.
   const { client, capturedKey } = refundHeaderProbe("sk_test_client");
 
   await client.refunds.create({ payment_intent: "pi_1" }, "stable-refund-key");
