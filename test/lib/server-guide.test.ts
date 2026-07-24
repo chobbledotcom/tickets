@@ -26,7 +26,11 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     ...expected: Parameters<typeof cachedGuide>
   ): Promise<string> => {
     using _env = withEnv({ CAN_BUILD_SITES: undefined });
-    return cachedGuide(...expected);
+    // Await so the env pin stays in force for the whole first render —
+    // cachedGuide returns a promise, and a bare return lets the `using`
+    // dispose before the render reads CAN_BUILD_SITES.
+    const html = await cachedGuide(...expected);
+    return html;
   };
 
   describe("GET /admin/guide", () => {

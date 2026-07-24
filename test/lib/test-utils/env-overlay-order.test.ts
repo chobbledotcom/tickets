@@ -4,58 +4,62 @@ import { getEnv } from "#shared/env.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { type EnvScope, getRealEnv, withEnv } from "#test-utils/env.ts";
 
-// A suite that turns a feature on for its own tests, and layers a second env
-// scope on top (the shape every built-sites suite uses: the outer env from
-// describeWithEnv plus a per-test inner scope). The inner scope's dispose must
-// run BEFORE the outer env's dispose, or it restores the stale "feature on"
-// layer after the outer clear — leaking CAN_BUILD_SITES into the next suite.
+// Test-only keys the real process environment never carries, so these
+// assertions check the overlay alone and never trip on a feature flag the
+// runner happens to be launched with.
+const OUTER_KEY = "TICKETS_TEST_OVERLAY_OUTER";
+const INNER_KEY = "TICKETS_TEST_OVERLAY_INNER";
+
+// A suite that sets an outer env var for its own tests and layers a second,
+// per-test env scope on top — the shape every built-sites suite uses (the
+// outer env from describeWithEnv plus an inner withEnv opened in the body).
 describeWithEnv(
-  "describeWithEnv nested env (feature on)",
-  { env: { CAN_BUILD_SITES: "true" } },
+  "describeWithEnv nested env (outer on)",
+  { env: { [OUTER_KEY]: "on" } },
   () => {
     let inner: EnvScope | undefined;
     beforeEach(() => {
-      inner = withEnv({ TICKETS_NESTED_ENV_PROBE: "set" });
+      inner = withEnv({ [INNER_KEY]: "set" });
     });
     afterEach(() => {
       inner?.dispose();
       inner = undefined;
     });
 
-    test("sees the feature enabled inside the suite", () => {
-      expect(getEnv("CAN_BUILD_SITES")).toBe("true");
+    test("sees the outer env enabled inside the suite", () => {
+      expect(getEnv(OUTER_KEY)).toBe("on");
     });
   },
 );
 
-// A later suite that never touches CAN_BUILD_SITES. The real environment never
-// held it, so if the overlay is clean the lookup is undefined. Before the
-// hook-order fix this read "true" — the previous suite's inner dispose had
-// restored the "feature on" layer after the outer clear, so the overlay kept
-// leaking it across the suite boundary.
+// A later suite that never touches the outer key. The overlay must be clean
+// after the previous suite, so the lookup falls through to the (empty) real
+// environment. This is the contract that breaks if a nested withEnv scope
+// disposes AFTER describeWithEnv's own afterEach: the inner dispose restores
+// the outer env layer over the cleared overlay, leaking it across the suite
+// boundary.
 describeWithEnv("describeWithEnv nested env (ambient after)", {}, () => {
-  test("does not inherit the previous suite's CAN_BUILD_SITES", () => {
-    expect(getRealEnv("CAN_BUILD_SITES")).toBeUndefined();
-    expect(getEnv("CAN_BUILD_SITES")).toBeUndefined();
+  test("does not inherit the previous suite's outer env", () => {
+    expect(getRealEnv(OUTER_KEY)).toBeUndefined();
+    expect(getEnv(OUTER_KEY)).toBeUndefined();
   });
 });
 
-// The same contract for an env var the inner scope owns, so the regression
-// also catches a nested-scope leak of a key the outer env never carried.
+// The inner scope's own key must not leak either, for the same reason.
 describeWithEnv(
   "describeWithEnv nested env (inner key ambient after)",
   {},
   () => {
-    test("does not inherit the inner scope's probe key", () => {
-      expect(getRealEnv("TICKETS_NESTED_ENV_PROBE")).toBeUndefined();
-      expect(getEnv("TICKETS_NESTED_ENV_PROBE")).toBeUndefined();
+    test("does not inherit the inner scope's key", () => {
+      expect(getRealEnv(INNER_KEY)).toBeUndefined();
+      expect(getEnv(INNER_KEY)).toBeUndefined();
     });
   },
 );
 
 describe("describeWithEnv overlay cleanup (sanity)", () => {
-  test("the real process env was never touched", () => {
-    expect(getRealEnv("CAN_BUILD_SITES")).toBeUndefined();
-    expect(getRealEnv("TICKETS_NESTED_ENV_PROBE")).toBeUndefined();
+  test("the real process env is never touched", () => {
+    expect(getRealEnv(OUTER_KEY)).toBeUndefined();
+    expect(getRealEnv(INNER_KEY)).toBeUndefined();
   });
 });
