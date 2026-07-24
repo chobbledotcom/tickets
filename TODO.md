@@ -1437,6 +1437,35 @@ than a per-method `if (!field)` check. Starting point: `squareFetch` and the
 
 ---
 
+## Split the Square refund tests out of two oversized test suites
+
+*Origin: Codex review of PR #1911 (confirmed Square refund outcomes). The PR
+ships focused refund tests; adding them pushed two mirror suites just past the
+~400-line soft target. Deferred (not dodged) so the mergeable PR can land; the
+splits are pure test-organisation, separate from the refund contract.*
+
+- **`test/shared/square/retrieve-refund.test.ts` (481 lines).** The
+  `refundPayment` describe (the `refundOutcomeFor` helper plus the
+  COMPLETED/APPROVED/PENDING/FAILED/unknown/missing-id/missing-status/missing-object
+  and boundary-log cases) is the bulk. Move it into a focused
+  `test/shared/square/refund-payment.test.ts`; leave `retrieveOrder`,
+  `retrievePayment`, and the `retrievePayment` wrapper-export describes here, and
+  drop the now-unused `spy` / `stub` / `withMocks` / `RefundPaymentInput`
+  imports from the trimmed file.
+- **`test/shared/square/rest-transport.test.ts` (429 lines).** The three
+  `refunds.refundPayment` transport tests (snake_case body, surfaces id/status,
+  null refund when none present) push it over. Move them into a focused
+  `test/shared/square/refund-transport.test.ts` (it needs its own `installMockFetch`
+  + `jsonResponse` helpers — lift those into a tiny shared local helper or copy
+  the minimal pair, since `rest-transport.test.ts` defines them inline).
+
+Both stay under Biome's 1,000-line hard ceiling today, so CI does not block.
+Split them so a `square.ts` mutation run maps to narrower suites (AGENTS.md's
+"400-line limit applies to test files" rule). Low risk, pure move; verify with
+`deno task test:files` on each new path after the split.
+
+---
+
 ## Split oversized test files moved by PR #1903
 
 *Origin: Codex review of PR #1903 ("Load heavy modules only when needed").

@@ -639,12 +639,12 @@ export const squareApi: {
 
   /** Refund a payment (full amount). Returns true only when Square confirms the
    * refund with an authoritative success status in CONFIRMED_REFUND_STATUSES
-   * (COMPLETED, APPROVED, or SUCCEEDED). PENDING, FAILED, and any unknown status
-   * return false. A 200 response whose refund object, id, or status is missing
-   * or not a string is malformed — that is logged at this boundary under
-   * E_SQUARE_REFUND and returns false (fail safely: never report a refund that
-   * was never confirmed), so the bad response is diagnosed instead of being
-   * read as an ordinary not-yet-refunded payment. */
+   * (APPROVED or COMPLETED — Square's documented refund success states). PENDING,
+   * FAILED, and any unknown status return false. A 200 response whose refund
+   * object, id, or status is missing, empty, or not a string is malformed — that
+   * is logged at this boundary under E_SQUARE_REFUND and returns false (fail
+   * safely: never report a refund that was never confirmed), so the bad response
+   * is diagnosed instead of being read as an ordinary not-yet-refunded payment. */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
@@ -664,18 +664,20 @@ export const squareApi: {
         idempotencyKey: await refundIdempotencyKey("square", paymentId),
         paymentId,
       });
-      // A 200 with a missing or non-string refund object/id/status is malformed
-      // — log it at this boundary so the bad response can be diagnosed, then
-      // fail safely to false (do not report a refund that was never confirmed).
+      // A 200 with a missing, empty, or non-string refund object/id/status is
+      // malformed — log it at this boundary so the bad response can be
+      // diagnosed, then fail safely to false (do not report a refund that was
+      // never confirmed).
       const refund = response.refund;
       if (
         !refund ||
         typeof refund.id !== "string" ||
+        !refund.id ||
         typeof refund.status !== "string"
       ) {
         logError({
           code: ErrorCode.SQUARE_REFUND,
-          detail: `Square refund for payment ${paymentId} returned a malformed refund object (id/status missing or not strings)`,
+          detail: `Square refund for payment ${paymentId} returned a malformed refund object (id/status missing, empty, or not strings)`,
         });
         return false;
       }

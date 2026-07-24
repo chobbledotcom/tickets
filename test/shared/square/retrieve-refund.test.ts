@@ -437,6 +437,13 @@ describeSquare(() => {
       expect(await refundOutcomeFor({ status: "COMPLETED" })).toBe(false);
     });
 
+    test("fails safely when the refund id is an empty string", async () => {
+      // A present-but-empty id is not a usable provider refund reference.
+      expect(await refundOutcomeFor({ id: "", status: "APPROVED" })).toBe(
+        false,
+      );
+    });
+
     test("fails safely when the refund object has no status", async () => {
       expect(await refundOutcomeFor({ id: "ref_no_status" })).toBe(false);
     });
@@ -469,7 +476,7 @@ describeSquare(() => {
             // reports a refund it could not confirm).
             expect(errorSpy.calls).toHaveLength(1);
             expect(errorSpy.calls[0]!.args[0]).toBe(
-              '[Error] E_SQUARE_REFUND detail="Square refund for payment pay_malformed returned a malformed refund object (id/status missing or not strings)"',
+              '[Error] E_SQUARE_REFUND detail="Square refund for payment pay_malformed returned a malformed refund object (id/status missing, empty, or not strings)"',
             );
           } finally {
             errorSpy.restore();
