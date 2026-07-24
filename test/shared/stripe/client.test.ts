@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { createStripeClient } from "#shared/stripe/client.ts";
+import { refundHeaderProbe } from "#test/lib/stripe/refund-header-probe.ts";
 import { stripeResponseFor } from "#test/lib/stripe/responses.ts";
 
 test("maps every used Stripe operation to its endpoint", async () => {
@@ -69,20 +70,13 @@ test("maps every used Stripe operation to its endpoint", async () => {
 });
 
 test("sends the supplied idempotency key as the Idempotency-Key header on a refund", async () => {
-  let capturedKey: string | null = null;
-  const client = createStripeClient("sk_test_client", {
-    fetch: (_input, init = {}) => {
-      capturedKey = new Headers(init.headers).get("idempotency-key");
-      return Promise.resolve(
-        Response.json({ id: "re_1", status: "succeeded" }),
-      );
-    },
-    // Zero retries so no default retry key is generated: the only key on the
-    // wire is the one the caller passed through refunds.create.
-    maxNetworkRetries: 0,
-  });
+  // One retry allowed so a retry-generated key WOULD exist by default; the
+  // caller's key must take precedence over it (nullish-coalescing, not a
+  // fallback swap). With zero retries the override would be untestable,
+  // since no retry key is ever generated to override.
+  const { client, capturedKey } = refundHeaderProbe("sk_test_client");
 
   await client.refunds.create({ payment_intent: "pi_1" }, "stable-refund-key");
 
-  expect(capturedKey).toBe("stable-refund-key");
+  expect(capturedKey()).toBe("stable-refund-key");
 });

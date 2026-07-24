@@ -18,6 +18,7 @@ import {
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { stripeCheckoutSession } from "#test/lib/stripe/fixtures.ts";
+import { refundHeaderProbe } from "#test/lib/stripe/refund-header-probe.ts";
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   cancel_url: "https://example.com/cancel",
@@ -305,18 +306,11 @@ describe("Stripe request transport", () => {
     // null/undefined, while logical-or (||) would replace "" with the retry
     // key. Real callers pass a 43-char SHA-256 key or undefined, but locking
     // this keeps the ?? intent explicit.
-    let key: string | null = "unset";
-    const client = createStripeClient("sk_test_secret", {
-      fetch: (_input, init) => {
-        key = new Headers(init?.headers).get("idempotency-key");
-        return Promise.resolve(
-          Response.json({ id: "re_1", status: "succeeded" }),
-        );
-      },
-      maxNetworkRetries: 1,
-    });
+    const { client, capturedKey } = refundHeaderProbe();
+
     await client.refunds.create({ payment_intent: "pi_1" }, "");
-    expect(key).toBeNull();
+
+    expect(capturedKey()).toBeNull();
   });
 
   test("does not retry when Stripe forbids it", async () => {
