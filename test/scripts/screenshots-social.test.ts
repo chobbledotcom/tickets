@@ -62,7 +62,7 @@ describe("planSocialExtension", () => {
 });
 
 describe("applySocialTarget", () => {
-  const background = { b: 255, g: 255, r: 255 };
+  const background = { b: 0, g: 0, r: 255 };
 
   const makeSourcePng = async (
     path: string,
@@ -89,6 +89,24 @@ describe("applySocialTarget", () => {
       throw new Error(`Could not read image: ${path}`);
     }
     return { height: meta.height, width: meta.width };
+  };
+
+  const pixelAt = async (
+    path: string,
+    x: number,
+    y: number,
+  ): Promise<{ b: number; g: number; r: number }> => {
+    const { data, info } = await sharp(path)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const offset = (y * info.width + x) * info.channels;
+    const r = data[offset];
+    const g = data[offset + 1];
+    const b = data[offset + 2];
+    if (r === undefined || g === undefined || b === undefined) {
+      throw new Error(`Pixel at (${x}, ${y}) is out of bounds`);
+    }
+    return { b, g, r };
   };
 
   for (const target of SOCIAL_TARGET_NAMES) {
@@ -123,6 +141,16 @@ describe("applySocialTarget", () => {
         height: 400,
         width: 762,
       });
+      expect(await pixelAt(outputPath, 0, 200)).toEqual({
+        b: 0,
+        g: 0,
+        r: 255,
+      });
+      expect(await pixelAt(outputPath, 761, 200)).toEqual({
+        b: 255,
+        g: 255,
+        r: 255,
+      });
     } finally {
       await Deno.remove(tmpDir, { recursive: true });
     }
@@ -140,6 +168,39 @@ describe("applySocialTarget", () => {
       expect(await dimensionsOf(outputPath)).toEqual({
         height: 630,
         width: 1200,
+      });
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  });
+
+  it("extends the bottom edge when the source is wider than the target ratio", async () => {
+    const tmpDir = await Deno.makeTempDir({
+      prefix: "screenshots-social-bottom-",
+    });
+    try {
+      const sourcePath = join(tmpDir, "source.png");
+      const outputPath = join(tmpDir, "variant.png");
+      await makeSourcePng(sourcePath, 100, 400);
+      await applySocialTarget(
+        sourcePath,
+        outputPath,
+        "instagram-portrait",
+        background,
+      );
+      expect(await dimensionsOf(outputPath)).toEqual({
+        height: 500,
+        width: 400,
+      });
+      expect(await pixelAt(outputPath, 200, 0)).toEqual({
+        b: 255,
+        g: 255,
+        r: 255,
+      });
+      expect(await pixelAt(outputPath, 200, 499)).toEqual({
+        b: 0,
+        g: 0,
+        r: 255,
       });
     } finally {
       await Deno.remove(tmpDir, { recursive: true });
