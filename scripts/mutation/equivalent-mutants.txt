@@ -902,3 +902,7 @@ src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the
 # passes an invalid StoredPaymentFailure to markSessionFailed and asserts the
 # error message carries the label.
 src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
+
+# Folded API booking: a child-lookup Map value is an array (always truthy), so
+# ?? and || agree on it (the operand is never falsy-but-non-null).
+src/features/api/folded-booking.ts:87:42  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
