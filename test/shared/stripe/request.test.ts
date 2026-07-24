@@ -18,6 +18,7 @@ import {
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
 import { stripeCheckoutSession } from "#test/lib/stripe/fixtures.ts";
+import { refundHeaderProbe } from "#test/lib/stripe/refund-header-probe.ts";
 
 const checkoutParams = (): StripeCheckoutSessionCreateParams => ({
   cancel_url: "https://example.com/cancel",
@@ -297,6 +298,19 @@ describe("Stripe request transport", () => {
     });
     await client.checkout.sessions.create(checkoutParams());
     expect(key).toMatch(/^tickets-stripe-retry-[0-9a-f-]+$/);
+  });
+
+  test("treats an empty-string override as no key, not as the retry default", async () => {
+    // An explicitly-empty idempotency key must NOT be swallowed into the
+    // random retry default: nullish coalescing (??) only falls through on
+    // null/undefined, while logical-or (||) would replace "" with the retry
+    // key. Real callers pass a 43-char SHA-256 key or undefined, but locking
+    // this keeps the ?? intent explicit.
+    const { client, capturedKey } = refundHeaderProbe();
+
+    await client.refunds.create({ payment_intent: "pi_1" }, "");
+
+    expect(capturedKey()).toBeNull();
   });
 
   test("does not retry when Stripe forbids it", async () => {

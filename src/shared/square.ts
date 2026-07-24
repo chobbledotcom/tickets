@@ -31,6 +31,7 @@ import {
   type SignedTestWebhook,
   signedTestWebhook,
 } from "#shared/payment-helpers.ts";
+import { refundIdempotencyKey } from "#shared/payment-idempotency.ts";
 import type {
   CheckoutIntent,
   WebhookEvent,
@@ -634,7 +635,7 @@ export const squareApi: {
           amount: payment.amountMoney!.amount,
           currency: payment.amountMoney!.currency as string,
         },
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: await refundIdempotencyKey("square", paymentId),
         paymentId,
       });
       return true;
