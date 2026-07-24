@@ -78,16 +78,25 @@ const completedPaymentForOrder = (
   };
 };
 
+export type FindCompletedPaymentResult =
+  | { status: "found"; payment: CompletedSquarePayment }
+  | { status: "no_completed_payment" }
+  | { status: "invalid_payment" };
+
 export const findCompletedSquarePayment =
   (
     retrievePayment: (paymentId: string) => Promise<SquarePayment | null>,
-  ): ((order: SquareOrder) => Promise<CompletedSquarePayment | null>) =>
-  async (order: SquareOrder): Promise<CompletedSquarePayment | null> => {
+  ): ((order: SquareOrder) => Promise<FindCompletedPaymentResult>) =>
+  async (order: SquareOrder): Promise<FindCompletedPaymentResult> => {
+    let foundInvalid = false;
     for (const paymentId of squareTenderPaymentIds(order)) {
       const payment = await retrievePayment(paymentId);
       if (payment?.status !== "COMPLETED") continue;
       const completed = completedPaymentForOrder(payment, paymentId, order);
-      if (completed) return completed;
+      if (completed) return { payment: completed, status: "found" };
+      foundInvalid = true;
     }
-    return null;
+    return foundInvalid
+      ? { status: "invalid_payment" }
+      : { status: "no_completed_payment" };
   };

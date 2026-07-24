@@ -67,9 +67,12 @@ describe("Square completed payments", () => {
         order({ totalMoney: { amount: BigInt(0), currency: "USD" } }),
       ),
     ).resolves.toEqual({
-      amountTotal: 0,
-      paymentReference: "payment_1",
-      refundedAmount: 0,
+      payment: {
+        amountTotal: 0,
+        paymentReference: "payment_1",
+        refundedAmount: 0,
+      },
+      status: "found",
     });
   });
 
@@ -90,9 +93,12 @@ describe("Square completed payments", () => {
         }),
       ),
     ).resolves.toEqual({
-      amountTotal: Number.MAX_SAFE_INTEGER,
-      paymentReference: "payment_1",
-      refundedAmount: 0,
+      payment: {
+        amountTotal: Number.MAX_SAFE_INTEGER,
+        paymentReference: "payment_1",
+        refundedAmount: 0,
+      },
+      status: "found",
     });
   });
 
@@ -108,9 +114,12 @@ describe("Square completed payments", () => {
           }),
         ),
       ).resolves.toEqual({
-        amountTotal: 100,
-        paymentReference: "payment_1",
-        refundedAmount,
+        payment: {
+          amountTotal: 100,
+          paymentReference: "payment_1",
+          refundedAmount,
+        },
+        status: "found",
       });
     });
   }
@@ -123,15 +132,17 @@ describe("Square completed payments", () => {
         }),
       ),
     ).resolves.toEqual({
-      amountTotal: 100,
-      paymentReference: "payment_1",
-      refundedAmount: 0,
+      payment: {
+        amountTotal: 100,
+        paymentReference: "payment_1",
+        refundedAmount: 0,
+      },
+      status: "found",
     });
   });
 
   for (const [name, invalid] of [
     ["different payment id", payment({ id: "payment_2" })],
-    ["non-completed status", payment({ status: "PENDING" })],
     ["different order", payment({ orderId: "order_2" })],
     ["missing amount", payment({ amountMoney: { currency: "USD" } })],
     ["missing currency", payment({ amountMoney: { amount: BigInt(100) } })],
@@ -174,7 +185,49 @@ describe("Square completed payments", () => {
     ],
   ] as const) {
     test(`rejects a completed payment with ${name}`, async () => {
-      await expect(completed(invalid)).resolves.toBeNull();
+      await expect(completed(invalid)).resolves.toEqual({
+        status: "invalid_payment",
+      });
     });
   }
+
+  test("reports no completed payment when no tenders exist", async () => {
+    await expect(
+      completed(null, order({ tenders: [{ paymentId: "payment_1" }] })),
+    ).resolves.toEqual({ status: "no_completed_payment" });
+  });
+
+  test("reports no completed payment when the only tender is pending", async () => {
+    await expect(completed(payment({ status: "PENDING" }))).resolves.toEqual({
+      status: "no_completed_payment",
+    });
+  });
+
+  test("reports an invalid payment before falling back to a valid one", async () => {
+    // A pending tender followed by a valid completed one — the valid
+    // one is found after skipping the pending one, so the result is
+    // "found", not "invalid_payment" or "no_completed_payment".
+    const orderWithTwo = order({
+      tenders: [{ paymentId: "payment_a" }, { paymentId: "payment_b" }],
+    });
+    const retrievePayment = (id: string) =>
+      Promise.resolve(
+        id === "payment_a"
+          ? payment({ id: "payment_a", status: "PENDING" })
+          : payment({
+              amountMoney: { amount: BigInt(100), currency: "USD" },
+              id: "payment_b",
+            }),
+      );
+    await expect(
+      findCompletedSquarePayment(retrievePayment)(orderWithTwo),
+    ).resolves.toEqual({
+      payment: {
+        amountTotal: 100,
+        paymentReference: "payment_b",
+        refundedAmount: 0,
+      },
+      status: "found",
+    });
+  });
 });

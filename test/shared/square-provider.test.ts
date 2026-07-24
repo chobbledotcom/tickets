@@ -430,7 +430,9 @@ describe("square-provider", () => {
           ),
           payment: stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
+              amountMoney: { amount: BigInt(1000), currency: "USD" },
               id: "pay_nested_123",
+              orderId: "order_nested_456",
               status: "COMPLETED",
             }),
           ),

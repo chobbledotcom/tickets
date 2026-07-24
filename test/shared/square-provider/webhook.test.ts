@@ -10,6 +10,7 @@ import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { SQUARE_ORDER_META, squareMoney } from "#test/lib/square/fixtures.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
+import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 const paymentEvent = (orderId: string, paymentId: string): WebhookEvent => ({
@@ -41,6 +42,8 @@ const completedPayment = (orderId: string, paymentId: string) => ({
 });
 
 describe("Square webhook session resolution", () => {
+  const errors = setupErrorSpy();
+
   beforeEach(createTestDb);
   afterEach(resetDb);
 
@@ -109,11 +112,6 @@ describe("Square webhook session resolution", () => {
       { ...completedPayment("order_invalid", "pay_other"), id: "pay_wrong" },
     ],
     [
-      "non-completed status",
-      "pay_status",
-      { ...completedPayment("order_invalid", "pay_status"), status: "PENDING" },
-    ],
-    [
       "different order",
       "pay_order",
       { ...completedPayment("order_other", "pay_order") },
@@ -144,7 +142,7 @@ describe("Square webhook session resolution", () => {
       },
     ],
   ] as const) {
-    test(`returns retry for a Square payment with ${name}`, async () => {
+    test(`skips a Square payment with ${name} (permanent failure)`, async () => {
       await withMocks(
         () => ({
           order: stub(squareApi, "retrieveOrder", () =>
@@ -159,11 +157,37 @@ describe("Square webhook session resolution", () => {
             await squarePaymentProvider.resolveWebhookSession(
               paymentEvent("order_invalid", paymentId),
             ),
-          ).toBe("retry");
+          ).toBe("skip");
+          expect(errors.lastMessage()).toContain(
+            "Square order order_invalid has a completed payment that failed validation",
+          );
         },
       );
     });
   }
+
+  test("retries when the Square payment has non-completed status (transient)", async () => {
+    await withMocks(
+      () => ({
+        order: stub(squareApi, "retrieveOrder", () =>
+          Promise.resolve(order("order_invalid", "pay_status")),
+        ),
+        payment: stub(squareApi, "retrievePayment", () =>
+          Promise.resolve({
+            ...completedPayment("order_invalid", "pay_status"),
+            status: "PENDING",
+          }),
+        ),
+      }),
+      async () => {
+        expect(
+          await squarePaymentProvider.resolveWebhookSession(
+            paymentEvent("order_invalid", "pay_status"),
+          ),
+        ).toBe("retry");
+      },
+    );
+  });
 
   /** Stub order + payment for a refunded payment and run assertions. */
   const withRefundedPayment = (
@@ -185,16 +209,16 @@ describe("Square webhook session resolution", () => {
       body,
     );
 
-  test("processes a partially refunded Square payment as paid", async () => {
+  test("skips a partially refunded Square payment for operator resolution", async () => {
     await withRefundedPayment(1, async () => {
-      const result = await squarePaymentProvider.resolveWebhookSession(
-        paymentEvent("order_refunded", "pay_refunded"),
+      expect(
+        await squarePaymentProvider.resolveWebhookSession(
+          paymentEvent("order_refunded", "pay_refunded"),
+        ),
+      ).toBe("skip");
+      expect(errors.lastMessage()).toContain(
+        "Square order order_refunded has a partial refund (1 of 1000)",
       );
-      expect(result).not.toBe("skip");
-      expect(result).toMatchObject({
-        paymentReference: "pay_refunded",
-        paymentStatus: "paid",
-      });
     });
   });
 
@@ -229,6 +253,53 @@ describe("Square webhook session resolution", () => {
             paymentEvent("order_terminal", "pay_terminal"),
           ),
         ).toMatchObject({ paymentReference: "pay_terminal" });
+      },
+    );
+  });
+
+  test("returns null when the webhook event is not a payment event and has no ids", async () => {
+    expect(
+      await squarePaymentProvider.resolveWebhookSession({
+        data: { object: { something: "unrelated" } },
+        id: "evt_not_payment",
+        type: "order.updated",
+      }),
+    ).toBeNull();
+  });
+
+  test("throws when a payment webhook event has no payment id", async () => {
+    await expect(
+      squarePaymentProvider.resolveWebhookSession({
+        data: { object: { payment: { order_id: "order_noid" } } },
+        id: "evt_noid",
+        type: "payment.updated",
+      }),
+    ).rejects.toThrow("Square payment webhook is missing id");
+  });
+
+  test("reads ids from the top-level object when no nested payment exists", async () => {
+    await withMocks(
+      () => ({
+        order: stub(squareApi, "retrieveOrder", () =>
+          Promise.resolve(order("order_flat", "pay_flat")),
+        ),
+        payment: stub(squareApi, "retrievePayment", () =>
+          Promise.resolve(completedPayment("order_flat", "pay_flat")),
+        ),
+      }),
+      async () => {
+        const result = await squarePaymentProvider.resolveWebhookSession({
+          data: {
+            object: {
+              id: "pay_flat",
+              order_id: "order_flat",
+              status: "COMPLETED",
+            },
+          },
+          id: "evt_flat",
+          type: "payment.updated",
+        });
+        expect(result).toMatchObject({ paymentReference: "pay_flat" });
       },
     );
   });

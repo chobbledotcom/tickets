@@ -98,12 +98,19 @@ export const stripePaymentProvider: PaymentProvider = {
     const session = v.parse(StripeCheckoutSessionSchema, obj);
     if (session.payment_status === "paid" && !session.payment_intent) {
       // The webhook snapshot may lag behind the current session state —
-      // fetch it now before deciding the payment cannot be processed.
-      // toValidatedSession (inside retrieveSession) logs the error if the
-      // fetched session also lacks a payment intent.
-      const fetched = await this.retrieveSession(id);
-      if (fetched?.paymentReference) return fetched;
-      return "retry";
+      // fetch the live session and try again. A session that now has a
+      // payment intent is processed. A session whose payment intent is
+      // still missing is retried (Stripe may not have attached it yet).
+      // A session with invalid metadata or amount is a permanent failure
+      // and is acknowledged so the webhook does not retry forever.
+      const fetched = await stripeApi.retrieveCheckoutSession(id);
+      if (!fetched) return "retry";
+      const validated = toValidatedSession(fetched);
+      if (validated) return validated;
+      return hasRequiredSessionMetadata(fetched.metadata) &&
+        fetched.amount_total !== null
+        ? "retry"
+        : null;
     }
     const validated = toValidatedSession(session);
     return validated === null ? await this.retrieveSession(id) : validated;

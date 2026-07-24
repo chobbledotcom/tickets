@@ -12,7 +12,7 @@
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
 
-import { logDebug } from "#shared/logger.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   hasRequiredSessionMetadata,
   toCanonicalIso,
@@ -76,23 +76,28 @@ const paidSquareSession = (
 
 type SquareSessionPayment =
   | { status: "missing" }
+  | { status: "invalid" }
   | { status: "paid"; payment: CompletedSquarePayment }
-  | { status: "refunded" };
+  | { status: "refunded" }
+  | { status: "partial_refund"; payment: CompletedSquarePayment };
 
 /** A full refund changes provider state only until local state records the
- * outcome. A partial refund still leaves the customer charged, so it must be
- * processed as paid (the correct amount is collected and the booking is
- * honoured). */
+ * outcome. A partial refund on a session with no local outcome is a conflict
+ * the system cannot auto-resolve — the operator may have partially refunded
+ * for a reason that affects the booking, so it must be investigated. */
 const squareSessionPayment = async (
   order: SquareOrder & { id: string },
 ): Promise<SquareSessionPayment> => {
-  const payment = await findCompletedSquarePayment(retrievePayment)(order);
-  if (payment === null) return { status: "missing" };
-  if (
-    payment.refundedAmount >= payment.amountTotal &&
-    !(await hasTerminalPaymentOutcome(order.id))
-  ) {
+  const result = await findCompletedSquarePayment(retrievePayment)(order);
+  if (result.status === "no_completed_payment") return { status: "missing" };
+  if (result.status === "invalid_payment") return { status: "invalid" };
+  const payment = result.payment;
+  const isTerminal = await hasTerminalPaymentOutcome(order.id);
+  if (payment.refundedAmount >= payment.amountTotal && !isTerminal) {
     return { status: "refunded" };
+  }
+  if (payment.refundedAmount > 0 && !isTerminal) {
+    return { payment, status: "partial_refund" };
   }
   return { payment, status: "paid" };
 };
@@ -195,7 +200,21 @@ export const squarePaymentProvider: PaymentProvider = {
       tenders: [{ paymentId }],
     });
     if (resolved.status === "missing") return "retry";
+    if (resolved.status === "invalid") {
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `Square order ${completeOrder.id} has a completed payment that failed validation — operator must resolve`,
+      });
+      return "skip";
+    }
     if (resolved.status === "refunded") return "skip";
+    if (resolved.status === "partial_refund") {
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `Square order ${completeOrder.id} has a partial refund (${resolved.payment.refundedAmount} of ${resolved.payment.amountTotal}) with no local outcome — operator must resolve`,
+      });
+      return "skip";
+    }
     return paidSquareSession(completeOrder, resolved.payment);
   },
 

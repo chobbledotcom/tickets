@@ -15,7 +15,6 @@ import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
   expectWebhookIgnored,
-  postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
 
 // jscpd:ignore-end
@@ -34,6 +33,28 @@ describeWithEnv(
       });
       await deactivateTestListing(listing.id);
 
+      // Stub retrieveCheckoutSession to return the session with valid metadata
+      // and amount but still no payment_intent — this is the transient state
+      // where Stripe has not yet attached the intent to the session.
+      const retrieveStub = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 500,
+          id: "cs_noref",
+          metadata: signedMeta(
+            {
+              email: "noref@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "No Ref",
+            },
+            500,
+          ),
+          payment_intent: null,
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
           amountTotal: 500,
@@ -50,15 +71,16 @@ describeWithEnv(
         }),
       );
 
-      await postWebhookAndAssert(
-        () => {
-          mockVerify.restore();
-        },
-        503,
-        (json) => {
-          expect(json).toEqual({ status: "retry" });
-        },
-      );
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(503);
+        expect(await response.json()).toEqual({ status: "retry" });
+      } finally {
+        mockVerify.restore();
+        retrieveStub.restore();
+      }
     });
 
     test("tryRefund logs error when no payment provider is configured", async () => {

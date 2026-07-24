@@ -929,3 +929,5 @@ src/features/api/webhooks.ts:307:4  ?? → ||   # find(Boolean) returns a truthy
 src/features/api/webhooks.ts:337:55  ?? → ||   # getWebhookSignatureHeader returns string|null; the only falsy string "" equals the "" fallback
 src/features/api/webhooks.ts:223:49  ?? → ||   # request.headers.get("referer") returns string|null; the only falsy string "" equals the "none" fallback
 src/features/api/webhooks.ts:169:16  = → +=   # the if guard (!thankYouUrl on line 168) guarantees thankYouUrl is "" when this line runs, so "" + url equals url
+src/shared/square-payments.ts:56:31  || → &&   # the two conditions (amount not bigint, currency falsy) are never both true in any test path; when only one is true the rest of the OR-chain catches it, and when both are false the result is the same
+src/shared/square-payments.ts:60:23  || → &&   # amount < 0 and amount > MAX_SAFE_INTEGER are mutually exclusive — a number cannot be both negative and above the safe limit — so || and && agree

@@ -378,5 +378,129 @@ describeStripe("stripe-provider", () => {
       });
       expect(result).toBeNull();
     });
+
+    test("processes a webhook session whose snapshot lacked payment intent but fetched session has one", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve(
+              stripeCheckoutSession({
+                id: "cs_lag_pi",
+                metadata: {
+                  email: "bob@example.com",
+                  items: '[{"e":1,"q":1,"p":0}]',
+                  name: "Bob",
+                },
+                payment_intent: "pi_fetched",
+              }),
+            ),
+          ),
+        async () => {
+          const result = await stripePaymentProvider.resolveWebhookSession(
+            checkoutSessionEvent({
+              amountTotal: 1000,
+              eventId: "evt_lag_pi",
+              metadata: {
+                email: "bob@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Bob",
+              },
+              sessionId: "cs_lag_pi",
+            }),
+          );
+          expect(result).not.toBe("retry");
+          expect(result).not.toBe("skip");
+          expect(result).not.toBeNull();
+          if (result && result !== "retry" && result !== "skip") {
+            expect(result.paymentReference).toBe("pi_fetched");
+            expect(result.paymentStatus).toBe("paid");
+          }
+        },
+      );
+    });
+
+    test("retries when the fetched session still has no payment intent", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve(
+              stripeCheckoutSession({
+                id: "cs_no_pi",
+                metadata: {
+                  email: "carol@example.com",
+                  items: '[{"e":1,"q":1,"p":0}]',
+                  name: "Carol",
+                },
+                payment_intent: null,
+              }),
+            ),
+          ),
+        async () => {
+          const result = await stripePaymentProvider.resolveWebhookSession(
+            checkoutSessionEvent({
+              amountTotal: 1000,
+              eventId: "evt_no_pi",
+              metadata: {
+                email: "carol@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Carol",
+              },
+              sessionId: "cs_no_pi",
+            }),
+          );
+          expect(result).toBe("retry");
+        },
+      );
+    });
+
+    test("acknowledges when the fetched session has invalid metadata", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve(
+              stripeCheckoutSession({
+                id: "cs_bad_meta",
+                metadata: {},
+                payment_intent: null,
+              }),
+            ),
+          ),
+        async () => {
+          const result = await stripePaymentProvider.resolveWebhookSession(
+            checkoutSessionEvent({
+              amountTotal: 1000,
+              eventId: "evt_bad_meta",
+              metadata: {},
+              sessionId: "cs_bad_meta",
+            }),
+          );
+          expect(result).toBeNull();
+        },
+      );
+    });
+
+    test("retries when the fetched session is null", async () => {
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve(null),
+          ),
+        async () => {
+          const result = await stripePaymentProvider.resolveWebhookSession(
+            checkoutSessionEvent({
+              amountTotal: 1000,
+              eventId: "evt_null_fetch",
+              metadata: {
+                email: "dave@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Dave",
+              },
+              sessionId: "cs_null_fetch",
+            }),
+          );
+          expect(result).toBe("retry");
+        },
+      );
+    });
   });
 });

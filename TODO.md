@@ -1551,3 +1551,36 @@ beyond the provider's retry threshold, not on every transient retry.
 Starting point: read `logError` calls in `src/shared/stripe-provider.ts`
 (hasPaymentReference) and `src/shared/sumup-provider.ts` (same helper), and
 the `"retry"` return paths in each provider's `resolveWebhookSession`.
+
+## Mutation survivors in webhookResultResponse (webhooks.ts)
+
+*Origin: PR #1905 (authoritative payment callback resolution). Pre-existing
+survivors surfaced because the file was touched (removed a test-only export).
+Recorded here because killing them requires deep integration tests outside the
+PR's scope.*
+
+Five mutants in `src/features/api/webhooks.ts` `webhookResultResponse`
+(lines 292–298) survive the mutation gate:
+
+- `result.status === 409 && result.refunded === undefined` — the `&&`/`||` and
+  `409 → 0` mutants. A 409 test was added (reserve a session, then process via
+  webhook) that kills the `409 → 0` on the return path, but the `&&`/`||`
+  mutant on the condition itself survives because no test reaches it with
+  `refunded` defined.
+- `plainResponse(result.error, 503)` for `result.refunded === false` — the
+  `503 → 0` mutant. This path is only reachable from `refundAndFail`
+  (`src/features/api/payment-processing/refunds.ts:107`) when `tryRefund`
+  returns `false` after a validation failure (not the `storeRefundedBooking`
+  path, which never reports `refunded: false`). Triggering it requires a
+  listing with a validation failure (inactive/closed/price-changed) AND a
+  failed refund.
+- `webhookAckResponse({ error, processed: false })` — the `false → true`
+  mutant on the `processed: false` field of the general-ack return path.
+
+Starting point: write an integration test that creates an inactive listing,
+stubs `refundPayment` + `isPaymentRefunded` to return false, sends a webhook
+for a paid session on that listing, and asserts the response status is 503
+(killing the 503 mutant) and that a separate test asserts `processed: false`
+in the ack body (killing the `false → true` mutant). The 409 `&&`/`||` mutant
+needs a test where `result.status === 409` AND `result.refunded` is defined
+(not undefined), which the reservation-conflict path does not produce.
