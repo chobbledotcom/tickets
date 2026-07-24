@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_IMAGE_SIZE } from "#shared/limits.ts";
 import {
@@ -184,7 +185,6 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           "mgr-header-session",
           "headerimgmgr",
         );
-        const { signCsrfToken } = await import("#shared/csrf.ts");
         const signedCsrf = await signCsrfToken();
         const response = await submitHeaderJpeg(
           "logo.jpg",

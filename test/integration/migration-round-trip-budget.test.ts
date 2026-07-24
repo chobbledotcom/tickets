@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, inPlaceholders } from "#shared/db/client.ts";
+import { MigrationInProgressError } from "#shared/db/migrations/errors.ts";
 import {
   DB_SCHEMA_HASH_KEY,
   LATEST_DB_UPDATE_KEY,
@@ -12,7 +13,6 @@ import {
   LATEST_UPDATE,
   loadMigrations,
   type Migration,
-  MigrationInProgressError,
 } from "#shared/db/migrations.ts";
 import { runWithQueryLogContext } from "#shared/db/query-log.ts";
 import { restoreSchemaBeforeMigrations } from "#test/lib/db/migration-restore/helpers.ts";

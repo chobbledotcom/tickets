@@ -13,8 +13,8 @@ import {
   runWithFlashContext,
   setFlashContext,
 } from "#shared/flash-context.ts";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { getImageProxyUrl } from "#shared/storage.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";

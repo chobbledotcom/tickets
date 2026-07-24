@@ -2,7 +2,6 @@
 import { once } from "#fp";
 import { withMessageGroups } from "#i18n";
 import { SETUP_MESSAGE_GROUPS } from "#locales/groups.ts";
-import { SessionKeyError } from "#routes/auth.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -33,10 +32,9 @@ import {
 } from "#shared/cookies.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
-  initDb,
   MigrationInProgressError,
   MissingSettingsTableError,
-} from "#shared/db/migrations.ts";
+} from "#shared/db/migrations/errors.ts";
 import { enableQueryLog } from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import { assertSettingsReadsDeclared } from "#shared/db/settings-audit.ts";
@@ -56,6 +54,7 @@ import {
   logRequest,
 } from "#shared/logger.ts";
 import { reportMaintenanceFailure } from "#shared/maintenance/report.ts";
+import { SessionKeyError } from "#shared/session-private-key.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
 import { defineAppRoute, routeMainApp } from "./routes.ts";
 import {
@@ -104,6 +103,7 @@ const initializeDatabaseForPath = async (
   path: string,
 ): Promise<Response | null> => {
   try {
+    const { initDb } = await import("#shared/db/migrations.ts");
     await initDb({ allowMissingSettings: isSetupPath(path) });
     return null;
   } catch (error) {

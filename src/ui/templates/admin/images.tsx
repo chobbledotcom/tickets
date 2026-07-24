@@ -9,9 +9,10 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { Field } from "#shared/forms/field.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { getImageProxyUrl, isStorageEnabled } from "#shared/storage.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import {
   type AdminSession,
   type Image,
