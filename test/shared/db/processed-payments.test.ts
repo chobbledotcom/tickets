@@ -1,22 +1,31 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#shared/crypto/sealed.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
+  clearSessionTokens,
   decryptSessionTokens,
+  encryptTicketTokens,
   finalizeSessionIfUnresolved,
   isSessionProcessed,
+  isUnresolvedReservation,
   markSessionFailed,
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
+  type StoredPaymentFailure,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { finalizeReservedPayment } from "#test-utils/processed-payments.ts";
+import {
+  expectProcessedPaymentReference,
+  finalizeReservedPayment,
+} from "#test-utils/processed-payments.ts";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
   describe("reserveSession", () => {
@@ -182,6 +191,14 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       });
     });
 
+    test("markSessionFailed throws a labelled error for an invalid failure", async () => {
+      await expect(
+        markSessionFailed("sess_invalid", {
+          error: 42 as unknown as string,
+        } as StoredPaymentFailure),
+      ).rejects.toThrow("processed_payments.failure_data");
+    });
+
     test("re-throws non-unique-constraint errors", async () => {
       await getDb().execute("DROP TABLE processed_payments");
 
@@ -209,6 +226,52 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
   });
 
+  test("distinguishes unresolved rows from both terminal outcomes", () => {
+    const base = {
+      failure_data: "" as const,
+      payment_reference: "" as const,
+      payment_session_id: "state-shape",
+      processed_at: "2026-07-18T00:00:00.000Z",
+      provider_refunded_at: "",
+      ticket_tokens: "" as const,
+    };
+    expect(isUnresolvedReservation({ ...base, attendee_id: null })).toBe(true);
+    expect(isUnresolvedReservation({ ...base, attendee_id: 1 })).toBe(false);
+    expect(
+      isUnresolvedReservation({
+        ...base,
+        attendee_id: null,
+        failure_data: "encrypted" as EnvKeyEncrypted,
+      }),
+    ).toBe(false);
+  });
+
+  test("rethrows the original non-constraint error", async () => {
+    const sentinel = new Error("write transport failed");
+    const client = getDb();
+    const original = client.execute.bind(client);
+    let first = true;
+    using executeStub = stub(client, "execute", (...args) => {
+      if (first) {
+        first = false;
+        return Promise.reject(sentinel);
+      }
+      return original(...args);
+    });
+    await expect(reserveSession("non-constraint")).rejects.toBe(sentinel);
+    expect(executeStub.calls).toHaveLength(1);
+  });
+
+  test("encrypts multiple ticket tokens with their separator", async () => {
+    expect(
+      await decryptSessionTokens(await encryptTicketTokens(["one", "two"])),
+    ).toBe("one+two");
+  });
+
+  test("returns an exact empty token value without decrypting", async () => {
+    expect(await decryptSessionTokens("")).toBe("");
+  });
+
   describe("finalizeSessionIfUnresolved", () => {
     test("stamps attendee_id on an unresolved reservation, leaving tokens untouched", async () => {
       await reserveSession("sess_heal");
@@ -219,6 +282,18 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(row.attendee_id).toBe(42);
       // The ledger-replay heal never writes ticket_tokens.
       expect(row.ticket_tokens).toBe("");
+      expect(row.payment_reference).toBe("");
+    });
+
+    test("stores a supplied payment reference while healing", async () => {
+      await reserveSession("sess_heal_reference");
+      await finalizeSessionIfUnresolved("sess_heal_reference", 42, "pi_healed");
+      await expectProcessedPaymentReference(
+        42,
+        "sess_heal_reference",
+        "pi_healed",
+        await getTestPrivateKey(),
+      );
     });
 
     test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {
@@ -238,6 +313,15 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("is a no-op if the session was pruned", async () => {
       await finalizeSessionIfUnresolved("sess_gone", 1);
+    });
+
+    test("clears stored ticket tokens", async () => {
+      await reserveSession("sess_clear_tokens");
+      await finalizeReservedPayment("sess_clear_tokens", 7, "secret-token");
+      await clearSessionTokens("sess_clear_tokens");
+      expect(
+        (await isSessionProcessed("sess_clear_tokens"))!.ticket_tokens,
+      ).toBe("");
     });
   });
 });
