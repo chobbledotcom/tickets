@@ -48,6 +48,18 @@ describe("Square completed payments", () => {
     expect(squareTenderPaymentIds(order({ tenders: undefined }))).toEqual([]);
   });
 
+  test("skips tenders without a paymentId", () => {
+    const tenders = [
+      { paymentId: "payment_a" },
+      { paymentId: "" },
+      { paymentId: "payment_c" },
+    ];
+    expect(squareTenderPaymentIds(order({ tenders }))).toEqual([
+      "payment_c",
+      "payment_a",
+    ]);
+  });
+
   test("accepts a zero-value completed payment", async () => {
     await expect(
       completed(

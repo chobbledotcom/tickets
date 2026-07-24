@@ -915,3 +915,16 @@ src/features/api/folded-booking.ts:118:31  ?? → ||   # qtyByChild accumulates 
 src/features/api/folded-booking.ts:176:53  1 → 0   # the thankYouUrl guard checks fold.listings.length > 1 only when parentThankYouUrl is truthy (parent flow), which always folds parent + >= 1 child (length >= 2); package callers pass no parentThankYouUrl, so the && short-circuits and the check never runs
 src/features/api/folded-booking.ts:301:70  0 → 1   # feeSubtotal flows into priceCheckout → owedOrderForLedger, which drops all extras and sets total to 0; bookingFactsFromOrder reads extras (empty) → bookingFee: 0 regardless. The feeSubtotal value never reaches any observable output.
 src/features/api/folded-booking.ts:381:17  1 → 0   # base.dayCount is read only by parentResolvedDuration → childDaysFromParent(parent, dayCount, 1), which uses its first argument (dayCount) only in the parent.customisable_days branch; processParentApiBooking rejects customisable parents at line 335 before reaching the fold, so that branch is unreachable. For daily parents the function returns clampDurationDays(parent.duration_days), and for standard parents it returns 1 (the standardValue) — neither reads dayCount, so 1 and 0 produce the same duration and thus the same fold output for every reachable input.
+
+# Webhook handler: ?? and || agree where the left operand's only falsy value
+# equals the fallback, or the left operand is always truthy when present.
+src/features/api/webhooks.ts:109:39  ?? → ||   # listing?.thank_you_url.trim() is string|undefined; the only falsy string "" equals the "" fallback
+src/features/api/webhooks.ts:124:62  ?? → ||   # intent.thankYouUrl is string|undefined; the only falsy string "" equals the "" fallback
+src/features/api/webhooks.ts:135:42  ?? → ||   # result.detail is string|undefined; no code path produces detail:"" so ?? and || agree for every actual value
+src/features/api/webhooks.ts:147:38  + → ""   # ticketTokens always has exactly one element (index.ts:291 passes [firstAttendee.ticket_token]), so join("+") and join("") produce the same single token
+src/features/api/webhooks.ts:158:34  + → ""   # same single-element ticketTokens array; join("+") and join("") agree
+src/features/api/webhooks.ts:288:26  ?? → ||   # result.detail is string|undefined; no code path produces detail:"" (see line 135)
+src/features/api/webhooks.ts:307:4  ?? → ||   # find(Boolean) returns a truthy string or undefined; both ?? null and || null map undefined→null and pass truthy through
+src/features/api/webhooks.ts:337:55  ?? → ||   # getWebhookSignatureHeader returns string|null; the only falsy string "" equals the "" fallback
+src/features/api/webhooks.ts:223:49  ?? → ||   # request.headers.get("referer") returns string|null; the only falsy string "" equals the "none" fallback
+src/features/api/webhooks.ts:169:16  = → +=   # the if guard (!thankYouUrl on line 168) guarantees thankYouUrl is "" when this line runs, so "" + url equals url
