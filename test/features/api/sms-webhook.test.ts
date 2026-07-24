@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import {
   findAttendeeIdByPhoneIndex,
@@ -194,11 +195,17 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
 
   test("timestamp at the future tolerance boundary succeeds", async () => {
     await configure();
-    const res = await postWebhook(
-      { event: "sms:sent", payload: {} },
-      { timestamp: currentTimestamp(300) },
-    );
-    expect(res.status).toBe(200);
+    const clock = new FakeTime(Date.now());
+    try {
+      const ts = String(Math.floor(Date.now() / 1000) + 300);
+      const res = await postWebhook(
+        { event: "sms:sent", payload: {} },
+        { timestamp: ts },
+      );
+      expect(res.status).toBe(200);
+    } finally {
+      clock.restore();
+    }
   });
 
   test("missing timestamp fails", async () => {
