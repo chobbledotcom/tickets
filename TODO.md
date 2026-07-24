@@ -1383,6 +1383,16 @@ existing refund id. A PENDING Square refund is documented as a normal accepted
 `RefundPayment` response, so collapsing it into `false` loses the "accepted,
 not yet settled" signal.
 
+Update: PR #1912 (stable Stripe and Square refund idempotency keys) has since
+landed on `main`; the Square refund idempotency key is now the stable
+`refundIdempotencyKey("square", paymentId)` rather than a fresh
+`crypto.randomUUID()`, so a redelivery re-posts with the SAME key and Square
+dedupes it — the double-pay half of the risk above is now mitigated. The
+PENDING-still-returns-false behaviour itself (a retryable re-attempt that waits
+on `isPaymentRefunded` rather than holding the refund id) remains, so the
+pending-result union below is still the real fix; the stale-key concern is
+resolved.
+
 The fix is the staged-checkout pending-result union / callback resolution this
 PR was explicitly told not to introduce: surface a pending outcome (carrying
 the refund id) separately from a plain false, and have the webhook/admin refund
