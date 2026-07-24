@@ -407,6 +407,12 @@ describeSquare(() => {
       ).toBe(true);
     });
 
+    test("returns true for an APPROVED refund status", async () => {
+      expect(
+        await refundOutcomeFor({ id: "ref_approved", status: "APPROVED" }),
+      ).toBe(true);
+    });
+
     test("returns false for a PENDING refund status", async () => {
       expect(
         await refundOutcomeFor({ id: "ref_pending", status: "PENDING" }),
@@ -456,8 +462,9 @@ describeSquare(() => {
           try {
             const result = await squareApi.refundPayment("pay_malformed");
             expect(result).toBe(false);
-            // The malformed response throws inside withClient, which logs it
-            // under E_SQUARE_REFUND instead of silently returning false.
+            // The malformed response is logged at this boundary under
+            // E_SQUARE_REFUND, and refundPayment returns false (it never
+            // reports a refund it could not confirm).
             expect(errorSpy.calls).toHaveLength(1);
             expect(errorSpy.calls[0]!.args[0]).toBe(
               '[Error] E_SQUARE_REFUND detail="Square refund for payment pay_malformed is missing its refund object, id, or status"',

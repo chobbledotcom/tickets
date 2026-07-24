@@ -1400,6 +1400,33 @@ back to `isPaymentRefunded`, which a still-pending refund also fails).
 
 ---
 
+## Validate Square REST responses with a Valibot schema at the boundary
+
+*Origin: CodeRabbit review of PR #1911 (confirmed Square refund outcomes),
+inline on `SquareRefundResponse` (`src/shared/square.ts`). Deferred as out of
+scope for this PR; recorded for a future pass.*
+
+The Square REST client maps every response with a type cast (`post<T>` /
+`get<T>` for orders, payments, and refunds), so malformed JSON — a refund object
+whose `id`/`status` are the wrong type, or an unexpected shape — is never
+rejected at the boundary; it only reaches the truthy `id`/`status` check (which
+logs and returns `false` for a missing field, and returns `false` for any
+non-confirmed status). The refund path is safe today (a malformed refund lands as
+`false`, never as a false success), but AGENTS.md's boundary rule is to validate
+structured external data with a valibot schema and pass typed values inward.
+
+Doing it for refunds alone would be inconsistent (orders.get and payments.get use
+the same cast pattern), so the real fix is a shared `v.object` schema per Square
+response shape, parsed in `squareFetch` (or each client method) before mapping —
+applied to **all three** surfaces (orders, payments, refunds) in one pass, with
+the malformed-shape branch becoming a thrown `v.ValiError`-derived error rather
+than a per-method `if (!field)` check. Starting point: `squareFetch` and the
+`SquareOrderResponse` / `SquarePaymentResponse` / `SquareRefundResponse` types in
+`src/shared/square.ts`; mirror the boundary-validation shape in
+`src/features/api/sms-webhook.ts`.
+
+---
+
 ## Split oversized test files moved by PR #1903
 
 *Origin: Codex review of PR #1903 ("Load heavy modules only when needed").

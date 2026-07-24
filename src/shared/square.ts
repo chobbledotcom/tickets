@@ -564,11 +564,16 @@ const buildCheckoutOptions = (
 /** Type for the Square API client returned by createSquareClient */
 export type SquareClient = ReturnType<typeof createSquareClient>;
 
-/** Square refund statuses that mean the money has actually been returned to the
- * buyer. A refund moves through PENDING before it settles; only COMPLETED (and
- * the SUCCEEDED alias some flows emit) is authoritative, so any other status is
+/** Square refund statuses that mean the money has been returned to the buyer.
+ * A refund moves through PENDING before it settles; COMPLETED, APPROVED, and
+ * the SUCCEEDED alias are the authoritative success states (APPROVED is the
+ * current Square RefundStatus for an approved refund), so any other status is
  * treated as not-yet-confirmed. */
-const CONFIRMED_REFUND_STATUSES: readonly string[] = ["COMPLETED", "SUCCEEDED"];
+const CONFIRMED_REFUND_STATUSES: readonly string[] = [
+  "APPROVED",
+  "COMPLETED",
+  "SUCCEEDED",
+];
 
 /**
  * Stubbable API for testing - allows mocking in ES modules
