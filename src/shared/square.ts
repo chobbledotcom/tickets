@@ -237,14 +237,14 @@ type SquarePaymentResponse = {
 /**
  * Valibot boundary schema for the Square PaymentRefund object returned by
  * POST /v2/refunds. Square documents `id` as a required string with Min Length
- * 1, and `status` as a string (PENDING / COMPLETED / REJECTED / FAILED).
- * Parsing with this schema at the boundary rejects malformed responses — a
- * missing refund object, empty id, or non-string field type — with a thrown
- * ValiError instead of silently passing them through a type cast.
+ * 1, and `status` as one of PENDING, COMPLETED, REJECTED, FAILED. Parsing with
+ * this schema at the boundary rejects malformed responses — a missing refund
+ * object, empty id, non-string field type, or an undocumented status — with a
+ * thrown ValiError instead of silently passing them through a type cast.
  */
 const SquareRefundSchema = v.object({
   id: v.pipe(v.string(), v.minLength(1)),
-  status: v.pipe(v.string(), v.minLength(1)),
+  status: v.picklist(["PENDING", "COMPLETED", "REJECTED", "FAILED"]),
 });
 
 /** Response schema for POST /v2/refunds — the `refund` object is required. */

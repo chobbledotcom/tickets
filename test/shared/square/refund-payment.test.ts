@@ -178,25 +178,24 @@ describeSquare(() => {
       ).toBe(false);
     });
 
-    test("returns false for an APPROVED status (not a PaymentRefund status)", async () => {
+    test("throws for an APPROVED status (not a PaymentRefund status)", async () => {
       // APPROVED is in Square's RefundStatus ENUM but NOT the PaymentRefund
-      // object's documented status field (PENDING/COMPLETED/REJECTED/FAILED).
-      // /v2/refunds returns a PaymentRefund, so APPROVED is contract drift.
-      expect(
-        await refundOutcomeFor({ id: "ref_approved", status: "APPROVED" }),
-      ).toBe(false);
+      // object's status field. The picklist rejects undocumented statuses.
+      await expectMalformedThrows({
+        refund: { id: "ref_approved", status: "APPROVED" },
+      });
     });
 
-    test("returns false for a SUCCEEDED status (not a Square refund status)", async () => {
-      expect(
-        await refundOutcomeFor({ id: "ref_succeeded", status: "SUCCEEDED" }),
-      ).toBe(false);
+    test("throws for a SUCCEEDED status (not a Square refund status)", async () => {
+      await expectMalformedThrows({
+        refund: { id: "ref_succeeded", status: "SUCCEEDED" },
+      });
     });
 
-    test("returns false for an unknown refund status", async () => {
-      expect(await refundOutcomeFor({ id: "ref_unknown", status: "WAT" })).toBe(
-        false,
-      );
+    test("throws for an unknown refund status", async () => {
+      await expectMalformedThrows({
+        refund: { id: "ref_unknown", status: "WAT" },
+      });
     });
 
     test("accepts a 1-character id (minLength boundary)", async () => {
@@ -205,12 +204,6 @@ describeSquare(() => {
       expect(await refundOutcomeFor({ id: "r", status: "PENDING" })).toBe(
         false,
       );
-    });
-
-    test("accepts a 1-character status (minLength boundary)", async () => {
-      // A 1-char status is not a real Square status, but the schema should
-      // accept it (and return false, not throw). Catches minLength(1)→minLength(2).
-      expect(await refundOutcomeFor({ id: "ref_w", status: "W" })).toBe(false);
     });
 
     /** Runs refundPayment with a malformed Square refund response, expecting
@@ -256,11 +249,6 @@ describeSquare(() => {
 
     test("throws when the refund id is a non-string type", async () => {
       await expectMalformedThrows({ refund: { id: 123, status: "COMPLETED" } });
-    });
-
-    test("throws when the refund status is an empty string", async () => {
-      // Catches minLength(1)→minLength(0) on the status field.
-      await expectMalformedThrows({ refund: { id: "ref", status: "" } });
     });
   });
 });

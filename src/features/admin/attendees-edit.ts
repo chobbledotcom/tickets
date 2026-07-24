@@ -14,6 +14,10 @@ import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 /* jscpd:ignore-start */
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+/* jscpd:ignore-end */
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { KIND } from "#shared/accounting/kinds.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
@@ -23,7 +27,6 @@ import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
-/* jscpd:ignore-end */
 import { createSystemNote } from "#shared/db/system-notes.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
@@ -121,13 +124,14 @@ const recordConfirmedRefund = async (
       t("error.refund_not_recorded"),
     );
   }
-  // Only add the resolving note for a quantity-0 placeholder — a normal
-  // attendee never had the "could NOT be refunded... refund manually" warning.
-  const hasNonZeroBooking = await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 LIMIT 1",
-    [attendeeId],
-  );
-  if (!hasNonZeroBooking) {
+  // Only add the resolving note for a placeholder — one whose ledger has NO
+  // sale legs (only payment legs, the signature of a storeRefundedBooking
+  // placeholder). A normal attendee (or one that gained a real booking after
+  // the placeholder was created) has sale legs, so the note is not created;
+  // this checks the authoritative ledger state, not the booking quantities.
+  const legs = await transfersByAccount(attendeeAccount(attendeeId));
+  const hasSaleLeg = legs.some((leg) => leg.kind === KIND.sale);
+  if (!hasSaleLeg) {
     await createSystemNote(attendeeId, t("note.placeholder_refund_confirmed"));
   }
   return null;
