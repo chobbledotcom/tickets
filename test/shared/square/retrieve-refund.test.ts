@@ -467,7 +467,7 @@ describeSquare(() => {
             // reports a refund it could not confirm).
             expect(errorSpy.calls).toHaveLength(1);
             expect(errorSpy.calls[0]!.args[0]).toBe(
-              '[Error] E_SQUARE_REFUND detail="Square refund for payment pay_malformed is missing its refund object, id, or status"',
+              '[Error] E_SQUARE_REFUND detail="Square refund for payment pay_malformed returned a malformed refund object (id/status missing or not strings)"',
             );
           } finally {
             errorSpy.restore();
