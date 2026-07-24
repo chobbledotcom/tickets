@@ -50,7 +50,7 @@ const applyTestListingGroups = async (
 
 export const createTestListing = async (
   overrides: TestListingOverrides = {},
-): Promise<Listing> => {
+): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
   const listing = await doAuthenticatedMultipartFormRequest(
     "/admin/listing",
@@ -58,7 +58,7 @@ export const createTestListing = async (
     async () => {
       const { getAllListings } = await import("#shared/db/listings/records.ts");
       const listings = await getAllListings();
-      return listings[0] as Listing;
+      return listings[0] as ListingWithCount;
     },
     "create listing",
   );
@@ -75,7 +75,7 @@ export const createTestListing = async (
 export const duplicateTestListing = async (
   sourceId: number,
   overrides: TestListingOverrides = {},
-): Promise<Listing> => {
+): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
   const listing = await doAuthenticatedMultipartFormRequest(
     "/admin/listing",
@@ -83,7 +83,7 @@ export const duplicateTestListing = async (
     async () => {
       const { getAllListings } = await import("#shared/db/listings/records.ts");
       const listings = await getAllListings();
-      return listings[0] as Listing;
+      return listings[0] as ListingWithCount;
     },
     "duplicate listing",
   );

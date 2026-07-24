@@ -903,6 +903,8 @@ src/features/api/payment-processing/package-pricing.ts:296:51  ?? → ||   # the
 # error message carries the label.
 src/shared/db/processed-payments.ts:287:7  processed_payments.failure_data → ""   # read-path label: read errors are caught and replaced with CORRUPT_FAILURE before the message can be observed
 
-# Folded API booking: a child-lookup Map value is an array (always truthy), so
-# ?? and || agree on it (the operand is never falsy-but-non-null).
+# Folded API booking: equivalents for schema-validated inputs and unused paths.
 src/features/api/folded-booking.ts:87:42  ?? → ||   # childrenByParentId is Map<number, TicketListing[]>; get returns an array (always truthy, even []) or undefined, so ?? and || agree
+src/features/api/folded-booking.ts:118:31  ?? → ||   # qtyByChild accumulates ApiQuantitySchema values (positive integers >= 1) or is unset; it is never 0 or NaN for validated inputs, so ?? 0 and || 0 agree
+src/features/api/folded-booking.ts:176:53  1 → 0   # the thankYouUrl guard checks fold.listings.length > 1 only when parentThankYouUrl is truthy (parent flow), which always folds parent + >= 1 child (length >= 2); package callers pass no parentThankYouUrl, so the && short-circuits and the check never runs
+src/features/api/folded-booking.ts:301:70  0 → 1   # feeSubtotal flows into priceCheckout → owedOrderForLedger, which drops all extras and sets total to 0; bookingFactsFromOrder reads extras (empty) → bookingFee: 0 regardless. The feeSubtotal value never reaches any observable output.

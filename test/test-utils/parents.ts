@@ -15,7 +15,7 @@
 
 import { expect } from "@std/expect";
 import { listingChildren } from "#shared/db/listing-parents.ts";
-import type { Group, Listing } from "#shared/types.ts";
+import type { Group, Listing, ListingWithCount } from "#shared/types.ts";
 import { expectAttendeeCounts, expectFlash } from "./assertions.ts";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
 import { createTestGroup } from "./db-helpers/groups.ts";
@@ -118,8 +118,8 @@ export const childField = (
  *  discovery tests. The combined-demand check must use the group the parent and
  *  child SHARE (10), not the child's tightest group overall (1). */
 export const makeRoomySharedChild = async (): Promise<{
-  child: Listing;
-  parent: Listing;
+  child: ListingWithCount;
+  parent: ListingWithCount;
 }> => {
   const groupA = await createTestGroup({ maxAttendees: 10, name: "Shared" });
   const groupB = await createTestGroup({ maxAttendees: 1, name: "Tighter" });
@@ -144,9 +144,9 @@ export const makeRoomySharedChild = async (): Promise<{
 export const makeTwoDefaultChildren = async (
   parentSpec?: ListingSpec,
 ): Promise<{
-  childA: Listing;
-  childB: Listing;
-  parent: Listing;
+  childA: ListingWithCount;
+  childB: ListingWithCount;
+  parent: ListingWithCount;
 }> => {
   const { parent, children } = await makeParent({
     children: [{}, {}],
@@ -225,9 +225,9 @@ export const bookParentChild = (
  *  scenario. Returns the parent, the active child, and the deactivated child
  *  so detail/availability assertions can name the bookable side. */
 export const makeParentWithDeactivatedChild = async (): Promise<{
-  inactiveChild: Listing;
-  okChild: Listing;
-  parent: Listing;
+  inactiveChild: ListingWithCount;
+  okChild: ListingWithCount;
+  parent: ListingWithCount;
 }> => {
   const { parent, children } = await makeParent({ children: [{}, {}] });
   const okChild = children[0]!;
@@ -463,7 +463,7 @@ type ListingSpec = Parameters<typeof createTestListing>[0] & {
 const makeListing = (
   spec: ListingSpec = {},
   fallbackName: string,
-): Promise<Listing> => {
+): Promise<ListingWithCount> => {
   const { daily, ...overrides } = spec;
   const input = { name: fallbackName, ...overrides };
   return daily ? createDailyTestListing(input) : createTestListing(input);
@@ -487,12 +487,12 @@ export const makeParent = async (
     group?: Parameters<typeof createTestGroup>[0];
   } = {},
 ): Promise<{
-  parent: Listing;
+  parent: ListingWithCount;
   /** The first (and, for the common single-child scenario, only) child — a
    * convenience so a test can `const { parent, child } = await makeParent(...)`
    * instead of reaching into `children[0]`. */
-  child: Listing;
-  children: Listing[];
+  child: ListingWithCount;
+  children: ListingWithCount[];
   group?: Group | undefined;
 }> => {
   const group = spec.group ? await createTestGroup(spec.group) : undefined;
@@ -505,7 +505,7 @@ export const makeParent = async (
     "Parent",
   );
   const childSpecs = spec.children ?? [{}];
-  const children: Listing[] = [];
+  const children: ListingWithCount[] = [];
   for (let i = 0; i < childSpecs.length; i++) {
     children.push(
       await makeListing(withGroup(childSpecs[i]!), `Child ${i + 1}`),
@@ -529,7 +529,11 @@ export const makeParent = async (
  */
 export const soldOutParentInGroup = async (
   groupName: string,
-): Promise<{ child: Listing; group: Group; parent: Listing }> => {
+): Promise<{
+  child: ListingWithCount;
+  group: Group;
+  parent: ListingWithCount;
+}> => {
   const group = await createTestGroup({ name: groupName });
   const parent = await createTestListing({
     groupId: group.id,

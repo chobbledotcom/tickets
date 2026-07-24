@@ -6,7 +6,7 @@ import {
   processBooking,
 } from "#shared/booking.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
-import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
+import type { Attendee, ContactInfo } from "#shared/types.ts";
 import { withCheckoutStub } from "#test/routes/api/helpers.ts";
 import { STUB_CHECKOUT_URL, stubCheckout } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -36,15 +36,6 @@ const contact: ContactInfo = {
 const attendeeOf = (result: BookingResult) =>
   result.type === "success" ? result.attendee : null;
 
-/** `createTestListing` returns `Listing`, but it reads the row back through
- * `getAllListings`, which selects the full row including the trigger-maintained
- * count columns — so it is a `ListingWithCount` at runtime. `processBooking`
- * reads those columns, hence the downcast. */
-const createListingWithCount = (
-  overrides: Parameters<typeof createTestListing>[0] = {},
-): Promise<ListingWithCount> =>
-  createTestListing(overrides) as Promise<ListingWithCount>;
-
 /** Create a listing at `unitPrice` (capacity 10) and book `quantity` units
  *  directly, asserting success and returning the attendee. Shared by the free,
  *  owed, scaled, and one-penny success-path tests. */
@@ -52,7 +43,7 @@ const bookDirect = async (
   unitPrice: number,
   quantity = 1,
 ): Promise<Attendee> => {
-  const listing = await createListingWithCount({ maxAttendees: 10, unitPrice });
+  const listing = await createTestListing({ maxAttendees: 10, unitPrice });
   const result = await processBooking(
     listing,
     contact,
@@ -97,12 +88,24 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
       const attendee = await bookDirect(1000, 3);
       expect(attendee.remaining_balance).toBe(3000);
     });
+
+    test("returns sold_out when capacity is exhausted without a provider", async () => {
+      // No provider configured: the provider-less path still preflights capacity
+      // via createAttendeeAtomic, which returns capacity_exceeded when sold out.
+      const listing = await createTestListing({
+        maxAttendees: 1,
+        unitPrice: 1000,
+      });
+      await createTestAttendeeDirect(listing.id, "First", "f@test.com");
+      const result = await processBooking(listing, contact, 1, null, BASE_URL);
+      expect(result).toEqual({ type: "sold_out" });
+    });
   });
 
   describe("paid checkout through a provider", () => {
     test("returns the provider's checkout URL with a single priced item", async () => {
       await setupStripe();
-      const listing = await createListingWithCount({
+      const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 1500,
       });
@@ -137,7 +140,7 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
 
     test("returns sold_out and skips the provider when capacity is exhausted", async () => {
       await setupStripe();
-      const listing = await createListingWithCount({
+      const listing = await createTestListing({
         maxAttendees: 1,
         unitPrice: 1500,
       });
@@ -160,7 +163,7 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
 
     test("returns checkout_failed with no error when the provider yields null", async () => {
       await setupStripe();
-      const listing = await createListingWithCount({
+      const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 1500,
       });
@@ -178,7 +181,7 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
 
     test("returns checkout_failed carrying the provider error message", async () => {
       await setupStripe();
-      const listing = await createListingWithCount({
+      const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 1500,
       });
@@ -199,7 +202,7 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
 
     test("threads a pay-more custom price into the checkout item unit price", async () => {
       await setupStripe();
-      const listing = await createListingWithCount({
+      const listing = await createTestListing({
         canPayMore: true,
         maxAttendees: 10,
         maxPrice: 10000,
@@ -225,7 +228,7 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
 
   describe("listingHasSpots", () => {
     test("is true while capacity remains and false once sold out", async () => {
-      const listing = await createListingWithCount({
+      const listing = await createTestListing({
         maxAttendees: 1,
         unitPrice: 0,
       });

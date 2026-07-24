@@ -1,9 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { processParentApiBooking } from "#routes/api/folded-booking.ts";
+import {
+  finishFoldedBooking,
+  processParentApiBooking,
+} from "#routes/api/folded-booking.ts";
+import { buildTicketListing } from "#shared/booking/model.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
+import { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
-import type { Listing, ListingWithCount } from "#shared/types.ts";
+import { checkoutItem } from "#shared/payments.ts";
+import type { ListingWithCount } from "#shared/types.ts";
 import type { BookResponseBody } from "#test/routes/api/helpers.ts";
 import {
   expectCapturedItemPriced,
@@ -11,7 +17,10 @@ import {
   stubCheckout,
 } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookableStartDates } from "#test-utils/db-helpers/listings.ts";
+import {
+  bookableStartDates,
+  createTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import {
   makeCustomisableDailyParent,
   makeParent,
@@ -34,13 +43,6 @@ const bookRequest = (): Request =>
     method: "POST",
   });
 
-/** `makeParent` returns the parent row typed as `Listing`, but `createTestListing`
- * reads it back through `getAllListings`, which selects the full row including
- * the trigger-maintained count columns — so it is a {@link ListingWithCount} at
- * runtime. `processParentApiBooking` reads those columns, hence the downcast. */
-const asWithCount = (listing: Pick<Listing, "id">): ListingWithCount =>
-  listing as ListingWithCount;
-
 /** A one-unit parent booking body selecting `child`, with the standard test
  * contact merged in; `extra` adds paid/custom-price fields per scenario. */
 const parentBody = (
@@ -56,13 +58,13 @@ const parentBody = (
 
 /** Call {@link processParentApiBooking} for one parent unit with a resolved body
  *  and date — the single shape behind every parent-flow test, so the request,
- *  cast, quantity, and date plumbing lives once. */
+ *  quantity, and date plumbing lives once. */
 const bookParent = (
-  parent: Pick<Listing, "id">,
+  parent: ListingWithCount,
   body: Record<string, unknown>,
   date: string | null = null,
 ): Promise<Response> =>
-  processParentApiBooking(bookRequest(), asWithCount(parent), body, 1, date);
+  processParentApiBooking(bookRequest(), parent, body, 1, date);
 
 /** A free parent (£0, capacity 10) with a child priced at `childUnitPrice` —
  *  the shared provider-less scenario behind the free, full-value-owed, and
@@ -93,7 +95,7 @@ const foldProviderless = async (childUnitPrice: number) => {
  *  returning the parsed body, the call count, and the captured intent — the
  *  shared "inspect what the paid path would have charged" fixture. */
 const stubFoldedCheckout = async (
-  parent: Pick<Listing, "id">,
+  parent: ListingWithCount,
   body: Record<string, unknown>,
   date: string | null = null,
 ): Promise<{
@@ -246,5 +248,42 @@ describeWithEnv("processParentApiBooking", { db: true, triggers: true }, () => {
     expect((await response.json()).error).toMatch(
       /booked through the website/i,
     );
+  });
+
+  test("completes a one-listing folded booking without error", async () => {
+    // A one-listing fold (e.g. a one-member package with no children) produces
+    // one attendee entry. completeFoldedBooking reads entries[0], so the mutant
+    // entries[0] → entries[1] would throw on a single-entry array. This test
+    // builds a minimal one-listing fold and calls finishFoldedBooking directly
+    // (it's exported) to reach that branch.
+    const listing = await createTestListing({
+      fields: "email",
+      maxAttendees: 10,
+      unitPrice: 0,
+    });
+    const ticketListing = buildTicketListing(listing, false, undefined);
+    const fold = {
+      allocations: [],
+      customPrices: new Map<number, number>(),
+      dayCount: 1,
+      hasCustomisable: false,
+      listings: [ticketListing],
+      ok: true as const,
+      priceRuleByListingId: new Map(),
+      quantities: new Map([[listing.id, 1]]),
+      selectedListingIds: new Set([listing.id]),
+    };
+    const items = [checkoutItem(listing, 1, 0)];
+    const form = new FormParams();
+    form.set("email", "a@b.com");
+    form.set("name", "Ada");
+    const response = await finishFoldedBooking(bookRequest(), form, false, {
+      date: null,
+      fold,
+      items,
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as BookResponseBody;
+    expect(body.booking?.ticketUrl).toMatch(/^\/t\//);
   });
 });

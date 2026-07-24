@@ -1397,45 +1397,19 @@ reorganisation. Starting point: move the two phone-index describe blocks into
 `storedPhoneIndex` helpers in whichever file needs them (or lift to `#test-utils`
 if both do). The webhook test file drops to ~380 lines.
 
-## Mutation survivors in `src/features/api/folded-booking.ts` (direct tests)
+## Mutation survivor in `src/features/api/folded-booking.ts` (direct tests)
 
 Direct tests at `test/features/api/folded-booking.test.ts` and
-`test/features/api/folded-booking/parent-booking.test.ts` reach 91.9% (57/62,
-one equivalent at line 87 suppressed) on the unchanged `folded-booking.ts`;
-`precommit:mutation` does not gate it (only changed `src/` files are mutated), so
-these don't block CI. Five survivors remain; each is out of scope for the
-booking-direct test files alone and noted here so a follow-up can pick the right
-one up without re-reading the mutation report:
+`test/features/api/folded-booking/parent-booking.test.ts` kill all but one mutant on the unchanged `folded-booking.ts`;
+four equivalents (lines 87, 118, 176, 301) are recorded in
+`scripts/mutation/equivalent-mutants.txt`. One survivor remains, noted here
+because it is a deliberate non-kill (testing it would assert an
+implementation detail, not a user-visible contract):
 
-- `src/features/api/folded-booking.ts:118:31  ?? → ||` —
-  `(qtyByChild.get(childId) ?? 0)`. Equivalent for every schema-valid input
-  (`ApiQuantitySchema` enforces `quantity >= 1`, so the accumulator is unset or
-  `>= 1`, never `0`/`NaN`); only distinguishable by a direct caller passing a
-  `NaN`/`0` quantity the schema rejects. Not recorded as equivalent because
-  `applyChildSelectionsToForm` is exported and that bypass is type-legal.
-- `src/features/api/folded-booking.ts:176:53  1 → 0` —
-  `fold.listings.length > 1` in `foldedIntent`. `parentThankYouUrl` is truthy
-  only in the parent flow, where the fold always spans parent + `>= 1` child
-  (`length >= 2`); the package flow passes no `parentThankYouUrl`, so the `&&`
-  short-circuits. Only a single-listing fold with a truthy `parentThankYouUrl`
-  distinguishes — not produced by `processParentApiBooking`. A package-flow
-  folded-booking direct test would cover it.
-- `src/features/api/folded-booking.ts:301:70  0 → 1` —
-  `feeSubtotal: 0` in `priceCheckout({ ...intent, feeSubtotal: 0 })` on the
-  provider-less owed path. The fee subtotal flows through `priceCheckout` →
-  `owedOrderForLedger` but does not reach the attendee's outstanding-balance
-  projection (unlike `booking.ts`'s `mapBooking({ bookingFee })`), so
-  `getAttendeeBalanceState` doesn't catch it. Kills need a `transfers`/fee-leg
-  read (accounting domain).
-- `src/features/api/folded-booking.ts:314:53  0 → 1` —
-  `reservation.entries[0]!.attendee`. A folded reservation's entries all
-  reference the same parent attendee, so `entries[1]` yields the same
-  `bookingSuccessResponse`; only a single-entry reservation (e.g. a
-  one-member package free booking) would throw under the mutant. Not reachable
-  via `processParentApiBooking`.
 - `src/features/api/folded-booking.ts:381:17  1 → 0` —
   `dayCount: 1` in the `FoldBase` `processParentApiBooking` builds. The fold
   computes its own `fold.dayCount` (e.g. `3` for a customisable child) which
   the intent carries, so the base value does not surface in any observable
-  output of the parent flow. A test sensitive to the intermediate
-  `parentResolvedDuration(parent.listing, base.dayCount)` would be needed.
+  output of the parent flow. Killing it would require asserting on the
+  intermediate `parentResolvedDuration(parent.listing, base.dayCount)` value,
+  which is an implementation detail rather than a user-visible contract.
