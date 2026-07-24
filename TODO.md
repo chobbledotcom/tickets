@@ -1531,3 +1531,23 @@ Direct tests at `test/features/api/folded-booking.test.ts` and
 `test/features/api/folded-booking/parent-booking.test.ts` kill every non-equivalent mutant on the unchanged `folded-booking.ts`.
 Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
 `scripts/mutation/equivalent-mutants.txt` with proofs — no unsuppressed survivors remain.
+
+---
+
+## Alert on repeated webhook retry failures
+
+*Origin: CodeRabbit review on PR #1905 (authoritative payment callback
+resolution). Out of scope for that PR — recorded for a future enhancement.*
+
+When `resolveWebhookSession` returns `"retry"`, the webhook handler responds
+with HTTP 503 so the provider redelivers. If a session's inconsistency never
+resolves (e.g. a permanently missing `payment_intent` on Stripe or
+`transactionId` on SumUp), the only trace is the `logError` call inside the
+provider — after the provider's retry window expires, the payment could be
+silently dropped. Consider alerting (ntfy/Sentry) on repeated occurrences of
+these specific error messages so a permanently-unresolvable session doesn't
+go unnoticed. The alert should fire only after the same inconsistency recurs
+beyond the provider's retry threshold, not on every transient retry.
+Starting point: read `logError` calls in `src/shared/stripe-provider.ts`
+(hasPaymentReference) and `src/shared/sumup-provider.ts` (same helper), and
+the `"retry"` return paths in each provider's `resolveWebhookSession`.
