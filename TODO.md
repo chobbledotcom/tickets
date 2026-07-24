@@ -1380,3 +1380,19 @@ production module — a small production change that was out of scope for the
 test-only PR. Starting point: add `export` to the `const REFRESH_DELAY_MS`
 declaration, then replace the hard-coded `199` in the "waits for the debounce
 delay" test with `REFRESH_DELAY_MS - 1`.
+
+## Split the sms-webhook test suite
+
+*Origin: Codex review on PR #1909 (independent test hardening).*
+
+`test/features/api/sms-webhook.test.ts` is 461 lines (the ~400-line target
+applies to test files too). It bundles three concerns that can stand alone:
+phone-index normalisation/unit tests (`describeWithEnv({ encryptionKey: true })`),
+attendee phone-index DB tests (`describeWithEnv({ db: true })`), and the webhook
+handler tests (`describeWithEnv({ db: true })`). The file was already 427 lines
+on main; the independent-test-hardening PR added 34 lines of new webhook coverage.
+Splitting now was deferred because the PR's brief was test hardening, not test
+reorganisation. Starting point: move the two phone-index describe blocks into
+`test/shared/sms/phone-index.test.ts`, keeping the `makeAttendee` /
+`storedPhoneIndex` helpers in whichever file needs them (or lift to `#test-utils`
+if both do). The webhook test file drops to ~380 lines.
