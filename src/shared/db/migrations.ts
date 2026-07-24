@@ -31,6 +31,9 @@ import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork, hasPendingWorkScope } from "#shared/pending-work.ts";
 import { retryWithBackoff } from "#shared/retry.ts";
 import { recordScriptVersion } from "#shared/update.ts";
+
+export * from "./migrations/errors.ts";
+
 import {
   MigrationInProgressError,
   MissingSettingsTableError,

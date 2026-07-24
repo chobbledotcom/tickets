@@ -1332,8 +1332,8 @@ out of scope for that PR's brief — recorded here for a follow-up.*
 
 ## Split oversized test files moved by PR #1903
 
-*Origin: Codex review of PR #1903 ("Load heavy modules only when needed"). PR
-#1903 is a cold-start import reduction; as a side effect it relocated several
+*Origin: Codex review of PR #1903 ("Load heavy modules only when needed").
+That PR is a cold-start import reduction; as a side effect it relocated several
 test files via `git mv` to mirror their source module paths (the mutation gate
 requires mirror-located direct tests). Two of the moved files are over the
 ~400-line target in AGENTS.md:*
