@@ -18,8 +18,16 @@ import { withEnv } from "#test-utils/env.ts";
 describeWithEnv("server (admin guide)", { db: true }, () => {
   // The guide's default rendering is identical in every test (static help
   // content from the standard fixture), so it is rendered once and shared;
-  // only the tests that alter config below fetch their own copy.
-  const guide = cachedAdminPage("/admin/guide");
+  // only the tests that alter config below fetch their own copy. The cached
+  // render is pinned to CAN_BUILD_SITES unset so the snapshot never depends on
+  // whatever the ambient overlay happens to carry when it is first fetched.
+  const cachedGuide = cachedAdminPage("/admin/guide");
+  const guide = async (
+    ...expected: Parameters<typeof cachedGuide>
+  ): Promise<string> => {
+    using _env = withEnv({ CAN_BUILD_SITES: undefined });
+    return cachedGuide(...expected);
+  };
 
   describe("GET /admin/guide", () => {
     testRequiresAuth("/admin/guide");

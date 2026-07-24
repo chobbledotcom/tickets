@@ -240,6 +240,15 @@ export const describeWithEnv = (
       if (options.env) env = withEnv(options.env);
       storageDir = applyStorageConfig(options.storage);
     });
+    // Register the suite body before this suite's own afterEach. Sibling
+    // afterEach hooks run in registration order, so a nest of `withEnv` scopes
+    // opened inside the body must dispose BEFORE the env layer created here —
+    // otherwise the inner scope's dispose restores the stale "env on" layer
+    // *after* this afterEach cleared it, leaving the overlay leaking the
+    // suite's env (e.g. CAN_BUILD_SITES="true") into the next suite. Putting
+    // `fn()` first makes this teardown the last to run, matching the standard
+    // inner-then-outer contract BDD suites already assume.
+    fn();
     afterEach(() => {
       if (options.db) resetDb();
       env?.dispose();
@@ -252,7 +261,6 @@ export const describeWithEnv = (
     afterAll(() => {
       reclaimLeakedFdsNow();
     });
-    fn();
   });
 };
 
