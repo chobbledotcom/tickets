@@ -13,7 +13,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 
-/** Finds the `<tr>` row containing needle and returns its inner HTML. */
+/** Finds the `<tr>` row containing needle and returns its complete HTML. */
 const rowFor = (html: string, needle: string): string => {
   const start = html.indexOf("<tr", 0);
   for (let i = start; i >= 0; i = html.indexOf("<tr", i + 1)) {

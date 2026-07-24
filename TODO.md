@@ -1329,3 +1329,40 @@ out of scope for that PR's brief — recorded here for a follow-up.*
   in lockstep. An independent literal list makes a section addition/removal/rename
   a deliberate test review, which is the only way the test catches the failure
   mode it is meant to catch.
+
+## Split oversized test files moved by PR #1903
+
+*Origin: Codex review of PR #1903 ("Load heavy modules only when needed"). PR
+#1903 is a cold-start import reduction; as a side effect it relocated several
+test files via `git mv` to mirror their source module paths (the mutation gate
+requires mirror-located direct tests). Two of the moved files are over the
+~400-line target in AGENTS.md:*
+
+- **`test/features/admin/auth.test.ts` (651 lines).** Was
+  `test/lib/server-auth.test.ts` (658 lines on `main`) — the move did not grow
+  it. Covers login, logout, sessions, roles, invalid credentials, CSRF, and
+  `wrappedDataKey` edge cases. A future PR should split it into focused files
+  by concern (e.g. `login.test.ts`, `logout.test.ts`, `sessions.test.ts`,
+  `roles.test.ts`) under `test/features/admin/auth/`, mirroring the
+  `test/features/admin/users/` folder pattern already in place. Run
+  `deno task test:files test/features/admin/auth/*.ts` after the split to
+  confirm coverage stays at 100%.
+
+- **`test/ui/templates/checkin.test.ts` (533 lines).** Was
+  `test/lib/server-checkin.test.ts` (499 lines on `main`) — the move grew it
+  slightly via the row-scoped assertion rewrite in `64475d4f`. Covers GET/POST
+  `/checkin/:tokens` rendering, column visibility, check-in/out flows,
+  refunded-attendee blocking, shared-token behaviour, and route matching. A
+  future PR should split it by concern (e.g. `checkin/rendering.test.ts`,
+  `checkin/flows.test.ts`, `checkin/routes.test.ts`) under
+  `test/ui/templates/checkin/`. Keep the `rowFor` helper in a shared helper
+  file (or move it to `#test-utils` if a second caller appears) rather than
+  duplicating it across the split files.
+
+Both files are well under the Biome hard 1,000-line ceiling
+(`noExcessiveLinesPerFile`), so neither is in the `biome.json` override list.
+Splitting them now was deliberately deferred because doing it inside the
+cold-start PR would balloon the diff with unrelated mechanical test moves and
+re-conflict with the import-only changes that are the actual subject of the
+PR. The ~400-line target is guidance, and the cold-start PR's brief was
+explicitly about import-graph narrowing, not test reorganisation.
