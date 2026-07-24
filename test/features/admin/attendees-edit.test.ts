@@ -4,6 +4,7 @@ import { filter, map, pipe } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { KIND } from "#shared/accounting/kinds.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import { attendeesApi } from "#shared/db/attendees/api.ts";
@@ -23,6 +24,29 @@ import { adminFormPost } from "#test-utils/session.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
 
+/** Post a payment leg for one booking line (no sale leg). Shared by the
+ *  balance-refresh setup and the placeholder-reconciliation test so the
+ *  mapBooking/postTransfers shape stays in one place. */
+const postPaymentLeg = async (
+  attendeeId: number,
+  amount: number,
+  eventId: string,
+  listingId: number,
+  gross: number,
+): Promise<void> => {
+  await postTransfers(
+    await mapBooking({
+      amountPaid: amount,
+      attendeeId,
+      bookingFee: 0,
+      eventId,
+      lines: [{ gross, listingId }],
+      modifiers: [],
+      occurredAt: OCCURRED_AT,
+    }),
+  );
+};
+
 const setupBalanceRefresh = async (
   balanceSessionId: string,
   balancePaymentId: string,
@@ -38,16 +62,12 @@ const setupBalanceRefresh = async (
     "pi_refresh_deposit",
     500,
   );
-  await postTransfers(
-    await mapBooking({
-      amountPaid: 500,
-      attendeeId: attendee.id,
-      bookingFee: 0,
-      eventId: "refresh-deposit-session",
-      lines: [{ gross: 800, listingId: listing.id }],
-      modifiers: [],
-      occurredAt: OCCURRED_AT,
-    }),
+  await postPaymentLeg(
+    attendee.id,
+    500,
+    "refresh-deposit-session",
+    listing.id,
+    800,
   );
   await postTransfers([
     {
@@ -273,6 +293,52 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "The payment provider sent the refund. It could not be recorded in Money. Add a correction. Do not send the refund again.",
         false,
       );
+    });
+
+    test("reconciles a quantity-0 placeholder when its refund later settles", async () => {
+      // A stored-but-unrefunded placeholder has a payment leg but no sale and
+      // no refund_cash. The old quantity > 0 filter excluded it from refresh;
+      // the new fallback (ORDER BY (quantity > 0) DESC) finds it, and
+      // computeAttendeeRefund now posts the refund_cash for a placeholder
+      // (no sale legs) regardless of balance.
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 800,
+      });
+      const sessionId = "placeholder-refresh-session";
+      const paymentReference = "pi_placeholder_refresh";
+      const created = await attendeesApi.createAttendeeAtomic({
+        bookings: [
+          {
+            date: "2026-08-01",
+            listingId: listing.id,
+            pricePaid: 0,
+            quantity: 0,
+          },
+        ],
+        email: "placeholder@example.com",
+        name: "Placeholder",
+        paymentId: paymentReference,
+      });
+      if (!created.success) throw new Error(`setup failed: ${created.reason}`);
+      const attendee = created.attendees[0]!;
+      // Post the payment leg only (no sale, no refund_cash — like
+      // recordPlaceholderRefund with refunded=false).
+      await postPaymentLeg(attendee.id, 500, sessionId, listing.id, 0);
+      await reserveSession(sessionId);
+      await finalizeReservedPayment(
+        sessionId,
+        attendee.id,
+        "tok-placeholder",
+        paymentReference,
+      );
+
+      await submitRefreshPayment(attendee, () => Promise.resolve(true));
+
+      // The refresh should have posted the refund_cash leg, reconciling the
+      // placeholder ledger. The attendee's account now has a refund_cash leg.
+      const legs = await transfersByAccount(attendeeAccount(attendee.id));
+      expect(legs.some((leg) => leg.kind === KIND.refundCash)).toBe(true);
     });
   });
 });

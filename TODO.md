@@ -1410,59 +1410,26 @@ back to `isPaymentRefunded`, which a still-pending refund also fails).
 
 ---
 
-## Validate Square REST responses with a Valibot schema at the boundary
+## Validate Square orders/payments responses with Valibot schemas
 
-*Origin: CodeRabbit review of PR #1911 (confirmed Square refund outcomes),
-inline on `SquareRefundResponse` (`src/shared/square.ts`). Deferred as out of
-scope for this PR; recorded for a future pass.*
+*Origin: CodeRabbit review of PR #1911. The refund response validation is done
+(`SquareRefundResponseSchema` in `src/shared/square.ts`), and the test file
+splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`,
+and the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is
+240 lines and `rest-transport.test.ts` is 372). What remains is extending the
+same boundary-validation pattern to the orders and payments client methods.*
 
-The Square REST client maps every response with a type cast (`post<T>` /
-`get<T>` for orders, payments, and refunds), so malformed JSON — a refund object
-whose `id`/`status` are the wrong type, or an unexpected shape — is never
-rejected at the boundary; it only reaches the truthy `id`/`status` check (which
-logs and returns `false` for a missing field, and returns `false` for any
-non-confirmed status). The refund path is safe today (a malformed refund lands as
-`false`, never as a false success), but AGENTS.md's boundary rule is to validate
-structured external data with a valibot schema and pass typed values inward.
-
-Doing it for refunds alone would be inconsistent (orders.get and payments.get use
-the same cast pattern), so the real fix is a shared `v.object` schema per Square
-response shape, parsed in `squareFetch` (or each client method) before mapping —
-applied to **all three** surfaces (orders, payments, refunds) in one pass, with
-the malformed-shape branch becoming a thrown `v.ValiError`-derived error rather
-than a per-method `if (!field)` check. Starting point: `squareFetch` and the
-`SquareOrderResponse` / `SquarePaymentResponse` / `SquareRefundResponse` types in
-`src/shared/square.ts`; mirror the boundary-validation shape in
-`src/features/api/sms-webhook.ts`.
-
----
-
-## Split the Square refund tests out of two oversized test suites
-
-*Origin: Codex review of PR #1911 (confirmed Square refund outcomes). The PR
-ships focused refund tests; adding them pushed two mirror suites just past the
-~400-line soft target. Deferred (not dodged) so the mergeable PR can land; the
-splits are pure test-organisation, separate from the refund contract.*
-
-- **`test/shared/square/retrieve-refund.test.ts` (481 lines).** The
-  `refundPayment` describe (the `refundOutcomeFor` helper plus the
-  COMPLETED/APPROVED/PENDING/FAILED/unknown/missing-id/missing-status/missing-object
-  and boundary-log cases) is the bulk. Move it into a focused
-  `test/shared/square/refund-payment.test.ts`; leave `retrieveOrder`,
-  `retrievePayment`, and the `retrievePayment` wrapper-export describes here, and
-  drop the now-unused `spy` / `stub` / `withMocks` / `RefundPaymentInput`
-  imports from the trimmed file.
-- **`test/shared/square/rest-transport.test.ts` (429 lines).** The three
-  `refunds.refundPayment` transport tests (snake_case body, surfaces id/status,
-  null refund when none present) push it over. Move them into a focused
-  `test/shared/square/refund-transport.test.ts` (it needs its own `installMockFetch`
-  + `jsonResponse` helpers — lift those into a tiny shared local helper or copy
-  the minimal pair, since `rest-transport.test.ts` defines them inline).
-
-Both stay under Biome's 1,000-line hard ceiling today, so CI does not block.
-Split them so a `square.ts` mutation run maps to narrower suites (AGENTS.md's
-"400-line limit applies to test files" rule). Low risk, pure move; verify with
-`deno task test:files` on each new path after the split.
+The Square REST client still maps order and payment responses with type casts
+(`get<T>` for orders and payments). `squareFetch` returns `JSON.parse(response.text)`
+cast as `<T>`, so a malformed order or payment object — wrong field types, an
+unexpected shape — passes through unvalidated. The refund path now has a Valibot
+schema (`SquareRefundSchema` / `SquareRefundResponseSchema`) parsed with
+`v.parse` OUTSIDE `withClient`, so a malformed refund response fails loudly.
+Doing the same for orders and payments means defining `SquareOrderSchema` and
+`SquarePaymentSchema` and parsing in their respective `squareApi` methods, so
+a malformed response throws rather than being silently cast. Starting point:
+`squareFetch` and the `SquareOrderResponse` / `SquarePaymentResponse` types in
+`src/shared/square.ts`; mirror the refund schema shape that already exists.
 
 ---
 

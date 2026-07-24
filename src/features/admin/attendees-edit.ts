@@ -15,7 +15,6 @@ import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-/* jscpd:ignore-end */
 import { decryptAttendeeOrNull } from "#shared/db/attendees/pii.ts";
 import { getAttendeeRaw } from "#shared/db/attendees/queries.ts";
 import { queryOne } from "#shared/db/client.ts";
@@ -24,6 +23,8 @@ import {
   markPaymentReferencesProviderRefunded,
   type RefundPaymentReference,
 } from "#shared/db/payment-references.ts";
+/* jscpd:ignore-end */
+import { createSystemNote } from "#shared/db/system-notes.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { PaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
@@ -146,6 +147,14 @@ export const handleRefreshPayment: TypedRouteHandler<
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listingId,
         attendeeId,
+      );
+      // If the attendee was a stored-but-unrefunded placeholder (the system
+      // note from storeRefundedBooking said "could NOT be refunded... refund
+      // manually"), record that the refund has now been confirmed so the
+      // operator does not follow the stale manual-refund instruction.
+      await createSystemNote(
+        attendeeId,
+        "Refund confirmed: the payment provider reported this refund as settled. No manual refund is needed.",
       );
       // Refund status is ledger-only now; if the post missed, surface it for a
       // manual adjustment instead of leaving the payment looking un-refunded.
