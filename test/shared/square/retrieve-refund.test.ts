@@ -436,5 +436,37 @@ describeSquare(() => {
     test("fails safely when the response has no refund object", async () => {
       expect(await refundOutcomeFor(null)).toBe(false);
     });
+
+    test("logs the malformed refund response at the boundary", async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                amountMoney: { amount: BigInt(1500), currency: "USD" },
+                id: "pay_malformed",
+                orderId: "order_malformed",
+                status: "COMPLETED",
+              },
+            }),
+          refundsRefundPayment: () => Promise.resolve({ refund: null }),
+        },
+        async () => {
+          const errorSpy = spy(console, "error");
+          try {
+            const result = await squareApi.refundPayment("pay_malformed");
+            expect(result).toBe(false);
+            // The malformed response throws inside withClient, which logs it
+            // under E_SQUARE_REFUND instead of silently returning false.
+            expect(errorSpy.calls).toHaveLength(1);
+            expect(errorSpy.calls[0]!.args[0]).toBe(
+              '[Error] E_SQUARE_REFUND detail="Square refund for payment pay_malformed is missing its refund object, id, or status"',
+            );
+          } finally {
+            errorSpy.restore();
+          }
+        },
+      );
+    });
   });
 });

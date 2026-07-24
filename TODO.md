@@ -1366,6 +1366,40 @@ own output lists every stale `file:line:col`.
 
 ---
 
+## Square PENDING refunds — propagate a pending result, not a plain false
+
+*Origin: Codex review of PR #1911 (confirmed Square refund outcomes), thread
+on `squareApi.refundPayment` (`src/shared/square.ts`). This PR deliberately
+does NOT address it; recorded so the follow-on work can pick it up.*
+
+`squareApi.refundPayment` returns `false` for a Square refund that is still
+`PENDING` (an accepted-but-unsettled refund). That is the honest current-main
+boolean contract this PR ships, but it has a real downstream cost the reviewer
+flagged: the webhook/admin refund flow reads `refunded === false` as a failed
+refund, so a pending Square refund releases the reservation, returns 503, and
+— because each call mints a fresh `crypto.randomUUID()` idempotency key — a
+redelivery posts another full-refund attempt instead of waiting on the
+existing refund id. A PENDING Square refund is documented as a normal accepted
+`RefundPayment` response, so collapsing it into `false` loses the "accepted,
+not yet settled" signal.
+
+The fix is the staged-checkout pending-result union / callback resolution this
+PR was explicitly told not to introduce: surface a pending outcome (carrying
+the refund id) separately from a plain false, and have the webhook/admin refund
+paths hold/redeliver against that id instead of re-posting. That is the same
+machinery planned for #1853 (`split/staged-checkout-runtime` — "Finish and
+recover paid checkouts safely") and overlaps #1905
+(`split/authoritative-payment-callbacks` — provider-neutral webhook retry
+resolution), so it must be designed with those branches, not duplicated here.
+Starting points: `squareApi.refundPayment` in `src/shared/square.ts` (where the
+boolean contract lives), the idempotency key in its `withClient` callback, and
+the downstream `tryRefund` in `src/features/api/payment-processing/refunds.ts`
+plus `refundReferenceAtProvider` in
+`src/features/admin/refunds/provider.ts` (both treat `false` as failed and fall
+back to `isPaymentRefunded`, which a still-pending refund also fails).
+
+---
+
 ## Split oversized test files moved by PR #1903
 
 *Origin: Codex review of PR #1903 ("Load heavy modules only when needed").

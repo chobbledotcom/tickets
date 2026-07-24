@@ -571,20 +571,6 @@ export type SquareClient = ReturnType<typeof createSquareClient>;
 const CONFIRMED_REFUND_STATUSES: readonly string[] = ["COMPLETED", "SUCCEEDED"];
 
 /**
- * True only when Square has actually returned the money: the refund object is
- * present, carries an id, and reports a status Square treats as final. A missing
- * refund object, id, or status, and any pending or failed/unknown status, all
- * return false — we only ever report a refund as successful when Square confirms
- * it, so a still-pending or ambiguous refund never counts as done.
- */
-const isRefundConfirmed = (
-  refund: SquareRefund | null | undefined,
-): boolean => {
-  if (!refund?.id || !refund.status) return false;
-  return CONFIRMED_REFUND_STATUSES.includes(refund.status);
-};
-
-/**
  * Stubbable API for testing - allows mocking in ES modules
  */
 export const squareApi: {
@@ -651,9 +637,11 @@ export const squareApi: {
   getSquareClient: getClientImpl,
 
   /** Refund a payment (full amount). Returns true only when Square confirms the
-   * refund (COMPLETED or SUCCEEDED); a pending, failed, or unknown status, and
-   * a refund object missing its id/status, all return false — never report a
-   * refund as done until Square has confirmed it. */
+   * refund (COMPLETED or SUCCEEDED). PENDING, FAILED, and any unknown status
+   * return false. A 200 response missing its refund object, id, or status is a
+   * malformed Square response — that throws here and withClient turns it into a
+   * logged false, so the bad response is diagnosed at the boundary instead of
+   * being read as an ordinary not-yet-refunded payment. */
   refundPayment: async (paymentId: string): Promise<boolean> => {
     const payment = await squareApi.retrievePayment(paymentId);
     if (!payment?.amountMoney?.amount || !payment.amountMoney.currency) {
@@ -673,7 +661,16 @@ export const squareApi: {
         idempotencyKey: await refundIdempotencyKey("square", paymentId),
         paymentId,
       });
-      return isRefundConfirmed(response.refund);
+      // A 200 missing the documented refund object/id/status is malformed —
+      // fail loudly at this boundary (withClient logs the throw and returns
+      // false). Only a present-but-not-confirmed status returns false silently.
+      const refund = response.refund;
+      if (!refund?.id || !refund.status) {
+        throw new Error(
+          `Square refund for payment ${paymentId} is missing its refund object, id, or status`,
+        );
+      }
+      return CONFIRMED_REFUND_STATUSES.includes(refund.status);
     }, ErrorCode.SQUARE_REFUND);
 
     return result ?? false;
