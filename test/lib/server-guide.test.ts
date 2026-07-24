@@ -26,9 +26,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     ...expected: Parameters<typeof cachedGuide>
   ): Promise<string> => {
     using _env = withEnv({ CAN_BUILD_SITES: undefined });
-    // Await so the env pin stays in force for the whole first render —
-    // cachedGuide returns a promise, and a bare return lets the `using`
-    // dispose before the render reads CAN_BUILD_SITES.
+    // The env pin must cover the whole first render, so await the cached page
+    // before the `using` scope disposes.
     const html = await cachedGuide(...expected);
     return html;
   };

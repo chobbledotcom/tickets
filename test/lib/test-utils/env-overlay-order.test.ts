@@ -17,17 +17,17 @@ describeWithEnv(
   "describeWithEnv nested env (outer on)",
   { env: { [OUTER_KEY]: "on" } },
   () => {
-    let inner: EnvScope | undefined;
+    let inner: EnvScope;
     beforeEach(() => {
       inner = withEnv({ [INNER_KEY]: "set" });
     });
     afterEach(() => {
-      inner?.dispose();
-      inner = undefined;
+      inner.dispose();
     });
 
-    test("sees the outer env enabled inside the suite", () => {
+    test("sees the outer and inner env enabled inside the suite", () => {
       expect(getEnv(OUTER_KEY)).toBe("on");
+      expect(getEnv(INNER_KEY)).toBe("set");
     });
   },
 );
