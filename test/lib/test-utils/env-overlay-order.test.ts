@@ -63,3 +63,75 @@ describe("describeWithEnv overlay cleanup (sanity)", () => {
     expect(getRealEnv(INNER_KEY)).toBeUndefined();
   });
 });
+
+// A DB-backed suite overlays DB_URL with a fresh temp file per test. The DB
+// resource (tracked by prepareTestClient) must be disposed by resetDb, so the
+// overlay does not keep pointing at the deleted temp file after the suite.
+const realDbUrl = getRealEnv("DB_URL");
+const suiteTempDbUrl: { value: string | undefined } = { value: undefined };
+describeWithEnv("describeWithEnv DB env (temp file)", { db: true }, () => {
+  test("overlays DB_URL with a fresh temp file during the test", () => {
+    const url = getEnv("DB_URL");
+    expect(url?.startsWith("file:")).toBe(true);
+    expect(url).not.toBe(realDbUrl);
+    suiteTempDbUrl.value = url;
+  });
+});
+
+describe("describeWithEnv DB env (restored after)", () => {
+  test("DB_URL overlay does not keep the deleted temp file from the suite", () => {
+    expect(getEnv("DB_URL")).not.toBe(suiteTempDbUrl.value);
+  });
+});
+
+// A mixed suite (db: true AND env) stacks: DB scope first, suite env on top.
+// The afterEach must dispose the suite env BEFORE resetDb (LIFO), or
+// env.dispose() resurrects the deleted DB_URL.
+const mixedSuiteTempDbUrl: { value: string | undefined } = { value: undefined };
+describeWithEnv(
+  "describeWithEnv mixed DB+env (stacked)",
+  { db: true, env: { [OUTER_KEY]: "on" } },
+  () => {
+    test("sees both DB_URL and outer env during the test", () => {
+      expect(getEnv("DB_URL")?.startsWith("file:")).toBe(true);
+      mixedSuiteTempDbUrl.value = getEnv("DB_URL");
+      expect(getEnv(OUTER_KEY)).toBe("on");
+    });
+  },
+);
+
+describe("describeWithEnv mixed DB+env (restored after)", () => {
+  test("neither DB_URL nor outer env leaks the deleted temp file", () => {
+    expect(getEnv("DB_URL")).not.toBe(mixedSuiteTempDbUrl.value);
+    expect(getEnv(OUTER_KEY)).toBeUndefined();
+  });
+});
+
+// A body that opens an inner scope but fails to dispose it (simulating a
+// body afterEach that threw before reaching its dispose call). The factory
+// afterEach must still dispose the outer env scope.
+describeWithEnv(
+  "describeWithEnv cleanup (body left inner scope undisposed)",
+  { env: { [OUTER_KEY]: "on" } },
+  () => {
+    beforeEach(() => {
+      withEnv({ [INNER_KEY]: "set" });
+    });
+
+    test("sees both scopes", () => {
+      expect(getEnv(OUTER_KEY)).toBe("on");
+      expect(getEnv(INNER_KEY)).toBe("set");
+    });
+  },
+);
+
+describeWithEnv(
+  "describeWithEnv cleanup (outer env gone after leak)",
+  {},
+  () => {
+    test("does not inherit the outer env despite the inner scope leak", () => {
+      expect(getRealEnv(OUTER_KEY)).toBeUndefined();
+      expect(getEnv(OUTER_KEY)).toBeUndefined();
+    });
+  },
+);

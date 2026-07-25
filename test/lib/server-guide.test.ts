@@ -330,6 +330,14 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       expect(html).not.toContain('id="built-sites"');
     });
 
+    test("cached guide is pinned to builder-off even under ambient CAN_BUILD_SITES=true", async () => {
+      using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
+      const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
+      expect(live).toContain('id="built-sites"');
+      const cached = await guide();
+      expect(cached).not.toContain('id="built-sites"');
+    });
+
     test("shows built sites section when builder is enabled", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: "true" });
       await assertAdminHtml(
