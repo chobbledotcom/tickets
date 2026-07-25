@@ -68,28 +68,33 @@ describeSquare(() => {
           TEST_NOTIFICATION_URL,
         );
       const receivedSignature = "mismatched-sig";
-      const errorSpy = spy(console, "error");
-      try {
-        await expectInvalid(
-          payload,
-          receivedSignature,
-          "Signature verification failed",
-        );
-        expect(errorSpy.calls).toHaveLength(1);
-        expect(errorSpy.calls[0]!.args[0]).toBe(
-          `[Error] E_SQUARE_SIGNATURE detail="mismatch: notificationUrl=${TEST_NOTIFICATION_URL}, receivedLength=${receivedSignature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${receivedSignature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${toBytes(payload).length}"`,
-        );
-      } finally {
-        errorSpy.restore();
-      }
+      await expectInvalid(
+        payload,
+        receivedSignature,
+        "Signature verification failed",
+      );
+      expect(errors.calls).toHaveLength(1);
+      expect(errors.calls[0]!.args[0]).toBe(
+        `[Error] E_SQUARE_SIGNATURE detail="mismatch: notificationUrl=${TEST_NOTIFICATION_URL}, receivedLength=${receivedSignature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${receivedSignature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${toBytes(payload).length}"`,
+      );
     });
 
     test("does not log an error for a valid signature", async () => {
+      const listing: WebhookEvent = {
+        data: { object: {} },
+        id: "evt_valid_signature",
+        type: "payment.updated",
+      };
       const { payload, signature } = await constructTestWebhookEvent(
-        TEST_EVENT,
+        listing,
         TEST_SECRET,
         TEST_NOTIFICATION_URL,
       );
+      expect(await verify(payload, signature)).toEqual({
+        listing,
+        valid: true,
+      });
+      expect(errors.calls).toHaveLength(0);
     });
 
     test("returns error for invalid JSON payload with valid signature", async () => {
