@@ -255,7 +255,12 @@ export const runMigrateTursoCli = async (
     return 0;
   } catch (error) {
     if (deps.signal.aborted) {
-      deps.stderr("Migration interrupted.");
+      const message = errorMessage(error);
+      deps.stderr(
+        message === "Migration interrupted"
+          ? "Migration interrupted."
+          : `Migration interrupted: ${message}`,
+      );
       return 130;
     }
     deps.stderr(

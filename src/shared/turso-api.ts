@@ -176,11 +176,15 @@ export const createTursoApi = (
   ): Promise<Result<TursoDatabaseCredentials>> => {
     const name = slugifyForTurso(request.name);
     let createResponse: FetchResult;
-    let database: v.InferOutput<typeof TursoDatabaseSchema>;
     try {
       createResponse = await postCreateRequest(request, name);
-      if (!createResponse.ok)
-        return parseApiError(createResponse, "Create database");
+    } catch (error) {
+      return errorResult(`Create database failed: ${errorMessage(error)}`);
+    }
+    if (!createResponse.ok)
+      return parseApiError(createResponse, "Create database");
+    let database: v.InferOutput<typeof TursoDatabaseSchema>;
+    try {
       database = parseResponse(
         CreateTursoDatabaseSchema,
         createResponse.text,

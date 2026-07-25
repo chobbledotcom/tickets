@@ -31,16 +31,22 @@ test("unregisters the termination handler for interrupt and terminate signals", 
   expectBothTerminationSignals("removeSignalListener", offTerminationSignals);
 });
 
-test("continues when registering a signal listener throws", () => {
-  using _signal = stub(Deno, "addSignalListener", () => {
-    throw new Error("unsupported signal");
-  });
+test("continues to SIGTERM after SIGINT registration throws", () => {
+  const calls: Deno.Signal[] = [];
+  using _signal = stub(Deno, "addSignalListener", ((signal: Deno.Signal) => {
+    calls.push(signal);
+    if (signal === "SIGINT") throw new Error("unsupported signal");
+  }) as typeof Deno.addSignalListener);
   onTerminationSignals(() => {});
+  expect(calls).toEqual(["SIGINT", "SIGTERM"]);
 });
 
-test("continues when removing a signal listener throws", () => {
-  using _signal = stub(Deno, "removeSignalListener", () => {
-    throw new Error("unsupported signal");
-  });
+test("continues to SIGTERM after SIGINT removal throws", () => {
+  const calls: Deno.Signal[] = [];
+  using _signal = stub(Deno, "removeSignalListener", ((signal: Deno.Signal) => {
+    calls.push(signal);
+    if (signal === "SIGINT") throw new Error("unsupported signal");
+  }) as typeof Deno.removeSignalListener);
   offTerminationSignals(() => {});
+  expect(calls).toEqual(["SIGINT", "SIGTERM"]);
 });

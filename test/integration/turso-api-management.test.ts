@@ -400,30 +400,19 @@ describe("Turso management API", () => {
     ).toBeUndefined();
   });
 
-  test("deletes the destination when create throws after accepting", async () => {
-    const urls: string[] = [];
+  test("does not delete when the create POST throws before a response", async () => {
     await withMocks(
       () =>
-        stubFetch(
-          (_url, init) => {
-            urls.push(`${init?.method ?? "GET"}`);
-            throw new Error("network dropped");
-          },
-          (url) => {
-            urls.push(`DELETE:${url}`);
-            return new Response();
-          },
-        ),
+        stubFetch(() => {
+          throw new Error("network dropped");
+        }),
       async () => {
         const result = await createTestDatabase();
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error).toContain("Create database failed");
-        }
+        expect(result).toEqual({
+          error: "Create database failed: network dropped",
+          ok: false,
+        });
       },
-    );
-    expect(urls).toContain(
-      "DELETE:https://api.turso.tech/v1/organizations/personal/databases/database",
     );
   });
 });

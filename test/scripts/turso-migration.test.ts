@@ -285,7 +285,7 @@ describe("Turso migration CLI", () => {
       deps: {
         signal: controller.signal,
         uploadDatabaseFile: () => {
-          controller.abort(new Error("interrupted"));
+          controller.abort(new Error("Migration interrupted"));
           return Promise.reject(controller.signal.reason);
         },
       },
@@ -295,6 +295,25 @@ describe("Turso migration CLI", () => {
     expect(state.stderr).toEqual(["Migration interrupted."]);
     expect(state.deleted).toEqual(["personal/destination-database"]);
     expect(state.removed).toEqual(["/tmp/turso-migration-test"]);
+  });
+
+  test("reports cleanup failures during an interruption", async () => {
+    const controller = new AbortController();
+    const state = tursoMigrationCliState({
+      deps: {
+        removeTempDir: () => Promise.reject(new Error("permission denied")),
+        signal: controller.signal,
+        uploadDatabaseFile: () => {
+          controller.abort(new Error("interrupted"));
+          return Promise.reject(controller.signal.reason);
+        },
+      },
+    });
+
+    expect(await runMigrateTursoCli(state.deps)).toBe(130);
+    expect(state.stderr[0]).toContain("interrupted");
+    expect(state.stderr[0]).toContain("permission denied");
+    expect(state.stderr[0]).toContain("/tmp/turso-migration-test");
   });
 
   test("reports the original failure and temp directory when cleanup fails", async () => {
