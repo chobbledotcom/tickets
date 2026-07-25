@@ -24,8 +24,11 @@ import { adminFormPost } from "#test-utils/session.ts";
 const submitRefreshPayment = async (
   attendee: Attendee,
   refundedPredicate: (reference: string) => Promise<boolean>,
+  // The expected flash message varies: "refunded" on first post, "up to date"
+  // on retry. Accept any because expect.stringContaining returns a matcher.
+  // deno-lint-ignore no-explicit-any
+  expectedFlash: any = expect.stringContaining("refunded"),
 ): Promise<void> => {
-  const expectedFlash = expect.stringContaining("refunded");
   await withRefreshPaymentProbe(
     (reference: string) => refundedPredicate(reference),
     async () => {
@@ -134,6 +137,37 @@ describeWithEnv(
           },
         );
         await refreshAndVerifyRefundCash(attendee);
+      });
+
+      test("cleans up a stale note on retry even when the ledger is already posted", async () => {
+        // First refresh: posts the refund_cash leg + deletes the stale note.
+        const attendee = await setupPlaceholderForRefresh(
+          "Retry Cleanup",
+          "retry@example.com",
+          "placeholder-retry-session",
+          "pi_placeholder_retry",
+        );
+        const privateKey = await getTestPrivateKey();
+        // Simulate the initial refresh that posted the ledger but whose
+        // note cleanup failed — re-create the stale note afterward.
+        await refreshAndVerifyRefundCash(attendee);
+        await createSystemNote(
+          attendee.id,
+          "This booking was kept at quantity 0 but its payment could NOT be refunded.",
+        );
+
+        // Second refresh: attendee.refunded is now true (the ledger has the
+        // refund_cash leg), but the stale note must still be cleaned up.
+        await submitRefreshPayment(
+          attendee,
+          () => Promise.resolve(true),
+          expect.stringContaining("up to date"),
+        );
+
+        const notes = await getNotesForAttendee(attendee.id, privateKey);
+        expect(
+          notes.some((note) => note.note.includes("could NOT be refunded")),
+        ).toBe(false);
       });
     });
   },
