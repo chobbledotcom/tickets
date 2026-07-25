@@ -9,6 +9,7 @@ import { projectRoot } from "#scripts/project-root.ts";
 import { readSpecCatalog } from "./catalog.ts";
 import { messageIssues } from "./messages.ts";
 import { shouldCheckUnusedSteps } from "./options.ts";
+import { selectSpecCases } from "./selection.ts";
 
 export interface RunSpecsOptions {
   paths?: string[];
@@ -18,6 +19,11 @@ export interface RunSpecsOptions {
 
 export interface SpecRunSummary {
   success: boolean;
+}
+
+export interface SpecRunEnvironment {
+  reportDir: string;
+  support: string[];
 }
 
 interface CompleteRunSpecsOptions {
@@ -32,26 +38,30 @@ const DEFAULT_SUPPORT = [
   "test/specs/support/**/*.ts",
   "test/specs/steps/**/*.ts",
 ];
-const reportFormats = (reports: boolean): string[] =>
+const DEFAULT_ENVIRONMENT: SpecRunEnvironment = {
+  reportDir: REPORT_DIR,
+  support: DEFAULT_SUPPORT,
+};
+const reportFormats = (reports: boolean, reportDir: string): string[] =>
   reports
     ? [
         "progress",
-        `message:${join(REPORT_DIR, "cucumber.ndjson")}`,
-        `html:${join(REPORT_DIR, "cucumber.html")}`,
-        `junit:${join(REPORT_DIR, "cucumber.junit.xml")}`,
+        `message:${join(reportDir, "cucumber.ndjson")}`,
+        `html:${join(reportDir, "cucumber.html")}`,
+        `junit:${join(reportDir, "cucumber.junit.xml")}`,
       ]
     : ["progress"];
 
 const cucumberConfiguration = async (
   options: CompleteRunSpecsOptions,
+  environment: SpecRunEnvironment,
 ): Promise<IRunConfiguration> => {
-  if (options.reports) await Deno.mkdir(REPORT_DIR, { recursive: true });
   const { runConfiguration } = await loadConfiguration(
     {
       file: false,
       provided: {
-        format: reportFormats(options.reports),
-        import: DEFAULT_SUPPORT,
+        format: reportFormats(options.reports, environment.reportDir),
+        import: environment.support,
         order: "defined",
         parallel: 0,
         paths: options.paths,
@@ -66,20 +76,36 @@ const cucumberConfiguration = async (
   return runConfiguration;
 };
 
+const prepareReports = async (reportDir: string): Promise<void> => {
+  try {
+    await Deno.remove(reportDir, { recursive: true });
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) throw error;
+  }
+  await Deno.mkdir(reportDir, { recursive: true });
+};
+
 export const runSpecs = async (
   options: RunSpecsOptions = {},
+  environment: SpecRunEnvironment = DEFAULT_ENVIRONMENT,
 ): Promise<SpecRunSummary> => {
   const paths = options.paths ?? ["specs"];
-  await readSpecCatalog(paths);
+  if (options.reports ?? true) await prepareReports(environment.reportDir);
+  const catalog = await readSpecCatalog(paths);
+  const selectedPaths =
+    options.tags === undefined ? paths : selectSpecCases(catalog, options.tags);
   const complete: CompleteRunSpecsOptions = {
     enforceUnused: shouldCheckUnusedSteps(options),
-    paths,
+    paths: selectedPaths.length > 0 ? selectedPaths : paths,
     reports: options.reports ?? true,
-    tags: options.tags ?? "",
+    tags:
+      selectedPaths.length === 0 && options.tags !== undefined
+        ? "@__tickets_no_matching_case__"
+        : "",
   };
   const messages: Envelope[] = [];
   const result = await runCucumber(
-    await cucumberConfiguration(complete),
+    await cucumberConfiguration(complete, environment),
     { cwd: projectRoot },
     (message) => messages.push(message),
   );

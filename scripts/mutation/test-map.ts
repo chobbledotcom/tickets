@@ -1,6 +1,6 @@
-import { isAbsolute, relative } from "node:path";
 import { filter, map, sort, unique } from "#fp";
-import { projectRoot } from "#scripts/project-root.ts";
+import { inProjectFolders, relativeToProject } from "#scripts/path.ts";
+import { isFeaturePath } from "#scripts/specs/paths.ts";
 
 export interface SourceTestTarget {
   directTestFiles: string[];
@@ -12,17 +12,15 @@ export interface MutationTestMap {
   targets: SourceTestTarget[];
 }
 
-const INTEGRATION_TEST_PREFIXES = ["specs/", "test/e2e/", "test/integration/"];
-
-const normalizePath = (path: string): string => path.replace(/\\/g, "/");
-
-const relativeToProject = (path: string): string => {
-  const normalized = normalizePath(path);
-  const projectPath = isAbsolute(normalized)
-    ? relative(projectRoot, normalized)
-    : normalized;
-  return normalizePath(projectPath).replace(/^\.\//, "");
-};
+const isIntegrationTest = inProjectFolders([
+  "specs",
+  "test/e2e",
+  "test/integration",
+]);
+const isSharedSpecCode = inProjectFolders([
+  "test/specs/steps",
+  "test/specs/support",
+]);
 
 const testPrefix = (sourceFile: string): string =>
   relativeToProject(sourceFile)
@@ -32,26 +30,6 @@ const testPrefix = (sourceFile: string): string =>
 const ownsTest = (prefix: string, testFile: string): boolean => {
   const base = relativeToProject(testFile).replace(/\.test\.(?:ts|tsx)$/, "");
   return base === prefix || base.startsWith(`${prefix}/`);
-};
-
-const isIntegrationTest = (testFile: string): boolean => {
-  const path = relativeToProject(testFile);
-  return (
-    filter((prefix: string) => path.startsWith(prefix))(
-      INTEGRATION_TEST_PREFIXES,
-    ).length > 0
-  );
-};
-
-const isFeatureFile = (path: string): boolean =>
-  relativeToProject(path).endsWith(".feature");
-
-const isSharedSpecCode = (path: string): boolean => {
-  const relativePath = relativeToProject(path);
-  return (
-    relativePath.startsWith("test/specs/steps/") ||
-    relativePath.startsWith("test/specs/support/")
-  );
 };
 
 /** Select every direct test for the changed sources, plus broad integration
@@ -70,7 +48,7 @@ export const selectMutationTests = (
   )(allTestFiles);
   const changedIntegration = filter(isIntegrationTest)(changedTestFiles);
   const affectedFeatures = changedTestFiles.some(isSharedSpecCode)
-    ? filter(isFeatureFile)(allTestFiles)
+    ? filter(isFeaturePath)(allTestFiles)
     : [];
   return unique([...direct, ...changedIntegration, ...affectedFeatures]);
 };

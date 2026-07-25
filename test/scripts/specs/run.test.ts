@@ -215,6 +215,13 @@ describe("Cucumber runner", () => {
     });
   });
 
+  test("routes a directory under specs to Cucumber", () => {
+    expect(focusedTargets(["specs/payments"])).toEqual({
+      specPaths: ["specs/payments"],
+      testArgs: [],
+    });
+  });
+
   test("does not treat a tag expression as a Feature path", () => {
     const targets = focusedTargets(["--tags", "@case:payment.feature"]);
     expect(targets).toEqual({

@@ -1,3 +1,5 @@
+import { isFeaturePath, isSpecPath } from "./paths.ts";
+
 export interface SpecCliOptions {
   paths: string[];
   tags?: string;
@@ -85,7 +87,7 @@ export const focusedTargets = (args: string[]): FocusedTargets => {
       index += directCount - 1;
       continue;
     }
-    if (arg.endsWith(".feature")) {
+    if (isFeaturePath(arg) || isSpecPath(arg)) {
       specPaths.push(arg);
       continue;
     }

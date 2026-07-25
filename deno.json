@@ -51,6 +51,7 @@
     "@cucumber/cucumber/api": "npm:@cucumber/cucumber@13.2.0/api",
     "@cucumber/gherkin": "npm:@cucumber/gherkin@41.0.0",
     "@cucumber/messages": "npm:@cucumber/messages@34.0.1",
+    "@cucumber/tag-expressions": "npm:@cucumber/tag-expressions@10.0.0",
     "#e2e/": "./e2e-payments/src/",
     "#fp": "./src/fp.ts",
     "#shared/test-overrides": "./src/shared/test-overrides.ts",

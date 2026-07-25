@@ -1,6 +1,8 @@
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join } from "node:path";
 import * as v from "valibot";
+import { relativeToProject } from "#scripts/path.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { isFeaturePath } from "./paths.ts";
 import { validateSpecSources } from "./profile.ts";
 import {
   type SpecCatalog,
@@ -23,12 +25,12 @@ const OwnerFileSchema = v.pick(SpecRegistrySchema, ["owners"]);
 
 const featurePathsUnder = async (path: string): Promise<string[]> => {
   const stat = await Deno.stat(path);
-  if (stat.isFile) return path.endsWith(".feature") ? [path] : [];
+  if (stat.isFile) return isFeaturePath(path) ? [path] : [];
   const paths: string[] = [];
   for await (const entry of Deno.readDir(path)) {
     const child = join(path, entry.name);
     if (entry.isDirectory) paths.push(...(await featurePathsUnder(child)));
-    else if (entry.isFile && child.endsWith(".feature")) paths.push(child);
+    else if (entry.isFile && isFeaturePath(child)) paths.push(child);
   }
   return paths;
 };
@@ -57,7 +59,7 @@ const loadRegistry = async (): Promise<SpecRegistry> =>
 
 const sourceFromPath = async (path: string): Promise<SpecSource> => ({
   data: await Deno.readTextFile(path),
-  uri: relative(projectRoot, path).replaceAll("\\", "/"),
+  uri: relativeToProject(path),
 });
 
 export const readSpecCatalog = async (

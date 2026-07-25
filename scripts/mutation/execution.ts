@@ -5,6 +5,7 @@ import {
 } from "#scripts/biome-command.ts";
 import { commandExitCode } from "#scripts/deno-command.ts";
 import { projectRoot } from "#scripts/project-root.ts";
+import { isFeaturePath } from "#scripts/specs/paths.ts";
 import { stripeMockEnv } from "#scripts/stripe-mock.ts";
 import { TEST_STATE_DIR_ENV } from "#test/test-utils/test-state-env.ts";
 import { batchTestFiles } from "./batch.ts";
@@ -102,10 +103,8 @@ export const createStaticGates = async (
   deps: StaticGateDeps = realGateDeps,
 ): Promise<StaticGate[]> => [await createLinter(deps), createTypeChecker(deps)];
 
-const isFeatureFile = (file: string): boolean => file.endsWith(".feature");
-
 const runTestBatch: TestBatchRunner = async (batch, signal, env) => {
-  const [features, direct] = partition(isFeatureFile)(batch);
+  const [features, direct] = partition(isFeaturePath)(batch);
   const options = {
     cwd: projectRoot,
     env,
@@ -197,7 +196,7 @@ export const runTests = async (
   else signal.addEventListener("abort", forwardAbort, { once: true });
   const startedAt = performance.now();
   try {
-    const [features, direct] = partition(isFeatureFile)(testFiles);
+    const [features, direct] = partition(isFeaturePath)(testFiles);
     const cursor = { batches: batchTestFiles(direct), next: 0 };
     const context = { controller, deps, env, signal };
     const jobs = Math.min(
