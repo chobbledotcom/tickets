@@ -14,6 +14,7 @@ import {
   nodeQuantitiesFor,
 } from "#shared/booking/order-lines.ts";
 import { setGroupPackageMembers, setListingGroups } from "#shared/db/groups.ts";
+import { settings } from "#shared/db/settings.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { treePackage } from "#test/lib/package-cap-fixtures.ts";
@@ -222,7 +223,12 @@ describeWithEnv(
       });
 
       test("getTicketContext exposes the package (group id + prices) for a package group", async () => {
-        const group = await createTestGroup({ isPackage: true, name: "Ctx" });
+        await settings.update.terms("Global terms");
+        const group = await createTestGroup({
+          isPackage: true,
+          name: "Ctx",
+          termsAndConditions: "Package terms",
+        });
         const a = await createTestListing({ name: "CA" });
         await setListingGroups(a.id, [group.id]);
         await setGroupPackageMembers(group.id, [
@@ -242,12 +248,16 @@ describeWithEnv(
         expect(ctx.packages).toHaveLength(1);
         expect(ctx.packages[0]!.groupId).toBe(group.id);
         expect(ctx.packages[0]!.prices.get(a.id)).toBe(2000);
+        expect(ctx.packageMemberGroupIds.get(a.id)).toEqual([group.id]);
+        expect(ctx.terms).toBe("Package terms");
       });
 
       test("getTicketContext carries no packages for a non-package group", async () => {
+        await settings.update.terms("Global terms");
         const group = await createTestGroup({ name: "Plain" });
         const ctx = await getTicketContext([], group);
         expect(ctx.packages).toEqual([]);
+        expect(ctx.terms).toBe("Global terms");
       });
     });
   },

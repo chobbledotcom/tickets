@@ -1,16 +1,26 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import {
+  bookingSlot,
   createAttendeeForSession,
+  logPromoCodeModifiers,
   pairEntriesByListing,
 } from "#routes/api/payment-processing/create.ts";
 import { specForFailure } from "#routes/api/payment-processing/store-refund.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+import { decryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import { attendeesApi } from "#shared/db/attendees/api.ts";
+import { queryAll } from "#shared/db/client.ts";
 import type {
   BookingIntent,
   CheckoutIntent,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
 
 /** A validated item carries a listing (the only field the pairing reads). */
@@ -54,17 +64,58 @@ describe("pairEntriesByListing", () => {
     );
     expect(entries.map((e) => e.listing.id)).toEqual([10, 30, 30]);
   });
+
+  test("fails when a created row has no loaded listing", () => {
+    expect(() => pairEntriesByListing([row(30)], [item(10)])).toThrow(
+      "Listing 30 was not loaded for a created booking",
+    );
+  });
 });
 
-test("reports a preparation error before the atomic write starts", async () => {
-  const listing = testListingWithCount({ id: 1, unit_price: 1000 });
-  const bookingItem = { e: listing.id, p: 1000, q: 1 };
+test("builds standalone and package booking slots", () => {
+  expect(bookingSlot({ e: 7, p: 100, q: 1 })).toEqual({
+    listingId: 7,
+    packageGroupId: 0,
+  });
+  expect(bookingSlot({ e: 7, k: "p", p: 100, q: 1, r: 9 })).toEqual({
+    listingId: 7,
+    packageGroupId: 9,
+  });
+});
+
+type PreparationOptions = {
+  chargedUnitAmount?: number;
+  fullSubtotal?: number;
+  listingName?: string;
+  matchingPricedItem?: boolean;
+  packageGroupId?: number;
+  reservationAmount?: string;
+  total: number;
+};
+
+const preparationResult = (options: PreparationOptions) => {
+  const listing = testListingWithCount({
+    id: 1,
+    name: options.listingName ?? "Test Listing",
+    unit_price: 1000,
+  });
+  const bookingItem = {
+    e: listing.id,
+    p: 1000,
+    q: 1,
+    ...(options.packageGroupId === undefined
+      ? {}
+      : { k: "p" as const, r: options.packageGroupId }),
+  };
   const checkoutItem = {
     listingId: listing.id,
     name: listing.name,
     quantity: 1,
     slug: listing.slug,
     unitPrice: 1000,
+    ...(options.packageGroupId === undefined
+      ? {}
+      : { packageGroupId: options.packageGroupId }),
   };
   const contact = {
     address: "",
@@ -78,6 +129,9 @@ test("reports a preparation error before the atomic write starts", async () => {
     ...contact,
     items: [bookingItem],
     modifiers: [],
+    ...(options.reservationAmount === undefined
+      ? {}
+      : { reservationAmount: options.reservationAmount }),
   };
   const pricingIntent: CheckoutIntent = {
     ...contact,
@@ -85,10 +139,19 @@ test("reports a preparation error before the atomic write starts", async () => {
   };
   const pricedOrder: PricedOrder = {
     extras: [],
-    fullSubtotal: 1000,
-    lines: [{ chargedUnitAmount: 1000, item: checkoutItem, quantity: 1 }],
+    fullSubtotal: options.fullSubtotal ?? 1000,
+    lines: [
+      {
+        chargedUnitAmount: options.chargedUnitAmount ?? 1000,
+        item:
+          options.matchingPricedItem === false
+            ? { ...checkoutItem }
+            : checkoutItem,
+        quantity: 1,
+      },
+    ],
     modifierApplications: [],
-    total: Number.NaN,
+    total: options.total,
   };
   const session: ValidatedPaymentSession = {
     amountTotal: 1000,
@@ -98,7 +161,7 @@ test("reports a preparation error before the atomic write starts", async () => {
     paymentStatus: "paid",
   };
 
-  const result = await createAttendeeForSession(
+  return createAttendeeForSession(
     session,
     intent,
     [{ expectedPrice: 1000, item: bookingItem, listing }],
@@ -106,6 +169,18 @@ test("reports a preparation error before the atomic write starts", async () => {
     pricedOrder,
     "stable-ticket-token",
   );
+};
+
+const stubSuccessfulBooking = () =>
+  stub(attendeesApi, "createBookingAtomic", () =>
+    Promise.resolve({
+      attendees: [{ id: 1, listing_id: 1, ticket_token: "token" }],
+      success: true,
+    } as never),
+  );
+
+test("reports a preparation error before the atomic write starts", async () => {
+  const result = await preparationResult({ total: Number.NaN });
   expect(result).toEqual({
     detail:
       "Unexpected error preparing session cs_preparation_failure: Error: mapBooking: invalid facts (non-finite amountPaid)",
@@ -114,4 +189,98 @@ test("reports a preparation error before the atomic write starts", async () => {
   });
   if (result.ok !== false) throw new Error("Expected preparation to fail");
   expect(specForFailure(result).code).toBe("unexpected_error");
+});
+
+describeWithEnv("payment booking lines", { db: true }, () => {
+  test("reports a missing paid amount before the atomic write starts", async () => {
+    using create = stubSuccessfulBooking();
+
+    expect(
+      await preparationResult({ matchingPricedItem: false, total: 1000 }),
+    ).toEqual({
+      detail:
+        "Unexpected error preparing session cs_preparation_failure: Error: Paid amount for listing 1 was not loaded for checkout",
+      ok: false,
+      reason: "unexpected_error",
+    });
+    expect(create.calls).toHaveLength(0);
+  });
+
+  test("passes zero remaining balance for a full payment", async () => {
+    using create = stubSuccessfulBooking();
+    await preparationResult({ total: 1000 });
+    expect(create.calls[0]!.args[0].remainingBalance).toBe(0);
+  });
+
+  test("passes the unpaid balance for a reservation payment", async () => {
+    using create = stubSuccessfulBooking();
+    await preparationResult({
+      chargedUnitAmount: 250,
+      fullSubtotal: 1000,
+      reservationAmount: "25%",
+      total: 250,
+    });
+    expect(create.calls[0]!.args[0].remainingBalance).toBe(750);
+  });
+
+  test("reports the exact modifier sellout failure", async () => {
+    using _create = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.resolve("sold-out"),
+    );
+    expect(await preparationResult({ total: 1000 })).toEqual({
+      detail: "a chosen add-on or extra sold out during payment",
+      ok: false,
+      reason: "sold_out",
+    });
+  });
+
+  test("uses the generic capacity message when the listing name is empty", async () => {
+    using _create = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.resolve({ reason: "capacity_exceeded", success: false }),
+    );
+    expect(await preparationResult({ listingName: "", total: 1000 })).toEqual({
+      detail: "Sorry, this listing sold out while you were completing payment.",
+      ok: false,
+      reason: "capacity_exceeded",
+    });
+  });
+
+  test("a package order's capacity error omits the member name", async () => {
+    using _create = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.resolve({ reason: "capacity_exceeded", success: false }),
+    );
+    expect(await preparationResult({ packageGroupId: 9, total: 1000 })).toEqual(
+      {
+        detail:
+          "Sorry, this listing sold out while you were completing payment.",
+        ok: false,
+        reason: "capacity_exceeded",
+      },
+    );
+  });
+
+  test("logs a zero-value promo without calling it a discount", async () => {
+    const listing = await createTestListing();
+    const attendee = await bookTestAttendee(
+      [listing.id],
+      "Promo buyer",
+      "promo@example.com",
+    );
+    await logPromoCodeModifiers(
+      [{ id: 1, name: "FREE" } as never],
+      [{ delta: 0, modifierId: 1 } as never],
+      listing as never,
+      attendee.id,
+    );
+    const [row] = await queryAll<{ message: string }>(
+      "SELECT message FROM activity_log WHERE attendee_id = ?",
+      [attendee.id],
+    );
+    expect(
+      await decryptWithOwnerKey(
+        row!.message as never,
+        await getTestPrivateKey(),
+      ),
+    ).toBe("Promo code 'FREE' used: +£0");
+  });
 });

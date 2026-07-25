@@ -33,10 +33,15 @@ import {
   type PagePackage,
 } from "#shared/booking/page-packages.ts";
 import type { BookingTree } from "#shared/booking/tree.ts";
+/* jscpd:ignore-start */
 import { bookingDateFields } from "#shared/booking-date-fields.ts";
-import { orderBookings } from "#shared/booking-lines.ts";
+import {
+  bookingsForOrder,
+  checkoutBookingLines,
+} from "#shared/booking-lines.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
+/* jscpd:ignore-end */
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { requirePublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -233,7 +238,7 @@ export const handlePaymentFlow = (
 const buildBookings = (
   selected: ListingQty[],
   date: string | null,
-  dayCount = 1,
+  dayCount: number,
 ): LineBooking[] =>
   selected.map(({ listing, qty }) => ({
     listingId: listing.id,
@@ -404,18 +409,10 @@ export const createFreeReservation = async ({
   const listingById = new Map(
     listings.map((info) => [info.listing.id, info.listing]),
   );
-  const finalBookings = orderBookings({
-    allocations,
-    date,
-    dayCount,
-    lines: items.map((item) => ({
-      listing: listingById.get(item.listingId)!,
-      listingId: item.listingId,
-      packageGroupId: item.packageGroupId ?? 0,
-      ...(paidByItem ? { pricePaid: paidByItem.get(item)! } : {}),
-      quantity: item.quantity,
-    })),
-  });
+  const finalBookings = bookingsForOrder(
+    { allocations, date, dayCount },
+    checkoutBookingLines(items, listingById, paidByItem),
+  );
   // When there are legs to post or stock to consume, commit the booking, its
   // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
   // does) — never an interactive transaction held open across a read-per-leg. The

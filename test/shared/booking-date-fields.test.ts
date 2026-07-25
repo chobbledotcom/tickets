@@ -65,6 +65,21 @@ describe("bookingDateFields", () => {
     });
   });
 
+  test("clamps a zero day count back to one day", () => {
+    // The clamp's Math.max(1, …) turns 0 into the same one-day span the
+    // default day count produces.
+    const listing = testListingWithCount({
+      customisable_days: true,
+      day_prices: { 1: 1000 },
+      duration_days: 5,
+      listing_type: "daily",
+    });
+    expect(bookingDateFields(listing, "2026-07-01", 0)).toEqual({
+      date: "2026-07-01",
+      durationDays: 1,
+    });
+  });
+
   test("rejects a non-finite day count", () => {
     const listing = testListingWithCount({
       customisable_days: true,

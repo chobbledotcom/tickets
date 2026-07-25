@@ -35,6 +35,12 @@ src/ui/client/admin/order-gallery.ts:105:34  ?? → ||   # states is a record ob
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
 src/shared/checkout-pricing.ts:324:41  ?? → ||   # intent.modifiers: an array is always truthy
+src/shared/booking-lines.ts:71:42  ?? → ||   # packageGroupId is absent or a positive database group id; an explicit 0 also has the same 0 fallback
+src/features/api/payment-processing/create.ts:60:36  ?? → ||   # lineGroupId returns undefined or a positive package group id; an explicit 0 would also keep the same 0 fallback
+src/features/api/payment-processing/create.ts:193:28  ?? → ||   # listingAnswerIds is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:196:67  ?? → ||   # a listing's text refs are an array when present, and arrays are always truthy
+src/features/api/payment-processing/create.ts:199:46  ?? → ||   # a grouped answer set is an object when present, and objects are always truthy
+src/features/api/payment-processing/create.ts:203:35  ?? → ||   # existing text answer ids are an array when present, and arrays are always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/config.ts:170:39  ?? → ||    # getEnv(): string|undefined, only falsy string "" === fallback ""
 src/shared/config.ts:36:5  ?? → ||    # providerValue returns boolean or null, and false stays false with either fallback operator
@@ -123,15 +129,19 @@ src/shared/db/query-log.ts:292:22  ?? → ||   # store is a truthy QueryLogState
 src/shared/update.ts:153:45  ?? → ||   # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
 src/shared/update.ts:186:11  ?? → ||   # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 
-# Parent/child fold moved to fold-tree.ts in Phase 2a (see the fold-tree.ts
-# entries below); the ticket-payment.ts fold-internal equivalents went with it.
-# What stays here are `?? F` vs `|| F` sites whose left operand can never be a
-# falsy-but-non-null value (a Map/object/array is always truthy, and the only
-# falsy number is 0 with 0??0===0||0), so the two operators always agree.
-src/features/public/ticket-payment.ts:341:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
-src/features/public/ticket-payment.ts:414:42  ?? → ||   # packageGroupId: number|undefined; the only falsy number is 0, 0??0===0||0, and undefined→0 either way
-src/features/public/ticket-payment.ts:442:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
-src/features/public/ticket-payment.ts:596:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
+# ticket-payment values whose present form is always truthy, whose falsy value
+# equals the fallback, or whose mutated constant is normalized before use.
+src/features/public/ticket-payment.ts:193:11  ?? → ||   # date is nullish or a non-empty ISO date; only the nullish values use the null fallback
+src/features/public/ticket-payment.ts:221:42  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, and every present array is truthy
+src/features/public/ticket-payment.ts:188:14  1 → 0   # bookingDateFields clamps either default day count to one, so the produced availability rows are identical
+src/features/public/ticket-payment.ts:265:30  ?? → ||   # a package stand-in is a non-empty group name or undefined, so only undefined reaches the listing-name fallback
+src/features/public/ticket-payment.ts:337:28  ?? → ||   # prebuiltTree is a BookingTree object when present, and objects are always truthy
+src/features/public/ticket-payment.ts:346:43  ?? → ||   # base.quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
+src/features/public/ticket-payment.ts:391:17  0 → 1   # EMPTY_PRICED_ORDER.fullSubtotal is never read: bookingFactsFromOrder derives its facts from total, extras, lines, and modifierApplications
+src/features/public/ticket-payment.ts:402:14  1 → 0   # bookingsForOrder normalizes either default day count to one, so the stored booking duration is identical
+src/features/public/ticket-payment.ts:439:37  ?? → ||   # ledgerOrder: PricedOrder|null — an object is always truthy, null→fallback either way
+src/features/public/ticket-payment.ts:593:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined — an array is always truthy, undefined→null either way
+src/features/public/ticket-payment.ts:791:17  ?? → ||   # pagePackages is an array when present, and arrays are always truthy
 
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/layout.tsx:48:30  ?? → ||   # Theme is "light"|"dark" or undefined, so every present value is truthy
