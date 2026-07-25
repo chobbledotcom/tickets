@@ -1,5 +1,10 @@
 import { parse } from "@cucumber/tag-expressions";
-import type { SpecCatalog, SpecItem, SpecStory } from "./types.ts";
+import {
+  type SpecCatalog,
+  type SpecItem,
+  type SpecStory,
+  specCasesWithContext,
+} from "./types.ts";
 
 const itemTags = (kind: "case" | "rule", item: SpecItem): string[] => [
   `@${kind}:${item.id}`,
@@ -20,17 +25,13 @@ export const selectSpecCases = (
   tagExpression: string,
 ): string[] => {
   const expression = parse(tagExpression);
-  return catalog.stories.flatMap((story) =>
-    story.rules.flatMap((rule) => {
+  return specCasesWithContext(catalog)
+    .filter(({ rule, specCase, story }) => {
       const inheritedTags = [...storyTags(story), ...itemTags("rule", rule)];
-      return rule.cases
-        .filter((specCase) =>
-          expression.evaluate([
-            ...inheritedTags,
-            ...itemTags("case", specCase),
-          ]),
-        )
-        .map((specCase) => `${story.uri}:${specCase.line}`);
-    }),
-  );
+      return expression.evaluate([
+        ...inheritedTags,
+        ...itemTags("case", specCase),
+      ]);
+    })
+    .map(({ specCase, story }) => `${story.uri}:${specCase.line}`);
 };

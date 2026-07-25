@@ -1,11 +1,13 @@
 import type { World } from "@cucumber/cucumber";
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
+import type { TestBrowser } from "#test-utils/test-browser.ts";
 
 export interface TicketsWorld extends World {
   attendeeId?: number;
   attendeeIds?: number[];
   attendeeName?: string;
   cleanup: Array<() => void | Promise<void>>;
+  evidenceValues: Map<string, string>;
   firstBody?: string;
   firstFailureData?: string;
   firstStatus?: number;
@@ -18,6 +20,7 @@ export interface TicketsWorld extends World {
   secondStatus?: number;
   servicingEventId?: number;
   sessionId?: string;
+  testBrowser?: TestBrowser;
   ticketToken?: string;
 }
 

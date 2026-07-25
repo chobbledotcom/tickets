@@ -11,10 +11,11 @@ Feature: An organiser holds and costs a service event
     The hold reserves capacity and never becomes a public listing or ticket.
 
     @case:servicing.hold-on-dashboard
-    Scenario: The organiser sees a new hold on the dashboard
-      Given an organiser has created a Boiler Service hold on Room A
-      Then the admin dashboard shows the Boiler Service hold
-      And the public site does not show Boiler Service
+    Scenario: The organiser creates a private studio floor hold
+      Given Ceramics Studio Sessions is available for service work
+      When the organiser creates a two-day Studio floor treatment hold for four places
+      Then the admin dashboard shows the Studio floor treatment hold
+      And the public site does not show Studio floor treatment
 
   @rule:servicing.hold-can-be-duplicated
   Rule: A duplicated hold is an independent copy

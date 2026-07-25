@@ -1,54 +1,37 @@
 import { dirname, fromFileUrl, join, resolve } from "@std/path";
 import { chromium, type Page } from "playwright";
-import sharp from "sharp";
 import { browserLaunchOptions } from "./browser-options.ts";
-import { rethrowUnlessNotFound } from "./not-found.ts";
-import { denoCommand, removeTree, runDeno, stopProcess } from "./process.ts";
 import {
-  isCompactWidth,
-  isolateElementCss,
-  wasImageTrimmed,
-} from "./screenshots/checks.ts";
-import { parseRgb, type Rgb } from "./screenshots/color.ts";
+  type ScreenshotAppServer,
+  startScreenshotAppServer,
+} from "./screenshots/app-server.ts";
+import { chromiumExecutable } from "./screenshots/browser.ts";
+import { capturePreparedPage } from "./screenshots/capture.ts";
+import { isCompactWidth, isolateElementCss } from "./screenshots/checks.ts";
+import type { Rgb } from "./screenshots/color.ts";
 import {
   parseScreenshotOptions,
   type ScreenshotName,
   type ThemeName,
 } from "./screenshots/options.ts";
 import {
+  MOBILE_SCREENSHOT_PROFILE,
+  screenshotContextOptions,
+} from "./screenshots/profile.ts";
+import { waitForScreenshotPage } from "./screenshots/readiness.ts";
+import {
   loadScreenshotScenario,
   type ScreenshotScenario,
 } from "./screenshots/scenario.ts";
 import {
-  type StartupCleanup,
-  startWithFailureCleanup,
-  waitForHealthy,
-} from "./screenshots/server.ts";
-import {
   applySocialTarget,
   type SocialTargetName,
 } from "./screenshots/social.ts";
-import {
-  findAvailablePort,
-  startStripeMock,
-  stripeMockEnv,
-} from "./stripe-mock.ts";
 
 const ROOT = dirname(dirname(fromFileUrl(import.meta.url)));
-const DB_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 const USERNAME = "screenshots";
 const PASSWORD = "screenshots-password";
-const STRIPE_KEY = "sk_test_mock";
 const TIMEOUT_MS = 60_000;
-const RETRY_MS = 200;
-const STOP_TIMEOUT_MS = 2_000;
-const MOBILE_VIEWPORT = { height: 844, width: 390 };
-
-interface AppServer {
-  baseUrl: string;
-  enableStripe: () => Promise<void>;
-  stop: () => Promise<void>;
-}
 
 interface SceneContext {
   listingId: string;
@@ -127,62 +110,6 @@ const SCENES: Record<ScreenshotName, Scene> = {
   users: { path: at("/admin/users") },
 };
 
-const startAppServer = async ({
-  add,
-  run,
-}: StartupCleanup): Promise<AppServer> => {
-  const stripeMock = await startStripeMock();
-  add(stripeMock.stop);
-  const tempDir = await Deno.makeTempDir({ prefix: "tickets-screenshots-" });
-  add(() => removeTree(tempDir));
-  const port = findAvailablePort();
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const dbUrl = `file:${join(tempDir, "screenshots.db")}`;
-  const child = denoCommand(["run", "-A", "src/index.ts"], {
-    cwd: ROOT,
-    env: {
-      ...Deno.env.toObject(),
-      ...stripeMockEnv(stripeMock.port),
-      DB_ENCRYPTION_KEY: DB_KEY,
-      DB_URL: dbUrl,
-      PORT: String(port),
-    },
-    stderr: "inherit",
-    stdout: "null",
-  }).spawn();
-  add(() => stopProcess(child, STOP_TIMEOUT_MS));
-
-  const deadline = Date.now() + TIMEOUT_MS;
-  const healthy = await waitForHealthy(
-    () => fetch(`${baseUrl}/health`),
-    () => new Promise((resolvePromise) => setTimeout(resolvePromise, RETRY_MS)),
-    () => Date.now() < deadline,
-  );
-  if (healthy) {
-    return {
-      baseUrl,
-      enableStripe: async () => {
-        Deno.env.set("DB_ENCRYPTION_KEY", DB_KEY);
-        Deno.env.set("DB_URL", dbUrl);
-        const { settings } = await import("#shared/db/settings.ts");
-        await settings.update.stripe.activate({
-          secretKey: STRIPE_KEY,
-          webhookEndpointId: "we_screenshots",
-          webhookSecret: "whsec_screenshots",
-        });
-      },
-      stop: run,
-    };
-  }
-  throw new Error("The screenshot app did not start within 60 seconds.");
-};
-
-const startServer = async (): Promise<AppServer> => {
-  const build = await runDeno(["task", "build:static"], ROOT);
-  if (!build.success) throw new Error("Could not build static assets.");
-  return await startWithFailureCleanup(startAppServer);
-};
-
 const submit = async (page: Page, formSelector: string): Promise<void> => {
   const form = page.locator(formSelector);
   await Promise.all([
@@ -217,7 +144,7 @@ const setupAdmin = async (
 
 const setupApp = async (
   page: Page,
-  server: AppServer,
+  server: ScreenshotAppServer,
 ): Promise<SceneContext> => {
   const { baseUrl } = server;
   await setupAdmin(page, baseUrl);
@@ -266,45 +193,6 @@ const applyTheme = async (
   await submit(page, 'form[action="/admin/settings/custom-css"]');
 };
 
-const readBodyBackground = async (page: Page): Promise<Rgb> =>
-  parseRgb(
-    await page.locator("body").evaluate((node) => {
-      const getStyle = Reflect.get(globalThis, "getComputedStyle");
-      const style = Reflect.apply(getStyle, globalThis, [node]);
-      if (typeof style !== "object" || style === null) {
-        throw new Error("Could not read the page style.");
-      }
-      return String(Reflect.get(style, "backgroundColor"));
-    }),
-  );
-
-const trimElementScreenshot = async (
-  png: Uint8Array,
-  background: Rgb,
-  outputPath: string,
-): Promise<void> => {
-  const padding = 32;
-  const image = sharp(png);
-  const source = await image.metadata();
-  if (!source.width || !source.height) {
-    throw new Error("The screenshot PNG has no size.");
-  }
-  const result = await image
-    .trim({ background, threshold: 5 })
-    .extend({
-      background,
-      bottom: padding,
-      left: padding,
-      right: padding,
-      top: padding,
-    })
-    .png()
-    .toFile(outputPath);
-  if (!wasImageTrimmed(source, result, padding)) {
-    throw new Error("The selected screenshot element has no visible content.");
-  }
-};
-
 const capture = async (
   page: Page,
   baseUrl: string,
@@ -318,53 +206,11 @@ const capture = async (
     waitUntil: "networkidle",
   });
   await scene.prepare?.(page);
-  await page.waitForFunction('document.fonts.status === "loaded"');
+  await waitForScreenshotPage(page);
   await scene.verify?.(page);
-  return await capturePreparedPage(page, outputPath, elementSelector);
-};
-
-const capturePreparedPage = async (
-  page: Page,
-  outputPath: string,
-  elementSelector?: string,
-  fullPage = false,
-): Promise<Rgb> => {
-  if (elementSelector) {
-    const initialViewport = page.viewportSize();
-    if (!initialViewport) {
-      throw new Error("Could not read the screenshot viewport.");
-    }
-    const element = page.locator(elementSelector).first();
-    await element.waitFor({ state: "attached" });
-    const initialBox = await element.boundingBox();
-    if (!initialBox) {
-      throw new Error(
-        `Could not measure screenshot element: ${elementSelector}`,
-      );
-    }
-    await page.setViewportSize({
-      height: Math.ceil(
-        Math.max(initialViewport.height, initialBox.height + 128),
-      ),
-      width: initialViewport.width,
-    });
-    await element.evaluate((node) =>
-      Reflect.apply(Reflect.get(node, "scrollIntoView"), node, [
-        { block: "center" },
-      ]),
-    );
-    const background = await readBodyBackground(page);
-    await trimElementScreenshot(
-      await page.screenshot(),
-      background,
-      outputPath,
-    );
-    await page.setViewportSize(initialViewport);
-    return background;
-  }
-  const background = await readBodyBackground(page);
-  await page.screenshot({ fullPage, path: outputPath });
-  return background;
+  const screenshot = await capturePreparedPage(page, elementSelector);
+  await Deno.writeFile(outputPath, screenshot.png);
+  return screenshot.background;
 };
 
 const writeSocialVariants = async (
@@ -390,7 +236,7 @@ const writeSocialVariants = async (
 const captureScenario = async (
   scenario: ScreenshotScenario,
   page: Page,
-  server: AppServer,
+  server: ScreenshotAppServer,
   outputDir: string,
   social: readonly SocialTargetName[] = [],
 ): Promise<void> => {
@@ -409,7 +255,6 @@ const captureScenario = async (
   );
   await scenario.run({
     balancePathFor: async (attendeeId) => {
-      Deno.env.set("DB_ENCRYPTION_KEY", DB_KEY);
       const { signBalanceToken } = await import("#shared/balance-link.ts");
       return `/pay/${await signBalanceToken(attendeeId)}`;
     },
@@ -417,36 +262,23 @@ const captureScenario = async (
     page,
     submit: (formSelector) => submit(page, formSelector),
   });
-  await page.waitForFunction('document.fonts.status === "loaded"');
+  await waitForScreenshotPage(page);
   const outputPath = join(outputDir, `${scenario.name}.png`);
-  const background = await capturePreparedPage(
+  const screenshot = await capturePreparedPage(
     page,
-    outputPath,
     scenario.elementSelector,
     scenario.fullPage,
   );
+  await Deno.writeFile(outputPath, screenshot.png);
   console.log(`${scenario.name}.png`);
   await writeSocialVariants(
     outputPath,
     outputDir,
     scenario.name,
     "",
-    background,
+    screenshot.background,
     social,
   );
-};
-
-const chromiumExecutable = async (): Promise<string | undefined> => {
-  const configured = Deno.env.get("CHROMIUM_EXECUTABLE");
-  if (configured) return configured;
-  const nixBrowser = "/etc/profiles/per-user/user/bin/chromium";
-  try {
-    await Deno.stat(nixBrowser);
-    return nixBrowser;
-  } catch (error) {
-    rethrowUnlessNotFound(error);
-    return;
-  }
 };
 
 const main = async (): Promise<void> => {
@@ -457,7 +289,7 @@ const main = async (): Promise<void> => {
   const scenario = options.scenarioPath
     ? await loadScreenshotScenario(resolve(ROOT, options.scenarioPath))
     : undefined;
-  const server = await startServer();
+  const server = await startScreenshotAppServer();
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
     const executablePath = await chromiumExecutable();
@@ -468,10 +300,7 @@ const main = async (): Promise<void> => {
     );
     const context = await browser.newContext({
       baseURL: server.baseUrl,
-      colorScheme: "light",
-      deviceScaleFactor: 2,
-      reducedMotion: "reduce",
-      viewport: MOBILE_VIEWPORT,
+      ...screenshotContextOptions(MOBILE_SCREENSHOT_PROFILE),
     });
     const page = await context.newPage();
     page.setDefaultTimeout(TIMEOUT_MS);

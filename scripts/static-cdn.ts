@@ -1,3 +1,5 @@
+import { sha256Hex } from "#scripts/checksum.ts";
+
 export interface StaticCdnConfig {
   accountKey: string;
   cdnUrl: string;
@@ -133,14 +135,6 @@ const purge = async (
   );
 };
 
-const toHex = (bytes: ArrayBuffer): string =>
-  [...new Uint8Array(bytes)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-
-const checksum = async (bytes: Uint8Array): Promise<string> =>
-  toHex(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes)));
-
 const releaseHash = async (assets: StaticCdnAsset[]): Promise<string> => {
   const encoder = new TextEncoder();
   const sorted = assets.toSorted((a, b) =>
@@ -155,7 +149,7 @@ const releaseHash = async (assets: StaticCdnAsset[]): Promise<string> => {
   const bytes = await new Blob(
     parts.map((part) => Uint8Array.from(part).buffer),
   ).arrayBuffer();
-  return checksum(new Uint8Array(bytes));
+  return sha256Hex(new Uint8Array(bytes));
 };
 
 const publicUrl = (
@@ -197,7 +191,7 @@ const createAssetSteps = (config: StaticCdnConfig, fetcher: typeof fetch) => {
         body: asset.bytes as BodyInit,
         headers: {
           AccessKey: config.storageKey,
-          Checksum: (await checksum(asset.bytes)).toUpperCase(),
+          Checksum: (await sha256Hex(asset.bytes)).toUpperCase(),
           "Content-Type": asset.contentType,
         },
         method: "PUT",
@@ -221,7 +215,7 @@ const createAssetSteps = (config: StaticCdnConfig, fetcher: typeof fetch) => {
       );
     }
     const served = new Uint8Array(await response.arrayBuffer());
-    if ((await checksum(served)) !== (await checksum(asset.bytes))) {
+    if ((await sha256Hex(served)) !== (await sha256Hex(asset.bytes))) {
       throw new Error(
         `Static CDN asset ${asset.filename} does not match the uploaded file`,
       );

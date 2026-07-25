@@ -114,10 +114,11 @@ describe("Cucumber execution", () => {
     }
   });
 
-  test("runs exactly one Outline row selected by its stable case id", async () => {
+  test("runs one selected Outline row through lifecycle controls", async () => {
     const fixture = await createOutlineFixture(
       "test/scripts/specs/fixtures/selected.steps.ts",
     );
+    const lifecycle: string[] = [];
     try {
       expect(
         await runSpecs(
@@ -125,9 +126,25 @@ describe("Cucumber execution", () => {
             paths: [fixture.featurePath],
             tags: "@case:payment.selection-second",
           },
-          fixture.environment,
+          {
+            reportDir: fixture.environment.reportDir,
+            support: fixture.environment.support,
+          },
+          {
+            beforeRun: (catalog) => {
+              lifecycle.push(
+                `before:${catalog.stories[0]?.rules[0]?.cases.length}`,
+              );
+            },
+            env: { [SPEC_RUNS_PATH_ENV]: fixture.runsPath },
+            onSuccess: (messages) => {
+              lifecycle.push(`success:${messages.length > 0}`);
+            },
+            parallel: 0,
+          },
         ),
       ).toEqual({ success: true });
+      expect(lifecycle).toEqual(["before:2", "success:true"]);
 
       const messages = await readMessages(fixture.environment.reportDir);
       const testCases = messages.flatMap(({ testCase }) =>

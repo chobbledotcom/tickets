@@ -15,6 +15,7 @@ import { messageIssues } from "./messages.ts";
 import { shouldCheckUnusedSteps } from "./options.ts";
 import { specWorkerCount } from "./parallel.ts";
 import { selectSpecCases } from "./selection.ts";
+import type { SpecCatalog } from "./types.ts";
 
 export interface RunSpecsOptions {
   paths?: string[];
@@ -38,6 +39,16 @@ interface CompleteRunSpecsOptions {
   paths: string[];
   reports: boolean;
   tags: string;
+}
+
+export interface SpecRunControls {
+  beforeRun?: (catalog: SpecCatalog) => void | Promise<void>;
+  env?: Record<string, string>;
+  onSuccess?: (
+    messages: Envelope[],
+    catalog: SpecCatalog,
+  ) => void | Promise<void>;
+  parallel?: number;
 }
 
 const REPORT_DIR = join(projectRoot, "reports");
@@ -93,21 +104,33 @@ const prepareReports = async (reportDir: string): Promise<void> => {
   await Deno.mkdir(reportDir, { recursive: true });
 };
 
+const runEnvironment = (
+  environment: SpecRunEnvironment,
+  controls: SpecRunControls,
+): Record<string, string> | undefined => {
+  if (environment.env === undefined && controls.env === undefined) return;
+  return { ...environment.env, ...controls.env };
+};
+
 export const runSpecs = async (
   options: RunSpecsOptions = {},
   environment: SpecRunEnvironment = DEFAULT_ENVIRONMENT,
+  controls: SpecRunControls = {},
 ): Promise<SpecRunSummary> => {
   const paths = options.paths ?? ["specs"];
   if (options.reports ?? true) await prepareReports(environment.reportDir);
   const catalog = await readSpecCatalog(paths);
+  await controls.beforeRun?.(catalog);
   const selectedPaths = selectSpecCases(catalog, options.tags ?? "");
   const complete: CompleteRunSpecsOptions = {
     enforceUnused: shouldCheckUnusedSteps(options),
-    parallel: specWorkerCount(
-      selectedPaths.length,
-      Deno.env.get("DENO_JOBS"),
-      navigator.hardwareConcurrency,
-    ),
+    parallel:
+      controls.parallel ??
+      specWorkerCount(
+        selectedPaths.length,
+        Deno.env.get("DENO_JOBS"),
+        navigator.hardwareConcurrency,
+      ),
     paths: selectedPaths.length > 0 ? selectedPaths : paths,
     reports: options.reports ?? true,
     tags:
@@ -116,16 +139,20 @@ export const runSpecs = async (
         : "",
   };
   const messages: Envelope[] = [];
-  const result = await withProcessEnvironment(environment.env, async () =>
-    runCucumber(
-      await cucumberConfiguration(complete, environment),
-      { cwd: projectRoot },
-      (message) => messages.push(message),
-    ),
+  const result = await withProcessEnvironment(
+    runEnvironment(environment, controls),
+    async () =>
+      runCucumber(
+        await cucumberConfiguration(complete, environment),
+        { cwd: projectRoot },
+        (message) => messages.push(message),
+      ),
   );
   const issues = messageIssues(messages, complete.enforceUnused);
   for (const issue of issues) console.error(issue);
+  const success = result.success && issues.length === 0;
+  if (success) await controls.onSuccess?.(messages, catalog);
   return {
-    success: result.success && issues.length === 0,
+    success,
   };
 };
