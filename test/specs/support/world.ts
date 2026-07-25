@@ -9,12 +9,14 @@ export interface TicketsWorld extends World {
   firstBody?: string;
   firstFailureData?: string;
   firstStatus?: number;
+  holdListingId?: number;
   listingId?: number;
   listingIds: Map<string, number>;
   placeholderId?: number;
   refundCalls?: () => number;
   secondBody?: string;
   secondStatus?: number;
+  servicingEventId?: number;
   sessionId?: string;
   ticketToken?: string;
 }

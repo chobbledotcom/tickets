@@ -22,10 +22,12 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   adminPost,
   assertAdmin404,
+  assertRedirectPathname,
   assertServicingId404sEverywhere,
   createRealAttendee,
   createServicingHold,
   createTestServicingEvent,
+  getServicingEvent,
   listingCostOf,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
@@ -83,10 +85,36 @@ describeWithEnv(
       response.body?.cancel();
     });
 
+    test("POST /admin/servicing/:id/delete redirects to the dashboard on success", async () => {
+      const { id } = await createServicingHold();
+      const response = await adminPost(`/admin/servicing/${id}/delete`, {});
+      assertRedirectPathname(response, "/admin/");
+      expect(await getServicingEvent(id)).toBeNull();
+    });
+
     test("POST /admin/servicing/:id/duplicate 404s for a missing service event id", async () => {
       const response = await adminPost("/admin/servicing/999999/duplicate", {});
       expect(response.status).toBe(404);
       response.body?.cancel();
+    });
+
+    test("POST /admin/servicing/:id/duplicate redirects to the copy on success", async () => {
+      const { id, listing } = await createServicingHold({ name: "Original" });
+      const response = await adminPost(`/admin/servicing/${id}/duplicate`, {});
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location");
+      expect(location).not.toBeNull();
+      const match = location!.match(/\/admin\/servicing\/(\d+)/);
+      expect(match).not.toBeNull();
+      const copyId = Number(match![1]);
+      expect(copyId).toBeGreaterThan(id);
+      assertRedirectPathname(response, `/admin/servicing/${copyId}`);
+      const copy = await getServicingEvent(copyId);
+      expect(copy).not.toBeNull();
+      expect(copy!.name).toBe("Original");
+      const firstBooking = copy!.bookings[0];
+      expect(firstBooking).toBeDefined();
+      expect(firstBooking!.listingId).toBe(listing.id);
     });
 
     test("POST /admin/servicing/:id/cost/:costId 404s for a missing cost id", async () => {
