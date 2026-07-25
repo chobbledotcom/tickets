@@ -273,6 +273,9 @@ export const describeWithEnv = (
       if (options.env) env = withEnv(options.env);
       storageDir = applyStorageConfig(options.storage);
     });
+    // Register this teardown after nested suite hooks so inner env scopes close
+    // before this suite restores its outer database and env layers.
+    fn();
     afterEach(async () => {
       const dbCleanup = cleanupDb;
       const envCleanup = env;
@@ -291,7 +294,6 @@ export const describeWithEnv = (
     afterAll(() => {
       reclaimLeakedFdsNow();
     });
-    fn();
   });
 };
 

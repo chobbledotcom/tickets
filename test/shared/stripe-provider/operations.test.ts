@@ -134,6 +134,31 @@ describeStripe("stripe-provider", () => {
         },
       );
     });
+
+    test("passes a stable SHA-256 idempotency key derived from the payment intent", async () => {
+      // A webhook redelivery of the same refund must reach Stripe with the
+      // same Idempotency-Key so the second call is deduplicated, not charged
+      // again. The key is a pure function of (provider, payment reference),
+      // so it is reproducible here without re-running the hash.
+      const client = await stripeClient();
+      const createStub = stub(client.refunds, "create", () =>
+        Promise.resolve({ id: "re_stable", status: "succeeded" }),
+      );
+      await withMocks(
+        () => createStub,
+        async () => {
+          expect(await stripePaymentProvider.refundPayment("pi_stable")).toBe(
+            true,
+          );
+        },
+      );
+
+      const [params, idempotencyKey] = createStub.calls[0]!.args;
+      expect(params).toEqual({ payment_intent: "pi_stable" });
+      expect(idempotencyKey).toBe(
+        "zMXoB60J9cW7f7GxpMobuLm6VM5BATENKpD_jsjvf4g",
+      );
+    });
   });
 
   describe("sanitizeStripeError edge cases", () => {
