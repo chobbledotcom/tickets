@@ -11,6 +11,7 @@
  */
 
 import { errorMessage } from "#shared/error-message.ts";
+import { requireValue } from "#shared/required-value.ts";
 
 const DEFAULT_MIN_AGE_DAYS = 14;
 const DENO_JSON_PATH = new URL("../deno.json", import.meta.url).pathname;
@@ -31,13 +32,18 @@ interface UpgradeResult {
   skippedNewer: string | null;
 }
 
+interface AvailableUpgrade extends UpgradeResult {
+  newPublishedAt: Date;
+  newVersion: string;
+}
+
 function parseArgs(): { dryRun: boolean; minAgeDays: number } {
   let dryRun = false;
   let minAgeDays = DEFAULT_MIN_AGE_DAYS;
   for (const arg of Deno.args) {
     if (arg === "--dry-run") dryRun = true;
     else if (arg.startsWith("--min-age-days=")) {
-      minAgeDays = Number.parseInt(arg.split("=")[1], 10);
+      minAgeDays = Number.parseInt(arg.slice("--min-age-days=".length), 10);
       if (Number.isNaN(minAgeDays) || minAgeDays < 0) {
         console.error("Invalid --min-age-days value");
         Deno.exit(1);
@@ -54,19 +60,29 @@ function parseVersionSpec(spec: string): {
 } | null {
   const match = spec.match(/^([~^]?)(\d+)(?:\.(\d+))?(?:\.(\d+))?$/);
   if (!match) return null;
-  const major = match[2];
+  const prefix = requireValue(match[1], "Version prefix capture is missing");
+  const major = requireValue(match[2], "Version major capture is missing");
   const minor = match[3] ?? "0";
   const patch = match[4] ?? "0";
-  return { prefix: match[1], version: `${major}.${minor}.${patch}` };
+  return { prefix, version: `${major}.${minor}.${patch}` };
 }
 
+const versionParts = (version: string): [number, number, number] => {
+  const parts = version.split(".");
+  if (parts.length !== 3) throw new Error(`Invalid version: ${version}`);
+  return [
+    Number(requireValue(parts[0], `Invalid version: ${version}`)),
+    Number(requireValue(parts[1], `Invalid version: ${version}`)),
+    Number(requireValue(parts[2], `Invalid version: ${version}`)),
+  ];
+};
+
 function compareVersions(a: string, b: string): number {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if (pa[i] !== pb[i]) return pa[i] - pb[i];
-  }
-  return 0;
+  const [majorA, minorA, patchA] = versionParts(a);
+  const [majorB, minorB, patchB] = versionParts(b);
+  if (majorA !== majorB) return majorA - majorB;
+  if (minorA !== minorB) return minorA - minorB;
+  return patchA - patchB;
 }
 
 async function fetchNpmVersions(pkg: string): Promise<VersionInfo[]> {
@@ -143,8 +159,15 @@ function fetchVersionsFor(
   if (registry === "npm") {
     return fetchNpmVersions(pkgName);
   }
-  const [scope, name] = pkgName.replace("@", "").split("/");
-  return fetchJsrVersions(scope, name);
+  const withoutAt = pkgName.startsWith("@") ? pkgName.slice(1) : pkgName;
+  const slashIndex = withoutAt.indexOf("/");
+  if (slashIndex <= 0 || slashIndex === withoutAt.length - 1) {
+    throw new Error(`Invalid JSR package name: ${pkgName}`);
+  }
+  return fetchJsrVersions(
+    withoutAt.slice(0, slashIndex),
+    withoutAt.slice(slashIndex + 1),
+  );
 }
 
 async function checkUpgrade(
@@ -186,13 +209,11 @@ async function checkUpgrade(
       compareVersions(b.version, a.version),
     );
 
-    if (sorted.length === 0) {
+    const latest = sorted[0];
+    if (latest === undefined) {
       result.error = "no versions found";
       return result;
     }
-
-    // Latest version overall
-    const latest = sorted[0];
 
     // Latest version that's old enough
     const safe = sorted.find((v) => v.publishedAt <= cutoffDate);
@@ -216,6 +237,13 @@ async function checkUpgrade(
     return result;
   }
 }
+
+const hasUpgrade = (result: UpgradeResult): result is AvailableUpgrade => {
+  if ((result.newVersion === null) !== (result.newPublishedAt === null)) {
+    throw new Error(`Incomplete upgrade result for ${result.name}`);
+  }
+  return result.newVersion !== null;
+};
 
 async function main() {
   const { dryRun, minAgeDays } = parseArgs();
@@ -243,7 +271,7 @@ async function main() {
     deps.map(([name, spec]) => checkUpgrade(name, spec, cutoffDate)),
   );
 
-  const upgrades = results.filter((r) => r.newVersion !== null);
+  const upgrades = results.filter(hasUpgrade);
   const errors = results.filter((r) => r.error !== null);
   const upToDate = results.filter(
     (r) => r.newVersion === null && r.error === null,
@@ -269,14 +297,12 @@ function printUpToDate(upToDate: UpgradeResult[]): void {
   console.log("");
 }
 
-function printUpgrades(upgrades: UpgradeResult[], minAgeDays: number): void {
+function printUpgrades(upgrades: AvailableUpgrade[], minAgeDays: number): void {
   if (upgrades.length === 0) return;
   console.log(`Upgrades available (${upgrades.length}):`);
   for (const r of upgrades) {
-    // checkUpgrade sets newPublishedAt alongside newVersion, and callers filter
-    // `upgrades` on newVersion !== null, so newPublishedAt is guaranteed present.
     const age = Math.floor(
-      (Date.now() - r.newPublishedAt!.getTime()) / (1000 * 60 * 60 * 24),
+      (Date.now() - r.newPublishedAt.getTime()) / (1000 * 60 * 60 * 24),
     );
     console.log(
       `  ${r.name}: ${r.currentVersion} -> ${r.newVersion} (${age} days old)`,
@@ -299,7 +325,7 @@ function printErrors(errors: UpgradeResult[]): void {
   console.log("");
 }
 
-async function applyUpgrades(upgrades: UpgradeResult[]): Promise<void> {
+async function applyUpgrades(upgrades: AvailableUpgrade[]): Promise<void> {
   let denoJsonText = await Deno.readTextFile(DENO_JSON_PATH);
   for (const r of upgrades) {
     // Replace the full specifier, updating to ^newVersion

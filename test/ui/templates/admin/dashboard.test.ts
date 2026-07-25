@@ -50,7 +50,7 @@ describe("adminDashboardPage", () => {
     const listings = [testListingWithCount({ name: "My Test Listing" })];
     const html = adminDashboardPage(listings, OWNER_SESSION);
     expect(html).toContain("My Test Listing");
-    expect(html).toContain("Listing Name");
+    expect(html).toContain("Listing name");
   });
 
   test("renders the add-listing and add-attendee quick actions", () => {

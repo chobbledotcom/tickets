@@ -49,6 +49,21 @@ export const getRandomBytes = (length: number): Uint8Array => {
   return bytes;
 };
 
+/** Concatenate byte arrays into one array. */
+export const concatBytes = (
+  ...parts: Uint8Array[]
+): Uint8Array<ArrayBuffer> => {
+  let total = 0;
+  for (const part of parts) total += part.length;
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    bytes.set(part, offset);
+    offset += part.length;
+  }
+  return bytes;
+};
+
 /**
  * Convert Uint8Array to base64 string
  */

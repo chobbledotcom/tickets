@@ -210,6 +210,8 @@ describeWithEnv("route message loading", { db: true }, () => {
 
       expect(response.status).toBe(200);
       expect(t("guide.title")).toBe("Guide");
+      expect(t("listings_table.column.name.label")).toBe("Name");
+      expect(t("admin.attendee_table.column.name.label")).toBe("Name");
     }));
 
   test("the formatting page loads only formatting guide copy", () =>

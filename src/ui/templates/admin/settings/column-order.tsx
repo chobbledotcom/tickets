@@ -22,7 +22,7 @@ const attendeeDefault = attendeeTable.defaultTemplate;
 /** Shape describing a configurable-columns table for the column-order form:
  *  a typed `columns` array the form reads available keys from. */
 type ConfigurableColumns = {
-  columns: readonly { key: string; label?: string }[];
+  columns: readonly { key: string }[];
 };
 
 /** Render available column tags as helper text */

@@ -32,8 +32,8 @@ export type TableColumn<TRow, TContext = void> = {
   /** Stable identifier for this column. The same key appears in configurable
    *  layout templates (`{{key}}`) and in the guide reference table. */
   readonly key: string;
-  /** The <th> content for this column. Plain JSX — no need to escape. */
-  readonly header: Child;
+  /** The <th> content, or a function that reads translated copy at render time. */
+  readonly header: Child | (() => Child);
   /** Render the <td> inner content for one row. The context is the per-table
    *  `TContext` (default `void`); an ordinary column with no context can
    *  ignore every parameter after `row`. */
@@ -66,12 +66,11 @@ export type TableColumn<TRow, TContext = void> = {
    *  applies a Liquid filter (e.g. `{{created | date: "%B"}}`), the filter
    *  runs against this value instead of the cell renderer's output. */
   readonly rawValue?: (row: TRow, ctx: TContext) => unknown;
-  /** Short label for the column-reference table shown in the guide. Only the
-   *  configurable tables (listing, attendee) populate this. */
-  readonly label?: string;
-  /** Description for the column-reference table shown in the guide. Only the
-   *  configurable tables (listing, attendee) populate this. */
-  readonly description?: string;
+  /** Short label for the column-reference table shown in the guide. A function
+   *  reads translated copy only when the guide is rendered. */
+  readonly label?: string | (() => string);
+  /** Description for the guide, either ready text or translated at render time. */
+  readonly description?: string | (() => string);
 };
 
 /** The standard up/down reorder-arrows column declaration: prepended to a

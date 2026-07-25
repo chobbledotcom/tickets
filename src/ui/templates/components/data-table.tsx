@@ -21,6 +21,7 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   combineClasses,
   renderHeaderCell,
@@ -118,7 +119,11 @@ export const DataTable = ({
       rows.map((row) => (
         <tr>
           {row.map((cell, i) => {
-            const className = cellClassName(columns[i] ?? { header: "" });
+            const column = requireValue(
+              columns[i],
+              "DataTable row has more cells than columns",
+            );
+            const className = cellClassName(column);
             return className === undefined ? (
               <td>{cell}</td>
             ) : (

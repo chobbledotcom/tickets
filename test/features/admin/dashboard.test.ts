@@ -30,7 +30,7 @@ describeWithEnv("admin listings route", { db: true }, () => {
       async () =>
         (await awaitTestRequest("/admin/listings", { cookie })).text(),
     );
-    expect(html).toContain("<th>Listing Name</th>");
+    expect(html).toContain("<th>Listing name</th>");
     expect(html).not.toContain("<th>Status</th>");
   });
 

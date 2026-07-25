@@ -83,7 +83,7 @@ attendeeTableSuite(() => {
       "Email",
       "Phone",
       "Address",
-      "Special Instructions",
+      "Special instructions",
       "Qty",
       "Ticket",
       "Registered",
@@ -159,7 +159,7 @@ attendeeTableSuite(() => {
       ["Email", "email", "test@example.com"],
       ["Phone", "phone", "555-1234"],
       ["Address", "address", "123 Main St"],
-      ["Special Instructions", "special_instructions", "Vegetarian"],
+      ["Special instructions", "special_instructions", "Vegetarian"],
     ] as const;
 
     for (const [heading, field, value] of fieldCases) {

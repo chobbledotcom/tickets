@@ -44,6 +44,16 @@ attendeeTableSuite(() => {
       );
     });
 
+    test("rejects a check-in row without a listing", () => {
+      expect(() =>
+        render(
+          makeOpts({
+            rows: [makeRow({ listings: [] })],
+          }),
+        ),
+      ).toThrow("Attendee 1 has no listing");
+    });
+
     test("includes activeFilter as return_filter", () => {
       const html = render(makeOpts({ activeFilter: "in" }));
       expect(hasInputWithValue(html, "return_filter", "in")).toBe(true);

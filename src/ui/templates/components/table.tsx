@@ -112,6 +112,24 @@ export const combineClasses = (
     .filter((c): c is string => c !== undefined)
     .join(" ");
 
+/** Build the translated text shared by a table column's header and guide row. */
+export const tableColumnText = (
+  label: () => string,
+  description: () => string,
+  header: () => Child = label,
+): { description: () => string; header: () => Child; label: () => string } => ({
+  description,
+  header,
+  label,
+});
+
+const resolveColumnText = (text: Child | (() => Child)): Child =>
+  typeof text === "function" ? text() : text;
+
+const resolveGuideText = (
+  text: string | (() => string) | undefined,
+): string | undefined => (typeof text === "function" ? text() : text);
+
 /** Split `cellAttrs` into the cell-level class (merged with the column kind's
  *  class) and the remaining attributes. */
 const splitCellAttrs = (
@@ -215,7 +233,7 @@ const headerCell = <TRow, TContext>(
   column: TableColumn<TRow, TContext>,
 ): JSX.Element =>
   renderHeaderCell(
-    column.header,
+    resolveColumnText(column.header),
     combineClasses(column.class, column.headerClassName),
   );
 
@@ -370,24 +388,21 @@ export const renderReorderTable = <TRow, TContext = void>(
 export const renderColumnReference = <TRow, TContext>(
   table: TableDefinition<TRow, TContext>,
 ): JSX.Element => {
-  const rows = table.columns
-    .filter(
-      (
-        c,
-      ): c is TableColumn<TRow, TContext> & {
-        label: string;
-        description: string;
-      } => c.label !== undefined && c.description !== undefined,
-    )
-    .map((c) => (
-      <tr>
-        <td>
-          <code>{`{{${c.key}}}`}</code>
-        </td>
-        <td>{c.label}</td>
-        <td>{c.description}</td>
-      </tr>
-    ));
+  const rows = table.columns.flatMap((column) => {
+    const label = resolveGuideText(column.label);
+    const description = resolveGuideText(column.description);
+    return label === undefined || description === undefined
+      ? []
+      : [
+          <tr>
+            <td>
+              <code>{`{{${column.key}}}`}</code>
+            </td>
+            <td>{label}</td>
+            <td>{description}</td>
+          </tr>,
+        ];
+  });
   return (
     <div class="table-scroll">
       <table>

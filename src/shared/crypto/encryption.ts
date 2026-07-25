@@ -6,7 +6,7 @@ import { createCipheriv, createDecipheriv } from "node:crypto";
 import { lazyRef } from "#fp";
 import { getEnv } from "#shared/env.ts";
 import type { EnvKeyEncrypted, KeyEncrypted } from "./sealed.ts";
-import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
+import { concatBytes, fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 
 /**
  * Encryption format version prefix
@@ -185,19 +185,6 @@ const GCM_TAG_BYTES = 16;
  * is faster above this size and offloads to a threadpool instead of blocking.
  */
 const NODE_AES_MAX_BYTES = 64 * 1024;
-
-/** Concatenate byte arrays into a single Uint8Array */
-const concatBytes = (...parts: Uint8Array[]): Uint8Array => {
-  let total = 0;
-  for (const part of parts) total += part.length;
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    out.set(part, offset);
-    offset += part.length;
-  }
-  return out;
-};
 
 /**
  * AES-256-GCM encrypt via node:crypto (synchronous, raw key bytes).

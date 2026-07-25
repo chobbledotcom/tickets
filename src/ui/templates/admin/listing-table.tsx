@@ -25,7 +25,7 @@ import {
 } from "#shared/tables/listing-layout.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { PageBlock } from "#templates/components/page-structure.tsx";
-import { renderTable } from "#templates/components/table.tsx";
+import { renderTable, tableColumnText } from "#templates/components/table.tsx";
 import { renderListingImage } from "#templates/public/shared.tsx";
 
 type ListingCol = TableColumn<ListingWithCount>;
@@ -45,11 +45,13 @@ const nameCell = (e: ListingWithCount, href: string): JSX.Element => (
 );
 
 const name: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.name.label"),
+    () => t("listings_table.column.name.description"),
+    () => t("listings_table.column.name.header"),
+  ),
   cell: (e) => nameCell(e, `/admin/listing/${e.id}`),
-  description: "Listing name with thumbnail image and link to listing detail",
-  header: "Listing Name",
   key: "name",
-  label: "Name",
   rawValue: (e) => e.name,
 };
 
@@ -60,109 +62,125 @@ const editorName: ListingCol = {
 };
 
 const description: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.description.label"),
+    () => t("listings_table.column.description.description"),
+  ),
   cell: (e) => e.description,
   className: "cell-description",
-  description: "Listing description text",
-  header: "Description",
   key: "description",
-  label: "Description",
 };
 
 const status: ListingCol = {
-  cell: (e) => (e.active ? "Active" : "Inactive"),
-  description: "Whether the listing is Active or Inactive",
-  header: "Status",
+  ...tableColumnText(
+    () => t("listings_table.column.status.label"),
+    () => t("listings_table.column.status.description"),
+  ),
+  cell: (e) => (e.active ? t("common.active") : t("common.inactive")),
   key: "status",
-  label: "Status",
 };
 
 const attendees: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.attendees.label"),
+    () => t("listings_table.column.attendees.description"),
+  ),
   cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
-  description: "Current attendee count vs maximum capacity",
-  header: "Attendees",
   key: "attendees",
-  label: "Attendees",
 };
 
 const tickets: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.tickets.label"),
+    () => t("listings_table.column.tickets.description"),
+  ),
   cell: (e) => String(e.tickets_count),
-  description: "Number of bookings (ticket rows) sold for this listing",
-  header: "Tickets",
   key: "tickets",
-  label: "Tickets",
   rawValue: (e) => e.tickets_count,
 };
 
 const revenue: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.revenue.label"),
+    () => t("listings_table.column.revenue.description"),
+  ),
   cell: (e) => formatCurrency(e.income),
-  description: "Total income taken for this listing (sum of payments)",
-  header: "Revenue",
   key: "revenue",
-  label: "Revenue",
   rawValue: (e) => e.income,
 };
 
 const cost: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.cost.label"),
+    () => t("listings_table.column.cost.description"),
+  ),
   cell: (e) => formatCurrency(e.cost),
-  description: "Total servicing costs recorded for this listing",
-  header: "Costs",
   key: "cost",
-  label: "Costs",
   rawValue: (e) => e.cost,
 };
 
 const profit: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.profit.label"),
+    () => t("listings_table.column.profit.description"),
+  ),
   cell: (e) => formatCurrency(e.profit),
-  description: "Revenue less servicing costs for this listing",
-  header: "Profit",
   key: "profit",
-  label: "Profit",
   rawValue: (e) => e.profit,
 };
 
 const created: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.created.label"),
+    () => t("listings_table.column.created.description"),
+  ),
   cell: (e) => new Date(e.created).toLocaleDateString(),
-  description: "Date the listing was created",
-  header: "Created",
   key: "created",
-  label: "Created",
   rawValue: (e) => e.created,
 };
 
 const date: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.date.label"),
+    () => t("listings_table.column.date.description"),
+  ),
   cell: (e) => (e.date ? new Date(e.date).toLocaleDateString() : ""),
-  description: "Scheduled listing date",
-  header: "Date",
   key: "date",
-  label: "Date",
   rawValue: (e) => e.date || "",
 };
 
 const location: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.location.label"),
+    () => t("listings_table.column.location.description"),
+  ),
   cell: (e) => e.location,
-  description: "Listing location",
-  header: "Location",
   key: "location",
-  label: "Location",
 };
 
 const price: ListingCol = {
-  cell: (e) => (e.unit_price > 0 ? String(e.unit_price) : "Free"),
-  description: "Ticket unit price (in minor currency units)",
-  header: "Price",
+  ...tableColumnText(
+    () => t("listings_table.column.price.label"),
+    () => t("listings_table.column.price.description"),
+  ),
+  cell: (e) =>
+    e.unit_price > 0 ? String(e.unit_price) : t("listings_table.free"),
   key: "price",
-  label: "Price",
   rawValue: (e) => e.unit_price,
 };
 
 const renewal: ListingCol = {
+  ...tableColumnText(
+    () => t("listings_table.column.renewal.label"),
+    () => t("listings_table.column.renewal.description"),
+  ),
   cell: (e) =>
-    e.months_per_unit > 0 ? `Renewal (${e.months_per_unit}mo)` : "",
-  description:
-    "Whether this listing is a renewal tier and its duration in months",
-  header: "Renewal",
+    e.months_per_unit > 0
+      ? t("listings_table.column.renewal.value", {
+          months: e.months_per_unit,
+        })
+      : "",
   key: "renewal",
-  label: "Renewal",
   rawValue: (e) => e.months_per_unit,
 };
 

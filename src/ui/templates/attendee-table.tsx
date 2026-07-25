@@ -26,13 +26,14 @@ import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { nonBlankLines } from "#shared/lines.ts";
 import { normalizePhone } from "#shared/phone.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { ReturnUrlField } from "#shared/return-url-field.tsx";
 import { ATTENDEE_COLUMN_KEYS } from "#shared/tables/attendee-layout.ts";
 import { defineTable, type TableColumn } from "#shared/tables/definition.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
 import type { AttendeeTableRow, DisplayAttendee } from "#shared/types.ts";
 import { hasTicketQuantity } from "#shared/types.ts";
-import { renderTable } from "#templates/components/table.tsx";
+import { renderTable, tableColumnText } from "#templates/components/table.tsx";
 
 export type { AttendeeTableRow } from "#shared/types.ts";
 export type { TableLayout as AttendeeColumnLayout };
@@ -138,17 +139,22 @@ export const buildAnswerMaps = (
 // ---------------------------------------------------------------------------
 
 const name: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.name.label"),
+    () => t("admin.attendee_table.column.name.description"),
+  ),
   cell: (row) => (
     <a href={attendeeAdminPath(row.attendee)}>{row.attendee.name}</a>
   ),
-  description: "Attendee name with link to the edit attendee page",
-  header: "Name",
   key: "name",
-  label: "Name",
   rawValue: (row) => row.attendee.name,
 };
 
 const listings: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.listings.label"),
+    () => t("admin.attendee_table.column.listings.description"),
+  ),
   cell: (row) => {
     const links = row.listings.map((l, i) => (
       <>
@@ -163,87 +169,86 @@ const listings: AttendeeCol = {
       </span>
     );
   },
-  description:
-    "The row's listings in display order, each linked to its detail page",
-  header: "Listings",
   key: "listings",
-  label: "Listings",
 };
 
 const date: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.date.label"),
+    () => t("admin.attendee_table.column.date.description"),
+  ),
   cell: (row) => (row.attendee.date ? formatDateLabel(row.attendee.date) : ""),
-  description: "Booking date for daily listings",
-  header: "Date",
   key: "date",
-  label: "Date",
   rawValue: (row) => row.attendee.date || "",
 };
 
 const email: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.email.label"),
+    () => t("admin.attendee_table.column.email.description"),
+  ),
   cell: (row) => row.attendee.email || "",
-  description: "Attendee email address",
-  header: "Email",
   key: "email",
-  label: "Email",
 };
 
 const phone: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.phone.label"),
+    () => t("admin.attendee_table.column.phone.description"),
+  ),
   cell: (row, opts) => {
     if (!row.attendee.phone) return "";
-    const normalized = normalizePhone(
-      row.attendee.phone,
-      opts.phonePrefix || "44",
-    );
+    const normalized = normalizePhone(row.attendee.phone, opts.phonePrefix);
     return <a href={`tel:${normalized}`}>{row.attendee.phone}</a>;
   },
-  description: "Attendee phone number (clickable link)",
-  header: "Phone",
   key: "phone",
-  label: "Phone",
 };
 
 const address: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.address.label"),
+    () => t("admin.attendee_table.column.address.description"),
+  ),
   cell: (row) => formatAddressInline(row.attendee.address || ""),
-  description: "Attendee postal address (inline format)",
-  header: "Address",
   key: "address",
-  label: "Address",
 };
 
 const special_instructions: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.special_instructions.label"),
+    () => t("admin.attendee_table.column.special_instructions.description"),
+  ),
   cell: (row) =>
     formatInstructionsInline(row.attendee.special_instructions || ""),
-  description: "Any special instructions from the attendee",
-  header: "Special Instructions",
   key: "special_instructions",
-  label: "Special Instructions",
 };
 
 const answers: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.answers.label"),
+    () => t("admin.attendee_table.column.answers.description"),
+  ),
   cell: (row, opts) => {
-    if (!opts.questionData) return "";
     const { short, tooltip } = getAnswerDisplay(
       row.attendee.id,
-      opts.questionData,
+      requireValue(opts.questionData, "Answers column requires question data"),
       opts.answerTextMap,
       opts.answerQuestionMap,
     );
     return <span title={tooltip}>{short}</span>;
   },
   className: "answers-cell",
-  description: "Custom question answers",
-  header: "Answers",
   key: "answers",
-  label: "Answers",
 };
 
 const qty: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.qty.label"),
+    () => t("admin.attendee_table.column.qty.description"),
+  ),
   cell: (row) => String(row.attendee.quantity),
   class: "quantity",
-  description: "Number of tickets in this booking",
-  header: "Qty",
   key: "qty",
-  label: "Qty",
   rawValue: (row) => row.attendee.quantity,
 };
 
@@ -256,6 +261,10 @@ const noQuantityIndicator = (): JSX.Element => (
 );
 
 const ticket: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.ticket.label"),
+    () => t("admin.attendee_table.column.ticket.description"),
+  ),
   cell: (row, opts) => {
     if (isServicing(row.attendee.kind)) {
       return (
@@ -271,29 +280,29 @@ const ticket: AttendeeCol = {
       </a>
     );
   },
-  description: "Clickable ticket token link",
-  header: "Ticket",
   key: "ticket",
-  label: "Ticket",
 };
 
 const registered: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.registered.label"),
+    () => t("admin.attendee_table.column.registered.description"),
+  ),
   cell: (row) => formatDatetimeShort(row.attendee.created),
-  description: "Date and time the attendee registered",
-  header: "Registered",
   key: "registered",
-  label: "Registered",
   rawValue: (row) => row.attendee.created,
 };
 
 const status: AttendeeCol = {
+  ...tableColumnText(
+    () => t("admin.attendee_table.column.status.label"),
+    () => t("admin.attendee_table.column.status.description"),
+    () => "",
+  ),
   cell: (row, opts) => opts.renderStatus(row),
   className: "actions-col",
-  description: "Check-in/check-out button or refunded badge",
-  header: "",
   headerClassName: "actions-col",
   key: "status",
-  label: "Status",
 };
 
 /** The attendee table definition — every column, with the layout keys the
@@ -471,7 +480,10 @@ const createStatusRenderer =
     return CheckinButton({
       a,
       activeFilter: opts.activeFilter ?? "all",
-      listingId: row.listings[0]?.id ?? 0,
+      listingId: requireValue(
+        row.listings[0],
+        `Attendee ${a.id} has no listing`,
+      ).id,
       returnUrl: opts.returnUrl,
     });
   };
