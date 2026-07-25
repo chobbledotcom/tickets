@@ -6,18 +6,9 @@ import {
 
 const SERVICING_STUDIO_CSS = `
 :root {
-  --border-radius: 5px;
   --color-accent: #c28b52;
-  --color-bg: #e9edef;
-  --color-bg-secondary: #d8e0e3;
-  --color-link: #315b67;
   --color-secondary: #315b67;
-  --color-secondary-accent: #315b6718;
   --color-shadow: #263f4724;
-  --color-table: #315b67;
-  --color-text: #27383d;
-  --color-text-secondary: #66777c;
-  --font-family: Arial, Helvetica, sans-serif;
 }
 
 #servicing-form {

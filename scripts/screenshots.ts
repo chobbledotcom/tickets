@@ -1,6 +1,6 @@
 import { dirname, fromFileUrl, join, resolve } from "@std/path";
 import { chromium, type Page } from "playwright";
-import { browserLaunchOptions } from "./browser-options.ts";
+import { launchScreenshotChromium } from "./browser-options.ts";
 import {
   type ScreenshotAppServer,
   startScreenshotAppServer,
@@ -193,6 +193,17 @@ const applyTheme = async (
   await submit(page, 'form[action="/admin/settings/custom-css"]');
 };
 
+const captureAndWrite = async (
+  page: Page,
+  outputPath: string,
+  elementSelector?: string,
+  fullPage = false,
+): Promise<Rgb> => {
+  const screenshot = await capturePreparedPage(page, elementSelector, fullPage);
+  await Deno.writeFile(outputPath, screenshot.png);
+  return screenshot.background;
+};
+
 const capture = async (
   page: Page,
   baseUrl: string,
@@ -208,9 +219,7 @@ const capture = async (
   await scene.prepare?.(page);
   await waitForScreenshotPage(page);
   await scene.verify?.(page);
-  const screenshot = await capturePreparedPage(page, elementSelector);
-  await Deno.writeFile(outputPath, screenshot.png);
-  return screenshot.background;
+  return captureAndWrite(page, outputPath, elementSelector);
 };
 
 const writeSocialVariants = async (
@@ -264,19 +273,19 @@ const captureScenario = async (
   });
   await waitForScreenshotPage(page);
   const outputPath = join(outputDir, `${scenario.name}.png`);
-  const screenshot = await capturePreparedPage(
+  const background = await captureAndWrite(
     page,
+    outputPath,
     scenario.elementSelector,
     scenario.fullPage,
   );
-  await Deno.writeFile(outputPath, screenshot.png);
   console.log(`${scenario.name}.png`);
   await writeSocialVariants(
     outputPath,
     outputDir,
     scenario.name,
     "",
-    screenshot.background,
+    background,
     social,
   );
 };
@@ -293,11 +302,7 @@ const main = async (): Promise<void> => {
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
     const executablePath = await chromiumExecutable();
-    browser = await chromium.launch(
-      browserLaunchOptions(true, executablePath, [
-        "--disable-features=CDPScreenshotNewSurface",
-      ]),
-    );
+    browser = await launchScreenshotChromium(chromium, executablePath);
     const context = await browser.newContext({
       baseURL: server.baseUrl,
       ...screenshotContextOptions(MOBILE_SCREENSHOT_PROFILE),

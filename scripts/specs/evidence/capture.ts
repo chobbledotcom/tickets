@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import type { Browser, BrowserContext } from "playwright";
 import { chromium } from "playwright";
-import { browserLaunchOptions } from "#scripts/browser-options.ts";
+import { launchScreenshotChromium } from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { capturePreparedPage } from "#scripts/screenshots/capture.ts";
 import {
@@ -21,6 +21,9 @@ import { resolveEvidenceScenario } from "./resolve.ts";
 import { parseEvidenceDeclarations } from "./schema.ts";
 import { storeEvidenceCss } from "./style.ts";
 
+/** Per-page capture timeout. The After hook has EVIDENCE_HOOK_TIMEOUT_MS
+ * (hook.ts) for all captures in one scenario; keep the declaration×profile
+ * count small enough to fit within it as EVIDENCE_CAPTURES grows. */
 const CAPTURE_TIMEOUT_MS = 60_000;
 
 interface LoopbackServer {
@@ -109,7 +112,7 @@ const captureProfile = async (
     await page.goto(
       resolveEvidencePath(declaration.path, world.evidenceValues),
       {
-        waitUntil: "networkidle",
+        waitUntil: "domcontentloaded",
       },
     );
     await waitForScreenshotPage(page);
@@ -146,10 +149,9 @@ export const captureCurrentScenarioEvidence = async (
   const server = startLoopbackServer();
   let browser: Browser | undefined;
   try {
-    browser = await chromium.launch(
-      browserLaunchOptions(true, await chromiumExecutable(), [
-        "--disable-features=CDPScreenshotNewSurface",
-      ]),
+    browser = await launchScreenshotChromium(
+      chromium,
+      await chromiumExecutable(),
     );
     for (const declaration of selected) {
       for (const profile of declaration.profiles) {

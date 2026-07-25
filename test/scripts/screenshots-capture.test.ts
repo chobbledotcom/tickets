@@ -1,6 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import sharp from "sharp";
+import {
+  browserLaunchOptions,
+  launchScreenshotChromium,
+} from "#scripts/browser-options.ts";
+import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
 import { trimElementPng } from "#scripts/screenshots/image.ts";
 import {
   MOBILE_SCREENSHOT_PROFILE,
@@ -90,5 +96,84 @@ describe("reusable screenshot capture", () => {
     await expect(
       trimElementPng(source, { b: 255, g: 255, r: 255 }),
     ).rejects.toThrow("has no visible content");
+  });
+
+  test("builds launch options with only provided fields", () => {
+    expect(browserLaunchOptions(true, undefined, undefined)).toEqual({
+      headless: true,
+    });
+    expect(browserLaunchOptions(false, "/usr/bin/ch", ["--flag"])).toEqual({
+      args: ["--flag"],
+      executablePath: "/usr/bin/ch",
+      headless: false,
+    });
+  });
+
+  test("launches Chromium with screenshot-mode headless and CDP fix", async () => {
+    const calls: Parameters<
+      Parameters<typeof launchScreenshotChromium>[0]["launch"]
+    >[0] = {
+      args: ["--disable-features=CDPScreenshotNewSurface"],
+      headless: true,
+    };
+    const fakeBrowser = {
+      launch: (options: typeof calls) => Promise.resolve(options),
+    };
+    const options = await launchScreenshotChromium(
+      fakeBrowser as never,
+      "/path/to/chromium",
+    );
+
+    expect(options).toEqual({
+      args: ["--disable-features=CDPScreenshotNewSurface"],
+      executablePath: "/path/to/chromium",
+      headless: true,
+    });
+  });
+
+  test("resolves Chromium from env, Nix path, or absent", async () => {
+    const envStub = stub(Deno.env, "get", (key) =>
+      key === "CHROMIUM_EXECUTABLE" ? "/custom/chromium" : undefined,
+    );
+    try {
+      expect(await chromiumExecutable()).toBe("/custom/chromium");
+    } finally {
+      envStub.restore();
+    }
+
+    const nixEnv = stub(Deno.env, "get", () => undefined);
+    const statOk = stub(Deno, "stat", () =>
+      Promise.resolve({} as Deno.FileInfo),
+    );
+    try {
+      expect(await chromiumExecutable()).toBe(
+        "/etc/profiles/per-user/user/bin/chromium",
+      );
+    } finally {
+      nixEnv.restore();
+      statOk.restore();
+    }
+
+    const missingEnv = stub(Deno.env, "get", () => undefined);
+    const statStub = stub(Deno, "stat", () =>
+      Promise.reject(new Deno.errors.NotFound()),
+    );
+    try {
+      expect(await chromiumExecutable()).toBeUndefined();
+    } finally {
+      missingEnv.restore();
+      statStub.restore();
+    }
+
+    const permEnv = stub(Deno.env, "get", () => undefined);
+    const permStub = stub(Deno, "stat", () =>
+      Promise.reject(new Deno.errors.PermissionDenied("no access")),
+    );
+    try {
+      await expect(chromiumExecutable()).rejects.toThrow("no access");
+    } finally {
+      permEnv.restore();
+      permStub.restore();
+    }
   });
 });
