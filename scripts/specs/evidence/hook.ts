@@ -1,5 +1,6 @@
 import type { Buffer } from "node:buffer";
 import type { GherkinDocument, Pickle } from "@cucumber/messages";
+import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 
 export const SPEC_EVIDENCE_ENV = "TICKETS_SPEC_EVIDENCE";
 export const EVIDENCE_HOOK_TIMEOUT_MS = 120_000;
@@ -29,6 +30,16 @@ export const captureScenarioEvidence = async (
   loadCapture: () => Promise<CaptureScenario>,
 ): Promise<void> => {
   if (mode !== "1") return;
-  const capture = await loadCapture();
-  await capture(world, hook);
+  try {
+    const capture = await loadCapture();
+    await capture(world, hook);
+  } finally {
+    // The capture's loopback server serves requests through serveHandler,
+    // whose memoized initialize() flips the N+1 guard to notify-only on its
+    // first call (src/serve-app.ts). specs:evidence runs scenarios serially
+    // in one isolate (parallel: 0), so without resetting here that flipped
+    // guard would leak into the next scenario and silence its N+1 checks.
+    // Restore the default throw mode so one capture cannot weaken the next.
+    setN1GuardNotifyOnly(null);
+  }
 };
