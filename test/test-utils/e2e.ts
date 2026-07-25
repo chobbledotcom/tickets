@@ -152,10 +152,3 @@ export const lineIndexOnPage = (
   }
   return index;
 };
-
-/** The first customer `/t` ticket token linked on the current page. */
-export const ticketTokenOnPage = (browser: TestBrowser): string => {
-  const match = browser.currentHtml.match(/href="[^"]*\/t\/([^"]+)"/);
-  if (!match) throw new Error("no customer /t ticket link on the current page");
-  return match[1]!;
-};

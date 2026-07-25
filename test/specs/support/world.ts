@@ -2,17 +2,21 @@ import type { World } from "@cucumber/cucumber";
 import { type CleanupTask, runCleanups } from "#scripts/cleanup.ts";
 
 export interface TicketsWorld extends World {
+  attendeeId?: number;
   attendeeIds?: number[];
+  attendeeName?: string;
   cleanup: Array<() => void | Promise<void>>;
   firstBody?: string;
   firstFailureData?: string;
   firstStatus?: number;
   listingId?: number;
+  listingIds: Map<string, number>;
   placeholderId?: number;
   refundCalls?: () => number;
   secondBody?: string;
   secondStatus?: number;
   sessionId?: string;
+  ticketToken?: string;
 }
 
 export const cleanupWorld = (

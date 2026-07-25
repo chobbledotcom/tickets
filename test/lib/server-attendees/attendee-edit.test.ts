@@ -11,7 +11,10 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createTestAttendeeDirect,
+  submitAttendeeEdit,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
@@ -28,7 +31,6 @@ import {
   expectFlashPage,
   firstAttendee,
   setupListingAndAttendee,
-  submitAttendeeEdit,
 } from "./helpers.ts";
 
 describeWithEnv(
