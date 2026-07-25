@@ -21,3 +21,18 @@ export const precommitWorkerCount = (
   ci
     ? hardwareConcurrency
     : Math.max(1, Math.floor(hardwareConcurrency / 2) - 1);
+
+/**
+ * The `DENO_JOBS` value a precommit run should use: an explicit operator-set
+ * value always wins; otherwise the capped worker count for CI vs local.
+ * Returns `undefined` when the caller should not change the env (the operator
+ * set `DENO_JOBS` themselves — `main` checks for this and skips).
+ */
+export const resolveDenoJobs = (
+  hardwareConcurrency: number,
+  ci: boolean,
+  currentDenoJobs: string | undefined,
+): number | undefined => {
+  if (currentDenoJobs !== undefined) return;
+  return precommitWorkerCount(hardwareConcurrency, ci);
+};

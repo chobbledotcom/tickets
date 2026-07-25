@@ -1,5 +1,5 @@
 import { readStream } from "#scripts/stream-lines.ts";
-import { precommitWorkerCount } from "#scripts/workers.ts";
+import { resolveDenoJobs } from "#scripts/workers.ts";
 import { bold, dim, green, red, yellow } from "./colors.ts";
 import { runCommand, runInteractiveCommand, splitCommand } from "./git.ts";
 import { acquirePrecommitLock } from "./lock.ts";
@@ -98,12 +98,12 @@ export const main = async (): Promise<void> => {
   // Cap test parallelism for the run. CI uses every thread; a local git hook
   // uses (threads / 2) - 1 so the editor and foreground work keep headroom.
   // An explicit DENO_JOBS always wins — only set a default when unset.
-  if (!Deno.env.get("DENO_JOBS")) {
-    Deno.env.set(
-      "DENO_JOBS",
-      String(precommitWorkerCount(navigator.hardwareConcurrency, ci)),
-    );
-  }
+  const jobs = resolveDenoJobs(
+    navigator.hardwareConcurrency,
+    ci,
+    Deno.env.get("DENO_JOBS"),
+  );
+  if (jobs !== undefined) Deno.env.set("DENO_JOBS", String(jobs));
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
   await warnAboutMergeConflicts();
 

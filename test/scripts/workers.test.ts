@@ -1,21 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { parseWorkerCount, precommitWorkerCount } from "#scripts/workers.ts";
-
-describe("parseWorkerCount", () => {
-  test("returns the parsed value for a positive integer string", () => {
-    expect(parseWorkerCount("4", 8)).toBe(4);
-  });
-
-  test("falls back when the value is not a positive integer", () => {
-    expect(parseWorkerCount(undefined, 8)).toBe(8);
-    expect(parseWorkerCount("", 8)).toBe(8);
-    expect(parseWorkerCount("0", 8)).toBe(8);
-    expect(parseWorkerCount("-1", 8)).toBe(8);
-    expect(parseWorkerCount("2.5", 8)).toBe(8);
-    expect(parseWorkerCount("not-a-number", 8)).toBe(8);
-  });
-});
+import { precommitWorkerCount, resolveDenoJobs } from "#scripts/workers.ts";
 
 describe("precommitWorkerCount", () => {
   test("uses every thread in CI", () => {
@@ -32,5 +17,21 @@ describe("precommitWorkerCount", () => {
     expect(precommitWorkerCount(4, false)).toBe(1);
     expect(precommitWorkerCount(2, false)).toBe(1);
     expect(precommitWorkerCount(1, false)).toBe(1);
+  });
+});
+
+describe("resolveDenoJobs", () => {
+  test("returns undefined when the operator already set DENO_JOBS", () => {
+    expect(resolveDenoJobs(16, false, "4")).toBe(undefined);
+    expect(resolveDenoJobs(16, true, "1")).toBe(undefined);
+  });
+
+  test("returns the CI worker count when unset in CI", () => {
+    expect(resolveDenoJobs(16, true, undefined)).toBe(16);
+  });
+
+  test("returns the capped local count when unset locally", () => {
+    expect(resolveDenoJobs(16, false, undefined)).toBe(7);
+    expect(resolveDenoJobs(8, false, undefined)).toBe(3);
   });
 });
