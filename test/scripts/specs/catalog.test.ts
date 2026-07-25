@@ -9,14 +9,17 @@ import {
 const FEATURE_PATH = "specs/payments/capacity-after-payment.feature";
 
 describe("Cucumber story catalog", () => {
-  test("reads the repository catalog from a directory or exact Feature", async () => {
-    const complete = await readSpecCatalog();
-    const focused = await readSpecCatalog([FEATURE_PATH]);
-
-    expect(complete.stories).toEqual(focused.stories);
-    expect(complete.stories.map(({ id }) => id)).toEqual([
+  test("reads every story from the repository catalog", async () => {
+    expect((await readSpecCatalog()).stories.map(({ id }) => id)).toEqual([
+      "attendees.no-quantity-tickets",
       "payments.capacity-after-payment",
     ]);
+  });
+
+  test("reads one exact Feature", async () => {
+    expect(
+      (await readSpecCatalog([FEATURE_PATH])).stories.map(({ id }) => id),
+    ).toEqual(["payments.capacity-after-payment"]);
   });
 
   test("sorts and removes duplicate Feature paths", async () => {
