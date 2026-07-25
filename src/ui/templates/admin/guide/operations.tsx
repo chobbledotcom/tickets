@@ -2,13 +2,13 @@
  * Admin guide — Operations sections.
  */
 
-import { attendeeTable } from "#shared/tables/attendee-table.tsx";
-import { listingTable } from "#shared/tables/listing-table.tsx";
 import {
   custom,
   faq,
   type GuideSection,
 } from "#templates/admin/guide/components.tsx";
+import { listingTable } from "#templates/admin/listing-table.tsx";
+import { attendeeTable } from "#templates/attendee-table.tsx";
 import { renderColumnReference } from "#templates/components/table.tsx";
 
 /** The "Default order: `<code>`" line a table-columns FAQ answer opens with. */

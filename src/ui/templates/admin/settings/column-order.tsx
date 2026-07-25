@@ -9,9 +9,9 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { attendeeTable } from "#shared/tables/attendee-table.tsx";
-import { listingTable } from "#shared/tables/listing-table.tsx";
+import { listingTable } from "#templates/admin/listing-table.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
+import { attendeeTable } from "#templates/attendee-table.tsx";
 import { textSettingsSection } from "#templates/components/settings-field-section.tsx";
 
 /* jscpd:ignore-end */

@@ -1,9 +1,11 @@
+/* jscpd:ignore-start */
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { DataTable } from "#templates/components/data-table.tsx";
 import { ErrorNote } from "#templates/components/error.tsx";
+/* jscpd:ignore-end */
 
 export const RenewalTierSummary = ({
   tiers,

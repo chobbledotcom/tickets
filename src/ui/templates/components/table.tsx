@@ -93,9 +93,9 @@ const COLUMN_KINDS: ReadonlySet<string> = new Set([
 const partToClass = (
   part: ColumnKind | string | number | boolean | undefined,
 ): string | undefined => {
-  if (part === undefined || part === false || part === null) return undefined;
-  if (typeof part === "number" || typeof part === "boolean") return undefined;
-  if (part === "") return undefined;
+  if (part === undefined || part === false || part === null) return;
+  if (typeof part === "number" || typeof part === "boolean") return;
+  if (part === "") return;
   return COLUMN_KINDS.has(part) ? colClass(part as ColumnKind) : part;
 };
 

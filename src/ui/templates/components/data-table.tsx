@@ -21,12 +21,12 @@
 import { t } from "#i18n";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { type ColumnKind } from "#templates/components/table-columns.ts";
 import {
   combineClasses,
   renderHeaderCell,
   TableShell,
 } from "#templates/components/table.tsx";
+import type { ColumnKind } from "#templates/components/table-columns.ts";
 
 /* jscpd:ignore-end */
 
@@ -136,9 +136,7 @@ export const DataTable = ({
     foot,
     headerRow: (
       <tr>
-        {columns.map((c) =>
-          renderHeaderCell(c.header, cellClassName(c) ?? ""),
-        )}
+        {columns.map((c) => renderHeaderCell(c.header, cellClassName(c) ?? ""))}
       </tr>
     ),
     scrollClass,

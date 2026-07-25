@@ -19,10 +19,6 @@ import {
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
 import type { TableLayout } from "#shared/tables/layout.ts";
-import {
-  editorListingTable,
-  listingTable,
-} from "#shared/tables/listing-table.tsx";
 import type {
   AdminSession,
   DisplayAttendee,
@@ -41,7 +37,9 @@ import {
   typeFilterHref,
 } from "#templates/admin/listing-attribute-filters.ts";
 import {
+  editorListingTable,
   ListingsTableBlock,
+  listingTable,
   renderListingsTableSection,
 } from "#templates/admin/listing-table.tsx";
 import { upcomingServicingSection } from "#templates/admin/servicing-events.tsx";
