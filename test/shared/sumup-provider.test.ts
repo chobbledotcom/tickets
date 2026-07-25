@@ -141,10 +141,14 @@ describe("sumup-provider", () => {
       );
     });
 
-    test("returns null when a paid checkout has no transaction", async () => {
+    test("rejects a paid checkout with no transaction", async () => {
       await stageCheckout();
       await withFetched(checkout({ transactionId: "" }), async () => {
-        expect(await sumupPaymentProvider.retrieveSession("ref")).toBeNull();
+        await expect(
+          sumupPaymentProvider.retrieveSession("ref"),
+        ).rejects.toThrow(
+          "SumUp checkout ref is paid but has no transaction id",
+        );
         expect(errors.lastMessage()).toContain(
           "SumUp checkout ref is paid but has no transaction id",
         );
@@ -296,12 +300,14 @@ describe("sumup-provider", () => {
       });
     });
 
-    test("returns retry when a paid checkout has no transaction", async () => {
+    test("rejects a paid checkout with no transaction", async () => {
       await stageCheckout();
       await withFetched(checkout({ transactionId: "" }), async () => {
-        expect(
-          await sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
-        ).toBe("retry");
+        await expect(
+          sumupPaymentProvider.resolveWebhookSession(listing("co_1")),
+        ).rejects.toThrow(
+          "SumUp checkout ref is paid but has no transaction id",
+        );
         expect(errors.lastMessage()).toContain(
           "SumUp checkout ref is paid but has no transaction id",
         );

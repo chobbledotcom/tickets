@@ -52,12 +52,13 @@ import { finishWebhookVerification } from "#shared/webhook-verification.ts";
  * - Value max 255 characters
  */
 
-/** Raw tender from Square REST API (snake_case) or camelCase from our client */
-type SquareRawTender = {
-  id?: string | undefined;
-  payment_id?: string | undefined;
-  paymentId?: string | undefined;
-};
+/** Raw tender from Square REST API (snake_case) or camelCase from our client. */
+const SquareRawTenderSchema = v.object({
+  id: v.optional(v.string()),
+  payment_id: v.optional(v.string()),
+  paymentId: v.optional(v.string()),
+});
+type SquareRawTender = v.InferOutput<typeof SquareRawTenderSchema>;
 
 /** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
 const mapTender = (t: SquareRawTender) => ({
@@ -205,7 +206,7 @@ const squareFetch = async (
   return JSON.parse(response.text);
 };
 
-/** Square REST API response shapes (snake_case) */
+/** Square REST API response shapes (snake_case). */
 type SquarePaymentLinkResponse = {
   payment_link?: {
     order_id?: string;
@@ -214,26 +215,65 @@ type SquarePaymentLinkResponse = {
   };
 };
 
-type SquareOrderResponse = {
-  order?: {
-    id?: string;
-    metadata?: Record<string, string | null>;
-    tenders?: SquareRawTender[];
-    state?: string;
-    total_money?: { amount: number; currency: string };
-    created_at?: string;
-  };
-};
+const SquareNonEmptyStringSchema = v.pipe(v.string(), v.nonEmpty());
 
-type SquarePaymentResponse = {
-  payment?: {
-    id?: string;
-    status?: string;
-    order_id?: string;
-    amount_money?: { amount: number; currency: string };
-    refunded_money?: { amount: number; currency: string };
-  };
-};
+const SquareRestMoneySchema = v.object({
+  amount: v.pipe(v.number(), v.safeInteger(), v.minValue(0)),
+  currency: SquareNonEmptyStringSchema,
+});
+
+const optionalProviderObject = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+) => v.optional(v.nullable(schema));
+
+const SquareOrderResponseSchema = v.object({
+  order: optionalProviderObject(
+    v.object({
+      created_at: v.optional(v.string()),
+      id: SquareNonEmptyStringSchema,
+      metadata: v.optional(v.record(v.string(), v.nullable(v.string()))),
+      state: v.optional(v.string()),
+      tenders: v.optional(v.array(SquareRawTenderSchema)),
+      total_money: SquareRestMoneySchema,
+    }),
+  ),
+});
+
+const SquareMinorUnitsSchema = v.pipe(
+  v.bigint(),
+  v.minValue(BigInt(0)),
+  v.maxValue(BigInt(Number.MAX_SAFE_INTEGER)),
+);
+
+const SquareMoneySchema = v.object({
+  amount: SquareMinorUnitsSchema,
+  currency: SquareNonEmptyStringSchema,
+});
+
+const SquareOrderCoreSchema = v.object({
+  id: SquareNonEmptyStringSchema,
+  totalMoney: SquareMoneySchema,
+});
+
+const SquarePaymentResponseSchema = v.object({
+  payment: optionalProviderObject(
+    v.object({
+      amount_money: SquareRestMoneySchema,
+      id: SquareNonEmptyStringSchema,
+      order_id: SquareNonEmptyStringSchema,
+      refunded_money: v.optional(SquareRestMoneySchema),
+      status: SquareNonEmptyStringSchema,
+    }),
+  ),
+});
+
+const SquarePaymentCoreSchema = v.object({
+  amountMoney: SquareMoneySchema,
+  id: SquareNonEmptyStringSchema,
+  orderId: SquareNonEmptyStringSchema,
+  refundedMoney: v.optional(SquareMoneySchema),
+  status: SquareNonEmptyStringSchema,
+});
 
 /**
  * Valibot boundary schema for the Square PaymentRefund object returned by
@@ -246,12 +286,9 @@ type SquarePaymentResponse = {
  * through a type cast.
  */
 const SquareRefundSchema = v.object({
-  amount_money: v.object({
-    amount: v.pipe(v.number(), v.minValue(0)),
-    currency: v.pipe(v.string(), v.minLength(1)),
-  }),
-  id: v.pipe(v.string(), v.minLength(1)),
-  payment_id: v.pipe(v.string(), v.minLength(1)),
+  amount_money: SquareRestMoneySchema,
+  id: SquareNonEmptyStringSchema,
+  payment_id: SquareNonEmptyStringSchema,
   status: v.picklist(["PENDING", "COMPLETED", "REJECTED", "FAILED"]),
 });
 
@@ -333,8 +370,9 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     },
     orders: {
       get: async (p: { orderId: string }) => {
-        const data = await get<SquareOrderResponse>(
-          `/v2/orders/${encodeURIComponent(p.orderId)}`,
+        const data = v.parse(
+          SquareOrderResponseSchema,
+          await get<unknown>(`/v2/orders/${encodeURIComponent(p.orderId)}`),
         );
         const o = data?.order;
         if (!o) return { order: null };
@@ -345,31 +383,28 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
             metadata: o.metadata,
             state: o.state,
             tenders: o.tenders?.map(mapTender),
-            totalMoney: o.total_money
-              ? {
-                  amount: BigInt(o.total_money.amount),
-                  currency: o.total_money.currency,
-                }
-              : undefined,
+            totalMoney: {
+              amount: BigInt(o.total_money.amount),
+              currency: o.total_money.currency,
+            },
           },
         };
       },
     },
     payments: {
       get: async (p: { paymentId: string }) => {
-        const data = await get<SquarePaymentResponse>(
-          `/v2/payments/${encodeURIComponent(p.paymentId)}`,
+        const data = v.parse(
+          SquarePaymentResponseSchema,
+          await get<unknown>(`/v2/payments/${encodeURIComponent(p.paymentId)}`),
         );
         const pm = data?.payment;
         if (!pm) return { payment: null };
         return {
           payment: {
-            amountMoney: pm.amount_money
-              ? {
-                  amount: BigInt(pm.amount_money.amount),
-                  currency: pm.amount_money.currency,
-                }
-              : undefined,
+            amountMoney: {
+              amount: BigInt(pm.amount_money.amount),
+              currency: pm.amount_money.currency,
+            },
             id: pm.id,
             orderId: pm.order_id,
             refundedMoney: pm.refunded_money
@@ -419,8 +454,11 @@ const clientCache = cachedClientFactory({
 const getClientImpl = (): Promise<SquareClient | null> =>
   clientCache.getClient();
 
-/** Run operation with Square client, return null if not available */
-const withClient = createWithClient(() => squareApi.getSquareClient());
+/** Run operation with Square client, returning null only for operational errors. */
+const withClient = createWithClient(() => squareApi.getSquareClient(), {
+  shouldPropagate: (error) =>
+    error instanceof SyntaxError || error instanceof v.ValiError,
+});
 
 /** Get the configured location ID */
 const getLocationId = (): string | null => {
@@ -700,52 +738,37 @@ export const squareApi: {
   resetSquareClient: (): void => clientCache.reset(),
 
   /** Retrieve an order by ID */
-  retrieveOrder: (orderId: string): Promise<SquareOrder | null> =>
-    withClient(async (client) => {
-      const response = await client.orders.get({ orderId });
-      const order = response.order;
-      if (!order) return null;
+  retrieveOrder: async (orderId: string): Promise<SquareOrder | null> => {
+    const order = await withClient(
+      async (client) => (await client.orders.get({ orderId })).order,
+      ErrorCode.SQUARE_ORDER,
+    );
+    if (!order) return null;
+    const core = v.parse(SquareOrderCoreSchema, order);
 
-      // Convert nullable metadata values to plain string record
-      const metadata: Record<string, string> | undefined = order.metadata
-        ? Object.fromEntries(stringEntries(Object.entries(order.metadata)))
-        : undefined;
+    // Convert nullable metadata values to plain string record
+    const metadata: Record<string, string> | undefined = order.metadata
+      ? Object.fromEntries(stringEntries(Object.entries(order.metadata)))
+      : undefined;
 
-      return {
-        createdAt: order.createdAt,
-        id: order.id,
-        metadata,
-        state: order.state,
-        tenders: order.tenders?.map(mapTender),
-        totalMoney: {
-          amount: order.totalMoney!.amount!,
-          currency: order.totalMoney!.currency!,
-        },
-      };
-    }, ErrorCode.SQUARE_ORDER),
+    return {
+      createdAt: order.createdAt,
+      id: core.id,
+      metadata,
+      state: order.state,
+      tenders: order.tenders?.map(mapTender),
+      totalMoney: core.totalMoney,
+    };
+  },
 
   /** Retrieve a payment by ID */
-  retrievePayment: (paymentId: string): Promise<SquarePayment | null> =>
-    withClient(async (client) => {
-      const response = await client.payments.get({ paymentId });
-      const payment = response.payment;
-      if (!payment) return null;
-      return {
-        amountMoney: {
-          amount: payment.amountMoney?.amount as bigint | undefined,
-          currency: payment.amountMoney?.currency as string | undefined,
-        },
-        id: payment.id,
-        orderId: payment.orderId,
-        refundedMoney: payment.refundedMoney
-          ? {
-              amount: payment.refundedMoney.amount as bigint | undefined,
-              currency: payment.refundedMoney.currency as string | undefined,
-            }
-          : undefined,
-        status: payment.status,
-      };
-    }, ErrorCode.SQUARE_SESSION),
+  retrievePayment: async (paymentId: string): Promise<SquarePayment | null> => {
+    const payment = await withClient(
+      async (client) => (await client.payments.get({ paymentId })).payment,
+      ErrorCode.SQUARE_SESSION,
+    );
+    return payment ? v.parse(SquarePaymentCoreSchema, payment) : null;
+  },
 
   /** Test Square connection: verify access token, location, and webhook key */
   testSquareConnection: async (): Promise<SquareConnectionTestResult> => {

@@ -32,22 +32,24 @@ describeWithEnv(
         unitPrice: 500,
       });
       await deactivateTestListing(listing.id);
+      const amount = 500;
+      const metadata = signedMeta(
+        {
+          email: "noref@example.com",
+          items: singleItem(listing.id, 1, amount),
+          name: "No Ref",
+        },
+        amount,
+      );
 
       // Stub retrieveCheckoutSession to return the session with valid metadata
       // and amount but still no payment_intent — this is the transient state
       // where Stripe has not yet attached the intent to the session.
       const retrieveStub = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
-          amount_total: 500,
+          amount_total: amount,
           id: "cs_noref",
-          metadata: signedMeta(
-            {
-              email: "noref@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "No Ref",
-            },
-            500,
-          ),
+          metadata,
           payment_intent: null,
           payment_status: "paid",
         } as unknown as Awaited<
@@ -57,16 +59,9 @@ describeWithEnv(
 
       const mockVerify = await stubWebhookVerify(
         checkoutSessionEvent({
-          amountTotal: 500,
+          amountTotal: amount,
           eventId: "evt_noref",
-          metadata: signedMeta(
-            {
-              email: "noref@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "No Ref",
-            },
-            500,
-          ),
+          metadata,
           sessionId: "cs_noref",
         }),
       );

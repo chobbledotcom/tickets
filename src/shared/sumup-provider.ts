@@ -52,7 +52,7 @@ const toPaymentStatus = (status: SumupCheckout["status"]): PaymentStatus =>
 const buildValidatedSession = (
   checkout: SumupCheckout,
   metadata: Record<string, string>,
-): ValidatedPaymentSession | null => {
+): ValidatedPaymentSession => {
   const paymentStatus = toPaymentStatus(checkout.status);
   if (
     !hasPaymentReference(
@@ -63,7 +63,9 @@ const buildValidatedSession = (
       checkout.transactionId,
     )
   ) {
-    return null;
+    throw new Error(
+      `SumUp checkout ${checkout.reference} is paid but has no transaction id`,
+    );
   }
   return validatedPaymentSession({
     amountTotal: checkout.amountMinor,
@@ -111,7 +113,6 @@ export const sumupPaymentProvider: PaymentProvider = {
     // Non-null: the pre-filter just matched this id to a staging row
     const stored = (await getSumupCheckout(checkout.reference))!;
     const session = buildValidatedSession(checkout, stored.metadata);
-    if (!session) return "retry";
     // Not yet (or never) paid: acknowledge without processing.
     return session.paymentStatus === "paid" ? session : "skip";
   },

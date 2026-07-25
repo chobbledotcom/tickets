@@ -879,7 +879,6 @@ src/shared/runtime.ts:67:45  ?? → ||   # nodeCompatVersion is string|undefined
 src/shared/runtime.ts:68:18  ?? → ||   # os is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:70:43  ?? → ||   # typescriptVersion is string|undefined and falls back to "", so both operators agree
 src/shared/runtime.ts:71:38  ?? → ||   # userAgent is string|undefined and falls back to "", so both operators agree
-src/shared/square.ts:313:21  ?: → consequent only   # the buyer_phone_number ternary spreads {} when the phone is absent; the consequent-only mutant always spreads { buyer_phone_number: undefined }, but JSON.stringify omits undefined values, so the serialized request body is identical in both cases
 src/ui/client/dom.ts:13:19  = → +=   # createElement returns a new button with className "", so both assignments produce the supplied class string
 
 # Paid-payment processing: private defaults are always supplied by their only
@@ -926,7 +925,4 @@ src/features/api/webhooks.ts:158:34  + → ""   # same single-element ticketToke
 src/features/api/webhooks.ts:288:26  ?? → ||   # result.detail is string|undefined; no code path produces detail:"" (see line 135)
 src/features/api/webhooks.ts:307:4  ?? → ||   # find(Boolean) returns a truthy string or undefined; both ?? null and || null map undefined→null and pass truthy through
 src/features/api/webhooks.ts:337:55  ?? → ||   # getWebhookSignatureHeader returns string|null; the only falsy string "" equals the "" fallback
-src/features/api/webhooks.ts:223:49  ?? → ||   # request.headers.get("referer") returns string|null; the only falsy string "" equals the "none" fallback
 src/features/api/webhooks.ts:169:16  = → +=   # explicitThankYou is normalized to a string with ?? ""; the !thankYouUrl guard means it is "" here, so appending and assigning the listing URL are identical
-src/shared/square-payments.ts:56:31  || → &&   # the two conditions (amount not bigint, currency falsy) are never both true in any test path; when only one is true the rest of the OR-chain catches it, and when both are false the result is the same
-src/shared/square-payments.ts:60:23  || → &&   # amount < 0 and amount > MAX_SAFE_INTEGER are mutually exclusive — a number cannot be both negative and above the safe limit — so || and && agree

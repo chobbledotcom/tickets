@@ -7,36 +7,29 @@ import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import { routeRequest, stubRetrieveSession } from "./helpers.ts";
+import {
+  expectLoggedErrorResponse,
+  expectResponseWithText,
+  routedResponse,
+  stubRetrieveSession,
+} from "./helpers.ts";
 
 describeWithEnv("payment callback params", { db: true }, () => {
   const errors = setupErrorSpy();
 
-  /** Assert a callback response is a 400 with the "Invalid payment callback" body. */
-  const expectInvalidCallback = async (
-    response: Response | null,
-  ): Promise<void> => {
-    expect((response ?? new Response()).status).toBe(400);
-    expect(await (response ?? new Response()).text()).toContain(
-      "Invalid payment callback",
-    );
-  };
+  test("fails loudly when no payment route matches", async () => {
+    await expect(
+      routedResponse(mockRequest("/payment/not-a-route")),
+    ).rejects.toThrow("GET /payment/not-a-route");
+  });
 
-  /** Assert a callback response is a 400 with the given text substring and
-   * logged error substring. */
-  const expect400With = async (
-    response: Response | null,
-    textSubstring: string,
-    errorSubstring: string,
-  ): Promise<void> => {
-    expect((response ?? new Response()).status).toBe(400);
-    expect(await (response ?? new Response()).text()).toContain(textSubstring);
-    expect(errors.contains(errorSubstring)).toBe(true);
-  };
+  /** Assert a callback response is a 400 with the "Invalid payment callback" body. */
+  const expectInvalidCallback = (response: Response): Promise<void> =>
+    expectResponseWithText(response, 400, "Invalid payment callback");
 
   test("returns error for missing session_id on cancel and logs error", async () => {
     await expectInvalidCallback(
-      await routeRequest(mockRequest("/payment/cancel")),
+      await routedResponse(mockRequest("/payment/cancel")),
     );
     expect(
       errors.contains("Payment callback missing session_id parameter"),
@@ -45,37 +38,47 @@ describeWithEnv("payment callback params", { db: true }, () => {
 
   test("returns error for missing session_id on success", async () => {
     await expectInvalidCallback(
-      await routeRequest(mockRequest("/payment/success")),
+      await routedResponse(mockRequest("/payment/success")),
     );
   });
 
   test("returns error for success with no params and logs none fallback", async () => {
     // No query params at all: paramKeys falls back to "none", referer to "none"
-    const response = await routeRequest(
+    const response = await routedResponse(
       mockRequest("/payment/success", { headers: {} }),
     );
-    expect((response ?? new Response()).status).toBe(400);
+    expect(response.status).toBe(400);
     expect(errors.contains("params=[none]")).toBe(true);
     expect(errors.contains("referer=none")).toBe(true);
   });
 
+  test("preserves an explicitly empty referer in success diagnostics", async () => {
+    await routedResponse(
+      mockRequest("/payment/success", { headers: { referer: "" } }),
+    );
+    expect(errors.lastMessage()).toContain("referer=");
+    expect(errors.lastMessage()).not.toContain("referer=none");
+  });
+
   test("returns error for success with no session_id or tokens and logs error", async () => {
-    const response = await routeRequest(
+    const response = await routedResponse(
       mockRequest("/payment/success?foo=bar&baz=qux"),
     );
-    expect((response ?? new Response()).status).toBe(400);
+    expect(response.status).toBe(400);
     expect(errors.contains("no session_id or tokens")).toBe(true);
     expect(errors.contains("params=[foo,baz]")).toBe(true);
     expect(errors.contains("referer=none")).toBe(true);
   });
 
   test("cancel returns error when no provider configured and logs cancel error", async () => {
-    await expect400With(
-      await routeRequest(
+    await expectLoggedErrorResponse(
+      await routedResponse(
         mockRequest("/payment/cancel?session_id=cs_noprovider"),
       ),
+      400,
       "Payment provider not configured",
       "[cancel] No provider configured",
+      (message) => errors.contains(message),
     );
   });
 
@@ -86,12 +89,14 @@ describeWithEnv("payment callback params", { db: true }, () => {
       Promise.resolve(null),
     );
     try {
-      await expect400With(
-        await routeRequest(
+      await expectLoggedErrorResponse(
+        await routedResponse(
           mockRequest("/payment/cancel?session_id=cs_missing"),
         ),
+        400,
         "Payment session not found",
         "[cancel] Session not found",
+        (message) => errors.contains(message),
       );
     } finally {
       retrieve.restore();
@@ -106,12 +111,13 @@ describeWithEnv("payment callback params", { db: true }, () => {
     const b = await createTestAttendeeWithToken("Bob", "bob@example.com");
 
     const tokensParam = `${a.token}%2B${b.token}`;
-    const response = await routeRequest(
+    const response = await routedResponse(
       mockRequest(`/payment/success?tokens=${tokensParam}`),
     );
-    const html = await (response ?? new Response()).text();
-    expect(html).toContain("/t/");
-    expect(html).toContain(`${a.token}+${b.token}`);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(`href="/t/${a.token}+${b.token}"`);
+    expect(html).toContain('data-payment-result="success"');
   });
 
   test("token-verified single-listing success page shows thank-you URL", async () => {
@@ -124,12 +130,13 @@ describeWithEnv("payment callback params", { db: true }, () => {
       { thankYouUrl: "https://example.com/alice-thanks" },
     );
 
-    const response = await routeRequest(
+    const response = await routedResponse(
       mockRequest(`/payment/success?tokens=${token}`),
     );
-    const html = await (response ?? new Response()).text();
-    expect(html).toContain("/t/");
-    expect(html).toContain(token);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(`href="/t/${token}"`);
+    expect(html).toContain('data-payment-result="success"');
     // The listing's thank-you URL is resolved and rendered
     expect(html).toContain("https://example.com/alice-thanks");
   });
@@ -152,22 +159,22 @@ describeWithEnv("payment callback params", { db: true }, () => {
     try {
       // First hit: no explicit thank-you URL, so the redirect path runs and
       // clears the stored ticket tokens (line 155).
-      const first = await routeRequest(
+      const first = await routedResponse(
         mockRequest("/payment/success?session_id=cs_clearing"),
       );
       // First hit is a redirect (302), not a direct render
-      const firstResponse = first ?? new Response();
-      expect(firstResponse.status).toBe(302);
-      const redirect = firstResponse.headers.get("location") ?? "";
+      expect(first.status).toBe(302);
+      const redirect = first.headers.get("location") ?? "";
       expect(redirect).toContain("/payment/success?tokens=");
 
       // Second hit: tokens are now empty → falls to the direct-render
       // already-processed path (line 172), which resolves the listing's
       // thank-you URL via singleListingThankYou.
-      const second = await routeRequest(
+      const second = await routedResponse(
         mockRequest("/payment/success?session_id=cs_clearing"),
       );
-      const secondHtml = await (second ?? new Response()).text();
+      expect(second.status).toBe(200);
+      const secondHtml = await second.text();
       // paid: true must be rendered → data-payment-result="success"
       expect(secondHtml).toContain('data-payment-result="success"');
       // The listing's own thank-you URL is used
@@ -211,10 +218,12 @@ describeWithEnv("payment callback params", { db: true }, () => {
 
     try {
       // First hit: processes and direct-renders with explicit thank-you + tokens
-      const first = await routeRequest(
+      const first = await routedResponse(
         mockRequest("/payment/success?session_id=cs_explicit"),
       );
-      const firstHtml = await (first ?? new Response()).text();
+      expect(first.status).toBe(200);
+      const firstHtml = await first.text();
+      expect(firstHtml).toContain('data-payment-result="success"');
       expect(firstHtml).toContain("https://example.com/explicit-thanks");
 
       // Simulate a webhook racing in and consuming the tokens
@@ -223,10 +232,12 @@ describeWithEnv("payment callback params", { db: true }, () => {
       // Second hit: tokens now empty, but explicit thank-you is still in
       // metadata. The explicit URL must win — not be replaced by the
       // listing's own thank-you URL.
-      const second = await routeRequest(
+      const second = await routedResponse(
         mockRequest("/payment/success?session_id=cs_explicit"),
       );
-      const secondHtml = await (second ?? new Response()).text();
+      expect(second.status).toBe(200);
+      const secondHtml = await second.text();
+      expect(secondHtml).toContain('data-payment-result="success"');
       expect(secondHtml).toContain("https://example.com/explicit-thanks");
       expect(secondHtml).not.toContain("https://example.com/listing-thanks");
     } finally {
@@ -257,10 +268,13 @@ describeWithEnv("payment callback params", { db: true }, () => {
     );
     const token = attendee.ticket_token;
 
-    const response = await routeRequest(
+    const response = await routedResponse(
       mockRequest(`/payment/success?tokens=${token}`),
     );
-    const html = await (response ?? new Response()).text();
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain('data-payment-result="success"');
+    expect(html).toContain(`href="/t/${token}"`);
     // The hidden package member's thank-you URL must not leak
     expect(html).not.toContain("https://example.com/concealed-thanks");
     // No meta-refresh redirect should be rendered (thankYouUrl is empty)
@@ -298,20 +312,22 @@ describeWithEnv("payment callback params", { db: true }, () => {
 
     try {
       // First hit: processes and redirects (clearing tokens)
-      const first = await routeRequest(
+      const first = await routedResponse(
         mockRequest("/payment/success?session_id=cs_deleted_listing"),
       );
-      expect((first ?? new Response()).status).toBe(302);
+      expect(first.status).toBe(302);
 
       // Delete the listing between requests
       await deleteListing(listing.id);
 
       // Second hit: listing gone, tokens cleared; singleListingThankYou
       // returns "" for a deleted listing (no meta-refresh, no redirect link)
-      const second = await routeRequest(
+      const second = await routedResponse(
         mockRequest("/payment/success?session_id=cs_deleted_listing"),
       );
-      const secondHtml = await (second ?? new Response()).text();
+      expect(second.status).toBe(200);
+      const secondHtml = await second.text();
+      expect(secondHtml).toContain('data-payment-result="success"');
       expect(secondHtml).not.toContain(
         "https://example.com/deleted-listing-thanks",
       );
@@ -351,10 +367,13 @@ describeWithEnv("payment callback params", { db: true }, () => {
     );
     const tokens = [attendeeA.ticket_token, attendeeB.ticket_token].join("+");
 
-    const response = await routeRequest(
+    const response = await routedResponse(
       mockRequest(`/payment/success?tokens=${encodeURIComponent(tokens)}`),
     );
-    const html = await (response ?? new Response()).text();
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain('data-payment-result="success"');
+    expect(html).toContain(`href="/t/${tokens}"`);
     // Multiple listings: no single thank-you URL should be picked
     expect(html).not.toContain("https://example.com/thanks-a");
     expect(html).not.toContain("https://example.com/thanks-b");
@@ -363,7 +382,7 @@ describeWithEnv("payment callback params", { db: true }, () => {
 
   test("returns error for invalid tokens param", async () => {
     await expectInvalidCallback(
-      await routeRequest(mockRequest("/payment/success?tokens=BOGUS")),
+      await routedResponse(mockRequest("/payment/success?tokens=BOGUS")),
     );
   });
 });

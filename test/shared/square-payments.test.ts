@@ -102,6 +102,29 @@ describe("Square completed payments", () => {
     });
   });
 
+  for (const [name, amount] of [
+    ["negative", BigInt(-1)],
+    ["unsafe", BigInt(Number.MAX_SAFE_INTEGER) + BigInt(1)],
+  ] as const) {
+    test(`rejects matching ${name} order and payment amounts`, async () => {
+      await expect(
+        completed(
+          payment({ amountMoney: { amount, currency: "USD" } }),
+          order({ totalMoney: { amount, currency: "USD" } }),
+        ),
+      ).resolves.toEqual({ status: "invalid_payment" });
+    });
+  }
+
+  test("rejects matching empty order and payment currencies", async () => {
+    await expect(
+      completed(
+        payment({ amountMoney: { amount: BigInt(100), currency: "" } }),
+        order({ totalMoney: { amount: BigInt(100), currency: "" } }),
+      ),
+    ).resolves.toEqual({ status: "invalid_payment" });
+  });
+
   for (const refundedAmount of [1, 100]) {
     test(`reports a completed payment refunded by ${refundedAmount}`, async () => {
       await expect(
@@ -191,10 +214,16 @@ describe("Square completed payments", () => {
     });
   }
 
-  test("reports no completed payment when no tenders exist", async () => {
+  test("reports no completed payment when the tender cannot be retrieved", async () => {
     await expect(
       completed(null, order({ tenders: [{ paymentId: "payment_1" }] })),
     ).resolves.toEqual({ status: "no_completed_payment" });
+  });
+
+  test("reports no completed payment when no tenders exist", async () => {
+    await expect(completed(null, order({ tenders: [] }))).resolves.toEqual({
+      status: "no_completed_payment",
+    });
   });
 
   test("reports no completed payment when the only tender is pending", async () => {
@@ -203,31 +232,32 @@ describe("Square completed payments", () => {
     });
   });
 
-  test("reports an invalid payment before falling back to a valid one", async () => {
-    // A pending tender followed by a valid completed one — the valid
-    // one is found after skipping the pending one, so the result is
-    // "found", not "invalid_payment" or "no_completed_payment".
+  test("finds an older valid payment after a newer invalid payment", async () => {
     const orderWithTwo = order({
       tenders: [{ paymentId: "payment_a" }, { paymentId: "payment_b" }],
     });
-    const retrievePayment = (id: string) =>
-      Promise.resolve(
-        id === "payment_a"
-          ? payment({ id: "payment_a", status: "PENDING" })
-          : payment({
-              amountMoney: { amount: BigInt(100), currency: "USD" },
-              id: "payment_b",
-            }),
+    const retrieved: string[] = [];
+    const retrievePayment = (id: string): Promise<SquarePayment> => {
+      retrieved.push(id);
+      return Promise.resolve(
+        id === "payment_b"
+          ? payment({
+              amountMoney: { amount: BigInt(99), currency: "USD" },
+              id,
+            })
+          : payment({ id }),
       );
+    };
     await expect(
       findCompletedSquarePayment(retrievePayment)(orderWithTwo),
     ).resolves.toEqual({
       payment: {
         amountTotal: 100,
-        paymentReference: "payment_b",
+        paymentReference: "payment_a",
         refundedAmount: 0,
       },
       status: "found",
     });
+    expect(retrieved).toEqual(["payment_b", "payment_a"]);
   });
 });

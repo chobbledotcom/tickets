@@ -1,31 +1,63 @@
+import { expect } from "@std/expect";
 import type { Spy } from "@std/testing/mock";
 import { stub } from "@std/testing/mock";
 import { routePayment } from "#routes/api/webhooks.ts";
-import type { ValidatedPaymentSession } from "#shared/payments.ts";
+import type {
+  ValidatedPaymentSession,
+  WebhookEvent,
+} from "#shared/payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
 
-/** Call the payment router with path/method extracted from the request. */
-export const routeRequest = (request: Request): Promise<Response | null> => {
+/** Call the payment router and fail loudly when the request matches no route. */
+export const routedResponse = async (request: Request): Promise<Response> => {
   const url = new URL(request.url);
-  return routePayment(request, url.pathname, request.method);
+  const response = await routePayment(request, url.pathname, request.method);
+  if (response === null) {
+    throw new Error(
+      `No payment route matched ${request.method} ${url.pathname}`,
+    );
+  }
+  return response;
 };
 
 /** Webhook event id + type paired for stubWebhookVerify. */
 export const checkoutEvent = (
   id: string,
   type = "checkout.session.completed",
-) => ({
+): WebhookEvent => ({
   data: { object: {} },
   id,
   type,
 });
 
 /** Send a signed webhook request and return the response. */
-export const sendWebhook = () =>
-  routeRequest(mockWebhookRequest({}, { "stripe-signature": "sig_valid" }));
+export const sendWebhook = (): Promise<Response> =>
+  routedResponse(mockWebhookRequest({}, { "stripe-signature": "sig_valid" }));
+
+/** Assert an HTTP status and body substring. */
+export const expectResponseWithText = async (
+  response: Response,
+  status: number,
+  text: string,
+): Promise<void> => {
+  expect(response.status).toBe(status);
+  expect(await response.text()).toContain(text);
+};
+
+/** Assert an error response and its matching logged error. */
+export const expectLoggedErrorResponse = async (
+  response: Response,
+  status: number,
+  text: string,
+  loggedText: string,
+  errorContains: (message: string) => boolean,
+): Promise<void> => {
+  await expectResponseWithText(response, status, text);
+  expect(errorContains(loggedText)).toBe(true);
+};
 
 /** Restore all stubs in reverse order (like a finally block). */
 export const restoreAll = (...stubs: Spy[]): void => {
@@ -53,7 +85,7 @@ export const stubRetrieveSession = async (
   listing: { id: number },
   unitPrice: number,
   extraMeta: Record<string, string> = {},
-) => {
+): Promise<Spy> => {
   const { stripeApi } = await import("#shared/stripe.ts");
   return stub(stripeApi, "retrieveCheckoutSession", () =>
     Promise.resolve({
@@ -86,7 +118,7 @@ export const stripeWebhookResponse = async (
   const { stubWebhookVerify } = await import("#test-utils/settings.ts");
   const verify = await stubWebhookVerify(checkoutEvent(eventId, eventType));
   try {
-    return (await sendWebhook()) as Response;
+    return await sendWebhook();
   } finally {
     restoreAll(verify, resolve);
   }
@@ -101,7 +133,7 @@ export const stubPaidSession = (opts: {
   paymentIntent: string;
   paymentStatus?: string;
   unitPrice?: number;
-}) => {
+}): Spy => {
   const amount = opts.unitPrice ?? 1000;
   return stub(stripePaymentProvider, "resolveWebhookSession", () =>
     Promise.resolve({
@@ -121,3 +153,11 @@ export const stubPaidSession = (opts: {
     } as ValidatedPaymentSession),
   );
 };
+
+/** Make both provider refund checks report that no refund completed. */
+export const stubFailedRefund = (): Spy[] => [
+  stub(stripePaymentProvider, "refundPayment", () => Promise.resolve(false)),
+  stub(stripePaymentProvider, "isPaymentRefunded", () =>
+    Promise.resolve(false),
+  ),
+];

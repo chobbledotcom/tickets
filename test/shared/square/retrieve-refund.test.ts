@@ -24,6 +24,35 @@ describeSquare(() => {
       );
     });
 
+    test("returns null when the order request fails", async () => {
+      await withSquareClient(
+        {
+          ordersGet: () => Promise.reject(new Error("Square unavailable")),
+        },
+        async () => {
+          await expect(
+            squareApi.retrieveOrder("order_unavailable"),
+          ).resolves.toBeNull();
+        },
+      );
+    });
+
+    test("rejects a returned order with no total", async () => {
+      await withSquareClient(
+        {
+          ordersGet: () =>
+            Promise.resolve({
+              order: { id: "order_no_total" },
+            }),
+        },
+        async () => {
+          await expect(
+            squareApi.retrieveOrder("order_no_total"),
+          ).rejects.toThrow();
+        },
+      );
+    });
+
     test("maps tender paymentId correctly", async () => {
       await withSquareClient(
         {
@@ -145,6 +174,26 @@ describeSquare(() => {
           expect(paymentsGet.calls[0]!.args[0]).toEqual({
             paymentId: "pay_missing",
           });
+        },
+      );
+    });
+
+    test("rejects a returned payment with no amount", async () => {
+      await withSquareClient(
+        {
+          paymentsGet: () =>
+            Promise.resolve({
+              payment: {
+                id: "pay_no_amount",
+                orderId: "order_1",
+                status: "COMPLETED",
+              },
+            }),
+        },
+        async () => {
+          await expect(
+            squareApi.retrievePayment("pay_no_amount"),
+          ).rejects.toThrow();
         },
       );
     });

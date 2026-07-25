@@ -89,6 +89,7 @@ describeSquare(() => {
               order: {
                 id: "order_no_meta",
                 state: "COMPLETED",
+                totalMoney: { amount: BigInt(1000), currency: "USD" },
               },
             }),
         },
@@ -109,6 +110,7 @@ describeSquare(() => {
                 id: "order_bad_meta",
                 metadata: { email: "john@example.com" },
                 state: "COMPLETED",
+                totalMoney: { amount: BigInt(1000), currency: "USD" },
               },
             }),
         },

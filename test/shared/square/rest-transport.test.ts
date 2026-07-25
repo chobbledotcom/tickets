@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#shared/db/settings.ts";
-import { getSquareClient, resetSquareClient } from "#shared/square.ts";
+import {
+  getSquareClient,
+  resetSquareClient,
+  squareApi,
+} from "#shared/square.ts";
 import { describeSquare } from "#test/lib/square/harness.ts";
 import {
   type FetchCall,
@@ -201,7 +205,7 @@ describeSquare(() => {
       expect(result.order!.totalMoney!.currency).toBe("USD");
     });
 
-    test("orders.get handles missing total_money", async () => {
+    test("orders.get rejects missing total_money", async () => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
@@ -210,10 +214,37 @@ describeSquare(() => {
         ),
       );
 
+      await expect(squareApi.retrieveOrder("ord_no_total")).rejects.toThrow();
+    });
+
+    test("orders.get accepts a zero total", async () => {
+      mockFetch = installMockFetch(() =>
+        Promise.resolve(
+          jsonResponse({
+            order: {
+              id: "ord_zero",
+              total_money: { amount: 0, currency: "USD" },
+            },
+          }),
+        ),
+      );
+
       const client = await getSquareClient();
-      const result = await client!.orders.get({ orderId: "ord_no_total" });
-      expect(result.order!.id).toBe("ord_no_total");
-      expect(result.order!.totalMoney).toBeUndefined();
+      const result = await client!.orders.get({ orderId: "ord_zero" });
+      expect(result.order!.totalMoney!.amount).toBe(BigInt(0));
+    });
+
+    test("retrieveOrder rejects malformed successful JSON", async () => {
+      mockFetch = installMockFetch(() =>
+        Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve("{"),
+        }),
+      );
+
+      await expect(squareApi.retrieveOrder("ord_bad_json")).rejects.toThrow(
+        SyntaxError,
+      );
     });
 
     test("orders.get returns null order when API returns none", async () => {
@@ -251,7 +282,7 @@ describeSquare(() => {
       expect(result.payment!.refundedMoney!.amount).toBe(BigInt(1000));
     });
 
-    test("payments.get handles missing amount_money", async () => {
+    test("payments.get rejects missing amount_money", async () => {
       mockFetch = installMockFetch(() =>
         Promise.resolve(
           jsonResponse({
@@ -265,9 +296,9 @@ describeSquare(() => {
       );
 
       const client = await getSquareClient();
-      const result = await client!.payments.get({ paymentId: "pay_no_amount" });
-      expect(result.payment!.id).toBe("pay_no_amount");
-      expect(result.payment!.amountMoney).toBeUndefined();
+      await expect(
+        client!.payments.get({ paymentId: "pay_no_amount" }),
+      ).rejects.toThrow();
     });
 
     test("payments.get handles missing refunded_money", async () => {

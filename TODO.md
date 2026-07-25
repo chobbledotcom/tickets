@@ -1435,29 +1435,6 @@ back to `isPaymentRefunded`, which a still-pending refund also fails).
 
 ---
 
-## Validate Square orders/payments responses with Valibot schemas
-
-*Origin: CodeRabbit review of PR #1911. The refund response validation is done
-(`SquareRefundResponseSchema` in `src/shared/square.ts`), and the test file
-splits are complete (`refund-payment.test.ts`, `refund-transport.test.ts`,
-and the shared `mock-fetch.ts` helper all exist; `retrieve-refund.test.ts` is
-240 lines and `rest-transport.test.ts` is 372). What remains is extending the
-same boundary-validation pattern to the orders and payments client methods.*
-
-The Square REST client still maps order and payment responses with type casts
-(`get<T>` for orders and payments). `squareFetch` returns `JSON.parse(response.text)`
-cast as `<T>`, so a malformed order or payment object — wrong field types, an
-unexpected shape — passes through unvalidated. The refund path now has a Valibot
-schema (`SquareRefundSchema` / `SquareRefundResponseSchema`) parsed with
-`v.parse` OUTSIDE `withClient`, so a malformed refund response fails loudly.
-Doing the same for orders and payments means defining `SquareOrderSchema` and
-`SquarePaymentSchema` and parsing in their respective `squareApi` methods, so
-a malformed response throws rather than being silently cast. Starting point:
-`squareFetch` and the `SquareOrderResponse` / `SquarePaymentResponse` types in
-`src/shared/square.ts`; mirror the refund schema shape that already exists.
-
----
-
 ## Split oversized test files moved by PR #1903
 
 *Origin: Codex review of PR #1903 ("Load heavy modules only when needed").
@@ -1534,20 +1511,94 @@ Five equivalents (lines 87, 118, 176, 301, 381) are recorded in
 
 ---
 
-## Alert on repeated webhook retry failures
+## Verify the full refunded amount for SumUp payments
 
-*Origin: CodeRabbit review on PR #1905 (authoritative payment callback
-resolution). Out of scope for that PR — recorded for a future enhancement.*
+*Origin: branch review of `split/authoritative-payment-callbacks`.*
+
+`src/shared/sumup-provider.ts` treats the transaction status `REFUNDED` as a
+full refund. SumUp defines that status as a full or partial refund. Callers in
+`src/features/admin/attendees-edit.ts`,
+`src/features/admin/refunds/provider.ts`, and
+`src/features/api/payment-processing/refunds.ts` then mark the whole payment
+reference refunded and can post a full ledger reversal while the customer is
+still partly charged. `src/shared/square-provider.ts` also incorrectly says its
+full-refund rule matches SumUp. Starting point: replace
+`getTransactionStatus` in `src/shared/sumup.ts` with a narrow, validated
+transaction refund result that includes the original and total refunded
+amounts. Make `isPaymentRefunded` return true only when those amounts prove a
+full refund, then add partial/full refund regressions to
+`test/shared/sumup-provider.test.ts` and the admin refresh/refund tests.
+
+## Store Square payment conflicts for an operator decision
+
+*Origin: branch review of `split/authoritative-payment-callbacks`.*
+
+`src/shared/square-provider.ts` returns `"skip"` for an invalid completed
+payment or a partial refund with no local outcome. The webhook handler turns
+that into HTTP 200, so Square stops delivery. `logError` leaves an activity
+trace, but there is no payment state or required operator action. A customer
+can remain partly charged without a booking. Starting point: model unresolved
+authenticated payment conflicts as durable records keyed by provider and
+session/payment reference. Add an admin action with a required choice for each
+real conflict, such as completing the booking or confirming/refunding the
+remaining money. Acknowledge the webhook only after that durable state exists.
+Cover the stored conflict, repeated delivery, and both operator choices in
+direct tests and an acceptance story.
+
+## Persist webhook retries before provider delivery expires
+
+*Origin: CodeRabbit and branch review on PR #1905 (authoritative payment
+callback resolution).*
 
 When `resolveWebhookSession` returns `"retry"`, the webhook handler responds
-with HTTP 503 so the provider redelivers. If a session's inconsistency never
-resolves (e.g. a permanently missing `payment_intent` on Stripe or
-`transactionId` on SumUp), the only trace is the `logError` call inside the
-provider — after the provider's retry window expires, the payment could be
-silently dropped. Consider alerting (ntfy/Sentry) on repeated occurrences of
-these specific error messages so a permanently-unresolvable session doesn't
-go unnoticed. The alert should fire only after the same inconsistency recurs
-beyond the provider's retry threshold, not on every transient retry.
-Starting point: read `logError` calls in `src/shared/stripe-provider.ts`
-(hasPaymentReference) and `src/shared/sumup-provider.ts` (same helper), and
-the `"retry"` return paths in each provider's `resolveWebhookSession`.
+with HTTP 503 so the provider redelivers. If Stripe never attaches its payment
+intent, or a provider read keeps failing, Stripe, Square, or SumUp eventually
+stops delivery. Error reporting leaves a trace, but there is no replayable
+payment state, so a charged customer can stay unbooked. Persist each
+authenticated unresolved callback before returning 503, including provider,
+session/resource id, reason, first/last attempt, attempt count, and `alerted_at`.
+Move a callback to the same operator conflict flow as permanent Square
+conflicts after both three identical failures and 15 minutes from its first
+attempt. Set `alerted_at` in the same write that moves it, so later deliveries
+cannot emit another alert for the same provider/resource/reason. Cover every
+`"retry"` return site, replay after a later successful fetch, retry exhaustion,
+and repeated delivery without duplicate records or alerts.
+
+## Give provider webhook tests one owner
+
+*Origin: branch review of `split/authoritative-payment-callbacks`.*
+
+Stripe webhook refresh cases are duplicated between
+`test/shared/stripe-provider.test.ts` and
+`test/shared/stripe-provider/operations.test.ts`, leaving both files above 500
+lines. Square webhook resolution remains in the 600-line
+`test/shared/square-provider.test.ts` as well as the new
+`test/shared/square-provider/webhook.test.ts`. Starting point: move every
+provider webhook-resolution case into each provider's dedicated webhook test
+file, delete parallel cases from the older suites, and split the remaining
+provider tests by operation until each file is near or below 400 lines. Keep
+one shared fixture/helper rather than adapting duplicate test paths.
+
+## Restore a fixed Square webhook signature vector
+
+*Origin: branch review of `split/authoritative-payment-callbacks`.*
+
+`test/shared/square/webhook.test.ts` now generates and verifies its positive
+signature with production functions that share the same signing code. A
+matching serialization or HMAC protocol bug in both functions remains green.
+Starting point: restore exact assertions for the serialized payload and a
+fixed expected base64 signature produced from a known secret, notification
+URL, and payload. Keep the round-trip assertion too, but do not let it replace
+the independent known-answer vector.
+
+## Prove an empty payment reference never reaches a provider
+
+*Origin: branch review of `split/authoritative-payment-callbacks`.*
+
+`test/features/api/payment-processing/refunds.test.ts` claims `tryRefund("")`
+does not call a provider, but it only checks the returned `false`. Removing the
+early return still produces `false` when no provider is configured, so the test
+would pass. Starting point: configure a provider with spies for both
+`refundPayment` and `isPaymentRefunded`, call `tryRefund("")`, and assert the
+exact false result plus zero calls to both methods. Remove or rename the older
+integration case that fails before `tryRefund` is reached.

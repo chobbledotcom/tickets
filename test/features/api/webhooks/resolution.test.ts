@@ -4,7 +4,10 @@ import { stub } from "@std/testing/mock";
 import { reserveSession } from "#shared/db/processed-payments.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
@@ -13,9 +16,12 @@ import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import {
   checkoutEvent,
   createSoldOutListing,
-  routeRequest,
+  expectLoggedErrorResponse,
+  restoreAll,
+  routedResponse,
   sendWebhook,
   stripeWebhookResponse,
+  stubFailedRefund,
   stubPaidSession,
   stubRetrieveSession,
 } from "./helpers.ts";
@@ -45,14 +51,42 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
     textSubstring: string,
     errorSubstring: string,
   ): Promise<void> => {
-    expect(response.status).toBe(400);
-    expect(await response.text()).toContain(textSubstring);
-    expect(errors.contains(errorSubstring)).toBe(true);
+    await expectLoggedErrorResponse(
+      response,
+      400,
+      textSubstring,
+      errorSubstring,
+      (message) => errors.contains(message),
+    );
     expect(
       debugMessages(debug()).some((m) =>
         String(m).includes("Rejected payload"),
       ),
     ).toBe(true);
+  };
+
+  const expectPaidSessionParam = async (
+    param: "session_id" | "orderId",
+    sessionId: string,
+    paymentIntent: string,
+    listing: { id: number },
+  ): Promise<void> => {
+    const retrieve = await stubRetrieveSession(
+      sessionId,
+      paymentIntent,
+      listing,
+      1000,
+      { thank_you_url: "https://example.com/thanks" },
+    );
+    try {
+      const response = await routedResponse(
+        mockRequest(`/payment/success?${param}=${sessionId}`),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('data-payment-result="success"');
+    } finally {
+      retrieve.restore();
+    }
   };
 
   test("requests provider retry when session resolution is temporary", async () => {
@@ -94,7 +128,7 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
       checkoutEvent("evt_other", "payment_intent.created"),
     );
     try {
-      const response = (await sendWebhook()) ?? new Response();
+      const response = await sendWebhook();
       expect(response.status).toBe(200);
       const json = await response.json();
       expect(json).toEqual({ received: true });
@@ -105,7 +139,7 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
 
   test("returns 400 when no provider configured and logs debug rejection", async () => {
     await expectRejected400(
-      (await sendWebhook()) ?? new Response(),
+      await sendWebhook(),
       "Payment provider not configured",
       "Webhook received but payment provider not configured",
     );
@@ -116,7 +150,7 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
     const verify = await stubWebhookVerify(checkoutEvent("evt_nosig"));
     try {
       await expectRejected400(
-        (await routeRequest(mockWebhookRequest({}))) ?? new Response(),
+        await routedResponse(mockWebhookRequest({})),
         "Missing signature",
         "Webhook missing signature header",
       );
@@ -132,9 +166,9 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
     );
     try {
       await expectRejected400(
-        (await routeRequest(
+        await routedResponse(
           mockWebhookRequest({}, { "stripe-signature": "sig_bad" }),
-        )) ?? new Response(),
+        ),
         "signature mismatch",
         "signature verification failed",
       );
@@ -162,12 +196,7 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
   test("acknowledges a stored booking after its refund attempt fails", async () => {
     await setupStripe();
     const listing = await createSoldOutListing();
-    const refund = stub(stripePaymentProvider, "refundPayment", () =>
-      Promise.resolve(false),
-    );
-    const refundStatus = stub(stripePaymentProvider, "isPaymentRefunded", () =>
-      Promise.resolve(false),
-    );
+    const refundStubs = stubFailedRefund();
     const resolve = stubPaidSession({
       id: "cs_unrefunded",
       listing,
@@ -182,8 +211,34 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
         received: true,
       });
     } finally {
-      refundStatus.restore();
-      refund.restore();
+      restoreAll(...refundStubs);
+    }
+  });
+
+  test("requests retry when an inactive listing cannot be refunded", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    await deactivateTestListing(listing.id);
+    const refundStubs = stubFailedRefund();
+    const resolve = stubPaidSession({
+      id: "cs_inactive_unrefunded",
+      listing,
+      paymentIntent: "pi_inactive_unrefunded",
+    });
+    try {
+      const response = await stripeWebhookResponse(
+        resolve,
+        "evt_inactive_unrefunded",
+      );
+      expect(response.status).toBe(503);
+      expect(await response.text()).toBe(
+        "This listing is no longer accepting registrations.",
+      );
+    } finally {
+      restoreAll(...refundStubs);
     }
   });
 
@@ -274,23 +329,7 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const retrieve = await stubRetrieveSession(
-      "cs_paid",
-      "pi_test",
-      listing,
-      1000,
-      { thank_you_url: "https://example.com/thanks" },
-    );
-
-    try {
-      const response = await routeRequest(
-        mockRequest("/payment/success?session_id=cs_paid"),
-      );
-      const html = await (response ?? new Response()).text();
-      expect(html).toContain('data-payment-result="success"');
-    } finally {
-      retrieve.restore();
-    }
+    await expectPaidSessionParam("session_id", "cs_paid", "pi_test", listing);
   });
 
   test("uses orderId query param when session_id is absent", async () => {
@@ -301,23 +340,12 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
       unitPrice: 1000,
     });
 
-    const retrieve = await stubRetrieveSession(
+    await expectPaidSessionParam(
+      "orderId",
       "cs_order_param",
       "pi_order_param",
       listing,
-      1000,
-      { thank_you_url: "https://example.com/thanks" },
     );
-
-    try {
-      const response = await routeRequest(
-        mockRequest("/payment/success?orderId=cs_order_param"),
-      );
-      const html = await (response ?? new Response()).text();
-      expect(html).toContain('data-payment-result="success"');
-    } finally {
-      retrieve.restore();
-    }
   });
 
   test("already-processed redirect renders success page with listing thank-you URL", async () => {
@@ -338,19 +366,21 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
 
     try {
       // First hit: processes and direct-renders (explicit thank-you + tokens)
-      const first = await routeRequest(
+      const first = await routedResponse(
         mockRequest("/payment/success?session_id=cs_processed"),
       );
-      const firstHtml = await (first ?? new Response()).text();
+      expect(first.status).toBe(200);
+      const firstHtml = await first.text();
       expect(firstHtml).toContain("https://example.com/explicit-thanks");
       expect(firstHtml).toContain('data-payment-result="success"');
 
       // Second hit: already-processed, no tokens; the explicit thank-you URL
       // must be preserved (not overwritten by singleListingThankYou)
-      const second = await routeRequest(
+      const second = await routedResponse(
         mockRequest("/payment/success?session_id=cs_processed"),
       );
-      const secondHtml = await (second ?? new Response()).text();
+      expect(second.status).toBe(200);
+      const secondHtml = await second.text();
       expect(secondHtml).toContain("https://example.com/explicit-thanks");
       expect(secondHtml).toContain('data-payment-result="success"');
     } finally {
@@ -383,11 +413,11 @@ describeWithEnv("payment webhook resolution", { db: true }, () => {
     );
 
     try {
-      const response = await routeRequest(
+      const response = await routedResponse(
         mockRequest("/payment/success?session_id=cs_fail_log"),
       );
       // Sold-out listing: processPaymentSession fails, logs [redirect] with listingId
-      expect((response ?? new Response()).status).toBe(200);
+      expect(response.status).toBe(200);
       expect(errors.contains(`listing=${listing.id}`)).toBe(true);
     } finally {
       retrieve.restore();
