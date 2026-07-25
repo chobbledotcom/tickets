@@ -196,6 +196,59 @@ describe("Turso management API", () => {
     );
   });
 
+  test("deletes the requested database when Turso returns another name", async () => {
+    const urls: string[] = [];
+    await withMocks(
+      () =>
+        stubFetch(new Response(databaseJson("other-name")), (url) => {
+          urls.push(url);
+          return new Response();
+        }),
+      async () => {
+        expect(
+          await api.createDatabase({
+            group: "default",
+            name: "requested-name",
+            organization: "personal",
+          }),
+        ).toEqual({
+          error: "Create database returned an unexpected name: other-name",
+          ok: false,
+        });
+        expect(urls).toEqual([
+          "https://api.turso.tech/v1/organizations/personal/databases/requested-name",
+        ]);
+      },
+    );
+  });
+
+  test("rejects empty and malformed database response values", async () => {
+    for (const database of [
+      { DbId: "", Hostname: "database.turso.io", Name: "database" },
+      { DbId: "id", Hostname: "not a hostname/", Name: "database" },
+      { DbId: "id", Hostname: "database.turso.io:443", Name: "database" },
+      { DbId: "id", Hostname: "database.turso.io", Name: "" },
+    ]) {
+      await withMocks(
+        () =>
+          stubFetch(new Response(JSON.stringify({ database })), new Response()),
+        async () => {
+          const result = await api.createDatabase({
+            group: "default",
+            name: "database",
+            organization: "personal",
+          });
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error).toContain(
+              "Create database returned an invalid response",
+            );
+          }
+        },
+      );
+    }
+  });
+
   test("deletes a database", async () => {
     let request: { method: string | undefined; url: string | undefined } = {
       method: undefined,
@@ -232,66 +285,12 @@ describe("Turso management API", () => {
     );
   });
 
-  test("uploads raw SQLite bytes to the database hostname", async () => {
-    const bytes = new Uint8Array([1, 2, 3, 4]);
-    await withMocks(
-      () =>
-        stubFetch(async (url, init) => {
-          expect(url).toBe("https://database.turso.io/v1/upload");
-          expect(init?.method).toBe("POST");
-          expect(init?.headers).toEqual({
-            Authorization: "Bearer database-token",
-            "Content-Length": "4",
-          });
-          expect(
-            new Uint8Array(await new Response(init?.body).arrayBuffer()),
-          ).toEqual(bytes);
-          return new Response();
-        }),
-      async () => {
-        expect(
-          await api.uploadDatabase(
-            {
-              dbId: "id",
-              dbToken: "database-token",
-              dbUrl: "libsql://database.turso.io",
-            },
-            bytes,
-            bytes.byteLength,
-          ),
-        ).toEqual({ ok: true, value: undefined });
-      },
-    );
-  });
-
-  test("reports an upload failure", async () => {
-    await withMocks(
-      () => stubFetch(new Response("invalid sqlite", { status: 400 })),
-      async () => {
-        expect(
-          await api.uploadDatabase(
-            {
-              dbId: "id",
-              dbToken: "database-token",
-              dbUrl: "libsql://database.turso.io",
-            },
-            new Uint8Array(),
-            0,
-          ),
-        ).toEqual({
-          error: "Upload database failed (400): invalid sqlite",
-          ok: false,
-        });
-      },
-    );
-  });
-
   test("deletes a newly created database when token parsing fails", async () => {
     const methods: (string | undefined)[] = [];
     await withMocks(
       () =>
         stubFetch(
-          new Response(databaseJson()),
+          new Response(databaseJson("database")),
           new Response(JSON.stringify({ token: "wrong field" })),
           (_url, init) => {
             methods.push(init?.method);
@@ -318,7 +317,7 @@ describe("Turso management API", () => {
     await withMocks(
       () =>
         stubFetch(
-          new Response(databaseJson()),
+          new Response(databaseJson("database")),
           new Response("denied", { status: 401 }),
           new Response("protected", { status: 409 }),
         ),
@@ -341,7 +340,7 @@ describe("Turso management API", () => {
     await withMocks(
       () =>
         stubFetch(
-          new Response(databaseJson()),
+          new Response(databaseJson("database")),
           new Error("token network failed"),
           new Error("delete network failed"),
         ),

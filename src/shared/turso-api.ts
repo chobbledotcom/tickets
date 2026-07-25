@@ -21,16 +21,30 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 const TURSO_API_BASE = "https://api.turso.tech";
 
+const NonEmptyStringSchema = v.pipe(v.string(), v.nonEmpty());
+const TursoHostnameSchema = v.pipe(
+  NonEmptyStringSchema,
+  v.check((value) => {
+    try {
+      const url = new URL(`https://${value}`);
+      return url.hostname === value && url.port === "";
+    } catch {
+      return false;
+    }
+  }),
+);
 const TursoDatabaseSchema = v.object({
-  DbId: v.string(),
-  Hostname: v.string(),
-  Name: v.string(),
+  DbId: NonEmptyStringSchema,
+  Hostname: TursoHostnameSchema,
+  Name: NonEmptyStringSchema,
 });
 const CreateTursoDatabaseSchema = v.object({ database: TursoDatabaseSchema });
-const TursoTokenSchema = v.object({ jwt: v.string() });
-const TursoOrganizationsSchema = v.array(v.object({ slug: v.string() }));
+const TursoTokenSchema = v.object({ jwt: NonEmptyStringSchema });
+const TursoOrganizationsSchema = v.array(
+  v.object({ slug: NonEmptyStringSchema }),
+);
 const TursoGroupsSchema = v.object({
-  groups: v.array(v.object({ name: v.string() })),
+  groups: v.array(v.object({ name: NonEmptyStringSchema })),
 });
 
 export interface CreateTursoDatabaseRequest {
@@ -52,11 +66,6 @@ export interface TursoApi {
   deleteDatabase(organization: string, name: string): Promise<Result<void>>;
   listGroups(organization: string): Promise<Result<string[]>>;
   listOrganizations(): Promise<Result<string[]>>;
-  uploadDatabase(
-    credentials: DatabaseCredentials,
-    body: BodyInit,
-    contentLength: number,
-  ): Promise<Result<void>>;
 }
 
 /** Turn a site name into a valid Turso database name. */
@@ -161,17 +170,24 @@ export const createTursoApi = (apiToken: string): TursoApi => {
         `Create database failed: ${errorMessage(error)}`,
       );
     }
+    if (database.Name !== name) {
+      return await cleanUpFailedCreate(
+        request.organization,
+        name,
+        `Create database returned an unexpected name: ${database.Name}`,
+      );
+    }
     const dbUrl = `libsql://${database.Hostname}`;
     try {
       const tokenResponse = await apiFetch(
-        `${databasePath(request.organization, database.Name)}/auth/tokens?authorization=full-access`,
+        `${databasePath(request.organization, name)}/auth/tokens?authorization=full-access`,
         { method: "POST" },
       );
       if (!tokenResponse.ok) {
         const failure = parseApiError(tokenResponse, "Generate database token");
         return await cleanUpFailedCreate(
           request.organization,
-          database.Name,
+          name,
           failure.error,
         );
       }
@@ -184,12 +200,12 @@ export const createTursoApi = (apiToken: string): TursoApi => {
         dbId: database.DbId,
         dbToken,
         dbUrl,
-        name: database.Name,
+        name,
       });
     } catch (error) {
       return await cleanUpFailedCreate(
         request.organization,
-        database.Name,
+        name,
         `Generate database token failed: ${errorMessage(error)}`,
       );
     }
@@ -233,20 +249,6 @@ export const createTursoApi = (apiToken: string): TursoApi => {
       return okResult(
         namesFrom(organizations, (organization) => organization.slug),
       );
-    },
-    uploadDatabase: async (credentials, body, contentLength) => {
-      const hostname = new URL(credentials.dbUrl).host;
-      const response = await fetchText(`https://${hostname}/v1/upload`, {
-        body,
-        headers: {
-          Authorization: `Bearer ${credentials.dbToken}`,
-          "Content-Length": String(contentLength),
-        },
-        method: "POST",
-      });
-      return response.ok
-        ? okResult(undefined)
-        : parseApiError(response, "Upload database");
     },
   };
 };

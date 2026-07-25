@@ -1,5 +1,5 @@
 import { join } from "@std/path";
-import { withCleanup } from "#scripts/cleanup.ts";
+import { failAfterCleanups } from "#scripts/cleanup.ts";
 import {
   readSnapshotRequest,
   type SnapshotProgressWriter,
@@ -26,12 +26,19 @@ export interface MigrateTursoCliDeps extends ScriptIo {
   prompt: (message: string) => string | null;
   promptSecret: (message: string) => string | null;
   removeTempDir: (path: string) => Promise<void>;
+  signal: AbortSignal;
   uploadDatabaseFile: (
     path: string,
-    api: TursoApi,
     credentials: TursoDatabaseCredentials,
+    signal: AbortSignal,
   ) => Promise<void>;
   verifyUploadFile: (path: string) => Promise<void>;
+}
+
+interface MigrationOutcome {
+  cleanupError: unknown | null;
+  credentials: TursoDatabaseCredentials;
+  tempDirectory: string;
 }
 
 class MigrationCancelled extends Error {}
@@ -104,18 +111,22 @@ const migrateSnapshot = async (
   organization: string,
   group: string,
   name: string,
-): Promise<TursoDatabaseCredentials> => {
+): Promise<MigrationOutcome> => {
   const tempDirectory = await deps.makeTempDir();
-  return await withCleanup(async () => {
+  let credentials: TursoDatabaseCredentials;
+  try {
+    deps.signal.throwIfAborted();
     deps.stdout("Downloading the source database...");
     const path = await deps.createSnapshot(
       { ...source, outputPath: join(tempDirectory, "database.sqlite") },
       deps.stdout,
     );
+    deps.signal.throwIfAborted();
     deps.stdout("Checking the SQLite file for Turso...");
     await deps.verifyUploadFile(path);
+    deps.signal.throwIfAborted();
     deps.stdout("Creating the Turso database...");
-    const credentials = requireSuccess(
+    credentials = requireSuccess(
       await api.createDatabase({
         group,
         name,
@@ -125,7 +136,9 @@ const migrateSnapshot = async (
     );
     deps.stdout("Uploading the SQLite file...");
     try {
-      await deps.uploadDatabaseFile(path, api, credentials);
+      deps.signal.throwIfAborted();
+      await deps.uploadDatabaseFile(path, credentials, deps.signal);
+      deps.signal.throwIfAborted();
     } catch (error) {
       return await deleteIncompleteDatabase(
         api,
@@ -134,8 +147,19 @@ const migrateSnapshot = async (
         error,
       );
     }
-    return credentials;
-  }, [() => deps.removeTempDir(tempDirectory)]);
+  } catch (error) {
+    return await failAfterCleanups(error, [
+      () => deps.removeTempDir(tempDirectory),
+    ]);
+  }
+
+  let cleanupError: unknown | null = null;
+  try {
+    await deps.removeTempDir(tempDirectory);
+  } catch (error) {
+    cleanupError = error;
+  }
+  return { cleanupError, credentials, tempDirectory };
 };
 
 /** Run the interactive source-to-Turso database migration. */
@@ -179,19 +203,21 @@ export const runMigrateTursoCli = async (
       configuredValue(deps, "TURSO_ORGANIZATION"),
       requireSuccess(await api.listOrganizations()),
     );
+    deps.signal.throwIfAborted();
     const group = chooseTursoName(
       deps,
       "group",
       configuredValue(deps, "TURSO_GROUP"),
       requireSuccess(await api.listGroups(organization)),
     );
+    deps.signal.throwIfAborted();
     if (requireSuccess(await api.databaseExists(organization, name))) {
       throw new Error(`Turso database already exists: ${organization}/${name}`);
     }
 
     deps.stdout(`Destination database: ${organization}/${name}`);
     deps.stdout(`Turso group: ${group}`);
-    const credentials = await migrateSnapshot(
+    const outcome = await migrateSnapshot(
       deps,
       api,
       { dbToken: source.dbToken, dbUrl: source.dbUrl },
@@ -200,13 +226,26 @@ export const runMigrateTursoCli = async (
       name,
     );
     deps.stdout("Database migrated to Turso.");
-    deps.stdout(`DB_URL=${credentials.dbUrl}`);
-    deps.stdout(`DB_TOKEN=${credentials.dbToken}`);
+    deps.stdout(`DB_URL=${outcome.credentials.dbUrl}`);
+    deps.stdout(`DB_TOKEN=${outcome.credentials.dbToken}`);
     deps.stdout(
       "Keep using the source DB_ENCRYPTION_KEY. It is not stored in the database file.",
     );
+    if (outcome.cleanupError !== null) {
+      deps.stderr(
+        `The database was migrated, but temporary files could not be removed: ${errorMessage(
+          outcome.cleanupError,
+        )}`,
+      );
+      deps.stderr(`Remove this directory: ${outcome.tempDirectory}`);
+      return 1;
+    }
     return 0;
   } catch (error) {
+    if (deps.signal.aborted) {
+      deps.stderr("Migration interrupted.");
+      return 130;
+    }
     deps.stderr(
       error instanceof MigrationCancelled
         ? error.message

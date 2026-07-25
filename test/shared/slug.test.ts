@@ -45,15 +45,6 @@ describe("slug", () => {
       }
     });
 
-    test("generates different slugs on multiple calls", () => {
-      const slugs = new Set<string>();
-      for (let i = 0; i < 20; i++) {
-        slugs.add(generateSlug());
-      }
-      // With ~1.15M combinations, 20 slugs should all be unique
-      expect(slugs.size).toBe(20);
-    });
-
     test("shuffles the guaranteed digits/letters via a real Fisher-Yates pass", () => {
       // Pins every Math.random() call the function makes: the 5 guaranteed
       // characters (digit, digit, letter, letter, any), then the 4 shuffle

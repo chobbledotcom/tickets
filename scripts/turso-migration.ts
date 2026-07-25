@@ -5,6 +5,7 @@ import { promptSecret } from "@std/cli/prompt-secret";
 import { load } from "@std/dotenv";
 import { createDatabaseSnapshot } from "#scripts/database-snapshot-lib.ts";
 import { runDenoScript } from "#scripts/script-runner.ts";
+import { onTerminationSignals } from "#scripts/termination-signals.ts";
 import {
   uploadTursoDatabaseFile,
   verifyTursoUploadFile,
@@ -13,6 +14,11 @@ import { runMigrateTursoCli } from "#scripts/turso-migration-lib.ts";
 import { createTursoApi } from "#shared/turso-api.ts";
 
 const fileEnv = await load();
+const interruption = new AbortController();
+onTerminationSignals(() => {
+  if (interruption.signal.aborted) Deno.exit(130);
+  interruption.abort(new Error("Migration interrupted"));
+});
 await runDenoScript((io) =>
   runMigrateTursoCli({
     ...io,
@@ -24,6 +30,7 @@ await runDenoScript((io) =>
     prompt,
     promptSecret: (message) => promptSecret(message, { mask: "" }),
     removeTempDir: (path) => Deno.remove(path, { recursive: true }),
+    signal: interruption.signal,
     uploadDatabaseFile: uploadTursoDatabaseFile,
     verifyUploadFile: (path) => verifyTursoUploadFile(path, createClient),
   }),

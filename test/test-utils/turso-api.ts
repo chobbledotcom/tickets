@@ -1,4 +1,3 @@
-import type { DatabaseCredentials } from "#shared/provider-types.ts";
 import { okResult } from "#shared/result.ts";
 import type {
   CreateTursoDatabaseRequest,
@@ -10,14 +9,8 @@ export const TEST_TURSO_CREDENTIALS: TursoDatabaseCredentials = {
   dbId: "database-id",
   dbToken: "database-token",
   dbUrl: "libsql://destination.turso.io",
-  name: "destination",
+  name: "destination-database",
 };
-
-const unusedUpload = (
-  _credentials: DatabaseCredentials,
-  _body: BodyInit,
-  _contentLength: number,
-) => Promise.resolve(okResult(undefined));
 
 /** A successful Turso API fake whose individual operations can be replaced. */
 export const fakeTursoApi = (overrides: Partial<TursoApi> = {}): TursoApi => ({
@@ -29,6 +22,5 @@ export const fakeTursoApi = (overrides: Partial<TursoApi> = {}): TursoApi => ({
     Promise.resolve(okResult(undefined)),
   listGroups: (_organization: string) => Promise.resolve(okResult(["default"])),
   listOrganizations: () => Promise.resolve(okResult(["personal"])),
-  uploadDatabase: unusedUpload,
   ...overrides,
 });
