@@ -8,6 +8,7 @@ import type { Envelope } from "@cucumber/messages";
 import { projectRoot } from "#scripts/project-root.ts";
 import { readSpecCatalog } from "./catalog.ts";
 import { messageIssues } from "./messages.ts";
+import { shouldCheckUnusedSteps } from "./options.ts";
 
 export interface RunSpecsOptions {
   enforceUnused?: boolean;
@@ -68,7 +69,7 @@ export const runSpecs = async (
   const paths = options.paths ?? ["specs"];
   await readSpecCatalog(paths);
   const complete: Required<RunSpecsOptions> = {
-    enforceUnused: options.enforceUnused ?? options.paths === undefined,
+    enforceUnused: options.enforceUnused ?? shouldCheckUnusedSteps(options),
     paths,
     reports: options.reports ?? true,
     supportPaths: options.supportPaths ?? DEFAULT_SUPPORT,

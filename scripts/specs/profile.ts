@@ -1,46 +1,35 @@
+import { dialects } from "@cucumber/gherkin";
 import {
   type Examples,
   type Feature,
   IdGenerator,
   type Rule,
   type Scenario,
-  type Tag,
 } from "@cucumber/messages";
 import { invalidSpec } from "./errors.ts";
 import { gherkinEnvelopes, parseGherkinSource } from "./gherkin.ts";
+import {
+  addCaseId,
+  ensureAllowed,
+  idFor,
+  type ParsedTag,
+  requiredTagValues,
+  tagsFor,
+  type ValidationState,
+  valuesFor,
+} from "./metadata.ts";
 import type {
-  SpecCase,
   SpecCatalog,
+  SpecItem,
   SpecRegistry,
   SpecRule,
   SpecSource,
   SpecStory,
 } from "./types.ts";
 
-const ID_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
-const KNOWN_TAGS = new Set([
-  "actor",
-  "case",
-  "edition",
-  "owner",
-  "risk",
-  "rule",
-  "story",
-  "surface",
-]);
-
-interface ParsedTag {
-  key: string;
-  line: number;
-  name: string;
-  value: string;
-}
-
-interface ValidationState {
-  ids: Set<string>;
-  registry: SpecRegistry;
-  uri: string;
-}
+const OUTLINE_KEYWORDS = new Set(
+  Object.values(dialects).flatMap(({ scenarioOutline }) => scenarioOutline),
+);
 
 const cleanDescription = (description: string): string =>
   description
@@ -49,104 +38,6 @@ const cleanDescription = (description: string): string =>
     .map((line) => line.trim())
     .filter(Boolean)
     .join(" ");
-
-const unknownTag = (
-  tag: Pick<ParsedTag, "line" | "name">,
-  uri: string,
-): never => invalidSpec(uri, tag.line, `Unknown tag ${tag.name}`);
-
-const parseTag = (tag: Tag, uri: string): ParsedTag => {
-  const name = tag.name;
-  const splitAt = name.indexOf(":");
-  const key = name.slice(1, splitAt);
-  if (splitAt < 2 || splitAt === name.length - 1 || !KNOWN_TAGS.has(key)) {
-    return unknownTag({ line: tag.location.line, name }, uri);
-  }
-  return { key, line: tag.location.line, name, value: name.slice(splitAt + 1) };
-};
-
-const parseTags = (tags: readonly Tag[], uri: string): ParsedTag[] =>
-  tags.map((tag) => parseTag(tag, uri));
-
-const valuesFor = (tags: ParsedTag[], key: string): string[] =>
-  tags.filter((tag) => tag.key === key).map((tag) => tag.value);
-
-const requiredTagValues = (
-  tags: ParsedTag[],
-  key: string,
-  uri: string,
-  line: number,
-  quantity: "one" | "some",
-): string[] => {
-  const values = valuesFor(tags, key);
-  const valid = quantity === "one" ? values.length === 1 : values.length > 0;
-  if (!valid) {
-    const amount = quantity === "one" ? "exactly one" : "at least one";
-    return invalidSpec(uri, line, `Expected ${amount} @${key}: tag`);
-  }
-  return values;
-};
-
-const rejectUnknownTags = (
-  tags: ParsedTag[],
-  uri: string,
-  allowed: (tag: ParsedTag) => boolean,
-): void => {
-  for (const tag of tags) {
-    if (!allowed(tag)) unknownTag(tag, uri);
-  }
-};
-
-const ensureAllowed = (
-  tags: ParsedTag[],
-  allowed: readonly string[],
-  field: "key" | "value",
-  uri: string,
-): void => {
-  rejectUnknownTags(tags, uri, (tag) => allowed.includes(tag[field]));
-};
-
-const addId = (
-  state: ValidationState,
-  kind: "case" | "rule" | "story",
-  id: string,
-  line: number,
-): void => {
-  if (!ID_PATTERN.test(id)) {
-    invalidSpec(state.uri, line, `Invalid ${kind} id ${id}`);
-  }
-  const tagged = `@${kind}:${id}`;
-  if (state.ids.has(tagged))
-    invalidSpec(state.uri, line, `Duplicate ${tagged}`);
-  state.ids.add(tagged);
-};
-
-const tagsFor = (
-  tags: readonly Tag[],
-  allowed: string[],
-  state: ValidationState,
-): ParsedTag[] => {
-  const parsed = parseTags(tags, state.uri);
-  ensureAllowed(parsed, [...allowed, "surface"], "key", state.uri);
-  ensureAllowed(
-    parsed.filter((tag) => tag.key === "surface"),
-    state.registry.surfaces,
-    "value",
-    state.uri,
-  );
-  return parsed;
-};
-
-const idFor = (
-  tags: ParsedTag[],
-  kind: "case" | "rule" | "story",
-  state: ValidationState,
-  line: number,
-): string => {
-  const id = requiredTagValues(tags, kind, state.uri, line, "one").join("");
-  addId(state, kind, id, line);
-  return id;
-};
 
 const requireDescription = (
   kind: "Feature" | "Rule",
@@ -170,13 +61,20 @@ const placeholdersIn = (scenario: Scenario): Set<string> =>
 
 const outlineCases = (
   scenario: Scenario,
+  scenarioTags: ParsedTag[],
   state: ValidationState,
-): SpecCase[] => {
-  const cases: SpecCase[] = [];
+): SpecItem[] => {
+  const cases: SpecItem[] = [];
   const placeholders = placeholdersIn(scenario);
   for (const examples of scenario.examples) {
     cases.push(
-      ...casesFromExamples(examples, placeholders, scenario.name, state),
+      ...casesFromExamples(
+        examples,
+        placeholders,
+        scenario.name,
+        valuesFor(scenarioTags, "surface"),
+        state,
+      ),
     );
   }
   if (cases.length === 0) {
@@ -193,8 +91,13 @@ const casesFromExamples = (
   examples: Examples,
   placeholders: Set<string>,
   scenarioName: string,
+  scenarioSurfaces: string[],
   state: ValidationState,
-): SpecCase[] => {
+): SpecItem[] => {
+  const tags = tagsFor(examples.tags, [], state);
+  const surfaces = [
+    ...new Set([...scenarioSurfaces, ...valuesFor(tags, "surface")]),
+  ];
   const header = examples.tableHeader;
   if (!header) {
     return invalidSpec(
@@ -245,17 +148,20 @@ const casesFromExamples = (
     if (!id) {
       invalidSpec(state.uri, row.location.line, "Examples case_id is required");
     }
-    addId(state, "case", id, row.location.line);
-    return { id, line: row.location.line, name: scenarioName };
+    addCaseId(state, id, row.location.line);
+    return { id, line: row.location.line, name: scenarioName, surfaces };
   });
 };
 
 const scenarioCases = (
   scenario: Scenario,
   state: ValidationState,
-): SpecCase[] => {
+): SpecItem[] => {
   const tags = tagsFor(scenario.tags, ["case"], state);
-  if (scenario.examples.length > 0) {
+  if (scenario.steps.length === 0) {
+    invalidSpec(state.uri, scenario.location.line, "Scenario needs a step");
+  }
+  if (OUTLINE_KEYWORDS.has(scenario.keyword)) {
     if (valuesFor(tags, "case").length > 0) {
       invalidSpec(
         state.uri,
@@ -263,10 +169,17 @@ const scenarioCases = (
         "Scenario Outline case ids belong in Examples",
       );
     }
-    return outlineCases(scenario, state);
+    return outlineCases(scenario, tags, state);
   }
   const id = idFor(tags, "case", state, scenario.location.line);
-  return [{ id, line: scenario.location.line, name: scenario.name }];
+  return [
+    {
+      id,
+      line: scenario.location.line,
+      name: scenario.name,
+      surfaces: valuesFor(tags, "surface"),
+    },
+  ];
 };
 
 const storyRule = (rule: Rule, state: ValidationState): SpecRule => {
@@ -293,6 +206,7 @@ const storyRule = (rule: Rule, state: ValidationState): SpecRule => {
     id,
     line: rule.location.line,
     name: rule.name,
+    surfaces: valuesFor(tags, "surface"),
   };
 };
 
@@ -367,6 +281,7 @@ const storyFromFeature = (
     owner: oneFeatureValue("owner"),
     risk: oneFeatureValue("risk"),
     rules,
+    surfaces: valuesFor(tags, "surface"),
     uri: state.uri,
   };
 };

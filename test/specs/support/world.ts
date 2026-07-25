@@ -1,4 +1,5 @@
 import type { World } from "@cucumber/cucumber";
+import { runCleanups } from "#scripts/cleanup.ts";
 
 export interface TicketsWorld extends World {
   cleanup: Array<() => void | Promise<void>>;
@@ -12,6 +13,10 @@ export interface TicketsWorld extends World {
   secondStatus?: number;
   sessionId?: string;
 }
+
+export const cleanupWorld = (
+  world: Pick<TicketsWorld, "cleanup">,
+): Promise<void> => runCleanups(world.cleanup.reverse());
 
 export const requiredWorldValue = <Value>(
   value: Value | undefined,

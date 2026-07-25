@@ -1,60 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { validateSpecSources } from "#scripts/specs/profile.ts";
-import type { SpecRegistry } from "#scripts/specs/types.ts";
-
-const registry: SpecRegistry = {
-  actors: ["customer", "organiser"],
-  editions: ["managed", "self-hosted"],
-  owners: ["payments"],
-  risks: ["high", "medium", "low"],
-  surfaces: ["return", "webhook"],
-};
-
-const validFeature = `
-@story:payments.capacity-after-payment
-@owner:payments @risk:high
-@actor:customer @actor:organiser
-@edition:managed @edition:self-hosted
-Feature: Paid booking capacity
-  Customers get a clear result when the last place is taken during payment.
-
-  @rule:payments.available-place-is-booked
-  Rule: A paid customer receives a place while one remains
-    The confirmed payment creates the promised booking.
-
-    @case:payment.place-available
-    Scenario: Payment is confirmed before the last place is taken
-      Given a paid listing has one place left
-      When a customer payment is confirmed
-      Then the customer receives a ticket
-`;
-
-const source = (
-  data = validFeature,
-  uri = "specs/payments/capacity.feature",
-) => ({ data, uri });
-
-const replace = (from: string, to: string): string =>
-  validFeature.replace(from, to);
-
-const outlineFeature = validFeature.replace(
-  / {4}@case:[\s\S]*$/,
-  `    Scenario Outline: Payment result <case_id>
-      Given a paid listing has <places> places left
-      When a customer payment is confirmed
-      Then the customer receives a ticket
-
-      Examples:
-        | case_id          | places |
-        | payment.one-left | 1      |
-        | payment.two-left | 2      |
-`,
-);
-
-const expectInvalid = (data: string, message: string): void => {
-  expect(() => validateSpecSources([source(data)], registry)).toThrow(message);
-};
+import {
+  expectInvalid,
+  outlineFeature,
+  registry,
+  replace,
+  source,
+  validFeature,
+} from "./profile-fixture.ts";
 
 describe("Cucumber specification profile", () => {
   test("builds a stable story catalog from valid Gherkin", () => {
@@ -80,14 +34,17 @@ describe("Cucumber specification profile", () => {
                 id: "payment.place-available",
                 line: 14,
                 name: "Payment is confirmed before the last place is taken",
+                surfaces: [],
               },
             ],
             description: "The confirmed payment creates the promised booking.",
             id: "payments.available-place-is-booked",
             line: 10,
             name: "A paid customer receives a place while one remains",
+            surfaces: [],
           },
         ],
+        surfaces: [],
         uri: "specs/payments/capacity.feature",
       },
     ]);
@@ -237,6 +194,30 @@ describe("Cucumber specification profile", () => {
     ).toThrow("placeholder <missing>");
   });
 
+  test("rejects a Scenario Outline without Examples", () => {
+    expectInvalid(
+      outlineFeature.replace(/\n {6}Examples:[\s\S]*$/, "\n"),
+      "Scenario Outline needs Examples",
+    );
+  });
+
+  test("rejects a Scenario without steps", () => {
+    expectInvalid(
+      validFeature.replace(/\n {6}Given[\s\S]*$/, "\n"),
+      "Scenario needs a step",
+    );
+  });
+
+  test("rejects misplaced tags on Examples", () => {
+    expectInvalid(
+      outlineFeature.replace(
+        "      Examples:",
+        "      @owner:payments\n      Examples:",
+      ),
+      "Unknown tag @owner:payments",
+    );
+  });
+
   test("rejects malformed and misplaced metadata tags", () => {
     expectInvalid(
       replace("@risk:high", "@risk:high @surface"),
@@ -362,13 +343,25 @@ describe("Cucumber specification profile", () => {
     expectInvalid("# This file has no Feature\n", "Feature is required");
   });
 
-  test("allows registered surfaces and rejects malformed ids", () => {
-    expect(
-      validateSpecSources(
-        [source(replace("@risk:high", "@risk:high @surface:webhook"))],
-        registry,
-      ).stories,
-    ).toHaveLength(1);
+  test("keeps registered surfaces at their authored scope", () => {
+    const scoped = outlineFeature
+      .replace("@risk:high", "@risk:high @surface:webhook")
+      .replace("  @rule:", "  @surface:return\n  @rule:")
+      .replace(
+        "    Scenario Outline:",
+        "    @surface:webhook\n    Scenario Outline:",
+      )
+      .replace("      Examples:", "      @surface:return\n      Examples:");
+    const story = validateSpecSources([source(scoped)], registry).stories[0];
+    expect(story?.surfaces).toEqual(["webhook"]);
+    expect(story?.rules[0]?.surfaces).toEqual(["return"]);
+    expect(story?.rules[0]?.cases.map(({ surfaces }) => surfaces)).toEqual([
+      ["webhook", "return"],
+      ["webhook", "return"],
+    ]);
+  });
+
+  test("rejects malformed ids", () => {
     expect(() =>
       validateSpecSources(
         [source(replace("payment.place-available", "Payment.place"))],

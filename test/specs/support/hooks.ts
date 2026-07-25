@@ -2,7 +2,7 @@ import { After, AfterAll, Before } from "@cucumber/cucumber";
 import { setupTestDbEnvironment } from "#test-utils/db.ts";
 import { clearTestEncryptionKey } from "#test-utils/env.ts";
 import { reclaimLeakedFdsNow } from "#test-utils/reclaim-fds.ts";
-import type { TicketsWorld } from "./world.ts";
+import { cleanupWorld, type TicketsWorld } from "./world.ts";
 
 Before(async function (this: TicketsWorld): Promise<void> {
   this.cleanup = [];
@@ -14,7 +14,7 @@ Before(async function (this: TicketsWorld): Promise<void> {
 });
 
 After(async function (this: TicketsWorld): Promise<void> {
-  for (const cleanup of this.cleanup.reverse()) await cleanup();
+  await cleanupWorld(this);
 });
 
 AfterAll((): void => {

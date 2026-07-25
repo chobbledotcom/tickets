@@ -9,6 +9,14 @@ export interface FocusedTargets {
   testArgs: string[];
 }
 
+interface SpecSelection {
+  paths?: readonly string[];
+  tags?: string;
+}
+
+export const shouldCheckUnusedSteps = (selection: SpecSelection): boolean =>
+  selection.paths === undefined && selection.tags === undefined;
+
 export const parseSpecArgs = (args: string[]): SpecCliOptions => {
   const paths: string[] = [];
   let tags: string | undefined;

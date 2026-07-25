@@ -11,27 +11,22 @@ export interface SpecSource {
   uri: string;
 }
 
-export interface SpecCase {
+export interface SpecItem {
   id: string;
   line: number;
   name: string;
+  surfaces: string[];
 }
 
-export interface SpecRule {
-  cases: SpecCase[];
+export interface SpecRule extends SpecItem {
+  cases: SpecItem[];
   description: string;
-  id: string;
-  line: number;
-  name: string;
 }
 
-export interface SpecStory {
+export interface SpecStory extends SpecItem {
   actors: string[];
   description: string;
   editions: string[];
-  id: string;
-  line: number;
-  name: string;
   owner: string;
   risk: string;
   rules: SpecRule[];

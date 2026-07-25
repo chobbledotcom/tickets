@@ -136,6 +136,7 @@ scripts/specs/
 |-- errors.ts
 |-- gherkin.ts
 |-- messages.ts
+|-- metadata.ts
 |-- options.ts
 |-- profile.ts
 |-- run.ts
@@ -184,10 +185,12 @@ DocString and DataTable.
 
 - story, rule, case, owner, actor, risk, edition, or classification tags are missing, duplicated, or unknown
 - a Scenario is outside a Rule
+- a Scenario has no steps, or an Outline has no Examples
 - a Feature or Rule has no useful description or executable case
 - stable IDs are duplicated or malformed
 - an Outline omits `case_id`, repeats a case ID, has duplicate headers, or has missing/extra cells
 - a placeholder has no Examples column or a column is unused
+- Examples metadata is misplaced or uses an unknown surface
 - a DataTable does not match the schema declared by its step
 - a DocString lacks its required media type or does not parse as that type
 - a step is undefined or matches more than one definition

@@ -6,7 +6,12 @@ import {
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { messageIssues } from "#scripts/specs/messages.ts";
-import { focusedTargets, parseSpecArgs } from "#scripts/specs/options.ts";
+import {
+  focusedTargets,
+  parseSpecArgs,
+  shouldCheckUnusedSteps,
+} from "#scripts/specs/options.ts";
+import { cleanupWorld, requiredWorldValue } from "#test/specs/support/world.ts";
 
 const timestamp = { nanos: 0, seconds: 0 };
 
@@ -70,6 +75,40 @@ describe("Cucumber runner", () => {
 
   test("allows focused runs to leave unrelated definitions unused", () => {
     expect(messageIssues([stepDefinition("unused")], false)).toEqual([]);
+    expect(shouldCheckUnusedSteps({})).toBe(true);
+    expect(shouldCheckUnusedSteps({ paths: ["specs/example.feature"] })).toBe(
+      false,
+    );
+    expect(shouldCheckUnusedSteps({ tags: "@risk:high" })).toBe(false);
+  });
+
+  test("runs every scenario cleanup after one fails", async () => {
+    const calls: string[] = [];
+    const restoreError = new Error("restore failed");
+    const error = await cleanupWorld({
+      cleanup: [
+        () => {
+          calls.push("database");
+        },
+        () => {
+          calls.push("provider");
+          throw restoreError;
+        },
+      ],
+    }).catch((error) => error);
+
+    expect(calls).toEqual(["provider", "database"]);
+    expect(error).toBe(restoreError);
+  });
+
+  test("returns a required World value", () => {
+    expect(requiredWorldValue("stored", "result")).toBe("stored");
+  });
+
+  test("rejects a missing required World value", () => {
+    expect(() => requiredWorldValue(undefined, "result")).toThrow(
+      "result was not set",
+    );
   });
 
   test("parses focused paths and a tag expression", () => {
